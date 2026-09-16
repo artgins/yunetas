@@ -143,6 +143,22 @@ PRIVATE uint16_t mqtt_mid_generate(hgobj gobj);
 PRIVATE int db__message_write_queued_in(hgobj gobj);
 
 /***************************************************************************
+ *  The peer this connection speaks for, for a LOG.
+ *
+ *  A decoder warning names a malformed or hostile packet, and the one
+ *  thing an operator needs of it is who sent it -- the message alone
+ *  says a broker with a thousand sessions had a bad packet, which is
+ *  not actionable. The name lives on the bottom gobj (the transport),
+ *  not here, and the bottom can be gone by the time a late error is
+ *  logged, so this answers "" rather than dereferencing nothing.
+ ***************************************************************************/
+PRIVATE const char *peer_of(hgobj gobj)
+{
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    return bottom? gobj_read_str_attr(bottom, "peername") : "";
+}
+
+/***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -813,6 +829,7 @@ PRIVATE int message__out_update(
                 "mid",          "%d", (int)mid,
                 "msg_qos",      "%d", msg_qos,
                 "expected_qos", "%d", qos,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             return MOSQ_ERR_PROTOCOL;
@@ -2262,6 +2279,7 @@ PRIVATE int mqtt_read_uint16(hgobj gobj, gbuffer_t *gbuf, uint16_t *word)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
@@ -2288,6 +2306,7 @@ PRIVATE int mqtt_read_uint32(hgobj gobj, gbuffer_t *gbuf, uint32_t *word)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
@@ -2314,6 +2333,7 @@ PRIVATE int mqtt_read_bytes(hgobj gobj, gbuffer_t *gbuf, void *bf, int bflen)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
@@ -2335,6 +2355,7 @@ PRIVATE int mqtt_read_byte(hgobj gobj, gbuffer_t *gbuf, uint8_t *byte)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
@@ -2361,6 +2382,7 @@ PRIVATE int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
@@ -2378,6 +2400,7 @@ PRIVATE int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
@@ -2410,6 +2433,7 @@ PRIVATE int mqtt_read_string(hgobj gobj, gbuffer_t *gbuf, char **str, uint16_t *
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "malformed utf8",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         gobj_trace_dump(gobj, *str, MIN(*length, MAX_LOG_DUMP_SIZE), "malformed utf8");
@@ -2437,6 +2461,7 @@ PRIVATE int mqtt_read_varint(hgobj gobj, gbuffer_t *gbuf, uint32_t *word, uint8_
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_MALFORMED_PACKET;
@@ -2469,6 +2494,7 @@ PRIVATE int mqtt_read_varint(hgobj gobj, gbuffer_t *gbuf, uint32_t *word, uint8_
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_MQTT,
         "msg",          "%s", "Mqtt malformed packet, not enough data",
+        "peername",     "%s", peer_of(gobj),
         NULL
     );
     //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
@@ -2493,6 +2519,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "msg",          "%s", "Mqtt invalid property of command",
                     "command",      "%d", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2507,6 +2534,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "msg",          "%s", "Mqtt invalid property of command",
                     "command",      "%d", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2521,6 +2549,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "msg",          "%s", "Mqtt invalid property of command",
                     "command",      "%d", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2536,6 +2565,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "msg",          "%s", "Mqtt invalid property of command",
                     "command",      "%d", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2557,6 +2587,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "msg",          "%s", "Mqtt invalid property of command",
                     "command",      "%d", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2571,6 +2602,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "msg",          "%s", "Mqtt invalid property of command",
                     "command",      "%d", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2586,6 +2618,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "msg",          "%s", "Mqtt invalid property of command",
                     "command",      "%d", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2600,6 +2633,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "msg",          "%s", "Mqtt invalid property of command",
                     "command",      "%d", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2615,6 +2649,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "msg",          "%s", "Mqtt invalid property of command",
                     "command",      "%d", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2631,6 +2666,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "msg",          "%s", "Mqtt invalid property of command",
                     "command",      "%d", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2645,6 +2681,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "msg",          "%s", "Mqtt invalid property of command",
                     "command",      "%d", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2661,6 +2698,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                 "msg",          "%s", "Mqtt unknown property of command",
                 "command",      "%d", mqtt_command_string(command),
                 "identifier",   "%d", identifier,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             return MOSQ_ERR_MALFORMED_PACKET;
@@ -2696,6 +2734,7 @@ PRIVATE int property_len_consume(hgobj gobj, uint32_t *len, uint32_t consumed, c
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "MQTT property length underflow",
             "property",     "%s", property_name?property_name:"",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return -1;
@@ -2730,6 +2769,7 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             "property_type","%d", (int)property_identifier,
             "property_name","%s", property_name,
             "mqtt_error",   "%d", MOSQ_ERR_DUPLICATE_PROPERTY,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_DUPLICATE_PROPERTY;
@@ -2891,6 +2931,7 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt Unsupported property type",
                 "property_type","%d", (int)property_identifier,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             JSON_DECREF(property);
@@ -2933,6 +2974,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt check property failed 1",
                     "property",     "%j", property,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2945,6 +2987,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt check property failed 2",
                     "property",     "%j", property,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -2959,6 +3002,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt check property failed 3",
                     "property",     "%j", property,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -3144,6 +3188,7 @@ PRIVATE json_int_t property_read_varint(json_t *properties, int identifier)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Bad variant property identifier",
             "identifier",   "%d", identifier,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
     }
@@ -3202,6 +3247,7 @@ PRIVATE const char *property_read_string(json_t *properties, int identifier)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Bad string property identifier",
             "identifier",   "%d", identifier,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
     }
@@ -3332,6 +3378,7 @@ PRIVATE int property_process_will(hgobj gobj, json_t *all_properties)
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt auth: will property unknown",
                     "identifier",   "%d", identifier,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 return -1;
@@ -3469,6 +3516,7 @@ PRIVATE int send__connect(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "client id required in mqtt31 protocol",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         JSON_DECREF(properties);
@@ -3818,6 +3866,7 @@ PRIVATE int handle__pingreq_s(hgobj gobj)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt CMD_PINGREQ and not broker",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_PROTOCOL;
@@ -3836,6 +3885,7 @@ PRIVATE int handle__pingresp_c(hgobj gobj)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt CMD_PINGRESP: not in session",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_PROTOCOL;
@@ -3848,6 +3898,7 @@ PRIVATE int handle__pingresp_c(hgobj gobj)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt CMD_PINGREQ: not bridge",
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             return MOSQ_ERR_PROTOCOL;
@@ -4338,6 +4389,7 @@ PRIVATE int will__read(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt will: not topic",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_PROTOCOL;
@@ -4350,6 +4402,7 @@ PRIVATE int will__read(
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt will: invalid topic",
             "topic",        "%s", will_topic,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return ret;
@@ -4390,6 +4443,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt CMD_CONNECT: already in session",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return -1;
@@ -4400,6 +4454,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt CMD_CONNECT: not server",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return -1;
@@ -4418,6 +4473,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt CMD_CONNECT: gbuf NULL",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return -1;
@@ -4433,6 +4489,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt CMD_CONNECT: invalid MQTT protocol name length",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return -1;
@@ -4455,6 +4512,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt Invalid protocol version",
                 "version",      "%d", (int)version_byte,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             send__connack(gobj, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
@@ -4479,6 +4537,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt Invalid protocol version",
                 "version",      "%d", (int)version_byte,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             send__connack(gobj, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
@@ -4491,6 +4550,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt Reserved flags not set to 0",
                 "flags",        "%d", (int)priv->frame_head.flags,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             return -1;
@@ -4502,6 +4562,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt Invalid protocol",
             "protocol",     "%s", protocol_name,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return -1;
@@ -4517,6 +4578,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt bridge not supported",
             "version",      "%d", (int)version_byte,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         send__connack(gobj, 0, MQTT_RC_UNSPECIFIED, NULL);
@@ -4574,6 +4636,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: no connect_flags ",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return -1;
@@ -4586,6 +4649,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt: bad connect_flags",
                 "connect_flags","%d", (int)connect_flags,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             return -1;
@@ -4610,6 +4674,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: Invalid Will QoS in CONNECT",
             "connect_flags","%d", (int)connect_flags,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return -1;
@@ -4624,6 +4689,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: retain not available",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         if(version_byte == mosq_p_mqtt5) {
@@ -4672,6 +4738,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: Unsupporred Will QoS in CONNECT",
             "connect_flags","%d", (int)connect_flags,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return -1;
@@ -4728,6 +4795,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: bad client id",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         JSON_DECREF(connect_properties);
@@ -4740,6 +4808,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt: no client id",
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
@@ -4754,6 +4823,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt: refuse empty client id",
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 if(protocol_version == mosq_p_mqtt311) {
@@ -4776,6 +4846,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT,
                         "msg",          "%s", "Mqtt: client_id_gen() FAILED",
+                        "peername",     "%s", peer_of(gobj),
                         NULL
                     );
                     JSON_DECREF(connect_properties);
@@ -4806,6 +4877,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "msg",          "%s", "Mqtt: client_id too long",
             "client_id_len", "%d", (int)client_id_len,
             "max_len",      "%d", (int)(NAME_MAX - 4),
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         if(protocol_version == mosq_p_mqtt5) {
@@ -4823,6 +4895,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: client_id contains invalid character '/'",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         if(protocol_version == mosq_p_mqtt5) {
@@ -4840,6 +4913,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: client_id contains invalid character '`'",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         if(protocol_version == mosq_p_mqtt5) {
@@ -4858,6 +4932,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: client_id cannot be '.' or '..'",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         if(protocol_version == mosq_p_mqtt5) {
@@ -4879,6 +4954,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt: will__read FAILED()",
                 "client_id",    "%s", priv->client_id,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             JSON_DECREF(connect_properties);
@@ -4892,6 +4968,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt: will_qos will_retain",
                     "client_id",    "%s", priv->client_id,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 JSON_DECREF(connect_properties);
@@ -4917,6 +4994,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt: no username",
                     "client_id",    "%s", priv->client_id,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 JSON_DECREF(connect_properties);
@@ -4932,6 +5010,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt: password without username",
                     "client_id",    "%s", priv->client_id,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 JSON_DECREF(connect_properties);
@@ -4949,6 +5028,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt: Password flag given, but no password",
                     "client_id",    "%s", priv->client_id,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 JSON_DECREF(connect_properties);
@@ -4966,6 +5046,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: too much data",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         JSON_DECREF(connect_properties);
@@ -4982,6 +5063,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: AUTHORIZATION METHOD not supported",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         send__connack(gobj, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL); // por contestar algo
@@ -5278,6 +5360,7 @@ PRIVATE int handle__connack(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_PROTOCOL;
@@ -5287,6 +5370,7 @@ PRIVATE int handle__connack(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_PROTOCOL;
@@ -5309,6 +5393,7 @@ PRIVATE int handle__connack(
                 "msg",          "%s", "Error in properties",
                 "command",      "%s", mqtt_command_string(CMD_CONNACK),
                 "reason",       "%s", mqtt_reason_string(MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION),
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             json_object_set_new(
@@ -5327,6 +5412,7 @@ PRIVATE int handle__connack(
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Error in properties",
                 "command",      "%s", mqtt_command_string(CMD_CONNACK),
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             JSON_DECREF(jn_data)
@@ -5345,6 +5431,7 @@ PRIVATE int handle__connack(
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "assigned client identifier",
                     "command",      "%s", mqtt_command_string(CMD_CONNACK),
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
 
@@ -5473,6 +5560,7 @@ PRIVATE int handle__connack(
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt connection refused",
                     "reason",       "%s", reason,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 gobj_publish_event( // To client user
@@ -5490,6 +5578,7 @@ PRIVATE int handle__connack(
                 "msg",          "%s", "Mqtt connection refused",
                 "command",      "%s", mqtt_command_string(CMD_CONNACK),
                 "reason",       "%d", reason_code,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             JSON_DECREF(jn_data)
@@ -5513,6 +5602,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt malformed packet, not enough data",
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             return MOSQ_ERR_MALFORMED_PACKET;
@@ -5600,6 +5690,7 @@ PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Receiving cmd_disconnect and not mqtt v5",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_PROTOCOL;
@@ -5645,6 +5736,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt subscribe: flags != 2",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_MALFORMED_PACKET;
@@ -5660,6 +5752,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt subscribe: mid == 0",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_MALFORMED_PACKET;
@@ -5682,6 +5775,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                     "msg",          "%s", "Mqtt subscribe: subscription_identifier == 0",
                     "client_id",    "%s", priv->client_id,
                     "mid",          "%d", (int)mid,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 JSON_DECREF(properties)
@@ -5714,6 +5808,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msg",          "%s", "Mqtt subscribe: Empty subscription string",
                 "client_id",    "%s", priv->client_id,
                 "mid",          "%d", (int)mid,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             JSON_DECREF(jn_list)
@@ -5727,6 +5822,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msg",          "%s", "Mqtt subscribe: Invalid subscription string",
                 "client_id",    "%s", priv->client_id,
                 "mid",          "%d", (int)mid,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             JSON_DECREF(jn_list)
@@ -5759,6 +5855,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                     "msg",          "%s", "Mqtt subscribe: Invalid subscription options 1",
                     "client_id",    "%s", priv->client_id,
                     "mid",          "%d", (int)mid,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 JSON_DECREF(jn_list)
@@ -5774,6 +5871,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                     "msg",          "%s", "Mqtt subscribe: Invalid subscription options 2",
                     "client_id",    "%s", priv->client_id,
                     "mid",          "%d", (int)mid,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 JSON_DECREF(jn_list)
@@ -5788,6 +5886,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msg",          "%s", "Mqtt subscribe: Invalid QoS in subscription command",
                 "client_id",    "%s", priv->client_id,
                 "mid",          "%d", (int)mid,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             JSON_DECREF(jn_list)
@@ -5827,6 +5926,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msg",          "%s", "Mqtt subscribe: No subscriptions specified",
                 "client_id",    "%s", priv->client_id,
                 "mid",          "%d", (int)mid,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             JSON_DECREF(jn_list)
@@ -5959,6 +6059,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt unsubscribe: flags != 2",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_MALFORMED_PACKET;
@@ -5974,6 +6075,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt unsubscribe: mid == 0",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_MALFORMED_PACKET;
@@ -5997,6 +6099,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msg",          "%s", "Mqtt unsubscribe: no topic specified",
                 "client_id",    "%s", priv->client_id,
                 "mid",          "%d", (int)mid,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             JSON_DECREF(properties)
@@ -6023,6 +6126,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msg",          "%s", "Empty unsubscription string",
                 "client_id",    "%s", priv->client_id,
                 "mid",          "%d", (int)mid,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             JSON_DECREF(jn_list)
@@ -6036,6 +6140,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msg",          "%s", "Invalid unsubscription string",
                 "client_id",    "%s", priv->client_id,
                 "mid",          "%d", (int)mid,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             JSON_DECREF(jn_list)
@@ -6170,6 +6275,7 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Suback with mid == 0",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_PROTOCOL;
@@ -6249,6 +6355,7 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Unsuback with mid == 0",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_PROTOCOL;
@@ -6338,6 +6445,7 @@ PRIVATE int handle__publish_s(
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: Invalid PUBLISH (QoS=0 and DUP=1), disconnecting",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_MALFORMED_PACKET;
@@ -6348,6 +6456,7 @@ PRIVATE int handle__publish_s(
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: Invalid QoS in PUBLISH, disconnecting",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_MALFORMED_PACKET;
@@ -6359,6 +6468,7 @@ PRIVATE int handle__publish_s(
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: Too high QoS in PUBLISH, disconnecting",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_QOS_NOT_SUPPORTED;
@@ -6371,6 +6481,7 @@ PRIVATE int handle__publish_s(
             "msg",          "%s", "Mqtt: Retain not supported in PUBLISH, disconnecting",
             "client_id",    "%s", priv->client_id,
             "qos",          "%d", (int)qos,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_RETAIN_NOT_SUPPORTED;
@@ -6390,6 +6501,7 @@ PRIVATE int handle__publish_s(
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: topic len 0 and not mqtt5",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
 
@@ -6411,6 +6523,7 @@ PRIVATE int handle__publish_s(
                 "client_id",    "%s", priv->client_id,
                 "topic",        "%s", topic,
                 "mid",          "%d", (int)mid,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             GBMEM_FREE(topic)
@@ -6471,6 +6584,7 @@ PRIVATE int handle__publish_s(
             "topic_alias",      "%d", topic_alias,
             "topic",            "%s", topic,
             "mid",              "%d", (int)mid,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         GBMEM_FREE(topic)
@@ -6498,6 +6612,7 @@ PRIVATE int handle__publish_s(
                     "client_id",        "%s", priv->client_id,
                     "max_topic_alias",  "%d", priv->max_topic_alias,
                     "topic_alias",      "%d", topic_alias,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 JSON_DECREF(properties)
@@ -6522,6 +6637,7 @@ PRIVATE int handle__publish_s(
             "msg",          "%s", "Mqtt will: invalid topic",
             "topic",        "%s", topic,
             "mid",          "%d", (int)mid,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         GBMEM_FREE(topic)
@@ -6543,6 +6659,7 @@ PRIVATE int handle__publish_s(
                 "client_id",        "%s", priv->client_id,
                 "topic",            "%d", topic,
                 "mid",          "%d", (int)mid,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             reason_code = MQTT_RC_PACKET_TOO_LARGE;
@@ -6595,6 +6712,7 @@ PRIVATE int handle__publish_s(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt: ACL skipped, C_MQTT_BROKER service not found",
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
         }
@@ -6612,6 +6730,7 @@ PRIVATE int handle__publish_s(
             "msg",              "%s", "Mqtt: Denied PUBLISH (ACL)",
             "client_id",        "%s", priv->client_id,
             "topic",            "%s", topic?topic:"",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         reason_code = MQTT_RC_NOT_AUTHORIZED;
@@ -6864,6 +6983,7 @@ PRIVATE int handle__publish_c(
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: topic len 0",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_MALFORMED_PACKET;
@@ -6885,6 +7005,7 @@ PRIVATE int handle__publish_c(
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt: discard message, qos>0 and mid=0",
                 "client_id",    "%s", priv->client_id,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             GBMEM_FREE(topic)
@@ -6941,6 +7062,7 @@ PRIVATE int handle__publish_c(
                         "msg",          "%s", "Mqtt: discard message, property invalid",
                         "client_id",    "%s", priv->client_id,
                         "property",     "%d", identifier,
+                        "peername",     "%s", peer_of(gobj),
                         NULL
                     );
                     GBMEM_FREE(topic)
@@ -6964,6 +7086,7 @@ PRIVATE int handle__publish_c(
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt: empty topic and no topic alias",
                     "client_id",    "%s", priv->client_id,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 JSON_DECREF(properties)
@@ -6978,6 +7101,7 @@ PRIVATE int handle__publish_c(
                 "max_topic_alias",  "%d", priv->max_topic_alias,
                 "topic_alias",      "%d", topic_alias,
                 "topic",            "%s", topic,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             GBMEM_FREE(topic)
@@ -7000,6 +7124,7 @@ PRIVATE int handle__publish_c(
                         "client_id",        "%s", priv->client_id,
                         "max_topic_alias",  "%d", priv->max_topic_alias,
                         "topic_alias",      "%d", topic_alias,
+                        "peername",     "%s", peer_of(gobj),
                         NULL
                     );
                     JSON_DECREF(properties)
@@ -7216,6 +7341,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt pubackcomp: flags != 0",
                 "client_id",    "%s", priv->client_id,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             return MOSQ_ERR_MALFORMED_PACKET;
@@ -7240,6 +7366,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubackcomp: mid == 0",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_PROTOCOL;
@@ -7277,6 +7404,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
                     "msg",          "%s", "Mqtt puback: bad reason code",
                     "client_id",    "%s", priv->client_id,
                     "reason_code",  "%d", reason_code,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 JSON_DECREF(properties)
@@ -7292,6 +7420,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
                     "msg",          "%s", "Mqtt pubcomp: bad reason code",
                     "client_id",    "%s", priv->client_id,
                     "reason_code",  "%d", reason_code,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 JSON_DECREF(properties)
@@ -7305,6 +7434,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubackcomp: packet too long",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         JSON_DECREF(properties)
@@ -7415,6 +7545,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubrec: malformed packet",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_MALFORMED_PACKET;
@@ -7431,6 +7562,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubrec: mid == 0",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_PROTOCOL;
@@ -7458,6 +7590,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
                 "msg",          "%s", "Mqtt pubrec: wrong reason code",
                 "client_id",    "%s", priv->client_id,
                 "reason_code",  "%d", (int)reason_code,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             return MOSQ_ERR_PROTOCOL;
@@ -7484,6 +7617,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubrec: too much data",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_MALFORMED_PACKET;
@@ -7564,6 +7698,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
             "msg",          "%s", "Mqtt: Received PUBREC for an unknown packet ID",
             "client_id",    "%s", priv->client_id,
             "mid",          "%d", mid,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
     } else if(rc != MOSQ_ERR_SUCCESS) {
@@ -7593,6 +7728,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubrel: malformed packet",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_MALFORMED_PACKET;
@@ -7608,6 +7744,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubrel: mid == 0",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return MOSQ_ERR_PROTOCOL;
@@ -7627,6 +7764,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
                 "msg",          "%s", "Mqtt pubrel: bad reason",
                 "client_id",    "%s", priv->client_id,
                 "reason_code",  "%d", (int)reason_code,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             return MOSQ_ERR_PROTOCOL;
@@ -7647,6 +7785,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubrel: too much data",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         JSON_DECREF(properties)
@@ -7977,6 +8116,7 @@ PRIVATE int framehead_consume(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Fourth remaining_length byte MUST be without 0x80",
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             return -1;
@@ -7998,6 +8138,7 @@ PRIVATE int framehead_consume(
                 "msg",          "%s", "PING remaining length must be 0",
                 "command",      "%s", mqtt_command_string(frame->command),
                 "frame_length", "%d", (int)frame->frame_length,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             return -1;
@@ -8022,6 +8163,7 @@ PRIVATE int framehead_consume(
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, payload required",
             "command",      "%s", mqtt_command_string(frame->command),
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         return -1;
@@ -8041,6 +8183,7 @@ PRIVATE int framehead_consume(
                 "command",      "%s", mqtt_command_string(frame->command),
                 "frame_length", "%d", (int)frame->frame_length,
                 "max_packet_size", "%d", priv->max_packet_size,
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             return -1;
@@ -8190,6 +8333,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Command unknown or not implemented",
                 "command",      "%s", mqtt_command_string(frame->command),
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             ret = MOSQ_ERR_PROTOCOL;
@@ -8370,6 +8514,7 @@ PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, gobj_event_t event, json
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_MQTT,
         "msg",          "%s", "Timeout waiting mqtt disconnected",
+        "peername",     "%s", peer_of(gobj),
         NULL
     );
 
@@ -8423,6 +8568,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                         "msgset",       "%s", MSGSET_MQTT,
                         "msg",          "%s", "mqtt server: first command MUST be CONNECT",
                         "command",      "%s", mqtt_command_string(frame->command),
+                        "peername",     "%s", peer_of(gobj),
                         NULL
                     );
                     gobj_trace_dump_full_gbuf(gobj, gbuf, "HANDSHAKE %s <== %s",
@@ -8439,6 +8585,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                         "msgset",       "%s", MSGSET_MQTT,
                         "msg",          "%s", "mqtt client: first command MUST be CMD_CONNACK",
                         "command",      "%s", mqtt_command_string(frame->command),
+                        "peername",     "%s", peer_of(gobj),
                         NULL
                     );
                     gobj_trace_dump_full_gbuf(gobj, gbuf, "HANDSHAKE %s <== %s",
@@ -8471,6 +8618,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                         "msgset",       "%s", MSGSET_MQTT,
                         "msg",          "%s", "CONNECT command too large",
                         "frame_length", "%d", (int)frame->frame_length,
+                        "peername",     "%s", peer_of(gobj),
                         NULL
                     );
                     ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
@@ -8538,6 +8686,7 @@ PRIVATE int ac_timeout_wait_handshake(hgobj gobj, gobj_event_t event, json_t *kw
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_MQTT,
         "msg",          "%s", "Timeout waiting mqtt HANDSHAKE data",
+        "peername",     "%s", peer_of(gobj),
         NULL
     );
     ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
@@ -8722,6 +8871,7 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, gobj_event_t event, json
         "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
         "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
         "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
+        "peername",     "%s", peer_of(gobj),
         NULL
     );
     ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
@@ -8860,6 +9010,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, gobj_event_t event, json_t *
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt publish: retain not available",
+            "peername",     "%s", peer_of(gobj),
             NULL
         );
         retain = FALSE;
@@ -9291,6 +9442,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
                     "msg",          "%s", "Client keepalive timeout, closing connection",
                     "client_id",    "%s", SAFE_PRINT(priv->client_id),
                     "keepalive",    "%d", (int)priv->keepalive,
+                    "peername",     "%s", peer_of(gobj),
                     NULL
                 );
                 priv->timer_ping = 0;
@@ -9335,6 +9487,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "PINGRESP timeout, closing connection",
+                "peername",     "%s", peer_of(gobj),
                 NULL
             );
             priv->timer_check_ping = 0;

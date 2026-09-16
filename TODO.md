@@ -152,10 +152,25 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     `parse_schema_cols()` + `parse_hooks()` and a link reload when hooks or
     fkeys change.
 
-- **`delete-treedb` does not work.** `delete_client_treedb_schema()` deletes the
-    parent before its children and hands collapsed views to a function that
-    requires pure nodes. It was inert while `__system__` was empty; it is
-    reachable now. It never touches the client treedb's own data.
+- **`delete-treedb`: the diagnosis was wrong, the defect was elsewhere, and it
+    is fixed** (2026-09-16). It did NOT fail for the reason this entry gave:
+    `mt_delete_node` re-resolves the PURE node by id, so the collapsed view a
+    tree hands it is only read for that id, and deleting the parent first works
+    because `force` unlinks the children itself. A test that opens a treedb of
+    two topics and three columns and deletes it finds nothing of the projection
+    left.
+
+    What was real is worse, and is what an operator hits: **it deleted the
+    schema of a treedb that was still OPEN**, without a word. The treedb went
+    on running with a schema that no longer existed anywhere, and the damage
+    landed at the next `open-treedb` -- the C_TRANGER service of the old one is
+    still alive under its name, so the create collides and the open dies with
+    an internal "tranger client NULL" that names nothing an operator can act
+    on. The store on disk is then orphaned: data with no schema to read it by.
+    `delete-treedb` refuses an open treedb now, naming `close-treedb` /
+    pause-yuno + play-yuno -- the same guard its sibling `close-treedb` already
+    had. Covered by `c_treedb_system_schema` (test 12, two passes: closed
+    deletes, open is refused and changes nothing).
 
 ## TreeDB / timeranger2: open findings of the 2026-09-15 review
 
@@ -333,22 +348,6 @@ blast radius of the `central.yunovatios.es` outage — a black-holed first
 
 Neither is urgent while nodes have a working `resolv.conf`; both are what turns
 a misconfigured node from an outage into a log line.
-
-## c_tranger: reclaim iterators of a session that never subscribes
-
-`mt_subscription_deleted` now closes the realtime feeds and iterators a
-subscriber leaked when its last subscription goes (see the `open-rt` duplicate
-fix in `CHANGELOG.md`). But a client that only PAGES (`open-iterator` +
-`get-page`, no `open-rt`) never subscribes to anything, so its iterators are
-still reclaimed only at `mt_stop` — gui_treedb browsing Rows cards without a
-Live card leaks one iterator per card per dead session. Memory only (no
-duplicate records), but it needs a session-death hook that does not depend on a
-subscription: the natural candidate is for the command's `src` channel to notify
-the service on close.
-
-A leaked **filtered** iterator now costs more than an empty handle: it holds its
-row index (one rowid per matching record), so a leaked card over a wide time
-range pins a proportional array until `mt_stop`. Same fix, higher stakes.
 
 ## Auth: OIDC migration follow-ups
 
@@ -573,12 +572,35 @@ under real use (found 2026-07-12 on e.com, where the node sat at 128/128
   implements it has to flip `live_filter()` in `c_tranger_view.js` in the same
   change, or the cards go silent.
 
-**#2 — Tie the feed to the ievent session — SHIPPED**, so the F5-leak is gone:
-`mt_subscription_deleted` reaps the realtime feeds *and* the iterators of a
-subscriber whose LAST subscription goes, keyed on the `src_gobj` stamped at
-`open-rt` / `open-iterator`. What remains of that thread is the paging-only
-session, which never subscribes to anything — see the `c_tranger` section
-above.
+  **Read in depth 2026-09-16, and it is NOT the small change this entry calls
+  it.** What `open-rt` returns today IS the feed: `cmd_open_rt` opens one
+  `tranger2_open_rt_mem/disk` per `rt_id` and `register_handle()` files it, so
+  one client = one feed = one inotify. Sharing means the `rt_id` a client gets
+  back stops naming a feed and starts naming a SUBSCRIPTION to a shared one,
+  and everything keyed on that assumption moves with it:
+
+  - `cmd_close_rt` must decrement a refcount and close the underlying feed only
+    at zero, instead of closing what it finds;
+  - `reap_handles_of()` (the session-death and subscriber-death reaper) must
+    decrement too, not `tranger2_close_list()` — otherwise one dead session
+    takes the feed away from every other card on that topic;
+  - `publish_rt_callback()` stamps the SHARED feed's `rt_id` into every
+    publish, which is exactly why the SPA has to filter by key again;
+  - the master path (`rt_mem`) has no inotify and no such problem, so the
+    sharing is only worth it on a reader — but doing it on one side only
+    leaves two publish contracts, and the SPA cannot tell which it is talking
+    to. Decide whether the shared feed is unconditional.
+
+  So it is one design change across C and the SPA, landing in the same release
+  with a coordinated deploy, plus a test that opens two cards on one topic and
+  counts inotify instances (`info-inotify`). Worth doing — the node sat at
+  128/128 — but not in passing.
+
+**#2 — Tie the feed to the ievent session — SHIPPED**, and the paging-only
+session with it (2026-09-16): `mt_subscription_deleted` reaps what a subscriber
+leaked, and `ac_on_close` reaps what a session that never subscribed leaked,
+both keyed on the `src_gobj` stamped at `open-rt` / `open-iterator`. See
+`CHANGELOG.md`.
 
 Node-side mitigation (already provisioned, independent of the above): the deb/rpm
 packagers ship `99-yuneta-core.conf` raising the default

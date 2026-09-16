@@ -28,6 +28,7 @@
  *              Constants
  ***************************************************************************/
 #define TREEDB_NAME     "treedb_test1"
+#define DELETE_TREEDB_NAME "treedb_to_delete"
 #define SYSTEM_TREEDB   "treedb_system_schema"
 
 /***************************************************************************
@@ -207,6 +208,51 @@ PRIVATE char schema_test1[] = "\
  *  the persisted topic_cols.json would mask the change). `departments` is
  *  left untouched on purpose.
  ***************************************************************************/
+/*
+ *  One treedb, two topics, so the delete check sees more than one child
+ *  at each level: a loop that deletes the first and stops would pass a
+ *  one-topic treedb.
+ */
+PRIVATE char schema_to_delete[] = "\
+{                                                                   \n\
+    'id': '"DELETE_TREEDB_NAME"',                                   \n\
+    'schema_version': 1,                                            \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'alfa',                                           \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                          \n\
+            'topic_version': 1,                                     \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent']                          \n\
+                },                                                  \n\
+                'name': {                                           \n\
+                    'header': 'Name',                               \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent']                          \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'id': 'beta',                                           \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                          \n\
+            'topic_version': 1,                                     \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent']                          \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
 PRIVATE char schema_test2[] = "\
 {                                                                   \n\
     'id': '"TREEDB_NAME"',                                          \n\
@@ -401,6 +447,39 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 
+
+/***************************************************************************
+ *  How many nodes of `topic_name` in __system__ have an id that begins
+ *  with `prefix`. -1 if __system__ is not there.
+ *
+ *  By PREFIX because the ids of the projection are qualified -- a topic
+ *  is `<treedb>.<topic>`, a column `<treedb>.<topic>.<col>` -- so one
+ *  prefix counts everything a treedb owns at any level. Counting by the
+ *  BARE name instead makes the answer depend on the other treedbs of the
+ *  store: `value == "name"` found the column of a different treedb and
+ *  read a clean delete as a leftover.
+ ***************************************************************************/
+PRIVATE int system_count_under(hgobj gobj, const char *topic_name, const char *prefix)
+{
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    if(!gobj_node_system) {
+        return -1;
+    }
+
+    json_t *nodes = gobj_list_nodes(gobj_node_system, topic_name, 0, 0, gobj);
+    int count = 0;
+    size_t len = strlen(prefix);
+    int idx; json_t *node;
+    json_array_foreach(nodes, idx, node) {
+        const char *id = kw_get_str(gobj, node, "id", "", 0);
+        if(strncmp(id, prefix, len)==0) {
+            count++;
+        }
+    }
+    JSON_DECREF(nodes)
+
+    return count;
+}
 
 /***************************************************************************
  *  Open the test treedb. With `forced_by_code` the open imposes the schema
@@ -1765,6 +1844,190 @@ PRIVATE int check_impose_forced_by_code(hgobj gobj)
 }
 
 /***************************************************************************
+ *  `delete-treedb` deletes the PROJECTION of a treedb from __system__:
+ *  the `treedbs` node, its `topics` and their `cols`. It never touches
+ *  the client treedb's own data -- that is `delete-topic`'s business,
+ *  and a store on disk is nobody's to remove by command.
+ *
+ *  It was inert while __system__ was empty and is reachable now, so
+ *  what it leaves behind is what this checks: a projection half
+ *  deleted is worse than one not deleted at all, because the next
+ *  open reconstructs the schema FROM it.
+ *
+ *  A treedb of its own, opened for this and closed before the delete:
+ *  the point is the projection, and taking the one every other check
+ *  uses would decide the order of this file.
+ ***************************************************************************/
+PRIVATE int check_delete_treedb(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    /*  In place, as the other schemas of this file: legalstring2json()
+     *  wants double quotes and the literal is written with single ones. */
+    helper_quote2doublequote(schema_to_delete);
+
+    /*
+     *  TWICE, and the second time is the point: an operator deletes the
+     *  treedb they were just looking at, which is OPEN. The command does
+     *  not ask for it to be closed, so both ways have to leave the same
+     *  nothing behind.
+     */
+    int pass;
+    for(pass = 0; pass < 2; pass++) {
+        BOOL close_first = (pass == 0);
+
+        json_t *jn_resp = gobj_command(
+            priv->gobj_treedbs,
+            "open-treedb",
+            json_pack("{s:s, s:s, s:i, s:o}",
+                "filename_mask", "%Y",
+                "treedb_name", DELETE_TREEDB_NAME,
+                "exit_on_error", 0,
+                "treedb_schema", legalstring2json(schema_to_delete, TRUE)
+            ),
+            gobj
+        );
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: cannot open the treedb to delete",
+                "close_first",  "%d", close_first?1:0,
+                "comment",      "%s", kw_get_str(gobj, jn_resp, "comment", "", 0),
+                NULL
+            );
+            JSON_DECREF(jn_resp)
+            return -1;
+        }
+        JSON_DECREF(jn_resp)
+
+        /*
+         *  What the projection holds BEFORE, so the check measures a
+         *  removal and not an absence: one treedbs node, two topics,
+         *  three columns.
+         */
+        int treedbs_before = system_count_under(gobj, "treedbs", DELETE_TREEDB_NAME);
+        int topics_before = system_count_under(gobj, "topics", DELETE_TREEDB_NAME ".");
+        int cols_before = system_count_under(gobj, "cols", DELETE_TREEDB_NAME ".");
+
+        if(treedbs_before != 1 || topics_before != 2 || cols_before != 3) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: the projection to delete is not there",
+                "close_first",  "%d", close_first?1:0,
+                "treedbs",      "%d", treedbs_before,
+                "topics",       "%d", topics_before,
+                "cols",         "%d", cols_before,
+                NULL
+            );
+            result += -1;
+        }
+
+        if(close_first) {
+            /*  `force`, because the yuno PLAYS here and close-treedb
+             *  refuses that without it -- and this test holds none of
+             *  the treedb's handles, which is what force is for.  */
+            jn_resp = gobj_command(
+                priv->gobj_treedbs,
+                "close-treedb",
+                json_pack("{s:s, s:b}", "treedb_name", DELETE_TREEDB_NAME, "force", 1),
+                gobj
+            );
+            if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST FAIL: cannot close the treedb to delete",
+                    "comment",      "%s", kw_get_str(gobj, jn_resp, "comment", "", 0),
+                    NULL
+                );
+                result += -1;
+            }
+            JSON_DECREF(jn_resp)
+        }
+
+        jn_resp = gobj_command(
+            priv->gobj_treedbs,
+            "delete-treedb",
+            json_pack("{s:s, s:b}", "treedb_name", DELETE_TREEDB_NAME, "force", 1),
+            gobj
+        );
+        int deleted = (int)kw_get_int(gobj, jn_resp, "result", -1, 0);
+        if(close_first && deleted < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: delete-treedb of a CLOSED treedb answered an error",
+                "comment",      "%s", kw_get_str(gobj, jn_resp, "comment", "", 0),
+                NULL
+            );
+            result += -1;
+        }
+        if(!close_first && deleted >= 0) {
+            /*
+             *  An OPEN treedb must be refused. Deleting its schema
+             *  leaves it running with none, and the damage lands at the
+             *  next open-treedb: the C_TRANGER of the old one is still
+             *  alive under its name, so the create collides and the open
+             *  dies with an internal "tranger client NULL". The store is
+             *  orphaned -- data with no schema to read it by.
+             */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: delete-treedb deleted the schema of an OPEN treedb",
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+
+        /*
+         *  Closed: nothing of it may remain -- the columns matter as
+         *  much as the treedbs node, they are what a reconstruction
+         *  reads. Open: the refusal must have touched nothing.
+         */
+        int treedbs_after = system_count_under(gobj, "treedbs", DELETE_TREEDB_NAME);
+        int topics_after = system_count_under(gobj, "topics", DELETE_TREEDB_NAME ".");
+        int cols_after = system_count_under(gobj, "cols", DELETE_TREEDB_NAME ".");
+        int want_treedbs = close_first? 0 : 1;
+        int want_topics = close_first? 0 : 2;
+        int want_cols = close_first? 0 : 3;
+
+        if(treedbs_after != want_treedbs || topics_after != want_topics ||
+                cols_after != want_cols) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", close_first?
+                    "TEST FAIL: delete-treedb left the projection behind":
+                    "TEST FAIL: a refused delete-treedb changed the projection",
+                "treedbs",      "%d", treedbs_after,
+                "topics",       "%d", topics_after,
+                "cols",         "%d", cols_after,
+                NULL
+            );
+            result += -1;
+        }
+
+        /*  Left closed either way, so the next pass opens it again.  */
+        if(!close_first) {
+            jn_resp = gobj_command(
+                priv->gobj_treedbs,
+                "close-treedb",
+                json_pack("{s:s, s:b}", "treedb_name", DELETE_TREEDB_NAME, "force", 1),
+                gobj
+            );
+            JSON_DECREF(jn_resp)
+        }
+    }
+
+    return result;
+}
+
+/***************************************************************************
  *  A projection made with rowid keys moves to qualified ones.
  *
  *  `topics` and `cols` used to be keyed by a rowid handed out from the
@@ -2537,6 +2800,14 @@ PRIVATE int run_tests(hgobj gobj)
         }
         JSON_DECREF(refused)
     }
+
+    /*-----------------------------------------------*
+     *  Test 12: `delete-treedb` takes the whole
+     *  projection with it -- the treedbs node, its
+     *  topics and their columns. It used to leave
+     *  every one of them behind.
+     *-----------------------------------------------*/
+    result += check_delete_treedb(gobj);
 
     JSON_DECREF(client_cols)
     JSON_DECREF(ids_before)

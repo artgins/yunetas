@@ -2,6 +2,75 @@
 
 ## Unreleased
 
+### C_TRANGER: a session that only PAGES no longer leaks its iterators
+
+`mt_subscription_deleted()` reaps the realtime feeds and iterators a SUBSCRIBER
+leaked, which covers every client with a Live card. A client that only PAGES --
+`open-iterator` + `get-page`, no `open-rt` -- subscribes to nothing, so nothing
+ever told the service its session had died: its iterators lived until
+`mt_stop`, one per Rows card per dead session. gui_treedb browsing without a
+Live card did exactly that, and a **filtered** iterator costs more than an
+empty handle -- it holds its row index, one rowid per matching record, so a
+card over a wide time range pinned a proportional array.
+
+The session is watched directly now. `C_IEVENT_SRV` publishes `EV_ON_CLOSE`
+when it goes, so `watch_owner()` subscribes C_TRANGER to it the first time that
+session opens a handle -- a subscription of OURS to IT, which asks nothing of
+the client and needs no new command -- and `ac_on_close` reaps by the same
+`src_gobj` stamp the subscriber path already used. The two reaping loops are
+one function now, `reap_handles_of()`, called from both.
+
+Guarded with `gobj_has_output_event()`, because `src` is not always a session:
+a local caller is some gobj of this yuno that publishes no such thing, and does
+not outlive us anyway.
+
+### C_TREEDB: `delete-treedb` refuses a treedb that is OPEN
+
+The command deletes the SCHEMA of a treedb -- its projection in `__system__`
+-- and it did not ask whether the treedb was running. It deleted it under one,
+without a word: the treedb went on answering from the copy it holds in memory,
+its schema no longer existed anywhere, and the damage landed at the NEXT
+`open-treedb` -- the C_TRANGER service of the old one is still alive under its
+name, so the create collides and the open dies with an internal *"tranger
+client NULL"* that names nothing an operator can act on. The store on disk is
+orphaned by then: data with no schema to read it by.
+
+It refuses now, naming the way out (`close-treedb`, or the yuno's own
+lifecycle with pause-yuno + play-yuno) -- the guard its sibling `close-treedb`
+already had, for the same reason. `force` does not lift it: `force` already
+means "yes, delete the schema" here.
+
+The `// TODO falla, hay que revisar` that sat on the delete itself is gone, and
+so is the diagnosis `TODO.md` carried, which was wrong on both counts: the
+parent IS deletable before its children (`force` unlinks them itself), and the
+collapsed view a tree hands `mt_delete_node` is only read for its `id`, which
+then re-resolves the pure node. What that path does with a CLOSED treedb was
+right all along.
+
+Test: `c_treedb_system_schema` gains test 12 -- a treedb of two topics and
+three columns, deleted twice. Closed, nothing of the projection may remain;
+open, the command must refuse and change nothing. Red against the previous
+library on both halves.
+
+### mqtt: a protocol warning says WHO sent the packet
+
+137 of the 142 decoder warnings of `c_prot_mqtt2.c` named a malformed or
+hostile packet without naming its sender, which is not actionable on a broker
+with a thousand sessions. They carry `peername` now, read through a `peer_of()`
+helper that answers `""` when the bottom gobj is already gone -- a late error
+is logged after the transport is torn down.
+
+The 71 `gobj_log_error` of that file were left alone on purpose. The scope is
+the one `CLAUDE.md` sets for decoder severity -- *"could a remote peer trigger
+this with bad bytes?"* -- and an internal invariant is not the peer's doing: a
+field naming a peer for a fault that is ours reads as an accusation.
+
+`c_prot_http_cl.c` was read as part of the same sweep and has nothing to
+migrate: its seven logs are config errors or internal ones, and the only one
+that looks like a decoder is building our own request. It carries the `url`
+now, which is what an operator needs of a bad request -- a `peername` there
+would name the server we chose.
+
 ### testing: a log assertion that does not have to know the order
 
 `set_expected_results()` matches every captured log against the **head** of

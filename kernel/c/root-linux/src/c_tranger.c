@@ -82,6 +82,7 @@ command-yuno id=1911 service=tranger command=close-rt rt_id=rt1
 
 #include "msg_ievent.h"
 #include "c_yuno.h"
+#include "c_ievent_srv.h"
 #include "c_tranger.h"
 
 /***************************************************************************
@@ -139,6 +140,9 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE int mt_subscription_deleted(hgobj gobj, json_t *subs);
+PRIVATE void reap_handles_of(hgobj gobj, hgobj owner);
+PRIVATE void watch_owner(hgobj gobj, hgobj src);
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -2159,6 +2163,7 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
     register_handle(priv->iterators, iterator_id, topic_name, iterator);
+    watch_owner(gobj, src);
 
     json_int_t total_rows = (json_int_t)tranger2_iterator_size(iterator);
 
@@ -2459,6 +2464,7 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
     register_handle(priv->rts, rt_id, topic_name, rt);
+    watch_owner(gobj, src);
 
     return msg_iev_build_response(
         gobj,
@@ -2703,6 +2709,107 @@ PRIVATE int publish_rt_callback(
 }
 
 /***************************************************************************
+ *  Close every realtime feed and iterator OWNED by `owner`.
+ *
+ *  The owner was stamped into the handle as `src_gobj` (see cmd_open_rt /
+ *  cmd_open_iterator). The pointer is only COMPARED here, never used.
+ ***************************************************************************/
+PRIVATE void reap_handles_of(hgobj gobj, hgobj owner)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->rts) {
+        const char *rt_id; json_t *jn_entry; void *tmp;
+        json_object_foreach_safe(priv->rts, tmp, rt_id, jn_entry) {
+            json_t *rt = live_handle(gobj, priv->rts, rt_id);
+            if(!rt) {
+                /*  Closed with its topic: nothing to close, drop the entry.  */
+                json_object_del(priv->rts, rt_id);
+                continue;
+            }
+            if((hgobj)(uintptr_t)kw_get_int(gobj, rt, "src_gobj", 0, 0) != owner) {
+                continue;
+            }
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Closing realtime feed of a gone subscriber",
+                "rt_id",        "%s", rt_id,
+                "subscriber",   "%s", gobj_short_name(owner),
+                NULL
+            );
+            tranger2_close_list(priv->tranger, rt);
+            json_object_del(priv->rts, rt_id);
+        }
+    }
+
+    if(priv->iterators) {
+        const char *iterator_id; json_t *jn_entry; void *tmp;
+        json_object_foreach_safe(priv->iterators, tmp, iterator_id, jn_entry) {
+            json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
+            if(!iterator) {
+                /*  Closed with its topic: nothing to close, drop the entry.  */
+                json_object_del(priv->iterators, iterator_id);
+                continue;
+            }
+            if((hgobj)(uintptr_t)kw_get_int(gobj, iterator, "src_gobj", 0, 0) != owner) {
+                continue;
+            }
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Closing iterator of a gone subscriber",
+                "iterator_id",  "%s", iterator_id,
+                "subscriber",   "%s", gobj_short_name(owner),
+                NULL
+            );
+            tranger2_close_iterator(priv->tranger, iterator);
+            json_object_del(priv->iterators, iterator_id);
+        }
+    }
+}
+
+/***************************************************************************
+ *  Watch the session that just opened a handle, so its death reaches us.
+ *
+ *  mt_subscription_deleted() reaps what a SUBSCRIBER leaked, and that is
+ *  every client with a Live card. A client that only PAGES subscribes to
+ *  nothing -- `open-iterator` + `get-page` and no `open-rt` -- so nothing
+ *  ever told this service its session had died, and its iterators lived
+ *  until mt_stop: one per Rows card per dead session, each pinning its row
+ *  index (one rowid per matching record), which over a wide time range is
+ *  not a handle but an array.
+ *
+ *  So the session is watched directly: C_IEVENT_SRV publishes EV_ON_CLOSE
+ *  when it goes, and that is a subscription of OURS to IT -- it asks
+ *  nothing of the client and needs no new command.
+ *
+ *  C_IEVENT_SRV BY NAME, and the coupling is deliberate. The inbound
+ *  session is the only `src` worth watching: a local caller is some gobj
+ *  of this yuno, which publishes no EV_ON_CLOSE and does not outlive us
+ *  anyway. And the one thing that must NOT be subscribed to is the other
+ *  side of the pair: C_IEVENT_CLI's mt_subscription_added forwards every
+ *  explicit subscription to the REMOTE peer (its own source carries a TODO
+ *  saying local subscriptions are read as remote ones), so a watch there
+ *  would leave this yuno asking a backend for an event it never wanted.
+ *  A gobj_has_output_event() test cannot tell the two apart -- both
+ *  publish EV_ON_CLOSE.
+ *
+ *  Idempotent: gobj_subscribe_event() with the same (event, filter,
+ *  subscriber) returns the subscription already there.
+ ***************************************************************************/
+PRIVATE void watch_owner(hgobj gobj, hgobj src)
+{
+    if(!src || src == gobj) {
+        return;
+    }
+    if(strcmp(gobj_gclass_name(src), C_IEVENT_SRV) != 0) {
+        return;
+    }
+    gobj_subscribe_event(src, EV_ON_CLOSE, 0, gobj);
+}
+
+/***************************************************************************
  *  A subscriber is gone (its session/channel died, or it unsubscribed):
  *  close the realtime feeds and iterators IT opened. A remote client that
  *  dies without close-rt / close-iterator (browser reload, dropped
@@ -2736,57 +2843,7 @@ PRIVATE int mt_subscription_deleted(
         return 0;
     }
 
-    if(priv->rts) {
-        const char *rt_id; json_t *jn_entry; void *tmp;
-        json_object_foreach_safe(priv->rts, tmp, rt_id, jn_entry) {
-            json_t *rt = live_handle(gobj, priv->rts, rt_id);
-            if(!rt) {
-                /*  Closed with its topic: nothing to close, drop the entry.  */
-                json_object_del(priv->rts, rt_id);
-                continue;
-            }
-            hgobj owner = (hgobj)(uintptr_t)kw_get_int(gobj, rt, "src_gobj", 0, 0);
-            if(owner != subscriber) {
-                continue;
-            }
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Closing realtime feed of a gone subscriber",
-                "rt_id",        "%s", rt_id,
-                "subscriber",   "%s", gobj_short_name(subscriber),
-                NULL
-            );
-            tranger2_close_list(priv->tranger, rt);
-            json_object_del(priv->rts, rt_id);
-        }
-    }
-
-    if(priv->iterators) {
-        const char *iterator_id; json_t *jn_entry; void *tmp;
-        json_object_foreach_safe(priv->iterators, tmp, iterator_id, jn_entry) {
-            json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
-            if(!iterator) {
-                /*  Closed with its topic: nothing to close, drop the entry.  */
-                json_object_del(priv->iterators, iterator_id);
-                continue;
-            }
-            hgobj owner = (hgobj)(uintptr_t)kw_get_int(gobj, iterator, "src_gobj", 0, 0);
-            if(owner != subscriber) {
-                continue;
-            }
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Closing iterator of a gone subscriber",
-                "iterator_id",  "%s", iterator_id,
-                "subscriber",   "%s", gobj_short_name(subscriber),
-                NULL
-            );
-            tranger2_close_iterator(priv->tranger, iterator);
-            json_object_del(priv->iterators, iterator_id);
-        }
-    }
+    reap_handles_of(gobj, subscriber);
 
     return 0;
 }
@@ -2797,6 +2854,29 @@ PRIVATE int mt_subscription_deleted(
                     /***************************
                      *      Actions
                      ***************************/
+
+
+
+
+/***************************************************************************
+ *  The session that opened handles here is gone.
+ *
+ *  This is the half mt_subscription_deleted() cannot see: a client that
+ *  only PAGES subscribes to nothing, so nothing was ever deleted for it.
+ *  `src` is the session gobj, the same pointer stamped into the handles it
+ *  opened, so the reap is the one the subscriber path already does.
+ *
+ *  The subscription goes with it: this service asked for it when that
+ *  session opened its first handle, and there is nothing left to watch.
+ ***************************************************************************/
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    reap_handles_of(gobj, src);
+    gobj_unsubscribe_event(src, EV_ON_CLOSE, 0, gobj);
+
+    KW_DECREF(kw)
+    return 0;
+}
 
 
 
@@ -2961,6 +3041,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_idle[] = {
         {EV_TRANGER_ADD_RECORD,       ac_tranger_add_record,      0},
+        {EV_ON_CLOSE,                 ac_on_close,                0},
         {0,0,0}
     };
     states_t states[] = {
@@ -2971,6 +3052,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_TRANGER_RECORD_ADDED,       EVF_OUTPUT_EVENT|EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
         {EV_TRANGER_ADD_RECORD,         0},
+        /*  The death of a session that opened handles here: this service
+         *  subscribes to it (watch_owner), the client asks for nothing.  */
+        {EV_ON_CLOSE,                   0},
         {0, 0}
     };
 

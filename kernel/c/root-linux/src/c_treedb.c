@@ -924,6 +924,44 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
+    /*-----------------------------------------------------*
+     *  Not while it is OPEN, and `force` does not lift this.
+     *
+     *  This command deletes the SCHEMA of a treedb -- its
+     *  projection in __system__ -- and an open treedb goes on
+     *  answering from the copy it holds in memory. What the
+     *  delete leaves behind is a running treedb whose schema
+     *  no longer exists anywhere, and the damage shows at the
+     *  next `open-treedb`: the C_TRANGER service of the old
+     *  one is still alive under its name, the create collides
+     *  with it, and the open dies with an internal "tranger
+     *  client NULL" that names nothing an operator can act on.
+     *  The store on disk is then orphaned -- data with no
+     *  schema to read it by.
+     *
+     *  `force` already means something else here ("yes, delete
+     *  the schema"), and it is the sibling command that says
+     *  how to close: `close-treedb`, or the yuno's own
+     *  lifecycle with pause-yuno + play-yuno.
+     *-----------------------------------------------------*/
+    hgobj gobj_opened = gobj_find_service(treedb_name, FALSE);
+    if(gobj_opened && is_treedb_opened_here(gobj, gobj_opened)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: cannot delete the schema of '%s' while it is OPEN. "
+                "Close it first (close-treedb, or pause-yuno + play-yuno): "
+                "deleting it now would leave a treedb running with no schema "
+                "and a store nothing can read",
+                gobj_yuno_role_plus_name(), treedb_name
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     int ret = delete_client_treedb_schema(gobj, treedb_name);
     json_object_del(priv->jn_c_schemas, treedb_name);
     json_object_del(priv->jn_forced_treedbs, treedb_name);
@@ -2603,8 +2641,14 @@ PRIVATE int delete_client_treedb_schema(
 
     int ret = 0;
 
-// TODO falla, hay que revisar
-
+    /*
+     *  The PARENT first, and it is not an oversight: with `force`,
+     *  treedb_delete_node() unlinks every child itself, so the topics
+     *  below are orphans by the time this loop reaches them -- and a
+     *  delete addresses a node by its `id`, which is all `mt_delete_node`
+     *  reads of the collapsed view a tree hands it before re-resolving
+     *  the pure node from the index.
+     */
     ret += gobj_delete_node(
         priv->gobj_node_system,
         "treedbs",

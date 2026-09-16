@@ -496,11 +496,18 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             json_object_foreach(jn_data_, key, v) {
                 const char *value = json_string_value(v);
                 if(empty_string(value)) {
+                    /*  The `url` and not a `peername`: this is an
+                     *  OUTBOUND client, so the peer is the server we
+                     *  chose, and what an operator needs of a bad
+                     *  request is WHICH request it was. A yuno talking
+                     *  to several endpoints has one of these per
+                     *  endpoint.  */
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "http header key without value",
                         "key",          "%s", key,
+                        "url",          "%s", priv->url,
                         NULL
                     );
                     continue;

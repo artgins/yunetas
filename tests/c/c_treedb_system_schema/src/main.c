@@ -143,6 +143,7 @@ static int register_yuno_and_more(void)
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* the code imposes over the attribute */
             "{s:s},"
             "{s:s},"                                    /* gobj_treedbs refused */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* the treedb opened to be deleted */
             "{s:s}, {s:s}, {s:s}, {s:s}"
         "]",
             "msg", "Starting yuno",
@@ -210,6 +211,13 @@ static int register_yuno_and_more(void)
             "msg", "Re-Creating topic_var.json",
             "msg", "Re-Creating topic_cols.json",
             "msg", "No permission to list the treedbs",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating TreeDB schema file",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
             "msg", "All treedb system schema tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",
