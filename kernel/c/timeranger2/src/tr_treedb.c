@@ -7757,6 +7757,37 @@ PRIVATE int _link_nodes(
 }
 
 /***************************************************************************
+ *  Does the child's fkey data name the parent `pref` refers to?
+ *  The shape _link_nodes() writes: the string itself, one of the strings
+ *  of the array, or a key of the dict.
+ ***************************************************************************/
+PRIVATE BOOL child_data_names_parent(
+    json_t *child_data,     // NOT owned
+    const char *pref
+)
+{
+    switch(json_typeof(child_data)) { // json_typeof PROTECTED
+    case JSON_STRING:
+        return strcmp(json_string_value(child_data), pref)==0;
+    case JSON_ARRAY:
+        {
+            int idx; json_t *data;
+            json_array_foreach(child_data, idx, data) {
+                if(json_typeof(data)==JSON_STRING &&
+                        strcmp(pref, json_string_value(data))==0) {
+                    return TRUE;
+                }
+            }
+            return FALSE;
+        }
+    case JSON_OBJECT:
+        return kw_has_key(child_data, pref);
+    default:
+        return FALSE;
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int _unlink_nodes(
@@ -8010,6 +8041,37 @@ PRIVATE int _unlink_nodes(
     }
 
     /*--------------------------------------------------*
+     *  Is there a link to undo? The child's reference is the half that
+     *  is persisted, so it decides: a child that does not name this
+     *  parent is not unlinked from it. Nothing moves, no event, no save.
+     *  Said before anything is touched, because the parent's hook is
+     *  emptied below on the strength of it.
+     *--------------------------------------------------*/
+    char pref[NAME_MAX];
+    snprintf(pref, sizeof(pref), "%s^%s^%s",
+        parent_topic_name,
+        parent_id,
+        hook_name
+    );
+    if(!child_data_names_parent(child_data, pref)) {
+        gobj_log_error(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_TREEDB,
+            "msg",                  "%s", "Cannot unlink, the child does not hang from that parent",
+            "parent_topic_name",    "%s", parent_topic_name,
+            "hook_name",            "%s", hook_name,
+            "parent_id",            "%s", parent_id,
+            "child_topic_name",     "%s", child_topic_name,
+            "child_id",             "%s", child_id,
+            "child_field",          "%s", child_field,
+            "parent_ref",           "%s", pref,
+            "child_data",           "%j", child_data,
+            NULL
+        );
+        return -1;
+    }
+
+    /*--------------------------------------------------*
      *  In parent hook data: save child content
      *--------------------------------------------------*/
     switch(json_typeof(parent_hook_data)) { // json_typeof PROTECTED
@@ -8088,96 +8150,26 @@ PRIVATE int _unlink_nodes(
     }
 
     /*--------------------------------------------------*
-     *  In child field: save parent ref
+     *  In child field: remove the parent ref (it is there, see above)
      *--------------------------------------------------*/
     switch(json_typeof(child_data)) { // json_typeof PROTECTED
     case JSON_STRING:
-        {
-            char pref[NAME_MAX];
-            snprintf(pref, sizeof(pref), "%s^%s^%s",
-                parent_topic_name,
-                parent_id,
-                hook_name
-            );
-            if(strcmp(json_string_value(child_data), pref)==0) {
-                json_object_set_new(child_node, child_field, json_string(""));
-            } else {
-                gobj_log_error(gobj, 0,
-                    "function",             "%s", __FUNCTION__,
-                    "msgset",               "%s", MSGSET_TREEDB,
-                    "msg",                  "%s", "Parent ref not found in string child data",
-                    "parent_topic_name",    "%s", parent_topic_name,
-                    "hook_name",            "%s", hook_name,
-                    "parent_id",            "%s", parent_id,
-                    "child_topic_name",     "%s", child_topic_name,
-                    "child_id",             "%s", child_id,
-                    "child_field",          "%s", child_field,
-                    "child_ref",            "%s", json_string_value(child_data),
-                    NULL
-                );
-            }
-        }
+        json_object_set_new(child_node, child_field, json_string(""));
         break;
     case JSON_ARRAY:
         {
-            char pref[NAME_MAX];
-            snprintf(pref, sizeof(pref), "%s^%s^%s",
-                parent_topic_name,
-                parent_id,
-                hook_name
-            );
-            BOOL found = FALSE;
             int idx; json_t *data;
             json_array_foreach(child_data, idx, data) {
-                if(json_typeof(data)==JSON_STRING) {
-                    if(strcmp(pref, json_string_value(data))==0) {
-                        json_array_remove(child_data, idx);
-                        found = TRUE;
-                        break;
-                    }
+                if(json_typeof(data)==JSON_STRING &&
+                        strcmp(pref, json_string_value(data))==0) {
+                    json_array_remove(child_data, idx);
+                    break;
                 }
-            }
-            if(!found) {
-                gobj_log_error(gobj, 0,
-                    "function",             "%s", __FUNCTION__,
-                    "msgset",               "%s", MSGSET_TREEDB,
-                    "msg",                  "%s", "Parent ref not found in array child data",
-                    "parent_topic_name",    "%s", parent_topic_name,
-                    "hook_name",            "%s", hook_name,
-                    "parent_id",            "%s", parent_id,
-                    "child_topic_name",     "%s", child_topic_name,
-                    "child_id",             "%s", child_id,
-                    "child_field",          "%s", child_field,
-                    NULL
-                );
             }
         }
         break;
     case JSON_OBJECT:
-        {
-            char pref[NAME_MAX];
-            snprintf(pref, sizeof(pref), "%s^%s^%s",
-                parent_topic_name,
-                parent_id,
-                hook_name
-            );
-            if(kw_has_key(child_data, pref)) {
-                json_object_del(child_data, pref);
-            } else {
-                gobj_log_error(gobj, 0,
-                    "function",             "%s", __FUNCTION__,
-                    "msgset",               "%s", MSGSET_TREEDB,
-                    "msg",                  "%s", "Parent ref not found in dict child data",
-                    "parent_topic_name",    "%s", parent_topic_name,
-                    "hook_name",            "%s", hook_name,
-                    "parent_id",            "%s", parent_id,
-                    "child_topic_name",     "%s", child_topic_name,
-                    "child_id",             "%s", child_id,
-                    "child_field",          "%s", child_field,
-                    NULL
-                );
-            }
-        }
+        json_object_del(child_data, pref);
         break;
 
     default:

@@ -30,7 +30,8 @@ The test checks:
 
 1. A second link moves the child: the old parent's hook no longer holds it.
 2. An unlink from a parent the child does not hang from leaves its reference
-   alone (*"Parent ref not found in string child data"*).
+   alone, refused (*"Cannot unlink, the child does not hang from that parent"*):
+   no `EV_TREEDB_NODE_UNLINKED`, and the child is not saved again.
 3. The old parent is deleted without `force`.
 4. A forced delete of an old parent does not touch the child.
 5. After a reload the child hangs from the last parent it was linked to.

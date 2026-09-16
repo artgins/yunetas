@@ -976,7 +976,8 @@ The function does not take ownership of `parent_node` or `child_node`. Make sure
 A link into a **single-valued** fkey (a `string` column) replaces the old one:
 the child is first unlinked from the parent its string names, which emits
 `EV_TREEDB_NODE_UNLINKED` for it. [`treedb_unlink_nodes()`](<#treedb_unlink_nodes>)
-only clears a string reference that names the parent being unlinked.
+from a parent the child does not name is refused (*"Cannot unlink, the child
+does not hang from that parent"*): nothing moves, no event, no save.
 
 A link that would hang a node from its own descendant through the **same**
 hook is refused (*"Cannot link, the link would close a cycle in the hook"*),
@@ -1790,6 +1791,18 @@ int treedb_unlink_nodes(
 **Returns**
 
 Returns `0` on success, or a negative error code if the unlinking operation fails.
+A child whose fkey does not name `parent_node` is not linked to it, so the
+call is refused with *"Cannot unlink, the child does not hang from that
+parent"*: the hook and the child are left as they are, no
+`EV_TREEDB_NODE_UNLINKED` is published and the child is not saved. The check
+is the same for the three shapes of an fkey: the string itself, one of the
+strings of an array, or a key of a dict.
+
+```C
+// ch hangs from p2
+treedb_unlink_nodes(tranger, "departments", p1, ch);   // -1, refused, ch untouched
+treedb_unlink_nodes(tranger, "departments", p2, ch);   // 0, UNLINKED published, ch saved
+```
 
 **Notes**
 

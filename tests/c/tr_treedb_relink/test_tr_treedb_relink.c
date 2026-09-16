@@ -105,6 +105,27 @@ static char schema_relink[]= "\
 }                                                                   \n\
 ";
 
+/*
+ *  What the treedb published: an unlink that did not happen must not.
+ */
+static int unlinked_events = 0;
+
+PRIVATE int count_link_events(
+    void *user_data,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *operation,
+    json_t *node    // owned
+)
+{
+    if(operation == EV_TREEDB_NODE_UNLINKED) {
+        unlinked_events++;
+    }
+    JSON_DECREF(node)
+    return 0;
+}
+
 /***************************************************************
  *              Helpers
  ***************************************************************/
@@ -120,12 +141,27 @@ PRIVATE int open_treedb(json_t *tranger)
         printf("%sERROR%s --> cannot open the treedb\n", On_Red BWhite, Color_Off);
         return -1;
     }
+    treedb_set_callback(
+        tranger,
+        TREEDB_NAME,
+        count_link_events,
+        NULL,
+        TREEDB_CALLBACK_LINK_EVENTS
+    );
     return 0;
 }
 
 PRIVATE json_t *get_dept(json_t *tranger, const char *id)
 {
     return treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, id);
+}
+
+/*
+ *  The rowid of the child's last record: a save appends one.
+ */
+PRIVATE json_int_t rowid_of(json_t *tranger, const char *id)
+{
+    return kw_get_int(0, get_dept(tranger, id), "__md_treedb__`g_rowid", 0, 0);
 }
 
 PRIVATE int create_dept(json_t *tranger, const char *id)
@@ -215,12 +251,31 @@ PRIVATE int test_relink(json_t *tranger)
     result += expect_not_held(tranger, "p1", "ch");
     result += test_json(NULL);
 
+    /*
+     *  Refused: no event, no record. It used to log and go on, publishing
+     *  UNLINKED for a link that did not exist and saving the child again.
+     */
     set_expected_results(
         "an unlink from a parent the child does not hang from",
-        json_pack("[{s:s}]", "msg", "Parent ref not found in string child data"),
+        json_pack("[{s:s}]", "msg", "Cannot unlink, the child does not hang from that parent"),
         NULL, NULL, 1
     );
-    treedb_unlink_nodes(tranger, HOOK_NAME, get_dept(tranger, "p1"), get_dept(tranger, "ch"));
+    json_int_t rowid_before = rowid_of(tranger, "ch");
+    unlinked_events = 0;
+    if(treedb_unlink_nodes(tranger, HOOK_NAME, get_dept(tranger, "p1"), get_dept(tranger, "ch")) == 0) {
+        printf("%sERROR%s --> the unlink from 'p1' was not refused\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(unlinked_events != 0) {
+        printf("%sERROR%s --> %d UNLINKED event(s) for a link that did not exist\n",
+            On_Red BWhite, Color_Off, unlinked_events);
+        result += -1;
+    }
+    if(rowid_of(tranger, "ch") != rowid_before) {
+        printf("%sERROR%s --> 'ch' was saved by an unlink that did nothing\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
     result += expect_hangs_from(tranger, "ch", "p2");
     result += test_json(NULL);
 

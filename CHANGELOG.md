@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### treedb: an unlink from a parent the child does not hang from is refused
+
+Found auditing 7.21.0's *"a link into a single-valued fkey moves the child"*.
+That fix made `_unlink_nodes()` clear a string reference only when it names
+the parent being unlinked, and log otherwise -- and then it went on: it
+published `EV_TREEDB_NODE_UNLINKED` for a link that did not exist and saved
+the child, a record identical to the previous one. Reachable from the wire
+with C_NODE's `unlink-nodes`. The array and dict shapes of an fkey had the
+same fall-through since the first version, and the dict HOOK side removed an
+absent key in silence, so a mismatched unlink there reached the event with
+no log at all.
+
+The check is now made once, before anything is touched, on the child's
+reference -- the half of a link that is persisted -- and it decides: a child
+that does not name that parent is not unlinked from it. The call answers -1
+with *"Cannot unlink, the child does not hang from that parent"* (in place of
+the three *"Parent ref not found in … child data"*), the hook and the child
+are left as they were, no event is published and nothing is saved. A link
+that IS there behaves as before.
+Test: `tr_treedb_relink`, whose mismatch case now counts the UNLINKED events
+and the child's `g_rowid`. Against the previous library it fails on all
+three: the call was not refused, one event fired, one record was appended.
+
 ### treedb: the `rowid` counter survives a `topic_version` change
 
 Found auditing 7.21.0's fix (*"a `rowid` id is never handed out twice"*). The
