@@ -164,9 +164,11 @@ file, and the link is part of the hand-over (`""` unlinks).
 the API; `import-assets` and `gc-assets` are the commands of `C_NODE` on top
 of them. The gc keeps what a LIVE node of any treedb of the tranger links,
 and what an activation of an existing snap would LOAD — per key, the newest
-instance under the snap's tag — so deleting the `__snaps__` row frees what
-only that snap held; and it takes the bytes **no row names**, which is what an
-interrupted write leaves behind. `delete-node` on an `__assets__` row runs the
+instance under the snap's tag, which since 7.22.0's Unreleased is the record
+the snap SHOT: a save is tagged with the activated snap (0 when none), never
+with the node's tag, so a snap freezes what was live at the shot and holds it
+until its `__snaps__` row is deleted; and it takes the bytes **no row names**,
+which is what an interrupted write leaves behind. `delete-node` on an `__assets__` row runs the
 same guards, and `force` does not override them.
 
 Full account, including the defects the implementation and its review found

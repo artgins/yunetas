@@ -152,26 +152,6 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     `parse_schema_cols()` + `parse_hooks()` and a link reload when hooks or
     fkeys change.
 
-- **`delete-treedb`: the diagnosis was wrong, the defect was elsewhere, and it
-    is fixed** (2026-09-16). It did NOT fail for the reason this entry gave:
-    `mt_delete_node` re-resolves the PURE node by id, so the collapsed view a
-    tree hands it is only read for that id, and deleting the parent first works
-    because `force` unlinks the children itself. A test that opens a treedb of
-    two topics and three columns and deletes it finds nothing of the projection
-    left.
-
-    What was real is worse, and is what an operator hits: **it deleted the
-    schema of a treedb that was still OPEN**, without a word. The treedb went
-    on running with a schema that no longer existed anywhere, and the damage
-    landed at the next `open-treedb` -- the C_TRANGER service of the old one is
-    still alive under its name, so the create collides and the open dies with
-    an internal "tranger client NULL" that names nothing an operator can act
-    on. The store on disk is then orphaned: data with no schema to read it by.
-    `delete-treedb` refuses an open treedb now, naming `close-treedb` /
-    pause-yuno + play-yuno -- the same guard its sibling `close-treedb` already
-    had. Covered by `c_treedb_system_schema` (test 12, two passes: closed
-    deletes, open is refused and changes nothing).
-
 ## TreeDB / timeranger2: open findings of the 2026-09-15 review
 
 A read-only review of timeranger2, tr_treedb, their gclasses, gobj-ui's treedb
@@ -542,24 +522,14 @@ The `peername` roll-out across the protocol/decoder error logs shipped
 2026-06-21 (kernel + hidraulia + estadodelaire); its record is `CHANGELOG.md`
 and git history. What was intentionally skipped and is still open:
 
-- **The `c_prot_mqtt2.c` gap-fill — DONE** (2026-09-16). The 137 protocol
-  warnings that carried no attribution have `peername` now, read through a
-  `peer_of()` helper that answers `""` when the bottom gobj is already gone —
-  a late error is logged after the transport is torn down.
-
-  The 71 `gobj_log_error` of that file were left alone ON PURPOSE, and that is
-  the scope rule for the rest of this sweep: `CLAUDE.md`'s own decoder-severity
-  question, *"could a remote peer trigger this with bad bytes?"*. An internal
-  invariant is not the peer's doing, and a field naming a peer for a fault that
-  is ours reads as an accusation. So this is not "214 logs minus the ones
-  done" — it was 142, and 142 is what it is.
-
-- **`c_prot_http_cl.c` — READ, and there is nothing to migrate** (2026-09-16).
-  Its seven logs are config errors (`url EMPTY`, `host EMPTY`, a failed parse)
-  or internal ones, and the only one that looks like a decoder is building OUR
-  OWN request. A `peername` there would name the server we chose; what an
-  operator needs of a bad request is WHICH request, so that one log carries the
-  `url`.
+- Done and in `CHANGELOG.md` 7.22.0: `c_prot_mqtt2.c` (its 137 protocol
+  warnings carry `peername`; its 71 `gobj_log_error` were left alone on
+  purpose) and `c_prot_http_cl.c` (nothing to migrate: its logs are ours,
+  the one about a request carries the `url`). The scope rule for what is
+  left is `CLAUDE.md`'s decoder-severity question, *"could a remote peer
+  trigger this with bad bytes?"* — an internal invariant is not the peer's
+  doing, and a field naming a peer for a fault that is ours reads as an
+  accusation.
 
 - **Still open: wattyzer `C_GATE_PVPC`** — an outbound client too, and so
   likely the same answer as `c_prot_http_cl.c` (nothing a peer can trigger; the
