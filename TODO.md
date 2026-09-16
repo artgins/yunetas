@@ -580,17 +580,58 @@ It failed once in a full 123-test run at 7.13.1 and passed 9/9 alone, plus
 123/123 on the same tree in two other full runs. `c_tcp2` neither links nor
 uses timeranger, so it was not the change under test.
 
-The mechanism is the test's own shape rather than a race in `C_TCP`: the driver
-gclass arms `set_timeout(priv->timer, 2000)` before starting the input side and
-`set_timeout(priv->timer, 1000)` on open, while `main_test2.c` asserts a
-**strict FIFO list of log messages** (`set_expected_results()` +
-`test_json(NULL)`). When the box is busy running the rest of the suite, a
-1-second window can close in a different order than the list expects and the
-comparison fails, saying nothing about TCP.
+**The mechanism, found 2026-09-16 (the diagnosis below replaces the earlier
+guess about the 1- and 2-second timers, which was wrong).**
 
-Fix by making the assertion order-independent, or by sizing the windows off
-something other than wall-clock pressure — not by widening the timeouts until
-it stops happening on this machine.
+`capture_log_write()` (`kernel/c/gobj-c/src/testing.c:52`) matches each captured
+log against the **HEAD of the expected list only** — `kw_get_list_value(0,
+expected_log_messages, 0, 0)`. Anything that does not match the head goes to
+`unexpected_log_messages` and fails the test. So the assertion is a strict FIFO,
+and any two adjacent entries whose real order is a race will flake.
+
+The race is in the TAIL, and the expected list encodes which side WINS it.
+The captured sequence is:
+
+```
+… Connected Connected Disconnected Disconnected     <- cycle 1, both sides close
+  Connected Connected Disconnected Disconnected     <- cycle 2, both sides close
+  Connected Connected Disconnected "Exit to die"    <- cycle 3, ONE close logged
+```
+
+Both sides close in cycle 3 as well. What differs is that the driver's
+`ac_on_close` (`c_test2.c:203`) reaches its third count there and calls
+`set_yuno_must_die()`, which logs *"Exit to die"* **synchronously, inside that
+same callback** (`c_yuno.c:5830`) and then shuts the yuno down. So the second
+side's *"Disconnected"* is swallowed by the shutdown — on a machine where the
+two close completions land in different io_uring batches. When they land in the
+same batch the second one is logged first, the head of the list then says
+*"Exit to die"*, and the test fails naming a message that is perfectly correct.
+
+The COUNT of *"Disconnected"* is therefore nondeterministic, which is why no
+ordered list can be right: it is not only the order that moves.
+
+Not reproduced on the dev node (2026-09-16): 25 runs under twelve busy loops on
+eight cores, 20 more capturing the sequence (identical every time), and a full
+137-test `ctest` — all green. It needs the io_uring/socket pressure of the whole
+suite, or a slower box.
+
+Two candidate fixes, and the choice is the open part:
+
+- **Defer the die.** `ac_on_close` posts an event to itself
+  (`gobj_post_event`) and dies from that action, so the current batch of
+  completions finishes first and both *"Disconnected"* are logged before
+  *"Exit to die"*. One line in the test, uses the framework's documented
+  deferral, and the expected list gains its 18th entry. It narrows the window
+  rather than closing it: a close completion that arrives in a LATER batch
+  still lands after the die.
+- **Let the assertion say what the test means.** The comment on
+  `set_expected_results()` in `main_test2.c:236` is *"Check that no logs
+  happen"* — the list is a whitelist, not a script. An opt-in unordered /
+  multiset mode in `testing.c` would express that. It is additive and the
+  default stays strict, but it is shared machinery: 137 tests link it.
+
+Either way, **not by widening the timeouts until it stops happening on this
+machine.**
 
 ## Packaging: the sparse SDK in the `.deb` serves one glibc at a time
 
