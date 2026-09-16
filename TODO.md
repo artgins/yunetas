@@ -537,10 +537,30 @@ The `peername` roll-out across the protocol/decoder error logs shipped
 2026-06-21 (kernel + hidraulia + estadodelaire); its record is `CHANGELOG.md`
 and git history. What was intentionally skipped and is still open:
 
-- **Outbound clients**, where `peername` is the remote *server* and attribution
-  value is low — `c_prot_http_cl.c` and wattyzer `C_GATE_PVPC`.
-- **The `c_prot_mqtt2.c` gap-fill** (214 logs, already the most-instrumented
-  gclass).
+- **The `c_prot_mqtt2.c` gap-fill — DONE** (2026-09-16). The 137 protocol
+  warnings that carried no attribution have `peername` now, read through a
+  `peer_of()` helper that answers `""` when the bottom gobj is already gone —
+  a late error is logged after the transport is torn down.
+
+  The 71 `gobj_log_error` of that file were left alone ON PURPOSE, and that is
+  the scope rule for the rest of this sweep: `CLAUDE.md`'s own decoder-severity
+  question, *"could a remote peer trigger this with bad bytes?"*. An internal
+  invariant is not the peer's doing, and a field naming a peer for a fault that
+  is ours reads as an accusation. So this is not "214 logs minus the ones
+  done" — it was 142, and 142 is what it is.
+
+- **`c_prot_http_cl.c` — READ, and there is nothing to migrate** (2026-09-16).
+  Its seven logs are config errors (`url EMPTY`, `host EMPTY`, a failed parse)
+  or internal ones, and the only one that looks like a decoder is building OUR
+  OWN request. A `peername` there would name the server we chose; what an
+  operator needs of a bad request is WHICH request, so that one log carries the
+  `url`.
+
+- **Still open: wattyzer `C_GATE_PVPC`** — an outbound client too, and so
+  likely the same answer as `c_prot_http_cl.c` (nothing a peer can trigger; the
+  url or the endpoint name is the useful field). Unlooked-at. It lives in the
+  wattyzer repo, not here.
+
 - **Out of scope, do not migrate:** `C_PROT_MQTT` (`modules/c/mqtt`) is
   deprecated but still in Hidraulia production.
 
