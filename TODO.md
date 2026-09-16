@@ -248,13 +248,16 @@ Line numbers are those of `main` on 2026-09-15.
   `kernel/js/gobj-ui/README.md` item was stale: its asset section already
   described the `get-asset` / `yui_asset_*` model.)
 
-**Tests nobody has** (in order of damage): changing a pkey2
-value; two hooks on one fkey; `delete_instance` with links; the snapshot clone
-followed by updates. C_NODE commands with no ctest: `node`, `instances`,
-`pkey2s`, `jtree`, `parents`, `children`, `hooks`, `links`, `treedb-info`, the
-snap commands, `import-db` / `export-db`, `print-tranger`, and the refusals on a
-replica. In gobj-ui, no gclass of the treedb views has a test: the save kw as
-it leaves `publish_treedb_write` would have caught A8.
+**Tests nobody has** (in order of damage): `delete_instance` with links.
+C_NODE commands with no ctest: `node`, `instances`, `pkey2s`, `jtree`,
+`parents`, `children`, `hooks`, `links`, `treedb-info`, the snap commands,
+`import-db` / `export-db`, `print-tranger`, and the refusals on a replica. In
+gobj-ui, no gclass of the treedb views has a test: the save kw as it leaves
+`publish_treedb_write` would have caught A8 (its column rule is unit-tested
+since 7.23.170, the kw itself is not). Covered since 2026-09-16, no longer
+missing: changing a pkey2 value (`tr_treedb_update_instance`), two hooks on
+one fkey (`tr_treedb_schema_parse`), the snapshot clone followed by updates
+(`tr_treedb_snap_clone`).
 
 ## ESP32: `gobj_post_event()` is not in the port
 
