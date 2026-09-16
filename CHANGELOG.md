@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### C_TRANGER: a paging session is watched once
+
+Found auditing 7.22.0's *"a session that only PAGES no longer leaks its
+iterators"*. `watch_owner()` subscribed C_TRANGER to the session's
+`EV_ON_CLOSE` on EVERY `open-iterator` / `open-rt`, on the strength of a
+comment that said `gobj_subscribe_event()` returns the subscription already
+there. It does not: given the same (event, filter, subscriber) again it logs
+*"subscription(s) REPEATED, will be deleted and override"* with a stack trace,
+deletes it and creates it anew. So every handle of a session after its first
+-- a gui_treedb tab with two Rows cards -- was a warning and a stack trace in
+the yuno's log. The reaping itself was right. It now asks
+`gobj_find_subscriptions()` first and subscribes only when nothing is there.
+Test: `c_tranger` gains a paging session -- a real `C_IEVENT_SRV`, created and
+never started -- that opens two iterators (watched once, no log), and then
+closes: both iterators are reaped, the watch goes, and the session's parent
+hears the close once. Against the previous library the second open logs the
+warning. That test is also the one 7.22.0 shipped without.
+
 ### treedb: an unlink from a parent the child does not hang from is refused
 
 Found auditing 7.21.0's *"a link into a single-valued fkey moves the child"*.
@@ -112,9 +130,13 @@ the client and needs no new command -- and `ac_on_close` reaps by the same
 `src_gobj` stamp the subscriber path already used. The two reaping loops are
 one function now, `reap_handles_of()`, called from both.
 
-Guarded with `gobj_has_output_event()`, because `src` is not always a session:
-a local caller is some gobj of this yuno that publishes no such thing, and does
-not outlive us anyway.
+Guarded by the gclass NAME of `src` (`C_IEVENT_SRV`), because `src` is not
+always a session: a local caller is some gobj of this yuno that does not
+outlive us anyway, and the one thing that must NOT be watched is
+`C_IEVENT_CLI`, whose `mt_subscription_added` forwards every explicit
+subscription to the remote peer. A `gobj_has_output_event()` test cannot tell
+the two apart -- both publish `EV_ON_CLOSE`. (This paragraph said
+`gobj_has_output_event()` when 7.22.0 was cut; the code never did.)
 
 ### C_TREEDB: `delete-treedb` refuses a treedb that is OPEN
 

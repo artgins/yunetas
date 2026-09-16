@@ -254,7 +254,20 @@ PRIVATE int g_rt_count = 0;
 PRIVATE int g_rt_keyed = 0;     /*  publishes carrying rt_id "rtKEYED"   */
 PRIVATE int g_rt_all = 0;       /*  publishes carrying rt_id "rtALL"     */
 
+/*  The probe is also the PARENT of the fake session below: a C_IEVENT_SRV
+ *  subscribes its parent to everything it publishes (CHILD model), so the
+ *  parent must declare EV_ON_CLOSE. Counting it is the assertion that the
+ *  session's close was published once.  */
+PRIVATE int g_session_closed = 0;
+
 GOBJ_DEFINE_GCLASS(C_RTPROBE);
+
+PRIVATE int ac_session_closed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    g_session_closed++;
+    KW_DECREF(kw)
+    return 0;
+}
 
 PRIVATE int ac_rt_added(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -283,6 +296,7 @@ PRIVATE int register_rtprobe(void)
 {
     ev_action_t st_idle[] = {
         {EV_TRANGER_RECORD_ADDED, ac_rt_added, 0},
+        {EV_ON_CLOSE, ac_session_closed, 0},
         {0, 0, 0}
     };
     states_t states[] = {
@@ -291,6 +305,7 @@ PRIVATE int register_rtprobe(void)
     };
     event_type_t event_types[] = {
         {EV_TRANGER_RECORD_ADDED, EVF_PUBLIC_EVENT},
+        {EV_ON_CLOSE, 0},
         {0, 0}
     };
     hgclass gc = gclass_create(
@@ -319,7 +334,8 @@ PRIVATE int do_test(void)
     /*-------------------------------------------------*
      *      Create the C_TRANGER gobj as master yuno
      *-------------------------------------------------*/
-    if(register_c_tranger() != 0 || register_rtprobe() != 0) {
+    if(register_c_tranger() != 0 || register_rtprobe() != 0 ||
+            register_c_timer() != 0 || register_c_ievent_srv() != 0) {
         printf("%s: FAIL (register gclasses)\n", APP);
         return -1;
     }
@@ -1103,6 +1119,97 @@ PRIVATE int do_test(void)
      *  entry whose handle the tranger already freed. It must drop the entry
      *  without touching it (gobj_end() runs it, and the leak check that
      *  follows would catch a handle left behind).  */
+
+    /*-------------------------------------------------*
+     *      A SESSION that only PAGES. Its handles are stamped with it as
+     *      src, and C_TRANGER watches the session (EV_ON_CLOSE) from the
+     *      first handle -- ONCE: the second handle must not re-subscribe,
+     *      which gobj logs as "subscription(s) REPEATED" with a stack
+     *      trace. When the session goes, every handle it opened goes.
+     *
+     *      The session is a real C_IEVENT_SRV, created and never started
+     *      (it needs no loop for that), hosted by the probe so that the
+     *      CHILD-model subscription it makes lands on an FSM that declares
+     *      EV_ON_CLOSE.
+     *-------------------------------------------------*/
+    /*  The re-subscription is a WARNING and this test captures from ERROR
+     *  up, so for these two sections a second capture takes warnings too.
+     *  (INFO stays out: the "Closing iterator" lines are not asserted.)  */
+    gobj_log_add_handler("test_capture_warn", "testing", LOG_OPT_UP_WARNING, 0);
+    set_expected_results(
+        "a paging session is watched once",
+        NULL,   // no "subscription(s) REPEATED", nothing else
+        NULL, NULL, 1
+    );
+    hgobj session = gobj_create("session", C_IEVENT_SRV, 0, probe);
+    if(!session) {
+        printf("%s: FAIL (session create)\n", APP);
+        return -1;
+    }
+
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itSession1",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_A
+        ), session);
+    check_int("open-iterator session 1", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    {
+        json_t *subs = gobj_find_subscriptions(session, EV_ON_CLOSE, 0, yuno);
+        check_int("watched after the first handle", json_array_size(subs), 1);
+        JSON_DECREF(subs)
+    }
+
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itSession2",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_B
+        ), session);
+    check_int("open-iterator session 2", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    {
+        json_t *subs = gobj_find_subscriptions(session, EV_ON_CLOSE, 0, yuno);
+        check_int("still watched once after the second", json_array_size(subs), 1);
+        JSON_DECREF(subs)
+    }
+    global_result += test_json(NULL);
+
+    /*  The session dies: both iterators are reaped, the watch goes with
+     *  it, and the probe (its parent) heard the close exactly once.  */
+    set_expected_results(
+        "a gone paging session takes its iterators with it",
+        NULL,
+        NULL, NULL, 1
+    );
+    g_session_closed = 0;
+    gobj_publish_event(session, EV_ON_CLOSE, json_object());
+    check_int("the parent heard the close once", g_session_closed, 1);
+    {
+        json_t *subs = gobj_find_subscriptions(session, EV_ON_CLOSE, 0, yuno);
+        check_int("no watch left on a gone session", json_array_size(subs), 0);
+        JSON_DECREF(subs)
+    }
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itSession1",
+            "from_rowid", 1,
+            "limit", 10
+        ), yuno);
+    check_int("get-page on a reaped iterator 1", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itSession2",
+            "from_rowid", 1,
+            "limit", 10
+        ), yuno);
+    check_int("get-page on a reaped iterator 2", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+    global_result += test_json(NULL);
+    gobj_destroy(session);
+    gobj_log_del_handler("test_capture_warn");
 
     /*-------------------------------------------------*
      *      TWO feeds over the SAME key: one opened on the key, one on the

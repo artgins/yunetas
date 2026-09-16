@@ -2795,8 +2795,11 @@ PRIVATE void reap_handles_of(hgobj gobj, hgobj owner)
  *  A gobj_has_output_event() test cannot tell the two apart -- both
  *  publish EV_ON_CLOSE.
  *
- *  Idempotent: gobj_subscribe_event() with the same (event, filter,
- *  subscriber) returns the subscription already there.
+ *  Once per session. gobj_subscribe_event() is NOT idempotent: given the
+ *  same (event, filter, subscriber) again it logs "subscription(s)
+ *  REPEATED" with a stack trace, deletes the one there and creates it
+ *  anew -- so every handle after the first of a session was a warning in
+ *  the log. Ask first.
  ***************************************************************************/
 PRIVATE void watch_owner(hgobj gobj, hgobj src)
 {
@@ -2804,6 +2807,12 @@ PRIVATE void watch_owner(hgobj gobj, hgobj src)
         return;
     }
     if(strcmp(gobj_gclass_name(src), C_IEVENT_SRV) != 0) {
+        return;
+    }
+    json_t *subs = gobj_find_subscriptions(src, EV_ON_CLOSE, 0, gobj);
+    BOOL watched = json_array_size(subs) > 0;
+    JSON_DECREF(subs)
+    if(watched) {
         return;
     }
     gobj_subscribe_event(src, EV_ON_CLOSE, 0, gobj);
