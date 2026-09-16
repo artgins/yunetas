@@ -824,6 +824,9 @@ ycommand -c 'activate-snap name=<rollback-tag>'
 # This calls the same restart_nodes() cycle, but with the snap
 # active get_yuno_binary refuses to fall back to list_instances
 # and primary-only lookup is enforced — the OLD row wins again.
+# Every topic comes back as it was when the snap was shot: rows
+# created since are absent, rows updated since show their shot
+# content (a save is never written into a snap, since 7.22.0).
 
 # To remove the pin once you've decided:
 ycommand -c 'deactivate-snap'

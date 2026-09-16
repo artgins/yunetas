@@ -137,6 +137,8 @@ PRIVATE int append_node_record(
     json_t *node,   // NOT owned, pure node
     uint16_t tag
 );
+PRIVATE json_t *existing_snap_tags(hgobj gobj, json_t *tranger);
+PRIVATE BOOL node_held_by_a_snap(hgobj gobj, json_t *tranger, const char *treedb_name, json_t *node);
 PRIVATE json_t *assets_held_by_snaps(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE const char *asset_linked_by_other_treedb(hgobj gobj, json_t *tranger, const char *treedb_name, const char *id);
 PRIVATE json_t *create_assets_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
@@ -5622,13 +5624,14 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
 
     /*-------------------------------*
      *  Write to tranger (Creating)
+     *  Tagged with the ACTIVATED snap, 0 when none (see treedb_save_node)
      *-------------------------------*/
     md2_record_ex_t md_record;
     int ret = tranger2_append_record(
         tranger,
         topic_name,
         0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
-        0, // user_flag,
+        (uint16_t)current_snap_tag(tranger, treedb_name), // user_flag,
         &md_record, // md_record,
         json_incref(record) // owned
     );
@@ -5963,7 +5966,14 @@ PRIVATE int append_node_record(
 
 /***************************************************************************
  *  Direct saving to tranger.
-    Tag __tag__ (user_flag) is inherited.
+ *
+ *  The record carries the tag of the snap that is ACTIVATED (0 when none
+ *  is), never the tag the node carries in memory. A node's tag is the mark
+ *  a snap put on the record it froze; a save that inherited it went INTO
+ *  that snap, so the latest snap followed every later update and froze
+ *  nothing until the next one was shot. Tagged 0, a save leaves every
+ *  snap where it was shot; tagged with the activated snap, an edit made
+ *  inside a snap stays inside it.
  ***************************************************************************/
 PUBLIC int treedb_save_node(
     json_t *tranger,
@@ -5994,9 +6004,9 @@ PUBLIC int treedb_save_node(
 
     /*-------------------------------------*
      *  Write to tranger (save, updating)
-     *  The snap tag (user_flag) is inherited.
+     *  Tagged with the ACTIVATED snap, 0 when none (see above).
      *-------------------------------------*/
-    uint16_t tag = (uint16_t)kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
+    uint16_t tag = (uint16_t)current_snap_tag(tranger, treedb_name);
     if(append_node_record(gobj, tranger, topic_name, node, tag)<0) {
         // Error already logged
         return -1;
@@ -6400,13 +6410,18 @@ PRIVATE int delete_node(
     /*-------------------------------*
      *      Get record info
      *-------------------------------*/
-    json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
-    if(__tag__ && !force) {
-        // añade opción de borrar un snap que desmarque los nodos?
+    /*
+     *  A delete erases the KEY on disk, every record of it, so a node a
+     *  snapshot froze cannot go while that snapshot exists: the tag in
+     *  memory is the primary's, and since a save is tagged with the
+     *  activated snap the primary of an updated node carries none, so
+     *  the records of the key are asked. `force` overrides, as it did.
+     */
+    if(!force && node_held_by_a_snap(gobj, tranger, treedb_name, node)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "cannot delete node, it has a tag",
+            "msg",          "%s", "cannot delete node, a snapshot still holds it",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             "id",           "%s", id,
@@ -6419,8 +6434,8 @@ PRIVATE int delete_node(
     /*-------------------------------------------------*
      *  An asset a SNAPSHOT still needs
      *
-     *  The tag guard above is inert here: treedb_shoot_snap() skips every
-     *  `__` topic, so a node of __assets__ never carries one. Deleting the
+     *  The snapshot guard above is inert here: treedb_shoot_snap() skips
+     *  every `__` topic, so a node of __assets__ never carries a tag. Deleting the
      *  row deletes the bytes, and activating a snap that remembers a node
      *  linking them would then find nothing -- so this is the tag guard in
      *  its place, and like it, `force` does NOT override: force means
@@ -12452,19 +12467,7 @@ PRIVATE json_t *assets_held_by_snaps(
 {
     json_t *held = json_object();
 
-    /*
-     *  The snaps that EXIST, of every treedb of the tranger: __snaps__ is
-     *  the tranger's and a tag is its row id, unique across all of them.
-     */
-    json_t *snaps = json_object();
-    const char *any_name; json_t *any_treedb;
-    json_object_foreach(json_object_get(tranger, "treedbs"), any_name, any_treedb) {
-        json_t *snaps_indexx = treedb_get_id_index(tranger, any_name, "__snaps__");
-        const char *snap_id; json_t *snap;
-        json_object_foreach(snaps_indexx, snap_id, snap) {
-            json_object_set_new(snaps, snap_id, json_true());
-        }
-    }
+    json_t *snaps = existing_snap_tags(gobj, tranger);
     if(json_object_size(snaps)==0) {
         JSON_DECREF(snaps)
         return held;    // No snapshot: nothing to walk
@@ -12535,6 +12538,136 @@ PRIVATE json_t *assets_held_by_snaps(
     JSON_DECREF(latest)
     JSON_DECREF(snaps)
 
+    return held;
+}
+
+/***************************************************************************
+ *  The snaps that EXIST, of every treedb of the tranger, as a set of tags
+ *  {tag: true}: __snaps__ is the tranger's and a tag is its row id, unique
+ *  across all of them. YOURS, never NULL.
+ ***************************************************************************/
+PRIVATE json_t *existing_snap_tags(hgobj gobj, json_t *tranger)
+{
+    json_t *snaps = json_object();
+    const char *any_name; json_t *any_treedb;
+    json_object_foreach(json_object_get(tranger, "treedbs"), any_name, any_treedb) {
+        json_t *snaps_indexx = treedb_get_id_index(tranger, any_name, "__snaps__");
+        const char *snap_id; json_t *snap;
+        json_object_foreach(snaps_indexx, snap_id, snap) {
+            json_object_set_new(snaps, snap_id, json_true());
+        }
+    }
+    return snaps;
+}
+
+/***************************************************************************
+ *  One record of the key, metadata only: does its tag name a snap that
+ *  exists? The walk stops at the first that does.
+ ***************************************************************************/
+PRIVATE int held_scan_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *jn_record  // must be owned
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    JSON_DECREF(jn_record)
+
+    if(md_record->user_flag == 0) {
+        return 0;
+    }
+    json_t *snaps = (json_t *)(uintptr_t)kw_get_int(gobj, list, "snaps", 0, KW_REQUIRED);
+    if(!snaps) {
+        return -1;  // Error already logged
+    }
+    BOOL *held = (BOOL *)(uintptr_t)kw_get_int(gobj, list, "held", 0, KW_REQUIRED);
+    if(!held) {
+        return -1;  // Error already logged
+    }
+    char tag[32];
+    snprintf(tag, sizeof(tag), "%u", (unsigned)md_record->user_flag);
+    if(json_object_get(snaps, tag)) {
+        *held = TRUE;
+        return -1;  // Found: no need to go on
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Does a snapshot that exists hold a record of this node's key?
+ *
+ *  The tag in memory answers when it is one (the primary was frozen and
+ *  nothing was saved since). Otherwise the key's records are read from
+ *  disk, metadata only: a node updated after a snap carries no tag on
+ *  its primary while the record the snap froze is still there below.
+ ***************************************************************************/
+PRIVATE BOOL node_held_by_a_snap(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    json_t *node        // NOT owned, pure node
+)
+{
+    json_t *snaps = existing_snap_tags(gobj, tranger);
+    if(json_object_size(snaps)==0) {
+        JSON_DECREF(snaps)
+        return FALSE;
+    }
+
+    char tag[32];
+    snprintf(tag, sizeof(tag), "%u",
+        (unsigned)kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED)
+    );
+    if(json_object_get(snaps, tag)) {
+        JSON_DECREF(snaps)
+        return TRUE;
+    }
+
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", "", KW_REQUIRED);
+    const char *id = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
+    json_t *match_cond = json_pack("{s:s, s:b, s:b, s:I, s:I}",
+        "key", id,
+        "backward", 0,
+        "only_md", 1,
+        "to_rowid", (json_int_t)0x7fffffffffffLL,  // one-shot load, no realtime
+        "load_record_callback", (json_int_t)(uintptr_t)held_scan_callback
+    );
+    /*
+     *  The answer travels as a pointer: with an exact key the list is an
+     *  iterator that copies `extra` and is closed before this returns.
+     */
+    BOOL held = FALSE;
+    json_t *extra = json_pack("{s:I, s:I}",
+        "snaps", (json_int_t)(uintptr_t)snaps,
+        "held", (json_int_t)(uintptr_t)&held
+    );
+    json_t *list = tranger2_open_list(
+        tranger,
+        topic_name,
+        match_cond,     // owned
+        extra,          // owned
+        "treedb-held-walk",
+        FALSE,
+        treedb_name
+    );
+    if(!list) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "cannot read the records of a key",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", id,
+            NULL
+        );
+    } else {
+        tranger2_close_list(tranger, list);
+    }
+    JSON_DECREF(snaps)
     return held;
 }
 
@@ -13384,10 +13517,10 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
          *
          *  Either way the node's metadata ends on the record a
          *  reload would pick: the clone is the newest record, so
-         *  it IS the primary after a reload. Left on the original,
-         *  the next saves inherited the PREVIOUS snap's tag -- that
-         *  snap followed the updates and the new one stayed frozen
-         *  in the clone, until the next restart swapped them.
+         *  it IS the primary after a reload, and what memory says
+         *  of g_rowid, i_rowid and the immutable bit must be it.
+         *  The tag stamped here marks the record this snap froze;
+         *  a later save does not inherit it (see treedb_save_node).
          *------------------------------------------------------*/
         json_t *indexx = treedb_get_id_index(tranger, treedb_name, topic_name);
         if(!indexx) {

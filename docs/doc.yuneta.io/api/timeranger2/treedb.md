@@ -1447,7 +1447,7 @@ The result: one `EV_TREEDB_NODE_LINKED` (research), no event for engineering, on
 (treedb_save_node)=
 ## [`treedb_save_node()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/timeranger2/src/tr_treedb.c#L5964)
 
-The `treedb_save_node()` function directly saves a given node to the `tranger` database. The `__tag__` (user_flag) attribute is inherited during the save operation.
+The `treedb_save_node()` function directly saves a given node to the `tranger` database. The record is tagged (`user_flag`) with the snap that is ACTIVATED, 0 when none is: a save never inherits the tag the node carries in memory, so a snap holds exactly what was live when it was shot (see [`treedb_shoot_snap()`](<#treedb_shoot_snap>)).
 
 ```C
 int treedb_save_node(
@@ -1469,7 +1469,7 @@ Returns `0` on success, or a negative error code on failure.
 
 **Notes**
 
-The `__tag__` (user_flag) attribute of the node is inherited during the save operation.
+The record's tag is the ACTIVATED snap's (0 when none), never the node's: an edit made inside an activated snap stays inside it, and in normal operation every write is untagged.
 
 ---
 
@@ -1608,11 +1608,22 @@ Returns `0` on success, or a negative error code on failure (snap already exists
 
 For every non-meta topic (that is, names not starting with `__`), the function walks the primary index and, for each current primary node, calls `tranger2_write_user_flag(tranger, topic_name, key, t, i_rowid, snap_id)`. This modifies the underlying `.md2` record byte without appending a new instance — so the chronological `rowid` order is preserved, and `tranger2_read_user_flag()` on the same `(topic, key, t, rowid)` immediately returns the new tag.
 
-Because the tag rides on the existing record, the snap captures *exactly* the primaries that were live at shoot-time — including records originally written with `user_flag = 0` (which then carry the snap's id thereafter).
+Because the tag rides on the existing record, the snap captures *exactly* the primaries that were live at shoot-time — including records originally written with `user_flag = 0`. The tag stays on THAT record: a later save of the node appends an untagged record (see [`treedb_save_node()`](<#treedb_save_node>)), so the snap goes on holding what the node was when it was shot.
 
 When the next shoot finds a primary record that *already* carries a tag from an earlier snap (that is, `__md_treedb__.tag != 0 && != snap_id`), the function appends a **clone** of that record via `tranger2_append_record()` with the new snap's id, rather than overwriting the prior tag in place. The cloned record sits at a higher `rowid` and carries only the new snap's tag. The original record keeps its earlier tag intact. This makes multiple snaps over an unchanged set of primaries co-exist: `activate-snap` of either snap can find its own tagged records on reload. Untagged primaries still take the cheaper in-place path — no clone cost when the record is snapped for the first time.
 
-The clone is the newest record of its key, so a reload makes it the primary. The node in memory moves to the clone at once (`g_rowid`, `i_rowid`, `t`, `tm` and `tag` in `__md_treedb__`), and an immutable node keeps its immutable bit on the clone. A save inherits the node's tag, so after the clone the updates are saved with the NEW snap's tag, and the earlier snap stays on its own record. Until the fix of 2026-09-15 memory stayed on the original record: the earlier snap followed the updates until the next restart. The clone does not publish `EV_TREEDB_NODE_UPDATED`.
+The clone is the newest record of its key, so a reload makes it the primary. The node in memory moves to the clone at once (`g_rowid`, `i_rowid`, `t`, `tm` and `tag` in `__md_treedb__`), and an immutable node keeps its immutable bit on the clone. The clone does not publish `EV_TREEDB_NODE_UPDATED`.
+
+**What a snap holds, and for how long.** Since a save is tagged with the activated snap and not with the node's tag, `activate-snap` returns every topic to what it was when the snap was shot: rows created after it are absent, rows updated after it show their shot content. (Until 7.22.0 a save inherited the node's tag, so the LATEST snap followed every later update and froze nothing until the next one was shot.) Two guards follow the snap rather than the node's tag in memory:
+
+- [`treedb_delete_node()`](<#treedb_delete_node>) erases the whole key, so it refuses a node any existing snap holds a record of (*"cannot delete node, a snapshot still holds it"*), asking the key's records when the primary carries no tag; `force` overrides.
+- `treedb_gc_files()` holds an asset a node named when a snap was shot for as long as that snap's row exists, whether or not the node has moved on. Deleting the snap frees it.
+
+```C
+treedb_shoot_snap(tranger, "treedb_yuneta_agent", "pre-upgrade", "before 7.23");
+// ... rows created, rows updated ...
+treedb_activate_snap(tranger, "treedb_yuneta_agent", "pre-upgrade");   // reload: the state at the shot
+```
 
 **Notes**
 

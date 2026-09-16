@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+### treedb: a snapshot freezes what it shot (BREAKING for who relied on the latest snap following)
+
+The design question the 2026-09-15 review left. A save inherited the snap
+tag the node carried in memory: after `shoot-snap S` every later update was
+written INTO S, so `activate-snap S` answered the updated content and only
+the creations made after the shot were reverted. The latest snap never froze;
+a snap only did when the next one was shot. The agent's rollback -- shoot
+before a deploy, activate if it goes wrong -- reverted the new rows and kept
+every change to a row that already existed, and nothing said so.
+
+`current_snap_tag()` was there for this and nobody called it. Now
+`treedb_save_node()` and `treedb_create_node()` tag a record with the snap
+that is ACTIVATED, 0 when none is: in normal operation every write is tagged
+0, so a snap holds exactly what was live when it was shot; an edit made inside
+an activated snap stays inside it. `treedb_shoot_snap()` is unchanged.
+
+Two things follow from the tag no longer riding on updates:
+
+- **The delete guard asks the records.** A delete erases the whole key, and
+  the guard refused a node whose tag in memory was one -- which after an
+  update it no longer is. It now asks whether any record of the key carries
+  the tag of a snap that exists (the tag in memory answers first, then a
+  metadata-only walk of the key), and refuses with *"cannot delete node, a
+  snapshot still holds it"*. `force` overrides, as before.
+- **The asset gc holds what a snap froze for as long as the snap exists.**
+  An asset a node named when a snap was shot stays held after the node moves
+  on, until that snap's row is deleted -- which is what a snapshot means. It
+  used to be released by the move, because the move itself was written into
+  the snap.
+
+Tests: `tr_treedb_snap_clone` (an update after the clone freezes neither
+snap; a node a snap holds is not deleted, updated or not) and
+`tr_treedb_files` test 13, rewritten to the new semantics. Against the
+previous library both fail on the frozen-snap assertions.
+
 ### A sweep of the minors the post-implementation audit left
 
 Nothing here changes a happy path.

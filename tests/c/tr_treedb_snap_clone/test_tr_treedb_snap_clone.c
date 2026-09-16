@@ -137,7 +137,9 @@ PRIVATE int test_clone_moves_the_metadata(json_t *tranger)
 
     /*
      *  An update on the node the clone left in memory, before any reload,
-     *  must be saved under B's tag.
+     *  is saved under NO snap: a save carries the tag of the activated
+     *  snap, not the mark the node carries. It used to inherit B's, and
+     *  B followed every later update instead of freezing.
      */
     if(!treedb_update_node(tranger, node, json_pack("{s:s}", "payload", "p1"), TRUE)) {
         printf("%s  FAIL: update failed%s\n", On_Red BWhite, Color_Off);
@@ -147,9 +149,9 @@ PRIVATE int test_clone_moves_the_metadata(json_t *tranger)
     result += reload_treedb(tranger);
 
     node = treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, "item-1");
-    if(md_int(node, "tag") != TAG_B) {
-        printf("%s  FAIL: the update was saved with tag %d, expected %d%s\n",
-            On_Red BWhite, (int)md_int(node, "tag"), TAG_B, Color_Off);
+    if(md_int(node, "tag") != 0) {
+        printf("%s  FAIL: the update was saved with tag %d, expected 0 (no snap active)%s\n",
+            On_Red BWhite, (int)md_int(node, "tag"), Color_Off);
         result += -1;
     }
 
@@ -167,12 +169,12 @@ PRIVATE int test_clone_moves_the_metadata(json_t *tranger)
 }
 
 /***************************************************************************
- *  An update after the clone goes to the NEW snap; the old one stays frozen
+ *  An update after the clone belongs to NO snap: both stay frozen
  ***************************************************************************/
-PRIVATE int test_update_follows_the_new_snap(json_t *tranger)
+PRIVATE int test_update_follows_no_snap(json_t *tranger)
 {
     int result = 0;
-    const char *test = "an update after the clone follows the new snap";
+    const char *test = "an update after the clone freezes neither snap";
     time_measure_t time_measure;
     set_expected_results(
         test,
@@ -191,11 +193,55 @@ PRIVATE int test_update_follows_the_new_snap(json_t *tranger)
 
     treedb_activate_snap(tranger, TREEDB_NAME, "B");
     result += reload_treedb(tranger);
-    result += assert_payload(tranger, "p1", "snap B follows");
+    result += assert_payload(tranger, "p0", "snap B is frozen too");
 
     treedb_activate_snap(tranger, TREEDB_NAME, "__clear__");
     result += reload_treedb(tranger);
     result += assert_payload(tranger, "p1", "no snap");
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  A node a snap froze cannot be deleted after an update either: the
+ *  primary carries no tag now, the frozen record below does. A delete
+ *  erases the whole key. `force` still overrides.
+ ***************************************************************************/
+PRIVATE int test_held_node_cannot_be_deleted(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "a node a snap holds is not deleted, updated or not";
+    time_measure_t time_measure;
+    set_expected_results(
+        test,
+        json_pack("[{s:s}]", "msg", "cannot delete node, a snapshot still holds it"),
+        NULL, NULL, 1
+    );
+    MT_START_TIME(time_measure)
+
+    /*  item-1 was updated after both snaps: its primary carries tag 0  */
+    json_t *node = treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, "item-1");
+    if(md_int(node, "tag") != 0) {
+        printf("%s  FAIL: item-1's primary carries tag %d, expected 0%s\n",
+            On_Red BWhite, (int)md_int(node, "tag"), Color_Off);
+        result += -1;
+    }
+    if(treedb_delete_node(tranger, node, 0) == 0) {
+        printf("%s  FAIL: a node snaps A and B froze was deleted%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    node = treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, "item-1");
+    if(!node) {
+        printf("%s  FAIL: the refused delete took item-1 anyway%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    } else if(treedb_delete_node(tranger, node, json_pack("{s:b}", "force", 1)) < 0) {
+        printf("%s  FAIL: force did not delete item-1%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
 
     MT_INCREMENT_COUNT(time_measure, 1)
     MT_PRINT_TIME(time_measure, test)
@@ -275,7 +321,8 @@ PRIVATE int do_test(void)
      *  Execute scenarios
      *------------------------------------*/
     result += test_clone_moves_the_metadata(tranger);
-    result += test_update_follows_the_new_snap(tranger);
+    result += test_update_follows_no_snap(tranger);
+    result += test_held_node_cannot_be_deleted(tranger);
 
     /*------------------------------------*
      *  Shutdown

@@ -838,10 +838,9 @@ PRIVATE int test_gc_three_ways(json_t *tranger)
     /*
      *  C: linked by dev-3, then TWO snapshots, then dev-3 moves to A.
      *  The second snap clones dev-3 under its own tag (the first tag
-     *  stays on the original) and the node moves to the clone, so the
-     *  move appends an instance that inherits snap_c2's tag. So what an
-     *  activation of snap_c would load still names C, while nothing LIVE
-     *  does: only that snapshot remembers it.
+     *  stays on the original), and the move appends an instance under no
+     *  tag. So what an activation of either snap would load still names
+     *  C, while nothing LIVE does: only the snapshots remember it.
      */
     json_t *node = create_device_with_foto(tranger, "dev-3", PNG_C, sizeof(PNG_C)-1, "image/png", 0);
     if(!node) {
@@ -1097,12 +1096,11 @@ PRIVATE int test_two_treedbs_one_tranger(json_t *tranger)
  *  13. The gc holds what an activation would LOAD, and a deleted snap
  *      holds nothing
  *
- *  treedb_save_node() inherits the tag, so after a snap every later
- *  instance of a node carries it too; and an activation loads, per key,
- *  the NEWEST instance with the tag. So a node that moves on releases
- *  what its older tagged instances named -- held "for ever" otherwise --
- *  and a snap whose row is gone can be activated by nobody, so it holds
- *  nothing: deleting the snap is what frees the asset.
+ *  A save carries the tag of the ACTIVATED snap (none here), so the
+ *  record a snap froze is the newest one under its tag for ever: what a
+ *  node named when the snap was shot is held while that snap exists, and
+ *  a snap whose row is gone can be activated by nobody, so it holds
+ *  nothing. Deleting the snap is what frees the asset.
  ***************************************************************************/
 PRIVATE int test_gc_holds_what_a_snap_would_load(json_t *tranger)
 {
@@ -1117,8 +1115,8 @@ PRIVATE int test_gc_holds_what_a_snap_would_load(json_t *tranger)
     snprintf(id_c, sizeof(id_c), "%s", sha(PNG_C, sizeof(PNG_C)-1));
     snprintf(id_a, sizeof(id_a), "%s", sha(PNG_A, sizeof(PNG_A)-1));
 
-    /*  dev-13 holds E, a snap, then dev-13 moves to A: the newest instance
-     *  with snap_e's tag names A, so snap_e does not hold E  */
+    /*  dev-13 holds E, a snap, then dev-13 moves to A: the record snap_e
+     *  froze names E, so snap_e holds E although nothing live does  */
     json_t *dev = create_device_with_foto(tranger, "dev-13", PNG_E, sizeof(PNG_E)-1, "image/png", 0);
     if(!dev) {
         printf("%s  FAIL: cannot create dev-13%s\n", On_Red BWhite, Color_Off);
@@ -1134,37 +1132,61 @@ PRIVATE int test_gc_holds_what_a_snap_would_load(json_t *tranger)
         result += -1;
     }
     json_t *would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
-    if(!json_str_in_list(0, would, id_e, 0)) {
-        printf("%s  FAIL: E is held by an instance no activation would load%s\n",
+    if(json_str_in_list(0, would, id_e, 0)) {
+        printf("%s  FAIL: E let go while snap_e, which froze dev-13 holding it, exists%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
     if(json_str_in_list(0, would, id_c, 0)) {
-        printf("%s  FAIL: C let go while snap_c still exists%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: C let go while snap_c and snap_c2 exist%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     JSON_DECREF(would)
 
-    /*  the row of snap_c goes: nobody can activate it, so C is free --
-     *  snap_c2 still exists, but the newest instance under ITS tag is the
-     *  move to A (test 6), which names no C  */
-    json_t *snaps = treedb_list_nodes(tranger, TREEDB_NAME, "__snaps__",
-        json_pack("{s:s}", "name", "snap_c"), 0
-    );
-    if(json_array_size(snaps)!=1) {
-        printf("%s  FAIL: snap_c not found%s\n", On_Red BWhite, Color_Off);
-        result += -1;
-    } else {
-        json_t *snap = json_array_get(snaps, 0);
-        if(treedb_delete_node(tranger, snap, 0)<0) {
-            printf("%s  FAIL: cannot delete the row of snap_c%s\n", On_Red BWhite, Color_Off);
+    /*  the rows of snap_e and snap_c go: E is free (nobody can activate
+     *  snap_e), C is not yet -- snap_c2's clone still names it  */
+    const char *gone[] = {"snap_e", "snap_c", NULL};
+    for(int i = 0; gone[i]; i++) {
+        json_t *snaps = treedb_list_nodes(tranger, TREEDB_NAME, "__snaps__",
+            json_pack("{s:s}", "name", gone[i]), 0
+        );
+        if(json_array_size(snaps)!=1) {
+            printf("%s  FAIL: %s not found%s\n", On_Red BWhite, gone[i], Color_Off);
+            result += -1;
+        } else if(treedb_delete_node(tranger, json_array_get(snaps, 0), 0)<0) {
+            printf("%s  FAIL: cannot delete the row of %s%s\n", On_Red BWhite, gone[i], Color_Off);
             result += -1;
         }
+        JSON_DECREF(snaps)
+    }
+    would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
+    if(!json_str_in_list(0, would, id_e, 0)) {
+        printf("%s  FAIL: E still held after snap_e was deleted%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(json_str_in_list(0, would, id_c, 0)) {
+        printf("%s  FAIL: C let go while snap_c2's clone still names it%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(would)
+
+    /*  and snap_c2 goes: C is free  */
+    json_t *snaps = treedb_list_nodes(tranger, TREEDB_NAME, "__snaps__",
+        json_pack("{s:s}", "name", "snap_c2"), 0
+    );
+    if(json_array_size(snaps)!=1) {
+        printf("%s  FAIL: snap_c2 not found%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    } else if(treedb_delete_node(tranger, json_array_get(snaps, 0), 0)<0) {
+        printf("%s  FAIL: cannot delete the row of snap_c2%s\n", On_Red BWhite, Color_Off);
+        result += -1;
     }
     JSON_DECREF(snaps)
     would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
     if(!json_str_in_list(0, would, id_c, 0)) {
-        printf("%s  FAIL: C still held after its snap was deleted%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: C still held after both its snaps were deleted%s\n",
+            On_Red BWhite, Color_Off);
         result += -1;
     }
     JSON_DECREF(would)

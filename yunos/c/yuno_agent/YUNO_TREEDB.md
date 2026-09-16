@@ -358,9 +358,19 @@ for a permission that would not help.
 
 The current timeranger2 API does **not** expose a snapshot primitive
 named `tranger2_*_snap*` — those calls live one layer up at the treedb
-level (§3.7). The closest underlying mechanism is the `disks/<rt_id>/`
-hardlink trick that gives non-masters a consistent view at the point
-the directory was wired.
+level (`treedb_shoot_snap()` / `treedb_activate_snap()`, §3.9). The closest
+underlying mechanism is the `disks/<rt_id>/` hardlink trick that gives
+non-masters a consistent view at the point the directory was wired.
+
+What the treedb layer does with it: `shoot-snap` stamps the snap's id on
+the md2 `user_flag` of every current primary record (the `tag` of
+`__md_treedb__`), and a load with that snap activated reads only the
+records carrying it. A save is tagged with the ACTIVATED snap, 0 when none
+— never with the node's tag — so a snap holds exactly what was live when it
+was shot: `activate-snap` returns every topic to that state, rows created
+since absent, rows updated since at their shot content. A node any existing
+snap holds cannot be deleted without `force` (a delete erases the whole
+key), and an asset a shot record names stays until that snap's row goes.
 
 ### 2.9 The delete-record story
 
@@ -702,7 +712,7 @@ attached at [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.22.0/kerne
 
 - `g_rowid`, `i_rowid` — see §2.3. Never set them yourself.
 - `t`, `tm` — the timeranger2 timestamps, surfaced to the node level.
-- `tag` — user_flag from md2, used for snapshots (§3.7).
+- `tag` — user_flag from md2: the snap that froze this record, 0 for a record no snap holds (§2.8).
 - `immutable` — present **only when set** (omitted on ordinary nodes).
   `true` means the record carries the `sf_immutable_record` md2 bit and
 cannot be deleted. See §3.10.
@@ -898,7 +908,8 @@ json_t *treedb_list_snaps   (json_t *tranger, const char *treedb_name,
                              json_t *jn_filter);
 ```
 
-`gobj_list_snaps(gobj, filter, src)` is the gobj-level wrapper.
+`gobj_list_snaps(gobj, filter, src)` is the gobj-level wrapper. What a
+snap holds, and why a save never lands inside one, is in §2.8.
 
 Snapshots are how the agent picks which binary version to run when
 multiple are stored — see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.3. The
@@ -925,8 +936,9 @@ never a data column** — it does not touch the user schema and never bumps
   via the gated `tranger2_set_system_flag()`, and flips
   `__md_treedb__`immutable` in memory.
 - `treedb_save_node()` re-stamps the bit after every update (the re-append
-  inherits only the topic-default `system_flag`, so the bit is re-applied
-  exactly like `tag`).
+  inherits only the topic-default `system_flag`, so the bit is re-applied).
+  The snap `tag` is NOT re-applied: a save is tagged with the activated
+  snap, 0 when none (§2.8).
 - `treedb_delete_node()` and `treedb_delete_instance()` refuse an immutable
   record, and **`force` does NOT override** (stronger than the snapshot-tag
   guard). `tranger2_delete_instance()` carries the same refusal as a

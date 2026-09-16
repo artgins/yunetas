@@ -156,7 +156,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (snapshot)=
 **Snapshot**
-:   A point-in-time capture of [TreeDB](#glossary-treedb) state for backup/restore. Managed via [`treedb_shoot_snap()`](#treedb_shoot_snap) / [`treedb_activate_snap()`](#treedb_activate_snap).
+:   A point-in-time capture of [TreeDB](#glossary-treedb) state for backup/restore. Managed via [`treedb_shoot_snap()`](#treedb_shoot_snap) / [`treedb_activate_snap()`](#treedb_activate_snap). A shot stamps the snap's id on every current primary record; a save is never written into a snap, so activating one returns every topic to what it was at the shot.
 
 (state)=
 **State**

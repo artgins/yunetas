@@ -206,9 +206,10 @@ Line numbers are those of `main` on 2026-09-15.
   version still in use ("Using in N yunos") unless `force=1`. Low impact; a
   fix would move those children to the primary's hook. (Fixed on 2026-09-15:
   a pkey2 value changed by an update, and the OLD tag the snapshot clone left
-  in memory -- see `CHANGELOG.md`.) Open design question, not a defect: a
-  save inherits the node's snap tag, so the LATEST snap follows every update
-  made after it and freezes nothing; only the earlier snaps stay put.
+  in memory -- see `CHANGELOG.md`. Decided and fixed on 2026-09-16: a save
+  is tagged with the ACTIVATED snap, 0 when none, so every snap freezes
+  what it shot; the delete guard asks the key's records and the asset gc
+  holds what a shot record names while the snap exists.)
 - **C_NODE / C_TREEDB**: nothing open from the review. (Fixed on 2026-09-15:
   every C_NODE command asks a permission; and on 2026-09-16: `mt_treedbs`
   answers a list, not an envelope -- see `CHANGELOG.md`.)
