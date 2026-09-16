@@ -1,6 +1,51 @@
 # **Changelog**
 
-## Unreleased
+## v7.22.0 (2026-09-16)
+
+### JS: gobj-js 7.21.0, gobj-ui 7.23.169, and the yunos that ride them
+
+**gobj-js 7.21.0** closes the `kwid_*` review: `kwid_find_one_record()` crashed
+with a `TypeError` when there was no data (it read `.length` off the `null`
+`kwid_collect()` answers for a `kw` that is neither a list nor a dict, and one
+caller hands it the `data` of a command answer, which is missing exactly when
+the command found nothing); `kwid_new_dict()` dropped a record without `id` in
+silence where the C twin logs it; `kwid_new_list()` is ported from C with its
+semantics. 19 new cases in `tests/kwid.test.js`, which nothing covered before.
+
+The version jumped 7.16.6 → 7.21.0 and skipped four: the first two indices are
+the SDK's, and this package had drifted again.
+
+**gobj-ui 7.23.169** closes the nine gobj-ui findings of the 2026-09-15 treedb
+review — every action crosses the FSM now (the Op-column pencil, the confirm
+dialogs, the kws that carried G6 event objects, the writes run from DOM
+callbacks), the table's search no longer matches the COUNT of a hook,
+`ac_unselect_rows()` reads its own attr, the toolbar and the search box carry
+`title`/`aria-label`, the form dialog's title re-translates, and the first
+`graph.render()` guards against its own view being gone.
+
+**yunos/js**: gui_treedb 0.17.36 — every deferral is a posted event, the scan
+watchdog is a `C_TIMER` child, the connections table's row actions are reachable
+from the keyboard, and a REPLICA opens without its write buttons (the discovery
+asks `treedb-info` per `C_NODE` service and stores it, because the library reads
+`readonly` once, when it draws a topic's toolbar).
+
+### tools: `audit-agents.sh` says when an agent runs a binary that is gone
+
+Every node runs `yuneta_agent` plus `yuneta_agent22` as a deliberate redundancy,
+and a spare left behind on an old binary is invisible until the day it is
+needed — five days on four nodes, running the version-comparison bug 7.12.0
+fixed. `install.sh` restarts the spare after a package upgrade, so the runtime
+nodes are covered; a node that BUILDS FROM SOURCE has no `install.sh`.
+
+`tools/agent/audit-agents.sh` is read-only and exits 2 if an agent is not
+running, 1 if one is stale, 0 otherwise, so it drops into a cron unchanged. The
+test is one line and it is EXACT, not a heuristic: Linux refuses to write into a
+binary that is being executed (`ETXTBSY`), so `cp` over a running agent fails
+outright and `install` / `mv` / a package succeed only by unlinking first —
+which leaves the running process holding an inode with no name, and the kernel
+marks its `/proc/<pid>/exe` ` (deleted)`. Every replacement that can happen
+while the agent runs is one the kernel marks, so there is no in-place case to
+miss.
 
 ### C_TRANGER: a session that only PAGES no longer leaks its iterators
 

@@ -4,11 +4,11 @@ Helpers used by Yuneta's C test suite: expected-log capture, JSON result compari
 
 Source code:
 
-- [`testing.h`](https://github.com/artgins/yunetas/blob/7.21.0/kernel/c/gobj-c/src/testing.h)
-- [`testing.c`](https://github.com/artgins/yunetas/blob/7.21.0/kernel/c/gobj-c/src/testing.c)
+- [`testing.h`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/testing.h)
+- [`testing.c`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/testing.c)
 
 (capture_log_write)=
-## [`capture_log_write()`](https://github.com/artgins/yunetas/blob/7.21.0/kernel/c/gobj-c/src/testing.c#L47)
+## [`capture_log_write()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/testing.c#L54)
 
 `capture_log_write()` processes log messages, comparing them against expected log messages and categorizing them as expected or unexpected.
 
@@ -41,7 +41,7 @@ If a log message matches an expected message, it is removed from the expected li
 ---
 
 (set_expected_results)=
-## [`set_expected_results()`](https://github.com/artgins/yunetas/blob/7.21.0/kernel/c/gobj-c/src/testing.c#L113)
+## [`set_expected_results()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/testing.c#L210)
 
 `set_expected_results()` initializes the expected test results, including expected errors, expected JSON output, ignored keys, and verbosity settings.
 
@@ -75,10 +75,79 @@ The function resets previously stored expected results before setting new ones.
 If `verbose` is enabled, the function prints the test name to the console.
 The function initializes `expected_log_messages`, `unexpected_log_messages`, and `expected` as JSON arrays if they are not provided.
 
+**The list is a SCRIPT, and that is the point**
+
+Every captured log must match the **head** of `errors_list`, so the list states
+the exact messages, in the exact order, the exact number of times. That is the
+right assertion for a test that drives one sequence, and it is what nearly
+every test here wants. When the order is genuinely not yours to decide, see
+[`set_expected_results_unordered()`](#set_expected_results_unordered) below —
+and read what it gives up before reaching for it.
+
+---
+
+(set_expected_results_unordered)=
+## [`set_expected_results_unordered()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/testing.c#L226)
+
+The same as [`set_expected_results()`](#set_expected_results), with
+`errors_list` read as a **whitelist** instead of a script.
+
+```C
+void set_expected_results_unordered(
+    const char  *name,
+    json_t      *errors_list,
+    json_t      *expected,
+    const char  **ignore_keys,
+    BOOL        verbose
+);
+```
+
+**Parameters**
+
+The same as [`set_expected_results()`](#set_expected_results).
+
+**How the list is read**
+
+| | `set_expected_results()` | `set_expected_results_unordered()` |
+|---|---|---|
+| A captured log matches | the HEAD of the list | ANY entry of the list |
+| A match | consumes the entry | leaves it, so the message may repeat |
+| Every entry must be matched | exactly as many times as listed | at least once |
+| A log matching no entry | fails the test | fails the test |
+
+So it gives up *"in this order, this many times"* and keeps *"these things
+happened, and nothing else did"*.
+
+**When to use it**
+
+:::{warning}
+Only when the order really is not ours to decide. A test whose sequence is
+merely wrong gets its sequence fixed, not its assertion relaxed.
+:::
+
+The case it was written for is `c_tcp2/test2`: two `C_TCP` gobjs — the client
+and the accepted server side — log `"Connected"` and `"Disconnected"`
+independently, and the driver calls `set_yuno_must_die()` from inside one
+side's close callback, which logs `"Exit to die"` synchronously and shuts the
+yuno down. The other side's last log is swallowed, or is not, depending on
+whether the two close completions land in the same io_uring batch. The
+**count** moved and not only the order, so no ordered list could be right — and
+the test failed on a busy box naming a message that was perfectly correct.
+
+```C
+set_expected_results_unordered(
+    APP_NAME,
+    errors_list,  // the messages the run may emit, in any order
+    NULL,         // expected json, NULL to check only the logs
+    NULL,         // ignore_keys
+    1             // verbose
+);
+```
+
 ---
 
 (test_directory_permission)=
-## [`test_directory_permission()`](https://github.com/artgins/yunetas/blob/7.21.0/kernel/c/gobj-c/src/testing.c#L209)
+## [`test_directory_permission()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/testing.c#L314)
 
 `test_directory_permission()` checks if a directory has the specified permission mode.
 
@@ -107,7 +176,7 @@ This function internally retrieves the directory's permission mode and compares 
 ---
 
 (test_file_permission_and_size)=
-## [`test_file_permission_and_size()`](https://github.com/artgins/yunetas/blob/7.21.0/kernel/c/gobj-c/src/testing.c#L222)
+## [`test_file_permission_and_size()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/testing.c#L327)
 
 `test_file_permission_and_size()` verifies if a file has the specified permissions and size.
 
@@ -138,7 +207,7 @@ This function internally calls `file_permission()` and `file_size()` to retrieve
 ---
 
 (test_json)=
-## [`test_json()`](https://github.com/artgins/yunetas/blob/7.21.0/kernel/c/gobj-c/src/testing.c#L169)
+## [`test_json()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/testing.c#L273)
 
 `test_json()` compares a given JSON object with an expected JSON object and verifies if they match. It also checks for expected and unexpected log messages.
 
@@ -179,7 +248,7 @@ result += test_json(json_incref(record));   // record is borrowed
 ---
 
 (test_json_file)=
-## [`test_json_file()`](https://github.com/artgins/yunetas/blob/7.21.0/kernel/c/gobj-c/src/testing.c#L139)
+## [`test_json_file()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/testing.c#L242)
 
 `test_json_file()` compares the JSON content of a file with the expected JSON structure and validates log results.
 
