@@ -664,6 +664,26 @@ A JSON array containing the names of available TreeDBs. Returns `NULL` if an err
 
 If the `gobj` does not implement `mt_treedbs`, an error is logged and `NULL` is returned.
 
+The answer is **always a list**, never a command response envelope: this is a
+framework method, not a command. `C_TREEDB` asks for the `read` permission and
+answers `NULL` when the caller has none, with a `MSGSET_AUTH` line in the log
+(until 2026-09-16 it answered an envelope there, which a caller reads as a
+treedb named `result`). `C_NODE` asks for nothing here — its `treedbs`
+command does.
+
+```C
+json_t *treedbs = gobj_treedbs(gobj_node, json_object(), gobj);
+if(!treedbs) {
+    // Error already logged: no mt_treedbs, or no permission
+    return -1;
+}
+int idx; json_t *jn_name;
+json_array_foreach(treedbs, idx, jn_name) {
+    // json_string_value(jn_name)
+}
+JSON_DECREF(treedbs)
+```
+
 ---
 
 (gobj_unlink_nodes)=

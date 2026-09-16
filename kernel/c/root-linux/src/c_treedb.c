@@ -480,17 +480,24 @@ PRIVATE json_t *mt_treedbs(
 
     /*----------------------------------------*
      *  Check AUTHZS
+     *
+     *  A framework method answers what its contract says -- here the list of
+     *  treedb names -- so a refusal is NULL, and says so in the log: it used
+     *  to answer a msg_iev_build_response envelope, which a caller of
+     *  gobj_treedbs() reads as a dict of one treedb named "result".
      *----------------------------------------*/
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, json_incref(kw), src)) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
-            0,
-            0,
-            kw  // owned
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "No permission to list the treedbs",
+            "permission",   "%s", permission,
+            "service",      "%s", gobj_name(gobj),
+            NULL
         );
+        KW_DECREF(kw)
+        return NULL;
     }
 
     return treedb_list_treedb(

@@ -222,9 +222,9 @@ Line numbers are those of `main` on 2026-09-15.
   in memory -- see `CHANGELOG.md`.) Open design question, not a defect: a
   save inherits the node's snap tag, so the LATEST snap follows every update
   made after it and freezes nothing; only the earlier snaps stay put.
-- **C_NODE / C_TREEDB**: `mt_treedbs` (`c_treedb.c:469`) returns a
-  `msg_iev_build_response` envelope where its callers expect a list. (Fixed on
-  2026-09-15: every C_NODE command asks a permission -- see `CHANGELOG.md`.)
+- **C_NODE / C_TREEDB**: nothing open from the review. (Fixed on 2026-09-15:
+  every C_NODE command asks a permission; and on 2026-09-16: `mt_treedbs`
+  answers a list, not an envelope -- see `CHANGELOG.md`.)
 - **gobj-ui (treedb views)**: the pencil of the Op column opens the form by a
   direct call, not through the FSM; the confirm dialogs (delete, unsaved
   changes) act from the promise's `.then` (the schema editor does it right,

@@ -79,12 +79,17 @@ time_measure_t time_measure;
 /***************************************************************************
  *  The test drives C_TREEDB through its commands, and those are guarded by
  *  authzs. Without an authz service the default checker denies them, so
- *  the test supplies its own.
+ *  the test supplies its own: everyone may, except the one principal the
+ *  refusal of `mt_treedbs` is asked about.
  ***************************************************************************/
+#define DENIED_USER     "denied@test"
+
 PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj src)
 {
+    const char *username = kw_get_str(gobj, kw, "__username__", "", 0);
+    BOOL allowed = (strcmp(username, DENIED_USER) != 0)? TRUE: FALSE;
     KW_DECREF(kw)
-    return TRUE;
+    return allowed;
 }
 
 /***************************************************************************
@@ -137,6 +142,7 @@ static int register_yuno_and_more(void)
             "{s:s}, {s:s}, {s:s}, {s:s},"               /* attribute off: opened from __system__ */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* the code imposes over the attribute */
             "{s:s},"
+            "{s:s},"                                    /* gobj_treedbs refused */
             "{s:s}, {s:s}, {s:s}, {s:s}"
         "]",
             "msg", "Starting yuno",
@@ -203,6 +209,7 @@ static int register_yuno_and_more(void)
             "msg", "Imposing topic_version from C over a newer one",
             "msg", "Re-Creating topic_var.json",
             "msg", "Re-Creating topic_cols.json",
+            "msg", "No permission to list the treedbs",
             "msg", "All treedb system schema tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",

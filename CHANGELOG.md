@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### C_TREEDB: `mt_treedbs` answers the list its contract promises
+
+Last finding of the 2026-09-15 review (M-C8). A framework method answers what
+its contract says, and `gobj_treedbs()` says "a list with treedb names".
+C_TREEDB's `mt_treedbs` answered a `msg_iev_build_response` **envelope** when
+the user had no `read`: a dict, which a caller reads as a treedb named
+`result`. It now answers NULL, and says why in the log (`MSGSET_AUTH`) --
+a NULL with no message would be a silent error. The allowed path already
+answered a list; C_NODE's `mt_treedbs` always did.
+
+Latent: no in-tree caller reaches C_TREEDB's `mt_treedbs` (the only
+`gobj_treedbs()` call is C_NODE's `treedbs` command, on a C_NODE, and
+C_TREEDB publishes no `treedbs` command).
+Test: `c_treedb_system_schema` asks `gobj_treedbs()` for a list and for the
+refusal. Against the previous library the refusal case fails.
+
 ### C_NODE: every command that reads or writes the treedb asks for a permission
 
 From the 2026-09-15 review. C_NODE checks a permission inside each command

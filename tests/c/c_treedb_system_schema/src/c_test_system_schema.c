@@ -2498,6 +2498,46 @@ PRIVATE int run_tests(hgobj gobj)
      *-----------------------------------------------*/
     result += check_impose_forced_by_code(gobj);
 
+    /*-----------------------------------------------*
+     *  Test 11: gobj_treedbs() answers the LIST its
+     *  contract promises, and a refusal is NULL.
+     *  C_TREEDB's mt_treedbs used to answer a
+     *  msg_iev_build_response envelope when the user
+     *  had no `read`: a dict, which a caller reads as
+     *  a treedb named "result".
+     *-----------------------------------------------*/
+    {
+        json_t *treedbs = gobj_treedbs(priv->gobj_treedbs, json_object(), gobj);
+        if(!json_is_array(treedbs)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: gobj_treedbs() did not answer a list",
+                "answer",       "%j", treedbs,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(treedbs)
+
+        json_t *refused = gobj_treedbs(
+            priv->gobj_treedbs,
+            json_pack("{s:s}", "__username__", "denied@test"),
+            gobj
+        );
+        if(refused) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a refused gobj_treedbs() answered something",
+                "answer",       "%j", refused,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(refused)
+    }
+
     JSON_DECREF(client_cols)
     JSON_DECREF(ids_before)
     JSON_DECREF(ids_after)
