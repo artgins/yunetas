@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.21.0 (2026-09-16)
 
 ### C_TREEDB: `mt_treedbs` answers the list its contract promises
 

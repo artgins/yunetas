@@ -73,7 +73,7 @@ Writes the state of *"active"*, in violet. The library uses it for the buttons
 of the history, undo and redo.
 
 (js_set_pressed_state)=
-### [`set_pressed_state($container, selector, set)`](https://github.com/artgins/gobj-ui.js/blob/7.23.168/src/lib_graph.js#L122)
+### [`set_pressed_state($container, selector, set)`](https://github.com/artgins/gobj-ui.js/blob/7.23.168/src/yui_toolbar.js#L189)
 
 Writes the state of *"this toggle is on"*. It does not use a color: it gives
 the control the look of a button that is pressed, an inverted neutral. A color
