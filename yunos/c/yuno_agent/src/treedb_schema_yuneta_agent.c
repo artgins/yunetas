@@ -9,6 +9,7 @@
     {↖} N fkeys     (N parents) ???
 
     (2) pkey2 - secondary key
+    (t) tkey  - time key (none: the time a record was appended)
     *   field required
     =   field inherited
 

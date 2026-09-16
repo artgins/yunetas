@@ -65,6 +65,26 @@ Nothing here changes a happy path.
 - `yunos/js`: its CHANGELOG files gui_agent 0.22.62 / gui_treedb 0.17.36 as
   released, which they are.
 
+### gobj-ui 7.23.171: the treedb views say the keys of a topic
+
+`kernel/js/gobj-ui` -> 7.23.171, `yunos/js` and every consumer on
+`^7.23.171`, deployed by the round to the eight hosts. A topic with `pkey2s`
+keeps several instances under one id, and `tkey` says where the time of a
+record comes from. None of the three treedb views said either one:
+
+- `C_YUI_TREEDB_SCHEMA` drew a pkey2 field with `*`, like any other required
+  field, although the `.c` literals mark it `(2)`. It now draws `(2)` in bold
+  like the pkey, and `(t)` on the tkey field.
+- The topic-info panel had no `pkey2s` row and hid an empty `tkey`. It now
+  shows both (*append time* when there is no tkey), `system` by flag name, and
+  `pkey` / `pkey2` / `tkey` in the key cell of the column table.
+- The topic cards have a `pkey2s` line.
+
+`(t)` is new to the notation, so the legends of the three literals that carry
+one (`treedb_schema_authzs.c`, `treedb_schema_yuneta_agent.c`,
+`treedb_schema_controlcenter.c`) gained the line. It is a comment only. JS API
+doc links repinned to 7.23.171.
+
 ### gobj-ui 7.23.170: the form's Save sends the pkey2 back
 
 `kernel/js/gobj-ui` -> 7.23.170, `yunos/js` and every consumer on
