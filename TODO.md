@@ -309,19 +309,10 @@ readlink /proc/$(pgrep -x yuneta_agent22 | head -1)/exe | grep -q ' (deleted)$'
 
 The four gclasses whose runtime lived outside the automaton are done
 (`C_TRANGER_VIEW`, `C_TREEDB_CONFIG`, `C_TREEDB_LOGIN`; `C_TREEDB_LINKS` was
-already fine). What the audit left open:
+already fine), and so are the raw `setTimeout`s and the row actions no keyboard
+could reach (gui_treedb **0.17.35**, 2026-09-16 — see that repo's
+`CHANGELOG.md`). What the audit left open:
 
-- **Raw `setTimeout` used as an FSM timer.** `c_treedb_links.js` (the 15 s scan
-  timeout, whose callback publishes events and mutates state — the gclass has no
-  `C_TIMER` child at all) and `c_treedb_view.js` (the deferred rebind, which
-  destroys gobjs and swaps DOM). Both should be a `C_TIMER` pure child +
-  `EV_TIMEOUT` / a dedicated event, so the deferral shows up in the trace.
-  The 2026-09-15 review found three more in `c_app.js` (`:611`, `:1402`,
-  `:1417`), next to a `gobj_post_event(EV_NORMALIZE_ROUTE)` that already does
-  that job: a deferral inside the yuno is `gobj_post_event()`, not a timer.
-- **Row actions of `c_treedb_connections.js` (`:802-841`) are `<span
-  class="icon">`** with no `role=button` and no `tabindex`: unreachable from the
-  keyboard.
 - **gui_treedb never asks `treedb-info`**, so a replica is mounted with its
   write buttons, and it is the backend that refuses each write.
 - **Backend features with no UI** (the SPA uses 15 of ~45 C_NODE/C_TRANGER
