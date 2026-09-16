@@ -141,7 +141,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (rowid-key)=
 **Rowid key**
-:   A [pkey](#pkey) flag: a create that sends no `id` gets one past every id the topic ever handed out, kept in the topic's `topic_var.json` as `last_rowid_id`. An id is never reused, not even after its node is deleted. It is not [g_rowid](#g_rowid) or [i_rowid](#i_rowid), which timeranger2 gives to every record — this one is the address of a node. The address is unique but arbitrary: it does not reproduce, and a `rowid` pkey has no update, so an editor that saves a record appends a second one instead of changing the first. It is here for the stores that already use it. Do not declare it in a new topic.
+:   A [pkey](#pkey) flag: a create that sends no `id` gets one past every id the topic ever handed out, kept in the topic's `topic_var.json` as `last_rowid_id`, where it survives a `topic_version` change. An id is never reused, not even after its node is deleted. It is not [g_rowid](#g_rowid) or [i_rowid](#i_rowid), which timeranger2 gives to every record — this one is the address of a node. The address is unique but arbitrary: it does not reproduce, and a `rowid` pkey has no update, so an editor that saves a record appends a second one instead of changing the first. It is here for the stores that already use it. Do not declare it in a new topic.
 
 (glossary-sdata)=
 **SData** (Structured Data)

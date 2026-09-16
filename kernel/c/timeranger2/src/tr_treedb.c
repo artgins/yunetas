@@ -5249,7 +5249,10 @@ PRIVATE BOOL inherit_links(
  *
  *  The counter lives in topic_var.json as `last_rowid_id`. The scan of the
  *  index raises it past any numeric id written explicitly, and seeds it in
- *  a store written before the counter existed.
+ *  a store written before the counter existed. A topic_version change
+ *  re-creates that file from the schema, and tranger2_create_topic() carries
+ *  the counter across: seeded again from the ids alive, it would hand out
+ *  the deleted highest one.
  *
  *  Return the id, 0 on error.
  ***************************************************************************/

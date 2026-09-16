@@ -1,5 +1,29 @@
 # **Changelog**
 
+## Unreleased
+
+### treedb: the `rowid` counter survives a `topic_version` change
+
+Found auditing 7.21.0's fix (*"a `rowid` id is never handed out twice"*). The
+counter it introduced, `last_rowid_id`, lives in the topic's `topic_var.json`,
+and `tranger2_create_topic()` REMOVES that file when the schema's
+`topic_version` goes up (or down while a treedb imposes its schema), so a key
+the new schema no longer carries goes away with it. The counter went with it
+too. At the next create `get_next_rowid_id()` seeded itself again from the
+ids still alive, and if the highest id had been deleted it was handed out
+again -- the one thing the fix forbade, because a snap's id rides the records
+it tagged. The agent's `yunos`, `configurations` and `public_services` are
+`rowid` topics whose `topic_version` moves between releases.
+
+It showed only across a RESTART: in the same process the topic stays open in
+the tranger and keeps the counter in memory, so a close and reopen of the
+treedb alone could not see it, and the existing test did not. The counter is
+now read before the file is removed and written back after the file is
+re-created; every other key still follows the schema.
+Test: `tr_treedb_rowid` gains a case that deletes the highest id, shuts the
+tranger down, starts it again with the version raised, and creates. Against
+the previous library it hands out `4`, the deleted id, for `7`.
+
 ## v7.22.0 (2026-09-16)
 
 ### JS: gobj-js 7.21.0, gobj-ui 7.23.169, and the yunos that ride them

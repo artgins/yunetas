@@ -39,5 +39,11 @@ The test checks, on a topic declared like this:
 3. The id of the deleted last node is not handed out again.
 4. The counter survives a close and reopen, even when the node that held the
    highest id was deleted before the close.
-5. The same for `__snaps__`: delete a snap row, shoot again, reload, shoot
+5. The counter survives a `topic_version` change across a RESTART of the
+   tranger. The change re-creates `topic_var.json` from the schema, and the
+   counter lived there; in the same process the topic stays open in the
+   tranger and keeps it in memory, so the loss shows only with a new tranger,
+   which is what a yuno restart is. Re-seeded from the ids alive, the next
+   create handed out the deleted highest id again (`4`, the id `d` had).
+6. The same for `__snaps__`: delete a snap row, shoot again, reload, shoot
    again.

@@ -79,6 +79,12 @@ static char schema_rowid[]= "\
 }                                                                   \n\
 ";
 
+/*
+ *  The topic_version the schema is opened with. It only goes up: a version
+ *  going down would be read as a change being reverted.
+ */
+static int topic_version = 1;
+
 /***************************************************************
  *              Helpers
  ***************************************************************/
@@ -90,6 +96,10 @@ PRIVATE int open_treedb(json_t *tranger)
         printf("%sERROR%s --> cannot decode the schema\n", On_Red BWhite, Color_Off);
         return -1;
     }
+    json_t *topic = json_array_get(json_object_get(jn_schema, "topics"), 0);
+    char version[32];
+    snprintf(version, sizeof(version), "%d", topic_version);
+    json_object_set_new(topic, "topic_version", json_string(version));
     if(!treedb_open_db(tranger, TREEDB_NAME, jn_schema, 0)) {
         printf("%sERROR%s --> cannot open the treedb\n", On_Red BWhite, Color_Off);
         return -1;
@@ -183,6 +193,28 @@ PRIVATE int reload(json_t *tranger)
     return open_treedb(tranger);
 }
 
+/*
+ *  A tranger on the test database, as a yuno starts it.
+ */
+PRIVATE json_t *start_tranger(void)
+{
+    const char *home = getenv("HOME");
+    char path_root[PATH_MAX];
+
+    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK
+    );
+    json_t *tranger = tranger2_startup(0, jn_tranger, 0);
+    if(!tranger) {
+        printf("%sERROR%s --> cannot start the tranger\n", On_Red BWhite, Color_Off);
+    }
+    return tranger;
+}
+
 /***************************************************************************
  *  1-4: a user topic with pkey2s
  ***************************************************************************/
@@ -241,6 +273,55 @@ PRIVATE int test_user_topic(json_t *tranger)
 }
 
 /***************************************************************************
+ *  5: a topic_version change, across a restart of the tranger
+ *
+ *  The change re-creates topic_var.json from the schema, and the counter
+ *  lived there. In the same process the topic stays open in the tranger
+ *  and keeps the counter in memory, so the loss shows only with a NEW
+ *  tranger: the restart of a yuno whose schema bumped a version. Re-seeded
+ *  from the ids alive (2, 3, 6 minus the deleted 6), the next create got
+ *  4, the id `d` had.
+ ***************************************************************************/
+PRIVATE int test_version_change(json_t **ptranger)
+{
+    int result = 0;
+    char f[64], g[64];
+
+    set_expected_results("delete the highest id, close everything", NULL, NULL, NULL, 1);
+    json_t *node_f = treedb_get_node(*ptranger, TREEDB_NAME, TOPIC_NAME, "6");
+    if(!node_f) {
+        printf("%sERROR%s --> yuno '6' not found\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    snprintf(f, sizeof(f), "6");
+    result += delete_by_id(*ptranger, TOPIC_NAME, f);
+    treedb_close_db(*ptranger, TREEDB_NAME);
+    tranger2_shutdown(*ptranger);
+    *ptranger = NULL;
+    result += test_json(NULL);
+
+    set_expected_results(
+        "the counter survives a topic_version change across a restart",
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "Re-Creating topic_var.json",
+            "msg", "Re-Creating topic_cols.json"
+        ),
+        NULL, NULL, 1
+    );
+    *ptranger = start_tranger();
+    if(!*ptranger) {
+        return -1;
+    }
+    topic_version++;
+    result += open_treedb(*ptranger);
+    result += create_yuno(*ptranger, "r1", "g", g, sizeof(g));
+    result += expect_id("create after a topic_version change", g, "7");
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *  5: __snaps__
  ***************************************************************************/
 PRIVATE int test_snaps(json_t *tranger)
@@ -278,6 +359,9 @@ PRIVATE int test_snaps(json_t *tranger)
 /***************************************************************************
  *  do_test
  ***************************************************************************/
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE int do_test(void)
 {
     int result = 0;
@@ -295,13 +379,7 @@ PRIVATE int do_test(void)
         json_pack("[{s:s}]", "msg", "Creating __timeranger2__.json"),
         NULL, NULL, 1
     );
-    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
-        "path", path_root,
-        "database", DATABASE,
-        "master", 1,
-        "on_critical_error", LOG_OPT_TRACE_STACK
-    );
-    json_t *tranger = tranger2_startup(0, jn_tranger, 0);
+    json_t *tranger = start_tranger();
     result += test_json(NULL);
     if(!tranger) {
         return -1;
@@ -327,6 +405,10 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     result += test_user_topic(tranger);
+    result += test_version_change(&tranger);
+    if(!tranger) {
+        return -1;
+    }
     result += test_snaps(tranger);
 
     set_expected_results("close and shutdown", NULL, NULL, NULL, 1);

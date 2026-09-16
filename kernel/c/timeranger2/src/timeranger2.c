@@ -961,6 +961,8 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             topic_name
         );
 
+        BOOL version_changed = FALSE;
+        json_int_t last_rowid_id = 0;
         if(topic_new_version) {
             /*----------------------------------------*
              *      Check topic_version
@@ -972,6 +974,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 0
             );
             topic_old_version = kw_get_int(gobj, topic_var, "topic_version", 0, KW_WILD_NUMBER);
+            last_rowid_id = kw_get_int(gobj, topic_var, "last_rowid_id", 0, 0);
             JSON_DECREF(topic_var)
 
             /*
@@ -998,6 +1001,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 }
                 file_remove(directory, "topic_cols.json");
                 file_remove(directory, "topic_var.json");
+                version_changed = TRUE;
             }
         }
 
@@ -1019,6 +1023,24 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 "topic",        "%s", topic_name,
                 NULL
             );
+        }
+
+        /*
+         *  The version change re-creates topic_var.json from the schema, so
+         *  a key the schema no longer carries (pkey2s) goes away with it.
+         *  `last_rowid_id` is not schema: it is the counter treedb keeps
+         *  there so a rowid id is never handed out twice, and re-seeding it
+         *  from the ids still alive would hand out the deleted highest one
+         *  again. It survives the change.
+         */
+        if(version_changed && last_rowid_id > 0) {
+            if(tranger2_write_topic_var(
+                tranger,
+                topic_name,
+                json_pack("{s:I}", "last_rowid_id", last_rowid_id)
+            )<0) {
+                // Error already logged
+            }
         }
 
         if(!file_exists(directory, "topic_cols.json")) {
