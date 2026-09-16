@@ -1386,10 +1386,28 @@ services too, so its gate goes down for the cycle.
 Round-trip coverage:
 [`tests/c/c_treedb_system_schema`](https://github.com/artgins/yunetas/tree/7.22.0/tests/c/c_treedb_system_schema).
 
-**Known gap:** `delete-treedb` (`delete_client_treedb_schema()`) removes the
-parent node before its children and passes collapsed views where pure nodes
-are required. It does not work, and it is unrelated to the data of the client
-treedb, which it never touches.
+**`delete-treedb` deletes the schema, and only of a CLOSED treedb.** It
+removes the projection in `__system__` (`delete_client_treedb_schema()`: the
+`treedbs` node with `force`, which unlinks its `topics` and `cols` itself) and
+never touches the client treedb's store on disk. `force=1` is required and
+means "yes, delete the schema"; it does not lift the refusal of an OPEN
+treedb, because an open one goes on answering from its copy in memory with a
+schema that exists nowhere, and the next `open-treedb` dies on the C_TRANGER
+service still alive under its name, leaving the store orphaned. Close first
+(`close-treedb force=1`, or `pause-yuno` + `play-yuno`), then delete:
+
+```
+command-yuno id=<id> service=treedbs command=close-treedb treedb_name=treedb_foo force=1
+command-yuno id=<id> service=treedbs command=delete-treedb treedb_name=treedb_foo force=1
+```
+
+Until 7.22.0 this page called the command broken -- "removes the parent before
+its children and passes collapsed views where pure nodes are required". Both
+halves were wrong: `mt_delete_node` re-resolves the pure node by `id`, and a
+parent deleted with `force` unlinks its children itself. The real defect was
+that it deleted the schema UNDER a running treedb. Covered by test 12 of
+`c_treedb_system_schema`: deleted closed, nothing of the projection remains;
+deleted open, refused and nothing changes.
 
 ---
 
