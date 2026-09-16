@@ -293,12 +293,15 @@ once the main one is confirmed healthy.
 
 The four gclasses whose runtime lived outside the automaton are done
 (`C_TRANGER_VIEW`, `C_TREEDB_CONFIG`, `C_TREEDB_LOGIN`; `C_TREEDB_LINKS` was
-already fine), and so are the raw `setTimeout`s and the row actions no keyboard
-could reach (gui_treedb **0.17.35**, 2026-09-16 — see that repo's
-`CHANGELOG.md`). What the audit left open:
+already fine), the raw `setTimeout`s and the row actions no keyboard could
+reach (gui_treedb **0.17.35**), and `treedb-info` — a replica now opens without
+its write buttons, asked once by the connection's DISCOVERY and not at the
+mount, because the library reads `readonly` once when it draws a topic's
+toolbar (**0.17.36**; both 2026-09-16, see that repo's `CHANGELOG.md`).
 
-- **gui_treedb never asks `treedb-info`**, so a replica is mounted with its
-  write buttons, and it is the backend that refuses each write.
+What the audit left open is one item, and it is a feature project rather than a
+leftover:
+
 - **Backend features with no UI** (the SPA uses 15 of ~45 C_NODE/C_TRANGER
   commands). Highest operator value, in order: **snapshots** (`snaps`,
   `snap-content`, `shoot-snap`, `activate-snap`, `deactivate-snap` — tag a
