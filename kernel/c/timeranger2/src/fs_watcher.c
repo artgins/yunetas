@@ -627,6 +627,23 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
 
     int wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
     if (wd == -1) {
+        if(errno == ENOENT) {
+            /*
+             *  Seen created, gone before it could be watched. A master
+             *  signals a deleted key to its followers by creating and
+             *  removing the key's directory (appear-and-vanish), so in a
+             *  recursive watch this is that signal arriving late, not a
+             *  fault: the parent's IN_DELETE follows.
+             */
+            gobj_log_warning(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Directory gone before it could be watched",
+                "path" ,        "%s", path,
+                NULL
+            );
+            return -1;
+        }
         gobj_log_error(fs_event->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,

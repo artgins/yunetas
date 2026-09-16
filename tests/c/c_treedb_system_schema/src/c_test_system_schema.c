@@ -1985,6 +1985,30 @@ PRIVATE int check_delete_treedb(hgobj gobj)
         JSON_DECREF(jn_resp)
 
         /*
+         *  The system schema itself is refused by name, as its siblings
+         *  refuse it: it is not projected in `treedbs`, so without the
+         *  refusal the command fell through to a "not found" error.
+         */
+        jn_resp = gobj_command(
+            priv->gobj_treedbs,
+            "delete-treedb",
+            json_pack("{s:s, s:b}", "treedb_name", SYSTEM_TREEDB, "force", 1),
+            gobj
+        );
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) >= 0 ||
+                !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "system schema")) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: delete-treedb of the system schema not refused by name",
+                "comment",      "%s", kw_get_str(gobj, jn_resp, "comment", "", 0),
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+
+        /*
          *  Closed: nothing of it may remain -- the columns matter as
          *  much as the treedbs node, they are what a reconstruction
          *  reads. Open: the refusal must have touched nothing.

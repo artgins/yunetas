@@ -3279,7 +3279,7 @@ PUBLIC int find_files_with_suffix_array(
             struct stat st;
             char path[PATH_MAX];
 
-            snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+            build_path(path, sizeof(path), directory, entry->d_name, NULL);
             if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
                 is_file = 1;
             }
@@ -3289,7 +3289,7 @@ PUBLIC int find_files_with_suffix_array(
             struct stat st;
             char path[PATH_MAX];
 
-            snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+            build_path(path, sizeof(path), directory, entry->d_name, NULL);
             if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
                 is_file = 1;
             }

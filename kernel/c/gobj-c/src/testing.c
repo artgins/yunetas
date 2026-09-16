@@ -4,6 +4,7 @@
  *          Auxiliary functions to do testing
  *
  *          Copyright (c) 2019, Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <inttypes.h>

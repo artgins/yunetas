@@ -4366,8 +4366,9 @@ PRIVATE BOOL parent_hook_holds_child(
 /***************************************************************************
  *  Locate the parent-version instance (pkey2) of `parent_id` whose hook
  *  actually holds `child_node`. Returns the instance node (NOT owned) or
- *  NULL when none holds it (e.g. hook+fkey combos the read-only probe can't
- *  match, where the caller keeps the legacy primary-instance behaviour).
+ *  NULL when no instance's hook holds it (the child's reference names a
+ *  parent that does not hold it back), where the caller falls back to the
+ *  primary instance.
  ***************************************************************************/
 PRIVATE json_t *find_parent_version_holding_child( // Return is NOT YOURS
     hgobj gobj,
@@ -8313,9 +8314,8 @@ PRIVATE int unlink_child_from_parent_ref(
     }
     if(!holder) {
         /*
-         *  Not located on any instance (e.g. hook+fkey combos the
-         *  read-only probe can't match): keep legacy behaviour and
-         *  unlink from the primary if it exists.
+         *  No instance's hook holds the child: fall back to the primary,
+         *  and let _unlink_nodes() say whether the reference names it.
          */
         holder = parent_node;
     }

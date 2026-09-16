@@ -487,7 +487,7 @@ PRIVATE json_t *mt_treedbs(
      *  gobj_treedbs() reads as a dict of one treedb named "result".
      *----------------------------------------*/
     const char *permission = "read";
-    if(!gobj_user_has_authz(gobj, permission, json_incref(kw), src)) {
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
@@ -944,6 +944,19 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  how to close: `close-treedb`, or the yuno's own
      *  lifecycle with pause-yuno + play-yuno.
      *-----------------------------------------------------*/
+    if(strcmp(treedb_name, gobj_name(priv->gobj_node_system))==0) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: '%s' is the system schema, it cannot be deleted",
+                gobj_yuno_role_plus_name(), treedb_name
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     hgobj gobj_opened = gobj_find_service(treedb_name, FALSE);
     if(gobj_opened && is_treedb_opened_here(gobj, gobj_opened)) {
         return msg_iev_build_response(
@@ -966,9 +979,22 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_object_del(priv->jn_c_schemas, treedb_name);
     json_object_del(priv->jn_forced_treedbs, treedb_name);
 
+    if(ret < 0) {
+        return msg_iev_build_response(gobj,
+            ret,
+            json_sprintf(
+                "%s: cannot delete the schema of '%s': not projected in "
+                "__system__, or one of its nodes refused the delete (see the log)",
+                gobj_yuno_role_plus_name(), treedb_name
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     return msg_iev_build_response(gobj,
-        ret,
-        json_sprintf("%s", ret<0?gobj_log_last_message():"Treedb deleted!"),
+        0,
+        json_sprintf("%s: schema of '%s' deleted", gobj_yuno_role_plus_name(), treedb_name),
         0,
         0,
         kw  // owned
@@ -2636,6 +2662,13 @@ PRIVATE int delete_client_treedb_schema(
         gobj
     );
     if(!treedb) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Treedb schema not projected in __system__",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
         return -1;
     }
 

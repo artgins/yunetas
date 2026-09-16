@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### A sweep of the minors the post-implementation audit left
+
+Nothing here changes a happy path.
+
+- **`delete-treedb` refuses the system schema by name** (*"'<name>' is the
+  system schema, it cannot be deleted"*), as `close-treedb` / `create-topic` /
+  `delete-topic` already did. It fell through to a "not found" error, since
+  the system schema is not projected in `treedbs`. Its answers no longer come
+  from `gobj_log_last_message()`: a failure says *"not projected in
+  `__system__`, or one of its nodes refused the delete (see the log)"*, and
+  `delete_client_treedb_schema()` logs the missing projection itself.
+  `mt_treedbs` increfs its kw with `kw_incref()`, the pair of the
+  `KW_DECREF` it releases with. Test 12 of `c_treedb_system_schema` covers
+  the refusal.
+- **A follower no longer logs a stack trace for a directory that vanished
+  before it could be watched.** The master signals a deleted key with a
+  directory that appears and vanishes (7.21.0), and on a follower in another
+  process the `rmdir` can land between the `is_directory()` test and the
+  `inotify_add_watch()`; `ENOENT` there is now a warning without stack trace
+  (*"Directory gone before it could be watched"*), the parent's `IN_DELETE`
+  follows.
+- `helpers.c`'s file lister assembles its `stat` paths with `build_path()`
+  in both branches; `testing.c` carries the ArtGins copyright its 7.22.0
+  helper earned; two comments in `tr_treedb.c` stop describing the hook+fkey
+  column the parser refuses since 7.21.0.
+- `yunos/js`: its CHANGELOG files gui_agent 0.22.62 / gui_treedb 0.17.36 as
+  released, which they are.
+
 ### gobj-ui 7.23.170: the form's Save sends the pkey2 back
 
 `kernel/js/gobj-ui` -> 7.23.170, `yunos/js` and every consumer on
