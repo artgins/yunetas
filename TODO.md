@@ -225,19 +225,34 @@ Line numbers are those of `main` on 2026-09-15.
 - **C_NODE / C_TREEDB**: nothing open from the review. (Fixed on 2026-09-15:
   every C_NODE command asks a permission; and on 2026-09-16: `mt_treedbs`
   answers a list, not an envelope -- see `CHANGELOG.md`.)
-- **gobj-ui (treedb views)**: the pencil of the Op column opens the form by a
-  direct call, not through the FSM; the confirm dialogs (delete, unsaved
-  changes) act from the promise's `.then` (the schema editor does it right,
-  `confirm_then` → `EV_CONFIRMED`); `EV_SELECT_ROWS` / `EV_UNSELECT_ROWS` are
-  output events of the child that the host `C_YUI_TREEDB_TOPICS` does not
-  declare, and `ac_unselect_rows` reads the wrong attr; since `hook_size`
-  (7.23.163) the table's search matches the COUNT of a hook (`row_matches`,
-  no test with `{size}`); `setTimeout(close_form_dialog, 0)` as a deferral; the
-  five toolbar buttons of the table and its search have no `title` /
-  `aria-label`; the form dialog's title is composed at render and handed over
-  as an i18n KEY; `C_G6_NODES_TREE` puts G6/DOM event objects in kws and runs
-  deletes/links from DOM callbacks; its first `graph.render().then()` has no
-  destruction guard and no `.catch`.
+- **gobj-ui (treedb views)**: nothing open from the review. (Fixed on
+  2026-09-16 and shipped as gobj-ui **7.23.169**, deployed to all six
+  consumers: the Op-column pencil, the confirm dialogs, the `setTimeout`
+  deferral, the kws carrying G6 event objects and the writes run from DOM
+  callbacks all cross the FSM now; the table's search no longer matches the
+  COUNT of a hook; `ac_unselect_rows` reads its own attr; the toolbar buttons
+  and the search box carry `title`/`aria-label`; the form dialog's title
+  re-translates; and the first `graph.render()` guards against its own view
+  being gone. See that repo's `CHANGELOG.md`.)
+
+  One item of the report was NOT a defect and was left alone: it asked that
+  `C_YUI_TREEDB_TOPICS` declare `EV_SELECT_ROWS`/`EV_UNSELECT_ROWS`. The
+  library settles that shape the other way round -- the event is opt-in and
+  the host that TURNS IT ON declares it, as `with_node_click` says -- and
+  nothing turns these on, so a declaration there would be the no-op action
+  `CLAUDE.md` forbids. The contract went into the attr descriptions.
+
+  **Found while fixing, not from the review and not fixed** (all LATENT, a
+  static scan of who hosts whom): three hosts do not declare an output event
+  of a gobj they subscribe to. `C_YUI_NODE` creates `C_YUI_NAV` as a pure
+  child (`c_yui_node.js:705/760/969`) and declares neither
+  `EV_NAV_ITEM_CLOSE` nor `EV_DRAWER_CLOSE_REQUESTED`, which `c_yui_nav.js`
+  really does publish -- the likeliest of the three to bite.
+  `C_YUI_TREEDB_TOPIC_WITH_FORM` creates `C_YUI_JSON` as a pure child
+  (`:2522/2651`) without declaring `EV_EXPAND_PATH`, which only fires on a
+  `__collapsed__` sentinel and those come from the backend, not from a schema
+  or a cell. `C_YUI_TREEDB_TOPICS` hosting `C_YUI_TREEDB_SCHEMA` is the
+  documented opt-in case, not a defect.
 - **Docs**: `YUNO_TREEDB.md` puts `schema_version` on a topic (it is the
   treedb's), shows `sf_zip_record` / `sf_cipher_record` as working (they are
   `// TODO`), and its `initial_load` example uses `org_nodes` and
