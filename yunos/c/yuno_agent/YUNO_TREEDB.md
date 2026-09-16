@@ -193,8 +193,13 @@ typedef struct {
 | `sf_rowid_key`    | pkey is auto-generated rowid. `g_rowid == i_rowid` enforced. |
 | `sf_t_ms`         | `__t__` in milliseconds (default: seconds).            |
 | `sf_tm_ms`        | `__tm__` in milliseconds.                              |
-| `sf_zip_record`   | `.json` records are zlib-compressed.                   |
-| `sf_cipher_record`| `.json` records are encrypted.                         |
+| `sf_zip_record`   | Declared, NOT implemented: both the writer and the reader carry the branch as `// TODO`. A topic created with it stores the bit and writes plain records. |
+| `sf_cipher_record`| Declared, NOT implemented, same as above.              |
+
+The two dead flags are reachable since 7.21.0, when `tranger2_str2system_flag()`
+started mapping each name to its own bit (before, every name landed on the bit
+of the one before it). Do not declare them: the bit is persisted, and the day
+the branch is written it would apply to a store written plain.
 
 Persisted in `topic_desc.json` at create time ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/timeranger2/src/timeranger2.c))
 and loaded on open.
@@ -447,25 +452,31 @@ schema *works*.
 
 ### 3.2 Topic schema JSON
 
-A real, minimal example (yuno_agent schema, paraphrased):
+A real, minimal example (the yuno_agent schema, cut down to one topic). Two
+versions live at two levels: `schema_version` is the TREEDB's (§3.1, §3.4),
+`topic_version` is each topic's own:
 
 ```json
 {
-  "id":            "yunos",
-  "schema_version": 1,
-  "topic_version":  19,
-  "pkey":          "id",
-  "pkey2s":         "yuno_release",
-  "tkey":          "",
-  "system_flag":   "sf_string_key",
-  "cols": {
-    "id":         { "type": "string", "flag": ["persistent", "required"] },
-    "realm_id":   { "type": "string", "flag": ["fkey"],
-                    "fkey": { "realms": "yunos" } },
-    "yuno_role":  { "type": "string", "flag": ["persistent", "required"] },
-    "configurations": { "type": "object", "flag": ["hook"],
-                        "hook": { "configurations": "yunos" } }
-  }
+  "id":             "treedb_yuneta_agent",
+  "schema_version": "24",
+  "topics": [
+    {
+      "id":            "yunos",
+      "topic_version": "20",
+      "pkey":          "id",
+      "pkey2s":        "yuno_release",
+      "tkey":          "",
+      "system_flag":   "sf_string_key",
+      "cols": {
+        "id":         { "type": "string", "flag": ["persistent", "required", "rowid"] },
+        "realm_id":   { "type": "string", "flag": ["persistent", "fkey"] },
+        "yuno_role":  { "type": "string", "flag": ["persistent", "required"] },
+        "configurations": { "type": "object", "flag": ["hook"],
+                            "hook": { "configurations": "yunos" } }
+      }
+    }
+  ]
 }
 ```
 
@@ -943,14 +954,26 @@ applies them in `mt_start` right after it opens the treedb, master only:
 
 ```json
 "initial_load": {
-    "org_nodes": [
-        {"id": "es", "name": "Spain", "level": "country"}
+    "roles": [
+        {
+            "id": "root",
+            "disabled": false,
+            "description": "Super-Owner of system",
+            "realm_id": "*",
+            "parent_role_id": "",
+            "service": "*",
+            "permission": "*"
+        }
     ],
     "users": [
-        {"id": "yuneta", "scopes": ["org_nodes^es^users"]}
+        {"id": "yuneta", "roles": ["roles^root^users"]}
     ]
 }
 ```
+
+That is the agent's own seed, as `yuno_agent/src/main.c` hands it to
+`C_AUTHZ` (`Authz.initial_load`): the `root` role, and the `yuneta` user
+hanging from it through the `users` hook of `roles`.
 
 One entry per topic, a list of records, and **the links ride inside the
 record as fkey values** (`parent_topic^parent_id^hook`) — the same form the
@@ -963,7 +986,7 @@ What the loop does on **every** start, in **two passes** — the way
 `treedb_open_db()` brings a store up from disk, records first and links
 second, so that both ends of a link exist before it is written and the order
 of the topics in `initial_load` does not matter (`users` could come before
-`org_nodes` above):
+`roles` above):
 
 1. **Records.** A record that is **missing** is created, without its fkey
    values. A record that is **present** is never rewritten. Either way it is

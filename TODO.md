@@ -240,11 +240,12 @@ Line numbers are those of `main` on 2026-09-15.
   `__collapsed__` sentinel and those come from the backend, not from a schema
   or a cell. `C_YUI_TREEDB_TOPICS` hosting `C_YUI_TREEDB_SCHEMA` is the
   documented opt-in case, not a defect.
-- **Docs**: `YUNO_TREEDB.md` puts `schema_version` on a topic (it is the
-  treedb's), shows `sf_zip_record` / `sf_cipher_record` as working (they are
-  `// TODO`), and its `initial_load` example uses `org_nodes` and
-  `users.scopes`, which exist nowhere; `kernel/js/gobj-ui/README.md` still
-  describes the pre-7.18.0 asset model.
+- **Docs**: nothing open from the review. (Fixed on 2026-09-16:
+  `YUNO_TREEDB.md` shows `schema_version` at the treedb level, says
+  `sf_zip_record` / `sf_cipher_record` are not implemented, and seeds its
+  `initial_load` example with the agent's real `roles` / `users`. The
+  `kernel/js/gobj-ui/README.md` item was stale: its asset section already
+  described the `get-asset` / `yui_asset_*` model.)
 
 **Tests nobody has** (in order of damage): changing a pkey2
 value; two hooks on one fkey; `delete_instance` with links; the snapshot clone
