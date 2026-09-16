@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### gobj-ui 7.23.170: the form's Save sends the pkey2 back
+
+`kernel/js/gobj-ui` -> 7.23.170, `yunos/js` and every consumer on
+`^7.23.170`, deployed by the round to the eight hosts. Found auditing 7.23.168
+(A8 of the 2026-09-15 review): the rule for what a form writes back --
+writable, fkey, file, or the pkey -- left out the SECONDARY keys.
+`yunos.yuno_release` is `persistent, required` and not `writable`, so the
+`update-node` went out with no pkey2 and C_NODE resolved it to the PRIMARY
+instance: right by chance while the topic table lists primaries, wrong from a
+form opened on a row of `instances`, or on any topic whose pkey2 column is not
+writable (`configurations.version`, `public_services`). A pkey2 names the
+instance the update is for, and it goes back for the same reason the pkey
+does. The rule lives in `treedb_write_plan.js` now, pure and tested with
+`pkey2s` as a list and as the bare string of a C literal. JS API doc links
+repinned to 7.23.170.
+
 ### C_TRANGER: a paging session is watched once
 
 Found auditing 7.22.0's *"a session that only PAGES no longer leaks its
