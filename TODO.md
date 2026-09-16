@@ -270,12 +270,24 @@ after a build that replaced `/yuneta/agent/*`, restart the main agent, verify it
 then the spare. Same order as `install.sh` — the spare is the only way into a node
 whose main agent is broken, so it is never touched first.
 
-Cheap first step, independent of the automation: teach something to REPORT a stale
-agent. The test is one line and reads the process, not the file:
+**Done (2026-09-16): the REPORT half.** `tools/agent/audit-agents.sh` says
+whether both agents run the binaries on disk — read-only, exit 2 if one is not
+running, 1 if one is stale, 0 otherwise, so it drops into a cron unchanged. It
+ships in the packages (it is `tools/`, not `scripts/`: it has to run on a bare
+installed node). Documented in `tools/README.md`; checked on the dev node and on
+wattyzer / yunovatios-central / yunovatios-controlador, all four clean.
 
-```sh
-readlink /proc/$(pgrep -x yuneta_agent22 | head -1)/exe | grep -q ' (deleted)$'
-```
+Worth knowing, found writing it: **the one-line test is exact, not a
+heuristic.** Linux refuses to write into a binary that is being executed
+(`ETXTBSY`), so `cp` over a running agent fails outright and `install` / `mv` /
+a package succeed only by UNLINKING first — which leaves the running process
+holding an inode with no name. Every replacement that can happen while the
+agent runs is one the kernel marks ` (deleted)`, so there is no in-place
+overwrite case to miss.
+
+What is left is the AUTOMATION: the `yunetas` CLI restarting the agents itself
+after a build that replaced `/yuneta/agent/*`, main first and the spare only
+once the main one is confirmed healthy.
 
 ## gui_treedb: leftovers from the 2026-07-13 audit
 

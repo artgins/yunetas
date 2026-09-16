@@ -17,6 +17,7 @@ tools/
 ├── cmake/
 │   └── project.cmake           # Master build configuration (included by all modules)
 ├── agent/
+│   ├── audit-agents.sh         # Report whether both agents run the binaries that are on disk (read-only)
 │   ├── sync_binaries.py        # Compare built yunos vs the agent's installed set, push updates
 │   ├── sync_configs.py         # Compare a directory's configs vs the agent's installed set, push updates
 │   └── set_start_priorities.py # Assign each managed yuno's start_priority (launch tier) by role
@@ -74,6 +75,47 @@ None of it stops brute force — password login off does, and `audit-sshd.sh`
 fails a node where it is on. The flood guard keeps sshd reachable; the fix for
 port 22 open to the world is a source allowlist, and in the end a sealed node
 with no inbound SSH (`yunos/c/yuno_agent/NODE_SEALING.md`).
+
+## agent/audit-agents.sh
+
+Says whether `yuneta_agent` and `yuneta_agent22` are running **the binaries
+that are on disk**. Read-only: it changes nothing and proposes the restart.
+
+```sh
+tools/agent/audit-agents.sh          # what is wrong
+tools/agent/audit-agents.sh --all    # also what is right
+```
+
+Exit status is 2 if an agent is not running, 1 if one is stale, 0 otherwise,
+so it drops into a cron or a check script unchanged.
+
+**Why it exists.** Every node runs both agents as a deliberate redundancy —
+each can upgrade the other, and the spare is the only way into a node whose
+main agent is broken, which is why they are never stopped or upgraded at once.
+The consequence is that a spare left behind on an old binary is invisible until
+the day it is needed: it happened for five days on four nodes, running the
+version-comparison bug 7.12.0 fixed. `install.sh` restarts the spare after a
+package upgrade, so the **runtime** nodes are covered; a node that **builds
+from source** has no `install.sh` — `yunetas build` replaces `/yuneta/agent/*`
+and both agents are restarted by hand.
+
+**Why one line is enough.** It reads the PROCESS and not the file:
+
+```sh
+readlink /proc/<pid>/exe    # ends in " (deleted)" when the binary was replaced
+```
+
+Linux refuses to write into a binary that is being executed (`ETXTBSY`), so
+`cp` over a running agent fails outright, and `install` / `mv` / a package
+succeed only by **unlinking first** — which leaves the running process holding
+an inode with no name, and the kernel marks it. Every replacement that can
+happen while the agent runs is one the kernel marks, so there is no in-place
+case to miss.
+
+It matches by process NAME (`pgrep -x`) and never by command line: a `pgrep -f`
+pattern matches the shell running the script too, because its own command line
+holds the pattern. Several pids per agent are expected — a watcher plus the
+process it watches.
 
 ## agent/sync_binaries.py
 
