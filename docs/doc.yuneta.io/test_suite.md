@@ -18,6 +18,57 @@ ctest -R test_c_timer --output-on-failure --test-dir build
 ./ctest-loop.sh
 ```
 
+## Asserting on the logs
+
+Most tests here assert on what was LOGGED, not on a returned value: they
+whitelist the log messages the run is allowed to emit, and anything else fails
+the test. Two functions do it, and choosing between them is a real decision.
+
+`set_expected_results()` is **strict FIFO**. Every captured log must match the
+HEAD of the list, so the list states the exact messages, in the exact order,
+the exact number of times. This is what nearly every test wants and what you
+should reach for by default.
+
+```c
+json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}]",
+    "msg", "Starting yuno",
+    "msg", "Playing yuno",
+    "msg", "Yuno stopped, gobj end"
+);
+set_expected_results(
+    APP_NAME,     // test name
+    errors_list,  // the messages the run may emit, in order
+    NULL,         // expected json, NULL to check only the logs
+    NULL,         // ignore_keys
+    1             // verbose
+);
+...
+result += test_json(NULL);   // NULL: check only the logs
+```
+
+`set_expected_results_unordered()` reads the same list as a **whitelist**: a
+captured log matches ANY entry, a match does not consume the entry (so a
+message may repeat), every entry must still be matched at least once, and
+anything matching no entry fails the test. It gives up *"in this order, this
+many times"* and keeps *"these things happened, and nothing else did"*.
+
+```c
+set_expected_results_unordered(APP_NAME, errors_list, NULL, NULL, 1);
+```
+
+**Use it only when the order is not ours to decide.** The case it was written
+for is `c_tcp2/test2`: two `C_TCP` gobjs — the client and the accepted server
+side — log `"Connected"` and `"Disconnected"` independently, and the driver
+calls `set_yuno_must_die()` from inside one side's close callback, which logs
+`"Exit to die"` synchronously and shuts the yuno down. The other side's last
+log is swallowed, or is not, depending on whether the two close completions
+land in the same io_uring batch. The **count** moved, not only the order, so no
+ordered list could be right — and the test failed on a busy box naming a
+message that was perfectly correct.
+
+That is the bar. A test whose sequence is merely wrong should have its sequence
+fixed, not its assertion relaxed.
+
 ## Event loop (yev_loop)
 
 Low-level tests for the io_uring event loop, without the GObj layer.

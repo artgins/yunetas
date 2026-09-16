@@ -33,6 +33,43 @@ PUBLIC void set_expected_results(
 );
 
 /*
+ *  The same, with the errors_list read as a WHITELIST instead of a script.
+ *
+ *  set_expected_results() is strict FIFO: every captured log must match the
+ *  HEAD of the list, so the list states the exact messages, in the exact
+ *  order, the exact number of times. That is the right assertion for a test
+ *  that drives one sequence, and it is what nearly every test here wants.
+ *
+ *  It is the WRONG assertion when two independent gobjs log the same thing
+ *  and nothing orders them against each other. Then the list ends up
+ *  encoding which of them won a race on the machine it was written on, and
+ *  the test fails on a busier box naming a message that is perfectly
+ *  correct. The count can move too, not only the order: a shutdown that
+ *  begins inside one side's callback can swallow the other side's last log.
+ *
+ *  In this mode:
+ *      - a captured log matches ANY entry of the list, not only the head;
+ *      - a match does not consume the entry, so a message may appear any
+ *        number of times;
+ *      - every entry must still be matched AT LEAST ONCE, so the list keeps
+ *        saying what has to happen;
+ *      - anything matching no entry is unexpected and fails the test, which
+ *        is the check these lists exist for.
+ *
+ *  So it drops "in this order, this many times" and keeps "these things
+ *  happened, and nothing else did". Reach for it only when the order really
+ *  is not ours to decide -- not to quiet a test whose sequence is simply
+ *  wrong.
+ */
+PUBLIC void set_expected_results_unordered(
+    const char *name,
+    json_t *errors_list,
+    json_t *expected,  // owned
+    const char **ignore_keys,
+    BOOL verbose
+);
+
+/*
  *  These functions free JSONs set by set_expected_results()
  */
 PUBLIC int test_json_file( // Compare JSON of the file with JSON in expected

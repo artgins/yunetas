@@ -212,20 +212,31 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    /*
+     *  A WHITELIST, not a script: these messages and no others, in any
+     *  order, any number of times, each at least once.
+     *
+     *  It used to be the eighteen captured messages in their exact order,
+     *  and that order is not ours to decide. Two C_TCP gobjs -- the client
+     *  and the accepted server side -- log "Connected" and "Disconnected"
+     *  independently, and the tail is worse than an interleaving: the
+     *  driver's ac_on_close reaches its third count on the FIRST of the
+     *  two closes and calls set_yuno_must_die(), which logs "Exit to die"
+     *  synchronously inside that same callback and shuts the yuno down. So
+     *  the second side's "Disconnected" is swallowed -- or is not, when the
+     *  two close completions land in the same io_uring batch. The COUNT
+     *  moved, not only the order, which is why no ordered list could be
+     *  right and why widening a timeout would have fixed nothing.
+     *
+     *  What is asserted now is what the comment below always claimed: no
+     *  log happens that this test did not ask for. What is given up is the
+     *  number of connect/drop cycles, which the driver counts itself
+     *  (ac_on_close, i>2) and which no log ordering was guarding anyway.
+     */
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
-        "msg", "Disconnected",
         "msg", "Listening...",
-        "msg", "Connected",
-        "msg", "Connected",
-        "msg", "Disconnected",
-        "msg", "Disconnected",
-        "msg", "Connected",
-        "msg", "Connected",
-        "msg", "Disconnected",
-        "msg", "Disconnected",
-        "msg", "Connected",
         "msg", "Connected",
         "msg", "Disconnected",
         "msg", "Exit to die",
@@ -233,7 +244,7 @@ static int register_yuno_and_more(void)
         "msg", "Yuno stopped, gobj end"
     );
 
-    set_expected_results( // Check that no logs happen
+    set_expected_results_unordered( // Check that no logs happen
         APP_NAME, // test name
         errors_list, // errors_list,
         NULL,   // expected, NULL: we want to check only the logs

@@ -1,5 +1,36 @@
 # **Changelog**
 
+## Unreleased
+
+### testing: a log assertion that does not have to know the order
+
+`set_expected_results()` matches every captured log against the **head** of
+the expected list, so the list states the exact messages, in the exact order,
+the exact number of times. That is the right assertion for a test that drives
+one sequence, and it stays the default for all 137 tests.
+
+It is the wrong assertion when two independent gobjs log the same thing and
+nothing orders them against each other. `c_tcp2/test2` is the case: the client
+and the accepted server side both log `"Connected"` / `"Disconnected"`, and the
+driver calls `set_yuno_must_die()` from inside one side's close callback, which
+logs `"Exit to die"` synchronously and shuts the yuno down. The other side's
+last log is swallowed -- or is not, when the two close completions land in the
+same io_uring batch. So the **count** moved and not only the order, and no
+ordered list could be right: the test failed on a busy box naming a message
+that was perfectly correct.
+
+New `set_expected_results_unordered()` reads the same list as a WHITELIST: a
+log matches any entry, a match does not consume the entry, every entry must
+still be matched at least once, and anything matching no entry fails. It gives
+up *"in this order, this many times"* and keeps *"these things happened, and
+nothing else did"* -- which is what that test's own comment always claimed to
+check. Documented in `docs/doc.yuneta.io/test_suite.md`, with the bar for
+reaching for it.
+
+`c_tcp2/test2` uses it; nothing else changed. Verified both ways: a message
+that happens and is not whitelisted fails, and a whitelisted message that never
+happens fails.
+
 ## v7.21.0 (2026-09-16)
 
 ### C_TREEDB: `mt_treedbs` answers the list its contract promises

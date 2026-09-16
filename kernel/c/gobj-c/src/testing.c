@@ -30,6 +30,13 @@ PRIVATE BOOL check_log_result(int current_result);
 PRIVATE const char *test_name = "";
 PRIVATE json_t *expected_log_messages = 0;
 PRIVATE json_t *unexpected_log_messages = 0;
+/*
+ *  Whitelist mode (set_expected_results_unordered): the expected list is
+ *  not consumed, so what says an entry has been honoured is this parallel
+ *  array of flags, one per entry, in the same order.
+ */
+PRIVATE BOOL expected_unordered = FALSE;
+PRIVATE json_t *seen_log_messages = 0;
 PRIVATE json_t *expected = 0;
 PRIVATE int verbose = FALSE;
 PRIVATE const char **ignore_keys = NULL;
@@ -48,7 +55,27 @@ PUBLIC int capture_log_write(void* v, int priority, const char* bf, size_t len)
 {
     json_t *msg = string2json(bf, FALSE);
 
-    if(expected_log_messages) {
+    if(expected_log_messages && expected_unordered) {
+        /*
+         *  A WHITELIST: any entry, not only the head, and the entry stays
+         *  so the same message may arrive again. What is recorded is that
+         *  it has been seen at all.
+         */
+        int idx; json_t *expected_msg;
+        json_array_foreach(expected_log_messages, idx, expected_msg) {
+            /*  kw_match_simple() OWNS its filter, so the incref is the
+             *  ownership it takes -- on every iteration, match or not.
+             *  No decref afterwards: the entry stays in the list, and
+             *  the ordered branch below only decrefs because its
+             *  KW_EXTRACT handed it a reference of its own.  */
+            JSON_INCREF(expected_msg)
+            if(kw_match_simple(msg, expected_msg)) {
+                json_array_set_new(seen_log_messages, idx, json_true());
+                JSON_DECREF(msg)
+                return 0;
+            }
+        }
+    } else if(expected_log_messages) {
         json_t *expected_msg = kw_get_list_value(0, expected_log_messages, 0, 0);
         if(expected_msg) {
             JSON_INCREF(expected_msg)
@@ -84,7 +111,35 @@ PRIVATE BOOL check_log_result(int current_result)
         return FALSE;
     }
 
-    if(json_array_size(expected_log_messages)>0) {
+    if(expected_unordered) {
+        /*
+         *  The list is a whitelist and was never consumed, so what is
+         *  missing is an entry nothing ever matched: the flow the list
+         *  describes did not happen, however free its order was.
+         */
+        int idx; json_t *value;
+        BOOL all_seen = TRUE;
+        json_array_foreach(expected_log_messages, idx, value) {
+            if(!json_is_true(json_array_get(seen_log_messages, idx))) {
+                all_seen = FALSE;
+                break;
+            }
+        }
+        if(!all_seen) {
+            if(verbose) {
+                printf("<-- %sERROR%s %s\n", On_Red BWhite, Color_Off, test_name);
+                printf("      Expected error never seen:\n");
+                json_array_foreach(expected_log_messages, idx, value) {
+                    if(!json_is_true(json_array_get(seen_log_messages, idx))) {
+                        printf("          \"%s\"\n", kw_get_str(0, value, "msg", "?", 0));
+                    }
+                }
+                printf("\n");
+            }
+            return FALSE;
+        }
+
+    } else if(json_array_size(expected_log_messages)>0) {
         if(verbose) {
             printf("<-- %sERROR%s %s\n", On_Red BWhite, Color_Off, test_name);
             int idx; json_t *value;
@@ -110,12 +165,13 @@ PRIVATE BOOL check_log_result(int current_result)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void set_expected_results(
+PRIVATE void set_expected_results_(
     const char *name_,
     json_t *errors_list,
     json_t *expected_, // owned
     const char **ignore_keys_,
-    int verbose_
+    int verbose_,
+    BOOL unordered
 )
 {
     test_name = name_;
@@ -125,12 +181,59 @@ PUBLIC void set_expected_results(
     }
     JSON_DECREF(expected_log_messages)
     JSON_DECREF(unexpected_log_messages)
+    JSON_DECREF(seen_log_messages)
     JSON_DECREF(expected)
 
     expected_log_messages = errors_list?errors_list:json_array();
     unexpected_log_messages = json_array();
     expected = expected_;
     ignore_keys = ignore_keys_;
+    expected_unordered = unordered;
+
+    /*
+     *  One flag per entry, built here and not on demand: in whitelist mode
+     *  the entries are never removed, so the flags are what says an entry
+     *  has been honoured, and json_array_set_new() needs the slot to exist.
+     */
+    seen_log_messages = json_array();
+    if(unordered) {
+        size_t i;
+        for(i = 0; i < json_array_size(expected_log_messages); i++) {
+            json_array_append_new(seen_log_messages, json_false());
+        }
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void set_expected_results(
+    const char *name_,
+    json_t *errors_list,
+    json_t *expected_, // owned
+    const char **ignore_keys_,
+    int verbose_
+)
+{
+    set_expected_results_(
+        name_, errors_list, expected_, ignore_keys_, verbose_, FALSE
+    );
+}
+
+/***************************************************************************
+ *  The errors_list as a WHITELIST: see testing.h for what it gives up.
+ ***************************************************************************/
+PUBLIC void set_expected_results_unordered(
+    const char *name_,
+    json_t *errors_list,
+    json_t *expected_, // owned
+    const char **ignore_keys_,
+    int verbose_
+)
+{
+    set_expected_results_(
+        name_, errors_list, expected_, ignore_keys_, verbose_, TRUE
+    );
 }
 
 /***************************************************************************
@@ -158,6 +261,7 @@ PUBLIC int test_json_file(const char *file)
 
     JSON_DECREF(expected_log_messages)
     JSON_DECREF(unexpected_log_messages)
+    JSON_DECREF(seen_log_messages)
     JSON_DECREF(expected)
 
     return result;
@@ -198,6 +302,7 @@ PUBLIC int test_json(
 
     JSON_DECREF(expected_log_messages)
     JSON_DECREF(unexpected_log_messages)
+    JSON_DECREF(seen_log_messages)
     JSON_DECREF(expected)
 
     return result;
