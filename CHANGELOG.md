@@ -64,9 +64,12 @@ Nothing here changes a happy path.
   column the parser refuses since 7.21.0.
 - `yunos/js`: its CHANGELOG files gui_agent 0.22.62 / gui_treedb 0.17.36 as
   released, which they are.
-- `yuno_agent`: the client roles it lets connect without an authz check
-  (`ac_on_open`) add `gui_agent` and `gui_treedb` -- the roles the two SPAs
-  present -- and drop `yuneta_gui`, which no current client presents.
+- `yuno_agent`: the SPAs `gui_agent` and `gui_treedb` can open a session on
+  the agent. `ac_on_open` accepts a fixed list of client roles (`ycommand`,
+  `ycli`, ...) and looks up any other role among the agent's OWN yunos, so an
+  SPA presenting its `yuno_role` was not found there. The list adds
+  `gui_agent` and `gui_treedb` and drops `yuneta_gui`, a role no client in the
+  repo presents any more.
 - `yunos/js` -> gui_agent 0.22.63: "For TreeDB" copies the node's agent as a
   connection too. Its config has no `__top_url__`, so the port is read from its
   `wss://` gate (`agent_secure_port`, 1993), the host falls back to the node's
