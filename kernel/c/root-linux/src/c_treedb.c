@@ -17,11 +17,11 @@
  *          "diff-schema"   -> what the __system__ projection says that the schema from C does not
  *          "set-impose-c-schema" -> open every treedb with its schema from C, over
  *                             __system__ and over a newer schema on disk. __system__
- *                             is not read, and is still projected when it has no
- *                             projection or a lower version, so the schema in use can
- *                             be asked for. The yuno's code can force it per treedb
- *                             (open-treedb impose_c_schema=1), over whatever the
- *                             command left persisted
+ *                             is not read, and the MASTER still projects into it when
+ *                             it has no projection or a lower version, so the schema
+ *                             in use can be asked for. The yuno's code can force it
+ *                             per treedb (open-treedb impose_c_schema=1), over
+ *                             whatever the command left persisted
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -200,7 +200,7 @@ SDATACM2 (DTP_SCHEMA,   "delete-treedb",SDF_AUTHZ_X,    0, pm_delete_treedb,cmd_
 SDATACM2 (DTP_SCHEMA,   "create-topic", SDF_AUTHZ_X,    0, pm_create_topic, cmd_create_topic, "Create new topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic", SDF_AUTHZ_X,    0, pm_delete_topic, cmd_delete_topic, "Delete topic"),
 SDATACM2 (DTP_SCHEMA,   "diff-schema",  SDF_AUTHZ_X,    0, pm_diff_schema,  cmd_diff_schema, "Differences between the stored schema and the schema compiled in C"),
-SDATACM2 (DTP_SCHEMA,   "set-impose-c-schema",SDF_AUTHZ_X,0, pm_set_impose_c_schema, cmd_set_impose_c_schema, "Open every treedb with its schema from C, over __system__ and a newer schema on disk. __system__ is not read, and is still projected when it is empty or behind. From the next open"),
+SDATACM2 (DTP_SCHEMA,   "set-impose-c-schema",SDF_AUTHZ_X,0, pm_set_impose_c_schema, cmd_set_impose_c_schema, "Open every treedb with its schema from C, over __system__ and a newer schema on disk. __system__ is not read, and the master still projects into it when it is empty or behind. From the next open"),
 SDATA_END()
 };
 
@@ -217,7 +217,7 @@ SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "02770",        
 SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "0660",         "Use in creation, default 0660"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
 SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
-SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD|SDF_PERSIST, "1",            "Open every treedb with its schema from C: __system__ is not read, and a newer schema on disk is overwritten. __system__ is still projected when it has no projection or a lower schema_version, so the schema in use can be asked for. 0: open from __system__, so the schema can be changed dynamically. Changed with set-impose-c-schema, from the next open. The yuno's code can force it per treedb (open-treedb impose_c_schema=1)"),
+SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD|SDF_PERSIST, "1",            "Open every treedb with its schema from C: __system__ is not read, and a newer schema on disk is overwritten. The MASTER still projects into __system__ when it has no projection or a lower schema_version, so the schema in use can be asked for. 0: open from __system__, so the schema can be changed dynamically. Changed with set-impose-c-schema, from the next open. The yuno's code can force it per treedb (open-treedb impose_c_schema=1)"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
@@ -2137,6 +2137,12 @@ PRIVATE int upsert_treedb_schema(
  *  The rule is the same for a treedb opened with `impose`, which is why that
  *  path calls this one: what `imposing` changes is the TOPICS of a projection
  *  that is being re-made (see upsert_treedb_schema), never whether it is.
+ *
+ *  ONLY THE MASTER WRITES __system__. A replica reads the treedb from disk as
+ *  it is at that moment and reconciles nothing: the master's appends reach it
+ *  through the store, and a projection written by two owners is a projection
+ *  nobody can read. This is the only place __system__ is written from, the
+ *  migration of legacy ids included, so the guard belongs here.
  ***************************************************************************/
 PRIVATE int reconcile_treedb_schema(
     hgobj gobj,
@@ -2146,6 +2152,15 @@ PRIVATE int reconcile_treedb_schema(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  The tranger's own flag, not the attribute: a master that could not
+     *  take the store in exclusive opens as a replica (timeranger2.c), and
+     *  what decides whether a write lands is what it ended up being.
+     */
+    if(!kw_get_bool(gobj, priv->tranger_system_, "master", 0, KW_REQUIRED)) {
+        return 0;
+    }
 
     /*
      *  Ask with a list: it is silent when the treedb has no projection yet,
@@ -2573,6 +2588,8 @@ PRIVATE json_t *get_client_treedb_schema(
      *  seen, and afterwards only when the literal or the projector moved
      *  ahead — the version is what decides, so an edit made there survives
      *  every start until a higher `schema_version` arrives from C.
+     *
+     *  On a replica nothing is projected: it reads what the master wrote.
      */
     if(input_schema_ok) {
         /*
@@ -2645,6 +2662,9 @@ PRIVATE json_t *get_client_treedb_schema(
  *  ASKED for -- from ytreedb, from gui_agent, from any node command. A
  *  treedb that only ever opened with `impose` had none, so the schema it
  *  runs could be read from its binary and nowhere else.
+ *
+ *  Written by the MASTER, that is. A replica reads the treedb from disk as
+ *  it is at that moment and writes nothing.
  *
  *  Return the schema, or NULL. Return is YOURS.
  ***************************************************************************/

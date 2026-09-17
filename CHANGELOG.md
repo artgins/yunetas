@@ -10,8 +10,8 @@ from gui_agent, from any node command. A treedb that only ever opened with
 runs could be read from its binary and nowhere else.
 
 Opening with `impose` still does not READ `__system__` -- the treedb opens
-from the schema in C -- but it now writes it in the two cases where nothing
-of anybody's is lost:
+from the schema in C -- but the MASTER now writes it in the two cases where
+nothing of anybody's is lost:
 
 | Projection in `__system__` | What happens |
 |---|---|
@@ -24,6 +24,12 @@ itself by raising the version, so a dynamic edit is never overwritten by the
 projection, whatever `impose` does to the schema file. It stays readable with
 `diff-schema` and comes back by turning the flag off, exactly as before.
 
+**Only the master writes `__system__`**, which the projector did not check
+before: a replica reads the treedb from disk as it is at that moment and
+reconciles nothing, the migration of legacy ids included. It used to attempt
+the write on an ordinary open too, where a non-master treedb keeps it in
+memory, never reaches disk and logs nothing.
+
 Inside a projection that IS being re-made, `impose` applies at topic level as
 it does on disk: a topic is written because it DIFFERS, not because its
 `topic_version` is higher. Under the ordinary rule the projection would
@@ -35,7 +41,10 @@ The log line of that open says *"__system__ not read"* where it used to say
 documents `"impose"` in its prototype now, not only in the block above it.
 
 Tests: `c_treedb_system_schema` test 13 pins the three cases -- seeded,
-re-made, left alone -- and tests 9 and 10 already pinned that an edit in
+re-made, left alone -- and test 14 the master rule: it takes the master's
+`C_TREEDB` down, opens the same store again as a replica, and checks that it
+READS the projection the master left and moves nothing when a literal far
+ahead is imposed on top. Tests 9 and 10 already pinned that an edit in
 `__system__` survives an imposed open.
 
 ### treedb: a snapshot freezes what it shot (BREAKING for who relied on the latest snap following)

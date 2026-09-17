@@ -2288,6 +2288,115 @@ PRIVATE int check_impose_projects_into_system(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Only the MASTER writes __system__. A replica reads the treedb from disk
+ *  as it is at that moment and reconciles nothing.
+ *
+ *  The master's C_TREEDB is destroyed first -- with it, its `__system__`
+ *  tranger and node services, whose names the replica needs -- and the
+ *  store is opened again as a replica. Sequentially, never twice at once.
+ *
+ *  Then an open that WOULD write: the literal is far ahead of the
+ *  projection test 13 left, and imposing on top of that. Nothing may move.
+ ***************************************************************************/
+PRIVATE int check_replica_writes_nothing(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    json_int_t version_before = projected_schema_version(gobj, DELETE_TREEDB_NAME);
+
+    gobj_stop_tree(priv->gobj_treedbs);
+    gobj_destroy(priv->gobj_treedbs);
+    priv->gobj_treedbs = 0;
+
+    json_t *kw_replica = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i, s:b}",
+        "path", priv->path_database,
+        "filename_mask", "%Y",
+        "master", 0,
+        "xpermission", 02770,
+        "rpermission", 0660,
+        "exit_on_error", LOG_OPT_TRACE_STACK,
+        "impose_c_schema", 0
+    );
+    priv->gobj_treedbs = gobj_create_service(
+        "treedbs",
+        C_TREEDB,
+        kw_replica,
+        gobj
+    );
+    if(!priv->gobj_treedbs) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: cannot create the replica C_TREEDB",
+            NULL
+        );
+        return -1;
+    }
+    gobj_start_tree(priv->gobj_treedbs);
+
+    /*
+     *  It reads what the master wrote: the projection is there to begin with
+     */
+    json_int_t version_read = projected_schema_version(gobj, DELETE_TREEDB_NAME);
+    if(version_read != version_before) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: the replica does not read the projection",
+            "schema_version",   "%d", (int)version_read,
+            "was",              "%d", (int)version_before,
+            NULL
+        );
+        result += -1;
+    }
+
+    /*
+     *  And writes nothing: a literal far ahead, imposed, moves neither the
+     *  projection nor the topic the master left in it.
+     */
+    json_t *jn_ahead = legalstring2json(schema_to_delete, TRUE);
+    json_object_set_new(jn_ahead, "schema_version", json_integer(99));
+    json_t *jn_alfa = json_array_get(json_object_get(jn_ahead, "topics"), 0);
+    json_object_set_new(jn_alfa, "topic_version", json_integer(99));
+    json_object_set_new(
+        json_object_get(json_object_get(jn_alfa, "cols"), "name"),
+        "header",
+        json_string("Replica")
+    );
+
+    open_treedb_to_delete_imposing(gobj, jn_ahead);
+
+    json_int_t version_after = projected_schema_version(gobj, DELETE_TREEDB_NAME);
+    json_t *cols = gobj_list_nodes(
+        gobj_find_service(SYSTEM_TREEDB, FALSE),
+        "cols",
+        json_pack("{s:s}", "id", DELETE_TREEDB_NAME ".alfa.name"),
+        0,
+        gobj
+    );
+    const char *header = kw_get_str(gobj, json_array_get(cols, 0), "header", "", 0);
+
+    if(version_after != version_before || strcmp(header, "Imposed")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: a replica wrote __system__",
+            "schema_version",   "%d", (int)version_after,
+            "was",              "%d", (int)version_before,
+            "name_header",      "%s", header,
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(cols)
+
+    close_treedb_to_delete(gobj);
+
+    return result;
+}
+
+/***************************************************************************
  *  A projection made with rowid keys moves to qualified ones.
  *
  *  `topics` and `cols` used to be keyed by a rowid handed out from the
@@ -3076,6 +3185,15 @@ PRIVATE int run_tests(hgobj gobj)
      *  behind, untouched when it is ahead.
      *-----------------------------------------------*/
     result += check_impose_projects_into_system(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 14: only the MASTER writes __system__.
+     *  A replica reads the treedb from disk as it is
+     *  at that moment and reconciles nothing. LAST:
+     *  it takes the master's C_TREEDB down to open
+     *  the same store as a replica.
+     *-----------------------------------------------*/
+    result += check_replica_writes_nothing(gobj);
 
     JSON_DECREF(client_cols)
     JSON_DECREF(ids_before)

@@ -1233,12 +1233,12 @@ keeps every change: they can still be read with `diff-schema`, or taken back
 by turning the flag off. The records are not touched — a field that only the
 changed schema declared stays in the records and is no longer read.
 
-**It is not read, and it is still written.** `__system__` is the only place a
-schema can be ASKED for — from ytreedb, from gui_agent, from any node command
-— so a treedb that only ever opened with `impose` would have no projection at
-all, and the schema it runs could be read from its binary and nowhere else.
-Opening with `impose` therefore projects the schema in two cases, and only in
-those two:
+**It is not read, and the master still writes it.** `__system__` is the only
+place a schema can be ASKED for — from ytreedb, from gui_agent, from any node
+command — so a treedb that only ever opened with `impose` would have no
+projection at all, and the schema it runs could be read from its binary and
+nowhere else. Opening with `impose` therefore projects the schema in two
+cases, and only in those two:
 
 | Projection in `__system__` | What happens |
 |---|---|
@@ -1251,6 +1251,13 @@ publishes itself by raising the version (*"You do not raise them: the write
 does"*, below), so an edit is never overwritten by the projection, whatever
 `impose` does to the disk. That is the half `diff-schema` compares, and the
 one that comes back when the flag is turned off.
+
+**Only the master writes `__system__`** — the ordinary rule of §2.7, and it
+holds for the projection as for anything else. A replica reads the treedb from
+disk as it is at that moment and reconciles nothing: the master's appends
+reach it through the store, and a projection written by two owners is a
+projection nobody can read. This is true of an ordinary open too, not only of
+an imposed one.
 
 Inside a projection that IS being re-made, `impose` does apply at topic level:
 a topic is written because it DIFFERS, not because its `topic_version` is

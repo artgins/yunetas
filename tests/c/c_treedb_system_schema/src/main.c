@@ -147,6 +147,7 @@ static int register_yuno_and_more(void)
             "{s:s}, {s:s},"                             /* imposing SEEDS the projection */
             "{s:s}, {s:s}, {s:s}, {s:s},"               /* imposing re-makes one behind */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* one ahead is left alone */
+            "{s:s}, {s:s},"                             /* and a REPLICA writes nothing */
             "{s:s}, {s:s}, {s:s}, {s:s}"
         "]",
             "msg", "Starting yuno",
@@ -234,6 +235,8 @@ static int register_yuno_and_more(void)
             "msg", "TreeDB schema from C is behind the schema in use, not applied",
             "msg", "Imposing TreeDB schema from C over a newer one",
             "msg", "Re-Creating TreeDB schema file",
+            "msg", "impose_c_schema forced by the code of the yuno, over the attribute",
+            "msg", "Opening TreeDB with the schema from C, __system__ not read",
             "msg", "All treedb system schema tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",
