@@ -138,12 +138,15 @@ static int register_yuno_and_more(void)
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* the five refused writes */
             "{s:s}, {s:s},"                             /* the legacy ids move; its literal is behind */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* and its treedb opens (+ __assets__) */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* impose_c_schema: on, imposed, off */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* impose_c_schema: on, imposed, off */
             "{s:s}, {s:s}, {s:s}, {s:s},"               /* attribute off: opened from __system__ */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* the code imposes over the attribute */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* the code imposes over the attribute */
             "{s:s},"
             "{s:s},"                                    /* gobj_treedbs refused */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* the treedb opened to be deleted */
+            "{s:s}, {s:s},"                             /* imposing SEEDS the projection */
+            "{s:s}, {s:s}, {s:s}, {s:s},"               /* imposing re-makes one behind */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* one ahead is left alone */
             "{s:s}, {s:s}, {s:s}, {s:s}"
         "]",
             "msg", "Starting yuno",
@@ -192,7 +195,8 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "impose_c_schema changed",
-            "msg", "Opening TreeDB with the schema from C, __system__ ignored",
+            "msg", "Opening TreeDB with the schema from C, __system__ not read",
+            "msg", "TreeDB schema from C is behind the schema in use, not applied",
             "msg", "Imposing TreeDB schema from C over a newer one",
             "msg", "Re-Creating TreeDB schema file",
             "msg", "Imposing topic_version from C over a newer one",
@@ -204,7 +208,8 @@ static int register_yuno_and_more(void)
             "msg", "Re-Creating topic_var.json",
             "msg", "Re-Creating topic_cols.json",
             "msg", "impose_c_schema forced by the code of the yuno, over the attribute",
-            "msg", "Opening TreeDB with the schema from C, __system__ ignored",
+            "msg", "Opening TreeDB with the schema from C, __system__ not read",
+            "msg", "TreeDB schema from C is behind the schema in use, not applied",
             "msg", "Imposing TreeDB schema from C over a newer one",
             "msg", "Re-Creating TreeDB schema file",
             "msg", "Imposing topic_version from C over a newer one",
@@ -218,6 +223,17 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
+            "msg", "impose_c_schema forced by the code of the yuno, over the attribute",
+            "msg", "Opening TreeDB with the schema from C, __system__ not read",
+            "msg", "impose_c_schema forced by the code of the yuno, over the attribute",
+            "msg", "Opening TreeDB with the schema from C, __system__ not read",
+            "msg", "Updating TreeDB schema in __system__",
+            "msg", "Re-Creating TreeDB schema file",
+            "msg", "impose_c_schema forced by the code of the yuno, over the attribute",
+            "msg", "Opening TreeDB with the schema from C, __system__ not read",
+            "msg", "TreeDB schema from C is behind the schema in use, not applied",
+            "msg", "Imposing TreeDB schema from C over a newer one",
+            "msg", "Re-Creating TreeDB schema file",
             "msg", "All treedb system schema tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",

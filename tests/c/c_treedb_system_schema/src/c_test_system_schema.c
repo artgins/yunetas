@@ -1660,7 +1660,8 @@ PRIVATE int set_impose_c_schema(hgobj gobj, const char *set)
 }
 
 /***************************************************************************
- *  impose_c_schema: the schema from C wins, and __system__ is left alone.
+ *  impose_c_schema: the schema from C wins, and the edit in __system__ is
+ *  left alone.
  *
  *  By now the treedb went through dynamic edits: its schema file and the
  *  `users` topic on disk are NEWER than `schema_test2`, and __system__ holds
@@ -1668,6 +1669,11 @@ PRIVATE int set_impose_c_schema(hgobj gobj, const char *set)
  *  opens it with the literal anyway -- the disk comes back to the literal's
  *  numbers and columns -- while __system__ keeps every change, so they can
  *  still be read, or taken back by clearing the flag.
+ *
+ *  Imposing DOES project into __system__ when it has no projection of the
+ *  treedb or a lower schema_version. Here it has a higher one, because the
+ *  edit published itself by raising it, so nothing is written and the log
+ *  says the literal is behind. That is the case this test pins.
  ***************************************************************************/
 PRIVATE int check_impose_c_schema(hgobj gobj)
 {
@@ -2047,6 +2053,236 @@ PRIVATE int check_delete_treedb(hgobj gobj)
             JSON_DECREF(jn_resp)
         }
     }
+
+    return result;
+}
+
+/***************************************************************************
+ *  Imposing PROJECTS the schema into __system__ when nothing of that
+ *  treedb is there, or when what is there is behind.
+ *
+ *  __system__ is the only place a schema can be ASKED for -- from ytreedb,
+ *  from gui_agent, from any node command -- so a treedb that only ever
+ *  opened with `impose` had no projection at all, and the schema it runs
+ *  could be read from its binary and nowhere else.
+ *
+ *  The three cases, on the treedb `check_delete_treedb` leaves behind with
+ *  its projection deleted: nothing there, behind, and ahead. The last one
+ *  is the one that must NOT be written: an edit publishes itself by raising
+ *  the version, and imposing does not take that away from __system__ -- it
+ *  is what `diff-schema` reads, and what clearing the flag brings back.
+ ***************************************************************************/
+PRIVATE int open_treedb_to_delete_imposing(hgobj gobj, json_t *jn_schema) // owned
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "open-treedb",
+        json_pack("{s:s, s:s, s:i, s:b, s:o}",
+            "filename_mask", "%Y",
+            "treedb_name", DELETE_TREEDB_NAME,
+            "exit_on_error", 0,
+            "impose_c_schema", 1,
+            "treedb_schema", jn_schema
+        ),
+        gobj
+    );
+    int ret = (int)kw_get_int(gobj, jn_resp, "result", -1, 0);
+    if(ret < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: cannot open imposing the treedb to project",
+            "comment",      "%s", kw_get_str(gobj, jn_resp, "comment", "", 0),
+            NULL
+        );
+    }
+    JSON_DECREF(jn_resp)
+
+    return ret<0? -1: 0;
+}
+
+PRIVATE int close_treedb_to_delete(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", DELETE_TREEDB_NAME, "force", 1),
+        gobj
+    );
+    JSON_DECREF(jn_resp)
+
+    return 0;
+}
+
+PRIVATE json_int_t projected_schema_version(hgobj gobj, const char *treedb_name)
+{
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    if(!gobj_node_system) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: __system__ treedb service not found",
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *treedbs = gobj_list_nodes(
+        gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        0,
+        gobj
+    );
+    json_int_t version = kw_get_int(
+        gobj,
+        json_array_get(treedbs, 0),
+        "schema_version",
+        -1,
+        KW_WILD_NUMBER
+    );
+    JSON_DECREF(treedbs)
+
+    return version;
+}
+
+PRIVATE int check_impose_projects_into_system(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    /*
+     *  Leave it as check_delete_treedb found it the first time: closed,
+     *  and with no projection of its own in __system__.
+     */
+    close_treedb_to_delete(gobj);
+    json_t *jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "delete-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", DELETE_TREEDB_NAME, "force", 1),
+        gobj
+    );
+    JSON_DECREF(jn_resp)
+
+    if(system_count_under(gobj, "treedbs", DELETE_TREEDB_NAME) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: the projection to seed is still there",
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  Nothing there: the open SEEDS it, whole -- the treedbs node, its
+     *  two topics and their three columns, which are what a reconstruction
+     *  reads.
+     */
+    if(open_treedb_to_delete_imposing(gobj, legalstring2json(schema_to_delete, TRUE)) < 0) {
+        return -1;  // Error already logged
+    }
+
+    int treedbs1 = system_count_under(gobj, "treedbs", DELETE_TREEDB_NAME);
+    int topics1 = system_count_under(gobj, "topics", DELETE_TREEDB_NAME ".");
+    int cols1 = system_count_under(gobj, "cols", DELETE_TREEDB_NAME ".");
+    json_int_t version1 = projected_schema_version(gobj, DELETE_TREEDB_NAME);
+
+    if(treedbs1 != 1 || topics1 != 2 || cols1 != 3 || version1 != 1) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: imposing did not seed the projection",
+            "treedbs",          "%d", treedbs1,
+            "topics",           "%d", topics1,
+            "cols",             "%d", cols1,
+            "schema_version",   "%d", (int)version1,
+            NULL
+        );
+        result += -1;
+    }
+
+    /*
+     *  Behind: a literal ahead of it re-makes it. The topic moves with it,
+     *  and here it moves although its own topic_version does NOT -- which
+     *  is what imposing means, on disk and here alike.
+     */
+    close_treedb_to_delete(gobj);
+
+    json_t *jn_ahead = legalstring2json(schema_to_delete, TRUE);
+    json_object_set_new(jn_ahead, "schema_version", json_integer(7));
+    json_t *jn_alfa = json_array_get(json_object_get(jn_ahead, "topics"), 0);
+    json_object_set_new(
+        json_object_get(json_object_get(jn_alfa, "cols"), "name"),
+        "header",
+        json_string("Imposed")
+    );
+
+    if(open_treedb_to_delete_imposing(gobj, jn_ahead) < 0) {
+        return result - 1;  // Error already logged
+    }
+
+    json_int_t version2 = projected_schema_version(gobj, DELETE_TREEDB_NAME);
+    json_t *cols2 = gobj_list_nodes(
+        gobj_find_service(SYSTEM_TREEDB, FALSE),
+        "cols",
+        json_pack("{s:s}", "id", DELETE_TREEDB_NAME ".alfa.name"),
+        0,
+        gobj
+    );
+    const char *header2 = kw_get_str(gobj, json_array_get(cols2, 0), "header", "", 0);
+
+    if(version2 != 7 || strcmp(header2, "Imposed")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: imposing did not re-make a projection behind the literal",
+            "schema_version",   "%d", (int)version2,
+            "name_header",      "%s", header2,
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(cols2)
+
+    /*
+     *  Ahead: nothing is written. The literal goes back to 1 and the
+     *  projection keeps the 7 it published, header included.
+     */
+    close_treedb_to_delete(gobj);
+
+    if(open_treedb_to_delete_imposing(gobj, legalstring2json(schema_to_delete, TRUE)) < 0) {
+        return result - 1;  // Error already logged
+    }
+
+    json_int_t version3 = projected_schema_version(gobj, DELETE_TREEDB_NAME);
+    json_t *cols3 = gobj_list_nodes(
+        gobj_find_service(SYSTEM_TREEDB, FALSE),
+        "cols",
+        json_pack("{s:s}", "id", DELETE_TREEDB_NAME ".alfa.name"),
+        0,
+        gobj
+    );
+    const char *header3 = kw_get_str(gobj, json_array_get(cols3, 0), "header", "", 0);
+
+    if(version3 != 7 || strcmp(header3, "Imposed")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: imposing overwrote a projection ahead of the literal",
+            "schema_version",   "%d", (int)version3,
+            "name_header",      "%s", header3,
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(cols3)
+
+    close_treedb_to_delete(gobj);
 
     return result;
 }
@@ -2832,6 +3068,14 @@ PRIVATE int run_tests(hgobj gobj)
      *  every one of them behind.
      *-----------------------------------------------*/
     result += check_delete_treedb(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13: imposing does not READ __system__,
+     *  and it does WRITE it: seeded when nothing of
+     *  the treedb is there, re-made when it is
+     *  behind, untouched when it is ahead.
+     *-----------------------------------------------*/
+    result += check_impose_projects_into_system(gobj);
 
     JSON_DECREF(client_cols)
     JSON_DECREF(ids_before)

@@ -74,7 +74,7 @@ of timeranger with JSON schema support.
 | `filename_mask` | `string` | Filename pattern. |
 | `master` | `bool` | `TRUE` for master, `FALSE` for read-only replica. |
 | `exit_on_error` | `integer` | Log options for a critical error of a treedb, handed to its tranger as `on_critical_error`. Default `"2"` = `LOG_OPT_EXIT_ZERO`: a critical error EXITS the yuno. |
-| `impose_c_schema` | `bool` | `SDF_RD\|SDF_PERSIST`, default `1`. Open every treedb with its schema from C: `__system__` is ignored and kept, and a newer schema on disk is overwritten. `0`: open from `__system__`, so the schema can be changed dynamically. Changed with `set-impose-c-schema`, from the next open. See [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) §3.11. |
+| `impose_c_schema` | `bool` | `SDF_RD\|SDF_PERSIST`, default `1`. Open every treedb with its schema from C: `__system__` is not read, and a newer schema on disk is overwritten. `__system__` is still projected when it has no projection of that treedb or a lower `schema_version`, so the schema in use can be asked for. `0`: open from `__system__`, so the schema can be changed dynamically. Changed with `set-impose-c-schema`, from the next open. See [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) §3.11. |
 
 ### Commands
 

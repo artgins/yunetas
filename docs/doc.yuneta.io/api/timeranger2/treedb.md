@@ -1280,7 +1280,9 @@ kept, and a **higher** one is overwritten with the one passed (the log says
 *"Imposing TreeDB schema from C over a newer one"* and *"Imposing
 topic_version from C over a newer one"*). It exists to revert changes made to
 the schema outside the code. `C_TREEDB` uses it when its `impose_c_schema` is
-on. The records are not touched.
+on, and projects the schema into its `__system__` treedb when that projection
+is missing or behind, so a schema in use can always be asked for. The records
+are not touched.
 
 **The main topic.** A schema topic can carry `'main_topic': true` (since
 7.19.0). The mark names the topic that the tree of the treedb hangs from.

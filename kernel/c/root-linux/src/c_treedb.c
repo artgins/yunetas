@@ -16,9 +16,12 @@
  *          "delete-topic"
  *          "diff-schema"   -> what the __system__ projection says that the schema from C does not
  *          "set-impose-c-schema" -> open every treedb with its schema from C, over
- *                             __system__ and over a newer schema on disk. The yuno's
- *                             code can force it per treedb (open-treedb impose_c_schema=1),
- *                             over whatever the command left persisted
+ *                             __system__ and over a newer schema on disk. __system__
+ *                             is not read, and is still projected when it has no
+ *                             projection or a lower version, so the schema in use can
+ *                             be asked for. The yuno's code can force it per treedb
+ *                             (open-treedb impose_c_schema=1), over whatever the
+ *                             command left persisted
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -197,7 +200,7 @@ SDATACM2 (DTP_SCHEMA,   "delete-treedb",SDF_AUTHZ_X,    0, pm_delete_treedb,cmd_
 SDATACM2 (DTP_SCHEMA,   "create-topic", SDF_AUTHZ_X,    0, pm_create_topic, cmd_create_topic, "Create new topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic", SDF_AUTHZ_X,    0, pm_delete_topic, cmd_delete_topic, "Delete topic"),
 SDATACM2 (DTP_SCHEMA,   "diff-schema",  SDF_AUTHZ_X,    0, pm_diff_schema,  cmd_diff_schema, "Differences between the stored schema and the schema compiled in C"),
-SDATACM2 (DTP_SCHEMA,   "set-impose-c-schema",SDF_AUTHZ_X,0, pm_set_impose_c_schema, cmd_set_impose_c_schema, "Open every treedb with its schema from C, over __system__ and a newer schema on disk. From the next open"),
+SDATACM2 (DTP_SCHEMA,   "set-impose-c-schema",SDF_AUTHZ_X,0, pm_set_impose_c_schema, cmd_set_impose_c_schema, "Open every treedb with its schema from C, over __system__ and a newer schema on disk. __system__ is not read, and is still projected when it is empty or behind. From the next open"),
 SDATA_END()
 };
 
@@ -214,7 +217,7 @@ SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "02770",        
 SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "0660",         "Use in creation, default 0660"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
 SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
-SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD|SDF_PERSIST, "1",            "Open every treedb with its schema from C: __system__ is ignored (and kept), and a newer schema on disk is overwritten. 0: open from __system__, so the schema can be changed dynamically. Changed with set-impose-c-schema, from the next open. The yuno's code can force it per treedb (open-treedb impose_c_schema=1)"),
+SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD|SDF_PERSIST, "1",            "Open every treedb with its schema from C: __system__ is not read, and a newer schema on disk is overwritten. __system__ is still projected when it has no projection or a lower schema_version, so the schema in use can be asked for. 0: open from __system__, so the schema can be changed dynamically. Changed with set-impose-c-schema, from the next open. The yuno's code can force it per treedb (open-treedb impose_c_schema=1)"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
@@ -1832,12 +1835,19 @@ PRIVATE BOOL projection_changes_node(
  *  What exists here and not in the incoming schema is left alone: it is
  *  indistinguishable from an operator addition, and removing a topic or a
  *  column is a deliberate action, never a side effect of an upgrade.
+ *
+ *  With `imposing`, a topic is projected whatever its stored topic_version
+ *  says. treedb_open_db() installs each topic of an imposed schema over a
+ *  HIGHER stored topic_version too, so the ordinary rule would leave the
+ *  projection saying something the store no longer holds -- in the one case
+ *  `impose` exists to repair.
  ***************************************************************************/
 PRIVATE int upsert_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
     json_t *kw,     // not owned
-    json_t *current // not owned, the projection already stored, or NULL
+    json_t *current,// not owned, the projection already stored, or NULL
+    BOOL imposing   // the schema from C wins over every stored topic_version
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1970,15 +1980,30 @@ PRIVATE int upsert_treedb_schema(
          *  it is stored, dynamic edits included — said when the literal
          *  declares something else, because a column changed in C without
          *  a higher topic_version is the classic change that reaches nothing.
+         *  Imposing, that rule does not apply: the literal wins at both
+         *  levels, here as on disk.
          */
         if(current_topic) {
             json_int_t stored_topic_version = kw_get_int(
                 gobj, current_topic, "topic_version", 0, KW_WILD_NUMBER
             );
-            if(topic_version <= stored_topic_version) {
-                if(json_array_size(kw_cols) > 0 ||
-                    projection_changes_node(gobj, kw_topic, current_topic, schema_topic_skip, NULL)
-                ) {
+            BOOL topic_changes = (json_array_size(kw_cols) > 0 ||
+                projection_changes_node(gobj, kw_topic, current_topic, schema_topic_skip, NULL)
+            )? TRUE: FALSE;
+
+            /*
+             *  Imposing, a topic is written because it DIFFERS, not because
+             *  its version is higher. Re-appending an identical topic would
+             *  add a record per start saying nothing.
+             */
+            if(imposing && !topic_changes) {
+                JSON_DECREF(kw_cols)
+                json_decref(kw_topic);
+                continue;
+            }
+
+            if(topic_version <= stored_topic_version && !imposing) {
+                if(topic_changes) {
                     gobj_log_info(gobj, 0,
                         "function",         "%s", __FUNCTION__,
                         "msgset",           "%s", MSGSET_INFO,
@@ -2108,11 +2133,16 @@ PRIVATE int upsert_treedb_schema(
  *  So a literal BEHIND the schema in use is not applied. That is the schema
  *  being changed dynamically, which is a decision, not an accident: a new
  *  installation that has to carry those changes takes them into the literal.
+ *
+ *  The rule is the same for a treedb opened with `impose`, which is why that
+ *  path calls this one: what `imposing` changes is the TOPICS of a projection
+ *  that is being re-made (see upsert_treedb_schema), never whether it is.
  ***************************************************************************/
 PRIVATE int reconcile_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
-    json_t *jn_schema // not owned
+    json_t *jn_schema,  // not owned
+    BOOL imposing       // the treedb is being opened with the schema from C
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -2130,7 +2160,7 @@ PRIVATE int reconcile_treedb_schema(
     );
     if(json_array_size(stored) == 0) {
         JSON_DECREF(stored)
-        return upsert_treedb_schema(gobj, treedb_name, jn_schema, NULL);
+        return upsert_treedb_schema(gobj, treedb_name, jn_schema, NULL, imposing);
     }
 
     json_t *stored_treedb = json_array_get(stored, 0);
@@ -2213,7 +2243,7 @@ PRIVATE int reconcile_treedb_schema(
         NULL
     );
 
-    int ret = upsert_treedb_schema(gobj, treedb_name, jn_schema, current);
+    int ret = upsert_treedb_schema(gobj, treedb_name, jn_schema, current, imposing);
     JSON_DECREF(current)
 
     return ret;
@@ -2551,7 +2581,7 @@ PRIVATE json_t *get_client_treedb_schema(
          */
         json_object_set(priv->jn_c_schemas, treedb_name, jn_client_treedb_schema);
 
-        reconcile_treedb_schema(gobj, treedb_name, jn_client_treedb_schema);
+        reconcile_treedb_schema(gobj, treedb_name, jn_client_treedb_schema, FALSE);
     }
 
     /*
@@ -2604,10 +2634,17 @@ PRIVATE json_t *get_client_treedb_schema(
 /***************************************************************************
  *  The schema from C, for a treedb opened with `impose_c_schema`.
  *
- *  __system__ is neither read nor written: it keeps whatever was changed
- *  there, so the changes being reverted can still be analysed, or taken
- *  back by clearing the flag. The literal is kept for diff-schema, which is
- *  how those changes are read.
+ *  __system__ is not READ -- the treedb opens from the literal -- and it is
+ *  written under the rule of the versions: it is seeded when the treedb has
+ *  no projection yet, and re-made when the literal is strictly newer than
+ *  what is stored. A dynamic change publishes itself by raising the version,
+ *  so it is left where it is: that is what diff-schema reads, and what
+ *  clearing the flag takes back.
+ *
+ *  It is written at all because __system__ is the only place a schema can be
+ *  ASKED for -- from ytreedb, from gui_agent, from any node command. A
+ *  treedb that only ever opened with `impose` had none, so the schema it
+ *  runs could be read from its binary and nowhere else.
  *
  *  Return the schema, or NULL. Return is YOURS.
  ***************************************************************************/
@@ -2635,11 +2672,13 @@ PRIVATE json_t *get_c_schema_to_impose(
     gobj_log_info(gobj, 0,
         "function",         "%s", __FUNCTION__,
         "msgset",           "%s", MSGSET_INFO,
-        "msg",              "%s", "Opening TreeDB with the schema from C, __system__ ignored",
+        "msg",              "%s", "Opening TreeDB with the schema from C, __system__ not read",
         "treedb_name",      "%s", treedb_name,
         "schema_version",   "%d", (int)kw_get_int(gobj, jn_c_schema, "schema_version", 0, KW_WILD_NUMBER),
         NULL
     );
+
+    reconcile_treedb_schema(gobj, treedb_name, jn_c_schema, TRUE);
 
     return json_incref(jn_c_schema);
 }

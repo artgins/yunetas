@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### `impose_c_schema` now projects the schema into `__system__` too
+
+`__system__` is the only place a schema can be ASKED for -- from ytreedb,
+from gui_agent, from any node command. A treedb that only ever opened with
+`impose_c_schema` on (the default) had no projection at all, so the schema it
+runs could be read from its binary and nowhere else.
+
+Opening with `impose` still does not READ `__system__` -- the treedb opens
+from the schema in C -- but it now writes it in the two cases where nothing
+of anybody's is lost:
+
+| Projection in `__system__` | What happens |
+|---|---|
+| none for this treedb | seeded from the schema in C |
+| `schema_version` lower | re-made from the schema in C |
+| `schema_version` equal or higher | left as it is |
+
+The third row is the one that matters: a write to `__system__` publishes
+itself by raising the version, so a dynamic edit is never overwritten by the
+projection, whatever `impose` does to the schema file. It stays readable with
+`diff-schema` and comes back by turning the flag off, exactly as before.
+
+Inside a projection that IS being re-made, `impose` applies at topic level as
+it does on disk: a topic is written because it DIFFERS, not because its
+`topic_version` is higher. Under the ordinary rule the projection would
+describe a topic the store no longer holds -- the one case `impose` exists to
+repair. An identical topic is not re-appended.
+
+The log line of that open says *"__system__ not read"* where it used to say
+*"__system__ ignored"*. `treedb_open_db()`'s `options` parameter also
+documents `"impose"` in its prototype now, not only in the block above it.
+
+Tests: `c_treedb_system_schema` test 13 pins the three cases -- seeded,
+re-made, left alone -- and tests 9 and 10 already pinned that an edit in
+`__system__` survives an imposed open.
+
 ### treedb: a snapshot freezes what it shot (BREAKING for who relied on the latest snap following)
 
 The design question the 2026-09-15 review left. A save inherited the snap

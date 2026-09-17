@@ -1216,9 +1216,9 @@ drifted from its literal although nobody had edited anything.
 **`impose_c_schema` takes the schema back from whoever changed it
 dynamically.** It is an attribute of `C_TREEDB` (`SDF_RD|SDF_PERSIST`,
 default `1`). With it on, `open-treedb` opens every treedb with its schema
-from C, and neither reads nor writes `__system__`. Against the disk the rule
-of the versions still applies, with one more case, at both levels (the
-treedb's `schema_version` and each `topic_version`):
+from C, and does not read `__system__`. Against the disk the rule of the
+versions still applies, with one more case, at both levels (the treedb's
+`schema_version` and each `topic_version`):
 
 | Stored version | What happens |
 |---|---|
@@ -1226,12 +1226,37 @@ treedb's `schema_version` and each `topic_version`):
 | equal | kept |
 | **higher** | overwritten with the literal: a dynamic change being reverted |
 
-The log says *"Opening TreeDB with the schema from C, __system__ ignored"*,
+The log says *"Opening TreeDB with the schema from C, __system__ not read"*,
 then *"Imposing TreeDB schema from C over a newer one"* and *"Imposing
 topic_version from C over a newer one"* for what it overwrites. `__system__`
 keeps every change: they can still be read with `diff-schema`, or taken back
 by turning the flag off. The records are not touched — a field that only the
 changed schema declared stays in the records and is no longer read.
+
+**It is not read, and it is still written.** `__system__` is the only place a
+schema can be ASKED for — from ytreedb, from gui_agent, from any node command
+— so a treedb that only ever opened with `impose` would have no projection at
+all, and the schema it runs could be read from its binary and nowhere else.
+Opening with `impose` therefore projects the schema in two cases, and only in
+those two:
+
+| Projection in `__system__` | What happens |
+|---|---|
+| none for this treedb | it is seeded from the literal |
+| `schema_version` lower than the literal's | it is re-made from the literal |
+| `schema_version` equal or **higher** | left as it is |
+
+The third row is what keeps a dynamic change readable: a write to `__system__`
+publishes itself by raising the version (*"You do not raise them: the write
+does"*, below), so an edit is never overwritten by the projection, whatever
+`impose` does to the disk. That is the half `diff-schema` compares, and the
+one that comes back when the flag is turned off.
+
+Inside a projection that IS being re-made, `impose` does apply at topic level:
+a topic is written because it DIFFERS, not because its `topic_version` is
+higher — the same thing the disk gets. Written under the ordinary rule
+instead, the projection would say a topic the store no longer holds, in the
+one case `impose` exists to repair.
 
 Turn it off (`0`) to let a user or a customer change the schema dynamically
 (gui_agent, ytreedb). Turn it back on to impose the code again — because
@@ -1359,8 +1384,8 @@ memory for that purpose, so it can only answer for a treedb opened with one. A
 treedb opened from its projection alone has no other half to compare with.
 
 **Where a treedb opens from depends on `impose_c_schema`.** With it on (the
-default), from the literal, and `__system__` is not read (see above). With it
-off, from its projection: seeded from the literal and re-made whenever the
+default), from the literal; `__system__` is not read, only projected when it
+is empty or behind (see above). With it off, from its projection: seeded from the literal and re-made whenever the
 literal moves ahead, so opening from it *is* opening from the literal until
 somebody edits it — which is what lets the schema change dynamically. The
 literal remains the fallback, for a projection that cannot be rebuilt into a
