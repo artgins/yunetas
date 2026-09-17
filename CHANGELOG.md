@@ -118,7 +118,11 @@ Found using the deployed window, same round: gobj-js 7.22.1 fixes
 `current_timestamp()`, which wrote UTC time followed by the local offset (two
 hours wrong at +0200); gobj-ui 7.23.174 keeps in the window what arrived before
 it was opened, leaves payloads out of Name only / Compact, and gives FIND a
-clear button.
+clear button. Then gobj-js 7.22.2 makes the console and the window show the same lines:
+a kw is dumped only with `ev_kw` (a publication and a subscription printed it
+under `machine` alone), and a log sink installed late is handed the last 600
+lines written before it; gobj-ui 7.23.175 stamps each row with the time the
+line was written.
 
 ### gobj-ui 7.23.171: the treedb views say the keys of a topic
 
