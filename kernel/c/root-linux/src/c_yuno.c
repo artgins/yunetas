@@ -128,6 +128,8 @@ PRIVATE json_t* cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t*
 PRIVATE json_t *cmd_info_global_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_global_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_global_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_get_global_no_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_global_no_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *cmd_info_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -429,6 +431,8 @@ SDATACM2(DTP_SCHEMA,    "info-gclass-trace",        SDF_AUTHZ_X, 0,      pm_gcla
 
 SDATACM2(DTP_SCHEMA,    "get-global-trace",         SDF_AUTHZ_X, 0,      0, cmd_get_global_trace,   "Get global trace levels"),
 SDATACM2(DTP_SCHEMA,    "set-global-trace",         SDF_AUTHZ_X, 0,      pm_set_global_tr,cmd_set_global_trace,  "Set global trace level"),
+SDATACM2(DTP_SCHEMA,    "get-global-no-trace",      SDF_AUTHZ_X, 0,      0, cmd_get_global_no_trace,"Get global no-trace levels"),
+SDATACM2(DTP_SCHEMA,    "set-global-no-trace",      SDF_AUTHZ_X, 0,      pm_set_global_tr,cmd_set_global_no_trace,"Set global no-trace level"),
 
 SDATACM2(DTP_SCHEMA,    "get-gclass-trace",         SDF_AUTHZ_X, 0,      pm_gclass_name, cmd_get_gclass_trace,   "Get gclass' trace"),
 SDATACM2(DTP_SCHEMA,    "set-gclass-trace",         SDF_AUTHZ_X, 0,      pm_set_gclass_tr,cmd_set_gclass_trace,  "Set trace of a gclass)"),
@@ -2159,55 +2163,41 @@ PRIVATE hgclass get_gclass_from_gobj(const char *gobj_name)
 }
 
 /***************************************************************************
+ *  Save the global trace scope WHOLE, from the levels in force.
  *
+ *  A saved scope REPLACES, at start up, what main() set by default (see
+ *  set_user_gclass_traces()), so it has to carry everything that must be
+ *  in force, not only the level just touched -- and an empty scope is
+ *  kept, because "none" is also something the user can ask for.
  ***************************************************************************/
 PRIVATE int save_global_trace(
     hgobj gobj,
-    const char *level,
-    BOOL set,
     BOOL persistent
 )
 {
     json_t *jn_trace_levels = gobj_read_json_attr(gobj, "trace_levels");
-
-    if(!kw_has_key(jn_trace_levels, "__global_trace__")) {
-        /*
-         *  Create new row, only if new_bitmask is != 0
-         */
-        if(set) {
-            /*
-             *  Create row
-             */
-            json_object_set_new(jn_trace_levels, "__global_trace__", json_array());
-            json_t *jn_levels = json_object_get(jn_trace_levels, "__global_trace__");
-            json_array_append_new(jn_levels, json_string(level));
-        }
-    } else {
-        json_t *jn_levels = json_object_get(jn_trace_levels, "__global_trace__");
-        if(!set) {
-            /*
-             *  Delete level
-             */
-            int idx = json_list_str_index(jn_levels, level, FALSE);
-            if(idx != -1) {
-                json_array_remove(jn_levels, idx);
-            }
-            if(json_size(jn_levels)==0) {
-                json_object_del(jn_trace_levels, "__global_trace__");
-            }
-        } else {
-            /*
-             *  Add level
-             */
-            int idx = json_list_str_index(jn_levels, level, FALSE);
-            if(idx == -1) {
-                json_array_append_new(jn_levels, json_string(level));
-            }
-        }
-    }
+    json_object_set_new(jn_trace_levels, "__global_trace__", gobj_get_global_trace_level());
 
     if(persistent) {
         return gobj_save_persistent_attrs(gobj, json_string("trace_levels"));
+    } else {
+        return 0;
+    }
+}
+
+/***************************************************************************
+ *  Save the global no-trace scope WHOLE, see save_global_trace()
+ ***************************************************************************/
+PRIVATE int save_global_no_trace(
+    hgobj gobj,
+    BOOL persistent
+)
+{
+    json_t *jn_no_trace_levels = gobj_read_json_attr(gobj, "no_trace_levels");
+    json_object_set_new(jn_no_trace_levels, "__global_no_trace__", gobj_get_global_trace_no_level());
+
+    if(persistent) {
+        return gobj_save_persistent_attrs(gobj, json_string("no_trace_levels"));
     } else {
         return 0;
     }
@@ -2242,7 +2232,11 @@ PRIVATE int save_trace_filter(hgobj gobj, hgclass gclass_)
 }
 
 /***************************************************************************
+ *  Save the trace scope of `name`.
  *
+ *  A gclass is saved WHOLE, from its own levels in force, for the reason
+ *  given in save_global_trace(). Any other name (a gobj, from
+ *  reset-all-traces) keeps the level-by-level list it always had.
  ***************************************************************************/
 PRIVATE int save_user_trace(
     hgobj gobj,
@@ -2254,33 +2248,24 @@ PRIVATE int save_user_trace(
 {
     json_t *jn_trace_levels = gobj_read_json_attr(gobj, "trace_levels");
 
-    if(!kw_has_key(jn_trace_levels, name)) {
-        /*
-         *  Create new row, only if new_bitmask is != 0
-         */
+    hgclass gclass = gclass_find_by_name(name);
+    if(gclass) {
+        json_object_set_new(jn_trace_levels, name, gobj_get_gclass_trace_level2(gclass));
+
+    } else if(!kw_has_key(jn_trace_levels, name)) {
         if(set) {
-            /*
-             *  Create row
-             */
             json_object_set_new(jn_trace_levels, name, json_array());
             json_t *jn_levels = json_object_get(jn_trace_levels, name);
             json_array_append_new(jn_levels, json_string(level));
         }
     } else {
         json_t *jn_levels = json_object_get(jn_trace_levels, name);
+        int idx = json_list_str_index(jn_levels, level, FALSE);
         if(!set) {
-            /*
-             *  Delete level
-             */
-            int idx = json_list_str_index(jn_levels, level, FALSE);
             if(idx != -1) {
                 json_array_remove(jn_levels, idx);
             }
         } else {
-            /*
-             *  Add level
-             */
-            int idx = json_list_str_index(jn_levels, level, FALSE);
             if(idx == -1) {
                 json_array_append_new(jn_levels, json_string(level));
             }
@@ -2295,7 +2280,7 @@ PRIVATE int save_user_trace(
 }
 
 /***************************************************************************
- *
+ *  Save the no-trace scope of `name`, see save_user_trace()
  ***************************************************************************/
 PRIVATE int save_user_no_trace(
     hgobj gobj,
@@ -2307,33 +2292,24 @@ PRIVATE int save_user_no_trace(
 {
     json_t *jn_trace_no_levels = gobj_read_json_attr(gobj, "no_trace_levels");
 
-    if(!kw_has_key(jn_trace_no_levels, name)) {
-        /*
-         *  Create new row, only if new_bitmask is != 0
-         */
+    hgclass gclass = gclass_find_by_name(name);
+    if(gclass) {
+        json_object_set_new(jn_trace_no_levels, name, gobj_get_gclass_trace_no_level(gclass));
+
+    } else if(!kw_has_key(jn_trace_no_levels, name)) {
         if(set) {
-            /*
-             *  Create row
-             */
             json_object_set_new(jn_trace_no_levels, name, json_array());
             json_t *jn_levels = json_object_get(jn_trace_no_levels, name);
             json_array_append_new(jn_levels, json_string(level));
         }
     } else {
         json_t *jn_no_levels = json_object_get(jn_trace_no_levels, name);
+        int idx = json_list_str_index(jn_no_levels, level, FALSE);
         if(!set) {
-            /*
-             *  Delete no-level
-             */
-            int idx = json_list_str_index(jn_no_levels, level, FALSE);
             if(idx != -1) {
                 json_array_remove(jn_no_levels, idx);
             }
         } else {
-            /*
-             *  Add no-level
-             */
-            int idx = json_list_str_index(jn_no_levels, level, FALSE);
             if(idx == -1) {
                 json_array_append_new(jn_no_levels, json_string(level));
             }
@@ -2431,7 +2407,7 @@ PRIVATE json_t *cmd_set_global_trace(hgobj gobj, const char *cmd, json_t *kw, hg
 
     int ret = gobj_set_global_trace(level, trace);
     if(ret==0) {
-        save_global_trace(gobj, level, trace?1:0, TRUE);
+        save_global_trace(gobj, TRUE);
     }
 
     json_t *jn_data = gobj_get_global_trace_level();
@@ -2442,6 +2418,91 @@ PRIVATE json_t *cmd_set_global_trace(hgobj gobj, const char *cmd, json_t *kw, hg
         json_sprintf("%s: %s",
             gobj_yuno_role_plus_name(),
             (ret<0)? gobj_log_last_message():""
+        ),
+        0,      // jn_schema
+        jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  View global no-trace levels
+ ***************************************************************************/
+PRIVATE json_t *cmd_get_global_no_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,      // result
+        0,      // jn_comment
+        0,      // jn_schema
+        gobj_get_global_trace_no_level()
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  Set global no-trace level
+ *
+ *  What main() silences by default -- `timer_periodic` above all -- has
+ *  to be something the user can undo, and keep undone: the scope is
+ *  saved, and a saved scope replaces main()'s at the next start up.
+ ***************************************************************************/
+PRIVATE json_t *cmd_set_global_no_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *level = kw_get_str(gobj, kw, "level", 0, 0);
+    if(empty_string(level)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf(
+                "%s: what level?", gobj_yuno_role_plus_name()
+            ),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    const char *trace_value = kw_get_str(gobj, kw, "set", 0, 0);
+    if(empty_string(trace_value)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf(
+                "%s: bitmask set or re-set?", gobj_yuno_role_plus_name()
+            ),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    BOOL trace;
+    if(strcasecmp(trace_value, "TRUE")==0 || strcasecmp(trace_value, "set")==0) {
+        trace = 1;
+    } else if(strcasecmp(trace_value, "FALSE")==0 || strcasecmp(trace_value, "reset")==0) {
+        trace = 0;
+    } else {
+        trace = atoi(trace_value);
+    }
+
+    int ret = gobj_set_global_no_trace(level, trace);
+    if(ret==0) {
+        save_global_no_trace(gobj, TRUE);
+    }
+
+    json_t *jn_data = gobj_get_global_trace_no_level();
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        ret,
+        json_sprintf("%s: %s",
+            gobj_yuno_role_plus_name(),
+            (ret<0)? "global no-trace level not found":""
         ),
         0,      // jn_schema
         jn_data
@@ -2676,7 +2737,7 @@ PRIVATE json_t *cmd_set_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
 
     int ret = gobj_set_gclass_trace(gclass, level, trace);
     if(ret == 0 || trace == 0) {
-        save_user_trace(gobj, gclass_name_, level, trace?1:0, TRUE);
+        save_user_trace(gobj, gclass_gclass_name(gclass), level, trace?1:0, TRUE);
     }
 
     json_t *jn_data = gobj_get_gclass_trace_level(gclass);
@@ -2767,7 +2828,7 @@ PRIVATE json_t *cmd_set_no_gclass_trace(hgobj gobj, const char *cmd, json_t *kw,
 
     int ret = gobj_set_gclass_no_trace(gclass, level, trace);
     if(ret == 0 || trace == 0) {
-        save_user_no_trace(gobj, gclass_name_, level, trace?1:0, TRUE);
+        save_user_no_trace(gobj, gclass_gclass_name(gclass), level, trace?1:0, TRUE);
     }
 
     json_t *jn_data = gobj_get_gclass_trace_no_level(gclass);
@@ -3272,7 +3333,7 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
         json_array_foreach(levels, idx, jn_level) {
             const char *level = json_string_value(jn_level);
             gobj_set_gclass_trace(gclass, level, 0);
-            save_user_trace(gobj, gclass_name_, level, 0, FALSE);
+            save_user_trace(gobj, gclass_gclass_name(gclass), level, 0, FALSE);
         }
         json_decref(levels);
 
@@ -4979,8 +5040,17 @@ PRIVATE int set_user_gclass_traces(hgobj gobj)
         json_decref(jn_trace_levels);
     }
 
+    /*
+     *  A saved scope REPLACES what is in force. main() sets its defaults
+     *  (gobj_set_global_no_trace("timer_periodic"), a gclass it wants
+     *  quiet) before the yuno is created, and what the user persisted
+     *  with the trace commands is what must win over them: a default the
+     *  user turned off stays off. A scope is saved whole, empty included
+     *  (see save_global_trace()); a scope never saved keeps main()'s.
+     */
     json_t *jn_global = json_object_get(jn_trace_levels, "__global_trace__");
     if(jn_global) {
+        gobj_set_global_trace2((uint32_t)-1, FALSE);
         size_t idx;
         json_t *jn_level;
         json_array_foreach(jn_global, idx, jn_level) {
@@ -5016,6 +5086,7 @@ PRIVATE int set_user_gclass_traces(hgobj gobj)
             continue;
         }
 
+        gobj_set_gclass_trace(gclass, NULL, FALSE);
         size_t idx;
         json_t *jn_level;
         json_array_foreach(jn_name, idx, jn_level) {
@@ -5038,6 +5109,19 @@ PRIVATE int set_user_gclass_no_traces(hgobj gobj)
         gobj_write_json_attr(gobj, "no_trace_levels", jn_trace_no_levels);
         json_decref(jn_trace_no_levels);
     }
+
+    // A saved scope REPLACES what is in force, see set_user_gclass_traces()
+    json_t *jn_global = json_object_get(jn_trace_no_levels, "__global_no_trace__");
+    if(jn_global) {
+        gobj_set_global_no_trace2((uint32_t)-1, FALSE);
+        size_t idx;
+        json_t *jn_level;
+        json_array_foreach(jn_global, idx, jn_level) {
+            const char *level = json_string_value(jn_level);
+            gobj_set_global_no_trace(level, TRUE);
+        }
+    }
+
     const char *key;
     json_t *jn_name;
     json_object_foreach(jn_trace_no_levels, key, jn_name) {
@@ -5058,6 +5142,7 @@ PRIVATE int set_user_gclass_no_traces(hgobj gobj)
             continue;
         }
 
+        gobj_set_gclass_no_trace(gclass, "", FALSE);
         size_t idx;
         json_t *jn_level;
         json_array_foreach(jn_name, idx, jn_level) {

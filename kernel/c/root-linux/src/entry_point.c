@@ -76,6 +76,8 @@ PRIVATE char __process_name__[2*NAME_MAX] = {0};
 PRIVATE json_t *__jn_config__ = 0;
 
 PRIVATE int __auto_kill_time__ = 0;
+PRIVATE const char *__cli_global_traces__[MAX_CLI_GLOBAL_TRACES]; // argv strings, never freed
+PRIVATE int __cli_global_traces_count__ = 0;
 PRIVATE int __as_daemon__ = 0;
 
 PRIVATE int (*__startup_persistent_attrs_fn__)(void) = 0;
@@ -126,6 +128,7 @@ PRIVATE void process(
     const char *domain_dir,
     void (*cleaning_fn)(void)
 );
+PRIVATE void reapply_cli_global_traces(void);
 
 
 /***************************************************************************
@@ -747,8 +750,11 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *  register_yuno_and_more() has had its say, so the yuno's own
      *  gobj_set_gclass_no_trace() calls keep silencing what they
      *  silence, and so the traces are already live when the first
-     *  service starts.  C_YUNO's set_user_gclass_traces() only adds
-     *  levels, so the config and these compose.
+     *  service starts.  C_YUNO's mt_create then restores the levels
+     *  the user persisted, and a persisted scope REPLACES what was
+     *  there, these included -- so process() applies them once more
+     *  right after the yuno is created: what is asked on the command
+     *  line wins.
      *------------------------------------------------------------*/
     for(int i = 0; i < arguments.global_traces_count; i++) {
         int list_size = 0;
@@ -777,6 +783,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             }
         }
         split_free2(levels);
+        __cli_global_traces__[__cli_global_traces_count__++] = arguments.global_traces[i];
     }
 
     /*------------------------------------------------*
@@ -799,6 +806,25 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         }
         process(get_process_name(), work_dir, domain_dir, cleaning_fn);
         return result;
+    }
+}
+
+/***************************************************************************
+ *  The global traces of the command line, once more: the yuno's mt_create
+ *  has just replaced the global scope with the persisted one, if any.
+ *  They were validated at start up, so they cannot fail here.
+ ***************************************************************************/
+PRIVATE void reapply_cli_global_traces(void)
+{
+    for(int i = 0; i < __cli_global_traces_count__; i++) {
+        int list_size = 0;
+        const char **levels = split2(__cli_global_traces__[i], ",", &list_size);
+        for(int j = 0; j < list_size; j++) {
+            if(gobj_set_global_trace(levels[j], TRUE) < 0) {
+                // Error already logged
+            }
+        }
+        split_free2(levels);
     }
 }
 
@@ -890,6 +916,7 @@ PRIVATE void process(
         );
         exit(0); // Exit with 0 to avoid that watcher restart yuno.
     }
+    reapply_cli_global_traces();
 
     /*------------------------------------------------*
      *          Create services

@@ -2095,7 +2095,9 @@ PUBLIC json_t *gobj_trace_level_list(hgclass gclass);
  *  Get traces set in gclass and gobj (return list of strings)
  */
 PUBLIC json_t *gobj_get_global_trace_level(void);
+PUBLIC json_t *gobj_get_global_trace_no_level(void);
 PUBLIC json_t *gobj_get_gclass_trace_level(hgclass gclass);
+PUBLIC json_t *gobj_get_gclass_trace_level2(hgclass gclass); // only the gclass' own levels, without the global ones
 PUBLIC json_t *gobj_get_gclass_trace_no_level(hgclass gclass);
 PUBLIC json_t *gobj_get_gobj_trace_level(hgobj gobj);
 PUBLIC json_t *gobj_get_gobj_trace_no_level(hgobj gobj);

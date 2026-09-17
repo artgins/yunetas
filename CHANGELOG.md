@@ -65,6 +65,54 @@ Nothing here changes a happy path.
 - `yunos/js`: its CHANGELOG files gui_agent 0.22.62 / gui_treedb 0.17.36 as
   released, which they are.
 
+### Traces: a saved scope replaces main()'s defaults, and the global no-trace is a command (C and JS)
+
+A yuno's `main()` sets trace defaults before it creates the yuno -- above all
+`gobj_set_global_no_trace("timer_periodic", TRUE)` -- and `C_YUNO` restores what
+the user persisted with the trace commands. The restore only ADDED levels, so a
+default the user turned off came back at every restart, and the global no-trace
+could not be turned off at all: there was no command for it (DEBUGGING.md said
+so, "by design"). And `save_global_trace()` deleted the `__global_trace__` key
+when its last level went, so "none" was not something a user could keep.
+
+- **A saved scope REPLACES what is in force** (`set_user_gclass_traces()` /
+  `set_user_gclass_no_traces()`): the global trace scope, the global no-trace
+  scope and each gclass scope are cleared before their saved levels are set. A
+  scope never saved keeps `main()`'s default.
+- **A scope is saved WHOLE, from the levels in force**, an empty one as `[]`
+  (`save_global_trace()`, the new `save_global_no_trace()`, and
+  `save_user_trace()` / `save_user_no_trace()` for a gclass). A gobj-name key
+  (`reset-all-traces gobj=`) keeps its level-by-level list.
+- **new commands `set-global-no-trace` / `get-global-no-trace`**, persisted in
+  `no_trace_levels.__global_no_trace__`.
+- **new API** `gobj_get_global_trace_no_level()` and
+  `gobj_get_gclass_trace_level2()` (a gclass's own levels, without the global
+  ones).
+- **`--global-trace` is applied again right after the yuno is created**, so what
+  the command line asks wins over a persisted global scope.
+- The same in `c_esp_yuno.c` (not built here: no ESP-IDF toolchain on this
+  machine).
+
+Migration note: a `trace_levels` / `no_trace_levels` saved by an older release
+holds level-by-level lists, and those now replace `main()`'s defaults for their
+scope too. A gclass no-trace list that misses a default of `main()` loses it;
+fix it with `set-gclass-no-trace`, or clear the attr with
+`remove-persistent-attrs`.
+
+The JS side moved in the same round: gobj-js 7.22.0 gives the JS `C_YUNO` the C
+yuno's `trace_levels` / `no_trace_levels` and its trace commands with this same
+rule, removes the yuno attrs (`tracing`, `trace_timer`, `trace_inter_event`,
+`trace_creation`, `trace_start_stop`, `trace_subscriptions`, `trace_i18n`,
+`no_poll`) the old dev panel wrote, and decides every trace by its bit
+(`C_IEVENT_CLI`'s traffic is its own level `ievents`). gobj-ui 7.23.172's
+Developer window (7.23.173 fixes a *gclass NOT FOUND* its Traffic chip logged in an
+app with no websocket) sends those commands and never analyses messages: its
+"Periodic" filter -- which counted signatures and hid a whole burst of commands
+as "recurring" -- is gone, and Periodic is now the `timer_periodic` level, i.e.
+`EV_TIMEOUT_PERIODIC`. Mute and No poll are gone. gobj-ui v1 1.0.4 (npm
+`legacy`) ports its dev panel to the commands; the mains of hidraulia,
+estadodelaire and yunomusica stop passing the removed attrs.
+
 ### gobj-ui 7.23.171: the treedb views say the keys of a topic
 
 `kernel/js/gobj-ui` -> 7.23.171, `yunos/js` and every consumer on

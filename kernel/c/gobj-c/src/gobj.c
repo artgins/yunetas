@@ -11120,6 +11120,20 @@ PUBLIC json_t *gobj_get_global_trace_level(void)
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC json_t *gobj_get_global_trace_no_level(void)
+{
+    json_t *jn_list;
+    jn_list = bit2level(
+        s_global_trace_level,
+        0,
+        __global_trace_no_level__
+    );
+    return jn_list;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC json_t *gobj_get_gclass_trace_level(hgclass gclass_)
 {
     gclass_t *gclass = gclass_;
@@ -11128,6 +11142,21 @@ PUBLIC json_t *gobj_get_gclass_trace_level(hgclass gclass_)
         s_global_trace_level,
         gclass->s_user_trace_level,
         gclass->trace_level | __global_trace_level__
+    );
+    return jn_list;
+}
+
+/***************************************************************************
+ *  The gclass' own levels, without the global ones
+ ***************************************************************************/
+PUBLIC json_t *gobj_get_gclass_trace_level2(hgclass gclass_)
+{
+    gclass_t *gclass = gclass_;
+
+    json_t *jn_list = bit2level(
+        s_global_trace_level,
+        gclass->s_user_trace_level,
+        gclass->trace_level
     );
     return jn_list;
 }

@@ -196,6 +196,73 @@ The returned JSON object must be managed properly to avoid memory leaks. Use `js
 
 ---
 
+(gobj_get_global_trace_no_level)=
+## [`gobj_get_global_trace_no_level()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/gobj.c#L1)
+
+Retrieves the current global **no-trace** levels as a JSON array of strings: the
+levels silenced for every gobj, such as the `timer_periodic` that each
+`main()` silences.
+
+```C
+json_t *gobj_get_global_trace_no_level(void);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `-` | `-` | This function does not take any parameters. |
+
+**Returns**
+
+A JSON array with the names of the global levels that are silenced. You own it.
+
+**Examples**
+
+```C
+gobj_set_global_no_trace("timer_periodic", TRUE);
+json_t *jn_levels = gobj_get_global_trace_no_level();   // ["timer_periodic"]
+json_decref(jn_levels);
+```
+
+---
+
+(gobj_get_gclass_trace_level2)=
+## [`gobj_get_gclass_trace_level2()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/gobj.c#L1)
+
+Retrieves the trace levels of a gclass **without** the global ones.
+[`gobj_get_gclass_trace_level()`](#gobj_get_gclass_trace_level) returns the
+union with the global levels; this one returns only what is set on the gclass.
+`C_YUNO` saves it as the scope of the gclass in `trace_levels`.
+
+```C
+json_t *gobj_get_gclass_trace_level2(
+    hgclass gclass
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gclass` | `hgclass` | The gclass whose own trace levels are retrieved. |
+
+**Returns**
+
+A JSON array with the names of the levels set on the gclass. You own it.
+
+**Examples**
+
+```C
+gobj_set_global_trace("machine", TRUE);
+gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents", TRUE);
+json_t *jn_own = gobj_get_gclass_trace_level2(gclass_find_by_name(C_IEVENT_SRV));
+// ["ievents"] -- without "machine"
+json_decref(jn_own);
+```
+
+---
+
 (gobj_get_gobj_trace_level)=
 ## [`gobj_get_gobj_trace_level()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/gobj.c#L11153)
 

@@ -194,17 +194,17 @@ The short form in CLAUDE.md,
 this. The shorter form `ycommand -c 'set-global-trace …'` sends `command-yuno`
 to the yuno that is registered as the default yuno.
 
-> **There is no `set-global-no-trace` command, by design.** From the control
-> plane the no-trace switch is exposed per gclass (`set-gclass-no-trace`) and
-> per gobj (`set-gobj-no-trace`) only — that is where silencing one noisy
-> level while a broad trace is on makes sense. To silence a global level, do
-> not mask it: clear it with `set-global-trace … set=0`.
+> **`set-global-no-trace` silences a global level** for every gobj. Each yuno's
+> `main.c` sets its defaults this way before it creates the yuno, almost always
+> as `gobj_set_global_no_trace("timer_periodic", TRUE)`. That is why a global
+> `machine` trace does not drown in timer ticks. The command can undo
+> such a default, and the change persists (see [Persistence](#persistence-of-traces)):
 >
-> The C API [`gobj_set_global_no_trace()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/gobj-c/src/gobj.h#L2130) is a different thing and is
-> used everywhere: each yuno's `main.c` calls it once at start up, almost
-> always as `gobj_set_global_no_trace("timer_periodic", TRUE)`. That is why a
-> global `machine` trace does not drown in timer ticks. It is a compile-time
-> decision of the yuno, it is never persisted, and no command changes it.
+> ```bash
+> # see the periodic timer event, and keep seeing it after a restart
+> ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-global-no-trace level=timer_periodic set=0'
+> ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-global-trace level=timer_periodic set=1'
+> ```
 
 (persistence-of-traces)=
 ### Persistence
@@ -216,6 +216,7 @@ and their `no-trace` counterparts on `no_trace_levels`:
 
 | Command                 | Saver                                        | Key in the attr    |
 |-------------------------|----------------------------------------------|--------------------|
+| `set-global-no-trace`   | `save_global_no_trace`                       | `__global_no_trace__` (in `no_trace_levels`) |
 | `set-global-trace`      | [`save_global_trace`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/root-linux/src/c_yuno.c#L2164)  | `__global_trace__` |
 | `set-gclass-trace`      | [`save_user_trace`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/root-linux/src/c_yuno.c#L2247)    | the gclass name    |
 | `set-gobj-trace`        | [`save_user_trace`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/c/root-linux/src/c_yuno.c#L2247)    | the gobj name      |
@@ -225,6 +226,26 @@ and their `no-trace` counterparts on `no_trace_levels`:
 They are re-applied on the next start: `set_user_gclass_traces()` and
 `set_user_gclass_no_traces()` run from `mt_create`, `set_user_gobj_traces()`
 right after the children are built.
+
+**A saved scope REPLACES what is in force.** The global scope, the global
+no-trace scope and the scope of each gclass are saved **whole**, from the
+levels in force after the command, and an empty scope is saved as `[]`. At the
+next start up, a scope that is in the attr replaces what `main()` set before it
+created the yuno. A scope that was never saved keeps the default of `main()`.
+So a default that the user turned off stays off:
+
+```json
+"no_trace_levels": {
+    "__global_no_trace__": [],
+    "C_TIMER": ["machine"]
+}
+```
+
+With this attr, `timer_periodic` is not silenced after a restart, although
+`main.c` silences it, and `C_TIMER` keeps its `machine` no-trace. (A scope saved
+by an older release is the list of levels that were set one by one; it now
+replaces the defaults of `main()` too.) A gobj-name key, which
+`reset-all-traces gobj=…` writes, keeps its old level-by-level list.
 
 CAUTION: a forgotten `set-gclass-trace gclass=C_TCP_S level=traffic set=1`
 survives a restart exactly like a global one, and it fills your disk. It gives
@@ -256,7 +277,11 @@ auth_bff --global-trace=list
 ```
 
 The framework applies them after it registers every gclass, and before the
-first service starts, so they cover start up itself. An unknown level stops the
+first service starts, so they cover start up itself. It applies them again
+right after it creates the yuno, because the yuno replaces the global scope with
+the persisted one: what you ask on the command line wins. A later trace command
+saves the global levels **in force**, and those include the ones from the
+command line. An unknown level stops the
 yuno with a message that points at `list`. The yuno does not ignore it.
 
 To reproduce a yuno that the agent launches, take its command line from
@@ -592,34 +617,43 @@ the local log file, plus the bodies of the ievent messages.
 
 - C side: nothing special — inter-events flow as usual through `C_IEVENT_SRV`
   → `C_WEBSOCKET`.
-- JS side: `C_IEVENT_CLI` ([`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/js/gobj-js/src/c_ievent_cli.js)) parses
-  incoming inter-events in [`ac_on_message()`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/js/gobj-js/src/c_ievent_cli.js#L1181) and, if
-  configured, invokes `trace_ievent_callback(prefix, iev_msg, direction, size)`.
-- The SPA installs that callback by writing the attribute:
-  `gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic)`
-  ([`kernel/js/gobj-ui/src/yui_dev.js`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/js/gobj-ui/src/yui_dev.js)).
-- The `info_traffic()` function ([yui_dev.js:29](https://github.com/artgins/yunetas/blob/7.22.0/kernel/js/gobj-ui/src/yui_dev.js#L29)) appends the message into the
-  DOM container `#developer-traffic-logger`, which lives inside either:
-  - the **legacy** `C_YUI_WINDOW` modal, or
-  - the **modern** `build_dev_panel()` modal ([yui_dev.js:452](https://github.com/artgins/yunetas/blob/7.22.0/kernel/js/gobj-ui/src/yui_dev.js#L452)).
+- JS side: the traffic trace is the gclass level `ievents` (or `ievents2`) of
+  `C_IEVENT_CLI` ([`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/js/gobj-js/src/c_ievent_cli.js)), the same
+  level name as `C_IEVENT_SRV` on a node. With it on, each message goes to
+  `trace_ievent_callback(prefix, iev_msg, direction, size)`, a yuno attr, or to
+  the console when the attr is empty.
+- The Developer window of gobj-ui ([`kernel/js/gobj-ui/src/yui_dev.js`](https://github.com/artgins/yunetas/blob/7.22.0/kernel/js/gobj-ui/src/yui_dev.js))
+  installs that callback in `apply_dev_traces()`, and `info_traffic()` appends
+  each message into `#developer-traffic-logger`.
 
-Both still ship. An app selects one of them from the version of its shell.
+### The trace buttons are the yuno's commands
 
-### Rendering
+Each button of the window turns trace bits on or off with the trace commands of
+the JS `C_YUNO`, which has the commands and the attrs of the C one
+(`set-global-trace`, `set-global-no-trace`, `set-gclass-trace`,
+`set-gclass-no-trace`; `trace_levels`, `no_trace_levels`). The yuno persists
+them through the functions that the app gives to `gobj_start_up()`, and
+restores them in its `mt_create` with the same rule as C: a saved scope
+replaces the defaults of `main.js`.
 
-- Header bar: blue, with direction icon (white = sent, yellow = received,
-  red = error), byte size, and `HH:MM:SS.SSSS` timestamp.
-- Body: read-only vanilla-jsoneditor (`pinned ^0.23.0`, see project memory
-  note about not bumping it).
-- Footer: ON/OFF traffic counter.
-- Auto-scroll to bottom on each message.
+| Button | What it sets |
+|---|---|
+| Automata | global `machine`; a second click adds `ev_kw` |
+| Creation | global `create_delete` |
+| Start / Stop | global `start_stop` |
+| Subscriptions | global `subscriptions` |
+| Traffic | `C_IEVENT_CLI` level `ievents` |
+| Periodic | global `timer_periodic`, and it clears the global no-trace of the same level |
+| I18n | not a trace level: i18next's debug switch, kept in the browser |
+
+The window never reads a message to decide whether to show it. The state of a
+button is read from the runtime, so it cannot disagree with what is traced.
 
 ### Filtering on the SPA side
 
-**The UI has no filter.** The viewer shows everything that flows through the
-websocket. The only two controls are on and off: the `trace_inter_event`
-boolean and the `trace_ievent_callback` itself. To filter, change what the
-yuno emits with the `ycommand` controls from §4.
+The window filters only what it **shows**: the direction (in / out / error) and
+a free text. To change what is **traced**, use the buttons, which change what
+the gobjs emit.
 
 ### Teardown order — the recursion gotcha
 
