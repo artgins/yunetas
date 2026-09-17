@@ -111,7 +111,14 @@ app with no websocket) sends those commands and never analyses messages: its
 as "recurring" -- is gone, and Periodic is now the `timer_periodic` level, i.e.
 `EV_TIMEOUT_PERIODIC`. Mute and No poll are gone. gobj-ui v1 1.0.4 (npm
 `legacy`) ports its dev panel to the commands; the mains of hidraulia,
-estadodelaire and yunomusica stop passing the removed attrs.
+estadodelaire and yunomusica stop passing the removed attrs, and the
+`setup_locale()` of six apps stops reading `trace_i18n` from the yuno.
+
+Found using the deployed window, same round: gobj-js 7.22.1 fixes
+`current_timestamp()`, which wrote UTC time followed by the local offset (two
+hours wrong at +0200); gobj-ui 7.23.174 keeps in the window what arrived before
+it was opened, leaves payloads out of Name only / Compact, and gives FIND a
+clear button.
 
 ### gobj-ui 7.23.171: the treedb views say the keys of a topic
 

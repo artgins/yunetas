@@ -11,7 +11,7 @@ The trace is the execution log of the framework. The `machine` level writes
 every event that enters a state machine, so it shows what occurred and in which
 order. It is the first tool for a browser application, and not the last.
 
-**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js)
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js)
 
 :::{important}
 Never debug a gclass with a call to `console.log()`. A trace has a scope, a
@@ -28,7 +28,7 @@ silencing side wins.
 ## Levels
 
 (js_trace_level_t)=
-### [`trace_level_t`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L406)
+### [`trace_level_t`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L406)
 
 The global levels, with the name that every function below accepts.
 
@@ -58,7 +58,7 @@ mask as a string of digits, or an empty value, which means every global level.
 ## Global
 
 (js_gobj_set_global_trace)=
-### [`gobj_set_global_trace(level, set)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L631)
+### [`gobj_set_global_trace(level, set)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L631)
 
 Turns a level on or off for every gclass. Returns `0`, or `-1` when the level
 name does not exist.
@@ -68,23 +68,23 @@ gobj_set_global_trace("machine", true);
 ```
 
 (js_gobj_set_global_no_trace)=
-### [`gobj_set_global_no_trace(level, set)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L645)
+### [`gobj_set_global_no_trace(level, set)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L645)
 
 Silences a level for every gclass. It wins against
 [`gobj_set_global_trace()`](#js_gobj_set_global_trace).
 
 (js_gobj_global_trace_level)=
-### [`gobj_global_trace_level()`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L659)
+### [`gobj_global_trace_level()`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L659)
 
 Gives the global mask, as a number.
 
 (js_gobj_global_trace_no_level)=
-### [`gobj_global_trace_no_level()`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L664)
+### [`gobj_global_trace_no_level()`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L664)
 
 Gives the global silencing mask, as a number.
 
 (js_gobj_set_global_trace2)=
-### [`gobj_set_global_trace2(bitmask, set)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L670)
+### [`gobj_set_global_trace2(bitmask, set)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L670)
 
 Turns global levels on or off by bit mask instead of by name, like the C
 function of the same name. `0xFFFFFFFF` with `set` false clears every global
@@ -95,12 +95,12 @@ gobj_set_global_trace2(trace_level_t.TRACE_MACHINE | trace_level_t.TRACE_EV_KW, 
 ```
 
 (js_gobj_set_global_no_trace2)=
-### [`gobj_set_global_no_trace2(bitmask, set)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L680)
+### [`gobj_set_global_no_trace2(bitmask, set)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L680)
 
 The silencing partner of [`gobj_set_global_trace2()`](#js_gobj_set_global_trace2).
 
 (js_gobj_get_global_trace_level)=
-### [`gobj_get_global_trace_level()`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L695)
+### [`gobj_get_global_trace_level()`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L695)
 
 Gives the global levels in force, as a list of names. It is what the yuno saves
 for the global scope.
@@ -110,19 +110,19 @@ gobj_get_global_trace_level();    // ["machine", "start_stop"]
 ```
 
 (js_gobj_get_global_trace_no_level)=
-### [`gobj_get_global_trace_no_level()`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L700)
+### [`gobj_get_global_trace_no_level()`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L700)
 
 Gives the global silencing levels in force, as a list of names.
 
 (js_gobj_repr_global_trace_levels)=
-### [`gobj_repr_global_trace_levels()`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L833)
+### [`gobj_repr_global_trace_levels()`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L833)
 
 Gives the catalog of the global levels, as a list of records with `name`,
 `bit`, `description` and `set`. A development panel builds its list of switches
 from it.
 
 (js_gobj_set_deep_trace)=
-### [`gobj_set_deep_trace(value)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L736)
+### [`gobj_set_deep_trace(value)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L736)
 
 Turns everything on at the same time, for a session that hunts something.
 Returns `0`.
@@ -132,14 +132,14 @@ Returns `0`.
 ## Per gclass
 
 (js_gobj_set_gclass_trace)=
-### [`gobj_set_gclass_trace(gclass, level, set)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L746)
+### [`gobj_set_gclass_trace(gclass, level, set)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L746)
 
 Turns a level on or off for one gclass. `gclass` accepts the gclass itself or
 its name, so a caller that holds no handle gives the name. Returns `0`, or `-1`
 when the gclass or the level does not exist.
 
 (js_gobj_get_gclass_trace_level)=
-### [`gobj_get_gclass_trace_level(gclass)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L705)
+### [`gobj_get_gclass_trace_level(gclass)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L705)
 
 Gives the levels in force for a gclass, as a list of names: its own levels and
 the global ones, as in the C kernel. The names of the gclass's own levels come
@@ -147,7 +147,7 @@ from the `s_user_trace_level` it gives to `gclass_create()`, a list of
 `[name, description]` in bit order.
 
 (js_gobj_get_gclass_trace_level2)=
-### [`gobj_get_gclass_trace_level2(gclass)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L715)
+### [`gobj_get_gclass_trace_level2(gclass)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L715)
 
 Gives the gclass's own levels only, without the global ones. It is what the
 yuno saves for the scope of a gclass.
@@ -158,12 +158,12 @@ gobj_get_gclass_trace_level2("C_IEVENT_CLI");   // ["ievents"]
 ```
 
 (js_gobj_get_gclass_trace_no_level)=
-### [`gobj_get_gclass_trace_no_level(gclass)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L725)
+### [`gobj_get_gclass_trace_no_level(gclass)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L725)
 
 Gives the silencing levels of a gclass, as a list of names.
 
 (js_gobj_set_gclass_no_trace)=
-### [`gobj_set_gclass_no_trace(gclass, level, set)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L794)
+### [`gobj_set_gclass_no_trace(gclass, level, set)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L794)
 
 Silences a level for one gclass.
 
@@ -182,23 +182,23 @@ tick of one second buries what you follow, so silence the timers first.
 ## Per gobj
 
 (js_gobj_set_gobj_trace)=
-### [`gobj_set_gobj_trace(gobj, level, set)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L766)
+### [`gobj_set_gobj_trace(gobj, level, set)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L766)
 
 Turns a level on or off for one gobj. Returns `0`, or `-1` when `gobj` is empty.
 
 (js_gobj_set_gobj_no_trace)=
-### [`gobj_set_gobj_no_trace(gobj, level, set)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L814)
+### [`gobj_set_gobj_no_trace(gobj, level, set)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L814)
 
 Silences a level for one gobj.
 
 (js_gobj_trace_level)=
-### [`gobj_trace_level(gobj)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L519)
+### [`gobj_trace_level(gobj)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L519)
 
 Gives the mask in force for a gobj: the union of the global mask, the mask of
 its gclass and its own. The C kernel computes it in the same way.
 
 (js_gobj_trace_no_level)=
-### [`gobj_trace_no_level(gobj)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L534)
+### [`gobj_trace_no_level(gobj)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L534)
 
 Gives the silencing mask in force for a gobj.
 
@@ -256,12 +256,12 @@ The traffic of the websocket is the level `ievents` (or `ievents2`) of
 ## The format of the machine trace
 
 (js_gobj_set_trace_machine_format)=
-### [`gobj_set_trace_machine_format(format)`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L370)
+### [`gobj_set_trace_machine_format(format)`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L370)
 
 Chooses the format of the lines of the `machine` trace.
 
 (js_gobj_trace_machine_format)=
-### [`gobj_trace_machine_format()`](https://github.com/artgins/gobj-js/blob/7.22.0/src/gobj.js#L375)
+### [`gobj_trace_machine_format()`](https://github.com/artgins/gobj-js/blob/7.22.1/src/gobj.js#L375)
 
 Gives the format that is in force.
 
