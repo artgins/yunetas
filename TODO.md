@@ -190,6 +190,28 @@ Line numbers are those of `main` on 2026-09-15.
   is tagged with the ACTIVATED snap, 0 when none, so every snap freezes
   what it shot; the delete guard asks the key's records and the asset gc
   holds what a shot record names while the snap exists.)
+- **tr_treedb snaps -- OPEN, reviewed 2026-09-17.** A snap is a PHOTO of an
+  instant and must never be written into. Two gaps against that:
+  1. **Edits while a snap is ACTIVATED are tagged with that snap**
+     (`current_snap_tag()` in `treedb_save_node()` / `treedb_create_node()`):
+     they modify the photo. Tagging them 0 is not enough, because activation
+     is a FILTERED LOAD (only records tagged S), and the loader without a snap
+     takes the newest record of each key whatever its tag: a 0-tagged edit
+     vanishes at the next restart with S still active and reappears, mixed
+     with the live state, after deactivation. Design decision pending: (A)
+     activation = read-only view, writes refused while a snap is active (the
+     agent writes during a rollback: `yunos` rows, `find-new-yunos`,
+     `register_public_services`); or (B) activation = RESTORE, S's records
+     copied as new untagged records after an automatic snap of the current
+     state, "deactivate" replaced by restoring that automatic snap.
+  2. **`treedb_delete_instance()`'s guard still reads the in-memory tag**
+     (tr_treedb.c, "Cannot delete instance, node has a tag"). Since a save no
+     longer inherits the tag, a non-primary instance updated after a shot has
+     tag 0 in memory, and delete-instance tombstones every md2 row of that
+     (id, pkey2) -- the frozen one included. It needs the
+     `node_held_by_a_snap()` walk `delete_node()` got, filtered by pkey2.
+     Side effect of (1) to fix with it: meta-topics (`__snaps__`,
+     `__graphs__`, `__assets__`) get tagged too while a snap is active.
 - **C_NODE / C_TREEDB**: nothing open from the review. (Fixed on 2026-09-15:
   every C_NODE command asks a permission; and on 2026-09-16: `mt_treedbs`
   answers a list, not an envelope -- see `CHANGELOG.md`.)
