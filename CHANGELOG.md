@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+### The Developer window: TRAFFIC and TRACES are two feeds (gobj-ui 7.23.176-7.23.180)
+
+Found using the window on the deployed treedb GUI, with `Traffic` ticked alone
+to read what was going to the backend -- and getting a list of event names
+beside a browser console showing the four payloads.
+
+- **7.23.176 -- the two feeds stop sharing one selector**, which steered the
+  wrong one: the four view modes rewrote the TRAFFIC (`Name only` left a
+  message as its event name and nothing else) while the TRACE lines ignored
+  them altogether. `VIEW` is the traffic's now and says only how much room its
+  payload takes (`Collapsed` / `Expanded`); the payload is always there. What
+  shapes a trace moved to the TRACES row beside `Simple mach`: a new `Payload`
+  chip for the `json` lines a trace dumps, which used to vanish as a side
+  effect of the traffic view being set to names. Both feeds can be on at once,
+  so neither control may borrow the other's. **The console mirror of the
+  traffic obeys the same filter and the same view as the window** -- it was
+  called BEFORE the filter and never read the view, so it printed lines the
+  window had just hidden. That is the promise 7.23.33 made for the framework
+  LOGS, which the traffic half had never kept.
+- **7.23.177 -- a payload no longer MOVES when the pointer passes over it**
+  (the nested indent was a `:hover` rule), and a folded object says its first
+  FIELDS instead of how many it has: `{header: "id", fillspace: 18, …}` where
+  it said `{5}`, which for a schema of twelve columns was twelve identical
+  `{5}`.
+- **7.23.178 -- no tooltips over the log.** Four `title` attributes popped a
+  box over what was being read, three of them repeating what the screen
+  already said.
+- **7.23.179 -- the message's source is dim TEXT in the entry's header**, the
+  one thing the removed tooltip said that is written nowhere else; it matters
+  most in an app browsing several backends. Plus the first test of
+  `yui_dev.js`, whose import also guards a trap the file carries: its
+  stylesheet is a template literal, so ONE backtick in a CSS comment stops the
+  module from parsing.
+- **7.23.180 -- the log is painted with ink, not with opacity.** Every role
+  was one grey dimmed by a different amount, and opacity blends text TOWARDS
+  the background, so the more a line mattered the less of it was left: the
+  preview measured 4.39:1 and the source 3.78:1, both under the 4.5 floor.
+  Eight tokens now, one per role, measured against the entry's own background
+  in both schemes; a string has a colour of its own for the first time, and a
+  folded object's preview is tokenized so it reads with the same ink as the
+  row it previews.
+
+Consumers: `yunos/js` gui_treedb 0.17.37-0.17.41 / gui_agent 0.22.64-0.22.68,
+with the five new i18n keys (`collapsed`, `payload`, `traffic payload folded`,
+`traffic payload laid out`, `show the payload of the traces`). Deployed to
+artgins.ytreedb.com, artgins.yunetacontrol.com and .ovh.
+
 ### `impose_c_schema` now projects the schema into `__system__` too
 
 `__system__` is the only place a schema can be ASKED for -- from ytreedb,
