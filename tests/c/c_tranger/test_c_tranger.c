@@ -10,6 +10,7 @@
  *      - open-iterator  -> stateful per-key iterator (index only), including
  *                          the t (persistence) and tm (message) match
  *                          conditions, which are independent and combine
+ *      - open-iterator rkey -> several keys concatenated in key order
  *      - get-page       -> {total_rows, pages, data} page of records
  *      - close-iterator -> close + deregister
  *      - delete-key     -> delete a whole key, guarded by force
@@ -629,6 +630,128 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
 
     /*-------------------------------------------------*
+     *      open-iterator with rkey: keys A, B, C laid end to end in key
+     *      order (5 + 3 + 4 = 12). A page that straddles two keys comes
+     *      back in that order, each record naming its key.
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itABC",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^[ABC]$"
+        ), yuno);
+    check_int("open-iterator rkey result", kw_get_int(0, r, "result", -999, 0), 0);
+    data = kw_get_dict(0, r, "data", 0, 0);
+    check_int("open-iterator rkey total_rows", kw_get_int(0, data, "total_rows", -1, 0),
+        KEY_A_ROWS + KEY_B_ROWS + KEY_C_ROWS);
+    check_int("open-iterator rkey keys", kw_get_int(0, data, "keys", -1, 0), 3);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itABC",
+            "from_rowid", 4,
+            "limit", 4
+        ), yuno);
+    check_int("get-page rkey result", kw_get_int(0, r, "result", -999, 0), 0);
+    data = kw_get_dict(0, r, "data", 0, 0);
+    check_int("get-page rkey total_rows", kw_get_int(0, data, "total_rows", -1, 0),
+        KEY_A_ROWS + KEY_B_ROWS + KEY_C_ROWS);
+    check_int("get-page rkey pages", kw_get_int(0, data, "pages", -1, 0), 3);
+    {
+        json_t *page = kw_get_list(0, data, "data", 0, 0);
+        static const char *keys[] = {KEY_A, KEY_A, KEY_B, KEY_B};
+        static const json_int_t rowids[] = {4, 5, 1, 2};
+        check_int("get-page rkey len", json_array_size(page), 4);
+        for(int i = 0; i < 4; i++) {
+            json_t *rec = json_array_get(page, (size_t)i);
+            check_str("get-page rkey key",
+                kw_get_str(0, rec, "__md_tranger__`key", "", 0), keys[i]);
+            check_int("get-page rkey rowid", record_rowid(rec), rowids[i]);
+        }
+    }
+    JSON_DECREF(r)
+
+    /*  Backward counts from the END of the concatenation: key C, newest
+     *  first.  */
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i, s:b}",
+            "iterator_id", "itABC",
+            "from_rowid", 1,
+            "limit", 2,
+            "backward", 1
+        ), yuno);
+    data = kw_get_dict(0, r, "data", 0, 0);
+    {
+        json_t *page = kw_get_list(0, data, "data", 0, 0);
+        check_int("get-page rkey backward len", json_array_size(page), 2);
+        check_str("get-page rkey backward key[0]",
+            kw_get_str(0, json_array_get(page, 0), "__md_tranger__`key", "", 0), KEY_C);
+        check_int("get-page rkey backward rowid[0]",
+            record_rowid(json_array_get(page, 0)), KEY_C_ROWS);
+        check_int("get-page rkey backward rowid[1]",
+            record_rowid(json_array_get(page, 1)), KEY_C_ROWS - 1);
+    }
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itABC"), yuno);
+    check_int("close-iterator rkey result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    /*  The match conditions bound EVERY key alike: t <= BASE_T+1 keeps the
+     *  first 2 records of each.  */
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:I}",
+            "iterator_id", "itABC_t",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^[ABC]$",
+            "to_t", (json_int_t)(BASE_T + 1)
+        ), yuno);
+    data = kw_get_dict(0, r, "data", 0, 0);
+    check_int("open-iterator rkey to_t total_rows", kw_get_int(0, data, "total_rows", -1, 0), 6);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itABC_t",
+            "from_rowid", 3,
+            "limit", 2
+        ), yuno);
+    data = kw_get_dict(0, r, "data", 0, 0);
+    {
+        json_t *page = kw_get_list(0, data, "data", 0, 0);
+        check_str("get-page rkey to_t key[0]",
+            kw_get_str(0, json_array_get(page, 0), "__md_tranger__`key", "", 0), KEY_B);
+        check_int("get-page rkey to_t rowid[1]", record_rowid(json_array_get(page, 1)), 2);
+    }
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itABC_t"), yuno);
+    JSON_DECREF(r)
+
+    /*  key and rkey are exclusive; a malformed rkey is refused.  */
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:s}",
+            "iterator_id", "itBoth",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_A,
+            "rkey", ".*"
+        ), yuno);
+    check_bool("open-iterator key+rkey fails", kw_get_int(0, r, "result", 0, 0) < 0, TRUE);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itBad",
+            "topic_name", TOPIC_NAME,
+            "rkey", "a[b"
+        ), yuno);
+    check_bool("open-iterator bad rkey fails", kw_get_int(0, r, "result", 0, 0) < 0, TRUE);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
      *      open-iterator on key A -> total_rows 5
      *-------------------------------------------------*/
     r = gobj_command(yuno, "open-iterator",
@@ -1069,6 +1192,15 @@ PRIVATE int do_test(void)
     check_int("open-iterator on topic2", kw_get_int(0, r, "result", -999, 0), 0);
     JSON_DECREF(r)
 
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itDeadAll",
+            "topic_name", TOPIC_NAME2,
+            "rkey", ".*"
+        ), yuno);
+    check_int("open-iterator rkey on topic2", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
     r = gobj_command(yuno, "open-rt",
         json_pack("{s:s, s:s, s:s}",
             "rt_id", "rtDead",
@@ -1110,6 +1242,20 @@ PRIVATE int do_test(void)
     r = gobj_command(yuno, "close-iterator",
         json_pack("{s:s}", "iterator_id", "itDead"), yuno);
     check_int("close-iterator on a dead topic", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itDeadAll",
+            "from_rowid", 1,
+            "limit", 10
+        ), yuno);
+    check_int("get-page rkey on a dead topic", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itDeadAll"), yuno);
+    check_int("close-iterator rkey on a dead topic", kw_get_int(0, r, "result", -999, 0), 0);
     JSON_DECREF(r)
 
     global_result += test_json(NULL);

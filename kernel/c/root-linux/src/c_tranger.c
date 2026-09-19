@@ -41,6 +41,15 @@ topic's cache totals: {key, records, fr_t, to_t, fr_tm, to_tm}. A client can
 therefore bound a time picker to what the key actually holds, without reading
 one single record.
 
+With `rkey` in place of `key`, open-iterator iterates EVERY key the regex
+matches, laid end to end in key order — the order tr2list prints a topic in
+(a rowid counts inside one key, so there is no other order across keys; sort
+the page you hold). get-page positions are positions in that concatenation,
+and each record names its key in __md_tranger__.key:
+
+command-yuno id=1911 service=tranger command=open-iterator iterator_id=all1 topic_name=pp rkey=.*
+command-yuno id=1911 service=tranger command=get-page iterator_id=all1 from_rowid=1 limit=100
+
 open-iterator also accepts metadata match conditions that pre-filter the index
 (0/empty = unset): from_t/to_t, from_tm/to_tm, from_rowid/to_rowid and the
 user_flag conditions (user_flag, not_user_flag, user_flag_mask_set,
@@ -141,6 +150,8 @@ PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 PRIVATE int mt_subscription_deleted(hgobj gobj, json_t *subs);
 PRIVATE void reap_handles_of(hgobj gobj, hgobj owner);
+PRIVATE BOOL iterator_is_live(hgobj gobj, const char *iterator_id);
+PRIVATE int close_registered_iterator(hgobj gobj, const char *iterator_id);
 PRIVATE void watch_owner(hgobj gobj, hgobj src);
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 
@@ -274,7 +285,8 @@ PRIVATE sdata_desc_t pm_open_iterator[] = {
 /*-PM----type-----------name--------------------flag----default-description---------- */
 SDATAPM (DTP_STRING,    "iterator_id",          0,          0,      "Id of iterator (optional, defaults to key)"),
 SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
-SDATAPM (DTP_STRING,    "key",                  0,          0,      "Key to iterate (required)"),
+SDATAPM (DTP_STRING,    "key",                  0,          0,      "Key to iterate (this or rkey)"),
+SDATAPM (DTP_STRING,    "rkey",                 0,          0,      "Regex (PCRE2) of the keys to iterate, concatenated in key order like tr2list ('.*' = every key; this or key)"),
 SDATAPM (DTP_BOOLEAN,   "backward",             0,          0,      "Iterate backward"),
 SDATAPM (DTP_INTEGER,   "from_t",               0,          0,      "match_cond: from persistence time (t, topic unit; 0=unbounded)"),
 SDATAPM (DTP_INTEGER,   "to_t",                 0,          0,      "match_cond: to persistence time (t, topic unit; 0=unbounded)"),
@@ -342,7 +354,7 @@ SDATACM2 (DTP_SCHEMA,   "add-record",       SDF_AUTHZ_X,    0,      pm_add_recor
 SDATACM2 (DTP_SCHEMA,   "get-list-data",    SDF_AUTHZ_X,    0,      pm_get_list_data,   cmd_get_list_data,  "Get list data"),
 
 SDATACM2 (DTP_SCHEMA,   "list-keys",        SDF_AUTHZ_X,    0,      pm_list_keys,       cmd_list_keys,      "List the keys of a topic with their record counts and their time span (fr_t/to_t, fr_tm/to_tm)"),
-SDATACM2 (DTP_SCHEMA,   "open-iterator",    SDF_AUTHZ_X,    0,      pm_open_iterator,   cmd_open_iterator,  "Open a stateful per-key iterator (index only, no upfront load) for cursor pagination; close with close-iterator"),
+SDATACM2 (DTP_SCHEMA,   "open-iterator",    SDF_AUTHZ_X,    0,      pm_open_iterator,   cmd_open_iterator,  "Open a stateful iterator on one key (key=) or on several concatenated in key order (rkey=), index only, no upfront load, for cursor pagination; close with close-iterator"),
 SDATACM2 (DTP_SCHEMA,   "get-page",         SDF_AUTHZ_X,    0,      pm_get_page,        cmd_get_page,       "Get a page of records from an open iterator: data is {total_rows, pages, data}"),
 SDATACM2 (DTP_SCHEMA,   "close-iterator",   SDF_AUTHZ_X,    0,      pm_close_iterator,  cmd_close_iterator, "Close an iterator opened with open-iterator"),
 
@@ -542,6 +554,163 @@ PRIVATE json_t *live_handle(hgobj gobj, json_t *registry, const char *id)
 }
 
 /***************************************************************************
+ *  Is the iterator registered under `id` still alive? Both kinds: a
+ *  one-key iterator (`ptr`) and a multi-key one (`parts`, see
+ *  cmd_open_iterator). All the parts live on the same topic, so they die
+ *  together with it.
+ ***************************************************************************/
+PRIVATE BOOL iterator_is_live(hgobj gobj, const char *iterator_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *entry = json_object_get(priv->iterators, iterator_id);
+    if(!entry || !priv->tranger) {
+        return FALSE;
+    }
+    const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
+    return tranger2_topic_is_open(priv->tranger, topic_name)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  Close the iterator registered under `id` (every part of a multi-key one)
+ *  and drop its entry. An iterator whose topic was closed was freed with it:
+ *  only the entry is dropped.
+ ***************************************************************************/
+PRIVATE int close_registered_iterator(hgobj gobj, const char *iterator_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *entry = json_object_get(priv->iterators, iterator_id);
+    if(!entry) {
+        return 0;
+    }
+
+    int result = 0;
+    if(iterator_is_live(gobj, iterator_id)) {
+        json_t *parts = json_object_get(entry, "parts");
+        if(parts) {
+            int idx; json_t *part;
+            json_array_foreach(parts, idx, part) {
+                json_t *iterator = (json_t *)(uintptr_t)kw_get_int(gobj, part, "ptr", 0, 0);
+                if(tranger2_close_iterator(priv->tranger, iterator) < 0) {
+                    result = -1;    // Error already logged
+                }
+            }
+        } else {
+            json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
+            result = tranger2_close_iterator(priv->tranger, iterator);
+        }
+    }
+    json_object_del(priv->iterators, iterator_id);
+
+    return result;
+}
+
+/***************************************************************************
+ *  A page of a multi-key iterator: its parts are one-key iterators laid end
+ *  to end in key order, as tr2list prints a topic, so `from_rowid` is a
+ *  position in that concatenation (1-based). Each part counts the rows it
+ *  had when it was opened — the snapshot the positions were computed from.
+ *  Every record carries its key in __md_tranger__, since the page mixes them.
+ *
+ *  Backward counts from the end of the concatenation: the parts are read
+ *  forward and the page is reversed here, so it means the same whether a
+ *  part is filtered (indexed) or not.
+ ***************************************************************************/
+PRIVATE json_t *get_multi_key_page(
+    hgobj gobj,
+    json_t *parts,
+    json_int_t from_rowid,  // based 1
+    json_int_t limit,
+    BOOL backward
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t total_rows = 0;
+    int idx; json_t *part;
+    json_array_foreach(parts, idx, part) {
+        total_rows += kw_get_int(gobj, part, "rows", 0, 0);
+    }
+    json_int_t pages = (limit > 0)? (total_rows + limit - 1) / limit : 0;
+
+    json_t *data = json_array();
+    if(from_rowid < 1 || from_rowid > total_rows || limit <= 0) {
+        return json_pack("{s:I, s:I, s:o}",
+            "total_rows", total_rows,
+            "pages", pages,
+            "data", data
+        );
+    }
+
+    /*
+     *  [first, last) in 0-based positions of the concatenation.
+     */
+    json_int_t first = from_rowid - 1;
+    json_int_t last = first + limit;
+    if(last > total_rows) {
+        last = total_rows;
+    }
+    if(backward) {
+        json_int_t r_first = total_rows - last;
+        last = total_rows - first;
+        first = r_first;
+    }
+
+    json_int_t offset = 0;
+    json_array_foreach(parts, idx, part) {
+        json_int_t rows = kw_get_int(gobj, part, "rows", 0, 0);
+        if(offset >= last) {
+            break;
+        }
+        if(first < offset + rows && last > offset) {
+            json_int_t local_first = (first > offset? first : offset) - offset;
+            json_int_t local_last = (last < offset + rows? last : offset + rows) - offset;
+            const char *key = kw_get_str(gobj, part, "key", "", 0);
+            json_t *iterator = (json_t *)(uintptr_t)kw_get_int(gobj, part, "ptr", 0, 0);
+
+            json_t *page = tranger2_iterator_get_page(
+                priv->tranger,
+                iterator,
+                local_first + 1,
+                (size_t)(local_last - local_first),
+                FALSE
+            );
+            if(!page) {
+                JSON_DECREF(data)
+                return NULL;    // Error already logged
+            }
+            int idx2; json_t *record;
+            json_array_foreach(json_object_get(page, "data"), idx2, record) {
+                json_t *md = json_object_get(record, "__md_tranger__");
+                if(md) {
+                    json_object_set_new(md, "key", json_string(key));
+                }
+                json_array_append(data, record);
+            }
+            JSON_DECREF(page)
+        }
+        offset += rows;
+    }
+
+    if(backward) {
+        size_t size = json_array_size(data);
+        json_t *reversed = json_array();
+        for(size_t i = size; i > 0; i--) {
+            json_array_append(reversed, json_array_get(data, i - 1));
+        }
+        JSON_DECREF(data)
+        data = reversed;
+    }
+
+    return json_pack("{s:I, s:I, s:o}",
+        "total_rows", total_rows,
+        "pages", pages,
+        "data", data
+    );
+}
+
+/***************************************************************************
  *      Framework Method destroy
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
@@ -569,11 +738,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     if(priv->iterators) {
         const char *iterator_id; json_t *jn_entry; void *tmp;
         json_object_foreach_safe(priv->iterators, tmp, iterator_id, jn_entry) {
-            json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
-            if(iterator) {
-                tranger2_close_iterator(priv->tranger, iterator);
-            }
-            json_object_del(priv->iterators, iterator_id);
+            close_registered_iterator(gobj, iterator_id);
         }
         JSON_DECREF(priv->iterators)
     }
@@ -1790,6 +1955,114 @@ PRIVATE int sort_keys(json_t *jn_list, BOOL by_records, BOOL desc)
     return 0;
 }
 
+/***************************************************************************
+ *  The keys of a topic that `rkey` matches (every key when it is empty), as
+ *  a [{key, records}] list in the order the tranger lists them.
+ *
+ *  A topic can hold a hundred thousand keys, and until now the answer was
+ *  ALWAYS every one of them: a client that only wanted the keys of one
+ *  device had to be handed the lot and filter them itself. `rkey` filters
+ *  HERE. list-keys pages the result; open-iterator concatenates the keys it
+ *  names into one multi-key iterator.
+ *
+ *  PCRE2 and not POSIX regcomp(): every yuno already links libpcre2-8
+ *  (tools/cmake/project.cmake) and gobj-c already speaks it
+ *  (json_replace_vars.c), and this is the one place in the read path that
+ *  runs the SAME pattern against up to a hundred thousand subjects — the
+ *  case its JIT exists for. The pattern is compiled and JIT-compiled ONCE,
+ *  outside the loop. (A JIT that is not there is not an error: pcre2_match
+ *  falls back to the interpreter on its own.)
+ *
+ *  Returns NULL on a bad regex or no memory, with the reason for the client
+ *  in *jn_comment (owned by the caller). The failure is logged here.
+ ***************************************************************************/
+PRIVATE json_t *match_topic_keys(
+    hgobj gobj,
+    const char *topic_name,
+    const char *rkey,
+    json_t **jn_comment
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    pcre2_code *re = NULL;
+    pcre2_match_data *match_data = NULL;
+    if(!empty_string(rkey)) {
+        int errornumber = 0;
+        PCRE2_SIZE erroroffset = 0;
+        re = pcre2_compile(
+            (PCRE2_SPTR)rkey, PCRE2_ZERO_TERMINATED, 0,
+            &errornumber, &erroroffset, NULL
+        );
+        if(!re) {
+            PCRE2_UCHAR err[256];
+            pcre2_get_error_message(errornumber, err, sizeof(err));
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Bad rkey regex",
+                "rkey",         "%s", rkey,
+                "offset",       "%d", (int)erroroffset,
+                "error",        "%s", (char *)err,
+                NULL
+            );
+            *jn_comment = json_sprintf("Bad rkey regex '%s' at %d: %s",
+                rkey, (int)erroroffset, (char *)err);
+            return NULL;
+        }
+        pcre2_jit_compile(re, PCRE2_JIT_COMPLETE);
+
+        match_data = pcre2_match_data_create_from_pattern(re, NULL);
+        if(!match_data) {
+            pcre2_code_free(re);
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "pcre2_match_data_create_from_pattern() FAILED",
+                NULL
+            );
+            *jn_comment = json_sprintf("No memory for the rkey matcher");
+            return NULL;
+        }
+    }
+
+    /*
+     *  Every MATCHING key with its record count. The count is a cache lookup,
+     *  so it is cheap enough to do for the whole matching set — which is what
+     *  lets `order=records` sort by it and `total_rows` be exact. The key's
+     *  time span is NOT: it copies the cache totals into a fresh dict, so it
+     *  is built only for the keys that actually travel (the page).
+     */
+    json_t *jn_keys = tranger2_list_keys(priv->tranger, topic_name);
+    json_t *jn_matched = json_array();
+    int idx; json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+        const char *key = json_string_value(jn_key);
+        if(!key) {
+            key = "";
+        }
+        if(re) {
+            int m = pcre2_match(
+                re, (PCRE2_SPTR)key, PCRE2_ZERO_TERMINATED, 0, 0, match_data, NULL
+            );
+            if(m < 0) {
+                continue;   // PCRE2_ERROR_NOMATCH (and any match error): not this key
+            }
+        }
+        json_array_append_new(jn_matched, json_pack("{s:s, s:I}",
+            "key", key,
+            "records", (json_int_t)tranger2_topic_key_size(priv->tranger, topic_name, key)
+        ));
+    }
+    JSON_DECREF(jn_keys)
+    if(re) {
+        pcre2_match_data_free(match_data);
+        pcre2_code_free(re);
+    }
+
+    return jn_matched;
+}
+
 PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1855,105 +2128,17 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         limit = 0;
     }
 
-    /*
-     *  A topic can hold a hundred thousand keys, and until now the answer was
-     *  ALWAYS every one of them: a client that only wanted the keys of one
-     *  device had to be handed the lot and filter them itself. `rkey` filters
-     *  HERE.
-     *
-     *  PCRE2 and not POSIX regcomp(): every yuno already links libpcre2-8
-     *  (tools/cmake/project.cmake) and gobj-c already speaks it
-     *  (json_replace_vars.c), and this is the one place in the read path that
-     *  runs the SAME pattern against up to a hundred thousand subjects — the
-     *  case its JIT exists for. The pattern is compiled and JIT-compiled ONCE,
-     *  outside the loop. (A JIT that is not there is not an error: pcre2_match
-     *  falls back to the interpreter on its own.)
-     */
-    pcre2_code *re = NULL;
-    pcre2_match_data *match_data = NULL;
-    if(!empty_string(rkey)) {
-        int errornumber = 0;
-        PCRE2_SIZE erroroffset = 0;
-        re = pcre2_compile(
-            (PCRE2_SPTR)rkey, PCRE2_ZERO_TERMINATED, 0,
-            &errornumber, &erroroffset, NULL
+    json_t *jn_comment = NULL;
+    json_t *jn_matched = match_topic_keys(gobj, topic_name, rkey, &jn_comment);
+    if(!jn_matched) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            jn_comment,     // Error already logged
+            0,
+            0,
+            kw  // owned
         );
-        if(!re) {
-            PCRE2_UCHAR err[256];
-            pcre2_get_error_message(errornumber, err, sizeof(err));
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "Bad rkey regex",
-                "rkey",         "%s", rkey,
-                "offset",       "%d", (int)erroroffset,
-                "error",        "%s", (char *)err,
-                NULL
-            );
-            return msg_iev_build_response(
-                gobj,
-                -1,
-                json_sprintf("Bad rkey regex '%s' at %d: %s",
-                    rkey, (int)erroroffset, (char *)err),
-                0,
-                0,
-                kw  // owned
-            );
-        }
-        pcre2_jit_compile(re, PCRE2_JIT_COMPLETE);
-
-        match_data = pcre2_match_data_create_from_pattern(re, NULL);
-        if(!match_data) {
-            pcre2_code_free(re);
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY,
-                "msg",          "%s", "pcre2_match_data_create_from_pattern() FAILED",
-                NULL
-            );
-            return msg_iev_build_response(
-                gobj,
-                -1,
-                json_sprintf("No memory for the rkey matcher"),
-                0,
-                0,
-                kw  // owned
-            );
-        }
-    }
-
-    /*
-     *  Every MATCHING key with its record count. The count is a cache lookup,
-     *  so it is cheap enough to do for the whole matching set — which is what
-     *  lets `order=records` sort by it and `total_rows` be exact. The key's
-     *  time span is NOT: it copies the cache totals into a fresh dict, so it
-     *  is built only for the keys that actually travel (the page).
-     */
-    json_t *jn_keys = tranger2_list_keys(priv->tranger, topic_name);
-    json_t *jn_matched = json_array();
-    int idx; json_t *jn_key;
-    json_array_foreach(jn_keys, idx, jn_key) {
-        const char *key = json_string_value(jn_key);
-        if(!key) {
-            key = "";
-        }
-        if(re) {
-            int m = pcre2_match(
-                re, (PCRE2_SPTR)key, PCRE2_ZERO_TERMINATED, 0, 0, match_data, NULL
-            );
-            if(m < 0) {
-                continue;   // PCRE2_ERROR_NOMATCH (and any match error): not this key
-            }
-        }
-        json_array_append_new(jn_matched, json_pack("{s:s, s:I}",
-            "key", key,
-            "records", (json_int_t)tranger2_topic_key_size(priv->tranger, topic_name, key)
-        ));
-    }
-    JSON_DECREF(jn_keys)
-    if(re) {
-        pcre2_match_data_free(match_data);
-        pcre2_code_free(re);
     }
 
     int sorted = 0;
@@ -2040,6 +2225,120 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 }
 
 /***************************************************************************
+ *  open-iterator with `rkey`: one iterator per matching key, laid end to end
+ *  in key order — the order tr2list prints a topic in. There is no global
+ *  order across keys in a tranger (a rowid counts inside ONE key), and a
+ *  client that wants another one sorts the page it holds.
+ *
+ *  Each part is an ordinary one-key iterator with the same match_cond, so a
+ *  filter bounds every key alike, and its row count is frozen at open: that
+ *  count is what get-page cuts the concatenation with (get_multi_key_page).
+ *  Registered like a one-key iterator, with `parts` in place of `ptr`.
+ *  Takes ownership of match_cond and of kw.
+ ***************************************************************************/
+PRIVATE json_t *open_multi_key_iterator(
+    hgobj gobj,
+    const char *topic_name,
+    const char *rkey,
+    const char *iterator_id,
+    json_t *match_cond,     // owned
+    json_t *kw,             // owned
+    hgobj src
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_comment = NULL;
+    json_t *jn_keys = match_topic_keys(gobj, topic_name, rkey, &jn_comment);
+    if(!jn_keys || sort_keys(jn_keys, FALSE, FALSE) < 0) {
+        JSON_DECREF(jn_keys)
+        JSON_DECREF(match_cond)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            jn_comment? jn_comment : json_sprintf("%s: cannot sort the keys of topic '%s', no memory",
+                gobj_yuno_role_plus_name(), topic_name),   // Error already logged
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *parts = json_array();
+    json_int_t total_rows = 0;
+    int idx; json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+        const char *key = kw_get_str(gobj, jn_key, "key", "", 0);
+        json_t *jn_part_id = json_sprintf("%s^%s", iterator_id, key);
+        json_t *iterator = tranger2_open_iterator(
+            priv->tranger,
+            topic_name,
+            key,
+            json_deep_copy(match_cond), // owned
+            NULL,               // index only, get-page reads lazily
+            json_string_value(jn_part_id),
+            gobj_name(gobj),    // creator
+            NULL,               // data
+            json_pack("{s:I}",  // extra, owned
+                "src_gobj", (json_int_t)(uintptr_t)src
+            )
+        );
+        JSON_DECREF(jn_part_id)
+        if(!iterator) {
+            json_t *part;
+            int idx2;
+            json_array_foreach(parts, idx2, part) {
+                tranger2_close_iterator(
+                    priv->tranger,
+                    (json_t *)(uintptr_t)kw_get_int(gobj, part, "ptr", 0, 0)
+                );
+            }
+            JSON_DECREF(parts)
+            JSON_DECREF(jn_keys)
+            JSON_DECREF(match_cond)
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_string(gobj_log_last_message()),   // Error already logged
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        json_int_t rows = (json_int_t)tranger2_iterator_size(iterator);
+        total_rows += rows;
+        json_array_append_new(parts, json_pack("{s:s, s:I, s:I}",
+            "key", key,
+            "ptr", (json_int_t)(uintptr_t)iterator,
+            "rows", rows
+        ));
+    }
+    JSON_DECREF(jn_keys)
+    JSON_DECREF(match_cond)
+
+    json_object_set_new(priv->iterators, iterator_id, json_pack("{s:s, s:I, s:o}",
+        "topic_name", topic_name,
+        "src_gobj", (json_int_t)(uintptr_t)src,
+        "parts", parts
+    ));
+    watch_owner(gobj, src);
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Iterator opened: '%s', %d keys",
+            iterator_id, (int)json_array_size(parts)),
+        0,
+        json_pack("{s:s, s:I, s:I}",
+            "iterator_id", iterator_id,
+            "total_rows", total_rows,
+            "keys", (json_int_t)json_array_size(parts)
+        ),
+        kw  // owned
+    );
+}
+
+/***************************************************************************
  *  Open a stateful per-key iterator for cursor pagination. It builds only
  *  the key's row index (no upfront record load, no realtime feed); the
  *  records are read lazily by get-page. Registered until close-iterator or
@@ -2066,6 +2365,7 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     const char *key = kw_get_str(gobj, kw, "key", "", 0);
+    const char *rkey = kw_get_str(gobj, kw, "rkey", "", 0);
     const char *iterator_id = kw_get_str(gobj, kw, "iterator_id", "", 0);
     /*  KW_WILD_NUMBER: booleans arrive as strings when forwarded.  */
     BOOL backward = kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER);
@@ -2080,11 +2380,21 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
             kw  // owned
         );
     }
-    if(empty_string(key)) {
+    if(empty_string(key) && empty_string(rkey)) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What key?"),
+            json_sprintf("What key? (key, or rkey for several)"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(!empty_string(key) && !empty_string(rkey)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("key or rkey, not both"),
             0,
             0,
             kw  // owned
@@ -2102,7 +2412,7 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
     if(empty_string(iterator_id)) {
-        iterator_id = key;
+        iterator_id = empty_string(key)? rkey : key;
     }
     if(kw_has_key(priv->iterators, iterator_id)) {
         return msg_iev_build_response(
@@ -2139,6 +2449,12 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         }
     }
 
+    if(!empty_string(rkey)) {
+        return open_multi_key_iterator(
+            gobj, topic_name, rkey, iterator_id, match_cond, kw, src
+        );
+    }
+
     json_t *iterator = tranger2_open_iterator(
         priv->tranger,
         topic_name,
@@ -2163,6 +2479,11 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
     register_handle(priv->iterators, iterator_id, topic_name, iterator);
+    json_object_set_new(
+        json_object_get(priv->iterators, iterator_id),
+        "src_gobj",
+        json_integer((json_int_t)(uintptr_t)src)
+    );
     watch_owner(gobj, src);
 
     json_int_t total_rows = (json_int_t)tranger2_iterator_size(iterator);
@@ -2225,8 +2546,7 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
-    json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
-    if(!iterator) {
+    if(!iterator_is_live(gobj, iterator_id)) {
         return msg_iev_build_response(
             gobj,
             -1,
@@ -2242,13 +2562,25 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_int_t limit = (json_int_t)kw_get_int(gobj, kw, "limit", 100, KW_WILD_NUMBER);
     BOOL backward = kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER);
 
-    json_t *page = tranger2_iterator_get_page(
-        priv->tranger,
-        iterator,
-        from_rowid,
-        (size_t)(limit>0?limit:0),
-        backward
-    );
+    json_t *page;
+    json_t *parts = json_object_get(jn_ptr, "parts");
+    if(parts) {
+        page = get_multi_key_page(
+            gobj,
+            parts,
+            from_rowid,
+            limit>0?limit:0,
+            backward
+        );
+    } else {
+        page = tranger2_iterator_get_page(
+            priv->tranger,
+            live_handle(gobj, priv->iterators, iterator_id),
+            from_rowid,
+            (size_t)(limit>0?limit:0),
+            backward
+        );
+    }
     if(!page) {
         return msg_iev_build_response(
             gobj,
@@ -2314,9 +2646,8 @@ PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgob
             kw  // owned
         );
     }
-    json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
-    json_object_del(priv->iterators, iterator_id);
-    if(!iterator) {
+    if(!iterator_is_live(gobj, iterator_id)) {
+        json_object_del(priv->iterators, iterator_id);
         /*  Its topic was closed: the tranger closed the iterator with it.  */
         return msg_iev_build_response(
             gobj,
@@ -2329,7 +2660,7 @@ PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgob
         );
     }
 
-    int result = tranger2_close_iterator(priv->tranger, iterator);
+    int result = close_registered_iterator(gobj, iterator_id);
 
     return msg_iev_build_response(
         gobj,
@@ -2746,13 +3077,12 @@ PRIVATE void reap_handles_of(hgobj gobj, hgobj owner)
     if(priv->iterators) {
         const char *iterator_id; json_t *jn_entry; void *tmp;
         json_object_foreach_safe(priv->iterators, tmp, iterator_id, jn_entry) {
-            json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
-            if(!iterator) {
+            if(!iterator_is_live(gobj, iterator_id)) {
                 /*  Closed with its topic: nothing to close, drop the entry.  */
                 json_object_del(priv->iterators, iterator_id);
                 continue;
             }
-            if((hgobj)(uintptr_t)kw_get_int(gobj, iterator, "src_gobj", 0, 0) != owner) {
+            if((hgobj)(uintptr_t)kw_get_int(gobj, jn_entry, "src_gobj", 0, 0) != owner) {
                 continue;
             }
             gobj_log_info(gobj, 0,
@@ -2763,8 +3093,7 @@ PRIVATE void reap_handles_of(hgobj gobj, hgobj owner)
                 "subscriber",   "%s", gobj_short_name(owner),
                 NULL
             );
-            tranger2_close_iterator(priv->tranger, iterator);
-            json_object_del(priv->iterators, iterator_id);
+            close_registered_iterator(gobj, iterator_id);
         }
     }
 }

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Rows of every key of a topic (C_TRANGER `open-iterator rkey`, gui_treedb 0.17.43)
+
+- **`open-iterator` takes `rkey` in place of `key`.** It opens one iterator
+  on every key that the PCRE2 regex matches, and lays them end to end in key
+  order, the same order `tr2list` prints a topic in. `get-page` pages over
+  that concatenation (`backward` counts from its end), and each record names
+  its key in `__md_tranger__.key`. The match conditions apply to each key.
+  A multi-key iterator is registered, reaped and closed like a one-key
+  iterator, and it is dropped the same way when its topic closes under it.
+  `list-keys` and `open-iterator` now share one key matcher.
+- **gui_treedb: a "Rows topic" button** beside "Live topic" opens that view
+  for the whole topic, with a `key` column and header sort over the loaded
+  page. The Keys picker's page size also offers **All**.
+
 ### gobj-ui 7.23.181: a JSON viewer given its document at create expands
 
 - **`C_YUI_JSON` created with `json_data` starts in `ST_READY`.** The attr

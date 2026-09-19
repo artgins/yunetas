@@ -29,7 +29,7 @@ on time-series topics.
 | `open-list` / `close-list` | Open or close a record list (one-shot snapshot with `return_data=1`, else a live list collecting realtime appends). A **keyless** list accepts `rkey` (PCRE2 regex over the keys), and it governs both the disk load **and** the realtime feed. |
 | `get-list-data` | Retrieve an open list's data. |
 | `list-keys` | List a topic's keys with their record counts **and their time span on both axes**: `[{key, records, fr_t, to_t, fr_tm, to_tm}]`. Lets a client bound a time picker to what the key really holds without reading a record. Filters, sorts and pages **in the server**: `rkey` (PCRE2 regex), `order=key\|records` + `desc`, and `from`/`limit` (with `limit>0` the answer is a page `{total_rows, pages, data}`, and `limit=0` keeps the plain full list). |
-| `open-iterator` / `close-iterator` | Open/close a stateful per-key iterator (row index only, no upfront load) for cursor pagination. The handles a remote session opens are stamped with it and reaped when the session closes, whether or not it subscribed to anything (the service watches the session's `EV_ON_CLOSE`, once per session). Takes the match conditions below. A filtered iterator indexes the matching rows at open, so `total_rows` and the pages count only those. |
+| `open-iterator` / `close-iterator` | Open/close a stateful per-key iterator (row index only, no upfront load) for cursor pagination. The handles a remote session opens are stamped with it and reaped when the session closes, whether or not it subscribed to anything (the service watches the session's `EV_ON_CLOSE`, once per session). Takes the match conditions below. A filtered iterator indexes the matching rows at open, so `total_rows` and the pages count only those. Give `key` for one key, or `rkey` (PCRE2 regex) for several keys: see *Several keys in one iterator* below. |
 | `get-page` | Get a page `{total_rows, pages, data}` from an open iterator (`limit`, optional `backward`). `from_rowid` is 1-based and, on a **filtered** iterator, is a position among the MATCHING rows (a global rowid only when the iterator does not filter). |
 | `open-rt` / `close-rt` | Open/close a realtime feed on a topic key (no history load). New appends are published as `EV_TRANGER_RECORD_ADDED` to subscribers. |
 | `add-record` | Append a record. |
@@ -41,6 +41,23 @@ on time-series topics.
 user_flag conditions (`user_flag`, `not_user_flag`, `user_flag_mask_set`,
 `user_flag_mask_notset`). They are ANDed, and every one is honored **per
 record**.
+
+**Several keys in one iterator.** Give `rkey` instead of `key`. The iterator
+lays the matching keys end to end, sorted by key, in the same order `tr2list`
+prints a topic. `get-page` positions are positions in that concatenation. Each
+record gives its key in `__md_tranger__.key`, because one page can hold more
+than one key. The order is **not** a time order: a rowid counts inside one key
+only. To see the records by time, sort the page on the client. The match
+conditions apply to each key separately. `key` and `rkey` together is an
+error.
+
+```
+command-yuno id=<id> service=<tranger> command=open-iterator iterator_id=all1 topic_name=binaries rkey=.*
+command-yuno id=<id> service=<tranger> command=get-page iterator_id=all1 from_rowid=1 limit=100
+command-yuno id=<id> service=<tranger> command=close-iterator iterator_id=all1
+```
+
+The answer of `open-iterator` also gives `keys`, the number of keys it found.
 
 A tranger record carries **two independent timestamps**, and a browser of raw
 records needs both:
