@@ -39,7 +39,11 @@ on-disk file time as `time` (epoch) and `time_str` next to `size`. When the
 local file is newer than the agent's installed slot the role is flagged
 `REBUILD` even though `Δsize` is 0 (the table notes it as "newer build"). For an
 older agent that does not report `time`, the comparison then uses the
-embedded build date (`date`, the C `__DATE__ " " __TIME__`).
+embedded build date (`date`). Since SDK 7.23.x it is ISO 8601 UTC, for
+example `2026-09-18T16:13:49Z`: every yuno is compiled under `TZ=UTC`
+(`tools/cmake/project.cmake`). An older binary reports the raw C
+`__DATE__ " " __TIME__`, for example `Sep 18 2026 16:13:49`, in the local
+time of the machine that built it, with no zone. The tool reads both.
 
 ## REBUILD lifecycle is automated. The bump path is not
 

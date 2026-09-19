@@ -67,7 +67,7 @@ PRIVATE char __yuno_tag__[NAME_MAX] = {0};
 
 PRIVATE char __app_name__[NAME_MAX] = {0};
 PRIVATE char __yuno_version__[NAME_MAX] = {0};
-PRIVATE char __argp_program_version__[NAME_MAX] = {0};
+PRIVATE char __argp_program_version__[3*NAME_MAX] = {0};   // name, version and build datetime
 PRIVATE char __app_doc__[NAME_MAX] = {0};
 PRIVATE char __app_datetime__[NAME_MAX] = {0};
 PRIVATE char __process_name__[2*NAME_MAX] = {0};
@@ -302,6 +302,37 @@ PUBLIC int yuneta_setup(
 }
 
 /***************************************************************************
+ *  The build datetime a yuno is given is __DATE__ " " __TIME__
+ *  ("Sep 18 2026 16:13:49", the day space-padded), compiled under TZ=UTC
+ *  (tools/cmake/project.cmake). Publish it as ISO 8601 with its zone:
+ *  "2026-09-18T16:13:49Z". Anything else is kept as it came.
+ ***************************************************************************/
+PRIVATE void build_datetime_to_iso(char *bf, size_t bfsize, const char *datetime)
+{
+    static const char *months[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    };
+    char mon[4] = {0};
+    int day = 0, year = 0, hh = 0, mm = 0, ss = 0;
+    int month = 0;
+
+    if(sscanf(datetime, "%3s %d %d %d:%d:%d", mon, &day, &year, &hh, &mm, &ss) == 6) {
+        for(int i = 0; i < 12; i++) {
+            if(strcmp(mon, months[i]) == 0) {
+                month = i + 1;
+                break;
+            }
+        }
+    }
+    if(month == 0) {
+        snprintf(bf, bfsize, "%s", datetime);
+        return;
+    }
+    snprintf(bf, bfsize, "%04d-%02d-%02dT%02d:%02d:%02dZ", year, month, day, hh, mm, ss);
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 PUBLIC int yuneta_entry_point(int argc, char *argv[],
@@ -317,16 +348,17 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
 ) {
     int __print__ = 0;
 
+    build_datetime_to_iso(__app_datetime__, sizeof(__app_datetime__), APP_DATETIME);
+
     snprintf(__argp_program_version__, sizeof(__argp_program_version__),
         "%s %s %s",
         APP_NAME,
         APP_VERSION,
-        APP_DATETIME
+        __app_datetime__
     );
     argp_program_bug_address = APP_SUPPORT;
     strncpy(__yuno_version__, APP_VERSION, sizeof(__yuno_version__)-1);
     strncpy(__app_name__, APP_NAME, sizeof(__app_name__)-1);
-    strncpy(__app_datetime__, APP_DATETIME, sizeof(__app_datetime__)-1);
     strncpy(__app_doc__, APP_DOC, sizeof(__app_doc__)-1);
 
     /*------------------------------------------------*

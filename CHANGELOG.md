@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### The build date of a yuno says its zone: ISO 8601 UTC (CLI 0.19.3)
+
+- **`date` in `--print-role`, `--version` and the agent's `binaries` topic is
+  now `2026-09-18T16:13:49Z`.** It was `__DATE__ " " __TIME__` (`Sep 18 2026
+  16:13:49`): the LOCAL time of the machine that compiled it, with no way to
+  tell which zone. `tools/cmake/project.cmake` compiles every yuno under
+  `TZ=UTC` (`CMAKE_C_COMPILER_LAUNCHER env TZ=UTC`, so the 132 `main.c` stay
+  as they are), and `entry_point.c` publishes the datetime as ISO 8601 with
+  its `Z`. It needs a `yunetas init` to take effect. Binaries already
+  installed keep the old string until they are rebuilt. The `--version`
+  buffer is sized for name, version and datetime (it was `NAME_MAX`, and
+  the compiler now proves the overflow possible).
+- `yunetas sync-binaries` (CLI 0.19.3) reads both forms in its fallback date
+  compare.
+
 ### treedb: a write made while a snap is activated is untagged (BREAKING for who relied on it)
 
 - **A record takes a snap's tag exactly once, from `shoot-snap`.**

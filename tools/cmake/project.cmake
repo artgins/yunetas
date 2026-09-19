@@ -111,6 +111,14 @@ else()
     # desktop / linux / glibc
     add_definitions(-D_GNU_SOURCE)
 
+    # The build datetime of every yuno is __DATE__ " " __TIME__, which is the
+    # LOCAL time of the compiling process and says no zone. Compile under
+    # TZ=UTC so it is UTC, always; entry_point.c publishes it as ISO 8601
+    # with a Z (print-role, the agent's `binaries` topic).
+    if(NOT "${CMAKE_C_COMPILER_LAUNCHER}" MATCHES "TZ=UTC")
+        set(CMAKE_C_COMPILER_LAUNCHER env TZ=UTC ${CMAKE_C_COMPILER_LAUNCHER})
+    endif()
+
     include_directories("${YUNETAS_BASE}/outputs_ext/include")
     link_directories("${YUNETAS_BASE}/outputs_ext/lib")
 
