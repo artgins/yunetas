@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### gobj-ui 7.23.181: a JSON viewer given its document at create expands
+
+- **`C_YUI_JSON` created with `json_data` starts in `ST_READY`.** The attr
+  filled and drew the tree, but the FSM stayed in `ST_EMPTY`, where expand,
+  collapse, search and copy are not declared -- the first click on a `>`
+  answered *"Event NOT DEFINED in state"*. Found on the treedb GUI's record
+  viewer.
+- **gui_treedb 0.17.42: a tranger record opens in a real window on desktop**
+  -- a `C_YUI_WINDOW` that moves, resizes, maximizes and remembers its
+  geometry, like the raw-tranger viewer -- instead of a fixed dialog. Mobile
+  keeps the adaptive sheet.
+
 ### The Developer window: TRAFFIC and TRACES are two feeds (gobj-ui 7.23.176-7.23.180)
 
 Found using the window on the deployed treedb GUI, with `Traffic` ticked alone
