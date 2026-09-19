@@ -111,7 +111,7 @@ distribution.
 
 **Safety nets.** Every push tool shows you a classification table, and it asks
 you before it changes anything. `-n` does a dry run, and `-a` skips the
-questions. `upgrade-yunos` shoots a rollback **snap** first, so one
+questions. `upgrade-yunos` shoots a rollback **snap** before it changes anything, so one
 `activate-snap` command undoes a bad release
 ([Recipe E](#dy-recipe-rollback)). The whole flow is idempotent. If a deploy
 stops in the middle, run `sync` and `upgrade-yunos` again, and they finish the
@@ -240,19 +240,27 @@ one registered against the OLD release, and it starts them again on that old
 release, even after `kill-yuno` and `run-yuno`. `upgrade-yunos` is the command
 that moves the node to the new release.
 
-`upgrade-yunos` does four operations, in this order:
+`upgrade-yunos` does five operations, in this order:
 
-1. **Rollback snap** — `shoot-snap name=pre-upgrade-<YYYYMMDD>`. The name makes
+1. **Preview** — `find-new-yunos` lists the new yuno rows that the tool can
+   register. If the list is empty, the tool stops: it shoots no snap and
+   restarts nothing.
+2. **Confirm** — the tool asks you for confirmation. `-y` skips the question.
+   If you answer no, the tool stops and leaves no snap.
+3. **Rollback snap** — `shoot-snap name=pre-upgrade-<YYYYMMDD>`. The name makes
    the operation idempotent, and the tool uses an already-active snap again.
    `--no-snap` skips this operation. `--snap-name N` gives the snap another
    name.
-2. **Preview** — `find-new-yunos` lists the new yuno rows that the tool can
-   register. Then the tool asks you for confirmation. `-y` skips the question.
-3. **Register** — `find-new-yunos create=1` writes the new yuno-instance rows.
-4. **Promote and restart** — `deactivate-snap` starts the agent's
+4. **Register** — `find-new-yunos create=1` writes the new yuno-instance rows.
+5. **Promote and restart** — `deactivate-snap` starts the agent's
    `restart_nodes()`.
 
-Operation 4 sends **SIGKILL to every yuno that runs on the node**. Then the
+The snap comes after the preview, and this order is intentional. A snap tags
+every current record, and it clones each record that another snap tagged
+before. When there is nothing to upgrade, a snap does that work for no reason.
+Before CLI 0.19.2 the snap was the first operation.
+
+Operation 5 sends **SIGKILL to every yuno that runs on the node**. Then the
 agent loads the treedb again. The newest release becomes primary, and all the
 yunos start again.
 

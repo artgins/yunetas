@@ -1680,9 +1680,10 @@ flow incl. rollback in
 §6.5 / §6.6.
 
 **CLI shortcut.** Steps 3–4 (plus the optional rollback snapshot) are
-bundled by `yunetas upgrade-yunos`: it shoots a rollback snap (idempotent by
-name, `--no-snap` to skip), previews `find-new-yunos` and asks before
-`create=1`, then runs `deactivate-snap`. Steps 1–2 (build + `install-binary`,
+bundled by `yunetas upgrade-yunos`: it previews `find-new-yunos` and stops if
+there is nothing new, asks, THEN shoots the rollback snap (idempotent by name,
+`--no-snap` to skip — never shot for nothing, since 0.19.2), then `create=1`
+and `deactivate-snap`. Steps 1–2 (build + `install-binary`,
 or a `yunetas sync-binaries` push) still come first. Use it after the new
 binaries are installed; the raw `ycommand` sequence above is the manual
 equivalent.

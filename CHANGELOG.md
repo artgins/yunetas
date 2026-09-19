@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### `upgrade-yunos` shoots no snap for nothing (CLI 0.19.2), tranger cards show every column (gui_treedb 0.17.47)
+
+- **`yunetas upgrade-yunos` previews `find-new-yunos` BEFORE the rollback
+  snap.** With nothing new it stops without a snap. Before, it shot
+  `pre-upgrade-<date>` first and then answered *"Nothing to do"*. That snap
+  tagged every current record and cloned the ones an earlier snap had
+  tagged. `deploying-yunos.md` describes the new order.
+- **gui_treedb 0.17.46-0.17.47:** a record's `uflag` names the snap that
+  tagged it (read from `__snaps__`) and `sflag` names its bits. The card
+  always shows every column; the Record/Metadata/All selector is gone.
+
 ### Rows of every key of a topic (C_TRANGER `open-iterator rkey`, gui_treedb 0.17.43)
 
 - **`open-iterator` takes `rkey` in place of `key`.** It opens one iterator
