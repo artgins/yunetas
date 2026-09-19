@@ -206,6 +206,76 @@ PRIVATE int test_update_follows_no_snap(json_t *tranger)
 }
 
 /***************************************************************************
+ *  A write made while a snap is ACTIVE is tagged 0: a record takes a snap's
+ *  tag once, from shoot-snap, and never from a save. The activated snap
+ *  stays the photo it was shot as; the writes join it only after the snap
+ *  is deactivated.
+ ***************************************************************************/
+PRIVATE int test_write_while_active_is_untagged(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "a write while a snap is active is tagged 0";
+    time_measure_t time_measure;
+    set_expected_results(
+        test,
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "loading snap_tag 1",
+            "msg", "loading snap_tag 1"
+        ),
+        NULL, NULL, 1
+    );
+    MT_START_TIME(time_measure)
+
+    treedb_activate_snap(tranger, TREEDB_NAME, "A");
+    result += reload_treedb(tranger);
+    result += assert_payload(tranger, "p0", "snap A active");
+
+    json_t *node = treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, "item-1");
+    if(!treedb_update_node(tranger, node, json_pack("{s:s}", "payload", "p2"), TRUE)) {
+        printf("%s  FAIL: update failed%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    node = treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, "item-1");
+    if(md_int(node, "tag") != 0) {
+        printf("%s  FAIL: the update under snap A was tagged %d, expected 0%s\n",
+            On_Red BWhite, (int)md_int(node, "tag"), Color_Off);
+        result += -1;
+    }
+
+    json_t *item3 = treedb_create_node(tranger, TREEDB_NAME, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "item-3", "version", "v1", "payload", "r0"));
+    if(!item3 || md_int(item3, "tag") != 0) {
+        printf("%s  FAIL: the create under snap A was tagged %d, expected 0%s\n",
+            On_Red BWhite, item3? (int)md_int(item3, "tag"): -1, Color_Off);
+        result += -1;
+    }
+
+    /*  Snap A, reloaded, is still the photo: neither write is in it  */
+    result += reload_treedb(tranger);
+    result += assert_payload(tranger, "p0", "snap A still frozen");
+    if(treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, "item-3")) {
+        printf("%s  FAIL: item-3, created under snap A, went into it%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  Deactivated, the writes are the live state  */
+    treedb_activate_snap(tranger, TREEDB_NAME, "__clear__");
+    result += reload_treedb(tranger);
+    result += assert_payload(tranger, "p2", "no snap");
+    if(!treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, "item-3")) {
+        printf("%s  FAIL: item-3 is missing after the deactivation%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  A node a snap froze cannot be deleted after an update either: the
  *  primary carries no tag now, the frozen record below does. A delete
  *  erases the whole key. `force` still overrides.
@@ -322,6 +392,7 @@ PRIVATE int do_test(void)
      *------------------------------------*/
     result += test_clone_moves_the_metadata(tranger);
     result += test_update_follows_no_snap(tranger);
+    result += test_write_while_active_is_untagged(tranger);
     result += test_held_node_cannot_be_deleted(tranger);
 
     /*------------------------------------*

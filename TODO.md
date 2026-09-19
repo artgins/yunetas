@@ -186,32 +186,30 @@ Line numbers are those of `main` on 2026-09-15.
   version still in use ("Using in N yunos") unless `force=1`. Low impact; a
   fix would move those children to the primary's hook. (Fixed on 2026-09-15:
   a pkey2 value changed by an update, and the OLD tag the snapshot clone left
-  in memory -- see `CHANGELOG.md`. Decided and fixed on 2026-09-16: a save
-  is tagged with the ACTIVATED snap, 0 when none, so every snap freezes
-  what it shot; the delete guard asks the key's records and the asset gc
+  in memory -- see `CHANGELOG.md`. Decided and fixed on 2026-09-16 and
+  2026-09-19: a save is always untagged -- only shoot-snap tags a record,
+  active snap or not -- so every snap freezes what it shot; the delete guard asks the key's records and the asset gc
   holds what a shot record names while the snap exists.)
 - **tr_treedb snaps -- OPEN, reviewed 2026-09-17.** A snap is a PHOTO of an
-  instant and must never be written into. Two gaps against that:
-  1. **Edits while a snap is ACTIVATED are tagged with that snap**
-     (`current_snap_tag()` in `treedb_save_node()` / `treedb_create_node()`):
-     they modify the photo. Tagging them 0 is not enough, because activation
-     is a FILTERED LOAD (only records tagged S), and the loader without a snap
-     takes the newest record of each key whatever its tag: a 0-tagged edit
-     vanishes at the next restart with S still active and reappears, mixed
-     with the live state, after deactivation. Design decision pending: (A)
-     activation = read-only view, writes refused while a snap is active (the
-     agent writes during a rollback: `yunos` rows, `find-new-yunos`,
-     `register_public_services`); or (B) activation = RESTORE, S's records
-     copied as new untagged records after an automatic snap of the current
-     state, "deactivate" replaced by restoring that automatic snap.
+  instant and must never be written into.
+  1. **CLOSED 2026-09-19 (the user's rule): a record takes a snap's tag
+     exactly once, from shoot-snap.** `treedb_save_node()` /
+     `treedb_create_node()` write tag 0 even while a snap is ACTIVATED (they
+     used to take its tag and write into the photo: a binary installed during
+     a rollback became part of the snap). With a snap active the primary
+     index shows the snap's records, and the pkey2 indexes every other
+     instance (all but the one in the primary) -- that is intended. An edit
+     made while a snap is active reaches the primary index after the
+     deactivation. Whether activation should become a RESTORE (the old option
+     B) is still the user's to decide, walking the system step by step.
   2. **`treedb_delete_instance()`'s guard still reads the in-memory tag**
      (tr_treedb.c, "Cannot delete instance, node has a tag"). Since a save no
      longer inherits the tag, a non-primary instance updated after a shot has
      tag 0 in memory, and delete-instance tombstones every md2 row of that
      (id, pkey2) -- the frozen one included. It needs the
      `node_held_by_a_snap()` walk `delete_node()` got, filtered by pkey2.
-     Side effect of (1) to fix with it: meta-topics (`__snaps__`,
-     `__graphs__`, `__assets__`) get tagged too while a snap is active.
+     (The side effect noted with it -- meta-topics tagged while a snap is
+     active -- went with (1).)
 - **C_NODE / C_TREEDB**: nothing open from the review. (Fixed on 2026-09-15:
   every C_NODE command asks a permission; and on 2026-09-16: `mt_treedbs`
   answers a list, not an envelope -- see `CHANGELOG.md`.)

@@ -1471,7 +1471,7 @@ Returns `0` on success, or a negative error code on failure.
 
 **Notes**
 
-The record's tag is the ACTIVATED snap's (0 when none), never the node's: an edit made inside an activated snap stays inside it, and in normal operation every write is untagged.
+The record is always written with tag 0, whether a snap is activated or not. A record gets a snap's tag only once, from [`treedb_shoot_snap()`](<#treedb_shoot_snap>). A save never gives a tag, so it never writes into a snap. With a snap activated, the primary index is loaded from the records that the snap tagged. An edit made during that time appears in the primary index only after the snap is deactivated.
 
 ---
 
@@ -1616,7 +1616,7 @@ When the next shoot finds a primary record that *already* carries a tag from an 
 
 The clone is the newest record of its key, so a reload makes it the primary. The node in memory moves to the clone at once (`g_rowid`, `i_rowid`, `t`, `tm` and `tag` in `__md_treedb__`), and an immutable node keeps its immutable bit on the clone. The clone does not publish `EV_TREEDB_NODE_UPDATED`.
 
-**What a snap holds, and for how long.** Since a save is tagged with the activated snap and not with the node's tag, `activate-snap` returns every topic to what it was when the snap was shot: rows created after it are absent, rows updated after it show their shot content. (Until 7.22.0 a save inherited the node's tag, so the LATEST snap followed every later update and froze nothing until the next one was shot.) Two guards follow the snap rather than the node's tag in memory:
+**What a snap holds, and for how long.** Only `shoot-snap` tags records, and a save is always written with tag 0. So `activate-snap` returns every topic to what it was when the snap was shot: rows created after it are absent, and rows updated after it show their content at the shot. This is also true for rows written WHILE the snap is activated. Two earlier rules broke this. Until 7.22.0 a save inherited the node's tag, so the latest snap followed every later update. Until 7.23.0 a save took the tag of the activated snap, so a binary installed during a rollback went into the photo. Two guards follow the snap rather than the node's tag in memory:
 
 - [`treedb_delete_node()`](<#treedb_delete_node>) erases the whole key, so it refuses a node any existing snap holds a record of (*"cannot delete node, a snapshot still holds it"*), asking the key's records when the primary carries no tag; `force` overrides.
 - `treedb_gc_files()` holds an asset a node named when a snap was shot for as long as that snap's row exists, whether or not the node has moved on. Deleting the snap frees it.

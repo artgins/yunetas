@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### treedb: a write made while a snap is activated is untagged (BREAKING for who relied on it)
+
+- **A record takes a snap's tag exactly once, from `shoot-snap`.**
+  `treedb_save_node()` and `treedb_create_node()` took the tag of the
+  ACTIVATED snap (08ba69dcb, 7.23.0), so what was written during a rollback
+  went into the photo being looked at. On wattyzer, with snap "18-sep"
+  active, `install-binary auth_bff 7.23.0` appended a record tagged 1, and
+  the snap then held two records of the key. Every write is now tag 0.
+  With a snap active, the primary index is still the snap's records, and
+  the pkey2 indexes hold every other instance. A write made meanwhile
+  reaches the primary index after the snap is deactivated. Meta-topics
+  (`__snaps__`, `__graphs__`, `__assets__`) are no longer tagged while a
+  snap is active either. `test_tr_treedb_snap_clone` pins it: without the
+  fix the update and the create under snap A are tagged 1, and A no longer
+  shows its shot content.
+
 ### The Developer window is readable (gobj-ui 7.23.184-7.23.185)
 
 - Its stylesheet was fixed pixels between 9 and 13, controls included. Now it

@@ -5624,14 +5624,14 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
 
     /*-------------------------------*
      *  Write to tranger (Creating)
-     *  Tagged with the ACTIVATED snap, 0 when none (see treedb_save_node)
+     *  Untagged, snap active or not (see treedb_save_node)
      *-------------------------------*/
     md2_record_ex_t md_record;
     int ret = tranger2_append_record(
         tranger,
         topic_name,
         0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
-        (uint16_t)current_snap_tag(tranger, treedb_name), // user_flag,
+        0, // user_flag: only shoot-snap tags a record
         &md_record, // md_record,
         json_incref(record) // owned
     );
@@ -5967,13 +5967,19 @@ PRIVATE int append_node_record(
 /***************************************************************************
  *  Direct saving to tranger.
  *
- *  The record carries the tag of the snap that is ACTIVATED (0 when none
- *  is), never the tag the node carries in memory. A node's tag is the mark
- *  a snap put on the record it froze; a save that inherited it went INTO
- *  that snap, so the latest snap followed every later update and froze
- *  nothing until the next one was shot. Tagged 0, a save leaves every
- *  snap where it was shot; tagged with the activated snap, an edit made
- *  inside a snap stays inside it.
+ *  The record is written UNTAGGED (0), whether a snap is activated or
+ *  not. A record takes a snap's tag exactly once, from treedb_shoot_snap()
+ *  (in place, or on a clone when an earlier snap already tagged it), and
+ *  never from a save:
+ *    - inheriting the tag the node carries in memory wrote the save INTO
+ *      that snap, so the latest snap followed every later update and froze
+ *      nothing until the next one was shot;
+ *    - taking the tag of the ACTIVATED snap wrote it into the photo being
+ *      looked at: a binary installed while a snap was active became part
+ *      of that snap, which then held two records of the key.
+ *  With a snap active, the primary index is loaded from the records the
+ *  snap tagged, so a write made meanwhile shows in it again only after the
+ *  snap is deactivated.
  ***************************************************************************/
 PUBLIC int treedb_save_node(
     json_t *tranger,
@@ -6004,10 +6010,9 @@ PUBLIC int treedb_save_node(
 
     /*-------------------------------------*
      *  Write to tranger (save, updating)
-     *  Tagged with the ACTIVATED snap, 0 when none (see above).
+     *  Untagged, snap active or not (see above).
      *-------------------------------------*/
-    uint16_t tag = (uint16_t)current_snap_tag(tranger, treedb_name);
-    if(append_node_record(gobj, tranger, topic_name, node, tag)<0) {
+    if(append_node_record(gobj, tranger, topic_name, node, 0)<0) {
         // Error already logged
         return -1;
     }

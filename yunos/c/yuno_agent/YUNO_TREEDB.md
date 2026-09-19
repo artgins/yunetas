@@ -365,9 +365,9 @@ non-masters a consistent view at the point the directory was wired.
 What the treedb layer does with it: `shoot-snap` stamps the snap's id on
 the md2 `user_flag` of every current primary record (the `tag` of
 `__md_treedb__`), and a load with that snap activated reads only the
-records carrying it. A save is tagged with the ACTIVATED snap, 0 when none
-— never with the node's tag — so a snap holds exactly what was live when it
-was shot: `activate-snap` returns every topic to that state, rows created
+records carrying it. A save is always untagged (0) — only `shoot-snap`
+tags a record, whether a snap is activated or not — so a snap holds exactly
+what was live when it was shot, even when you write while it is activated: `activate-snap` returns every topic to that state, rows created
 since absent, rows updated since at their shot content. A node any existing
 snap holds cannot be deleted without `force` (a delete erases the whole
 key), and an asset a shot record names stays until that snap's row goes.
@@ -937,8 +937,8 @@ never a data column** — it does not touch the user schema and never bumps
   `__md_treedb__`immutable` in memory.
 - `treedb_save_node()` re-stamps the bit after every update (the re-append
   inherits only the topic-default `system_flag`, so the bit is re-applied).
-  The snap `tag` is NOT re-applied: a save is tagged with the activated
-  snap, 0 when none (§2.8).
+  The snap `tag` is NOT re-applied: a save is always untagged; only
+  `shoot-snap` tags a record (§2.8).
 - `treedb_delete_node()` and `treedb_delete_instance()` refuse an immutable
   record, and **`force` does NOT override** (stronger than the snapshot-tag
   guard). `tranger2_delete_instance()` carries the same refusal as a
