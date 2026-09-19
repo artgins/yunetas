@@ -9473,9 +9473,10 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
             "__md_treedb__",
             json_deep_copy(json_object_get(node, "__md_treedb__"))
         );
+        // A view is a copy: it must fail every `pure_node` guard (was the stale `__pure_node__`)
         json_object_set_new(
             json_object_get(node_view, "__md_treedb__"),
-            "__pure_node__",
+            "pure_node",
             json_false()
         );
     }

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### treedb: a collapsed view with metadata is no longer a "pure node"
+
+- **`node_collapsed_view()` with `with_metadata` marked the view with the old
+  key `__pure_node__: false`.** The 2024 rename to `pure_node` missed it,
+  because the key sat alone on its own line. The deep-copied metadata kept
+  the node's `pure_node: true`, so a view (hooks collapsed, a copy) passed
+  every `pure_node` guard, and `treedb_save_node()` appended it as a record.
+  The view now says `pure_node: false` and the guards refuse it. Visible in
+  any `nodes` answer read `with_metadata` (gobj-ui's per-table Raw JSON
+  showed both keys). `test_tr_treedb_immutable` pins it: without the fix
+  it fails on "treedb_save_node() took the view".
+
 ### Each treedb topic table has its own Raw JSON (gobj-ui 7.23.183)
 
 - A button between Columns and Export shows the table's records as JSON,

@@ -14,6 +14,8 @@
  *              treedb_delete_topic() refuses it, but its records stay
  *              deletable.
  *
+ *          Also: a collapsed view with metadata is not a pure node.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -127,6 +129,62 @@ PRIVATE int test_immutable_survives_update(json_t *tranger, const char *treedb_n
     }
     if(treedb_delete_node(tranger, node, NULL) == 0) {
         printf("%s  FAIL: delete_node succeeded after update%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  A collapsed view WITH metadata is a copy, not the node of the index: its
+ *  __md_treedb__ must say pure_node false, and a guard must refuse it. It
+ *  used to carry the node's pure_node true (the false was written under the
+ *  old key __pure_node__, which nothing reads), so treedb_save_node()
+ *  appended the view as a record.
+ ***************************************************************************/
+PRIVATE int test_collapsed_view_is_not_pure(json_t *tranger, const char *treedb_name)
+{
+    int result = 0;
+    const char *test = "collapsed view with metadata is not a pure node";
+    time_measure_t time_measure;
+    set_expected_results(
+        test,
+        json_pack("[{s:s}]", "msg", "Not a pure node"),
+        NULL, NULL, 1
+    );
+    MT_START_TIME(time_measure)
+
+    json_t *node = treedb_get_node(tranger, treedb_name, "items", "item-1");
+    json_t *view = node_collapsed_view(
+        tranger,
+        node,
+        json_pack("{s:b}", "with_metadata", 1)
+    );
+
+    if(!view) {
+        printf("%s  FAIL: no collapsed view%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    } else {
+        if(kw_get_bool(0, view, "__md_treedb__`pure_node", 1, 0)) {
+            printf("%s  FAIL: the view says pure_node true%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(kw_has_key(kw_get_dict(0, view, "__md_treedb__", 0, 0), "__pure_node__")) {
+            printf("%s  FAIL: the view carries the old __pure_node__ key%s\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(treedb_save_node(tranger, view) == 0) {
+            printf("%s  FAIL: treedb_save_node() took the view%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        JSON_DECREF(view)
+    }
+    if(!kw_get_bool(0, node, "__md_treedb__`pure_node", 0, 0)) {
+        printf("%s  FAIL: the node of the index lost pure_node%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
 
@@ -369,6 +427,7 @@ PRIVATE int do_test(void)
      *------------------------------------*/
     result += test_record_immutable_delete(tranger, treedb_name);
     result += test_immutable_survives_update(tranger, treedb_name);
+    result += test_collapsed_view_is_not_pure(tranger, treedb_name);
     result += test_delete_instance_immutable(tranger, treedb_name);
     result += test_control_record_deletes(tranger, treedb_name);
     result += test_topic_protection(tranger, treedb_name);
