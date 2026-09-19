@@ -844,6 +844,97 @@ PRIVATE json_int_t system_schema_version(hgobj gobj, const char *field)
 }
 
 /***************************************************************************
+ *  Count the __md_treedb__ of a tree copy, and how many say pure_node true.
+ ***************************************************************************/
+PRIVATE void count_md_pure(json_t *jn, int *total, int *pure)
+{
+    if(json_is_object(jn)) {
+        const char *key; json_t *value;
+        json_object_foreach(jn, key, value) {
+            if(strcmp(key, "__md_treedb__")==0) {
+                (*total)++;
+                if(json_is_true(json_object_get(value, "pure_node"))) {
+                    (*pure)++;
+                }
+                continue;
+            }
+            count_md_pure(value, total, pure);
+        }
+    } else if(json_is_array(jn)) {
+        size_t idx; json_t *value;
+        json_array_foreach(jn, idx, value) {
+            count_md_pure(value, total, pure);
+        }
+    }
+}
+
+/***************************************************************************
+ *  node-tree with_metadata is a deep COPY of the tree: every __md_treedb__
+ *  in it must say pure_node false, or a pure_node guard would take a copy
+ *  for the node of the index. The node of the index keeps true.
+ ***************************************************************************/
+PRIVATE int check_node_tree_copy_not_pure(hgobj gobj)
+{
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    if(!gobj_node_system) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: __system__ treedb service not found",
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *tree = gobj_node_tree(
+        gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", TREEDB_NAME),
+        json_pack("{s:b}", "with_metadata", 1),
+        gobj
+    );
+    if(!tree) {
+        return -1;  // Error already logged
+    }
+
+    int result = 0;
+    int total = 0, pure = 0;
+    count_md_pure(tree, &total, &pure);
+    JSON_DECREF(tree)
+
+    if(total < 2 || pure != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: node-tree copy carries pure_node true",
+            "total_md",     "%d", total,
+            "pure",         "%d", pure,
+            NULL
+        );
+        result = -1;
+    }
+
+    json_t *tranger = gobj_read_pointer_attr(gobj_node_system, "tranger");
+    json_t *node = treedb_get_node(
+        tranger,
+        gobj_read_str_attr(gobj_node_system, "treedb_name"),
+        "treedbs",
+        TREEDB_NAME
+    );
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: the node of the index lost pure_node",
+            NULL
+        );
+        result = -1;
+    }
+
+    return result;
+}
+
+/***************************************************************************
  *  Check the __system__ treedb holds the projection of the test schema
  ***************************************************************************/
 PRIVATE int check_system_treedb(hgobj gobj)
@@ -2671,6 +2762,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += check_system_treedb(gobj);
     result += check_column_fidelity(gobj);
     result += check_main_topic_desc(gobj);
+    result += check_node_tree_copy_not_pure(gobj);
     result += check_schema_order(gobj, jn_schema);
 
     /*-----------------------------------------------*

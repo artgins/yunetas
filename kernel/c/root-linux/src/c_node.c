@@ -120,6 +120,7 @@ PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_children(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE void mark_copy_not_pure(json_t *jn);
 PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -2086,7 +2087,9 @@ PRIVATE json_t *mt_node_tree(
     JSON_DECREF(kw)
 
     if(with_metadata) {
-        return json_deep_copy(node);
+        json_t *copy = json_deep_copy(node);
+        mark_copy_not_pure(copy);
+        return copy;
     } else {
         return kw_filter_metadata(gobj, json_incref(node));
     }
@@ -5535,6 +5538,34 @@ PRIVATE json_t *fetch_node(
 
     JSON_DECREF(jn_filter);
     return node;
+}
+
+/***************************************************************************
+ *  A deep copy of a node -- with the children its hooks hold -- is not the
+ *  node of the index, but it carries the node's `pure_node: true`: turn it
+ *  off in every __md_treedb__ of the copy, or a pure_node guard (save, link,
+ *  delete...) would take the copy for the node. Same rule as
+ *  node_collapsed_view() in tr_treedb.
+ ***************************************************************************/
+PRIVATE void mark_copy_not_pure(json_t *jn)
+{
+    if(json_is_object(jn)) {
+        const char *key; json_t *value;
+        json_object_foreach(jn, key, value) {
+            if(strcmp(key, "__md_treedb__")==0) {
+                if(json_is_object(value)) {
+                    json_object_set_new(value, "pure_node", json_false());
+                }
+                continue;
+            }
+            mark_copy_not_pure(value);
+        }
+    } else if(json_is_array(jn)) {
+        size_t idx; json_t *value;
+        json_array_foreach(jn, idx, value) {
+            mark_copy_not_pure(value);
+        }
+    }
 }
 
 /***************************************************************************

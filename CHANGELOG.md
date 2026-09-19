@@ -13,6 +13,15 @@
   any `nodes` answer read `with_metadata` (gobj-ui's per-table Raw JSON
   showed both keys). `test_tr_treedb_immutable` pins it: without the fix
   it fails on "treedb_save_node() took the view".
+- **The same for `gobj_node_tree()` with `with_metadata`** (C_NODE's
+  `mt_node_tree`). It returns `json_deep_copy(node)`, a copy of the whole
+  subtree, and every `__md_treedb__` in it still said `pure_node: true`
+  (13 of 13 in the `__system__` treedb tree). The copy is now marked
+  `pure_node: false` at every level. No caller in the tree asks for it with
+  metadata yet, so the bug was latent; `test_c_treedb_system_schema` pins
+  it. `get-node` and `nodes` go through `node_collapsed_view()`, so the
+  fix above already covers them. So does `export_treedb`: an export made
+  `with_metadata` now writes `pure_node: false`.
 
 ### Each treedb topic table has its own Raw JSON (gobj-ui 7.23.183)
 
