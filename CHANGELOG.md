@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v7.23.0 (2026-09-19)
+
 ### `upgrade-yunos` shoots no snap for nothing (CLI 0.19.2), tranger cards show every column (gui_treedb 0.17.47)
 
 - **`yunetas upgrade-yunos` previews `find-new-yunos` BEFORE the rollback

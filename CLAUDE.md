@@ -51,11 +51,10 @@ sirve a nadie: `gobj-js` iba por 7.13.x con el C en 7.16.2, y se saltó a
 **7.16.0** para volver a decirlo — el número no cuenta releases, dice a qué
 SDK pertenece.
 
-⚠️ **`gobj-ui` incumple la regla hoy y no se puede arreglar renumerando**: va
-por **7.23.77** con el C en 7.16.2, y publicar un 7.16.x detrás sería una
-versión *menor* que la publicada, así que npm dejaría 7.23.77 como `latest`.
-La regla es hacia adelante: `gobj-ui` se realinea sola cuando el C alcance su
-línea, o en su próximo major. Mientras tanto es la excepción, y está dicho.
+**`gobj-ui` is back in line since SDK 7.23.0.** From 7.16.2 to 7.22.0 it was
+ahead of C (its 7.23.x line was already published, and a lower number would
+not have become `latest` on npm). SDK 7.23.0 reached its line, so the rule
+holds again for `gobj-ui` too.
 
 Clone yunetas with `--recurse-submodules` (or run `git submodule update --init`).
 **Every SPA consumes `@yuneta/gobj-js` / `@yuneta/gobj-ui` from the npm
@@ -1841,7 +1840,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | File | Purpose |
 |------|---------|
-| `YUNETA_VERSION` | Current version (7.21.0) — used to generate `yuneta_version.h` |
+| `YUNETA_VERSION` | Current version (7.23.0) — used to generate `yuneta_version.h` |
 | `Kconfig` | Root Kconfig definition |
 | `TODO.md` | API renames/removals/additions between versions |
 | `CHANGELOG.md` | Release history |
