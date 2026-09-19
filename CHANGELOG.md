@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Toolbars: the common buttons keep one order (gobj-ui 7.23.182, gui_treedb 0.17.48, gui_agent 0.22.70)
+
+- Buttons that belong to one view go first, then the common block **Refresh,
+  Columns, Export**, then Close at the right. gobj-ui's treedb topic toolbar
+  is now Search, Schema · Refresh, Columns, Export (Schema used to sit
+  between Refresh and Columns). The tranger cards of gui_treedb are Options,
+  Share · Refresh, Columns, Export · Close (Rows) and Pause, Clear, Share ·
+  Columns, Export · Close (Live).
+
 ## v7.23.0 (2026-09-19)
 
 ### `upgrade-yunos` shoots no snap for nothing (CLI 0.19.2), tranger cards show every column (gui_treedb 0.17.47)
