@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Each treedb topic table has its own Raw JSON (gobj-ui 7.23.183)
+
+- A button between Columns and Export shows the table's records as JSON,
+  each with its `__md_treedb__` metadata. The table asks its host
+  (`EV_REQUEST_JSON`, a new output event of the hosted child, declared by
+  its one host `C_YUI_TREEDB_TOPICS`), which reads `nodes` with
+  `with_metadata`. Consumers moved to `^7.23.183`: gui_treedb 0.17.49,
+  gui_agent 0.22.71, yunovatios gui-central/gui-controlador and wattyzer.
+
 ### Toolbars: the common buttons keep one order (gobj-ui 7.23.182, gui_treedb 0.17.48, gui_agent 0.22.70)
 
 - Buttons that belong to one view go first, then the common block **Refresh,
