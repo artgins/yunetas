@@ -2,13 +2,14 @@
 
 ## Unreleased
 
-### The Developer window is readable (gobj-ui 7.23.184)
+### The Developer window is readable (gobj-ui 7.23.184-7.23.185)
 
 - Its stylesheet was fixed pixels between 9 and 13, controls included. Now it
   uses rem: controls at 1rem with a finger's padding, traffic and log text
-  at 0.9375rem, only secondary text under 0.9rem. Consumers moved to
-  `^7.23.184`: gui_treedb 0.17.50, gui_agent 0.22.72, yunovatios
-  gui-central/gui-controlador and wattyzer.
+  at 0.9375rem, only secondary text under 0.9rem. 7.23.185 indents the
+  expanded JSON four characters per level (`4ch`, it was 16px, about two).
+  Consumers moved to `^7.23.185`: gui_treedb 0.17.51, gui_agent 0.22.73,
+  yunovatios gui-central/gui-controlador and wattyzer.
 
 ### treedb: a collapsed view with metadata is no longer a "pure node"
 
