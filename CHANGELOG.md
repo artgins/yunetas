@@ -24,6 +24,12 @@
 - `test_tr_treedb_snap` phase 10 pins it: a layout is saved, the snap is
   shot, the layout is changed, and the activation reads back the frozen one
   while the deactivation brings the live one back.
+- **Upgrade note: a snap shot before this holds no layout.** Its records
+  were tagged when `__graphs__` was skipped, so activating it now leaves
+  that index empty and the graph comes back to its automatic layout — the
+  records of the photo are right, the arrangement is simply not in it.
+  Shoot a new snap (the name of the old one is taken until it is deleted)
+  if the arrangement is to be part of it.
 
 ### treedb: a `now` column is stamped by every write, not only by the create
 

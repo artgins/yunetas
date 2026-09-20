@@ -976,7 +976,9 @@ installed since, so nothing is lost while the photo is being looked at.
 
 A snap shot before anything was arranged holds no layout, so activating it
 leaves `__graphs__` empty and the graph comes back to the automatic layout —
-which is what that photo looked like.
+which is what that photo looked like. **A snap shot by a version that did
+not tag `__graphs__` behaves the same way**: its records are right and its
+arrangement is simply not in it. Shoot a new one to have both.
 
 An activation changes no record: it sets `active` on the `__snaps__` row and
 the **reload** rebuilds the indexes. In the agent, `deactivate-snap` is what
