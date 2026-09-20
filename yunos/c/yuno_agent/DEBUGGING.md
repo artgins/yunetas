@@ -884,6 +884,69 @@ grep -a '"msg":"Event NOT DEFINED in state"' /yuneta/logs/*/*.log
 
 This command works on any host, and it needs no trace.
 
+### 11.7 Chase a leak to the line that allocated it
+
+`print_track_mem()` runs at the end of every **orderly** shutdown of a build
+with `CONFIG_DEBUG_TRACK_MEMORY`, and prints one `mem-not-free` line per block
+still busy. It returns at once when nothing is busy, so **no output means no
+leak**. Note where the report comes out: `rotatory_end()` runs before it, so
+the yuno's own FILE handler is already closed — the report reaches stdout and
+the UDP handler (the logcenter), never `logs/*.log`.
+
+Read it in three steps.
+
+**1. The size says WHAT the block is.** `track_mem_t` costs 56 bytes and the
+reported `size` includes it. Subtract it and the jansson structures appear:
+
+| reported | real | what it is |
+|---|---|---|
+| 96 (+ 120) | 40 (+ 64) | a `json_array_t` and its initial 8-slot table |
+| 88 (+ n) | 32 (+ n) | a `json_string_t` and its `strlen+1` buffer |
+
+**2. The `ref` says WHEN it was ALLOCATED — not when it leaked.** It is a
+global allocation counter, so it dates the block. A block dated during the
+treedb load can perfectly well be held by something built minutes later.
+Equal deltas between blocks mean one turn of a loop each.
+
+**3. Ask for the bytes, and then for the stack.** Two environment variables,
+read by any yuno:
+
+```bash
+# what the leaked blocks HOLD: 64 printable bytes each. The text blocks are
+# the ones that name the leak -- a leaked string carries its characters.
+YUNETA_TRACK_MEM_DUMP=1 <yuno> --config-file='[...]'
+
+# photograph every allocation whose ref falls in a WINDOW, narrowed by size:
+# each one logs its stack, and the stack is the allocation site.
+YUNETA_TRACK_MEM=493000-498000:96,148,150 <yuno> --config-file='[...]'
+```
+
+The window is what makes this usable. `memory_check_list[]` in the yuno's
+`main.c` needs the exact `ref` or the exact `size`: a ref cannot be prepared
+in advance — it moves a few hundred between two runs of the same yuno — and a
+size alone catches tens of thousands of blocks in a yuno that starts by
+loading a database. Aim the window at what the previous run's report showed,
+and add the sizes of step 1. The header line of the report prints the window
+it used, so a malformed value shows up as `window_max: 0`.
+
+Worked example (`db_history_ce`, 2026-09-20): sixteen blocks read as six json
+arrays plus two strings of 91 and 93 characters; `YUNETA_TRACK_MEM_DUMP=1`
+printed the text of the strings, which named the field (`observaciones` of six
+`places` nodes); the window gave the stacks, which put the allocation in the
+treedb load — and that was the trap, because the holder was a configuration
+built afterwards. What closed it was reproducing the leak in an isolated copy
+of the yuno (see below) with a single call to the command that builds it.
+
+**Reproduce it off the live yuno.** Copy the store under a scratch root, copy
+the yuno's config layers, point `environment.work_dir` at the scratch root,
+add `"yuno": {"autoplay": true}` — nothing plays a yuno without the agent —
+move the listening ports, and lower `io_uring_entries` (a second yuno of the
+same size fails `io_uring_queue_init_params()` with ENOMEM). **Validate the
+copy before believing a negative**: plant a `gbmem_malloc(1234)` in `main()`
+and check the report prints it. A copy that does not leak is then a fact
+about the difference between it and production, and that difference is the
+answer.
+
 ---
 
 ## 12. Code pointers

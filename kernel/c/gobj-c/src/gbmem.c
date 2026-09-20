@@ -27,6 +27,7 @@
  *              All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <stdlib.h>
 
 #include "ansi_escape_codes.h"  /* used by ESP */
 #include "gtypes.h"
@@ -49,6 +50,15 @@
     } track_mem_t;
 
     unsigned long *memory_check_list = 0;
+
+    /*
+     *  The catch window (YUNETA_TRACK_MEM), see read_track_window()
+     */
+    PRIVATE size_t track_ref_min = 0;
+    PRIVATE size_t track_ref_max = 0;
+    PRIVATE size_t track_sizes[8] = {0};
+    PRIVATE int track_sizes_len = 0;
+
 #define TRACK_MEM sizeof(track_mem_t)
 #else
     // typedef struct {
@@ -308,22 +318,62 @@ PUBLIC void print_track_mem(void)
         "msgset",           "%s", MSGSET_STATISTICS,
         "msg",              "%s", "print_track_mem(): system memory not free",
         "program",          "%s", cmdline,
+        "window_min",       "%lu", (unsigned long)track_ref_min,
+        "window_max",       "%lu", (unsigned long)track_ref_max,
         NULL
     );
+
+    /*
+     *  What the blocks HOLD, with YUNETA_TRACK_MEM_DUMP.
+     *
+     *  Printable bytes and not a cast to json_t: a block of a given size is
+     *  not necessarily the jansson struct it looks like, and reading a type
+     *  field out of a guess is how a report crashes instead of arriving. The
+     *  blocks that name the leak are the text ones anyway -- a leaked string
+     *  carries its characters, and they say which field of which record it
+     *  was.
+     */
+    BOOL dump_bytes = getenv("YUNETA_TRACK_MEM_DUMP")? TRUE: FALSE;
 
     track_mem_t *track_mem = dl_first(&dl_busy_mem);
     while(track_mem) {
         track_mem_t *next = (track_mem == last)? NULL : dl_next(track_mem);
 
-        gobj_log_debug(0,0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TRACK_MEM,
-            "msg",          "%s", "mem-not-free",
-            "ref",          "%lu", (unsigned long)track_mem->ref,
-            "size",         "%lu", (unsigned long)track_mem->size,
-            "p",            "%lu", (unsigned long)track_mem->p,
-            NULL
-        );
+        if(dump_bytes) {
+            char bytes[65] = {0};
+            if(track_mem->p && track_mem->size > TRACK_MEM) {
+                const uint8_t *pp = (const uint8_t *)track_mem->p;
+                size_t len = track_mem->size - TRACK_MEM;
+                if(len > sizeof(bytes) - 1) {
+                    len = sizeof(bytes) - 1;
+                }
+                for(size_t ii = 0; ii < len; ii++) {
+                    bytes[ii] = (pp[ii] < ' ' || pp[ii] > 0x7f)? '.': (char)pp[ii];
+                }
+                bytes[len] = 0;
+            }
+
+            gobj_log_debug(0,0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRACK_MEM,
+                "msg",          "%s", "mem-not-free",
+                "ref",          "%lu", (unsigned long)track_mem->ref,
+                "size",         "%lu", (unsigned long)track_mem->size,
+                "p",            "%lu", (unsigned long)track_mem->p,
+                "bytes",        "%s", bytes,
+                NULL
+            );
+        } else {
+            gobj_log_debug(0,0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRACK_MEM,
+                "msg",          "%s", "mem-not-free",
+                "ref",          "%lu", (unsigned long)track_mem->ref,
+                "size",         "%lu", (unsigned long)track_mem->size,
+                "p",            "%lu", (unsigned long)track_mem->p,
+                NULL
+            );
+        }
 
         track_mem = next;
     }
@@ -331,11 +381,93 @@ PUBLIC void print_track_mem(void)
 }
 
 /***********************************************************************
+ *      The catch window: which allocations to photograph while they happen
  *
+ *  `memory_check_list` needs the exact ref or the exact size. A ref cannot
+ *  be prepared in advance -- it moves a few hundred between two runs of the
+ *  same yuno -- and a size alone catches tens of thousands of blocks in a
+ *  yuno that starts by loading a database. A WINDOW of refs, narrowed by a
+ *  handful of sizes, is what a second run can aim at what the first run
+ *  reported.
+ *
+ *      YUNETA_TRACK_MEM=<ref_min>-<ref_max>[:<size>,<size>,...]
+ *
+ *  Read once, on the first allocation: the logger has no handlers yet, so
+ *  nothing is said here. print_track_mem() prints the window it used.
  ***********************************************************************/
 #ifdef CONFIG_DEBUG_TRACK_MEMORY
+PRIVATE void read_track_window(void)
+{
+    const char *value = getenv("YUNETA_TRACK_MEM");
+    if(!value) {
+        return;
+    }
+
+    char *end = 0;
+    size_t min = (size_t)strtoul(value, &end, 10);
+    if(!end || *end != '-') {
+        return;     // Malformed: print_track_mem() reports the window as off
+    }
+    size_t max = (size_t)strtoul(end + 1, &end, 10);
+    if(max < min) {
+        return;     // Idem
+    }
+    track_ref_min = min;
+    track_ref_max = max;
+
+    if(end && *end == ':') {
+        const char *p = end + 1;
+        while(*p && track_sizes_len < (int)ARRAY_SIZE(track_sizes)) {
+            track_sizes[track_sizes_len++] = (size_t)strtoul(p, 0, 10);
+            p = strchr(p, ',');
+            if(!p) {
+                break;
+            }
+            p++;
+        }
+    }
+}
+
+/***********************************************************************
+ *
+ ***********************************************************************/
 PRIVATE void check_failed_list(track_mem_t *track_mem)
 {
+    /*
+     *  The catch window. The re-entrancy guard is not optional: the log
+     *  below allocates, and its own allocations fall inside the window too.
+     */
+    static BOOL window_read = FALSE;
+    static BOOL inside = FALSE;
+
+    if(!window_read) {
+        window_read = TRUE;
+        read_track_window();
+    }
+
+    if(track_ref_max && !inside &&
+        track_mem->ref >= track_ref_min && track_mem->ref <= track_ref_max
+    ) {
+        BOOL take = (track_sizes_len == 0)? TRUE: FALSE;
+        for(int ii = 0; ii < track_sizes_len; ii++) {
+            if(track_sizes[ii] == track_mem->size) {
+                take = TRUE;
+                break;
+            }
+        }
+        if(take) {
+            inside = TRUE;
+            gobj_log_debug(0, LOG_OPT_TRACE_STACK,
+                "msgset",       "%s", MSGSET_STATISTICS,
+                "msg",          "%s", "mem-in-window",
+                "ref",          "%lu", (unsigned long)track_mem->ref,
+                "size",         "%lu", (unsigned long)track_mem->size,
+                NULL
+            );
+            inside = FALSE;
+        }
+    }
+
     for(int xx=0; memory_check_list && memory_check_list[xx]!=0; xx++) {
         if(memory_check_list[xx] == track_mem->ref) {
             gobj_log_debug(0, LOG_OPT_TRACE_STACK,

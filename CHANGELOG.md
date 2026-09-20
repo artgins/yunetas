@@ -18,6 +18,18 @@
   that loads a database — and without the ref there is no way to tell which
   of them is the one the audit reported. With it, the catch that matters is
   found by its ref and its stack is the allocation site.
+- **A catch WINDOW, and the bytes of what leaked** — the two halves that turn
+  a report into a cause, both read from the environment by any yuno:
+  `YUNETA_TRACK_MEM=<ref_min>-<ref_max>[:<size>,...]` logs a stack for every
+  allocation inside the window, and `YUNETA_TRACK_MEM_DUMP=1` prints 64
+  printable bytes of each leaked block. The window is what makes
+  `memory_check_list[]` usable at all: it needs the exact ref or the exact
+  size, and a ref cannot be prepared in advance — it moves a few hundred
+  between two runs of the same yuno. The dump prints BYTES and does not cast
+  the block to `json_t`: a block of a given size is not necessarily the
+  jansson struct it looks like, and the blocks that name a leak are the text
+  ones anyway. The report's header line prints the window it used.
+  Recipe in [`DEBUGGING.md`](yunos/c/yuno_agent/DEBUGGING.md) §11.7.
 
 ## v7.24.0 (2026-09-20)
 
