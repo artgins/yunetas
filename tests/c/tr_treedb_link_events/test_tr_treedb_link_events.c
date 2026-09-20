@@ -248,6 +248,58 @@ PRIVATE int test_link_fires_linked_event(
 }
 
 /***************************************************************************
+ *  The SAME link asked twice changes nothing: no event, no record.
+ *
+ *  It used to publish and save the child all the same -- a record identical
+ *  to the one under it, and subscribers told of an update that was not one.
+ *  The agent does it on every `create-yuno` of a second instance of a yuno
+ *  (the fkey ref names the yuno's id, so it is already there).
+ ***************************************************************************/
+PRIVATE int test_repeated_link_changes_nothing(
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int result = 0;
+    const char *test = "a repeated link neither saves nor publishes";
+    time_measure_t time_measure;
+
+    /*  No log expected: this hook is a DICT, and a dict set of a key that
+     *  is already there is silent (the duplicate warnings live in the ARRAY
+     *  branches of the hook and of the fkey).  */
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    MT_START_TIME(time_measure)
+
+    json_t *dept_direction = treedb_get_node(tranger, treedb_name, "departments", "direction");
+    json_t *dept_admin = treedb_get_node(tranger, treedb_name, "departments", "administration");
+    json_int_t rowid_before = kw_get_int(0, dept_admin, "__md_treedb__`g_rowid", 0, 0);
+
+    reset_event_counters();
+
+    /*  administration already hangs from direction (previous test)  */
+    treedb_link_nodes(tranger, "departments", dept_direction, dept_admin);
+
+    if(total_linked_events != 0) {
+        printf("%s  --> ERROR %s: a repeated link fired %d linked event(s)%s\n",
+            On_Red BWhite, test, total_linked_events, Color_Off);
+        result += -1;
+    }
+    json_int_t rowid_after = kw_get_int(0, dept_admin, "__md_treedb__`g_rowid", 0, 0);
+    if(rowid_after != rowid_before) {
+        printf("%s  --> ERROR %s: a repeated link saved the child "
+            "(g_rowid %d -> %d)%s\n",
+            On_Red BWhite, test, (int)rowid_before, (int)rowid_after, Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *  Test 2: Unlink event fires EV_TREEDB_NODE_UNLINKED
  ***************************************************************************/
 PRIVATE int test_unlink_fires_unlinked_event(
@@ -789,6 +841,7 @@ PRIVATE int do_test(void)
      *  Execute tests
      *------------------------------*/
     result += test_link_fires_linked_event(tranger, treedb_name);
+    result += test_repeated_link_changes_nothing(tranger, treedb_name);
     result += test_unlink_fires_unlinked_event(tranger, treedb_name);
     result += test_cross_topic_link_event(tranger, treedb_name);
     result += test_multiple_link_events(tranger, treedb_name);

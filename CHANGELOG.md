@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### treedb: a link that was already there saves nothing and publishes nothing
+
+- **An idempotent link used to append a record and announce a change.**
+  `_link_nodes()` warns when the parent ref is already in the child's fkey
+  ("Parent ref already in child fkey, skipping duplicate") or the child is
+  already in the parent's hook, and then went on to fire the treedb callback
+  (`EV_TREEDB_NODE_LINKED` / `EV_TREEDB_NODE_UPDATED`) and save the child:
+  a record identical to the one under it, and subscribers told of an update
+  that was not one. It now reports whether anything moved, and
+  `treedb_link_nodes()` returns without saving or publishing when nothing
+  did. Seen on wattyzer: every `create-yuno` of a second instance of a yuno
+  appended a record to `binaries` and another to `configurations` (the fkey
+  ref names the yuno's id, so it was already there), and the agent's stats
+  counted the two warnings. `test_tr_treedb_link_events` pins it.
+
 ### print-role: the CLI and the runtime command answer the same fields
 
 - **`--print-role` dropped `yuneta_version` silently.** Its `json_pack`

@@ -81,7 +81,8 @@ PRIVATE int _link_nodes(
     const char *hook_name,
     json_t *parent_node,    // NOT owned
     json_t *child_node,     // NOT owned
-    BOOL save
+    BOOL save,
+    BOOL *changed_          // optional: did the link move anything?
 );
 PRIVATE int _unlink_nodes(
     hgobj gobj,
@@ -7270,9 +7271,13 @@ PRIVATE int _link_nodes(
     const char *hook_name,
     json_t *parent_node,    // NOT owned
     json_t *child_node,     // NOT owned
-    BOOL save
+    BOOL save,
+    BOOL *changed_          // optional: did the link move anything?
 )
 {
+    if(changed_) {
+        *changed_ = FALSE;
+    }
     /*------------------------------*
      *      Check original node
      *------------------------------*/
@@ -7537,6 +7542,17 @@ PRIVATE int _link_nodes(
     }
 
     /*--------------------------------------------------*
+     *  Did this link CHANGE anything? A link asked twice -- the parent ref
+     *  already in the child's fkey, the child already in the parent's hook
+     *  -- used to save the child and publish the change all the same: a
+     *  record identical to the one under it, and subscribers told of an
+     *  update that was not one. The agent does it on every `create-yuno`
+     *  of a second instance of a yuno, where the ref names the yuno's id
+     *  and is therefore the one already there.
+     *--------------------------------------------------*/
+    BOOL changed = FALSE;
+
+    /*--------------------------------------------------*
      *  A single-valued fkey does not add, it REPLACES:
      *  the child leaves the parent it hangs from now,
      *  or that parent keeps it in its hook and a forced
@@ -7556,6 +7572,7 @@ PRIVATE int _link_nodes(
             if(unlink_child_from_parent_ref(gobj, tranger, child_node, old_ref)<0) {
                 return -1;  // Error already logged
             }
+            changed = TRUE;
             // The unlink replaced the child's string: the old pointer is gone
             child_data = kw_get_dict_value(gobj, child_node, child_field, 0, 0);
             if(!child_data) {
@@ -7589,6 +7606,7 @@ PRIVATE int _link_nodes(
                 } else {
                     json_array_append(parent_hook_data, child_node);
                 }
+                changed = TRUE;
             } else {
                 /*
                  *  Already hooked: idempotent link. Suspicious (double link
@@ -7617,8 +7635,14 @@ PRIVATE int _link_nodes(
                     child_id,
                     child_field
                 );
+                if(!json_object_get(parent_hook_data, pref)) {
+                    changed = TRUE;
+                }
                 json_object_set(parent_hook_data, pref, child_data);
             } else {
+                if(!json_object_get(parent_hook_data, child_id)) {
+                    changed = TRUE;
+                }
                 json_object_set(parent_hook_data, child_id, child_node);
             }
         }
@@ -7640,6 +7664,9 @@ PRIVATE int _link_nodes(
                 hook_name
             );
 
+            if(strcmp(kw_get_str(gobj, child_node, child_field, "", 0), pref)!=0) {
+                changed = TRUE;
+            }
             json_object_set_new(
                 child_node,
                 child_field,
@@ -7669,6 +7696,7 @@ PRIVATE int _link_nodes(
                     child_data,
                     json_string(pref)
                 );
+                changed = TRUE;
             } else {
                 /*
                  *  fkey ref already present: idempotent link. Warn, don't
@@ -7696,6 +7724,9 @@ PRIVATE int _link_nodes(
                 hook_name
             );
 
+            if(!json_object_get(child_data, pref)) {
+                changed = TRUE;
+            }
             json_object_set_new(
                 child_data,
                 pref,
@@ -7705,6 +7736,17 @@ PRIVATE int _link_nodes(
         break;
     default:
         break;
+    }
+
+    /*--------------------------------------------------*
+     *  Nothing moved: the link was already there. Do not append a record
+     *  identical to the one on disk, and do not tell anyone of a change.
+     *--------------------------------------------------*/
+    if(!changed) {
+        return 0;
+    }
+    if(changed_) {
+        *changed_ = TRUE;
     }
 
     /*--------------------------------------------------*
@@ -8594,7 +8636,8 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
                 hook_name,
                 parent_node,    // NOT owned
                 node,           // NOT owned
-                FALSE
+                FALSE,
+                NULL            // the update saves the node anyway
             )==0) {
                 to_save = TRUE;
             } else {
@@ -8711,7 +8754,8 @@ PRIVATE int link_child_to_parent_ref(
         hook_name,
         parent_node,    // NOT owned
         node,           // NOT owned
-        FALSE
+        FALSE,
+        NULL
     );
 }
 
@@ -8924,16 +8968,25 @@ PUBLIC int treedb_link_nodes(
         JSON_DECREF(siblings)
     }
 
+    BOOL changed = FALSE;
     if(_link_nodes(
         gobj,
         tranger,
         hook_name,
         parent_node,    // NOT owned
         child_node,     // NOT owned
-        FALSE
+        FALSE,
+        &changed
     ) < 0) {
         // Error already logged
         return -1;
+    }
+
+    /*----------------------------*
+     *  The link was already there: nothing to save, nothing to publish.
+     *----------------------------*/
+    if(!changed) {
+        return 0;
     }
 
     /*----------------------------*
@@ -11533,7 +11586,7 @@ PRIVATE int move_file_link(
     }
 
     if(link) {
-        return _link_nodes(gobj, tranger, hook_name, parent_node, node, FALSE);
+        return _link_nodes(gobj, tranger, hook_name, parent_node, node, FALSE, NULL);
     }
     return _unlink_nodes(gobj, tranger, hook_name, parent_node, node, FALSE);
 }
