@@ -166,7 +166,7 @@ of them. The gc keeps what a LIVE node of any treedb of the tranger links,
 and what an activation of an existing snap would LOAD — per key, the newest
 instance under the snap's tag, which since 7.22.0's Unreleased is the record
 the snap SHOT: a save is always untagged -- only shoot-snap tags a record,
-active snap or not -- so a snap freezes what was live at the shot and holds it
+active snap or not, and a record is tagged once -- so a snap freezes what was live at the shot and holds it
 until its `__snaps__` row is deleted; and it takes the bytes **no row names**,
 which is what an interrupted write leaves behind. `delete-node` on an `__assets__` row runs the
 same guards, and `force` does not override them.

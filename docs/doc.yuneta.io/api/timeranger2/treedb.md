@@ -677,6 +677,16 @@ A record marked immutable (`__md_treedb__`immutable`, see
 [`treedb_set_node_immutable()`](<#treedb_set_node_immutable>)) is refused and
 `force` does NOT override it.
 
+The function tombstones every md2 row of this `(id, pkey2 value)`, so it
+refuses an instance that a snapshot holds a record of: *"cannot delete
+instance, a snapshot still holds it"*. It does not read the tag the node
+carries in memory — a save is untagged, so an instance updated after a shot
+carries 0 while the record the snap froze is still under it. It reads the
+records of the key instead and keeps the ones of this instance (which
+instance a record belongs to is a FIELD, so that walk reads the content of
+the record). `force` overrides this guard. It is the twin of the one
+[`treedb_delete_node()`](<#treedb_delete_node>) has for a whole key.
+
 ---
 
 (treedb_delete_node)=
@@ -972,6 +982,17 @@ Returns `0` on success, or a negative error code if the operation fails.
 **Notes**
 
 The function does not take ownership of `parent_node` or `child_node`. Make sure that both nodes exist and are valid before calling [`treedb_link_nodes()`](<#treedb_link_nodes>).
+
+**A link writes the CHILD, and only when the child moved.** The persistent
+half of a relationship is the child's `fkey`; the parent's `hook` is in
+memory and is rebuilt at the next load. So a link that only fills a hook
+writes nothing: that is the ordinary case of a second instance of a node,
+which inherits the fkey of the instance before it (the ref names the
+parent's **id**, shared by both instances) while the hook of the new parent
+is empty. A link asked twice, with nothing to move on either side, writes
+nothing and publishes nothing, and it warns (*"Parent ref already in child
+fkey, skipping duplicate"*). The link EVENT follows either side: filling a
+hook is a new relationship in memory even when nothing is written.
 
 A link into a **single-valued** fkey (a `string` column) replaces the old one:
 the child is first unlinked from the parent its string names, which emits

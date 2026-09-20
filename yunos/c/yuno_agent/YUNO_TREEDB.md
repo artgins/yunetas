@@ -358,19 +358,15 @@ for a permission that would not help.
 
 The current timeranger2 API does **not** expose a snapshot primitive
 named `tranger2_*_snap*` — those calls live one layer up at the treedb
-level (`treedb_shoot_snap()` / `treedb_activate_snap()`, §3.9). The closest
+level (`treedb_shoot_snap()` / `treedb_activate_snap()`). The closest
 underlying mechanism is the `disks/<rt_id>/` hardlink trick that gives
 non-masters a consistent view at the point the directory was wired.
 
-What the treedb layer does with it: `shoot-snap` stamps the snap's id on
-the md2 `user_flag` of every current primary record (the `tag` of
-`__md_treedb__`), and a load with that snap activated reads only the
-records carrying it. A save is always untagged (0) — only `shoot-snap`
-tags a record, whether a snap is activated or not — so a snap holds exactly
-what was live when it was shot, even when you write while it is activated: `activate-snap` returns every topic to that state, rows created
-since absent, rows updated since at their shot content. A node any existing
-snap holds cannot be deleted without `force` (a delete erases the whole
-key), and an asset a shot record names stays until that snap's row goes.
+What timeranger2 lends to it is one field: the md2 `user_flag` of a record,
+which the treedb layer uses as the snap's **tag**. Only `shoot-snap` writes
+it, in place, and a record is tagged once. **The whole behaviour — what a
+snap writes, what an activated snap reads, what happens to writes made
+meanwhile, and what a snap protects from a delete — is §3.9.**
 
 ### 2.9 The delete-record story
 
@@ -845,34 +841,47 @@ ycommand -c 'command-yuno id=<yuno> service=treedb_authzs command=create-node to
 
 ### 3.7 The link/unlink-saves-child rule
 
-CLAUDE.md hard rule, reproduced verbatim from [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.23.0/kernel/c/timeranger2/src/tr_treedb.c):
+**A link writes the CHILD, never the parent**, and it writes only when the
+child actually moved.
+
+The persistent half of a relationship is the child's `fkey` field. The
+parent's `hook` is in memory and is rebuilt on the next load by scanning the
+children for `fkey == parent.id`. So:
 
 ```c
 PUBLIC int treedb_link_nodes(...) {
-    _link_nodes(gobj, tranger, hook_name, parent_node, child_node, FALSE);
-    /*---Save persistent: Only children are saved---*/
-    return treedb_save_node(tranger, child_node);   // ← only child
-}
-
-PUBLIC int treedb_unlink_nodes(...) {
-    _unlink_nodes(gobj, tranger, hook_name, parent_node, child_node, FALSE);
-    /*---Save persistent: Only children are saved---*/
-    return treedb_save_node(tranger, child_node);   // ← only child
+    BOOL child_changed = FALSE;
+    _link_nodes(..., &child_changed);
+    if(!child_changed) {
+        return 0;               // the link was already written
+    }
+    return treedb_save_node(tranger, child_node);   // only the child
 }
 ```
 
-The rule: **link/unlink writes the child to disk, never the parent.**
-Why: the persistent reference lives on the child (the `fkey` field).
-The parent's `hook` field is in-memory and gets rebuilt on the next
-load by scanning all children for `fkey == parent.id`.
+Three consequences:
 
-Two consequences:
+1. After a link that moved the child, the child's `g_rowid` advances by one.
+   The parent's does **not**.
+2. A link that only fills the parent's HOOK writes nothing. That is the
+   ordinary case of a second instance of a node: the instance inherits the
+   fkey of the instance before it (the ref names the parent's **id**, which
+   both instances share) and the hook of the new parent is empty. Before
+   2026-09-20 each one appended a record identical to the one under it —
+   the agent did it on every `create-yuno`, to `binaries` and to
+   `configurations`.
+3. A link asked twice, with nothing to move on either side, writes nothing
+   and publishes nothing. It warns: *"Parent ref already in child fkey,
+   skipping duplicate"* / *"Child already in parent hook, skipping duplicate
+   link"*.
 
-1. After `treedb_link_nodes`, the child's `g_rowid` advances by 1 (one
-   new record appended). The parent's `g_rowid` does **not** change.
-2. If you write tooling that snapshots state by reading rowids, the
-   parent's rowid is a **bad** signal of "has anything happened to
-   this node's relationships" — you have to look at the children too.
+The link EVENT (`EV_TREEDB_NODE_LINKED`, or `EV_TREEDB_NODE_UPDATED` for a
+host that did not ask for link events) follows either side: filling a hook
+is a new relationship in memory, even when nothing is written.
+
+If you write tooling that watches rowids, the parent's rowid is a **bad**
+signal of "has anything happened to this node's relationships" — look at the
+children.
 
 ### 3.8 Cross-yuno reads: the `rt_by_disk` pattern
 
@@ -896,8 +905,9 @@ and the watchers.
 
 ### 3.9 Snapshots (treedb-level)
 
-Snapshots tag a point in time across the treedb. APIs at
-[`tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.23.0/kernel/c/timeranger2/src/tr_treedb.h):
+A snap is a **photo of an instant**, and it is never written into. This
+section is the whole behaviour, as it was walked step by step on a node in
+September 2026.
 
 ```c
 int     treedb_shoot_snap   (json_t *tranger, const char *treedb_name,
@@ -908,14 +918,104 @@ json_t *treedb_list_snaps   (json_t *tranger, const char *treedb_name,
                              json_t *jn_filter);
 ```
 
-`gobj_list_snaps(gobj, filter, src)` is the gobj-level wrapper. What a
-snap holds, and why a save never lands inside one, is in §2.8.
+`gobj_list_snaps(gobj, filter, src)` is the gobj-level wrapper. The commands
+of the agent are `shoot-snap`, `activate-snap name=<name>`, `deactivate-snap`
+(which is `activate-snap name=__clear__`) and `snaps`.
 
-Snapshots are how the agent picks which binary version to run when
-multiple are stored — see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.3. The
+#### What a snap writes
+
+A snap is a row of the `__snaps__` topic. Its `id` is the tag, a number
+handed out by the `rowid` flag. `shoot-snap` stamps that number on the md2
+`user_flag` of the **current primary record of every key**, in place:
+
+- one record per key, not one per instance: the record that is live at the
+  shot;
+- the meta-topics (`__snaps__`, `__graphs__`, `__assets__`) are skipped;
+- a record an earlier snap already tagged cannot take a second tag
+  (`user_flag` is one `uint16_t`), so that one is **cloned**: the clone is
+  appended with the new tag and becomes the newest record of the key.
+
+**Only `shoot-snap` tags a record, and a record is tagged once.** A save
+never gives a tag, active snap or not. Two earlier rules broke this and are
+gone: a save that inherited the tag the node carried in memory (so the
+latest snap followed every later update and froze nothing), and a save that
+took the tag of the ACTIVATED snap (so a binary installed during a rollback
+became part of the photo, which then held two records of one key).
+
+#### What an activated snap reads
+
+Activating a snap is a **filtered load**, and it filters ONE index:
+
+| Index | With no snap | With snap S activated |
+|---|---|---|
+| primary (`id`) | the newest record of each key | the newest record of each key **tagged S** |
+| secondary (`pkey2`) | the newest record of each `(id, pkey2 value)` | unchanged: the newest record of each `(id, pkey2 value)`, whatever its tag |
+
+That difference is not a leak, it is **the feature**. Keeping different
+versions of a thing and going back and forward between them needs both
+halves: the primary index puts the node (and, for the agent, the release it
+launches) back to the photo, while the secondary indexes keep every version
+installed since, so nothing is lost while the photo is being looked at.
+
+An activation changes no record: it sets `active` on the `__snaps__` row and
+the **reload** rebuilds the indexes. In the agent, `deactivate-snap` is what
+performs that reload for every yuno (`restart_nodes()`).
+
+#### Writing while a snap is activated
+
+It is allowed, and what is written carries tag 0. So:
+
+- the photo does not change, however much is written;
+- what is written does NOT show in the primary index while the snap is
+  active (the load keeps only the records tagged S) and joins it at the
+  next reload after the deactivation;
+- it does show at once in the secondary indexes, which do not filter.
+
+An install made during a rollback therefore lands on the node without
+touching the snap it was rolled back to.
+
+#### What a snap protects
+
+A snap holds the records it tagged, and two deletes ask before taking them:
+
+- **[`treedb_delete_node()`](#treedb_delete_node)** erases the whole key, so
+  it refuses a node any existing snap holds a record of: *"cannot delete
+  node, a snapshot still holds it"*.
+- **[`treedb_delete_instance()`](#treedb_delete_instance)** tombstones every
+  md2 row of one `(id, pkey2 value)`, so it asks the same question narrowed
+  to that instance: *"cannot delete instance, a snapshot still holds it"*.
+
+Neither guard reads the tag the node carries in memory. A save is untagged,
+so a node or an instance updated after the shot carries 0 while the record
+the snap froze is still under it: the guards walk the records of the key.
+`force=1` overrides both. `treedb_gc_files()` follows the same rule for the
+bytes of an asset a shot record names.
+
+#### What the AGENT adds (not treedb)
+
+`deactivate-snap` runs `promote_highest_release_yunos()` before the reload:
+the primary of an id is the record with the highest **rowid**, not the
+highest `yuno_release`, so the newest release is re-appended to put it on
+top. That is why a `yunos` key gets one more record per upgrade cycle, with
+the same content as the one under it. It is agent behaviour, deliberate, and
+it is what makes the reload start the new version.
+
+Snapshots are also how the agent picks which binary version to run when
+several are stored — see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.3. The
 binary resolver tries the active snapshot first
-([`gobj_list_snaps`](#gobj_list_snaps), [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.23.0/yunos/c/yuno_agent/src/c_agent.c)). If that fails, it does a
-direct `(role, role_version)` lookup.
+([`gobj_list_snaps`](#gobj_list_snaps)); if that fails it does a direct
+`(role, role_version)` lookup.
+
+#### A cycle, end to end
+
+```
+shoot-snap name=S           # tags the live record of every key
+activate-snap name=S        # + reload: primary index = the photo
+install-binary ...          # a new record, tag 0: the photo is untouched
+find-new-yunos create=1     # a new yuno instance, tag 0
+deactivate-snap             # + reload: primary index = the newest again
+activate-snap name=S        # and back, as many times as you want
+```
 
 ### 3.10 Immutable nodes and non-deletable topics
 
@@ -1489,7 +1589,9 @@ shows them in `__md_treedb__` for inspection only.
 ### 4.2 link/unlink saves the child, not the parent
 
 (§3.7.) If you read `g_rowid` on the parent after a link operation and it
-did not change, that is correct. Read the `g_rowid` of the child instead.
+did not change, that is correct. Read the `g_rowid` of the child instead —
+and if the CHILD's rowid did not change either, that is also correct: the
+link found its fkey already written and saved nothing.
 
 ### 4.3 Schema changes need a higher `topic_version`
 

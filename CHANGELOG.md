@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Docs: the behaviour of snapshots and of links, written down
+
+- `YUNO_TREEDB.md` §3.9 is now the whole snapshot model: what `shoot-snap`
+  writes (one tag per key, in place, on the live record; a clone when an
+  earlier snap already tagged it), what an activated snap reads (the primary
+  index is filtered by the tag, the pkey2 indexes are NOT, and that pair is
+  what lets a node go back and forward between versions), what happens to a
+  write made while a snap is active (tag 0: the photo does not change, and
+  the write joins the primary index after the deactivation), what a snap
+  protects from (both delete guards, neither reading the tag in memory), and
+  what the AGENT adds on top (the promotion re-append of
+  `promote_highest_release_yunos()`, which is why a `yunos` key gets one
+  more record per upgrade cycle). §2.8 keeps the timeranger2 half (the
+  `user_flag` is the tag) and points there.
+- §3.7 (and §4.2) say the link rule as it now is: a link writes the CHILD,
+  and only when the child's fkey moved; a link that only fills the parent's
+  hook, or that was already made, writes nothing and publishes nothing.
+- The API pages of `treedb_link_nodes()`, `treedb_delete_instance()` and
+  `treedb_save_node()` carry the same rules.
+
 ### treedb: an instance a snapshot froze is not deleted either
 
 - **`treedb_delete_instance()` asked the tag the node carried in MEMORY.**
