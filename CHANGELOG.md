@@ -12,10 +12,15 @@
   a record identical to the one under it, and subscribers told of an update
   that was not one. It now reports whether anything moved, and
   `treedb_link_nodes()` returns without saving or publishing when nothing
-  did. Seen on wattyzer: every `create-yuno` of a second instance of a yuno
-  appended a record to `binaries` and another to `configurations` (the fkey
-  ref names the yuno's id, so it was already there), and the agent's stats
-  counted the two warnings. `test_tr_treedb_link_events` pins it.
+  did. And the two sides are not worth the same: the parent's hook lives in
+  MEMORY, the child's fkey is what reaches the disk, so **the save follows
+  the CHILD alone**. A link that only fills a hook -- every `create-yuno` of
+  a second instance of a yuno: the instance inherits the fkey of the one
+  before it (the ref names the id both share) and its own hook is empty --
+  appended a record to `binaries` and one to `configurations` every time.
+  Pinned by `test_tr_treedb_link_events` (the same link twice) and by
+  `test_tr_treedb_update_instance` (a new instance of the parent linking a
+  child that already names it; its schema grows a `parts` child topic).
 
 ### print-role: the CLI and the runtime command answer the same fields
 

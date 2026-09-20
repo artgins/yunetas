@@ -154,6 +154,83 @@ PRIVATE int test_update_refreshes_secondary_index(
 }
 
 /***************************************************************************
+ *  A NEW INSTANCE of a parent, linked to a child that already names it,
+ *  writes nothing: the hook of the instance is what fills, and a hook
+ *  lives in memory. The child's fkey already carries "items^item-1^parts"
+ *  -- the ref names the parent's ID, which both instances share -- so
+ *  saving the child would append a record identical to the one on disk.
+ *
+ *  This is the agent's `create-yuno` of a second instance of a yuno: it
+ *  used to append one record to `binaries` and one to `configurations`
+ *  every time.
+ ***************************************************************************/
+PRIVATE int test_link_from_a_new_instance_writes_nothing(
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int result = 0;
+    const char *test = "a link from a new instance of the parent writes nothing";
+    time_measure_t time_measure;
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    MT_START_TIME(time_measure)
+
+    /*  The child, hanging from the v1 instance  */
+    json_t *part = treedb_create_node(
+        tranger, treedb_name, "parts", json_pack("{s:s}", "id", "part-1")
+    );
+    json_t *item_v1 = treedb_get_node(tranger, treedb_name, TOPIC_NAME, "item-1");
+    if(treedb_link_nodes(tranger, "parts", item_v1, part)<0) {
+        printf("%s  FAIL: cannot link the part to the v1 instance%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_int_t rowid_before = kw_get_int(0, part, "__md_treedb__`g_rowid", 0, 0);
+
+    /*  A NEW instance of the same item: its `parts` hook is empty  */
+    treedb_create_node(
+        tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "item-1", "version", "v9", "payload", "new")
+    );
+    json_t *item_v9 = treedb_get_instance(
+        tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "item-1", "v9"
+    );
+    if(!item_v9) {
+        printf("%s  FAIL: no v9 instance%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+        result += test_json(NULL);
+        return result;
+    }
+
+    if(treedb_link_nodes(tranger, "parts", item_v9, part)<0) {
+        printf("%s  FAIL: cannot link the part to the v9 instance%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    json_int_t rowid_after = kw_get_int(0, part, "__md_treedb__`g_rowid", 0, 0);
+    if(rowid_after != rowid_before) {
+        printf("%s  FAIL: the link saved the child (g_rowid %d -> %d)%s\n",
+            On_Red BWhite, (int)rowid_before, (int)rowid_after, Color_Off);
+        result += -1;
+    }
+    /*  ...and the hook of the new instance DID take the child  */
+    json_t *hook = kw_get_list(0, item_v9, "parts", 0, 0);
+    if(json_array_size(hook) != 1) {
+        printf("%s  FAIL: the hook of the v9 instance holds %d children%s\n",
+            On_Red BWhite, (int)json_array_size(hook), Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  A pkey2 value names an instance, so an update cannot change it.
  *  It used to be applied in place: on disk the new value became a second
  *  instance, while in memory BOTH slots held the live node (listed twice
@@ -290,7 +367,8 @@ PRIVATE int do_test(void)
         /*  treedb_open_db creates __snaps__ + __graphs__ + items + __assets__  */
         set_expected_results(
             test,
-            json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+            json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+                "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
@@ -352,6 +430,7 @@ PRIVATE int do_test(void)
      *------------------------------------*/
     result += test_update_refreshes_secondary_index(tranger, treedb_name);
     result += test_update_cannot_change_pkey2(tranger, treedb_name);
+    result += test_link_from_a_new_instance_writes_nothing(tranger, treedb_name);
 
     /*------------------------------------*
      *  Shutdown

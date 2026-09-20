@@ -82,7 +82,7 @@ PRIVATE int _link_nodes(
     json_t *parent_node,    // NOT owned
     json_t *child_node,     // NOT owned
     BOOL save,
-    BOOL *changed_          // optional: did the link move anything?
+    BOOL *child_changed_    // optional: did the CHILD's fkey move?
 );
 PRIVATE int _unlink_nodes(
     hgobj gobj,
@@ -7272,11 +7272,11 @@ PRIVATE int _link_nodes(
     json_t *parent_node,    // NOT owned
     json_t *child_node,     // NOT owned
     BOOL save,
-    BOOL *changed_          // optional: did the link move anything?
+    BOOL *child_changed_    // optional: did the CHILD's fkey move?
 )
 {
-    if(changed_) {
-        *changed_ = FALSE;
+    if(child_changed_) {
+        *child_changed_ = FALSE;
     }
     /*------------------------------*
      *      Check original node
@@ -7542,15 +7542,23 @@ PRIVATE int _link_nodes(
     }
 
     /*--------------------------------------------------*
-     *  Did this link CHANGE anything? A link asked twice -- the parent ref
-     *  already in the child's fkey, the child already in the parent's hook
-     *  -- used to save the child and publish the change all the same: a
-     *  record identical to the one under it, and subscribers told of an
-     *  update that was not one. The agent does it on every `create-yuno`
-     *  of a second instance of a yuno, where the ref names the yuno's id
-     *  and is therefore the one already there.
+     *  Did this link move anything, and WHERE?
+     *
+     *  The two sides are not worth the same. The parent's hook lives in
+     *  MEMORY only; what reaches the disk is the child's fkey, and the
+     *  child is the only node a link saves. So a link that only fills a
+     *  hook must not append a record identical to the one under it --
+     *  which is what every `create-yuno` of a new instance did: the
+     *  instance inherits the fkey of the one before it (the ref names the
+     *  parent's id, which both instances share) and its own hook is
+     *  empty, so the link filled the hook and saved a child that had not
+     *  changed.
+     *
+     *  `changed` (either side) decides whether anyone is told; the child
+     *  side alone decides whether anything is written.
      *--------------------------------------------------*/
     BOOL changed = FALSE;
+    BOOL child_changed = FALSE;
 
     /*--------------------------------------------------*
      *  A single-valued fkey does not add, it REPLACES:
@@ -7573,6 +7581,7 @@ PRIVATE int _link_nodes(
                 return -1;  // Error already logged
             }
             changed = TRUE;
+            child_changed = TRUE;
             // The unlink replaced the child's string: the old pointer is gone
             child_data = kw_get_dict_value(gobj, child_node, child_field, 0, 0);
             if(!child_data) {
@@ -7666,6 +7675,7 @@ PRIVATE int _link_nodes(
 
             if(strcmp(kw_get_str(gobj, child_node, child_field, "", 0), pref)!=0) {
                 changed = TRUE;
+                child_changed = TRUE;
             }
             json_object_set_new(
                 child_node,
@@ -7697,6 +7707,7 @@ PRIVATE int _link_nodes(
                     json_string(pref)
                 );
                 changed = TRUE;
+                child_changed = TRUE;
             } else {
                 /*
                  *  fkey ref already present: idempotent link. Warn, don't
@@ -7726,6 +7737,7 @@ PRIVATE int _link_nodes(
 
             if(!json_object_get(child_data, pref)) {
                 changed = TRUE;
+                child_changed = TRUE;
             }
             json_object_set_new(
                 child_data,
@@ -7739,14 +7751,14 @@ PRIVATE int _link_nodes(
     }
 
     /*--------------------------------------------------*
-     *  Nothing moved: the link was already there. Do not append a record
-     *  identical to the one on disk, and do not tell anyone of a change.
+     *  Nothing moved at all: the link was already there. Do not tell
+     *  anyone of a change that did not happen.
      *--------------------------------------------------*/
     if(!changed) {
         return 0;
     }
-    if(changed_) {
-        *changed_ = TRUE;
+    if(child_changed_) {
+        *child_changed_ = child_changed;
     }
 
     /*--------------------------------------------------*
@@ -7812,7 +7824,7 @@ PRIVATE int _link_nodes(
         }
     }
 
-    if(save) {
+    if(save && child_changed) {
         treedb_save_node(tranger, child_node);
     }
 
@@ -8968,7 +8980,7 @@ PUBLIC int treedb_link_nodes(
         JSON_DECREF(siblings)
     }
 
-    BOOL changed = FALSE;
+    BOOL child_changed = FALSE;
     if(_link_nodes(
         gobj,
         tranger,
@@ -8976,16 +8988,17 @@ PUBLIC int treedb_link_nodes(
         parent_node,    // NOT owned
         child_node,     // NOT owned
         FALSE,
-        &changed
+        &child_changed
     ) < 0) {
         // Error already logged
         return -1;
     }
 
     /*----------------------------*
-     *  The link was already there: nothing to save, nothing to publish.
+     *  The child's fkey did not move: the link was already written, and
+     *  saving would append a record identical to the one on disk.
      *----------------------------*/
-    if(!changed) {
+    if(!child_changed) {
         return 0;
     }
 
