@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.24.0 (2026-09-20)
 
 ### The treedb GUI round (gobj-ui 7.23.186-7.23.192)
 
