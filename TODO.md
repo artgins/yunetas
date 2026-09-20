@@ -190,9 +190,10 @@ Line numbers are those of `main` on 2026-09-15.
   2026-09-19: a save is always untagged -- only shoot-snap tags a record,
   active snap or not -- so every snap freezes what it shot; the delete guard asks the key's records and the asset gc
   holds what a shot record names while the snap exists.)
-- **tr_treedb snaps -- reviewed 2026-09-17, both gaps CLOSED 2026-09-19/20.**
-  A snap is a PHOTO of an instant and must never be written into. What is
-  left open is one DESIGN decision, in (1).
+- **tr_treedb snaps -- reviewed 2026-09-17, CLOSED 2026-09-19/20.**
+  A snap is a PHOTO of an instant and must never be written into. The two
+  gaps and the design decision of (1) are all answered; the layout of the
+  graph (`__graphs__`) joined the photo on 2026-09-20.
   1. **CLOSED 2026-09-19 (the user's rule): a record takes a snap's tag
      exactly once, from shoot-snap.** `treedb_save_node()` /
      `treedb_create_node()` write tag 0 even while a snap is ACTIVATED (they
@@ -201,8 +202,15 @@ Line numbers are those of `main` on 2026-09-15.
      index shows the snap's records, and the pkey2 indexes every other
      instance (all but the one in the primary) -- that is intended. An edit
      made while a snap is active reaches the primary index after the
-     deactivation. Whether activation should become a RESTORE (the old option
-     B) is still the user's to decide, walking the system step by step.
+     deactivation. **And the last question of this section is answered too
+     (the user, 2026-09-20): an activation IS a filtered load and stays one
+     -- the old option B, activation as a RESTORE, is discarded.** What it is
+     for: going back to a state marked as good, to look at it or to carry on
+     from it; and working from it ignores what was written after the shot,
+     for every key touched, without destroying it. Written up in
+     `YUNO_TREEDB.md` 3.9 ("Working from a snap"), on the API page of
+     `treedb_activate_snap()` and beside the rollback recipe of
+     `YUNO_LIFECYCLE.md` 6.6. **Nothing is open in this section.**
   2. **CLOSED 2026-09-20: `treedb_delete_instance()` asks the RECORDS, not
      the tag in memory.** `instance_held_by_a_snap()` walks the key's records
      keeping only those of this instance (the pkey2 value is a FIELD, so that
