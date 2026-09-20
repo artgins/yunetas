@@ -287,6 +287,22 @@ PUBLIC void print_track_mem(void)
         cmdline[n] = 0;
     }
 
+    /*
+     *  WHERE THE LIST ENDS, taken BEFORE anything is logged.
+     *
+     *  Logging allocates, and every allocation is APPENDED to this same
+     *  list, so a walk that runs to the end can walk into what the walk
+     *  itself is writing and report it as leaked -- without ever ending,
+     *  if a handler holds one block per line. The report is what was busy
+     *  at THIS instant and nothing the report itself allocates.
+     *
+     *  Measured 2026-09-20 while chasing db_history_ce: this guard did NOT
+     *  change that yuno's count (1207 before and after), so what it reports
+     *  there was already busy when the walk began. The guard closes the
+     *  hazard, it does not explain that case.
+     */
+    track_mem_t *last = dl_last(&dl_busy_mem);
+
     gobj_log_error(0, 0,
         "function",         "%s", __FUNCTION__,
         "msgset",           "%s", MSGSET_STATISTICS,
@@ -297,6 +313,8 @@ PUBLIC void print_track_mem(void)
 
     track_mem_t *track_mem = dl_first(&dl_busy_mem);
     while(track_mem) {
+        track_mem_t *next = (track_mem == last)? NULL : dl_next(track_mem);
+
         gobj_log_debug(0,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TRACK_MEM,
@@ -307,7 +325,7 @@ PUBLIC void print_track_mem(void)
             NULL
         );
 
-        track_mem = dl_next(track_mem);
+        track_mem = next;
     }
 #endif
 }
@@ -328,11 +346,16 @@ PRIVATE void check_failed_list(track_mem_t *track_mem)
                 NULL
             );
         } else if(memory_check_list[xx] == track_mem->size) {
+            /*  With the REF: a size catches thousands of allocations in a
+             *  yuno that starts by loading a database (95.648 of them for
+             *  one size, measured), and the ref is what tells which of
+             *  them is the one print_track_mem() reported.  */
             gobj_log_debug(0, LOG_OPT_TRACE_STACK,
                 "msgset",       "%s", MSGSET_STATISTICS,
                 "msg",          "%s", "mem-not-free by size",
-                "size",         "%ul", (unsigned long)track_mem->size,
-                "p",            "%ul", (unsigned long)track_mem->p,
+                "ref",          "%lu", (unsigned long)track_mem->ref,
+                "size",         "%lu", (unsigned long)track_mem->size,
+                "p",            "%lu", (unsigned long)track_mem->p,
                 NULL
             );
         }

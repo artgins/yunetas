@@ -1,5 +1,24 @@
 # **Changelog**
 
+## Unreleased
+
+### gbmem: the leak audit does not follow what it writes, and says which ref it caught
+
+- **`print_track_mem()` walked `dl_busy_mem` to the end while its own logging
+  appended to that same list.** A handler that holds one block per line turns
+  that walk into an endless one, each line feeding the next. It now takes the
+  end of the list BEFORE it logs anything and stops there: the report is what
+  was busy at that instant and nothing the report itself allocates. Measured
+  while chasing `db_history_ce`, this guard did NOT change that yuno's count
+  (1207 before and after), so what it reports there was already busy when the
+  walk began — the guard closes the hazard, it does not explain that case,
+  and the comment in the code says so.
+- **`check_failed_list()` logs the `ref` too.** Filtering by SIZE catches
+  every allocation of that size — 95.648 of them in one startup of a yuno
+  that loads a database — and without the ref there is no way to tell which
+  of them is the one the audit reported. With it, the catch that matters is
+  found by its ref and its stack is the allocation site.
+
 ## v7.24.0 (2026-09-20)
 
 ### The treedb GUI round (gobj-ui 7.23.186-7.23.192)
