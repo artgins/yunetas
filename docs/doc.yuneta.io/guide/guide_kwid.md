@@ -311,41 +311,66 @@ if(jn_initial_load) {
 }
 ```
 
-### `KW_REQUIRED` and a default are contradictory
+### `KW_REQUIRED` with a default: what it can and cannot mean
 
 `KW_REQUIRED` says *this must be here, say so loudly if it is not*. A default
-says *I do not care, give me this instead*. Written in the same call, the two
-cancel each other:
+says *give me this instead*. Written in the same call, the **return can no
+longer answer the question**: found or missing, you get a usable value, and
+only the log knows which path ran.
 
 ```c
 jn_triggers = kw_get_list(gobj, alarm, "triggers", json_array(), KW_REQUIRED);
 ```
 
-The return can no longer answer the question. Found or missing, you get a
-usable list, so **only the log knows** whether the alarm had triggers — and a
-log line is not a control flow. On top of that, the missing path hands you the
-default as an owner, which is the leak above.
-
-Pick the intention, and write only that one:
+That is a legitimate intention — *record the anomaly, but always leave me
+something to work with* — and it is written all over this code base, almost
+always on a scalar:
 
 ```c
-/*  It must be there: require it, and let the absence be visible  */
-json_t *triggers = kw_get_list(gobj, alarm, "triggers", 0, KW_REQUIRED);
-if(!triggers) {
-    return -1;      // Error already logged by KW_REQUIRED
-}
-
-/*  It is optional: give the fallback and drop the flag  */
-const char *estado = kw_get_str(gobj, node, "estado", "pendiente", 0);
+const char *id = kw_get_str(gobj, trigger, "id", "", KW_REQUIRED);
 ```
 
-A container that is only walked needs no fallback at all:
-`json_array_foreach()` and `json_object_foreach()` over `NULL` iterate nothing,
-because `json_array_size(NULL)` is `0`.
+What it is not, is a way to **learn** anything. A log line is not a control
+flow: if the caller must act differently when the key is missing, the flag and
+the default cannot both stay.
 
-The combination is common in this code base, and almost always on a scalar
-(`kw_get_str(..., "", KW_REQUIRED)`), where it costs information and not
-memory. On a `kw_get_list()` or a `kw_get_dict()` it costs both.
+**With an OWNING default the combination stops working**, and not as a matter
+of style. `kw_get_list()` and `kw_get_dict()` decref the default only on the
+path where they FIND the key, so on the other one you are the owner — and to
+free it correctly you have to know which path ran, which is exactly what the
+return no longer tells you. *I do not need to know* is not available here.
+
+Three ways out, in order of preference:
+
+```c
+/*  1. Ask without a default, and read the answer.
+       KW_REQUIRED still logs the absence.  */
+json_t *triggers = kw_get_list(gobj, alarm, "triggers", 0, KW_REQUIRED);
+if(!triggers) {
+    return -1;      // Error already logged
+}
+
+/*  2. Only walking it? Then it needs no fallback: json_array_foreach() and
+       json_object_foreach() over NULL iterate nothing, because
+       json_array_size(NULL) is 0.  */
+json_t *triggers = kw_get_list(gobj, alarm, "triggers", 0, KW_REQUIRED);
+int idx; json_t *trigger;
+json_array_foreach(triggers, idx, trigger) {
+    ...
+}
+
+/*  3. Answer the question another way, and keep the fallback.
+       The guard is what makes the missing path unreachable.  */
+if(kw_has_key(kw, "body")) {
+    json_t *jn_body = kw_duplicate(gobj,
+        kw_get_dict_value(gobj, kw, "body", json_object(), KW_REQUIRED)
+    );
+    ...
+}
+```
+
+On a scalar default, the combination costs information. On a container
+default, it costs memory as well.
 
 ### A kw is not a json
 
