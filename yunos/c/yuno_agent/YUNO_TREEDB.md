@@ -997,6 +997,76 @@ It is allowed, and what is written carries tag 0. So:
 An install made during a rollback therefore lands on the node without
 touching the snap it was rolled back to.
 
+#### Working from a snap: what it ignores, and what it destroys
+
+An activation is a **filtered load, not a restore**. Nothing is rewritten,
+nothing is undone, and the store keeps every record it had: what changes is
+which record each index answers with. That is what the mechanism is for — to
+go back to a state that was marked as good, either to LOOK at it, or to carry
+on working from there.
+
+The second use has a consequence worth stating as a rule:
+
+> **Working from an activated snap IGNORES everything written after the shot
+> — for every key you touch — and it ignores it without destroying it.**
+
+The mechanism is the one above, read forwards. The primary index answers with
+the record the snap froze, so the node you read is the node of the photo.
+Saving it appends a NEW record, tagged 0, whose content is *the photo's
+content plus your change* — never the content of the records written in
+between. That new record is the newest of its key, so after the deactivation
+and its reload it is the primary. The records in between stay on disk, stay
+in the secondary indexes, and stop being what the treedb reads.
+
+One key of `binaries`, `id = ycommand`, walked through:
+
+| rowid | written | content | tag | primary with S active | primary after deactivating |
+|---|---|---|---|---|---|
+| 1 | before the shot | `7.21.0` | S | **yes** | no |
+| 2 | after the shot | `7.23.0` | 0 | no | no |
+| 3 | from inside S, editing what rowid 1 said | `7.21.1` | 0 | no | **yes** |
+
+Row 2 is not lost — it is on disk, and `treedb_list_instances()` still finds
+it through the secondary index — but nothing reads it as the current state
+any more. That is the whole of "ignoring".
+
+Three things follow, and they are the ones that surprise:
+
+**It is per key, not per store.** The activation does not put the treedb into
+a past state; it makes the past the thing you WRITE FROM. A node you never
+touch keeps the record written after the shot as its newest one, so the
+deactivation brings it back exactly as it was, post-shot content included.
+Only what you edit is carried back.
+
+**A node born after the shot is invisible while the snap is active**, because
+no record of it carries the tag. And [`treedb_create_node()`](#treedb_create_node)
+tests existence against that same FILTERED primary index, so a create of that
+id is accepted: it appends a record on top of the one already there. It reads
+like a create and behaves like an overwrite. (With `pkey2s` the secondary
+index is not filtered and still holds the node, which is why the create is
+refused only when BOTH indexes already have that id.)
+
+**A delete DOES destroy, and it is the only operation that does.** The two
+guards of §3.9 refuse to take a record a snap holds, but a node born after the
+shot is held by no snap: the delete goes through, erases the key, and the
+deactivation does not bring it back. Everything else inside a snap is
+additive; this one is not.
+
+| From inside an activated snap | What it does to what came after |
+|---|---|
+| read | hides it: the primary answers with the photo |
+| update / save | ignores it for that key: the new record descends from the photo |
+| create of an id born after the shot | the same, by another door: it appends over it |
+| delete | **destroys it**: the key is erased, and deactivating does not undo that |
+
+**Going forward again.** Leaving a snap undoes nothing either: deactivating
+and reloading puts every key back on its newest record. For the keys written
+from inside the snap, that newest record is the one that descends from the
+photo — which is the point of having worked there. And the versions installed
+in between are still addressable, because the secondary indexes never
+filtered: that is how the agent moves forward again, re-appending the highest
+release with `promote_highest_release_yunos()`.
+
 #### What a snap protects
 
 A snap holds the records it tagged, and two deletes ask before taking them:

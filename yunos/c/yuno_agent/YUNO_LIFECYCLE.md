@@ -842,6 +842,17 @@ ycommand -c 'deactivate-snap'
 > the agent reports it clearly and never reaches the `rmrdir`. `force=1`
 > deletes it, and that **breaks** the rollback that the snap protected.
 
+> **Working on a node while the snap is active ignores what came after it.**
+> An activation is a filtered load, not a restore. What you edit from inside
+> the snap is saved as the SHOT content plus your change, so the record
+> written between the shot and the rollback stops being the current one — it
+> stays on disk and in the secondary index, but nothing reads it any more.
+> It is per key: a yuno, a binary or a config you never touch comes back as
+> it was when you deactivate. And one operation is not reversible there — a
+> **delete** of something born after the shot is held by no snap, so it goes
+> through, and `deactivate-snap` does not bring it back. Full account in
+> [`YUNO_TREEDB.md`](YUNO_TREEDB.md) §3.9, *Working from a snap*.
+
 ### 6.7 Inspecting a snap (`snaps` / `snap-content`)
 
 A snap is a point-in-time tag (a numeric `user_flag`, `1..65534`) applied

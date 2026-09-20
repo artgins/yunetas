@@ -398,6 +398,37 @@ This call only toggles the `active` flag on the snap node. The primary index of 
 
 Consumers that need the change visible immediately must close and reopen the resource (for example `gobj_stop` + `gobj_start` on the gclass that owns the treedb, which is what the agent's `restart_nodes` does).
 
+**Working from an activated snap**
+
+An activation is a filtered load, **not a restore**: nothing is rewritten and nothing is undone, so the store keeps every record it had and only the answer of the primary index changes. It serves two purposes — looking at a state that was marked as good, and carrying on working from it. The second one has a rule:
+
+> Working from an activated snap **ignores** everything written after the shot, for every key you touch, and it ignores it without destroying it.
+
+Reading a node under snap S gives the record S froze. Saving it appends a new record, tagged 0, whose content is the photo's plus the change — never the content of the records written in between. That record is the newest of its key, so it becomes the primary after the deactivation and its reload; the records in between stay on disk and in the secondary indexes, and stop being read as the current state.
+
+| From inside an activated snap | What it does to what came after |
+|---|---|
+| read | hides it: the primary answers with the photo |
+| update / save | ignores it for that key: the new record descends from the photo |
+| create of an id born after the shot | the same, by another door: the id is absent from the FILTERED primary index, so the create is accepted and appends over the record already there |
+| delete | **destroys it**: [`treedb_delete_node()`](<#treedb_delete_node>) refuses only what a snap holds, and a node born after the shot is held by none — the key is erased and deactivating does not bring it back |
+
+It is **per key, not per store**: a node never touched keeps the record written after the shot as its newest, so the deactivation brings it back as it was. The activation does not put the treedb into a past state, it makes the past the thing you write from.
+
+```C
+/*  binaries^ycommand: 7.21.0 at the shot, 7.23.0 installed after it  */
+treedb_activate_snap(tranger, treedb_name, "pre-upgrade");   // + reload
+json_t *node = treedb_get_node(tranger, treedb_name, "binaries", "ycommand");
+/*  node says 7.21.0, not 7.23.0                                      */
+treedb_update_node(tranger, node, json_pack("{s:s}", "description", "patched"), TRUE);
+/*  the appended record says 7.21.0 + the new description: the 7.23.0
+    record is still on disk and in the pkey2 index, and is no longer
+    what the primary index answers after the deactivation.            */
+treedb_activate_snap(tranger, treedb_name, "__clear__");     // + reload
+```
+
+The full account, with the worked walk of one key, is in [Snapshots](https://doc.yuneta.io/yuno-treedb#id-3-9-snapshots-treedb-level).
+
 **Notes**
 
 Make sure that the snapshot exists before calling [`treedb_activate_snap()`](<#treedb_activate_snap>) (except for `"__clear__"`, which is always valid).
