@@ -144,6 +144,243 @@ any.
 
 ---
 
+(json-ownership)=
+
+## Ownership: who frees this json?
+
+Jansson counts references; it does not say who holds them. Every json bug of
+this family comes from one unanswered question:
+
+> **After this line, how many owners does this json have?**
+
+An owner is somebody who must call `decref` once. Too many owners is a leak.
+Too few is a double free — the framework prints *"BAD json_decref()"* or dies
+later in an unrelated place.
+
+The question is answered in **four** places, not one. Learn the four and the
+rest is arithmetic.
+
+---
+
+### 1. What you RECEIVE (a parameter)
+
+The signature says it, and nothing else does. There is no type for ownership,
+so a signature without the comment is an incomplete signature.
+
+| Annotation | What it means for you |
+|---|---|
+| `json_t *kw // owned` | It is yours. `decref` it on **every** exit, including the early `return -1`. |
+| `json_t *kw // NOT owned` | You read it. You never free it. |
+
+`owned` is the default of the public API: the `kw` of
+[`gobj_send_event()`](https://github.com/artgins/yunetas/blob/7.24.0/kernel/c/gobj-c/src/gobj.h),
+`gobj_publish_event()`, `gobj_post_event()`, `gobj_command()`, `gobj_create()`,
+`gobj_write_json_attr()`, `build_command_response()`,
+`msg_iev_build_response()` and `json2gbuf()`.
+
+`NOT owned` is the default of a callback the framework calls with something it
+still owns: `mt_publish_event()` and the `mt_publication_*_filter()` methods
+(there you may even **modify** the kw), `gobj_trace_json()`, and the `%j` field
+of any `gobj_log_*()` line.
+
+**The early exit is where ownership is lost.** Free it on the failure path too:
+
+```c
+PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    if(!gbuf) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "Message without gbuffer",
+            NULL
+        );
+        KW_DECREF(kw)       // <-- the failure path owns it too
+        return -1;
+    }
+    ...
+}
+```
+
+---
+
+### 2. What you RETURN (and what is returned to you)
+
+| Annotation | Examples |
+|---|---|
+| `// Return is YOURS` / `MUST be decref` | `gobj_list_nodes()`, `gobj_get_node()`, `gobj_create_node()`, `gobj_update_node()`, `kwid_new_list()`, `kwid_new_dict()`, `kwid_get_ids()`, `gbuf2json()`, `gobj_read_attrs()`, the response of `gobj_command()`, and every `json_pack()` or `json_deep_copy()` |
+| `// Return is NOT YOURS` | `gobj_read_json_attr()`, `gobj_jn_stats()`, `treedb_get_node()`, `treedb_open_db()`, `treedb_create_topic()`, `tranger2_open_topic()`, `json_object_get()`, `json_array_get()`, [`kwid_get()`](#kwid_get), and every `kw_get_*()` without flags |
+
+A borrowed string is borrowed too: **`kw_get_str()` returns a `const char *`
+that points INSIDE the json**. It lives exactly as long as that json does.
+Copy it before you free the owner.
+
+```c
+const char *id = kw_get_str(gobj, node, "id", "", 0);
+char my_id[NAME_MAX];
+snprintf(my_id, sizeof(my_id), "%s", id);   // the node may die after this
+```
+
+**The same call returns borrowed or owned, by flag:**
+
+- `KW_EXTRACT` increfs the value and deletes the key: the return becomes
+  **yours**.
+- `KW_CREATE` stores the default inside the kw and returns it **borrowed** —
+  do not free it.
+
+---
+
+### 3. What you PUT INTO a container
+
+This is the one that is easy to get wrong, because the decision is written in
+four different notations that all mean the same thing:
+
+| Transfer — the container takes your reference | Share — the container takes ANOTHER reference |
+|---|---|
+| `json_pack("{s:o}", ...)` | `json_pack("{s:O}", ...)` |
+| `json_object_set_new()` | `json_object_set()` |
+| `json_array_append_new()` | `json_array_append()` |
+| `json_object_update_new()` | `json_object_update()` (shares the **values**) |
+| you own nothing afterwards | **you still own yours, and must free it** |
+
+Read the case rule as: *lower case, the container keeps it; UPPER case, the
+container keeps a copy of the reference and yours is still alive.*
+
+**Use `o` for what you just built. Use `O` for what belongs to somebody else:**
+
+```c
+json_t *naves = json_array();               // built here, one owner
+...
+json_array_append_new(talleres, json_pack(
+    "{s:s, s:O, s:o}",
+    "id",            taller_id,
+    "observaciones", kw_get_list(gobj, w, "observaciones", json_array(), 0),
+    "naves",         naves                  // 'o': handed over, not freed here
+));
+```
+
+A real bug of this exact shape (2026-09-20, `db_history_ce`): a locally built
+array was packed with `s:O` instead of `s:o`, so it had two owners and only one
+of them freed it. Freeing the configuration left the whole branch behind — 1207
+blocks, 63 KB, on every configuration sent to a box. One character.
+
+---
+
+### 4. What you PASS ON, and still need
+
+If you hand a json to a parameter marked `owned` and you go on using your own
+copy, say so with an explicit incref **before** the call:
+
+```c
+JSON_INCREF(cols)                   // the topic keeps one, we keep ours
+topic = tranger2_create_topic(
+    tranger, topic_name, "id", topic_tkey, NULL, sf_string_key,
+    cols,                           // owned by the callee
+    jn_topic_var                    // owned by the callee
+);
+...
+JSON_DECREF(cols)                   // and we free ours
+```
+
+---
+
+## The traps
+
+### A default value that the callee may eat
+
+`kw_get_dict()`, `kw_get_list()` and `kw_get_dict_value()` **`JSON_DECREF()`
+the `default_value` on the path where they FIND the key** — the path that
+almost always runs. If the key is missing they return the default and it is
+still yours. So the same argument is consumed or not, depending on the data.
+
+It reads like the harmless idiom it resembles (`kw_get_str()`'s default is a
+plain `const char *`, owned by nobody), and it survives every test that
+exercises the missing-key path.
+
+**Ask without a default and choose afterwards:**
+
+```c
+/*
+ *  Asked without a default: kw_get_dict() decrefs the default on the path
+ *  where it finds the key, so a fallback here would be spent every call.
+ */
+json_t *jn_initial_load = kw_get_dict(gobj, kw, "initial_load", 0, 0);
+if(jn_initial_load) {
+    json_object_set(kw_resource, "initial_load", jn_initial_load);
+}
+```
+
+### A kw is not a json
+
+A `kw` is refcounted with `kw_incref()` / `kw_decref()`, **never** with
+`json_incref()` / `json_decref()`. The pair is not a synonym of the json one:
+`kw_decref()` also drops the serialized binary fields (the gbuffer) on **every**
+call, not only on the last one, and `kw_incref()` is what balances that.
+
+A `json_incref(kw)` therefore raises the json count and leaves the gbuffer's
+untouched, and every `KW_DECREF` downstream frees a gbuffer that was never
+increfed — a double free. It bites only once the kw actually carries a gbuffer,
+so the wrong call sits there looking fine for years. **Write `kw_incref()` even
+when today's kw is plain JSON.**
+
+Related: `kw["gbuffer"]` is auto-decrefed by the serializer table when the kw is
+decrefed. Reading the pointer with `extract=FALSE` and then calling
+`GBUFFER_DECREF` is a double free.
+
+### The singletons do not count
+
+`json_null()`, `json_true()` and `json_false()` carry `refcount == (size_t)-1`,
+and incref/decref on them do nothing. So this is safe:
+
+```c
+"template_settings", template_settings? template_settings: json_null()   // s:O, safe
+```
+
+and this **leaks one empty array per call** when the value is missing, because
+`O` increfs a fresh array that nobody owns afterwards:
+
+```c
+"scopes", scopes? scopes: json_array()                                   // s:O, LEAKS
+```
+
+### `json_pack()` can return NULL
+
+A `s:s` whose string is `NULL` is an error: the whole `json_pack()` returns
+`NULL`. Jansson releases the `o` values it reaches while unwinding, so the
+ownership is not lost — but the caller gets nothing where it expected an
+object. **Check the return**, or say what you mean:
+
+- `s:s*` — omit the key when the string is `NULL`.
+- `s:o?` — store a json null instead of the value.
+
+### Fix the pair, never one half
+
+`json_incref(kw)` plus `JSON_DECREF(kw)` in the same function is two errors
+that cancel out. Correcting only the incref turns a wrong-but-balanced ledger
+into a **leak**; correcting only the decref turns it into a **double free**.
+When you touch one side, check the other in the same function.
+
+---
+
+## The checklist
+
+Three questions, at every call that takes or returns a json:
+
+1. **Who created it?**
+2. **Who else points at it after this line?** (a `O`, a `set()`, an `append()`,
+   an incref — each one adds an owner)
+3. **Who drops the last reference, and on every exit path?**
+
+And when the arithmetic is already wrong, the audit answers it: run the yuno in
+the foreground with `YUNETA_TRACK_MEM_DUMP=1` to see **what** leaked (a leaked
+string carries its own characters and names the field), then
+`YUNETA_TRACK_MEM=<ref_min>-<ref_max>:<size>,...` to get the stack of the line
+that allocated it. Full recipe in
+[Debugging a yuno](../../../yunos/c/yuno_agent/DEBUGGING.md), §11.7.
+
+---
+
 ## JSON Reference Count Macros: `JSON_DECREF` and `JSON_INCREF`
 
 ## 📌 Overview
