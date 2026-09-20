@@ -133,6 +133,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 PRIVATE json_t *cmd_export_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t* cmd_system_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t *cmd_schema_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_import_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_gc_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
@@ -363,6 +364,7 @@ SDATACM2 (DTP_SCHEMA,   "pkey2s",       SDF_AUTHZ_X,    0,  pm_node_pkey2s, cmd_
 SDATACM2 (DTP_SCHEMA,   "desc",         SDF_AUTHZ_X,    a_schema, pm_desc,  cmd_desc,           "Schema of topic"),
 SDATACM2 (DTP_SCHEMA,   "descs",        SDF_AUTHZ_X,    a_schemas, 0,       cmd_desc,           "Schema of topics"),
 SDATACM (DTP_SCHEMA,    "system-schema",0,              0,  cmd_system_schema, "Get the treedb meta-schema"),
+SDATACM2 (DTP_SCHEMA,   "schema-file",  SDF_AUTHZ_X,    0,  0,              cmd_schema_file,    "The schema as STORED: the <treedb>.treedb_schema.json beside the topics, read from disk"),
 SDATACM2 (DTP_SCHEMA,   "import-assets",SDF_AUTHZ_X,    0,  pm_import_assets,cmd_import_assets,"Import a directory already on this node into __assets__: N files, no bytes on the wire, answers path -> id"),
 SDATACM2 (DTP_SCHEMA,   "gc-assets",    SDF_AUTHZ_X,    0,  pm_gc_assets,   cmd_gc_assets,      "Delete the assets that no live node and no snapshot links. Never automatic"),
 SDATACM2 (DTP_SCHEMA,   "trace",        SDF_AUTHZ_X,    0,  pm_trace,       cmd_trace,          "Set trace"),
@@ -3444,6 +3446,83 @@ PRIVATE json_t* cmd_system_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj
             "%s: cannot parse the treedb meta-schema",
             gobj_yuno_role_plus_name()
         ),
+        0,
+        jn_schema,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  The schema AS IT IS STORED: the `<treedb>.treedb_schema.json` that sits
+ *  beside the topics, read from disk and answered whole.
+ *
+ *  It is not what `descs` answers. `descs` is the schema the treedb is
+ *  USING -- one desc per topic, cols as a LIST, the hooks resolved -- and
+ *  the file keys its cols by name, carries the `schema_version` and each
+ *  `topic_version`, and is the document somebody editing a schema literal
+ *  compares against. Nor is it `priv->treedb_schema`, which is the literal
+ *  this yuno was COMPILED with: when the store holds a newer version, that
+ *  is the one that won and the one on disk.
+ ***************************************************************************/
+PRIVATE json_t *cmd_schema_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->tranger || empty_string(priv->treedb_name)) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: no treedb open", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.treedb_schema.json", priv->treedb_name);
+
+    char path[PATH_MAX];
+    build_path(path, sizeof(path),
+        kw_get_str(gobj, priv->tranger, "directory", "", KW_REQUIRED),
+        filename,
+        NULL
+    );
+
+    if(!file_exists(path, 0)) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: schema file not found: '%s'",
+                gobj_yuno_role_plus_name(), path
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*  0 as on_critical_error: a schema file somebody left unparseable is
+     *  an answer with a cause, never the end of the yuno.  */
+    json_t *jn_schema = load_json_from_file(gobj, path, "", 0);
+    if(!jn_schema) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: cannot read the schema file: '%s'",
+                gobj_yuno_role_plus_name(), path
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    return msg_iev_build_response(gobj,
+        0,
+        0,
         0,
         jn_schema,
         kw  // owned

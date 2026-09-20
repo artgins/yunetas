@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### C_NODE: `schema-file`, the schema as it is STORED
+
+- A new command answers the `<treedb>.treedb_schema.json` that sits beside
+  the topics, read from disk and whole. It is not what `descs` answers:
+  `descs` is the schema the treedb is USING — one desc per topic, cols as a
+  LIST, hooks resolved — while the file keys its cols by name and carries
+  the `schema_version` and each `topic_version`, which is the document
+  somebody editing a schema literal compares against. Nor is it the literal
+  the yuno was compiled with: when the store holds a newer version, the file
+  is the one that won.
+- Asked for by the treedb GUI's *schema json* button, which until now showed
+  the runtime `descs`. An older backend answers *"command not found"* and
+  the viewer shows that.
+
 ### treedb: a snapshot freezes the ARRANGEMENT of the treedb too
 
 - **`__graphs__` is now part of the photo.** It holds how the treedb was
