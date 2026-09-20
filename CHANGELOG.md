@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.24.1 (2026-09-20)
 
 ### gbmem: the leak audit does not follow what it writes, and says which ref it caught
 
