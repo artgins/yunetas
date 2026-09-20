@@ -311,6 +311,42 @@ if(jn_initial_load) {
 }
 ```
 
+### `KW_REQUIRED` and a default are contradictory
+
+`KW_REQUIRED` says *this must be here, say so loudly if it is not*. A default
+says *I do not care, give me this instead*. Written in the same call, the two
+cancel each other:
+
+```c
+jn_triggers = kw_get_list(gobj, alarm, "triggers", json_array(), KW_REQUIRED);
+```
+
+The return can no longer answer the question. Found or missing, you get a
+usable list, so **only the log knows** whether the alarm had triggers — and a
+log line is not a control flow. On top of that, the missing path hands you the
+default as an owner, which is the leak above.
+
+Pick the intention, and write only that one:
+
+```c
+/*  It must be there: require it, and let the absence be visible  */
+json_t *triggers = kw_get_list(gobj, alarm, "triggers", 0, KW_REQUIRED);
+if(!triggers) {
+    return -1;      // Error already logged by KW_REQUIRED
+}
+
+/*  It is optional: give the fallback and drop the flag  */
+const char *estado = kw_get_str(gobj, node, "estado", "pendiente", 0);
+```
+
+A container that is only walked needs no fallback at all:
+`json_array_foreach()` and `json_object_foreach()` over `NULL` iterate nothing,
+because `json_array_size(NULL)` is `0`.
+
+The combination is common in this code base, and almost always on a scalar
+(`kw_get_str(..., "", KW_REQUIRED)`), where it costs information and not
+memory. On a `kw_get_list()` or a `kw_get_dict()` it costs both.
+
 ### A kw is not a json
 
 A `kw` is refcounted with `kw_incref()` / `kw_decref()`, **never** with
