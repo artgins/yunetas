@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### The treedb GUI round (gobj-ui 7.23.186-7.23.192)
+
+- **A card of the graph says its id AND the instance it is.** The label
+  replaced the id with the first secondary key whenever the id column was
+  flagged `rowid`/`uuid`/`qualified`, so the three utility yunos of an agent
+  read `7.23.0-1` three times and never said which yuno each one was. It is
+  `id · pkey2` now, and the flags decide nothing.
+- **A Save of the graph writes only the topics that changed.** It wrote one
+  `__graphs__` record per loaded topic, whatever had moved: one card dragged
+  on a five-topic treedb appended five records, four identical to the ones
+  under them — in an append-only store. The comparison is against what the
+  backend holds, not against the G6 history, because the Save button also
+  lights for changes G6 does not record.
+- **A link is drawn in the colour of the two ports it joins** (the child
+  topic's), instead of one neutral grey for the whole graph; the tree
+  relation keeps its width as its mark. **The graph zooms out past 20%**
+  (floor `0.02`). **The schema has its own glyph**, a draughtsman's compass,
+  instead of the `hexagon-nodes` of the data graph it sat beside.
+- **The schema can be read as json**, and it is the STORED one: the new
+  `schema-file` below.
+- **A column of a topic table has a ceiling** (`max_col_width`, 420px): the
+  `description` of `configurations` holds a paragraph per row, and
+  `fitDataFill` gave that column the whole viewport.
+- Peer floors: `maplibre-gl ^6.10.0`, `tabulator-tables ^6.5.3`. No API
+  moved in either.
+
 ### C_NODE: `schema-file`, the schema as it is STORED
 
 - A new command answers the `<treedb>.treedb_schema.json` that sits beside

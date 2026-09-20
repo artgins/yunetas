@@ -831,12 +831,26 @@ with an authz checker (`C_AUTHZ`). Without one, every permission is granted.
 
 | Permission | Commands |
 |---|---|
-| `read` | `nodes`, `node`, `instances`, `pkey2s`, `parents`, `children`, `jtree`, `hooks`, `links`, `snaps`, `snap-content`, `print-tranger`, `export-db`, `treedbs`, `treedb-info`, `topics`, `desc`, `descs` |
+| `read` | `nodes`, `node`, `instances`, `pkey2s`, `parents`, `children`, `jtree`, `hooks`, `links`, `snaps`, `snap-content`, `print-tranger`, `export-db`, `treedbs`, `treedb-info`, `topics`, `desc`, `descs`, `schema-file` |
 | `create` | `create-node`, `import-assets`, `shoot-snap` |
 | `update` | `update-node`, `link-nodes`, `unlink-nodes`, `set-link-events`, `activate-snap`, `deactivate-snap` |
 | `delete` | `delete-node`, `gc-assets` |
 | `create` and `update` | `import-db` |
 | none | `help`, `authzs`, `system-schema`, `trace` (the last one belongs to the global gate) |
+
+**`descs` and `schema-file` are two different documents, and the difference
+matters when a schema does not do what its literal says.** `descs` is the
+schema the treedb is USING: one desc per topic, cols as a LIST, hooks
+resolved. `schema-file` is the `<treedb>.treedb_schema.json` that sits beside
+the topics on disk — cols keyed by name, the `schema_version`, a
+`topic_version` per topic — which is what the C literal is compared against,
+and what WON when the store already held a newer version than the one the
+yuno was compiled with. The treedb GUI's *schema json* button reads it.
+
+```bash
+ycommand -S treedb_yuneta_agent -c "schema-file"
+# {"id": "treedb_yuneta_agent", "schema_version": "24", "topics": [...]}
+```
 
 `update-node` with `options.create=1` is the upsert the SPAs create with. It
 asks for `update`, plus `create` when the node does not exist yet. A refusal
