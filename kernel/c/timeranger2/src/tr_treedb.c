@@ -1040,6 +1040,34 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     }
 
     /*------------------------------*
+     *  Get snap tab
+     *------------------------------*/
+    json_t *treedb_snaps = kw_get_dict(gobj, tranger, "treedbs_snaps", json_object(), KW_CREATE);
+
+    uint32_t snap_tag = 0;
+    treedb_get_activated_snap_tag(
+        gobj,
+        tranger,
+        treedb_name,
+        &snap_tag
+    );
+    if(snap_tag) {
+        char temp[80];
+        snprintf(temp, sizeof(temp), "loading snap_tag %d", snap_tag);
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", temp,
+            "snap_tag",     "%d", (int)snap_tag,
+            NULL
+        );
+    }
+
+    // Save current snap tag
+    json_t *treedb_snap = kw_get_dict(gobj, treedb_snaps, treedb_name, json_object(), KW_CREATE);
+    json_object_set_new(treedb_snap, "activated_snap_tag", json_integer(snap_tag));
+
+    /*------------------------------*
      *  Open "system" lists:
      *      __graphs__
      *------------------------------*/
@@ -1067,7 +1095,18 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "rkey", "",
             "load_record_callback", (json_int_t)(uintptr_t)load_id_callback
         );
-        json_t *jn_extra = json_pack("{s:s}",
+        /*
+         *  How the treedb was ARRANGED is part of the photo: an activated
+         *  snap reads back the layout it froze, the same way it reads back
+         *  the records (treedb_create_topic() below). A snap shot before
+         *  anything was arranged holds no layout, and the graph comes back
+         *  to the automatic one -- which is what that photo looked like.
+         */
+        if(snap_tag) {
+            json_object_set_new(match_cond, "user_flag", json_integer(snap_tag));
+        }
+        json_t *jn_extra = json_pack("{s:i, s:s}",
+            "snap_tag", (int)snap_tag,
             "treedb_name", treedb_name
         );
         if(!tranger2_open_list(
@@ -1090,33 +1129,6 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         }
     }
 
-    /*------------------------------*
-     *  Get snap tab
-     *------------------------------*/
-    json_t *treedb_snaps = kw_get_dict(gobj, tranger, "treedbs_snaps", json_object(), KW_CREATE);
-
-    uint32_t snap_tag = 0;
-    treedb_get_activated_snap_tag(
-        gobj,
-        tranger,
-        treedb_name,
-        &snap_tag
-    );
-    if(snap_tag) {
-        char temp[80];
-        snprintf(temp, sizeof(temp), "loading snap_tag %d", snap_tag);
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", temp,
-            "snap_tag",     "%d", (int)snap_tag,
-            NULL
-        );
-    }
-
-    // Save current snap tag
-    json_t *treedb_snap = kw_get_dict(gobj, treedb_snaps, treedb_name, json_object(), KW_CREATE);
-    json_object_set_new(treedb_snap, "activated_snap_tag", json_integer(snap_tag));
 
     /*------------------------------*
      *  Create "user" topics
@@ -12079,7 +12091,7 @@ PRIVATE json_t *create_assets_topic(
         "",         // tkey
         0,          // pkey2s
         cols,       // owned
-        0,          // snap_tag: the meta-tables are never tagged
+        0,          // snap_tag: __assets__ is never tagged (see assets_held_by_snaps)
         TRUE,       // system_topic
         FALSE       // create_schema
     );
@@ -12541,13 +12553,14 @@ PRIVATE int gc_scan_callback(
 /***************************************************************************
  *  What the SNAPSHOTS still point at: the ids of the assets that the
  *  instance an activation would LOAD, of some snap that still exists,
- *  links. Not every tagged instance: treedb_save_node() inherits the tag,
- *  so after a snap every later instance of a node carries it too, and
- *  holding all of them would hold for ever whatever a node ever named.
+ *  links. Not every tagged instance: a node tagged by one snap is cloned
+ *  by the next one that finds it, so a node lives through as many tagged
+ *  instances as snaps have seen it, and holding all of them would hold
+ *  for ever whatever a node ever named.
  *
- *  treedb_shoot_snap() skips every `__` topic, so a node of __assets__
- *  never carries a tag and the "cannot delete node, it has a tag" guard
- *  never fires for an asset. This walk is the whole guard in its place,
+ *  treedb_shoot_snap() tags no `__` topic but `__graphs__`, so a node of
+ *  __assets__ never carries a tag and the "cannot delete node, it has a
+ *  tag" guard never fires for an asset. This walk is the whole guard in its place,
  *  and it is a disk pass over every instance of every topic with a
  *  `file` column -- which is why whoever has already done it says so
  *  rather than making it run again (the `snaps_walked` of delete_node()),
@@ -13730,7 +13743,18 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
     int idx; json_t *jn_topic;
     json_array_foreach(topics, idx, jn_topic) {
         const char *topic_name = json_string_value(jn_topic);
-        if(strncmp(topic_name, "__", 2)==0) { // Ignore meta-tables
+        /*
+         *  The meta-tables are not part of the photo -- with ONE
+         *  exception. `__graphs__` holds how the treedb was ARRANGED,
+         *  and that is as much what the store looked like as the records
+         *  are, so a snap freezes it and an activation reads it back
+         *  (treedb_open_db() opens it filtered by the tag). `__snaps__`
+         *  cannot tag itself, and `__assets__` is held by a snap another
+         *  way -- assets_held_by_snaps() walks the links of the records
+         *  the snap froze -- because its blobs are shared by every treedb
+         *  of the tranger.
+         */
+        if(strncmp(topic_name, "__", 2)==0 && strcmp(topic_name, "__graphs__")!=0) {
             continue;
         }
 

@@ -24,6 +24,8 @@
  *            7. activate snap_v1 + reload → primaries back to v1
  *            8. activate snap_v3 + reload → primaries to v3
  *            9. deactivate-snap + reload → primaries still v3 (already latest)
+ *           10. a snap freezes the LAYOUT of the graph too (`__graphs__`),
+ *               and an activation reads back the one it froze
  *
  *          The reload (treedb_close_db + treedb_open_db) is what
  *          c_agent's restart_nodes() does after toggling the snap flag.
@@ -456,6 +458,121 @@ PRIVATE int phase_deactivate_stays_at_latest(
 /***************************************************************************
  *              do_test
  ***************************************************************************/
+/***************************************************************************
+ *  The x of the arranged node, read from the layout of TOPIC_BINARIES.
+ *  -1 when the treedb holds no layout for it.
+ ***************************************************************************/
+PRIVATE int layout_x(json_t *tranger, const char *treedb_name)
+{
+    json_t *layout = treedb_get_node(tranger, treedb_name, "__graphs__", TOPIC_BINARIES);
+    if(!layout) {
+        return -1;
+    }
+    return (int)kw_get_int(0, layout, "properties`nodes`role_a`x", -1, 0);
+}
+
+/***************************************************************************
+ *              Phase: a snap freezes the LAYOUT too
+ *
+ *  `__graphs__` holds how the treedb was ARRANGED, and that is as much
+ *  what the store looked like as the records are: the snap tags it and an
+ *  activation reads back the layout it froze, not the one in use. The
+ *  other meta-tables stay out of the photo -- `__snaps__` cannot tag
+ *  itself and `__assets__` is held another way.
+ ***************************************************************************/
+PRIVATE int phase_snap_freezes_the_layout(json_t *tranger, const char *treedb_name)
+{
+    int result = 0;
+    const char *test = "phase 10: a snap freezes the layout of the graph";
+    time_measure_t time_measure;
+    /*  snap_v1 = 1, snap_v3 = 2, so this one is 3  */
+    set_expected_results(
+        test,
+        json_pack("[{s:s}]", "msg", "loading snap_tag 3"),
+        NULL, NULL, 1
+    );
+    MT_START_TIME(time_measure)
+
+    /*  the arrangement as it is when the photo is taken  */
+    json_t *layout = treedb_create_node(tranger, treedb_name, "__graphs__",
+        json_pack("{s:s, s:s, s:b, s:{s:{s:{s:i, s:i}}}}",
+            "id", TOPIC_BINARIES,
+            "topic", TOPIC_BINARIES,
+            "active", 1,
+            "properties",
+                "nodes",
+                    "role_a",
+                        "x", 10,
+                        "y", 20
+        )
+    );
+    if(!layout) {
+        printf("%s  FAIL [%s]: the layout was refused%s\n",
+            On_Red BWhite, test, Color_Off);
+        return -1;
+    }
+
+    if(treedb_shoot_snap(tranger, treedb_name, "snap_layout", "the arrangement") < 0) {
+        printf("%s  FAIL [%s]: shoot snap_layout failed%s\n",
+            On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+
+    /*  arranged again AFTER the photo  */
+    if(!treedb_update_node(tranger, layout,
+        json_pack("{s:{s:{s:{s:i, s:i}}}}",
+            "properties",
+                "nodes",
+                    "role_a",
+                        "x", 99,
+                        "y", 99
+        ),
+        TRUE
+    )) {
+        printf("%s  FAIL [%s]: the second arrangement was refused%s\n",
+            On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    if(layout_x(tranger, treedb_name) != 99) {
+        printf("%s  FAIL [%s]: the live layout is not the second one%s\n",
+            On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+
+    /*  the photo gives back the arrangement it froze  */
+    if(treedb_activate_snap(tranger, treedb_name, "snap_layout") < 0) {
+        printf("%s  FAIL [%s]: activate snap_layout failed%s\n",
+            On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    result += reload_treedb(tranger, treedb_name);
+
+    if(layout_x(tranger, treedb_name) != 10) {
+        printf("%s  FAIL [%s]: an activated snap did not read back the layout it froze (x=%d)%s\n",
+            On_Red BWhite, test, layout_x(tranger, treedb_name), Color_Off);
+        result += -1;
+    }
+
+    /*  and the deactivation brings the live one back  */
+    if(treedb_activate_snap(tranger, treedb_name, "__clear__") < 0) {
+        printf("%s  FAIL [%s]: deactivate failed%s\n",
+            On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    result += reload_treedb(tranger, treedb_name);
+
+    if(layout_x(tranger, treedb_name) != 99) {
+        printf("%s  FAIL [%s]: the deactivation did not bring the live layout back (x=%d)%s\n",
+            On_Red BWhite, test, layout_x(tranger, treedb_name), Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
 PRIVATE int do_test(void)
 {
     int result = 0;
@@ -532,6 +649,7 @@ PRIVATE int do_test(void)
     result += phase_rollback_to_snap_v1(tranger, TREEDB_NAME);
     result += phase_jump_to_snap_v3(tranger, TREEDB_NAME);
     result += phase_deactivate_stays_at_latest(tranger, TREEDB_NAME);
+    result += phase_snap_freezes_the_layout(tranger, TREEDB_NAME);
 
     /*------------------------------------*
      *  Shutdown

@@ -941,7 +941,12 @@ handed out by the `rowid` flag. `shoot-snap` stamps that number on the md2
 
 - one record per key, not one per instance: the record that is live at the
   shot;
-- the meta-topics (`__snaps__`, `__graphs__`, `__assets__`) are skipped;
+- the meta-topics are skipped — **except `__graphs__`**, which holds how the
+  treedb was ARRANGED and is as much what the store looked like as the
+  records are, so the photo carries it (see the table below). `__snaps__`
+  cannot tag itself, and `__assets__` is held by a snap another way:
+  `assets_held_by_snaps()` walks the links of the records the snap froze,
+  because its blobs are shared by every treedb of the tranger;
 - a record an earlier snap already tagged cannot take a second tag
   (`user_flag` is one `uint16_t`), so that one is **cloned**: the clone is
   appended with the new tag and becomes the newest record of the key.
@@ -961,12 +966,17 @@ Activating a snap is a **filtered load**, and it filters ONE index:
 |---|---|---|
 | primary (`id`) | the newest record of each key | the newest record of each key **tagged S** |
 | secondary (`pkey2`) | the newest record of each `(id, pkey2 value)` | unchanged: the newest record of each `(id, pkey2 value)`, whatever its tag |
+| `__graphs__` | the newest layout of each topic | the layout of each topic **tagged S** |
 
 That difference is not a leak, it is **the feature**. Keeping different
 versions of a thing and going back and forward between them needs both
 halves: the primary index puts the node (and, for the agent, the release it
 launches) back to the photo, while the secondary indexes keep every version
 installed since, so nothing is lost while the photo is being looked at.
+
+A snap shot before anything was arranged holds no layout, so activating it
+leaves `__graphs__` empty and the graph comes back to the automatic layout —
+which is what that photo looked like.
 
 An activation changes no record: it sets `active` on the `__snaps__` row and
 the **reload** rebuilds the indexes. In the agent, `deactivate-snap` is what

@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### treedb: a snapshot freezes the ARRANGEMENT of the treedb too
+
+- **`__graphs__` is now part of the photo.** It holds how the treedb was
+  arranged — one record per topic, written by the graph view — and that is
+  as much what the store looked like as the records are. Until now
+  `treedb_shoot_snap()` skipped every topic whose name starts with `__`
+  ("Ignore meta-tables"), and `treedb_open_db()` opened `__graphs__` with
+  no `user_flag` filter, so an activated snap gave back the records of the
+  shot drawn with **whatever layout was in use at that moment**. Both
+  halves changed: the shot tags `__graphs__` like any other topic (clone
+  included, when an earlier snap already tagged the record), and the open
+  filters it by the activated tag.
+- **The other two meta-topics stay out, and for reasons that are not the
+  same.** `__snaps__` cannot tag itself. `__assets__` is held by a snap
+  another way — `assets_held_by_snaps()` walks the links of the records the
+  snap froze — because its blobs are shared by every treedb of the tranger.
+- A snap shot before anything was arranged holds no layout, so activating
+  it leaves `__graphs__` empty and the graph comes back to its automatic
+  layout, which is what that photo looked like.
+- `test_tr_treedb_snap` phase 10 pins it: a layout is saved, the snap is
+  shot, the layout is changed, and the activation reads back the frozen one
+  while the deactivation brings the live one back.
+
 ### treedb: a `now` column is stamped by every write, not only by the create
 
 - **The clock wrote a `now` column once and never again.**

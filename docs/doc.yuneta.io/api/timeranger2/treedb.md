@@ -1470,7 +1470,7 @@ The result: one `EV_TREEDB_NODE_LINKED` (research), no event for engineering, on
 (treedb_save_node)=
 ## [`treedb_save_node()`](https://github.com/artgins/yunetas/blob/7.23.0/kernel/c/timeranger2/src/tr_treedb.c#L5978)
 
-The `treedb_save_node()` function directly saves a given node to the `tranger` database. The record is tagged (`user_flag`) with the snap that is ACTIVATED, 0 when none is: a save never inherits the tag the node carries in memory, so a snap holds exactly what was live when it was shot (see [`treedb_shoot_snap()`](<#treedb_shoot_snap>)).
+The `treedb_save_node()` function directly saves a given node to the `tranger` database. The record is always written with tag 0 (`user_flag`), whether a snap is activated or not: only [`treedb_shoot_snap()`](<#treedb_shoot_snap>) tags a record, so a snap holds exactly what was live when it was shot.
 
 ```C
 int treedb_save_node(
@@ -1629,13 +1629,27 @@ Returns `0` on success, or a negative error code on failure (snap already exists
 
 **Behavior**
 
-For every non-meta topic (that is, names not starting with `__`), the function walks the primary index and, for each current primary node, calls `tranger2_write_user_flag(tranger, topic_name, key, t, i_rowid, snap_id)`. This modifies the underlying `.md2` record byte without appending a new instance — so the chronological `rowid` order is preserved, and `tranger2_read_user_flag()` on the same `(topic, key, t, rowid)` immediately returns the new tag.
+For every user topic — and for `__graphs__`, the one meta-topic the photo carries — the function walks the primary index and, for each current primary node, calls `tranger2_write_user_flag(tranger, topic_name, key, t, i_rowid, snap_id)`. This modifies the underlying `.md2` record byte without appending a new instance — so the chronological `rowid` order is preserved, and `tranger2_read_user_flag()` on the same `(topic, key, t, rowid)` immediately returns the new tag.
 
 Because the tag rides on the existing record, the snap captures *exactly* the primaries that were live at shoot-time — including records originally written with `user_flag = 0`. The tag stays on THAT record: a later save of the node appends an untagged record (see [`treedb_save_node()`](<#treedb_save_node>)), so the snap goes on holding what the node was when it was shot.
 
 When the next shoot finds a primary record that *already* carries a tag from an earlier snap (that is, `__md_treedb__.tag != 0 && != snap_id`), the function appends a **clone** of that record via `tranger2_append_record()` with the new snap's id, rather than overwriting the prior tag in place. The cloned record sits at a higher `rowid` and carries only the new snap's tag. The original record keeps its earlier tag intact. This makes multiple snaps over an unchanged set of primaries co-exist: `activate-snap` of either snap can find its own tagged records on reload. Untagged primaries still take the cheaper in-place path — no clone cost when the record is snapped for the first time.
 
 The clone is the newest record of its key, so a reload makes it the primary. The node in memory moves to the clone at once (`g_rowid`, `i_rowid`, `t`, `tm` and `tag` in `__md_treedb__`), and an immutable node keeps its immutable bit on the clone. The clone does not publish `EV_TREEDB_NODE_UPDATED`.
+
+**The layout travels with the photo.** `__graphs__` holds how the treedb was arranged — one record per topic, written by the graph view — and a snap tags it like any other topic, so an activation reads back the arrangement of the shot and not the one in use. `treedb_open_db()` opens `__graphs__` filtered by the activated tag for exactly that. A snap shot before anything was arranged holds no layout, so activating it leaves `__graphs__` empty and the graph falls back to its automatic layout. The other two meta-topics stay out: `__snaps__` cannot tag itself, and `__assets__` is held another way — `assets_held_by_snaps()` walks the links of the records the snap froze, because its blobs are shared by every treedb of the tranger.
+
+```C
+/*  the arrangement of `devices`, as the graph view writes it  */
+treedb_create_node(tranger, treedb_name, "__graphs__",
+    json_pack("{s:s, s:s, s:b, s:{s:{s:{s:i, s:i}}}}",
+        "id", "devices", "topic", "devices", "active", 1,
+        "properties", "nodes", "dev-a", "x", 10, "y", 20));
+
+treedb_shoot_snap(tranger, treedb_name, "arranged", "");
+/*  ... the cards are moved and saved again ...  */
+treedb_activate_snap(tranger, treedb_name, "arranged");  // reload: x is 10 again
+```
 
 **What a snap holds, and for how long.** Only `shoot-snap` tags records, and a save is always written with tag 0. So `activate-snap` returns every topic to what it was when the snap was shot: rows created after it are absent, and rows updated after it show their content at the shot. This is also true for rows written WHILE the snap is activated. Two earlier rules broke this. Until 7.22.0 a save inherited the node's tag, so the latest snap followed every later update. Until 7.23.0 a save took the tag of the activated snap, so a binary installed during a rollback went into the photo. Two guards follow the snap rather than the node's tag in memory:
 
