@@ -190,8 +190,9 @@ Line numbers are those of `main` on 2026-09-15.
   2026-09-19: a save is always untagged -- only shoot-snap tags a record,
   active snap or not -- so every snap freezes what it shot; the delete guard asks the key's records and the asset gc
   holds what a shot record names while the snap exists.)
-- **tr_treedb snaps -- OPEN, reviewed 2026-09-17.** A snap is a PHOTO of an
-  instant and must never be written into.
+- **tr_treedb snaps -- reviewed 2026-09-17, both gaps CLOSED 2026-09-19/20.**
+  A snap is a PHOTO of an instant and must never be written into. What is
+  left open is one DESIGN decision, in (1).
   1. **CLOSED 2026-09-19 (the user's rule): a record takes a snap's tag
      exactly once, from shoot-snap.** `treedb_save_node()` /
      `treedb_create_node()` write tag 0 even while a snap is ACTIVATED (they
@@ -202,12 +203,14 @@ Line numbers are those of `main` on 2026-09-15.
      made while a snap is active reaches the primary index after the
      deactivation. Whether activation should become a RESTORE (the old option
      B) is still the user's to decide, walking the system step by step.
-  2. **`treedb_delete_instance()`'s guard still reads the in-memory tag**
-     (tr_treedb.c, "Cannot delete instance, node has a tag"). Since a save no
-     longer inherits the tag, a non-primary instance updated after a shot has
-     tag 0 in memory, and delete-instance tombstones every md2 row of that
-     (id, pkey2) -- the frozen one included. It needs the
-     `node_held_by_a_snap()` walk `delete_node()` got, filtered by pkey2.
+  2. **CLOSED 2026-09-20: `treedb_delete_instance()` asks the RECORDS, not
+     the tag in memory.** `instance_held_by_a_snap()` walks the key's records
+     keeping only those of this instance (the pkey2 value is a FIELD, so that
+     walk reads the content, not only the metadata) and refuses when one of
+     them carries the tag of a snap that exists: "cannot delete instance, a
+     snapshot still holds it". `force` overrides. Before, an instance updated
+     after a shot had tag 0 in memory and the delete tombstoned every md2 row
+     of that (id, pkey2), the frozen one included.
      (The side effect noted with it -- meta-topics tagged while a snap is
      active -- went with (1).)
 - **C_NODE / C_TREEDB**: nothing open from the review. (Fixed on 2026-09-15:

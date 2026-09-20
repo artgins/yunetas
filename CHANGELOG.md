@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### treedb: an instance a snapshot froze is not deleted either
+
+- **`treedb_delete_instance()` asked the tag the node carried in MEMORY.**
+  A save is untagged, so an instance updated after a snap was shot carries
+  tag 0 while the record the snap froze is still under it -- and the delete
+  tombstones every md2 row of that (id, pkey2 value), the frozen one
+  included. It now walks the records of the key, keeps the ones of this
+  instance (the pkey2 value is a FIELD, so the walk reads the content and
+  not only the metadata) and refuses when one of them carries the tag of a
+  snap that exists: *"cannot delete instance, a snapshot still holds it"*.
+  `force` overrides, as it did. It is the twin of the guard
+  `treedb_delete_node()` has. `test_tr_treedb_delete_instance` pins it.
+  This closes point 2 of "tr_treedb snaps" in `TODO.md`.
+
 ### treedb: a link that was already there saves nothing and publishes nothing
 
 - **An idempotent link used to append a record and announce a change.**

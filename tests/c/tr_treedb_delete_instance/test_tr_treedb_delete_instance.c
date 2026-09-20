@@ -183,6 +183,94 @@ PRIVATE int test_delete_instance_drops_secondary_keeps_primary(
 }
 
 /***************************************************************************
+ *  An instance a SNAPSHOT froze is not deleted, updated or not.
+ *
+ *  A delete-instance tombstones every md2 row of (id, pkey2 value), the
+ *  frozen one included, so the guard has to ask the RECORDS of the key --
+ *  the ones of this instance -- and not the tag the node carries in
+ *  memory: a save is untagged, so an instance updated after the shot
+ *  carries 0 while the record the snap froze is still under it. That is
+ *  the case this pins; `force` still overrides.
+ ***************************************************************************/
+PRIVATE int test_instance_held_by_a_snap(
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int result = 0;
+    const char *test = "an instance a snapshot holds is not deleted";
+    time_measure_t time_measure;
+    set_expected_results(
+        test,
+        json_pack("[{s:s}]", "msg", "cannot delete instance, a snapshot still holds it"),
+        NULL, NULL, 1
+    );
+    MT_START_TIME(time_measure)
+
+    treedb_create_node(
+        tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "item-9", "version", "v9", "payload", "shot")
+    );
+
+    if(treedb_shoot_snap(tranger, treedb_name, "S", "")<0) {
+        printf("%s  FAIL: cannot shoot the snap%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  The update leaves the primary at tag 0, with the frozen record below  */
+    json_t *node = treedb_get_instance(
+        tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "item-9", "v9"
+    );
+    treedb_update_node(tranger, node, json_pack("{s:s}", "payload", "after"), TRUE);
+    if(kw_get_int(0, node, "__md_treedb__`tag", -1, 0) != 0) {
+        printf("%s  FAIL: the updated instance carries tag %d, expected 0%s\n",
+            On_Red BWhite, (int)kw_get_int(0, node, "__md_treedb__`tag", -1, 0), Color_Off);
+        result += -1;
+    }
+
+    /*  Refused: the snap still holds a record of this instance  */
+    if(treedb_delete_instance(tranger, node, PKEY2_NAME, NULL) == 0) {
+        printf("%s  FAIL: an instance snap S froze was deleted%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "item-9", "v9")) {
+        printf("%s  FAIL: the refused delete took the instance anyway%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  Another instance of the same key, shot by NO snap, still goes  */
+    treedb_create_node(
+        tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "item-9", "version", "v10", "payload", "free")
+    );
+    json_t *free_inst = treedb_get_instance(
+        tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "item-9", "v10"
+    );
+    if(treedb_delete_instance(tranger, free_inst, PKEY2_NAME, NULL) != 0) {
+        printf("%s  FAIL: an instance no snap holds was refused%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  force overrides  */
+    node = treedb_get_instance(
+        tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "item-9", "v9"
+    );
+    if(treedb_delete_instance(tranger, node, PKEY2_NAME, json_pack("{s:b}", "force", 1)) != 0) {
+        printf("%s  FAIL: force did not delete the held instance%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  Verify treedb_delete_node() still wipes the whole record
  *  (primary index + on-disk row) after the prior delete_instance.
  ***************************************************************************/
@@ -434,6 +522,7 @@ PRIVATE int do_test(void)
      *  Execute scenarios
      *------------------------------------*/
     result += test_delete_instance_drops_secondary_keeps_primary(tranger, treedb_name);
+    result += test_instance_held_by_a_snap(tranger, treedb_name);
     result += test_delete_node_clears_everything(tranger, treedb_name);
 
     /*------------------------------------*

@@ -140,6 +140,9 @@ PRIVATE int append_node_record(
 );
 PRIVATE json_t *existing_snap_tags(hgobj gobj, json_t *tranger);
 PRIVATE BOOL node_held_by_a_snap(hgobj gobj, json_t *tranger, const char *treedb_name, json_t *node);
+PRIVATE BOOL instance_held_by_a_snap(
+    hgobj gobj, json_t *tranger, const char *treedb_name, json_t *node, const char *pkey2_name
+);
 PRIVATE json_t *assets_held_by_snaps(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE const char *asset_linked_by_other_treedb(hgobj gobj, json_t *tranger, const char *treedb_name, const char *id);
 PRIVATE json_t *create_assets_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
@@ -6898,12 +6901,21 @@ PUBLIC int treedb_delete_instance(
      *  the node ref is only consumed on success, where delete_secondary_node
      *  extracts it from the index. Same convention as treedb_delete_node.
      */
-    json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
-    if(__tag__ && !force) {
-        gobj_log_error(gobj, 0,
+    /*
+     *  A delete-instance tombstones every md2 row of (id, pkey2 value), so
+     *  an instance a snapshot froze cannot go while that snapshot exists.
+     *  The tag the node carries in memory does NOT answer it: a save is
+     *  untagged, so an instance updated after the shot carries 0 while the
+     *  record the snap froze is still under it -- and this guard, reading
+     *  that tag alone, let the frozen record be tombstoned. The records of
+     *  the key are asked, keeping only those of this instance. `force`
+     *  overrides, as it did.
+     */
+    if(!force && instance_held_by_a_snap(gobj, tranger, treedb_name, node, pkey2_name)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "Cannot delete instance, node has a tag",
+            "msg",          "%s", "cannot delete instance, a snapshot still holds it",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             "id",           "%s", id,
@@ -12723,6 +12735,147 @@ PRIVATE BOOL node_held_by_a_snap(
         match_cond,     // owned
         extra,          // owned
         "treedb-held-walk",
+        FALSE,
+        treedb_name
+    );
+    if(!list) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "cannot read the records of a key",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", id,
+            NULL
+        );
+    } else {
+        tranger2_close_list(tranger, list);
+    }
+    JSON_DECREF(snaps)
+    return held;
+}
+
+/***************************************************************************
+ *  One record of the key, CONTENT included: is it a record of this
+ *  instance (same pkey2 value), and does its tag name a snap that exists?
+ *  The walk stops at the first that does.
+ *
+ *  Metadata alone cannot answer this one: which instance a record belongs
+ *  to is a FIELD of the record.
+ ***************************************************************************/
+PRIVATE int held_instance_scan_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *jn_record  // must be owned
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(md_record->user_flag == 0) {
+        JSON_DECREF(jn_record)
+        return 0;
+    }
+    json_t *snaps = (json_t *)(uintptr_t)kw_get_int(gobj, list, "snaps", 0, KW_REQUIRED);
+    BOOL *held = (BOOL *)(uintptr_t)kw_get_int(gobj, list, "held", 0, KW_REQUIRED);
+    const char *pkey2_name = kw_get_str(gobj, list, "pkey2_name", "", KW_REQUIRED);
+    const char *pkey2_value = kw_get_str(gobj, list, "pkey2_value", "", KW_REQUIRED);
+    if(!snaps || !held) {
+        JSON_DECREF(jn_record)
+        return -1;  // Error already logged
+    }
+
+    if(strcmp(kw_get_str(gobj, jn_record, pkey2_name, "", 0), pkey2_value)!=0) {
+        JSON_DECREF(jn_record)
+        return 0;   // Another instance of the key: not ours to keep
+    }
+    JSON_DECREF(jn_record)
+
+    char tag[32];
+    snprintf(tag, sizeof(tag), "%u", (unsigned)md_record->user_flag);
+    if(json_object_get(snaps, tag)) {
+        *held = TRUE;
+        return -1;  // Found: no need to go on
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Does a snapshot that exists hold a record of THIS INSTANCE?
+ *
+ *  The twin of node_held_by_a_snap(), narrowed to one (id, pkey2 value):
+ *  a delete-instance tombstones every md2 row of that instance, so the
+ *  question is the same and the answer must not be the primary's tag in
+ *  memory. A save is untagged, so an instance updated after a shot carries
+ *  tag 0 while the record the snap froze is still under it.
+ ***************************************************************************/
+PRIVATE BOOL instance_held_by_a_snap(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    json_t *node,           // NOT owned, pure node
+    const char *pkey2_name
+)
+{
+    json_t *snaps = existing_snap_tags(gobj, tranger);
+    if(json_object_size(snaps)==0) {
+        JSON_DECREF(snaps)
+        return FALSE;
+    }
+
+    char tag[32];
+    snprintf(tag, sizeof(tag), "%u",
+        (unsigned)kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED)
+    );
+    if(json_object_get(snaps, tag)) {
+        JSON_DECREF(snaps)
+        return TRUE;
+    }
+
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", "", KW_REQUIRED);
+    const char *id = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
+    const char *pkey2_value = get_key2_value(tranger, topic_name, pkey2_name, node);
+    if(empty_string(pkey2_value)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "instance without pkey2 value",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", id,
+            "pkey2_name",   "%s", pkey2_name,
+            NULL
+        );
+        JSON_DECREF(snaps)
+        return FALSE;
+    }
+
+    json_t *match_cond = json_pack("{s:s, s:b, s:I, s:I}",
+        "key", id,
+        "backward", 0,
+        "to_rowid", (json_int_t)0x7fffffffffffLL,  // one-shot load, no realtime
+        "load_record_callback", (json_int_t)(uintptr_t)held_instance_scan_callback
+    );
+    /*
+     *  The answer travels as a pointer: with an exact key the list is an
+     *  iterator that copies `extra` and is closed before this returns.
+     */
+    BOOL held = FALSE;
+    json_t *extra = json_pack("{s:I, s:I, s:s, s:s}",
+        "snaps", (json_int_t)(uintptr_t)snaps,
+        "held", (json_int_t)(uintptr_t)&held,
+        "pkey2_name", pkey2_name,
+        "pkey2_value", pkey2_value
+    );
+    json_t *list = tranger2_open_list(
+        tranger,
+        topic_name,
+        match_cond,     // owned
+        extra,          // owned
+        "treedb-held-instance-walk",
         FALSE,
         treedb_name
     );
