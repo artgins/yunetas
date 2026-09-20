@@ -1113,16 +1113,21 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  *  running yuno (e.g. the agent itself).  Reads C_YUNO's own identity attrs,
  *  so every yuno inherits it.  Includes BOTH the yuno's own APP_VERSION
  *  ("version") and the framework YUNETA_VERSION ("yuneta_version").
+ *
+ *  SAME fields, SAME order as the CLI --print-role (entry_point.c): the two
+ *  answer the same question and a reader compares them. The build `date`
+ *  was missing here.
  ***************************************************************************/
 PRIVATE json_t *cmd_print_role(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:O, s:O, s:O, s:O}",
+    json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:O, s:O, s:O, s:O}",
         "role",              gobj_read_str_attr(gobj, "yuno_role"),
         "name",              gobj_read_str_attr(gobj, "yuno_name"),
         "alias",             gobj_read_str_attr(gobj, "yuno_tag"),
         "version",           gobj_read_str_attr(gobj, "yuno_version"),
-        "yuneta_version",    gobj_read_str_attr(gobj, "yuneta_version"),
+        "date",              gobj_read_str_attr(gobj, "appDate"),
         "description",       gobj_read_str_attr(gobj, "appDesc"),
+        "yuneta_version",    gobj_read_str_attr(gobj, "yuneta_version"),
         "tags",              gobj_read_json_attr(gobj, "tags"),
         "required_services", gobj_read_json_attr(gobj, "required_services"),
         "public_services",   gobj_read_json_attr(gobj, "public_services"),

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### print-role: the CLI and the runtime command answer the same fields
+
+- **`--print-role` dropped `yuneta_version` silently.** Its `json_pack`
+  format declared six pairs and was handed seven, so jansson stopped at the
+  sixth and the framework version never reached the output.
+- **The runtime `print-role` command (`C_YUNO`) did not answer `date`**, the
+  build datetime the CLI has always printed; it is read from the `appDate`
+  attr. Both now answer role, name, alias, version, date, description,
+  yuneta_version, tags, required_services, public_services and
+  service_descriptor, in that order.
+
 ### The build date of a yuno says its zone: ISO 8601 UTC (CLI 0.19.3)
 
 - **`date` in `--print-role`, `--version` and the agent's `binaries` topic is

@@ -723,7 +723,9 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         json_t *jn_public_services = kw_get_dict_value(0, jn_yuno, "public_services", 0, 0);
         json_t *jn_service_descriptor = kw_get_dict_value(0, jn_yuno, "service_descriptor", 0, 0);
 
-        json_t *jn_basic_info = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
+        /*  SEVEN pairs, seven "s:s": with six, json_pack stopped at the
+         *  sixth and dropped yuneta_version without a word.  */
+        json_t *jn_basic_info = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
             "role", __yuno_role__,
             "name", __yuno_name__,
             "alias", __yuno_tag__,
