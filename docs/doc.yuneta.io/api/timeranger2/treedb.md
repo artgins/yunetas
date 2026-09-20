@@ -1894,6 +1894,28 @@ treedb_create_node(tranger, treedb_name, "binaries",
     json_pack("{s:s, s:s}", "id", "ycommand", "version", "7.21.0"));
 ```
 
+Only the fields the `kw` carries are normalized — with ONE exception, a column
+flagged `now`: the clock writes it, not the caller, so no `kw` ever carries
+one. An update stamps it when the column is also `writable`, and leaves it
+alone when it is not. That is the difference between *when this record was
+last written* and *when this record was born*:
+
+```C
+/*  writable: every save stamps it  */
+"time", "id","time", "type","integer", "flag",["persistent","time","now","writable"]
+
+/*  not writable: the create stamps it, and nothing else does  */
+"t",    "id","t",    "type","integer", "flag",["persistent","time","now"]
+```
+
+```C
+/*  `time` moves to the clock although the kw says nothing about it  */
+treedb_update_node(tranger, layout,
+    json_pack("{s:o}", "properties", json_pack("{s:{s:i,s:i}}",
+        "dev-a", "x", 30, "y", 40)),
+    TRUE);
+```
+
 ---
 
 (get_hook_list)=

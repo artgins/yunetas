@@ -28,6 +28,7 @@
  *           16. the gc takes the bytes that no row names
  *           17. a second arrival under the SAME name appends nothing
  *           18. a create of an existing id stores no file
+           19. `now` is stamped on an update -- of a `writable` column
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -67,6 +68,7 @@
 #define PDF_B   "%PDF-1.4\n%fixture plan of a run-time topic\n"
 #define PNG_F   "\x89PNG\r\n\x1a\n" "IHDR fixture F, the same bytes arriving twice"
 #define PNG_G   "\x89PNG\r\n\x1a\n" "IHDR fixture G, handed to a create that is refused"
+#define PNG_H   "\x89PNG\r\n\x1a\n" "IHDR fixture H, an asset that gets renamed"
 #define SVG_A   "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
 
 /*  One CONTAINER, two legal names for it: isobmff is 'video/mp4' by its
@@ -1573,6 +1575,117 @@ PRIVATE int test_gc_takes_orphan_blobs(json_t *tranger)
 /***************************************************************************
  *
  ***************************************************************************/
+/***************************************************************************
+ *  19. `now` is stamped on an update -- of a `writable` column
+ *
+ *  The flag says the CLOCK writes the column, and only the create wrote
+ *  it: a `__graphs__` layout saved four times said, four times, that it
+ *  was saved the first time. `writable` is what tells the two kinds of
+ *  `now` apart -- `__assets__.t` is the instant the BYTES arrived, and it
+ *  carries no `writable` because renaming the asset must not move it.
+ ***************************************************************************/
+PRIVATE int test_now_is_stamped_on_update(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "19. `now` is stamped on an update of a writable column";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+
+    /*
+     *  `now` ignores the value a create is handed, so the column is aged
+     *  by hand: the clock has one-second steps, and every other way of
+     *  seeing an update stamp it sleeps for one.
+     */
+
+    /*-------------------------------------------*
+     *  __graphs__.time is writable: it moves
+     *-------------------------------------------*/
+    json_t *graph = treedb_create_node(tranger, TREEDB_NAME, "__graphs__",
+        json_pack("{s:s, s:s, s:b, s:{s:{s:i, s:i}}}",
+            "id", "devices",
+            "topic", "devices",
+            "active", 1,
+            "properties",
+                "dev-a",
+                    "x", 10,
+                    "y", 20
+        )
+    );
+    if(!graph) {
+        printf("%s  FAIL: the layout was refused%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    json_object_set_new(graph, "time", json_integer(1));
+
+    graph = treedb_update_node(tranger, graph,
+        json_pack("{s:{s:{s:i, s:i}}}",
+            "properties",
+                "dev-a",
+                    "x", 30,
+                    "y", 40
+        ),
+        TRUE
+    );
+    if(!graph) {
+        printf("%s  FAIL: the layout update was refused%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    if(kw_get_int(0, graph, "time", 0, 0) <= 1) {
+        printf("%s  FAIL: an update left `time` where the create put it%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*-------------------------------------------*
+     *  __assets__.t is not writable: it stays
+     *-------------------------------------------*/
+    json_t *kw = json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
+        "id", "dev-stamp", "name", "dev-stamp", "qr", "",
+        "__files__",
+            "foto",
+                "content64", b64(PNG_H, sizeof(PNG_H)-1),
+                "original_name", "stamp.png",
+                "content_type", "image/png"
+    );
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    if(!node) {
+        printf("%s  FAIL: the device was refused%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    const char *id_h = sha(PNG_H, sizeof(PNG_H)-1);
+    json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_h);
+    if(!asset) {
+        printf("%s  FAIL: the asset was not indexed%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    json_object_set_new(asset, "t", json_integer(1));
+
+    kw = json_pack("{s:{s:{s:o, s:s, s:s}}}",
+        "__files__",
+            "foto",
+                "content64", b64(PNG_H, sizeof(PNG_H)-1),
+                "original_name", "renamed.png",
+                "content_type", "image/png"
+    );
+    if(!treedb_update_node(tranger, node, kw, TRUE)) {
+        printf("%s  FAIL: the rename was refused%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_h);
+    if(strcmp(kw_get_str(0, asset, "original_name", "", 0), "renamed.png")!=0) {
+        printf("%s  FAIL: the rename did not record the name%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(kw_get_int(0, asset, "t", 0, 0) != 1) {
+        printf("%s  FAIL: a rename moved the instant the bytes arrived%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    result += test_json(NULL);
+    return result;
+}
+
 PRIVATE int do_test(void)
 {
     int result = 0;
@@ -1652,6 +1765,7 @@ PRIVATE int do_test(void)
     result += test_same_name_appends_nothing(tranger);
     result += test_refused_create_stores_nothing(tranger);
     result += test_gc_takes_orphan_blobs(tranger);
+    result += test_now_is_stamped_on_update(tranger);
 
     {
         const char *test = "close and shutdown";

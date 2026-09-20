@@ -642,6 +642,7 @@ Flags (parsed by [`kw_has_word`](#kw_has_word) throughout [`tr_treedb.c`](https:
 | `password`   | Treated as opaque secret on inspection.                                 |
 | `email`/`url`/`enum`/`wild` | Semantic types, mostly informational.                    |
 | `inherit`    | Inherits a value from a related node.                                   |
+| `time`/`now` | The column holds an instant. `now` means the CLOCK writes it, whatever the kw says — on the create, and on every update when the column is also `writable`. A `now` column WITHOUT `writable` is stamped once, at the create, and says when the record was born. |
 
 Absence of `persistent` + absence of `hook`/`fkey` means **volatile** —
 in-memory only.
@@ -799,6 +800,16 @@ traces.
 | `notnull` | yes | **yes** |
 | `enum` membership | **yes** | **yes** |
 | A pkey2 value | names the instance | **must not change** (refused) |
+| A `now` column | stamped | **stamped, if it is `writable`** |
+
+The `now` row is the one exception to *"only the fields the kw carries are
+normalized"*: no kw ever carries a `now` column, because the whole point of
+the flag is that the clock writes it and not the caller. Until this was
+fixed, `__graphs__.time` — the instant a treedb layout was saved — kept the
+instant of the FIRST save for the life of the record. `writable` is what
+separates the two meanings: `__graphs__.time` is *when it was last written*,
+`__assets__.t` is *when the bytes arrived*, so a rename of the asset (an
+update of the asset node) leaves it alone.
 
 An update used to store whatever it was handed: no type, no `notnull`, no
 `enum`. And `enum` was checked only when a *schema* was parsed, never when a

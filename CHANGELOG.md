@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### treedb: a `now` column is stamped by every write, not only by the create
+
+- **The clock wrote a `now` column once and never again.**
+  `normalize_node_field_value()` ignores the value it is handed for a
+  column flagged `now` and writes the clock, but `treedb_update_node()`
+  normalizes only the fields the kw CARRIES -- and no kw ever carries one,
+  since the point of the flag is that nobody writes it. So `__graphs__.time`
+  froze at the instant of the first save: a treedb layout saved four times
+  said, four times, that it was saved the first time. The true instant was
+  never lost (the md2 `t` of each record has it), but the column said
+  something else than its own flag.
+- **The gate is `writable`, and it is what tells the two kinds of `now`
+  apart.** `__graphs__.time` is writable: it says when the layout was last
+  saved, and an update stamps it. `__assets__.t` is not: it says when the
+  BYTES arrived, and a rename of the asset -- which IS an update of the
+  asset node -- must leave it where it is. They are the only two `now`
+  columns in the tree. `test_tr_treedb_files` case 19 pins both halves.
+
 ### Docs: the behaviour of snapshots and of links, written down
 
 - `YUNO_TREEDB.md` §3.9 is now the whole snapshot model: what `shoot-snap`

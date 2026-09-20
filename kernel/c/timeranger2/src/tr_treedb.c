@@ -6231,7 +6231,19 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
         BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
         if(!(is_fkey || is_hook)) {
             json_t *new_value = kw_get_dict_value(gobj, kw, col_name, 0, 0);
-            if(new_value) {
+            /*
+             *  A `now` column is stamped by the clock, not by the caller:
+             *  normalize_node_field_value() ignores the value it is handed.
+             *  So an update stamps it too, although no kw ever carries it --
+             *  but only when the column is `writable`, which is what tells
+             *  the two kinds of `now` apart: `__graphs__.time` says when the
+             *  layout was last saved, while `__assets__.t` is not writable
+             *  because it says when the BYTES arrived, and renaming the asset
+             *  must not move it.
+             */
+            BOOL stamp_now = (kw_has_word(gobj, desc_flag, "now", 0) &&
+                kw_has_word(gobj, desc_flag, "writable", 0))?TRUE:FALSE;
+            if(new_value || stamp_now) {
                 if(normalize_node_field_value(
                     topic_name,
                     col_name,
