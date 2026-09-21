@@ -1437,6 +1437,12 @@ from the schema source of truth, never hand-draw them.
   saves the **child** → child's g_rowid increments. Parent NOT saved.
 - **Key rule:** link/unlink saves ONLY the child (the one with the fkey),
   NEVER the parent (the one with the hook).
+- **A link saves the child only if the CHILD changed** (its fkey took a new
+  ref, or a single-valued fkey replaced its parent). Linking a pair that is
+  already linked writes nothing and publishes nothing; filling only the
+  PARENT's hook (a new instance that inherited the fkey) publishes the link but
+  saves nothing, because the hook lives in memory. So "link → child g_rowid+1"
+  holds only when the fkey moved.
 - **Changing a topic's cols requires bumping its `topic_version`** (and
   `schema_version` for structural changes) — otherwise the persisted
   `topic_cols.json` masks the new in-memory schema and validation fires stale
@@ -1840,7 +1846,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | File | Purpose |
 |------|---------|
-| `YUNETA_VERSION` | Current version (7.23.0) — used to generate `yuneta_version.h` |
+| `YUNETA_VERSION` | Current version (7.24.1) — used to generate `yuneta_version.h` |
 | `Kconfig` | Root Kconfig definition |
 | `TODO.md` | API renames/removals/additions between versions |
 | `CHANGELOG.md` | Release history |

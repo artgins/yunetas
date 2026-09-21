@@ -481,13 +481,12 @@ entries at once:
   deactivate; stay on the old one = delete the bad yuno release AND its binary
   while the snap is active, then deactivate. (The "since 7.22.0" of that block,
   part of M39, is 7.24.0 there now.)
-- **M38 -- `treedb_delete_instance()` is documented three contradictory ways**
-  (`YUNO_TREEDB.md:391`, the header, the API page): the code tombstones every
-  md2 row, never looks at links, and borrows the node.
-- **M39 -- the public header `tr_treedb.h:335`, four docs and the comment of
-  `delete_node()` (`tr_treedb.c:6448`) still say a save inherits the snap
-  tag**, or date the fix to 7.22.0 (08ba69dcb ships in 7.23.0, 12e0c762d in
-  7.24.0).
+- **M38, M39 -- SHIPPED (docs, 2026-09-21).** `treedb_delete_instance()` is
+  described one way everywhere (tombstones every md2 row of the instance, no
+  link check, borrowed node, two guards), with an example; no doc, header nor
+  comment says a save inherits a snap tag any more, and the dates are the
+  real ones (inherited up to 7.22.x, activated snap's in 7.23.x, untagged
+  since 7.24.0).
 - **M41 -- `test_c_node_authz` is a hand-written list, not the command table**:
   create-node, delete-node, import-assets, gc-assets, set-link-events and
   `schema-file` have no refusal test, and `schema-file` (17cde8a9a) has no test
@@ -509,9 +508,8 @@ stringifies its default (`0` becomes the truthy `"0"`); `cmd_treedbs` /
 `cmd_links` / `cmd_hooks` still pair `json_incref(kw)` with the wrong decref;
 `treedb_activate_snap()` returns the PREVIOUS snap's tag; the warning *"Parent
 ref already in child fkey"* still fires in the legitimate case of 4e4dcdc00,
-once per `create-yuno`; `schema-file` is missing from `api/gclass/data.md`;
-`CLAUDE.md`'s link rule under "Persistence Rules" is incomplete since
-98e69ab8a / 4e4dcdc00, and it names `YUNETA_VERSION` 7.23.0.
+once per `create-yuno`; `schema-file` is missing from `api/gclass/data.md`. (`CLAUDE.md`'s link rule
+and its `YUNETA_VERSION` were fixed on 2026-09-21.)
 
 ## ESP32: `gobj_post_event()` is not in the port
 

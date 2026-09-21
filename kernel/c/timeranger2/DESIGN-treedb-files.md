@@ -1022,7 +1022,8 @@ And the rest of the same review, closed the same day:
 
 - **The gc held for ever what any tagged instance ever named.** It read every
   instance with a tag as "a snapshot needs this", but `treedb_save_node()`
-  inherits the tag and an activation loads only the newest instance per key
+  inherited the tag then (it has been untagged since 7.23.0, and also under
+  an activated snap since 7.24.0) and an activation loads only the newest instance per key
   under it (§7). It holds exactly that now, of the snaps that still exist —
   so a node that moves on releases, and deleting the `__snaps__` row frees
   what only that snap held. §7's *"deleting the snap frees the asset"* was

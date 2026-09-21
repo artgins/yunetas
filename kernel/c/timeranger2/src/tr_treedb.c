@@ -6464,9 +6464,9 @@ PRIVATE int delete_node(
     /*
      *  A delete erases the KEY on disk, every record of it, so a node a
      *  snapshot froze cannot go while that snapshot exists: the tag in
-     *  memory is the primary's, and since a save is tagged with the
-     *  activated snap the primary of an updated node carries none, so
-     *  the records of the key are asked. `force` overrides, as it did.
+     *  memory is the primary's, and since a save is untagged the primary
+     *  of a node updated after the shot carries none, so the records of
+     *  the key are asked. `force` overrides, as it did.
      */
     if(!force && node_held_by_a_snap(gobj, tranger, treedb_name, node)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,

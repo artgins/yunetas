@@ -266,9 +266,9 @@ on disk. Design note:
   topic, so an asset node never carries a tag and the tag guard never protects
   it: the collector walks the instances on disk of every topic with a `file`
   column and keeps what an ACTIVATION would load — per key, the newest
-  instance under each existing snap's tag, and only that one (`save-node`
-  inherits the tag, so a node that moves on releases what its older instances
-  named). A snapshot holds bytes alive; **deleting the snap frees them**, and
+  instance under each existing snap's tag, and only that one (a save is
+  untagged since 7.24.0, so that instance is the record the snap SHOT, and a
+  node that moves on after the shot does not drag the snap's hold along). A snapshot holds bytes alive; **deleting the snap frees them**, and
   the delete is `delete-node` on its `__snaps__` row (there is no `delete-snap`
   command). A treedb with no snapshot does not walk. It also takes the
   **bytes with no row** — what an interrupted write leaves, and the `.tmp` of

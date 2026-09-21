@@ -676,14 +676,14 @@ function returns `NULL`. See [`parse_schema()`](<#parse_schema>).
 (treedb_delete_instance)=
 ## [`treedb_delete_instance()`](https://github.com/artgins/yunetas/blob/7.24.1/kernel/c/timeranger2/src/tr_treedb.c#L6859)
 
-`treedb_delete_instance()` deletes a specific instance of a node in the TreeDB, identified by its primary and secondary keys. If links exist and the `force` option is not set, the deletion will fail.
+`treedb_delete_instance()` durably deletes ONE instance of a node — one value of a secondary key (`pkey2`). Its slot in that `pkey2` index goes, and every md2 row of that `(id, pkey2 value)` is tombstoned on disk, so a reopen does not bring it back. The primary `id` index is not touched: route only a NON-primary instance here. [`treedb_delete_node()`](<#treedb_delete_node>) deletes a whole key.
 
 ```C
 int treedb_delete_instance(
     json_t      *tranger,
-    json_t      *node,       // owned, pure node
+    json_t      *node,       // pure node borrowed from the index; consumed only on success
     const char  *pkey2_name,
-    json_t      *jn_options  // bool "force"
+    json_t      *jn_options  // owned, bool "force"
 );
 ```
 
@@ -692,17 +692,26 @@ int treedb_delete_instance(
 | Key | Type | Description |
 |---|---|---|
 | `tranger` | `json_t *` | Pointer to the tranger database instance. |
-| `node` | `json_t *` | Owned JSON object representing the node to be deleted. |
-| `pkey2_name` | `const char *` | Name of the secondary key used to identify the instance. |
-| `jn_options` | `json_t *` | JSON object containing options, including the `force` flag to override link constraints. |
+| `node` | `json_t *` | The instance as the `pkey2` index holds it. Borrowed: the index's reference goes on success only. |
+| `pkey2_name` | `const char *` | Name of the secondary key that identifies the instance. |
+| `jn_options` | `json_t *` | Owned. `force` skips the snapshot guard (not the immutable one). |
 
 **Returns**
 
-Returns `0` on success, or a negative error code if the deletion fails.
+Returns `0` on success, or a negative value if the deletion is refused or fails.
 
 **Notes**
 
-If links exist and `force` is not set in `jn_options`, [`treedb_delete_instance()`](<#treedb_delete_instance>) will fail.
+It does NOT look at links: an instance is one version of a node, and the links belong to the node.
+
+```C
+// Delete the release "1.2.0" of yuno "gate1" (topic `yunos`, pkey2 `yuno_release`)
+json_t *inst = treedb_get_instance(tranger, "treedb_yuneta_agent", "yunos",
+    "yuno_release", "gate1", "1.2.0");
+if(inst && treedb_delete_instance(tranger, inst, "yuno_release", 0) < 0) {
+    // refused: immutable, or a snapshot holds it (logged)
+}
+```
 
 A record marked immutable (`__md_treedb__`immutable`, see
 [`treedb_set_node_immutable()`](<#treedb_set_node_immutable>)) is refused and
@@ -1682,7 +1691,7 @@ treedb_shoot_snap(tranger, treedb_name, "arranged", "");
 treedb_activate_snap(tranger, treedb_name, "arranged");  // reload: x is 10 again
 ```
 
-**What a snap holds, and for how long.** Only `shoot-snap` tags records, and a save is always written with tag 0. So `activate-snap` returns every topic to what it was when the snap was shot: rows created after it are absent, and rows updated after it show their content at the shot. This is also true for rows written WHILE the snap is activated. Two earlier rules broke this. Until 7.22.0 a save inherited the node's tag, so the latest snap followed every later update. Until 7.23.0 a save took the tag of the activated snap, so a binary installed during a rollback went into the photo. Two guards follow the snap rather than the node's tag in memory:
+**What a snap holds, and for how long.** Only `shoot-snap` tags records, and a save is always written with tag 0. So `activate-snap` returns every topic to what it was when the snap was shot: rows created after it are absent, and rows updated after it show their content at the shot. This is also true for rows written WHILE the snap is activated. Two earlier rules broke this. Up to 7.22.x a save inherited the node's tag, so the latest snap followed every later update (fixed in 7.23.0). In 7.23.x a save took the tag of the activated snap, so a binary installed during a rollback went into the photo (fixed in 7.24.0). Two guards follow the snap rather than the node's tag in memory:
 
 - [`treedb_delete_node()`](<#treedb_delete_node>) erases the whole key, so it refuses a node any existing snap holds a record of (*"cannot delete node, a snapshot still holds it"*), asking the key's records when the primary carries no tag; `force` overrides.
 - `treedb_gc_files()` holds an asset a node named when a snap was shot for as long as that snap's row exists, whether or not the node has moved on. Deleting the snap frees it.

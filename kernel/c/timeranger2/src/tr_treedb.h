@@ -332,7 +332,10 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
 
 /**rst**
     Direct saving to tranger.
-    Tag __tag__ (user_flag) is inherited.
+    The record is written UNTAGGED (user_flag 0), snap active or not: only
+    treedb_shoot_snap() tags a record, and once. (Before 7.23.0 a save
+    inherited the tag the node carried in memory; in 7.23.x it took the tag
+    of the ACTIVATED snap.)
 **rst**/
 PUBLIC int treedb_save_node(
     json_t *tranger,
@@ -391,14 +394,18 @@ PUBLIC int treedb_delete_node(
 );
 
 /**rst**
-    Remove a node from ONE secondary `pkey2` index.
+    Durably delete ONE instance (one `pkey2` value) of a node: its slot in
+    that secondary `pkey2` index goes, and EVERY md2 row of (id, pkey2
+    value) is tombstoned on disk, so a reopen does not bring it back. The
+    primary `id` index is not touched (route only a NON-primary instance
+    here, as `c_node.c` does); `treedb_delete_node()` wipes a whole key.
 
-    The primary `id` index, every other secondary index, and the
-    on-disk record stay alive.  Use `treedb_delete_node()` for the
-    whole-node wipe (clears every index + calls
-    `tranger2_delete_key()` on the underlying record).
+    It does NOT look at links. It refuses an immutable record (`force`
+    does not override that) and an instance a snapshot holds a record of
+    (`force` overrides that).
 
-    `force` only relaxes the snapshot-tag guard.
+    `node` is borrowed from the index; the index's reference goes only on
+    success.
 **rst**/
 PUBLIC int treedb_delete_instance(
     json_t *tranger,

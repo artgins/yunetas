@@ -388,8 +388,9 @@ Two granularities, both implemented in v7 as of 2026-05-26.
   [`publish_new_rt_disk_records`](https://github.com/artgins/yunetas/blob/7.24.1/kernel/c/timeranger2/src/timeranger2.c#L324)) skip dead rows. Master-only,
   idempotent. Slot ids do NOT renumber — `iterator_size` /
   `total_rows` keep counting slots, not live rows.
-  **Treedb is NOT a consumer**: [`treedb_delete_instance()`](#treedb_delete_instance) is
-  per-`pkey2`-index in-memory cleanup only.
+  **Treedb uses it**: [`treedb_delete_instance()`](#treedb_delete_instance)
+  drops one `pkey2` slot in memory AND calls it on every md2 row of that
+  `(id, pkey2 value)`, so the instance stays deleted after a reopen.
 
 #### Propagation to subscribers (2026-05-26)
 
@@ -968,9 +969,10 @@ handed out by the `rowid` flag. `shoot-snap` stamps that number on the md2
 **Only `shoot-snap` tags a record, and a record is tagged once.** A save
 never gives a tag, active snap or not. Two earlier rules broke this and are
 gone: a save that inherited the tag the node carried in memory (so the
-latest snap followed every later update and froze nothing), and a save that
-took the tag of the ACTIVATED snap (so a binary installed during a rollback
-became part of the photo, which then held two records of one key).
+latest snap followed every later update and froze nothing; until 7.22.x), and
+a save that took the tag of the ACTIVATED snap (so a binary installed during a
+rollback became part of the photo, which then held two records of one key;
+7.23.x). Since 7.24.0 a save is always untagged.
 
 #### What an activated snap reads
 
