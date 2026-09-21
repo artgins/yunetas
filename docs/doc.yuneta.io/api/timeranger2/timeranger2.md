@@ -715,6 +715,22 @@ This function does not produce any error messages if the iterator is not found.
 The `creator` filters the match: pass the same creator used at open. An empty
 `creator` matches only entries that were themselves opened without a creator.
 
+It is one hash lookup (unreleased, after 7.24.1): the topic keeps
+`iterators_by_id` — `{creator: {id: iterator}}` — beside its `iterators`
+array. It used to walk the array, and [`tranger2_open_iterator()`](<#tranger2_open_iterator>)
+calls it to refuse a duplicate, so opening N iterators on a topic was O(N²).
+
+It also **opens the topic** when it is closed (it goes through `tranger2_topic()`).
+To ask whether a handle you registered is still alive, check
+`tranger2_topic_is_open()` first, then look the handle up by its id: a topic
+closed and opened again has the same name and none of the old handles.
+
+```C
+// Is my iterator "it1" still there? Never trust a pointer kept from the open.
+json_t *it = tranger2_topic_is_open(tranger, "frames")?
+    tranger2_get_iterator_by_id(tranger, "frames", "it1", "my_service") : NULL;
+```
+
 ---
 
 (tranger2_get_rt_disk_by_id)=

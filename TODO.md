@@ -313,18 +313,13 @@ entries at once:
   text: C_NODE's `snap-content` does not ask `treedb_is_treedbs_topic()` -- it
   can no longer leave the database, but it can read a topic of the tranger that
   is not a topic of that treedb.
-- **A4 -- C_TRANGER judges a handle alive by the NAME of its topic.**
-  `live_handle()` / `iterator_is_live()` (`c_tranger.c:548-571`) ask only
-  `tranger2_topic_is_open(name)`. `tranger2_close_topic()` frees every iterator
-  and rt of the topic, and anything that opens that name again makes the stale
-  pointer "live": `delete-topic` + `create-topic`, a `gobj_stop` + `gobj_start`
-  of the service (C_TREEDB does it to `tranger_system_schema`), or
-  `tranger2_backup_topic()`. The range made it worse: a multi-key entry holds N
-  raw pointers, and `ac_on_close` -> `reap_handles_of()` (af1489c66)
-  dereferences the handle by itself when the client's tab closes. Reproduced as
-  a SIGSEGV in `tranger2_close_iterator`. Fix: resolve by identity at each use
-  (`tranger2_get_iterator_by_id` and the rt twins), clear the three registries
-  in `mt_stop`, purge a topic's entries in `cmd_delete_topic`.
+- **A4 -- SHIPPED (unreleased, see `CHANGELOG.md`).** C_TRANGER resolves
+  every registered handle by its identity (topic, kind, id, creator) after
+  `tranger2_topic_is_open()`, instead of trusting the pointer kept at
+  registration. Test: the ABA section of `test_c_tranger`. Not done, and no
+  longer needed for safety: emptying the registries in `mt_stop` and purging a
+  topic's entries in `cmd_delete_topic` -- a stale entry now resolves to NULL
+  and is dropped at its next use or when its session is reaped.
 - **A5 -- first half SHIPPED (unreleased, see `CHANGELOG.md`; gui_treedb
   0.17.52).** Every iterator C_TRANGER opens registers the `key_deleted`
   callback, which marks it; its next `get-page` closes it and says why, so a
@@ -501,11 +496,15 @@ with no session and deletes it -- the backup `tr2q_mqtt.c:726` just made.
   `reap_handles_of()` never walks `priv->lists` -- and such a list collects
   every append in memory after its client is gone. It is the open half of
   #2 in the realtime-feed section below.
-- **M22 -- `rkey=.*` opens one iterator per key and keeps them all**
-  (`c_tranger.c:2270`, 7b3fba479): O(N^2) through the linear scan of
-  `tranger2_get_iterator_by_id`, memory by keys x files (1000 keys x 60 daily
-  files = +147 MB). High from about 12k keys. gui_treedb restores the card by
-  itself on every visit.
+- **M22 -- half SHIPPED (unreleased).** `tranger2_get_iterator_by_id()` is a
+  hash lookup (`iterators_by_id` on the topic), so opening N iterators is no
+  longer O(N^2) (`test_iterator_index`: 1000 opens cost 5 ms in either half
+  of 2000). **Still open, and it is a design change for the owner:** the
+  MEMORY -- `rkey=.*` opens one full iterator per key up front and keeps them
+  all (keys x files segments: 1000 keys x 60 daily files = +147 MB), and
+  gui_treedb restores that card by itself on every visit. The fix would open
+  the parts lazily, as pages reach them (`c_tranger.c` `open_multi_key_iterator`
+  / `get_multi_key_page`), which changes what `total_rows` costs to compute.
 
 **Medium -- gobj-ui, gui_treedb, gui_agent**
 

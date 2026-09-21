@@ -239,6 +239,7 @@ PRIVATE int do_test(void)
 
         const char *ignore_keys[]= {
             "__timeranger2__.json",
+            "iterators_by_id",  // an index of "iterators": test_iterator_index checks it
             NULL
         };
         json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
@@ -299,6 +300,7 @@ PRIVATE int do_test(void)
 
         const char *ignore_keys[]= {
             "__timeranger2__.json",
+            "iterators_by_id",  // an index of "iterators": test_iterator_index checks it
             NULL
         };
         json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);

@@ -144,6 +144,8 @@ PRIVATE BOOL topic_name_is_confined(
     const char *topic_name,
     const char *caller
 );
+PRIVATE void add_iterator_to_topic(hgobj gobj, json_t *topic, json_t *iterator);
+PRIVATE void remove_iterator_from_index(json_t *topic, json_t *iterator);
 PRIVATE int close_fd_opened_files(
     hgobj gobj,
     json_t *topic,
@@ -1253,6 +1255,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "disks", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "iterators", json_array(), KW_CREATE);
+    kw_get_dict(gobj, topic, "iterators_by_id", json_object(), KW_CREATE);
 
     /*-------------------------------------*
      *  Load keys and metadata from disk
@@ -7033,22 +7036,60 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         );
         if(!index) {
             // Error already logged
-            json_array_append_new(
-                kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED),
-                iterator
-            );
+            add_iterator_to_topic(gobj, topic, iterator);
             tranger2_close_iterator(tranger, iterator);
             return NULL;
         }
         json_object_set_new(iterator, "index", index);
     }
 
+    add_iterator_to_topic(gobj, topic, iterator);
+
+    return iterator;
+}
+
+/***************************************************************************
+ *  An open iterator lives in the topic's "iterators" array, the band every
+ *  walk reads (close_all_lists, the key_deleted fan-out), and in
+ *  "iterators_by_id" {creator: {id: iterator}}, what tranger2_get_iterator_
+ *  by_id() reads. The lookup was a linear walk of the array, and it runs at
+ *  every open to refuse a duplicate: a multi-key iterator of N keys opens N
+ *  iterators, which made its open O(N^2). The index holds a second reference;
+ *  tranger2_close_iterator() removes both.
+ ***************************************************************************/
+PRIVATE void add_iterator_to_topic(hgobj gobj, json_t *topic, json_t *iterator)
+{
+    json_t *index = kw_get_dict(gobj, topic, "iterators_by_id", 0, KW_REQUIRED);
+    const char *creator = kw_get_str(gobj, iterator, "creator", "", 0);
+    const char *id = kw_get_str(gobj, iterator, "id", "", 0);
+    json_t *by_creator = json_object_get(index, creator);
+    if(!by_creator) {
+        by_creator = json_object();
+        json_object_set_new(index, creator, by_creator);
+    }
+    json_object_set(by_creator, id, iterator);
+
     json_array_append_new(
         kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED),
         iterator
     );
+}
 
-    return iterator;
+/***************************************************************************
+ *  Drop the index entry of `iterator`, only if it is THAT iterator.
+ ***************************************************************************/
+PRIVATE void remove_iterator_from_index(json_t *topic, json_t *iterator)
+{
+    json_t *index = json_object_get(topic, "iterators_by_id");
+    const char *creator = json_string_value(json_object_get(iterator, "creator"));
+    const char *id = json_string_value(json_object_get(iterator, "id"));
+    json_t *by_creator = json_object_get(index, creator?creator:"");
+    if(by_creator && json_object_get(by_creator, id?id:"") == iterator) {
+        json_object_del(by_creator, id?id:"");
+        if(json_object_size(by_creator) == 0) {
+            json_object_del(index, creator?creator:"");
+        }
+    }
 }
 
 /***************************************************************************
@@ -7096,6 +7137,7 @@ PUBLIC int tranger2_close_iterator(
 
     int idx = json_array_find_idx(iterators, iterator);
     if(idx >=0 && idx < json_array_size(iterators)) {
+        remove_iterator_from_index(topic, iterator);
         json_array_remove(
             iterators,
             idx
@@ -7139,27 +7181,13 @@ PUBLIC json_t *tranger2_get_iterator_by_id(
     }
 
     json_t *topic = tranger2_topic(tranger, topic_name);
-    json_t *iterators = json_object_get(topic, "iterators");
-    int idx; json_t *iterator;
-    json_array_foreach(iterators, idx, iterator) {
-        const char *iterator_id = json_string_value(json_object_get(iterator, "id"));
-        if(strcmp(id, iterator_id)==0) {
-            const char *creator_ = json_string_value(
-                json_object_get(iterator, "creator")
-            );
-            if(empty_string(creator) && empty_string(creator_)) {
-                return iterator;
-            }
-            if(strcmp(creator, creator_)==0) {
-                return iterator;
-            } else {
-                continue;
-            }
-        }
-    }
+    json_t *by_creator = json_object_get(
+        json_object_get(topic, "iterators_by_id"),
+        creator
+    );
 
     // Be silence, check at top.
-    return 0;
+    return json_object_get(by_creator, id);
 }
 
 /***************************************************************************

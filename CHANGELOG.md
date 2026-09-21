@@ -78,6 +78,36 @@ has written nothing, so it is no reason to leave).
   `LOG_OPT_EXIT_NEGATIVE` so that an exit is a FAIL for ctest (an `exit(0)`
   reads as a pass).
 
+### C_TRANGER: a handle is judged by its identity, not by its topic's name
+
+A4 and M22 of the 2026-09-21 review.
+
+- **A topic closed and opened again made its stale handles look alive.**
+  C_TRANGER kept the POINTER of every iterator / rt / list it opened for a
+  client and judged it alive by asking whether a topic of that NAME was
+  open. `delete-topic` + `create-topic`, a stop/start of the service, a
+  backup: the name is back, the handles are not, and the next `get-page` —
+  or the session closing, which reaps its handles by itself — dereferenced
+  freed memory (SIGSEGV in `tranger2_close_iterator`). Every use now asks
+  the tranger for the handle by `(topic, kind, id, creator)`, after
+  `tranger2_topic_is_open()` (the by-id getters OPEN a closed topic). The
+  pointer is kept only for a `no_rt` list, which is not the topic's. The
+  parts of a multi-key iterator keep their id and are resolved the same way.
+- **`tranger2_get_iterator_by_id()` is one hash lookup.** The topic keeps
+  `iterators_by_id` — `{creator: {id: iterator}}` — beside its `iterators`
+  array, maintained by open and close. It walked the array, and every open
+  calls it to refuse a duplicate, so a multi-key iterator of N keys opened in
+  O(N²) — and resolving by identity at each page would have made every page
+  that too. The memory side of M22 (one full iterator per key under
+  `rkey=.*`) is NOT addressed here: see `TODO.md`. The index holds the same
+  iterator objects as the array, so `print-tranger` (C_TRANGER) now shows
+  each open iterator twice, under `iterators` and under `iterators_by_id`;
+  the snapshot tests of timeranger2 ignore the index, which
+  `test_iterator_index` checks on its own.
+- Tests: an ABA section in `test_c_tranger` (red against the previous
+  library: SIGSEGV), and `tests/c/timeranger2/test_iterator_index.c` for the
+  index.
+
 ## v7.24.1 (2026-09-20)
 
 ### gbmem: the leak audit does not follow what it writes, and says which ref it caught

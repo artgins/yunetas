@@ -1349,6 +1349,86 @@ PRIVATE int do_test(void)
      *  follows would catch a handle left behind).  */
 
     /*-------------------------------------------------*
+     *      ABA: the topic is closed AND OPENED AGAIN under its handles
+     *      (A4 of the 2026-09-21 review). delete-topic + create-topic, a
+     *      stop/start of the service, a backup: the name is back, the
+     *      handles are not. Judged by the topic's NAME, the stale pointers
+     *      looked alive again and were dereferenced after being freed (a
+     *      SIGSEGV when the session closed); judged by their identity
+     *      (id + creator), they are gone.
+     *
+     *      Opening topic2 again also brings rtDead's topic back: mt_destroy
+     *      must drop it by identity too.
+     *-------------------------------------------------*/
+    if(!tranger2_open_topic(tranger, TOPIC_NAME2, FALSE)) {
+        printf("%s: FAIL (reopen topic2)\n", APP);
+        return -1;
+    }
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itABA",
+            "topic_name", TOPIC_NAME2,
+            "key", KEY_A
+        ), yuno);
+    check_int("open-iterator ABA", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itABAAll",
+            "topic_name", TOPIC_NAME2,
+            "rkey", ".*"
+        ), yuno);
+    check_int("open-iterator rkey ABA", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s, s:s, s:s}",
+            "rt_id", "rtABA",
+            "topic_name", TOPIC_NAME2,
+            "key", KEY_A
+        ), yuno);
+    check_int("open-rt ABA", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    if(tranger2_close_topic(tranger, TOPIC_NAME2) < 0 ||
+            !tranger2_open_topic(tranger, TOPIC_NAME2, FALSE)) {
+        printf("%s: FAIL (close + reopen topic2)\n", APP);
+        global_result += -1;
+    }
+
+    set_expected_results(
+        "handles of a topic opened again are gone, not resurrected",
+        NULL,   // no errors expected
+        NULL, NULL, 1
+    );
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itABA",
+            "from_rowid", 1,
+            "limit", 10
+        ), yuno);
+    check_int("get-page on a topic opened again", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itABAAll",
+            "from_rowid", 1,
+            "limit", 10
+        ), yuno);
+    check_int("get-page rkey on a topic opened again", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itABA"), yuno);
+    check_int("close-iterator on a topic opened again", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itABAAll"), yuno);
+    check_int("close-iterator rkey on a topic opened again",
+        kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    global_result += test_json(NULL);
+    /*  rtABA stays registered, like rtDead: mt_destroy sweeps both.  */
+
+    /*-------------------------------------------------*
      *      A SESSION that only PAGES. Its handles are stamped with it as
      *      src, and C_TRANGER watches the session (EV_ON_CLOSE) from the
      *      first handle -- ONCE: the second handle must not re-subscribe,

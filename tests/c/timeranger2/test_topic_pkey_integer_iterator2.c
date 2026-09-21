@@ -478,6 +478,7 @@ PRIVATE int do_test(void)
 
         const char *ignore_keys[]= {
             "__timeranger2__.json",
+            "iterators_by_id",  // an index of "iterators": test_iterator_index checks it
             "load_record_callback",
             "2000-01-01.md2",
             "2000-01-01.json",
@@ -784,6 +785,7 @@ PRIVATE int do_test(void)
 
         const char *ignore_keys[]= {
             "__timeranger2__.json",
+            "iterators_by_id",  // an index of "iterators": test_iterator_index checks it
             "load_record_callback",
             "2000-01-01.md2",
             "2000-01-01.json",

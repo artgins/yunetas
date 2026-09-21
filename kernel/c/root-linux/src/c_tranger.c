@@ -160,6 +160,14 @@ PRIVATE int mark_iterator_of_deleted_key(
     void *user_data
 );
 PRIVATE const char *deleted_key_of_iterator(hgobj gobj, const char *iterator_id);
+PRIVATE json_t *find_handle_by_identity(
+    hgobj gobj,
+    const char *topic_name,
+    const char *kind,
+    const char *id,
+    json_t *registered_ptr
+);
+PRIVATE json_t *live_part(hgobj gobj, const char *topic_name, json_t *part);
 PRIVATE void watch_owner(hgobj gobj, hgobj src);
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 
@@ -517,12 +525,13 @@ PRIVATE void mt_create(hgobj gobj)
 /***************************************************************************
  *  Register a handle opened for a remote client (list / iterator / rt).
  *
- *  We keep the POINTER, but never the pointer alone: a topic OWNS the
+ *  We keep the IDENTITY of the handle, not its pointer: a topic OWNS the
  *  iterators, rt_mem and rt_disk handles opened on it, and
  *  tranger2_close_topic() closes them all and frees the topic — behind our
  *  back, since anyone can close a topic (the app closing a treedb at
- *  shutdown, a delete-topic at runtime). The topic_name stored beside the
- *  pointer is what lets live_handle() tell a live handle from freed memory.
+ *  shutdown, a delete-topic at runtime). live_handle() asks the tranger for
+ *  (topic_name, kind, id) at every use. The pointer is kept only for a
+ *  "no_rt" list, which is not the topic's.
  ***************************************************************************/
 PRIVATE void register_handle(
     json_t *registry,
@@ -531,19 +540,23 @@ PRIVATE void register_handle(
     json_t *handle
 )
 {
-    json_object_set_new(registry, id, json_pack("{s:s, s:I}",
+    json_object_set_new(registry, id, json_pack("{s:s, s:s, s:I}",
         "topic_name", topic_name?topic_name:"",
+        "kind", json_string_value(json_object_get(handle, "list_type"))?
+            json_string_value(json_object_get(handle, "list_type")) : "",
         "ptr", (json_int_t)(uintptr_t)handle
     ));
 }
 
 /***************************************************************************
  *  The handle registered under `id`, or NULL when the tranger already freed
- *  it (its topic was closed) — in which case there is nothing left to close
- *  and the caller must simply drop the entry. Dereferencing the cached
- *  pointer in that state is a use-after-free: it crashed a yuno on shutdown
- *  (close-treedb frees the topics, then C_TRANGER's mt_destroy walked its
- *  registry closing iterators that no longer existed).
+ *  it (its topic was closed, maybe opened again since) — in which case there
+ *  is nothing left to close and the caller must simply drop the entry.
+ *  Dereferencing a cached pointer in that state is a use-after-free: it
+ *  crashed a yuno on shutdown (close-treedb frees the topics, then
+ *  C_TRANGER's mt_destroy walked its registry closing iterators that no
+ *  longer existed), and it crashed again when the topic was open by the time
+ *  the session closed (A4 of the 2026-09-21 review).
  ***************************************************************************/
 PRIVATE json_t *live_handle(hgobj gobj, json_t *registry, const char *id)
 {
@@ -554,11 +567,71 @@ PRIVATE json_t *live_handle(hgobj gobj, json_t *registry, const char *id)
         return NULL;
     }
     const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
+    const char *kind = kw_get_str(gobj, entry, "kind", "", 0);
+    return find_handle_by_identity(gobj, topic_name, kind, id,
+        (json_t *)(uintptr_t)kw_get_int(gobj, entry, "ptr", 0, 0)
+    );
+}
+
+/***************************************************************************
+ *  The handle a (topic, kind, id) names NOW, asked to the tranger by its
+ *  identity -- this service is its creator -- and never the pointer kept
+ *  at registration. A topic that is closed and opened again (delete-topic
+ *  + create-topic, a stop/start of the service, a backup) has the same
+ *  NAME and none of the handles: judged by the name, the stale pointer
+ *  looked alive again and was dereferenced after being freed.
+ *
+ *  Asks tranger2_topic_is_open() first: the by-id getters go through
+ *  tranger2_topic(), which OPENS a closed topic.
+ *
+ *  A "no_rt" list is not the topic's, so it has no identity to ask for:
+ *  its pointer is the handle.
+ ***************************************************************************/
+PRIVATE json_t *find_handle_by_identity(
+    hgobj gobj,
+    const char *topic_name,
+    const char *kind,
+    const char *id,
+    json_t *registered_ptr
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     if(!tranger2_topic_is_open(priv->tranger, topic_name)) {
         return NULL;
     }
+    if(strcmp(kind, "iterator")==0) {
+        return tranger2_get_iterator_by_id(priv->tranger, topic_name, id, gobj_name(gobj));
+    }
+    if(strcmp(kind, "rt_mem")==0) {
+        return tranger2_get_rt_mem_by_id(priv->tranger, topic_name, id, gobj_name(gobj));
+    }
+    if(strcmp(kind, "rt_disk")==0) {
+        return tranger2_get_rt_disk_by_id(priv->tranger, topic_name, id, gobj_name(gobj));
+    }
+    if(strcmp(kind, "no_rt")==0) {
+        return registered_ptr;
+    }
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL,
+        "msg",          "%s", "Unknown kind of registered handle",
+        "topic_name",   "%s", topic_name,
+        "kind",         "%s", kind,
+        "id",           "%s", id,
+        NULL
+    );
+    return NULL;
+}
 
-    return (json_t *)(uintptr_t)kw_get_int(gobj, entry, "ptr", 0, 0);
+/***************************************************************************
+ *  One part of a multi-key iterator, by identity (see above).
+ ***************************************************************************/
+PRIVATE json_t *live_part(hgobj gobj, const char *topic_name, json_t *part)
+{
+    return find_handle_by_identity(gobj, topic_name, "iterator",
+        kw_get_str(gobj, part, "id", "", 0), NULL
+    );
 }
 
 /***************************************************************************
@@ -575,8 +648,18 @@ PRIVATE BOOL iterator_is_live(hgobj gobj, const char *iterator_id)
     if(!entry || !priv->tranger) {
         return FALSE;
     }
+    json_t *parts = json_object_get(entry, "parts");
+    if(!parts) {
+        return live_handle(gobj, priv->iterators, iterator_id)? TRUE : FALSE;
+    }
     const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
-    return tranger2_topic_is_open(priv->tranger, topic_name)? TRUE : FALSE;
+    int idx; json_t *part;
+    json_array_foreach(parts, idx, part) {
+        if(!live_part(gobj, topic_name, part)) {
+            return FALSE;
+        }
+    }
+    return TRUE;
 }
 
 /***************************************************************************
@@ -594,18 +677,20 @@ PRIVATE int close_registered_iterator(hgobj gobj, const char *iterator_id)
     }
 
     int result = 0;
-    if(iterator_is_live(gobj, iterator_id)) {
-        json_t *parts = json_object_get(entry, "parts");
-        if(parts) {
-            int idx; json_t *part;
-            json_array_foreach(parts, idx, part) {
-                json_t *iterator = (json_t *)(uintptr_t)kw_get_int(gobj, part, "ptr", 0, 0);
-                if(tranger2_close_iterator(priv->tranger, iterator) < 0) {
-                    result = -1;    // Error already logged
-                }
+    json_t *parts = json_object_get(entry, "parts");
+    if(parts) {
+        /*  Part by part: one that is gone was freed with its topic.  */
+        const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
+        int idx; json_t *part;
+        json_array_foreach(parts, idx, part) {
+            json_t *iterator = live_part(gobj, topic_name, part);
+            if(iterator && tranger2_close_iterator(priv->tranger, iterator) < 0) {
+                result = -1;    // Error already logged
             }
-        } else {
-            json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
+        }
+    } else {
+        json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
+        if(iterator) {
             result = tranger2_close_iterator(priv->tranger, iterator);
         }
     }
@@ -652,9 +737,10 @@ PRIVATE const char *deleted_key_of_iterator(hgobj gobj, const char *iterator_id)
     json_t *entry = json_object_get(priv->iterators, iterator_id);
     json_t *parts = json_object_get(entry, "parts");
     if(parts) {
+        const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
         int idx; json_t *part;
         json_array_foreach(parts, idx, part) {
-            json_t *iterator = (json_t *)(uintptr_t)kw_get_int(gobj, part, "ptr", 0, 0);
+            json_t *iterator = live_part(gobj, topic_name, part);
             const char *key = json_string_value(json_object_get(iterator, "deleted_key"));
             if(key) {
                 return key;
@@ -679,6 +765,7 @@ PRIVATE const char *deleted_key_of_iterator(hgobj gobj, const char *iterator_id)
  ***************************************************************************/
 PRIVATE json_t *get_multi_key_page(
     hgobj gobj,
+    const char *topic_name,
     json_t *parts,
     json_int_t from_rowid,  // based 1
     json_int_t limit,
@@ -727,7 +814,19 @@ PRIVATE json_t *get_multi_key_page(
             json_int_t local_first = (first > offset? first : offset) - offset;
             json_int_t local_last = (last < offset + rows? last : offset + rows) - offset;
             const char *key = kw_get_str(gobj, part, "key", "", 0);
-            json_t *iterator = (json_t *)(uintptr_t)kw_get_int(gobj, part, "ptr", 0, 0);
+            json_t *iterator = live_part(gobj, topic_name, part);
+            if(!iterator) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "Part of a multi-key iterator is gone",
+                    "topic_name",   "%s", topic_name,
+                    "key",          "%s", key,
+                    NULL
+                );
+                JSON_DECREF(data)
+                return NULL;
+            }
 
             json_t *page = tranger2_iterator_get_page(
                 priv->tranger,
@@ -2368,8 +2467,9 @@ PRIVATE json_t *open_multi_key_iterator(
         tranger2_set_rt_key_deleted_callback(iterator, mark_iterator_of_deleted_key, gobj);
         json_int_t rows = (json_int_t)tranger2_iterator_size(iterator);
         total_rows += rows;
-        json_array_append_new(parts, json_pack("{s:s, s:I, s:I}",
+        json_array_append_new(parts, json_pack("{s:s, s:s, s:I, s:I}",
             "key", key,
+            "id", json_string_value(json_object_get(iterator, "id")),
             "ptr", (json_int_t)(uintptr_t)iterator,
             "rows", rows
         ));
@@ -2646,6 +2746,7 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     if(parts) {
         page = get_multi_key_page(
             gobj,
+            kw_get_str(gobj, jn_ptr, "topic_name", "", 0),
             parts,
             from_rowid,
             limit>0?limit:0,
