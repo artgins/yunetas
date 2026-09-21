@@ -375,6 +375,13 @@ entries at once:
   "activation as a restore" discarded on 2026-09-20. Fix: refuse `shoot-snap`
   while a snap is active.
 
+**Found while fixing A2 (2026-09-21), not from the review:**
+`tranger2_list_topic_names()` skips every entry that starts with `.` and
+returns the `<topic>.bak` backups as topics. So the MQTT broker's orphan-queue
+clean-up (`c_mqtt_broker.c:829`) never sees a `.foo-IN` queue (legal: the
+broker accepts `.foo` as a client id), and it takes `X-OUT.bak` for a queue
+with no session and deletes it -- the backup `tr2q_mqtt.c:726` just made.
+
 **Medium -- tr_treedb, C_NODE, the agent**
 
 - **M1 -- `treedb_replace_links()` still unlinks first** (`tr_treedb.c:8927`).
