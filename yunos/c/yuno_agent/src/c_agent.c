@@ -2953,9 +2953,10 @@ PRIVATE json_t *cmd_delete_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     return msg_iev_build_response(
         gobj,
-        0,
+        result,
         result<0?
-            json_sprintf("%s", gobj_log_last_message()):
+            json_sprintf("%s: realm NOT deleted: %s",
+                gobj_yuno_role_plus_name(), gobj_log_last_message()):
             json_sprintf("%d realms deleted", idx),
         0,
         jn_data,
@@ -3534,6 +3535,21 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
+    if(!node) {
+        /*
+         *  The file is in place, the record is not: sync-binaries read the
+         *  old result 0 as "installed" (M15 of the 2026-09-21 review).
+         */
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: binary copied but its record was NOT updated: %s",
+                gobj_yuno_role_plus_name(), gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*
      *  Convert result in json
@@ -4091,6 +4107,17 @@ PRIVATE json_t *cmd_update_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
         src
     );
     JSON_DECREF(iter)
+    if(!node) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: configuration NOT updated: %s",
+                gobj_yuno_role_plus_name(), gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*
      *  Inform

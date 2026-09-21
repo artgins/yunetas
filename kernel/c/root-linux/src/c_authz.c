@@ -149,6 +149,7 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_accesses(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE BOOL role_ref_is_linkable(hgobj gobj, const char *role_ref);
 PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -1758,8 +1759,8 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            // Error already logged by treedb
-            json_sprintf("Can't create user: %s", username),
+            // Error already logged
+            json_sprintf("Can't create user %s: %s", username, gobj_log_last_message()),
             0,
             0,
             kw  // owned
@@ -1888,8 +1889,8 @@ PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            // Error already logged by treedb
-            json_sprintf("Can't update user: %s", username),
+            // Error already logged
+            json_sprintf("Can't update user %s: %s", username, gobj_log_last_message()),
             0,
             0,
             kw  // owned
@@ -4061,6 +4062,50 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  A `role` given to create/update-user names a role that can be linked:
+ *  `roles^<role id>^users`, and the role exists.
+ ***************************************************************************/
+PRIVATE BOOL role_ref_is_linkable(hgobj gobj, const char *role_ref)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char topic_name[NAME_MAX];
+    char role_id[NAME_MAX];
+    char hook_name[NAME_MAX];
+    if(!decode_parent_ref(
+            role_ref,
+            topic_name, sizeof(topic_name),
+            role_id, sizeof(role_id),
+            hook_name, sizeof(hook_name)
+        ) || strcmp(topic_name, "roles")!=0 || strcmp(hook_name, "users")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Bad role ref, expected roles^ROLE^users",
+            "role",         "%s", role_ref,
+            NULL
+        );
+        return FALSE;
+    }
+
+    json_t *role = priv->gobj_treedb?
+        gobj_get_node(priv->gobj_treedb, "roles",
+            json_pack("{s:s}", "id", role_id), 0, gobj) : NULL;
+    if(!role) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Role does not exist",
+            "role",         "%s", role_ref,
+            NULL
+        );
+        return FALSE;
+    }
+    JSON_DECREF(role)
+    return TRUE;
+}
+
+/***************************************************************************
  *  Create or update a user
  ***************************************************************************/
 PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -4075,6 +4120,18 @@ PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     BOOL disabled_given = kw_has_key(kw, "disabled");
     json_t *credentials = kw_get_dict_value(gobj, kw, "credentials", 0, 0);
     json_t *properties = kw_get_dict_value(gobj, kw, "properties", 0, 0);
+
+    /*
+     *  A role that cannot be linked is refused before anything is written.
+     *  The treedb refused the link on its own and the user was saved all
+     *  the same, so the command answered "User updated" for a role the user
+     *  did not get (M15 of the 2026-09-21 review).
+     */
+    if(!empty_string(role) && !role_ref_is_linkable(gobj, role)) {
+        // Error already logged
+        KW_DECREF(kw)
+        return -1;
+    }
 
     time_t t;
     time(&t);

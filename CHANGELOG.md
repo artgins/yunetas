@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### The loose ends of the 2026-09-21 review: M15, M26, M31, M41, M42
+
+- **M15 -- commands that answered success for what they did not do.**
+  - The agent's `update-binary` and `update-config` answered `0` when the
+    record was not updated (`gobj_update_node()` returned NULL), and
+    `sync-binaries` counted the binary installed; `delete-realm` answered `0`
+    whatever `gobj_delete_node()` said. They answer `-1` and why now.
+  - C_AUTHZ `create-user` / `update-user` with a role that cannot be linked
+    wrote the user and answered *"User created/updated"*. A role is checked
+    first -- a ref `roles^<role id>^users` to a role that exists -- and the
+    user is not written otherwise; it keeps the roles it had.
+  - treedb: a DICT hook took the newest instance of a child, so a
+    `delete_instance` of it left it hooked and a forced delete of the parent
+    SAVED it back to disk -- the primary after a reload (the agent's
+    binaries and configurations). A dict hook keeps the child's primary
+    instance now, as an array hook keeps the one it has.
+  - treedb: a child hooked by several instances of one parent was unlinked
+    from ONE; the others kept it while its fkey no longer named them, and
+    then refused every unlink and a forced delete until a reload. An unlink
+    takes the child out of every instance's hook.
+- **M41 -- C_NODE: three commands answered anyone.** `system-schema` and the
+  `set-link-events` display ask `read`, `trace` (process-wide) asks `update`.
+  `test_c_node_authz` walks C_NODE's command table instead of a hand-written
+  list, so a command added without a permission fails it.
+- **M42 -- tests.** `test_c_node_authz` opens the same treedb as a REPLICA and
+  checks that every write answers READ-ONLY and changes nothing; gobj-js'
+  `kwid.test.js` pins the 7.21.0 fix it did not (a record without `id` is
+  logged).
+- **M26, M31 -- gobj-ui 7.23.195.** A writable time column keeps its seconds
+  across a save; record text in the treedb table is a text node, never HTML.
+- Tests: `command_delete_user` (the role cases), `tr_treedb_update_instance`
+  (a dict hook over a pkey2 child, and an unlink from one instance; red
+  against the previous library, the resurrection included),
+  `c_node_authz`. The agent's three answers have no test: there is no test
+  bench for agent commands.
+
 ### treedb + C_TRANGER: a schema write is checked and published whole; a session takes its lists
 
 M6, M7, M8 and M21 of the 2026-09-21 review (`TODO.md`).

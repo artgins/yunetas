@@ -321,6 +321,150 @@ PRIVATE int test_update_cannot_change_pkey2(
 }
 
 /***************************************************************************
+ *  A child hooked by two instances of one parent (item-1 v1 and v9, left
+ *  by the test above) and unlinked from ONE of them is gone from the hook
+ *  of both: the child's fkey names the parent's id, not an instance.
+ *
+ *  It stayed in the other instance's hook (M15 of the 2026-09-21 review),
+ *  and the refusal of an unlink from a parent the child does not name then
+ *  made that parent impossible to delete, even with force, until a reload.
+ ***************************************************************************/
+PRIVATE int test_unlink_from_one_instance_frees_every_instance(
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int result = 0;
+    const char *test = "unlink from one instance of the parent frees every instance";
+    time_measure_t time_measure;
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    MT_START_TIME(time_measure)
+
+    json_t *part = treedb_get_node(tranger, treedb_name, "parts", "part-1");
+    json_t *item_v1 = treedb_get_instance(
+        tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "item-1", "v1"
+    );
+    json_t *item_v9 = treedb_get_instance(
+        tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "item-1", "v9"
+    );
+    if(!part || !item_v1 || !item_v9) {
+        printf("%s  FAIL: the part or an instance is missing%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+        result += test_json(NULL);
+        return result;
+    }
+
+    if(treedb_unlink_nodes(tranger, "parts", item_v9, part)<0) {
+        printf("%s  FAIL: cannot unlink the part from the v9 instance%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(json_array_size(kw_get_list(0, item_v1, "parts", 0, 0)) != 0) {
+        printf("%s  FAIL: the v1 instance still hooks the unlinked part%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(json_array_size(kw_get_list(0, item_v9, "parts", 0, 0)) != 0) {
+        printf("%s  FAIL: the v9 instance still hooks the unlinked part%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    json_t *item = treedb_get_node(tranger, treedb_name, TOPIC_NAME, "item-1");
+    if(treedb_delete_node(tranger, item, json_pack("{s:b}", "force", 1))<0) {
+        printf("%s  FAIL: the parent cannot be deleted after the unlink%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  A DICT hook keeps the PRIMARY instance of a child, like an array hook
+ *  keeps the one it has. It took the newest: a second instance of the
+ *  child replaced the entry, a delete_instance of it left it there, and a
+ *  forced delete of the parent unlinked -- and so SAVED -- the deleted
+ *  instance: it came back on disk, as the primary after a reload (M15 of
+ *  the 2026-09-21 review; the agent's binaries and configurations).
+ ***************************************************************************/
+PRIVATE int test_dict_hook_keeps_the_primary_instance(
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int result = 0;
+    const char *test = "a dict hook keeps the primary instance of a child";
+    time_measure_t time_measure;
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    MT_START_TIME(time_measure)
+
+    json_t *item = treedb_create_node(
+        tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s}", "id", "item-2", "version", "v1")
+    );
+    /*  'a' linked to the parent; 'b', a new instance, inherits the link  */
+    json_t *gadget_a = treedb_create_node(
+        tranger, treedb_name, "gadgets",
+        json_pack("{s:s, s:s}", "id", "g-1", "version", "a")
+    );
+    if(treedb_link_nodes(tranger, "gadgets", item, gadget_a)<0) {
+        printf("%s  FAIL: cannot link the instance 'a'%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    treedb_create_node(
+        tranger, treedb_name, "gadgets",
+        json_pack("{s:s, s:s}", "id", "g-1", "version", "b")
+    );
+    json_t *primary = treedb_get_node(tranger, treedb_name, "gadgets", "g-1");
+    json_t *gadget_b = treedb_get_instance(
+        tranger, treedb_name, "gadgets", PKEY2_NAME, "g-1", "b"
+    );
+    if(!item || !primary || !gadget_b || gadget_b == primary) {
+        printf("%s  FAIL: expected a primary instance and a second one 'b'%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+        result += test_json(NULL);
+        return result;
+    }
+    json_t *hooked = json_object_get(kw_get_dict(0, item, "gadgets", 0, 0), "g-1");
+    if(hooked != primary) {
+        printf("%s  FAIL: the dict hook holds a non-primary instance of the child%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    if(treedb_delete_instance(tranger, gadget_b, PKEY2_NAME, NULL)<0) {
+        printf("%s  FAIL: cannot delete the instance 'b'%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_delete_node(tranger, item, json_pack("{s:b}", "force", 1))<0) {
+        printf("%s  FAIL: cannot delete the parent with force%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  What is on disk says it: a reload must not bring 'b' back  */
+    treedb_close_db(tranger, treedb_name);
+    json_t *jn_schema = legalstring2json(schema_sample, TRUE);
+    if(!treedb_open_db(tranger, treedb_name, jn_schema, 0)) {
+        result += -1;
+    }
+    if(treedb_get_instance(tranger, treedb_name, "gadgets", PKEY2_NAME, "g-1", "b")) {
+        printf("%s  FAIL: the deleted instance 'b' came back after a reload%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *              do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -364,10 +508,11 @@ PRIVATE int do_test(void)
     const char *treedb_name = "treedb_update_instance";
     {
         const char *test = "open treedb";
-        /*  treedb_open_db creates __snaps__ + __graphs__ + items + __assets__  */
+        /*  treedb_open_db creates __snaps__ + __graphs__ + items + gadgets + parts + __assets__  */
         set_expected_results(
             test,
-            json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+            json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+                "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
@@ -431,6 +576,8 @@ PRIVATE int do_test(void)
     result += test_update_refreshes_secondary_index(tranger, treedb_name);
     result += test_update_cannot_change_pkey2(tranger, treedb_name);
     result += test_link_from_a_new_instance_writes_nothing(tranger, treedb_name);
+    result += test_unlink_from_one_instance_frees_every_instance(tranger, treedb_name);
+    result += test_dict_hook_keeps_the_primary_instance(tranger, treedb_name);
 
     /*------------------------------------*
      *  Shutdown

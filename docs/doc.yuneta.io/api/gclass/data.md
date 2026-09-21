@@ -158,11 +158,16 @@ matters only in a yuno with an authz checker (`C_AUTHZ`).
 
 | Permission | Commands |
 |---|---|
-| `read` | `nodes`, `node`, `instances`, `pkey2s`, `parents`, `children`, `jtree`, `hooks`, `links`, `snaps`, `snap-content`, `print-tranger`, `export-db`, `treedbs`, `treedb-info`, `topics`, `desc`, `descs` |
+| `read` | `nodes`, `node`, `instances`, `pkey2s`, `parents`, `children`, `jtree`, `hooks`, `links`, `snaps`, `snap-content`, `print-tranger`, `export-db`, `treedbs`, `treedb-info`, `topics`, `desc`, `descs`, `system-schema`, `schema-file`, `set-link-events` (shown, no `set`) |
 | `create` | `create-node`, `import-assets`, `shoot-snap` |
-| `update` | `update-node`, `link-nodes`, `unlink-nodes`, `set-link-events`, `activate-snap`, `deactivate-snap` |
+| `update` | `update-node`, `link-nodes`, `unlink-nodes`, `set-link-events` (changed), `trace`, `activate-snap`, `deactivate-snap` |
 | `delete` | `delete-node`, `gc-assets` |
 | `create` and `update` | `import-db` |
+
+Only `help` and `authzs` ask nothing. `system-schema`, `trace` and the
+`set-link-events` display answered anyone until after 7.24.1; the test walks
+C_NODE's command table (`tests/c/c_node_authz`), so a command added without a
+permission fails it.
 
 `update-node` with `options.create=1` also asks for `create` when the node
 does not exist yet. A refusal answers `-403`, and nothing is written.

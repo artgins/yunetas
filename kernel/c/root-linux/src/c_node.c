@@ -3486,6 +3486,11 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t* cmd_system_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     json_t *jn_schema = treedb_create_system_schema();
 
     /*
@@ -3585,6 +3590,12 @@ PRIVATE json_t *cmd_schema_file(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    /*  The treedb trace is process-wide: it is not a read  */
+    json_t *refused = refuse_without_authz(gobj, "update", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     BOOL set = kw_get_bool(gobj, kw, "set", 0, KW_WILD_NUMBER);
 
     if(set) {
@@ -3620,7 +3631,12 @@ PRIVATE json_t *cmd_set_link_events(hgobj gobj, const char *cmd, json_t *kw, hgo
     BOOL show_only = json_absent(jn_set) ||
         (json_is_string(jn_set) && empty_string(json_string_value(jn_set)));
 
-    if(!show_only) {
+    if(show_only) {
+        json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+        if(refused) {
+            return refused;
+        }
+    } else {
         const char *permission = "update";
         if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
             return msg_iev_build_response(

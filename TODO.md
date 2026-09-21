@@ -179,7 +179,9 @@ Line numbers are those of `main` on 2026-09-15.
 - **tr_treedb**: `treedb_delete_instance()` does not unlink, and
   that matters in ONE case only (analysed 2026-09-15): the loader links only the
   `id` index (`load_all_links()`) and hooks dedup by child id, so a non-primary
-  CHILD instance never sits in a parent's hook. A non-primary PARENT instance
+  CHILD instance never sits in a parent's hook. (That premise was false for a
+  DICT hook until M15 of the 2026-09-21 review: it took the newest instance.
+  It holds now -- a dict hook keeps the primary.) A non-primary PARENT instance
   can hold children linked during the session; deleting it leaves them under no
   visible parent until the reload re-hangs them from the primary (their fkey
   names only the id). The agent's `delete-config` / `delete-binary` refuse a
@@ -397,17 +399,10 @@ entries at once:
 - **M13 -- SHIPPED with A1**: `delete-treedb` on a replica answers READ-ONLY
   before `delete_client_treedb_schema()` touches memory.
 - **M14 -- SHIPPED (unreleased).**
-- **M15 (s/v)** -- `update-binary` / `update-config` answer result 0 when
-  `gobj_update_node()` returns NULL, and `sync-binaries` reads that as OK
-  (`c_agent.c:3530`); `delete-realm` always answers 0 (`c_agent.c:2956`);
-  C_AUTHZ's `update-user` with a role that cannot be linked answers
-  *"User updated"* (`c_authz.c:4127`) -- it no longer strips the roles (M1),
-  but it does not say the role was refused either; a DICT
-  hook takes the newest child instance, so a deleted instance stays in the
-  hook and a forced delete of the parent resurrects it on disk
-  (`tr_treedb.c:4582` -- this contradicts the premise the `delete_instance`
-  bullet of the first review was closed on); a child held by the hooks of
-  several instances of one parent is unlinked from ONE (`tr_treedb.c:8167`).
+- **M15 -- SHIPPED (unreleased).** update-binary/update-config/delete-realm
+  answer their failures; create/update-user refuse a role that cannot be
+  linked; a dict hook keeps the primary child instance; an unlink frees every
+  instance of the parent.
 
 **Medium -- timeranger2, C_TRANGER**
 
@@ -441,17 +436,13 @@ entries at once:
 
 - **M24, M25 -- SHIPPED in gobj-ui 7.23.193** (M25 behind the new
   `form_waits_for_answer`, which `C_YUI_TREEDB_TOPICS` sets).
-- **M26 -- A8 is incomplete** (`treedb_write_plan.js:112`): a `writable` time
-  column still loses its seconds on every Save of any other field
-  (`datetime-local` without seconds, and `get_form_values()` reads every
-  field). The column class was fixed, not the cause.
+- **M26 -- SHIPPED in gobj-ui 7.23.195** (the input carries seconds).
 - **M27 -- SHIPPED in gobj-ui 7.23.193.**
 - **M28 -- SHIPPED (unreleased C `update-node` option `create_only`; gobj-ui
   7.23.194 sends it from +New).** Against an older backend +New is still an
   upsert.
 - **M29, M30 -- SHIPPED in gobj-ui 7.23.193.**
-- **M31 -- string cells go in through `innerHTML`** (`:2093`, predates the
-  range): text with `<` is mangled. The plugin's CSP keeps script from running.
+- **M31 -- SHIPPED in gobj-ui 7.23.195** (text nodes; hook cell as DOM).
 - **M32, M33 -- SHIPPED in gobj-ui 7.23.193.**
 - **M35 -- SHIPPED in gui_treedb 0.17.53.**
 - **M36 -- gui_agent offers Edit and Apply of a schema (kill, run, play) on
@@ -472,12 +463,10 @@ entries at once:
   comment says a save inherits a snap tag any more, and the dates are the
   real ones (inherited up to 7.22.x, activated snap's in 7.23.x, untagged
   since 7.24.0).
-- **M41 -- `test_c_node_authz` is a hand-written list, not the command table**:
-  create-node, delete-node, import-assets, gc-assets, set-link-events and
-  `schema-file` have no refusal test, and `schema-file` (17cde8a9a) has no test
-  at all.
-- **M42 -- no test opens a treedb as a REPLICA to write**; and the kwid fix of
-  gobj-js 7.21.0 stays green with the fix reverted (`tests/kwid.test.js:106`).
+- **M41, M42 -- SHIPPED (unreleased).** The authz test walks the command
+  table (it found `system-schema`, `trace` and the `set-link-events` display
+  open to anyone, fixed); a replica phase checks every write READ-ONLY;
+  gobj-js' kwid test pins the 7.21.0 fix.
 
 **Low, worth keeping** (three mediums were lowered by their verifiers and live
 here; their ids, M23, M34 and M40, stay unused so the others keep theirs):

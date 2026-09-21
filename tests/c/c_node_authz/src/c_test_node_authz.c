@@ -18,7 +18,12 @@
  *                shoot-snap `create`, import-db `create` AND `update`;
  *              - update-node with create=1 asks `create` only for a node
  *                that does not exist: an `editor` saves an existing node
- *                through it, and cannot create one.
+ *                through it, and cannot create one;
+ *              - EVERY command of C_NODE's table refuses `nobody`, walked
+ *                from the table itself, so a new command is covered the
+ *                day it is added (M41 of the 2026-09-21 review);
+ *              - the same treedb opened as a REPLICA answers every write
+ *                READ-ONLY and changes nothing (M42).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -285,6 +290,8 @@ PRIVATE int expect(
     return 0;
 }
 
+PRIVATE int run_replica_tests(hgobj gobj);
+
 /***************************************************************************
  *  Run all tests -- called from the timer callback inside the event loop
  ***************************************************************************/
@@ -325,6 +332,9 @@ PRIVATE int run_tests(hgobj gobj)
         {"topics",          "{}"},
         {"desc",            "{'topic_name':'items'}"},
         {"descs",           "{}"},
+        {"system-schema",   "{}"},
+        {"schema-file",     "{}"},
+        {"set-link-events", "{}"},
         {0, 0}
     };
     for(int i=0; reads[i].command; i++) {
@@ -334,6 +344,51 @@ PRIVATE int run_tests(hgobj gobj)
         result += expect(gobj, "nobody", reads[i].command, legalstring2json(kw_, TRUE), TRUE);
         result += expect(gobj, "reader", reads[i].command, legalstring2json(kw_, TRUE), FALSE);
     }
+
+    /*-----------------------------------------------*
+     *  EVERY command of the table refuses `nobody`
+     *
+     *  Walked from C_NODE's own command table, not listed here: a
+     *  hand-written list is what let create-node, delete-node,
+     *  import-assets, gc-assets, set-link-events and schema-file go
+     *  without a refusal test (M41 of the 2026-09-21 review). A new
+     *  command is covered the day it is added, or it is named below as
+     *  one that asks nothing, and why.
+     *-----------------------------------------------*/
+    const char *asks_nothing[] = {
+        "help",     /*  the command list, and the parameters of each  */
+        "authzs",   /*  the permissions the service checks  */
+        NULL
+    };
+    const sdata_desc_t *cmds = gclass_command_desc(gclass_find_by_name(C_NODE), NULL, TRUE);
+    for(const sdata_desc_t *it = cmds; it && it->name; it++) {
+        BOOL exempt = FALSE;
+        for(int i = 0; asks_nothing[i]; i++) {
+            if(strcmp(it->name, asks_nothing[i])==0) {
+                exempt = TRUE;
+            }
+        }
+        if(exempt) {
+            continue;
+        }
+        /*  Enough for any command to reach its permission: a command
+         *  that checks its parameters first must not pass for a refusal.  */
+        result += expect(gobj, "nobody", it->name,
+            json_pack("{s:s, s:s, s:{s:s}, s:s}",
+                "topic_name", "items",
+                "node_id", "item00",
+                "record", "id", "item00",
+                "name", "s1"
+            ),
+            TRUE
+        );
+    }
+
+    /*  Process-wide and run-time settings are not reads  */
+    result += expect(gobj, "reader", "trace", json_pack("{s:b}", "set", 0), TRUE);
+    result += expect(gobj, "editor", "trace", json_pack("{s:b}", "set", 0), FALSE);
+    result += expect(gobj, "reader", "set-link-events", json_pack("{s:i}", "set", 0), TRUE);
+    result += expect(gobj, "editor", "set-link-events", json_pack("{s:i}", "set", 0), FALSE);
 
     /*
      *  export-db writes a file: only its refusal is asked here
@@ -417,12 +472,121 @@ PRIVATE int run_tests(hgobj gobj)
         result += -1;
     }
 
+    result += run_replica_tests(gobj);
+
     if(result == 0) {
         gobj_log_info(gobj, 0,
             "msgset", "%s", MSGSET_INFO,
             "msg", "%s", "All c_node authz tests PASSED",
             NULL
         );
+    }
+
+    return result;
+}
+
+/***************************************************************************
+ *  The same treedb opened as a REPLICA (master=0): every write is refused
+ *  READ-ONLY, whoever asks, and nothing moves. No test opened a treedb as a
+ *  replica to write (M42 of the 2026-09-21 review), and on a replica a
+ *  write that "worked" lived in memory only, gone at the next reload.
+ ***************************************************************************/
+PRIVATE int run_replica_tests(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    /*  The master goes first: one master per tranger  */
+    gobj_stop(priv->gobj_node);
+    gobj_destroy(priv->gobj_node);
+    priv->gobj_node = NULL;
+    tranger2_shutdown(priv->tranger);
+
+    char path_root[PATH_MAX];
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", "c_node_authz",
+        "master", 0,
+        "on_critical_error", LOG_OPT_TRACE_STACK
+    );
+    priv->tranger = tranger2_startup(0, jn_tranger, yuno_event_loop());
+
+    json_t *jn_schema = legalstring2json(schema_authz_test, TRUE);
+    priv->gobj_node = gobj_create_pure_child(
+        "test_node_replica",
+        C_NODE,
+        json_pack("{s:I, s:s, s:o, s:i}",
+            "tranger", (json_int_t)(uintptr_t)priv->tranger,
+            "treedb_name", TREEDB_NAME,
+            "treedb_schema", jn_schema,
+            "exit_on_error", LOG_OPT_TRACE_STACK
+        ),
+        gobj
+    );
+    if(!priv->gobj_node) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: cannot open the replica",
+            NULL
+        );
+        return -1;
+    }
+    gobj_start(priv->gobj_node);
+
+    struct {
+        const char *command;
+        const char *kw;
+    } writes[] = {
+        {"create-node",     "{'topic_name':'items', 'record':{'id':'item-replica', 'name':'x'}}"},
+        {"update-node",     "{'topic_name':'items', 'record':{'id':'item00', 'name':'renamed on a replica'}}"},
+        {"delete-node",     "{'topic_name':'items', 'record':{'id':'item01'}, 'options':{'force':1}}"},
+        {"link-nodes",      "{'parent_ref':'items^item00^children', 'child_ref':'items^item01'}"},
+        {"unlink-nodes",    "{'parent_ref':'items^item00^children', 'child_ref':'items^item01'}"},
+        {"shoot-snap",      "{'name':'s2'}"},
+        {"activate-snap",   "{'name':'s1'}"},
+        {"deactivate-snap", "{}"},
+        {"import-db",       "{}"},
+        {"gc-assets",       "{}"},
+        {0, 0}
+    };
+    for(int i = 0; writes[i].command; i++) {
+        char kw_[256];
+        snprintf(kw_, sizeof(kw_), "%s", writes[i].kw);
+        helper_quote2doublequote(kw_);
+        json_t *kw = legalstring2json(kw_, TRUE);
+        json_object_set_new(kw, "__username__", json_string("creator"));
+        json_t *resp = gobj_command(priv->gobj_node, writes[i].command, kw, gobj);
+        int ret = (int)kw_get_int(gobj, resp, "result", 0, 0);
+        const char *comment = kw_get_str(gobj, resp, "comment", "", 0);
+        if(ret != -1 || !strstr(comment, "READ-ONLY")) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a replica did not answer a write READ-ONLY",
+                "command",      "%s", writes[i].command,
+                "result",       "%d", ret,
+                "comment",      "%s", comment,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(resp)
+    }
+
+    /*  ...and nothing moved  */
+    json_t *item00 = treedb_get_node(priv->tranger, TREEDB_NAME, "items", "item00");
+    if(!item00 || strcmp(kw_get_str(gobj, item00, "name", "", 0), "renamed on a replica")==0 ||
+            treedb_get_node(priv->tranger, TREEDB_NAME, "items", "item-replica") ||
+            !treedb_get_node(priv->tranger, TREEDB_NAME, "items", "item01")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a write refused on a replica changed the treedb",
+            NULL
+        );
+        result += -1;
     }
 
     return result;

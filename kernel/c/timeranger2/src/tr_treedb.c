@@ -75,6 +75,25 @@ PRIVATE int load_all_links(
 PRIVATE json_t *get_fkey_refs(
     json_t *field_data // NOT owned
 );
+PRIVATE BOOL dict_hook_takes_child(
+    json_t *tranger,
+    const char *treedb_name,
+    json_t *parent_hook_data,
+    const char *child_topic_name,
+    const char *child_id,
+    json_t *child_node
+);
+PRIVATE void drop_child_from_other_instances(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *parent_topic_name,
+    const char *parent_id,
+    const char *hook_name,
+    json_t *parent_done,
+    json_t *child_node,
+    const char *child_id
+);
 PRIVATE int _link_nodes(
     hgobj gobj,
     json_t *tranger,
@@ -4592,6 +4611,98 @@ PRIVATE json_t *find_parent_version_holding_child( // Return is NOT YOURS
 }
 
 /***************************************************************************
+ *  May a DICT hook take `child_node` under `child_id`? Yes when the slot
+ *  is free or already its own, and when the newcomer is the child's
+ *  PRIMARY instance; otherwise the entry it has stays, as an array hook
+ *  keeps the one it has (child_in_hook_array). It took the newest: a
+ *  second instance of the child replaced the entry, a delete_instance of
+ *  it left it there, and a forced delete of the parent saved the deleted
+ *  instance back to disk (M15 of the 2026-09-21 review).
+ ***************************************************************************/
+PRIVATE BOOL dict_hook_takes_child(
+    json_t *tranger,
+    const char *treedb_name,
+    json_t *parent_hook_data,   // JSON_OBJECT, NOT owned
+    const char *child_topic_name,
+    const char *child_id,
+    json_t *child_node          // NOT owned
+)
+{
+    json_t *current = json_object_get(parent_hook_data, child_id);
+    if(!current || current == child_node) {
+        return TRUE;
+    }
+    return treedb_get_node(tranger, treedb_name, child_topic_name, child_id) == child_node;
+}
+
+/***************************************************************************
+ *  A child's fkey names the parent's ID, not one of its instances, so
+ *  every instance of the parent may hook it (the agent's create-yuno of a
+ *  new release). An unlink clears that ref: take the child out of the
+ *  hook of every OTHER instance too, in memory. Left there, the child was
+ *  hooked by a parent it no longer names, which could then be neither
+ *  unlinked nor deleted, even with force, until a reload (M15 of the
+ *  2026-09-21 review).
+ ***************************************************************************/
+PRIVATE void drop_child_from_other_instances(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *parent_topic_name,
+    const char *parent_id,
+    const char *hook_name,
+    json_t *parent_done,    // NOT owned, the instance already unhooked
+    json_t *child_node,     // NOT owned
+    const char *child_id
+)
+{
+    json_t *holders = json_array();
+    json_t *primary = treedb_get_node(tranger, treedb_name, parent_topic_name, parent_id);
+    if(primary) {
+        json_array_append(holders, primary);
+    }
+    json_t *iter_pkey2s = treedb_topic_pkey2s(tranger, parent_topic_name);
+    int idx; json_t *jn_pkey2_name;
+    json_array_foreach(iter_pkey2s, idx, jn_pkey2_name) {
+        const char *pkey2_name = json_string_value(jn_pkey2_name);
+        if(empty_string(pkey2_name)) {
+            continue;
+        }
+        json_t *indexy = treedb_get_pkey2_index(
+            tranger, treedb_name, parent_topic_name, pkey2_name
+        );
+        json_t *instances = indexy? json_object_get(indexy, parent_id) : NULL;
+        const char *key2; json_t *instance;
+        json_object_foreach(instances, key2, instance) {
+            json_array_append(holders, instance);
+        }
+    }
+    json_decref(iter_pkey2s);
+
+    json_t *holder;
+    json_array_foreach(holders, idx, holder) {
+        if(holder == parent_done) {
+            continue;
+        }
+        json_t *hook_data = kw_get_dict_value(gobj, holder, hook_name, 0, 0);
+        if(json_is_array(hook_data)) {
+            size_t i = json_array_size(hook_data);
+            while(i > 0) {
+                i--;
+                if(json_array_get(hook_data, i) == child_node) {
+                    json_array_remove(hook_data, i);
+                }
+            }
+        } else if(json_is_object(hook_data)) {
+            if(json_object_get(hook_data, child_id) == child_node) {
+                json_object_del(hook_data, child_id);
+            }
+        }
+    }
+    json_decref(holders);
+}
+
+/***************************************************************************
  *  Loading hook links
  ***************************************************************************/
 PRIVATE int link_child_to_parent(
@@ -4737,7 +4848,9 @@ PRIVATE int link_child_to_parent(
                     fkey_col_name
                 );
                 json_object_set(parent_hook_data, pref, child_data);
-            } else {
+            } else if(dict_hook_takes_child(
+                    tranger, treedb_name, parent_hook_data,
+                    child_topic_name, child_id, child_node)) {
                 json_object_set(parent_hook_data, child_id, child_node);
             }
         }
@@ -7874,7 +7987,11 @@ PRIVATE int _link_nodes(
                 if(!json_object_get(parent_hook_data, child_id)) {
                     changed = TRUE;
                 }
-                json_object_set(parent_hook_data, child_id, child_node);
+                if(dict_hook_takes_child(
+                        tranger, treedb_name, parent_hook_data,
+                        child_topic_name, child_id, child_node)) {
+                    json_object_set(parent_hook_data, child_id, child_node);
+                }
             }
         }
         break;
@@ -8444,6 +8561,12 @@ PRIVATE int _unlink_nodes(
         break;
     default:
         break;
+    }
+    if(!is_child_hook) {
+        drop_child_from_other_instances(
+            gobj, tranger, treedb_name, parent_topic_name, parent_id, hook_name,
+            parent_node, child_node, child_id
+        );
     }
 
     /*--------------------------------------------------*

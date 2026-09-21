@@ -7,6 +7,9 @@
  *  link of a NEW INSTANCE of the parent to a child that already names it
  *  (the shape of the agent's `create-yuno`: the hook of the instance is
  *  empty, the child's fkey is the one the previous instance wrote).
+ *
+ *  "gadgets" is the shape of the agent's `binary`/`configurations`: a DICT
+ *  hook over a child topic that has a pkey2 of its own.
  */
 static char schema_sample[]= "\
 {                                                                   \n\
@@ -41,6 +44,39 @@ static char schema_sample[]= "\
                     'type': 'array',                                \n\
                     'flag': ['hook'],                               \n\
                     'hook': {'parts': 'item'}                       \n\
+                },                                                  \n\
+                'gadgets': {                                        \n\
+                    'header': 'Gadgets',                            \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'dict',                                 \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {'gadgets': 'item'}                     \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'topic_name': 'gadgets',                                \n\
+            'pkey': 'id',                                           \n\
+            'pkey2s': 'version',                                    \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'version': {                                        \n\
+                    'header': 'Version',                            \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'item': {                                           \n\
+                    'header': 'Item',                               \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
                 }                                                   \n\
             }                                                       \n\
         },                                                          \n\

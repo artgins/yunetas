@@ -11,6 +11,8 @@
  *            4. immutable seed user, even force  -> refused (result -1), kept
  *            5. disable-user                     -> disables it, logs no error
  *                                                   (A7 of the 2026-09-21 review)
+ *            6. a role that cannot be linked     -> create/update-user refused,
+ *                                                   the user keeps its role (M15)
  *
  *          A real C_AUTHZ service is instantiated over a temp tranger store;
  *          a role and an immutable user are seeded via initial_load, and the
@@ -198,6 +200,31 @@ PRIVATE BOOL user_exists(const char *username)
     return exists;
 }
 
+PRIVATE BOOL user_has_role(const char *username, const char *role)
+{
+    hgobj treedb = gobj_find_service("treedb_authzs", FALSE);
+    if(!treedb) {
+        return FALSE;
+    }
+    json_t *node = gobj_get_node(
+        treedb,
+        "users",
+        json_pack("{s:s}", "id", username),
+        json_pack("{s:b}", "only_id", 1),
+        treedb
+    );
+    json_t *roles = kw_get_list(0, node, "roles", 0, 0);
+    BOOL has = FALSE;
+    size_t idx; json_t *jn_role;
+    json_array_foreach(roles, idx, jn_role) {
+        if(strcmp(json_string_value(jn_role)?json_string_value(jn_role):"", role)==0) {
+            has = TRUE;
+        }
+    }
+    JSON_DECREF(node)
+    return has;
+}
+
 /***************************************************************************
  *              The actual checks (run inside the loop, from the timer)
  ***************************************************************************/
@@ -269,6 +296,31 @@ PRIVATE void run_checks(hgobj gobj)
         0);
     check_int("disable-user logs no error", s_errors - errors_before, 0);
     check_int("local_to_disable is disabled", user_disabled("local_to_disable"), 1);
+
+    /*
+     *  Case 6: a role that cannot be linked (rest of M15 of the 2026-09-21
+     *  review). The link was refused inside the treedb and the command
+     *  answered "User updated"/"User created" all the same. It is refused
+     *  before anything is written now, and the user keeps the role it had.
+     */
+    check_int("create local_badrole with testrole",
+        cmd_result(authz, "create-user",
+            json_pack("{s:s, s:s}", "username", "local_badrole", "role", "roles^testrole^users")),
+        0);
+    check_int("update-user to a role that does not exist is refused",
+        cmd_result(authz, "update-user",
+            json_pack("{s:s, s:s}", "username", "local_badrole", "role", "roles^nosuchrole^users")),
+        -1);
+    check_int("local_badrole keeps testrole", user_has_role("local_badrole", "testrole"), 1);
+    check_int("update-user with a malformed role ref is refused",
+        cmd_result(authz, "update-user",
+            json_pack("{s:s, s:s}", "username", "local_badrole", "role", "testrole")),
+        -1);
+    check_int("create-user with a role that does not exist is refused",
+        cmd_result(authz, "create-user",
+            json_pack("{s:s, s:s}", "username", "local_norole", "role", "roles^nosuchrole^users")),
+        -1);
+    check_int("local_norole was not created", user_exists("local_norole"), 0);
 }
 
 /***************************************************************

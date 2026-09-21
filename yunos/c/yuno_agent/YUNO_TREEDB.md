@@ -1132,6 +1132,39 @@ the snap froze is still under it: the guards walk the records of the key.
 `force=1` overrides both. `treedb_gc_files()` follows the same rule for the
 bytes of an asset a shot record names.
 
+#### A child hooked by several instances of its parent
+
+A child's fkey names the parent's **id**, not one of its instances
+(`yunos^<yuno id>^binary`), so every instance of the parent can hook it: the
+agent's `find-new-yunos create=1` leaves the same binary in the hook of the
+old release and of the new one. Two rules keep that consistent (unreleased,
+after 7.24.1):
+
+- **An unlink takes the child out of the hook of EVERY instance of the
+  parent.** It clears the one ref the child has, so no instance may go on
+  hooking it. It used to leave the other instances holding it, and those
+  could then be neither unlinked nor deleted, even with `force`, until a
+  reload.
+- **A DICT hook keeps the child's PRIMARY instance.** A dict hook holds one
+  entry per child id; a new instance of the child (an `install-binary` of a
+  new version) no longer replaces the entry unless it is the primary, as an
+  array hook keeps the one it has. It took the newest: a `delete_instance` of
+  that newest left it in the hook, and a forced delete of the parent then
+  SAVED the deleted instance back to disk, the primary after a reload.
+
+```C
+/*  the agent's shape (treedb_schema_yuneta_agent.c): a dict hook over
+ *  `binaries`, a topic with a pkey2 (`version`) of its own  */
+'binary': {
+    'header': 'binary',
+    'type': 'object',
+    'flag': ['hook'],
+    'hook': {
+        'binaries': 'yunos'
+    }
+},
+```
+
 #### What the AGENT adds (not treedb)
 
 `deactivate-snap` runs `promote_highest_release_yunos()` before the reload:
