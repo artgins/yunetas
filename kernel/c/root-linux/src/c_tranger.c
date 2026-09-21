@@ -149,9 +149,16 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE int mt_subscription_deleted(hgobj gobj, json_t *subs);
-PRIVATE void reap_handles_of(hgobj gobj, hgobj owner);
+PRIVATE void reap_handles_of(hgobj gobj, hgobj owner, BOOL with_iterators);
 PRIVATE BOOL iterator_is_live(hgobj gobj, const char *iterator_id);
 PRIVATE int close_registered_iterator(hgobj gobj, const char *iterator_id);
+PRIVATE json_t *get_single_key_page(
+    hgobj gobj,
+    json_t *iterator,
+    json_int_t from_rowid,  // based 1
+    json_int_t limit,
+    BOOL backward
+);
 PRIVATE int mark_iterator_of_deleted_key(
     json_t *tranger,
     json_t *topic,
@@ -867,6 +874,59 @@ PRIVATE json_t *get_multi_key_page(
         "pages", pages,
         "data", data
     );
+}
+
+/***************************************************************************
+ *  A page of a one-key iterator, with the SAME meaning of `backward` as a
+ *  multi-key one: positions counted from the END, the newest rows first.
+ *
+ *  tranger2_iterator_get_page() means two things by `backward`: on a
+ *  filtered iterator it counts from the end, on an unfiltered one it keeps
+ *  the window [from_rowid, from_rowid+limit) counted from the START and only
+ *  reverses the order inside it (test_topic_pkey_integer_iterator5 pins
+ *  that). So "newest first" on an unfiltered key served the oldest page,
+ *  upside down (M20 of the 2026-09-21 review). As get_multi_key_page()
+ *  does, the window is taken from the end, read forward, and reversed here.
+ ***************************************************************************/
+PRIVATE json_t *get_single_key_page(
+    hgobj gobj,
+    json_t *iterator,
+    json_int_t from_rowid,  // based 1
+    json_int_t limit,
+    BOOL backward
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t total_rows = (json_int_t)tranger2_iterator_size(iterator);
+    if(!backward || from_rowid < 1 || from_rowid > total_rows || limit <= 0) {
+        /*  Forward, or out of range: the library answers the totals  */
+        return tranger2_iterator_get_page(
+            priv->tranger, iterator, from_rowid, (size_t)limit, FALSE
+        );
+    }
+
+    json_int_t first = from_rowid - 1;
+    json_int_t last = first + limit;
+    if(last > total_rows) {
+        last = total_rows;
+    }
+    json_int_t r_first = total_rows - last;
+    json_int_t r_last = total_rows - first;
+
+    json_t *page = tranger2_iterator_get_page(
+        priv->tranger, iterator, r_first + 1, (size_t)(r_last - r_first), FALSE
+    );
+    if(!page) {
+        return NULL;    // Error already logged
+    }
+    json_t *data = json_object_get(page, "data");
+    json_t *reversed = json_array();
+    for(json_int_t i = (json_int_t)json_array_size(data) - 1; i >= 0; i--) {
+        json_array_append(reversed, json_array_get(data, (size_t)i));
+    }
+    json_object_set_new(page, "data", reversed);
+    return page;
 }
 
 /***************************************************************************
@@ -2477,10 +2537,11 @@ PRIVATE json_t *open_multi_key_iterator(
     JSON_DECREF(jn_keys)
     JSON_DECREF(match_cond)
 
-    json_object_set_new(priv->iterators, iterator_id, json_pack("{s:s, s:I, s:o}",
+    json_object_set_new(priv->iterators, iterator_id, json_pack("{s:s, s:I, s:o, s:b}",
         "topic_name", topic_name,
         "src_gobj", (json_int_t)(uintptr_t)src,
-        "parts", parts
+        "parts", parts,
+        "backward", kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER)
     ));
     watch_owner(gobj, src);
 
@@ -2646,6 +2707,11 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         "src_gobj",
         json_integer((json_int_t)(uintptr_t)src)
     );
+    json_object_set_new(
+        json_object_get(priv->iterators, iterator_id),
+        "backward",
+        json_boolean(backward)
+    );
     watch_owner(gobj, src);
 
     json_int_t total_rows = (json_int_t)tranger2_iterator_size(iterator);
@@ -2739,7 +2805,15 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     json_int_t from_rowid = (json_int_t)kw_get_int(gobj, kw, "from_rowid", 1, KW_WILD_NUMBER);
     json_int_t limit = (json_int_t)kw_get_int(gobj, kw, "limit", 100, KW_WILD_NUMBER);
-    BOOL backward = kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER);
+    /*
+     *  The direction of the pages is get-page's; one not given here is the
+     *  one the iterator was OPENED with. `open-iterator backward=1` did
+     *  nothing, and a client that set it only there read page 1 oldest
+     *  first (M20 of the 2026-09-21 review).
+     */
+    BOOL backward = kw_has_key(kw, "backward")?
+        kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER) :
+        kw_get_bool(gobj, jn_ptr, "backward", 0, 0);
 
     json_t *page;
     json_t *parts = json_object_get(jn_ptr, "parts");
@@ -2753,11 +2827,11 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             backward
         );
     } else {
-        page = tranger2_iterator_get_page(
-            priv->tranger,
+        page = get_single_key_page(
+            gobj,
             live_handle(gobj, priv->iterators, iterator_id),
             from_rowid,
-            (size_t)(limit>0?limit:0),
+            limit>0?limit:0,
             backward
         );
     }
@@ -3220,12 +3294,13 @@ PRIVATE int publish_rt_callback(
 }
 
 /***************************************************************************
- *  Close every realtime feed and iterator OWNED by `owner`.
+ *  Close every realtime feed OWNED by `owner`, and its iterators too when
+ *  `with_iterators` (see mt_subscription_deleted for when they are not).
  *
  *  The owner was stamped into the handle as `src_gobj` (see cmd_open_rt /
  *  cmd_open_iterator). The pointer is only COMPARED here, never used.
  ***************************************************************************/
-PRIVATE void reap_handles_of(hgobj gobj, hgobj owner)
+PRIVATE void reap_handles_of(hgobj gobj, hgobj owner, BOOL with_iterators)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -3254,7 +3329,7 @@ PRIVATE void reap_handles_of(hgobj gobj, hgobj owner)
         }
     }
 
-    if(priv->iterators) {
+    if(priv->iterators && with_iterators) {
         const char *iterator_id; json_t *jn_entry; void *tmp;
         json_object_foreach_safe(priv->iterators, tmp, iterator_id, jn_entry) {
             if(!iterator_is_live(gobj, iterator_id)) {
@@ -3361,7 +3436,18 @@ PRIVATE int mt_subscription_deleted(
         return 0;
     }
 
-    reap_handles_of(gobj, subscriber);
+    /*
+     *  Its feeds, always. Its ITERATORS only when nothing else will reap
+     *  them: a SESSION is watched (watch_owner) and its EV_ON_CLOSE takes
+     *  them when it dies. A session that closes its last Live card is
+     *  alive, and its Rows cards still page -- they answered "Iterator not
+     *  found" from then on (M19 of the 2026-09-21 review).
+     */
+    json_t *watch = gobj_find_subscriptions(subscriber, EV_ON_CLOSE, 0, gobj);
+    BOOL watched = json_array_size(watch) > 0;
+    JSON_DECREF(watch)
+
+    reap_handles_of(gobj, subscriber, !watched);
 
     return 0;
 }
@@ -3389,7 +3475,7 @@ PRIVATE int mt_subscription_deleted(
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    reap_handles_of(gobj, src);
+    reap_handles_of(gobj, src, TRUE);
     gobj_unsubscribe_event(src, EV_ON_CLOSE, 0, gobj);
 
     KW_DECREF(kw)

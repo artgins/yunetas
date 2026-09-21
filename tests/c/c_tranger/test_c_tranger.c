@@ -634,6 +634,63 @@ PRIVATE int do_test(void)
         json_pack("{s:s}", "iterator_id", "itC_both"), yuno);
     JSON_DECREF(r)
 
+    /*  The direction given at the OPEN is the pages' default (M20 of the
+     *  2026-09-21 review): `open-iterator backward=1` did nothing, and a
+     *  get-page that does not say read the key oldest first.  */
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:b}",
+            "iterator_id", "itC_back",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_C,
+            "backward", 1
+        ), yuno);
+    check_int("open-iterator C backward result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itC_back",
+            "from_rowid", 1,
+            "limit", 1
+        ), yuno);
+    {
+        json_t *page = kw_get_list(0, kw_get_dict(0, r, "data", 0, 0), "data", 0, 0);
+        check_int("get-page of an iterator opened backward: newest first",
+            record_rowid(json_array_get(page, 0)), KEY_C_ROWS);
+    }
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i, s:b}",
+            "iterator_id", "itC_back",
+            "from_rowid", 1,
+            "limit", 1,
+            "backward", 0
+        ), yuno);
+    {
+        json_t *page = kw_get_list(0, kw_get_dict(0, r, "data", 0, 0), "data", 0, 0);
+        check_int("get-page that says forward reads forward",
+            record_rowid(json_array_get(page, 0)), 1);
+    }
+    JSON_DECREF(r)
+    /*  An UNFILTERED key backward counts from the END, like a filtered or a
+     *  multi-key one: page 2 of 2 rows is rows 2 and 1 from the end.  */
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i, s:b}",
+            "iterator_id", "itC_back",
+            "from_rowid", 3,
+            "limit", 2,
+            "backward", 1
+        ), yuno);
+    {
+        json_t *page = kw_get_list(0, kw_get_dict(0, r, "data", 0, 0), "data", 0, 0);
+        check_int("backward page 2 len", json_array_size(page), 2);
+        check_int("backward page 2 rowid[0]", record_rowid(json_array_get(page, 0)), 2);
+        check_int("backward page 2 rowid[1]", record_rowid(json_array_get(page, 1)), 1);
+    }
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itC_back"), yuno);
+    JSON_DECREF(r)
+
     /*-------------------------------------------------*
      *      open-iterator with rkey: keys A, B, C laid end to end in key
      *      order (5 + 3 + 4 = 12). A page that straddles two keys comes
@@ -1482,6 +1539,29 @@ PRIVATE int do_test(void)
         check_int("still watched once after the second", json_array_size(subs), 1);
         JSON_DECREF(subs)
     }
+    global_result += test_json(NULL);
+
+    /*  The session closes its LAST Live card -- its last subscription to
+     *  this service -- and stays alive: its Rows cards still page (M19 of
+     *  the 2026-09-21 review). Reaping on that unsubscribe took the paging
+     *  iterators too, and they answered "Iterator not found" from then on.
+     *  A session's iterators are reaped by its EV_ON_CLOSE, below.  */
+    set_expected_results(
+        "a session that closes its last Live card keeps its iterators",
+        NULL,
+        NULL, NULL, 1
+    );
+    gobj_subscribe_event(yuno, EV_TRANGER_RECORD_ADDED, 0, session);
+    gobj_unsubscribe_event(yuno, EV_TRANGER_RECORD_ADDED, 0, session);
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itSession1",
+            "from_rowid", 1,
+            "limit", 1
+        ), session);
+    check_int("a live session still pages after its last unsubscribe",
+        kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
     global_result += test_json(NULL);
 
     /*  The session dies: both iterators are reaped, the watch goes with

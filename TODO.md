@@ -432,15 +432,11 @@ entries at once:
   that fires second, the records of BOTH files when two files of the key arrive
   in one batch (`timeranger2.c:5629`): one watermark per (feed, key), not per
   file as the doc says. From 7.8.0; c46c820a0 adds a second supported way in.
-- **M19 -- closing the LAST Live card of a session also reaps its paging
-  iterators** (`c_tranger.c:3177`): af1489c66 added the right signal (the
-  session's `EV_ON_CLOSE`) and `mt_subscription_deleted` still calls
-  `reap_handles_of()`. The Rows card answers *"Iterator not found"* and
-  `c_tranger_view.js:3641` never re-arms.
-- **M20 -- `open-iterator backward=1` does nothing** (`c_tranger.c:2437`): the
-  direction belongs to `get-page`. The docs list it as honoured and
-  gui_treedb's "newest first" checkbox sends only that
-  (`c_tranger_view.js:3436`).
+- **M19, M20 -- SHIPPED (unreleased; gui_treedb 0.17.53).** A live session's
+  iterators survive its last unsubscribe (its EV_ON_CLOSE reaps them), and
+  `backward` means "from the end" for every iterator, defaulting to the one
+  given at the open; gui_treedb sends it on every page and re-arms a card
+  whose iterator is gone.
 - **M21 -- a stateful `open-list` is outside the session reaper**
   (`c_tranger.c:1638`): no `src_gobj`, no `watch_owner()`, and
   `reap_handles_of()` never walks `priv->lists` -- and such a list collects
@@ -472,10 +468,7 @@ entries at once:
 - **M31 -- string cells go in through `innerHTML`** (`:2093`, predates the
   range): text with `<` is mangled. The plugin's CSP keeps script from running.
 - **M32, M33 -- SHIPPED in gobj-ui 7.23.193.**
-- **M35 -- "a replica opens without its write buttons" (gui_treedb 0.17.36,
-  9cdd16b) does nothing** (`c_treedb_links.js:697`, `:765`): `treedb-info` is
-  sent without `__md_command__`, the only thing `C_IEVENT_CLI` echoes back, so
-  the answer cannot be matched to a service and `master` is never stored.
+- **M35 -- SHIPPED in gui_treedb 0.17.53.**
 - **M36 -- gui_agent offers Edit and Apply of a schema (kill, run, play) on
   yunos that IMPOSE the C schema** (`c_agent_treedb.js:1036`): every consumer
   passes `impose_c_schema=1`, the edit can never apply, and no screen says so.

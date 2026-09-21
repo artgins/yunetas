@@ -108,6 +108,31 @@ A4 and M22 of the 2026-09-21 review.
   library: SIGSEGV), and `tests/c/timeranger2/test_iterator_index.c` for the
   index.
 
+### C_TRANGER + gui_treedb 0.17.53: block 4 of the 2026-09-21 review
+
+- **M19 — closing the LAST Live card of a session reaped its paging
+  iterators**, and its Rows cards answered "Iterator not found" from then
+  on. `mt_subscription_deleted` still closes the subscriber's feeds, and its
+  iterators only when nothing else will: a session is watched, and its
+  `EV_ON_CLOSE` takes them when it dies. gui_treedb re-opens, once, a card
+  whose iterator is gone.
+- **M20 — "newest first" served the oldest page.** `open-iterator
+  backward=1` did nothing, and on an UNFILTERED one-key iterator
+  `get-page backward=1` kept the window counted from the start and only
+  reversed it (the library's contract, pinned by
+  `test_topic_pkey_integer_iterator5`, and left alone). C_TRANGER now pages a
+  one-key iterator as it already paged a multi-key one: the window is taken
+  from the END, read forward and reversed, whether the key is filtered or
+  not; and a `get-page` that does not say takes the direction given at the
+  open. gui_treedb sends the direction on every page.
+- **M35 — gui_treedb's replica detection did nothing** (fixed in gui_treedb
+  0.17.53 alone: `treedb-info` carries its service in `__md_command__`, and
+  storing the scanned services keeps `master`).
+- Tests: `test_c_tranger` (a get-page of an iterator opened backward, red:
+  the oldest row; a live session paging after its last unsubscribe, red:
+  "Iterator not found"); gui_treedb `treedb_info.test.js`,
+  `rows_page.test.js`.
+
 ### gobj-ui 7.23.193: block 3 of the 2026-09-21 review
 
 The `kernel/js/gobj-ui` submodule moves to 7.23.193 (its `CHANGELOG.md` has the
