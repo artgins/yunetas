@@ -475,10 +475,12 @@ entries at once:
 
 **Medium -- docs and tests**
 
-- **M37 -- the rollback recipe tells the reader to do the opposite**
-  (`deploying-yunos.md:376`, `YUNO_LIFECYCLE.md` 6.6): *"when you decide to
-  stay on the old one, remove the pin: deactivate-snap"* -- `deactivate-snap`
-  re-promotes the NEW release and bounces the node onto it. Fix this one first.
+- **M37 -- SHIPPED (docs, 2026-09-21).** `deploying-yunos.md` Recipe E and
+  `YUNO_LIFECYCLE.md` 6.6 say what `deactivate-snap` really does (it promotes
+  the HIGHEST release): forward to a corrected release = install it, then
+  deactivate; stay on the old one = delete the bad yuno release AND its binary
+  while the snap is active, then deactivate. (The "since 7.22.0" of that block,
+  part of M39, is 7.24.0 there now.)
 - **M38 -- `treedb_delete_instance()` is documented three contradictory ways**
   (`YUNO_TREEDB.md:391`, the header, the API page): the code tombstones every
   md2 row, never looks at links, and borrows the node.

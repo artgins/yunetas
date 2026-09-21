@@ -826,11 +826,32 @@ ycommand -c 'activate-snap name=<rollback-tag>'
 # and primary-only lookup is enforced — the OLD row wins again.
 # Every topic comes back as it was when the snap was shot: rows
 # created since are absent, rows updated since show their shot
-# content (a save is never written into a snap, since 7.22.0).
+# content (a save is never written into a snap, since 7.24.0).
+```
 
-# To remove the pin once you've decided:
+Removing the pin is `deactivate-snap`, and it does NOT keep you where you
+are. Before its reload it runs `promote_highest_release_yunos()`, which puts
+the **highest** non-disabled release of every yuno back on top. While the bad
+release is still installed, that is the bad release. So the way out depends
+on where you want to be:
+
+```bash
+# Forward, to a corrected release: install it, then deactivate
+# (upgrade-yunos does both, and reuses the active snap as its rollback point).
+yunetas sync-binaries ...
+yunetas upgrade-yunos
+
+# Stay on the old release: remove the bad one FIRST, while the snap is
+# active (it is not running, and no snap holds it), then deactivate.
+ycommand -c 'list-yunos-instances yuno_role=<role>'
+ycommand -c 'delete-yuno id=<yuno_id> yuno_release=<bad_release>'
+ycommand -c 'delete-binary id=<role> version=<bad_version>'
 ycommand -c 'deactivate-snap'
 ```
+
+The binary goes too. A bad binary left installed is registered again by the
+next `find-new-yunos create=1`, and started again by the next
+`deactivate-snap`.
 
 > **Snaps pin the binaries they reference — `delete-binary` respects that.**
 > `shoot-snap` stamps the snap's id on every topic's current-primary record

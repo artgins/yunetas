@@ -373,12 +373,40 @@ ycommand -c 'activate-snap name=pre-upgrade-<YYYYMMDD>'
 
 `activate-snap` runs the same node-wide restart cycle. But with the snap
 active, the OLD releases become primary. The node runs again what it ran
-before the upgrade. When you deploy a corrected release, or when you decide to
-stay on the old one, remove the pin:
+before the upgrade.
+
+The snap is a pin, and how you remove it depends on where you want to end up.
+`deactivate-snap` does NOT mean "stay here": before its reload it re-promotes
+the **highest** release of every yuno (`promote_highest_release_yunos()`), and
+while the bad release is still installed, the highest is the bad one.
+
+**To go forward to a corrected release**, install it, then deactivate. The
+corrected release is now the highest, and it is the one promoted:
 
 ```bash
-ycommand -c 'deactivate-snap'
+yunetas sync-binaries ...          # push the corrected binary
+yunetas upgrade-yunos              # it reuses the active snap, then deactivates
 ```
+
+**To stay on the old release**, first remove the bad one, so that the old one
+is the highest again. Only then deactivate. Do it with the snap active: the bad
+release is not running, and it is not held by the snap (it was installed after
+the shot), so both deletes go through.
+
+```bash
+ycommand -c 'list-yunos-instances yuno_role=<role>'           # find the bad release
+ycommand -c 'delete-yuno id=<yuno_id> yuno_release=<bad_release>'
+ycommand -c 'delete-binary id=<role> version=<bad_version>'
+ycommand -c 'deactivate-snap'                                 # promotes the old one
+ycommand -c 'list-yunos yuno_role=<role>'                     # release = the old one
+```
+
+Delete the binary too. If it stays installed, the next `find-new-yunos
+create=1` (or `upgrade-yunos`) registers the bad release again, and the next
+`deactivate-snap` starts it.
+
+Do not `deactivate-snap` while the bad release is still installed. Doing so
+starts the node again on the release you rolled back from.
 
 Details, including why snap-tagged binaries refuse deletion, in
 [Yuno lifecycle §6.6](../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md).
