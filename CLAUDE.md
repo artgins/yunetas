@@ -1423,6 +1423,17 @@ from the schema source of truth, never hand-draw them.
   does (`EXCLUSIVE`). It used to be accepted, and its fkey side was never
   written to disk. A node that is both a child and a parent carries two
   columns: the hook, and the fkey.
+- **The schema literal lives alone in `treedb_schema_<db>.c`**, where `<db>`
+  is the treedb id without its `treedb_` prefix (`treedb_wattyzer` →
+  `treedb_schema_wattyzer.c`). The file holds ONLY the array
+  `static char treedb_schema_<db>[]= "...";` — no function, no comment, no
+  second literal (a msg2db schema gets its own `msg2db_schema_<name>.c`).
+  That is exactly what the schema editor exports (`schema_to_c()` in
+  gobj-ui), so an edit made in the GUI goes back into the source by replacing
+  the file whole. The yuno `#include`s it and parses it; diagrams and design
+  notes go in the file that includes it. Name it this way so the literal is
+  found by name. (Rule stated 2026-09-21; the SDK's own `treedb_schema_*.c`
+  still carry `#pragma once` and a diagram.)
 
 ### Persistence Rules (CRITICAL)
 
