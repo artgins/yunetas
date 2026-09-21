@@ -363,10 +363,9 @@ entries at once:
   not changed.
 - **M2 -- SHIPPED (unreleased).** The fkey mark is recomputed at every open
   and written to no file; a renamed hook no longer loses its links.
-- **M3 -- a ref to a hook that no longer exists is not treated as stale**
-  (`tr_treedb.c:8432`). Since 3fea635f3 `_link_nodes()` unlinks the old ref
-  first and returns -1 when that fails, so the node can be neither re-linked,
-  cleaned, nor deleted with force. It used to repair itself at the next link.
+- **M3 -- SHIPPED (unreleased).** A ref to a hook that no longer exists is
+  removed from the child with a warning when it is relinked, cleaned or
+  force-deleted.
 - **M4 -- SHIPPED (unreleased, option A).** The rowid seed reads the
   topic's keys (tranger2's cache), not the snap-filtered index.
 - **M5 -- SHIPPED (unreleased, option B).** `now` is stamped by every write;

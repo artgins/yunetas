@@ -21,6 +21,8 @@
  *         "Only can be one fkey", and a link through the new hook survives
  *         a reload
  *      3. the files the rename writes carry no mark
+ *      4. M3: a ref that names the OLD hook is removed, with a warning,
+ *         when the node is cleaned or force-deleted -- it failed both
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -256,8 +258,18 @@ PRIVATE int do_test(void)
     if(!tranger || open_with(tranger, schema_v1) < 0) {
         return -1;
     }
-    treedb_create_node(tranger, TREEDB_NAME, "departments", json_pack("{s:s}", "id", "d1"));
+    json_t *d1_v1 = treedb_create_node(tranger, TREEDB_NAME, "departments", json_pack("{s:s}", "id", "d1"));
     treedb_create_node(tranger, TREEDB_NAME, "users", json_pack("{s:s}", "id", "u1"));
+    /*  u2 and u3 hang from d1 through the hook that is about to be renamed  */
+    const char *linked[] = {"u2", "u3", NULL};
+    for(int i = 0; linked[i]; i++) {
+        json_t *u = treedb_create_node(tranger, TREEDB_NAME, "users", json_pack("{s:s}", "id", linked[i]));
+        if(treedb_link_nodes(tranger, "users", d1_v1, u) < 0) {
+            printf("%sERROR%s --> cannot link %s through the first hook\n",
+                On_Red BWhite, Color_Off, linked[i]);
+            result += -1;
+        }
+    }
     treedb_close_db(tranger, TREEDB_NAME);
     tranger2_shutdown(tranger);
     result += test_json(NULL);
@@ -338,6 +350,37 @@ PRIVATE int do_test(void)
             On_Red BWhite, Color_Off);
         result += -1;
     }
+
+    /*
+     *  4. M3: u2 and u3 still name the OLD hook (departments^d1^users), which
+     *     hangs from nothing now. Cleaning one and force-deleting the other
+     *     remove that ref with a warning instead of failing on it: the node
+     *     could be neither relinked, cleaned nor deleted.
+     */
+    set_expected_results(
+        "a ref to a hook that no longer exists",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+            "msg", "Parent ref names a hook that no longer exists",
+            "msg", "Removing wrong fkey ref",
+            "msg", "Parent ref names a hook that no longer exists",
+            "msg", "Removing wrong fkey ref"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *u2 = treedb_get_node(tranger, TREEDB_NAME, "users", "u2");
+    if(!u2 || treedb_clean_node(tranger, u2, TRUE) < 0 ||
+            json_array_size(kw_get_list(0, u2, "departments", 0, 0)) != 0) {
+        printf("%sERROR%s --> a ref to a vanished hook could not be cleaned\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *u3 = treedb_get_node(tranger, TREEDB_NAME, "users", "u3");
+    if(!u3 || treedb_delete_node(tranger, u3, json_pack("{s:b}", "force", 1)) < 0) {
+        printf("%sERROR%s --> a node with a ref to a vanished hook could not be deleted\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
 
     set_expected_results("close and shutdown", NULL, NULL, NULL, 1);
     treedb_close_db(tranger, TREEDB_NAME);

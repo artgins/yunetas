@@ -1916,7 +1916,13 @@ by an older release still has the mark in its files; it is ignored, and it
 goes the next time that topic's version rises. Renaming a hook is now: rename
 the column in the parent, raise the parent's `topic_version` and the
 `schema_version`. The references a child already holds name the OLD hook
-(`departments^d1^users`) and hang from nothing after the rename.
+(`departments^d1^users`) and hang from nothing after the rename: the loader
+ignores them, and the first relink, clean or forced delete of that child
+removes them with a warning (*"Parent ref names a hook that no longer
+exists"*, then *"Removing wrong fkey ref"*). Link those children again through
+the new hook if they are to keep their parent. Until after 7.24.1 that unlink
+failed on the missing hook, and the child could be neither relinked, cleaned
+nor deleted, even with `force`.
 
 ### 4.11 No raw `malloc` / `free` for treedb-allocated [`json_t`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_t)
 

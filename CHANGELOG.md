@@ -4,7 +4,7 @@
 
 ### treedb: the fkey mark is derived, and no file carries it -- a hook can be renamed
 
-M2 of the 2026-09-21 review.
+M2 and M3 of the 2026-09-21 review.
 
 - `parse_hooks()` marks each child fkey column with the one hook that fills
   it (`"fkey": {parent_topic: hook}`), and the loader keeps only the links it
@@ -18,8 +18,16 @@ M2 of the 2026-09-21 review.
   read from a file of an older release is ignored; `treedb_open_db()` writes
   the schema file and the topics' cols without it. In memory (and in
   `descs`) the mark is as it was.
+- **M3: a ref to a hook that no longer exists is stale.** What a renamed or
+  removed hook leaves in every child (`departments^d1^users`) hangs from
+  nothing, and unlinking it failed on the missing hook (since 3fea635f3), so
+  the child could be neither relinked, cleaned nor force-deleted.
+  `unlink_child_from_parent_ref()` now removes such a ref from the child with
+  a warning (*"Parent ref names a hook that no longer exists"*) and goes on.
+  The children lose that parent: link them again through the new hook.
 - Test: `tr_treedb_hook_rename` (red against the previous library on the
-  error, the lost link and both files).
+  error, the lost link, both files, and the clean and forced delete of a
+  child that names the old hook).
 
 ### C_TREEDB: an edit of a schema is a draft; save-schema publishes it, apply-schema puts it in use (BREAKING)
 

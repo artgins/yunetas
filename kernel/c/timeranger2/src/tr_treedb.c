@@ -8671,6 +8671,43 @@ PRIVATE int unlink_child_from_parent_ref(
     }
 
     /*
+     *  A ref to a hook the parent's topic no longer has, or that no longer
+     *  hooks this child's topic: what a renamed or removed hook leaves in
+     *  every child. It hangs from nothing -- the loader ignores it -- and
+     *  unlinking it failed on the missing hook, so the node could be neither
+     *  relinked, cleaned nor force-deleted (M3 of the 2026-09-21 review;
+     *  3fea635f3 made the unlink refuse where it used to go through). Such
+     *  a ref is stale: it is removed from the child, with a warning.
+     */
+    json_t *hook_links = kwid_get(gobj,
+        tranger,
+        0,
+        "topics`%s`cols`%s`hook",
+            parent_topic_name, hook_name
+    );
+    if(!json_object_get(hook_links, topic_name)) {
+        gobj_log_warning(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_TREEDB,
+            "msg",                  "%s", "Parent ref names a hook that no longer exists",
+            "topic_name",           "%s", topic_name,
+            "id",                   "%s", child_id,
+            "parent_topic_name",    "%s", parent_topic_name,
+            "hook_name",            "%s", hook_name,
+            "ref",                  "%s", ref,
+            NULL
+        );
+        search_and_remove_wrong_up_ref(
+            gobj,
+            tranger,
+            node,
+            topic_name,
+            ref
+        );
+        return 0;
+    }
+
+    /*
      *  The fkey ref carries only parent_id, not the pkey2/version,
      *  so a child hooked on a non-primary parent-version must be
      *  located across all instances; unlinking the primary alone
