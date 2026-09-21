@@ -173,7 +173,7 @@ PRIVATE sdata_desc_t pm_update_node[] = {
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATAPM (DTP_STRING,    "content64",    0,              0,          "Node content in base64"),
 SDATAPM (DTP_JSON,      "record",       0,              0,          "Node content in json"),
-SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: create, autolink, volatil, refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: create, create_only, autolink, volatil, refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_node[] = {
@@ -456,6 +456,10 @@ typedef struct _PRIVATE_DATA {
     const char *treedb_name;
     json_t *treedb_schema;
     int32_t exit_on_error;
+
+    /*  The last mt_update_node saved the record but refused some link:
+     *  cmd_update_node must not answer that as a plain success.  */
+    BOOL links_refused;
 
 } PRIVATE_DATA;
 
@@ -954,12 +958,17 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    priv->links_refused = FALSE;
     if(!jn_options) {
         jn_options = json_object();
     }
 
     BOOL volatil = kw_get_bool(gobj, jn_options, "volatil", 0, KW_WILD_NUMBER);
     BOOL create = kw_get_bool(gobj, jn_options, "create", 0, KW_WILD_NUMBER);
+    BOOL create_only = kw_get_bool(gobj, jn_options, "create_only", 0, KW_WILD_NUMBER);
+    if(create_only) {
+        create = TRUE;
+    }
     BOOL autolink = kw_get_bool(gobj, jn_options, "autolink", 0, KW_WILD_NUMBER);
 
     if(gobj_trace_level(gobj) & TRACE_METHODS) {
@@ -1027,6 +1036,27 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             return 0;
         }
     } else {
+        /*
+         *  `create_only`: a NEW record, and one that exists is refused. The
+         *  +New of a table typed an id that was taken, and `create` alone
+         *  made that an update -- the existing record overwritten and, with
+         *  autolink and empty selects, unlinked, answered "Node update!"
+         *  (M28 of the 2026-09-21 review).
+         */
+        if(create_only) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Node already exists",
+                "treedb_name",  "%s", priv->treedb_name,
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", kw_get_str(gobj, node, "id", "", 0),
+                NULL
+            );
+            JSON_DECREF(jn_options)
+            KW_DECREF(kw)
+            return 0;
+        }
         /*
          *  If node exists then it's an update
          */
@@ -1098,6 +1128,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
              */
             if(treedb_replace_links(priv->tranger, node, json_incref(kw), FALSE)<0) {
                 // Error already logged
+                priv->links_refused = TRUE;
             }
             treedb_save_node(priv->tranger, node);
         }
@@ -2741,6 +2772,26 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_incref(_jn_options),
         src
     );
+
+    /*
+     *  The record was saved, but a link it names could not be made and its
+     *  links are the ones it had: that is not a plain success. It was
+     *  answered "Node update!" (M1 of the 2026-09-21 review), and a form
+     *  closed on a parent the operator had not got.
+     */
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(node && priv->links_refused) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf(
+                "%s: node '%s' saved, but its links were NOT changed: a link it names cannot be made (see the log)",
+                gobj_yuno_role_plus_name(), kw_get_str(gobj, node, "id", "", 0)
+            ),
+            gobj_topic_desc(gobj, topic_name),
+            node,
+            kw  // owned
+        );
+    }
 
     return msg_iev_build_response(gobj,
         node?0:-1,

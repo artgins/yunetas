@@ -644,6 +644,96 @@ PRIVATE int run_tests(hgobj gobj)
     );
 
     /*-----------------------------------------------*
+     *  Test 8b: the ONLY parent replaced by one that
+     *  cannot be linked (M1 of the 2026-09-21 review).
+     *  The old link was undone first and the new one
+     *  failed after: alice ended orphaned on disk,
+     *  UNLINKED published, no LINKED. A column is now
+     *  replaced whole or not at all.
+     *-----------------------------------------------*/
+    g_rowid = kw_get_int(gobj, user1, "__md_treedb__`g_rowid", 0, 0);
+    reset_counters(priv);
+
+    jn_node = update_alice_with_autolink(gobj, "alice_f",
+        json_pack("[s]", "departments^ghost^users")
+    );
+    JSON_DECREF(jn_node)
+
+    result += expect_count(gobj, "refused parent", "linked", 0, priv->linked_count);
+    result += expect_count(gobj, "refused parent", "unlinked", 0, priv->unlinked_count);
+    result += expect_alice_saved(gobj, "refused parent", user1,
+        "alice_f", "departments^research^users", g_rowid + 1
+    );
+
+    /*-----------------------------------------------*
+     *  Test 8c: the same through the COMMAND, which
+     *  answered "Node update!" -- the record is saved,
+     *  the links are not what was asked: -1
+     *-----------------------------------------------*/
+    {
+        json_t *jn_answer = gobj_command(priv->gobj_node, "update-node",
+            json_pack("{s:s, s:{s:s, s:s, s:[s]}, s:{s:b}}",
+                "topic_name", "users",
+                "record",
+                    "id", "alice",
+                    "username", "alice_g",
+                    "departments", "departments^ghost^users",
+                "options",
+                    "autolink", 1
+            ),
+            gobj
+        );
+        if(kw_get_int(gobj, jn_answer, "result", 0, 0) >= 0) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset", "%s", MSGSET_INTERNAL,
+                "msg", "%s", "TEST FAIL: update-node with a refused link answered success",
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_answer)
+    }
+
+    /*-----------------------------------------------*
+     *  Test 8d: `create_only` refuses an id that
+     *  exists (M28 of the 2026-09-21 review). +New
+     *  with a taken id was an update: the record
+     *  overwritten and, with autolink, unlinked.
+     *-----------------------------------------------*/
+    {
+        g_rowid = kw_get_int(gobj, user1, "__md_treedb__`g_rowid", 0, 0);
+        reset_counters(priv);
+        json_t *jn_answer = gobj_command(priv->gobj_node, "update-node",
+            json_pack("{s:s, s:{s:s, s:s, s:[]}, s:{s:b, s:b}}",
+                "topic_name", "users",
+                "record",
+                    "id", "alice",
+                    "username", "someone_else",
+                    "departments",
+                "options",
+                    "create_only", 1,
+                    "autolink", 1
+            ),
+            gobj
+        );
+        if(kw_get_int(gobj, jn_answer, "result", 0, 0) >= 0) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset", "%s", MSGSET_INTERNAL,
+                "msg", "%s", "TEST FAIL: create_only on an existing id answered success",
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_answer)
+        result += expect_count(gobj, "create_only", "unlinked", 0, priv->unlinked_count);
+        result += expect_alice_saved(gobj, "create_only", user1,
+            "alice_g", "departments^research^users", g_rowid
+        );
+    }
+
+    /*-----------------------------------------------*
      *  Test 10: set-link-events switches the events
      *  of a link at run time: off, a link publishes
      *  the parent's UPDATED; on again, the unlink

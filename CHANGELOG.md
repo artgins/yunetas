@@ -108,6 +108,27 @@ A4 and M22 of the 2026-09-21 review.
   library: SIGSEGV), and `tests/c/timeranger2/test_iterator_index.c` for the
   index.
 
+### treedb: a link that cannot be made no longer orphans a node, and +New no longer overwrites
+
+- **M1 — `treedb_replace_links()` unlinked first and linked after.** A new
+  parent that could not be linked (it does not exist, its hook does not link
+  that column, the node itself, a cycle) left the child with NO parent, on
+  disk, `EV_TREEDB_NODE_UNLINKED` published and no `LINKED`; `update-node`
+  answered *"Node update!"*. Reachable from the gobj-ui form (`autolink`
+  always), and from C_AUTHZ `update-user`, which lost every role. A column is
+  now replaced whole or not at all: every new link is checked
+  (`link_can_be_made()`) before any old one is undone. The record is still
+  saved, and `update-node` answers **-1**: *"node 'x' saved, but its links
+  were NOT changed"*.
+- **M28 — `update-node` gets `options.create_only`**: a NEW node, and one
+  that exists is refused (*"Node already exists"*); `create` alone is an
+  upsert. gobj-ui 7.23.194's +New sends it: a taken id used to overwrite the
+  record and, with `autolink` and empty selects, unlink it.
+- Tests: `test_c_node_link_events` 8b (the only parent replaced by one that
+  does not exist, red: UNLINKED published and the link lost), 8c (the
+  command, red: success) and 8d (`create_only`, red: overwritten and
+  unlinked).
+
 ### timeranger2: block 7 of the 2026-09-21 review (the cache cell)
 
 - **M16 — after a late record, time-range queries hid records.** A cell's

@@ -8826,6 +8826,118 @@ PRIVATE int link_child_to_parent_ref(
 }
 
 /***************************************************************************
+ *  Can the child `node` be linked through `col_name` to `ref`? The checks
+ *  a link can FAIL on for what a record says -- a malformed ref, a hook
+ *  that does not link into this column, a parent that does not exist, the
+ *  node itself, a cycle -- asked before anything moves, with the same
+ *  messages the link would log. Structural errors of the schema are left
+ *  to the link itself.
+ ***************************************************************************/
+PRIVATE BOOL link_can_be_made(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *node,       // NOT owned, pure node: the child
+    const char *col_name,
+    const char *ref
+)
+{
+    const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", "", 0);
+
+    char parent_topic_name[NAME_MAX];
+    char parent_id[NAME_MAX];
+    char hook_name[NAME_MAX];
+    if(!decode_parent_ref(
+        ref,
+        parent_topic_name, sizeof(parent_topic_name),
+        parent_id, sizeof(parent_id),
+        hook_name, sizeof(hook_name)
+    )) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Wrong parent reference: must be \"parent_topic_name^parent_id^hook_name\"",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "col",          "%s", col_name,
+            "ref",          "%s", ref,
+            NULL
+        );
+        return FALSE;
+    }
+
+    json_t *hook_desc = kwid_get(gobj,
+        tranger,
+        0,
+        "topics`%s`cols`%s`hook",
+            parent_topic_name, hook_name
+    );
+    const char *child_field = hook_desc? kw_get_str(gobj, hook_desc, topic_name, 0, 0) : NULL;
+    if(!child_field || strcmp(child_field, col_name)!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "fkey reference: its hook does not link into this column",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "col",          "%s", col_name,
+            "ref",          "%s", ref,
+            NULL
+        );
+        return FALSE;
+    }
+
+    json_t *parent_node = treedb_get_node( // Return is NOT YOURS, pure node
+        tranger,
+        treedb_name,
+        parent_topic_name,
+        parent_id
+    );
+    if(!parent_node) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "fkey reference: parent node not found",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "col",          "%s", col_name,
+            "ref",          "%s", ref,
+            NULL
+        );
+        return FALSE;
+    }
+    if(parent_node == node) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot link self node",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "col",          "%s", col_name,
+            "ref",          "%s", ref,
+            NULL
+        );
+        return FALSE;
+    }
+    if(link_would_close_cycle(
+        gobj, tranger, treedb_name, hook_name, hook_desc, parent_node, node
+    )) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot link, the link would close a cycle in the hook",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "col",          "%s", col_name,
+            "ref",          "%s", ref,
+            NULL
+        );
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
  *  Replace the node's links by the ones kw's fkey columns name, touching
  *  only what differs. treedb_clean_node() + treedb_autolink() got there by
  *  unlinking EVERY link and linking again: a link that did not change was
@@ -8833,10 +8945,14 @@ PRIVATE int link_child_to_parent_ref(
  *  had already cost the node every link it had.
  *
  *  A column kw does not carry is an empty one, as it always was for an
- *  autolink. A link that cannot be made or undone is logged and skipped,
- *  and the rest go on: the caller saves the record anyway, because a link
- *  can be repaired later and a lost record cannot. A column whose value
- *  cannot be read as refs keeps the links it has.
+ *  autolink. A column is replaced WHOLE or not at all: every new link is
+ *  checked before any old one is undone, and a column with one link that
+ *  cannot be made keeps the links it has. Unlinking first and failing
+ *  after left the child orphaned on disk, UNLINKED published and no
+ *  LINKED, for a refusal (M1 of the 2026-09-21 review). The caller saves
+ *  the record anyway, because a link can be repaired later and a lost
+ *  record cannot. A column whose value cannot be read as refs keeps the
+ *  links it has too.
  *
  *  Return 0, or -1 if some link failed (every failure logged).
  ***************************************************************************/
@@ -8943,10 +9059,30 @@ PUBLIC int treedb_replace_links(
         json_t *cur_refs = get_fkey_refs(cur_value);
 
         /*
+         *  Every NEW link must be possible before an old one is undone
+         */
+        BOOL column_ok = TRUE;
+        int idx; json_t *jn_ref;
+        json_array_foreach(new_refs, idx, jn_ref) {
+            const char *ref = json_string_value(jn_ref);
+            if(json_str_in_list(gobj, cur_refs, ref, FALSE)) {
+                continue;
+            }
+            if(!link_can_be_made(gobj, tranger, node, col_name, ref)) {
+                column_ok = FALSE;  // Error already logged
+            }
+        }
+        if(!column_ok) {
+            ret = -1;
+            JSON_DECREF(cur_refs)
+            JSON_DECREF(new_refs)
+            continue;
+        }
+
+        /*
          *  Unlink first: a single-valued column has room for one parent,
          *  and a link writes over the old ref without unhooking it.
          */
-        int idx; json_t *jn_ref;
         json_array_foreach(cur_refs, idx, jn_ref) {
             const char *ref = json_string_value(jn_ref);
             if(json_str_in_list(gobj, new_refs, ref, FALSE)) {

@@ -167,6 +167,20 @@ matters only in a yuno with an authz checker (`C_AUTHZ`).
 `update-node` with `options.create=1` also asks for `create` when the node
 does not exist yet. A refusal answers `-403`, and nothing is written.
 
+`options.create_only=1` makes a NEW node and refuses one that exists
+(*"Node already exists"*); `options.create=1` alone is an upsert, and a taken
+id there is an update of the existing record. A table's +New sends
+`create_only` (gobj-ui 7.23.194).
+
+```
+command-yuno id=<id> service=<treedb> command=update-node topic_name=users record='{"id":"bob","username":"Bob"}' options='{"create_only":1}'
+```
+
+An `update-node` with `autolink` whose record names a link that cannot be
+made saves the record and answers **-1**: *"node 'x' saved, but its links were
+NOT changed"*. The fkey column keeps the links it had (see
+`treedb_replace_links()`); it used to answer *"Node update!"*.
+
 Example: a user whose only role on `treedb_devices` has `"permission": "read"`
 gets `nodes` and `node`, and is refused `link-nodes`:
 

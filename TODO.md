@@ -355,12 +355,10 @@ entries at once:
 
 **Medium -- tr_treedb, C_NODE, the agent**
 
-- **M1 -- `treedb_replace_links()` still unlinks first** (`tr_treedb.c:8927`).
-  A refused new parent (the cycle check, "parent node not found", a hook that
-  does not link that column) leaves the child orphaned ON DISK with UNLINKED
-  published; `mt_update_node` drops the -1 (`c_node.c:1099`) and `update-node`
-  answers *"Node update!"*. The comment that justifies the order stopped being
-  true with 3fea635f3. Reached by gobj-ui's form (`autolink: true` always).
+- **M1 -- SHIPPED (unreleased).** `treedb_replace_links()` replaces a column
+  whole or not at all (every new link checked before an old one is undone),
+  and `update-node` answers -1 when the record was saved but its links were
+  not changed.
 - **M2 -- the `fkey: {parent: hook}` mark of `parse_hooks()` is persisted in
   the CHILD's `topic_cols.json`** (`tr_treedb.c:2479`, regression of
   441937134). A hook rename raises only the parent's `topic_version`, so the
@@ -409,8 +407,9 @@ entries at once:
 - **M15 (s/v)** -- `update-binary` / `update-config` answer result 0 when
   `gobj_update_node()` returns NULL, and `sync-binaries` reads that as OK
   (`c_agent.c:3530`); `delete-realm` always answers 0 (`c_agent.c:2956`);
-  C_AUTHZ's `update-user` with a role that cannot be linked strips every role
-  and answers *"User updated"* (`c_authz.c:4127`, the mechanism of M1); a DICT
+  C_AUTHZ's `update-user` with a role that cannot be linked answers
+  *"User updated"* (`c_authz.c:4127`) -- it no longer strips the roles (M1),
+  but it does not say the role was refused either; a DICT
   hook takes the newest child instance, so a deleted instance stays in the
   hook and a forced delete of the parent resurrects it on disk
   (`tr_treedb.c:4582` -- this contradicts the premise the `delete_instance`
@@ -457,9 +456,9 @@ entries at once:
   (`datetime-local` without seconds, and `get_form_values()` reads every
   field). The column class was fixed, not the cause.
 - **M27 -- SHIPPED in gobj-ui 7.23.193.**
-- **M28 -- +New with an id that exists is a silent upsert**
-  (`c_yui_treedb_topics.js:2503`): it overwrites and, through autolink with the
-  empty selects, UNLINKS the existing record.
+- **M28 -- SHIPPED (unreleased C `update-node` option `create_only`; gobj-ui
+  7.23.194 sends it from +New).** Against an older backend +New is still an
+  upsert.
 - **M29, M30 -- SHIPPED in gobj-ui 7.23.193.**
 - **M31 -- string cells go in through `innerHTML`** (`:2093`, predates the
   range): text with `<` is mangled. The plugin's CSP keeps script from running.

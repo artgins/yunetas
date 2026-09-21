@@ -1466,7 +1466,7 @@ int treedb_replace_links(
 
 **Returns**
 
-Returns `0` when every link was made or removed, or `-1` when at least one failed. Every failure is logged, and the other links are processed.
+Returns `0` when every column was replaced, or `-1` when at least one column was refused. Every refusal is logged, and the other columns are processed.
 
 **Behavior**
 
@@ -1478,16 +1478,19 @@ For each fkey column of the node's topic, the refs of the node are compared with
 
 A column that `kw` does not carry is an **empty** column, and its links are removed (with the warning *"fkey empty"*). Send every fkey column, or do not use `autolink` for a partial update.
 
-A ref is refused, with an error, when:
+**A column is replaced whole, or not at all** (unreleased, after 7.24.1). Every new ref of a column is checked BEFORE any old link of it is undone, and a column with one ref that cannot be linked keeps the links it has. A ref cannot be linked when:
 
+- it is malformed: *"Wrong parent reference: …"*;
+- its hook does not link the topic into the column where the ref arrived: *"fkey reference: its hook does not link into this column"*;
 - its parent does not exist: *"fkey reference: parent node not found"*;
-- its hook does not link the topic into the column where the ref arrived: *"fkey reference: its hook does not link into this column"*.
+- it names the node itself: *"Cannot link self node"*;
+- the link would close a cycle in the hook: *"Cannot link, the link would close a cycle in the hook"*.
 
-A refused ref does not stop the other refs. The caller can still save the record, and repair the link later with [`treedb_link_nodes()`](<#treedb_link_nodes>).
+Before, the old links were undone first and a refused new one failed after, so a node whose only parent was replaced by an impossible one was left with NO parent, on disk, `EV_TREEDB_NODE_UNLINKED` published. A refused column does not stop the other columns. The caller can still save the record, and repair the link later with [`treedb_link_nodes()`](<#treedb_link_nodes>).
 
 **Example**
 
-The node `users^alice` is linked to `departments^engineering`. This record keeps that link, adds `departments^research`, and refuses `departments^ghost` (not found):
+The node `users^alice` is linked to `departments^engineering`. This record keeps that link and adds `departments^research`:
 
 ```C
 json_t *kw = json_pack("{s:s, s:s, s:[s, s, s]}",
@@ -1495,15 +1498,14 @@ json_t *kw = json_pack("{s:s, s:s, s:[s, s, s]}",
     "username", "alice_w",
     "departments",
         "departments^engineering^users",
-        "departments^research^users",
-        "departments^ghost^users"
+        "departments^research^users"
 );
 if(treedb_replace_links(tranger, alice, kw, TRUE) < 0) {
-    // Error already logged: the good links are made, the bad one is not
+    // Error already logged: the column kept the links it had
 }
 ```
 
-The result: one `EV_TREEDB_NODE_LINKED` (research), no event for engineering, one error for ghost.
+The result: one `EV_TREEDB_NODE_LINKED` (research), no event for engineering. Had the column also named `departments^ghost^users` (not found), NOTHING of it would move: no link to research, no event, one error for ghost, and alice keeps engineering.
 
 ---
 
