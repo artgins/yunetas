@@ -24,62 +24,8 @@ gobj is a crash, and on ESP32 nothing stops it today.
 
 ## Schema editing: the admin console
 
-The backend is done (see below for what it still lacks). The client is not, and
-it does not belong in an application SPA: an end user edits data, not the shape
-of it. `gui_treedb` also *cannot* apply a schema change — it connects to yunos
-directly and `pause-yuno`/`kill-yuno` are agent commands — and that inability is
-the form telling the truth about the function.
-
-**Grow `gui_agent`, do not merge the two.** It already has the agent connection,
-the yuno list and the lifecycle commands, which is most of what an admin console
-needs; `gui_treedb` stays what it is, a data browser pointed at a backend.
-
-**DONE (`yunos/js`, gui_agent):** the **Schemas** workspace, the routing
-adapter it needed, and the discovery of which treedbs a yuno exposes
-(`services`, filtering `C_NODE`, declared as a **tree of nodes** with
-`treedb_system_schema` first, and probed per yuno on expanding a node in the
-picker so a yuno with none is marked there). Each treedb is a `link` node of a
-`C_YUI_NODE` rooted at the tab's route, so the depth (yuno → treedb → topic) is
-navigation and not a `<select>`, and how it is drawn — strips, back, breadcrumb
-— is a Preferences choice. `C_AGENT_TREEDB_LINK` implements `mt_command_parser`, takes
-the view's command verbatim, re-wraps it as `command-agent` +
-`cmd2agent="command-yuno id=<yuno> service=<treedb> command=<cmd>"`, and puts
-the original command back on top of the `command_stack` before handing the
-answer to the view; `C_AGENT_TREEDB` mounts the library's views with
-`yui_mount_service_view()` against it. The two traps it had to be born knowing
-(the whole kw is the yuno filter; the routed path loses the live node events,
-echoed locally for its own writes) are in its header and in
-`gui_agent/README.md`.
-
-The **node's own AGENT** is an entry of the picker too (sentinel yuno id
-`__agent__`): it never appears in `list-yunos`, but it runs the same services
-and its treedbs — `treedb_yuneta_agent` included — were unreachable from the
-console. One line differs, `command-agent service=<treedb>` instead of
-`command-yuno id=<yuno> …`, and it lives in `cmd2agent_service()`. On the
-`.ovh` plane the same row is **agent22**. Apply is disabled there: the agent is
-not a managed yuno, so it is restarted on the node.
-
-The **record GRAPH** is there too, as a position of the same url
-(`<treedb>/graph[/<topic>]`, the third icon of every topic card): the treedb's
-viewer hosts `C_YUI_TREEDB_GRAPH` on the same adapter and swaps the two bodies,
-lazily, because G6 is the heaviest thing the workspace draws. A replica hands it
-the same `readonly` the editor gets and it loses its `edition` mode (gobj-ui
-5.16.0), and a write in it marks *Apply* — except a save of the graph LAYOUT,
-which is the view's own bookkeeping in `__graphs__`.
-
-**DONE (gobj-ui 6.2.1 + gui_agent 0.8.1):** the workspace stopped showing the
-three topics a schema is STORED in and shows the schema they ARE.
-`C_YUI_SCHEMA_EDITOR` is the landing of `treedb_system_schema` (segment `edit`;
-the raw tables keep `raw` and their own names): treedb → topics → columns in
-declared order, reordered by dragging, flags as checkboxes that say what they
-do, the schema DRAWN from the records being edited (that button drew the meta
-schema before — the same three cards on every yuno), a **check** of what the
-treedb would refuse, an **export** as the C literal and an **import** shown as
-a plan. Both versions travel with every write, so the operator is asked to
-remember neither. This one IS a library gclass: the logic is pure and tested
-apart from the view (`schema_model`, `schema_validate`, `schema_descs`,
-`schema_to_c`, `schema_import`, `schema_flags`, `schema_write_options`), and
-the app mounts it unchanged like the other two.
+The console is gui_agent's **Schemas** workspace (design and traps in
+`yunos/js/gui_agent/README.md`); the backend's gaps are in the next section.
 
 What that workspace still lacks:
 
@@ -154,14 +100,7 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
 
 ## TreeDB / timeranger2: open findings of the 2026-09-15 review
 
-A read-only review of timeranger2, tr_treedb, their gclasses, gobj-ui's treedb
-views and the docs. Every finding marked "high" was checked by hand in the
-code. What shipped is in `CHANGELOG.md` (`str2system_flag`, flag-less column,
-`rowid`, re-link of a string fkey, hook+fkey refused, and the rest of the
-highs). This is what is open.
-Line numbers are those of `main` on 2026-09-15.
-
-**High**: none open. A1-A11 shipped on 2026-09-15 (see `CHANGELOG.md`).
+What is still open of the first review (the rest is in `CHANGELOG.md`).
 
 **Found while fixing (2026-09-15)**
 
@@ -172,10 +111,6 @@ Line numbers are those of `main` on 2026-09-15.
 
 **Medium**
 
-- **timeranger2**: nothing open from the review. (Fixed on 2026-09-15: the
-  propagation of `delete_key` to a follower, a feed closed from inside its own
-  fs_watcher callback, and an append whose `__t__` belongs to an earlier file
-  -- see `CHANGELOG.md`.)
 - **tr_treedb**: `treedb_delete_instance()` does not unlink, and
   that matters in ONE case only (analysed 2026-09-15): the loader links only the
   `id` index (`load_all_links()`) and hooks dedup by child id, so a non-primary
@@ -186,64 +121,8 @@ Line numbers are those of `main` on 2026-09-15.
   visible parent until the reload re-hangs them from the primary (their fkey
   names only the id). The agent's `delete-config` / `delete-binary` refuse a
   version still in use ("Using in N yunos") unless `force=1`. Low impact; a
-  fix would move those children to the primary's hook. (Fixed on 2026-09-15:
-  a pkey2 value changed by an update, and the OLD tag the snapshot clone left
-  in memory -- see `CHANGELOG.md`. Decided and fixed on 2026-09-16 and
-  2026-09-19: a save is always untagged -- only shoot-snap tags a record,
-  active snap or not -- so every snap freezes what it shot; the delete guard asks the key's records and the asset gc
-  holds what a shot record names while the snap exists.)
-- **tr_treedb snaps -- reviewed 2026-09-17, CLOSED 2026-09-19/20.**
-  A snap is a PHOTO of an instant and must never be written into. The two
-  gaps and the design decision of (1) are all answered; the layout of the
-  graph (`__graphs__`) joined the photo on 2026-09-20.
-  1. **CLOSED 2026-09-19 (the user's rule): a record takes a snap's tag
-     exactly once, from shoot-snap.** `treedb_save_node()` /
-     `treedb_create_node()` write tag 0 even while a snap is ACTIVATED (they
-     used to take its tag and write into the photo: a binary installed during
-     a rollback became part of the snap). With a snap active the primary
-     index shows the snap's records, and the pkey2 indexes every other
-     instance (all but the one in the primary) -- that is intended. An edit
-     made while a snap is active reaches the primary index after the
-     deactivation. **And the last question of this section is answered too
-     (the user, 2026-09-20): an activation IS a filtered load and stays one
-     -- the old option B, activation as a RESTORE, is discarded.** What it is
-     for: going back to a state marked as good, to look at it or to carry on
-     from it; and working from it ignores what was written after the shot,
-     for every key touched, without destroying it. Written up in
-     `YUNO_TREEDB.md` 3.9 ("Working from a snap"), on the API page of
-     `treedb_activate_snap()` and beside the rollback recipe of
-     `YUNO_LIFECYCLE.md` 6.6. **Nothing is open in this section.**
-  2. **CLOSED 2026-09-20: `treedb_delete_instance()` asks the RECORDS, not
-     the tag in memory.** `instance_held_by_a_snap()` walks the key's records
-     keeping only those of this instance (the pkey2 value is a FIELD, so that
-     walk reads the content, not only the metadata) and refuses when one of
-     them carries the tag of a snap that exists: "cannot delete instance, a
-     snapshot still holds it". `force` overrides. Before, an instance updated
-     after a shot had tag 0 in memory and the delete tombstoned every md2 row
-     of that (id, pkey2), the frozen one included.
-     (The side effect noted with it -- meta-topics tagged while a snap is
-     active -- went with (1).)
-- **C_NODE / C_TREEDB**: nothing open from the review. (Fixed on 2026-09-15:
-  every C_NODE command asks a permission; and on 2026-09-16: `mt_treedbs`
-  answers a list, not an envelope -- see `CHANGELOG.md`.)
-- **gobj-ui (treedb views)**: nothing open from the review. (Fixed on
-  2026-09-16 and shipped as gobj-ui **7.23.169**, deployed to all six
-  consumers: the Op-column pencil, the confirm dialogs, the `setTimeout`
-  deferral, the kws carrying G6 event objects and the writes run from DOM
-  callbacks all cross the FSM now; the table's search no longer matches the
-  COUNT of a hook; `ac_unselect_rows` reads its own attr; the toolbar buttons
-  and the search box carry `title`/`aria-label`; the form dialog's title
-  re-translates; and the first `graph.render()` guards against its own view
-  being gone. See that repo's `CHANGELOG.md`.)
-
-  One item of the report was NOT a defect and was left alone: it asked that
-  `C_YUI_TREEDB_TOPICS` declare `EV_SELECT_ROWS`/`EV_UNSELECT_ROWS`. The
-  library settles that shape the other way round -- the event is opt-in and
-  the host that TURNS IT ON declares it, as `with_node_click` says -- and
-  nothing turns these on, so a declaration there would be the no-op action
-  `CLAUDE.md` forbids. The contract went into the attr descriptions.
-
-  **Found while fixing, not from the review and not fixed** (all LATENT, a
+  fix would move those children to the primary's hook.
+- **gobj-ui: found while fixing, not from the review and not fixed** (all LATENT, a
   static scan of who hosts whom): three hosts do not declare an output event
   of a gobj they subscribe to. `C_YUI_NODE` creates `C_YUI_NAV` as a pure
   child (`c_yui_node.js:705/760/969`) and declares neither
@@ -254,12 +133,6 @@ Line numbers are those of `main` on 2026-09-15.
   `__collapsed__` sentinel and those come from the backend, not from a schema
   or a cell. `C_YUI_TREEDB_TOPICS` hosting `C_YUI_TREEDB_SCHEMA` is the
   documented opt-in case, not a defect.
-- **Docs**: nothing open from the review. (Fixed on 2026-09-16:
-  `YUNO_TREEDB.md` shows `schema_version` at the treedb level, says
-  `sf_zip_record` / `sf_cipher_record` are not implemented, and seeds its
-  `initial_load` example with the agent's real `roles` / `users`. The
-  `kernel/js/gobj-ui/README.md` item was stale: its asset section already
-  described the `get-asset` / `yui_asset_*` model.)
 
 **Tests nobody has** (in order of damage): `delete_instance` with links.
 C_NODE commands with no ctest: `node`, `instances`, `pkey2s`, `jtree`,
@@ -267,191 +140,26 @@ C_NODE commands with no ctest: `node`, `instances`, `pkey2s`, `jtree`,
 `import-db` / `export-db`, `print-tranger`, and the refusals on a replica. In
 gobj-ui, no gclass of the treedb views has a test: the save kw as it leaves
 `publish_treedb_write` would have caught A8 (its column rule is unit-tested
-since 7.23.170, the kw itself is not). Covered since 2026-09-16, no longer
-missing: changing a pkey2 value (`tr_treedb_update_instance`), two hooks on
-one fkey (`tr_treedb_schema_parse`), the snapshot clone followed by updates
-(`tr_treedb_snap_clone`).
+since 7.23.170, the kw itself is not).
 
 ## TreeDB / timeranger2: open findings of the 2026-09-21 review
 
-A second read-only review, of everything done since the base of the first one
-(7.20.0 / gobj-ui 7.23.167): 39 C commits, 39 of gobj-ui, 4 of gobj-js, 43 of
-yunos-js, read at yunetas 7.24.1, gobj-ui 7.23.192, gobj-js 7.22.2. Every high
-and medium went through an adversarial verifier told to refute it, most were
-reproduced against `outputs/lib`, and the highs were read again by hand. The
-suites were all green while it ran (ctest 137/137, gobj-ui 823, gobj-js 146,
-gui_treedb 60): **no test catches any of this.** Nothing is fixed yet. Line
-numbers are those of `main` on 2026-09-21. **s/v** marks the five findings
-whose verification did not run.
+The second review (read at 7.24.1) shipped in 7.25.0 and in gobj-ui
+7.23.193-7.23.196 / gui_treedb 0.17.52-0.17.54 / gui_agent 0.22.74 (see the
+`CHANGELOG.md` of each). What its fixes left open:
 
-Six causes explain most of the list, and fixing the cause closes several
-entries at once:
+- **A1-A3:** C_NODE's `snap-content` does not ask
+  `treedb_is_treedbs_topic()` -- it can no longer leave the database, but it
+  can read a topic of the tranger that is not a topic of that treedb.
+- **M16-M18:** the `tm` range of a cell is read from the first and last rows,
+  and `tm` is out of order whenever a device uploads a buffered batch; only the
+  `t` disorder marks a file (`<file>.unordered`). And a crash between the md2
+  write and the marker leaves an unmarked unordered file.
+- **M36:** every in-tree yuno forces `impose_c_schema`, so gui_agent's Apply
+  is off on all of them until one stops forcing it.
 
-1. **The replica is the path nobody walks.** The master guard went into C_NODE
-   command by command; its siblings were left out. No test opens a treedb as a
-   replica to write. The guard belongs in `tranger2_*`.
-2. **`on_critical_error=2` turns a failed READ into a dead yuno that is not
-   relaunched** (exit 0 means "no relaunch" to `ydaemon`). A3, A5 and M10 share
-   it. A file that is no longer there is not a reason to leave the process.
-3. **Names from the wire: keys are validated, topics are not.**
-4. **Fixes of the first review that moved the defect** instead of closing it:
-   d60ec78, 441937134, 3fea635f3, 3664eb55e, c46c820a0, 141277953, af1489c66,
-   and gui_treedb's 9cdd16b, which does nothing.
-5. **`force` means two things**: "unlink the children" and "skip the snapshot
-   guard" -- and `delete_node()` says the opposite for assets (*"force means
-   'unlink the children', never 'ignore what a snapshot needs'"*).
-6. **Three sites unlink BEFORE knowing they can link**, and the -1 is dropped
-   on the way, so the caller is told it worked.
-
-**High**
-
-- **A1, A2, A3 -- SHIPPED (7.25.0, see `CHANGELOG.md`).** A topic name is
-  confined to its database at the tranger2 boundary (empty, `.`, `..`, `/` and
-  `` ` `` refused; a leading `.` stays legal for the MQTT queues),
-  `tranger2_open_topic()` answers NULL for a directory without
-  `topic_desc.json` instead of a critical, and `tranger2_delete_topic()` /
-  `tranger2_backup_topic()` / `treedb_delete_topic()` are master-only. Test:
-  `tests/c/timeranger2/test_topic_path_traversal.c`. Still open from their
-  text: C_NODE's `snap-content` does not ask `treedb_is_treedbs_topic()` -- it
-  can no longer leave the database, but it can read a topic of the tranger that
-  is not a topic of that treedb.
-- **A4 -- SHIPPED (7.25.0, see `CHANGELOG.md`).** C_TRANGER resolves
-  every registered handle by its identity (topic, kind, id, creator) after
-  `tranger2_topic_is_open()`, instead of trusting the pointer kept at
-  registration. Test: the ABA section of `test_c_tranger`. Not done, and no
-  longer needed for safety: emptying the registries in `mt_stop` and purging a
-  topic's entries in `cmd_delete_topic` -- a stale entry now resolves to NULL
-  and is dropped at its next use or when its session is reaped.
-- **A5 -- first half SHIPPED (7.25.0, see `CHANGELOG.md`; gui_treedb
-  0.17.52).** Every iterator C_TRANGER opens registers the `key_deleted`
-  callback, which marks it; its next `get-page` closes it and says why, so a
-  deleted key no longer reaches `get_topic_rd_fd()` through an open iterator,
-  whoever deleted it. gui_treedb re-opens its whole-topic Rows card on the
-  delete-key answer. **Second half SHIPPED too (7.25.0): a failed READ
-  never exits the process** -- the user's option C. `get_topic_rd_fd()` and
-  the three criticals of `get_md_record_for_wr()` no longer apply
-  `on_critical_error`, and a read no longer creates a missing md2. The short
-  md2 write (`:3019`) KEEPS its exit, the user's call. Test:
-  `test_read_never_exits`. The classification it was decided on:
-  - The only READ path that can exit is `get_topic_rd_fd()`
-    (`timeranger2.c:2512`, `master?on_critical_error:0`); the rest of the read
-    side (`read_md`, `read_record_content`, `load_first_and_last_record_md`)
-    already passes 0.
-  - `get_md_record_for_wr()` (`:3461/3481/3502`) is read-before-modify, the
-    trigger is caller input (a bad rowid or `__t__`), it returns before any
-    write, and it is also reached by the pure read `tranger2_read_user_flag()`.
-    Safe to pass 0. Hidden side effect to fix with it: on a master,
-    `get_topic_wr_fd()` -> `create_file()` makes an EMPTY md2 for a `__t__`
-    whose file does not exist, from a read.
-  - The one write that must keep exiting, or grow a rollback: `:3019`, a SHORT
-    write of the 32-byte md2 row leaves every later append misaligned and the
-    file unreadable at the next load (`:6438`). With 0 it needs an
-    `ftruncate(md2_fd, offset)` before returning.
-  - Also reached through helpers that take `on_critical_error`
-    (`load_persistent_json` / `save_json_to_file`): `timeranger2.c` 449, 460,
-    519, 529, 886, 1207; `tr_treedb.c` 671, 720, 1660; `tr_msg2db.c` 150, 190.
-    Loads are reads; saves are writes.
-- **A6 -- SHIPPED in gobj-ui 7.23.193**: the row's id crosses the dialog.
-- **A7, A8 -- SHIPPED (7.25.0, see `CHANGELOG.md`).**
-- **A9 -- SHIPPED (7.25.0)**: no shot while a snap is active or loaded.
-
-**Medium -- tr_treedb, C_NODE, the agent**
-
-- **M1 -- SHIPPED (7.25.0).** `treedb_replace_links()` replaces a column
-  whole or not at all (every new link checked before an old one is undone),
-  and `update-node` answers -1 when the record was saved but its links were
-  not changed.
-- **M2 -- SHIPPED (7.25.0).** The fkey mark is recomputed at every open
-  and written to no file; a renamed hook no longer loses its links.
-- **M3 -- SHIPPED (7.25.0).** A ref to a hook that no longer exists is
-  removed from the child with a warning when it is relinked, cleaned or
-  force-deleted.
-- **M4 -- SHIPPED (7.25.0, option A).** The rowid seed reads the
-  topic's keys (tranger2's cache), not the snap-filtered index.
-- **M5 -- SHIPPED (7.25.0, option B).** `now` is stamped by every write;
-  a birth time is `time` without `now` (`__assets__.t`, topic_version 2).
-- **M6, M7, M8 -- SHIPPED (7.25.0).** A topic's columns are checked before
-  it is created; a `__system__` column answers the `file` and hook/fkey rules
-  at the write; create, link and delete publish a schema change like update.
-- **M9, M10 -- SHIPPED (7.25.0)**: the guards close when they cannot
-  read; a replica cannot shoot, activate nor deactivate a snap.
-- **M11, M12 -- SHIPPED (7.25.0, option A).** `force` unlinks the
-  children, `ignore_snaps` deletes what a snap holds; the agent maps its own
-  `force` to both, and `delete-yuno` no longer guards by the tag in memory.
-- **M13 -- SHIPPED with A1**: `delete-treedb` on a replica answers READ-ONLY
-  before `delete_client_treedb_schema()` touches memory.
-- **M14 -- SHIPPED (7.25.0).**
-- **M15 -- SHIPPED (7.25.0).** update-binary/update-config/delete-realm
-  answer their failures; create/update-user refuse a role that cannot be
-  linked; a dict hook keeps the primary child instance; an unlink frees every
-  instance of the parent.
-
-**Medium -- timeranger2, C_TRANGER**
-
-- **M16, M17, M18 -- SHIPPED (7.25.0, see `CHANGELOG.md`).** The master
-  marks a file with a late record (`<file>.unordered`) and a load reads a
-  marked file whole; a follower merges ranges; the append looks at the last
-  cell first (3.9 us flat up to 3650 files); a disk feed keeps one watermark
-  per file. **Still open, and not in the review:** the `tm` range of a cell
-  is also read from the first and last rows, and `tm` is out of order whenever
-  a device uploads a buffered batch; only the `t` disorder marks a file. Also
-  open: a crash between the md2 write and the marker leaves an unmarked
-  unordered file.
-- **M19, M20 -- SHIPPED (7.25.0; gui_treedb 0.17.53).** A live session's
-  iterators survive its last unsubscribe (its EV_ON_CLOSE reaps them), and
-  `backward` means "from the end" for every iterator, defaulting to the one
-  given at the open; gui_treedb sends it on every page and re-arms a card
-  whose iterator is gone.
-- **M21 -- SHIPPED (7.25.0).** A live `open-list` is stamped with its
-  session and reaped with it, like an iterator.
-- **M22 -- SHIPPED (7.25.0; gui_treedb 0.17.54).** By-id lookup is a
-  hash, and a multi-key iterator keeps a row count per key and opens a part
-  only while a page reads it; gui_treedb no longer reopens the whole-topic
-  Rows card by itself, and starts a new Rows card at `from_rowid=-100`.
-
-**Medium -- gobj-ui, gui_treedb, gui_agent**
-
-- **M24, M25 -- SHIPPED in gobj-ui 7.23.193** (M25 behind the new
-  `form_waits_for_answer`, which `C_YUI_TREEDB_TOPICS` sets).
-- **M26 -- SHIPPED in gobj-ui 7.23.195** (the input carries seconds).
-- **M27 -- SHIPPED in gobj-ui 7.23.193.**
-- **M28 -- SHIPPED (7.25.0 C `update-node` option `create_only`; gobj-ui
-  7.23.194 sends it from +New).** Against an older backend +New is still an
-  upsert.
-- **M29, M30 -- SHIPPED in gobj-ui 7.23.193.**
-- **M31 -- SHIPPED in gobj-ui 7.23.195** (text nodes; hook cell as DOM).
-- **M32, M33 -- SHIPPED in gobj-ui 7.23.193.**
-- **M35 -- SHIPPED in gui_treedb 0.17.53.**
-- **M36 -- SHIPPED (7.25.0 C; gobj-ui 7.23.196; gui_agent 0.22.74).** The
-  owner's design: an edit of `__system__` is a draft; `save-schema` /
-  `saved-schema` / `apply-schema` in C_TREEDB (no `treedb_name`: every treedb
-  opened there); a treedb opens from its schema file; the editor stops raising
-  versions; gui_agent's Schemas tab has Save, the imposed banner, and an Apply
-  dialog (relaunched yuno + changes) enabled only when something saved can be
-  applied. Every in-tree yuno forces impose, so Apply is off on all of them
-  until one stops forcing it.
-
-**Medium -- docs and tests**
-
-- **M37 -- SHIPPED (docs, 2026-09-21).** `deploying-yunos.md` Recipe E and
-  `YUNO_LIFECYCLE.md` 6.6 say what `deactivate-snap` really does (it promotes
-  the HIGHEST release): forward to a corrected release = install it, then
-  deactivate; stay on the old one = delete the bad yuno release AND its binary
-  while the snap is active, then deactivate. (The "since 7.22.0" of that block,
-  part of M39, is 7.24.0 there now.)
-- **M38, M39 -- SHIPPED (docs, 2026-09-21).** `treedb_delete_instance()` is
-  described one way everywhere (tombstones every md2 row of the instance, no
-  link check, borrowed node, two guards), with an example; no doc, header nor
-  comment says a save inherits a snap tag any more, and the dates are the
-  real ones (inherited up to 7.22.x, activated snap's in 7.23.x, untagged
-  since 7.24.0).
-- **M41, M42 -- SHIPPED (7.25.0).** The authz test walks the command
-  table (it found `system-schema`, `trace` and the `set-link-events` display
-  open to anyone, fixed); a replica phase checks every write READ-ONLY;
-  gobj-js' kwid test pins the 7.21.0 fix.
-
-**Low, worth keeping** (three mediums were lowered by their verifiers and live
-here; their ids, M23, M34 and M40, stay unused so the others keep theirs):
+**Low, worth keeping** (M23, M34 and M40 were lowered to here by their
+verifiers):
 the `EV_TREEDB_NODE_*` feed is outside the `read` permission, because the subscription authz is commented out
 (`c_ievent_srv.c:1373`, `gobj.c:8754`); a refused `__graphs__` write is
 recorded as saved and never retried (`c_g6_nodes_tree.js:3282`);
@@ -464,8 +172,7 @@ stringifies its default (`0` becomes the truthy `"0"`); `cmd_treedbs` /
 `cmd_links` / `cmd_hooks` still pair `json_incref(kw)` with the wrong decref;
 `treedb_activate_snap()` returns the PREVIOUS snap's tag; the warning *"Parent
 ref already in child fkey"* still fires in the legitimate case of 4e4dcdc00,
-once per `create-yuno`; `schema-file` is missing from `api/gclass/data.md`. (`CLAUDE.md`'s link rule
-and its `YUNETA_VERSION` were fixed on 2026-09-21.)
+once per `create-yuno`.
 
 ## ESP32: `gobj_post_event()` is not in the port
 
@@ -498,45 +205,21 @@ after a build that replaced `/yuneta/agent/*`, restart the main agent, verify it
 then the spare. Same order as `install.sh` — the spare is the only way into a node
 whose main agent is broken, so it is never touched first.
 
-**Done (2026-09-16): the REPORT half.** `tools/agent/audit-agents.sh` says
-whether both agents run the binaries on disk — read-only, exit 2 if one is not
-running, 1 if one is stale, 0 otherwise, so it drops into a cron unchanged. It
-ships in the packages (it is `tools/`, not `scripts/`: it has to run on a bare
-installed node). Documented in `tools/README.md`; checked on the dev node and on
-wattyzer / yunovatios-central / yunovatios-controlador, all four clean.
-
-Worth knowing, found writing it: **the one-line test is exact, not a
-heuristic.** Linux refuses to write into a binary that is being executed
-(`ETXTBSY`), so `cp` over a running agent fails outright and `install` / `mv` /
-a package succeed only by UNLINKING first — which leaves the running process
-holding an inode with no name. Every replacement that can happen while the
-agent runs is one the kernel marks ` (deleted)`, so there is no in-place
-overwrite case to miss.
-
-What is left is the AUTOMATION: the `yunetas` CLI restarting the agents itself
+The REPORT half is done: `tools/agent/audit-agents.sh` (see `tools/README.md`).
+What is left is the automation: the `yunetas` CLI restarting the agents itself
 after a build that replaced `/yuneta/agent/*`, main first and the spare only
 once the main one is confirmed healthy.
 
 ## gui_treedb: leftovers from the 2026-07-13 audit
 
-The four gclasses whose runtime lived outside the automaton are done
-(`C_TRANGER_VIEW`, `C_TREEDB_CONFIG`, `C_TREEDB_LOGIN`; `C_TREEDB_LINKS` was
-already fine), the raw `setTimeout`s and the row actions no keyboard could
-reach (gui_treedb **0.17.35**), and `treedb-info` — a replica now opens without
-its write buttons, asked once by the connection's DISCOVERY and not at the
-mount, because the library reads `readonly` once when it draws a topic's
-toolbar (**0.17.36**; both 2026-09-16, see that repo's `CHANGELOG.md`).
-
-What the audit left open is one item, and it is a feature project rather than a
-leftover:
+One item, and it is a feature project rather than a leftover:
 
 - **Backend features with no UI** (the SPA uses 15 of ~45 C_NODE/C_TRANGER
   commands). Highest operator value, in order: **snapshots** (`snaps`,
   `snap-content`, `shoot-snap`, `activate-snap`, `deactivate-snap` — tag a
   version, browse it read-only, roll back: all there, zero UI); **backup /
   restore** (`export-db` / `import-db`, a base64 payload maps straight to a
-  browser download / file input); `backward` on
-  `open-iterator` (newest-first paging); and the relationship inspector
+  browser download / file input); and the relationship inspector
   (`parents` / `children` / `links`, plus `jtree`, whose ready-made tree with
   `__path__` we ignore in favour of a flat `nodes` list).
 
@@ -628,10 +311,6 @@ Remaining is **per-gate deployment config** (validate on staging):
   gates;
 - turn on peer verification per high-level gate (`ssl_trusted_certificate` or
   `ssl_use_system_ca`); IoT gates opt out with `ssl_allow_insecure_client=true`.
-  **Done in 7.6.0:** TLS *clients* now fail closed — a no-CA client is
-  *refused* at ctx/state build time (not just logged), and the `C_AUTH_BFF`
-  `crypto` / `c_idp_keycloak` `kc_crypto` IdP clients default to a verifying
-  posture.
   Remaining is the per-gate **deployment** config: set the CA (or the explicit
   `ssl_allow_insecure_client` opt-out) on each client crypto block in the realm
   config, and raise the server-side gates.
@@ -710,54 +389,15 @@ decisions (Rosa):
   "already exists" guard). Consolidated project — read in depth, preserve the
   `create=1` semantics, before touching.
 
-- **`create-yuno` / `delete-yuno`: the confusion is the DEFAULT, not the name.**
-  *(Filed 2026-07-26 as a rename proposal; corrected 2026-07-27 after reading
-  the implementations — the original entry was wrong and is kept here only as
-  the reasoning trail.)*
-
-  Both commands are in fact symmetric, and both are correctly named: they
-  operate on a yuno **or** on one of its releases, and the discriminator is a
-  parameter.
-
-  - `cmd_create_yuno` takes `role_version` (binary) + `name_version` (config).
-    With no matching row it creates the yuno; with a newer pair it registers a
-    new **release** of an existing one.
-  - `cmd_delete_yuno` keys on `yuno_release` (the pkey2): given it, that exact
-    release is deleted; **omitted, the in-memory primary — the yuno itself —
-    goes.**
-
-  So the trap is not the verb, it is that the *destructive* reading of
-  `delete-yuno` is what you get by **omitting** a parameter. Working on
-  `yunovatios` (2026-07-26) a config version bump was "adopted" with
-  `delete-config` + `delete-yuno` + `create-yuno` instead of the real flow
-  (`find-new-yunos create=1` + `deactivate-snap`, bundled as
-  `yunetas upgrade-yunos`); the bare `delete-yuno` took the primary, cascaded
-  onto the config row, and left the realm **without its `auth_bff`** until both
-  were recreated from the repo.
-
-  **Done (2026-07-27):** the three help lines now name the discriminator
-  (`"Delete a release (yuno_release=...) or the WHOLE yuno (without it)"` and
-  friends), which is what `ycommand -c 'help delete-yuno'` shows.
-
-  **Done (2026-07-27):** `delete-yuno` now requires `whole=1` to delete the
-  yuno and all of its releases; the bare form is refused with both options
-  named. `force=1` still means only "bypass the snap-tag guard", and its help
-  line says so.
-
 ## Observability: source-IP attribution in decoder logs — remaining pass
 
 The `peername` roll-out across the protocol/decoder error logs shipped
 2026-06-21 (kernel + hidraulia + estadodelaire); its record is `CHANGELOG.md`
 and git history. What was intentionally skipped and is still open:
 
-- Done and in `CHANGELOG.md` 7.22.0: `c_prot_mqtt2.c` (its 137 protocol
-  warnings carry `peername`; its 71 `gobj_log_error` were left alone on
-  purpose) and `c_prot_http_cl.c` (nothing to migrate: its logs are ours,
-  the one about a request carries the `url`). The scope rule for what is
-  left is `CLAUDE.md`'s decoder-severity question, *"could a remote peer
-  trigger this with bad bytes?"* — an internal invariant is not the peer's
-  doing, and a field naming a peer for a fault that is ours reads as an
-  accusation.
+- The scope rule is `CLAUDE.md`'s decoder-severity question, *"could a
+  remote peer trigger this with bad bytes?"* (`c_prot_mqtt2.c` and
+  `c_prot_http_cl.c` are done, 7.22.0).
 
 - **Still open: wattyzer `C_GATE_PVPC`** — an outbound client too, and so
   likely the same answer as `c_prot_http_cl.c` (nothing a peer can trigger; the
@@ -770,12 +410,12 @@ and git history. What was intentionally skipped and is still open:
 The canonical read pattern is the one in `c_websocket.c` / `c_prot_mqtt2.c`:
 read `peername` off the bottom gobj once, in the cold error branch.
 
-## C_TRANGER: realtime feed (Live cards) — inotify scalability + leak
+## C_TRANGER: realtime feed (Live cards) — inotify scalability
 
 Context: `open-rt`/`close-rt` + `EV_TRANGER_RECORD_ADDED` (public) power
 gui_treedb's Live records card. On a **non-master (reader)** C_TRANGER —
 e.g. `db_history_wz`, `master:false` — each `open-rt` opens a
-`tranger2_open_rt_disk` feed = **one inotify instance**. Two problems surface
+`tranger2_open_rt_disk` feed = **one inotify instance**. The problem surfaced
 under real use (found 2026-07-12 on e.com, where the node sat at 128/128
 `fs.inotify.max_user_instances`, its default):
 
@@ -818,11 +458,6 @@ under real use (found 2026-07-12 on e.com, where the node sat at 128/128
   with a coordinated deploy, plus a test that opens two cards on one topic and
   counts inotify instances (`info-inotify`). Worth doing — the node sat at
   128/128 — but not in passing.
-
-**#2 — Tie the feed to the ievent session.** Shipped on 2026-09-16 for
-`open-rt` and `open-iterator` (see `CHANGELOG.md`), and closed by M19 and M21
-of the 2026-09-21 review: a session's iterators survive its last unsubscribe,
-and a live `open-list` is the session's and goes with it.
 
 Node-side mitigation (already provisioned, independent of the above): the deb/rpm
 packagers ship `99-yuneta-core.conf` raising the default
