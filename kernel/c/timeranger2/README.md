@@ -103,6 +103,18 @@ are `<client_id>-IN/-OUT`, and the broker accepts `.foo` as a client id).
 master-only, like every other destructive call. Regression coverage in
 `tests/c/timeranger2/test_topic_path_traversal.c`.
 
+### `on_critical_error` is for writes, never for reads
+
+A failed READ of records logs a critical and answers an error; it never exits
+the process, whatever `on_critical_error` says (unreleased, after 7.24.1). A
+read has written nothing, and the default `2` turned one into an `exit(0)`
+nothing relaunches — a key deleted under an open iterator was enough. A read
+does not create files either: `tranger2_read_user_flag()` on a `(key, __t__)`
+with no md2 answers *"Record metadata file not found"*. What keeps exiting on
+purpose is the write side, above all a short write of an md2 row, which would
+misalign every later append. Regression coverage in
+`tests/c/timeranger2/test_read_never_exits.c`.
+
 ### Subscriber propagation on `tranger2_delete_key`
 
 In-process subscribers (rt_mem, rt_disk in the same yuno, open_iterator)

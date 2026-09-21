@@ -73,6 +73,26 @@ static const json_desc_t tranger2_json_desc[] = {
 };
 ```
 
+(timeranger2_on_critical_error)=
+**What `on_critical_error` covers.** It is applied to the failures of a WRITE,
+and of the loading of a topic's own files at open. It is **never** applied to a
+failed READ of records: that logs a critical and answers an error, and the
+process goes on (unreleased, after 7.24.1). A read that fails has written
+nothing, and with the default `2` it used to be an `exit(0)` that nothing
+relaunches — reachable by paging an iterator whose key was deleted under it.
+The one write that keeps exiting on purpose is a short write of an md2 row:
+continuing would misalign every later append of that file.
+
+```c
+// A master that must not die on a bad disk read, and still stops on a bad write:
+json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+    "path", "/yuneta/store",
+    "database", "frames",
+    "master", 1,
+    "on_critical_error", LOG_OPT_EXIT_ZERO   // 2, the default: only writes exit
+);
+```
+
 (tranger2_load_record_callback_t)=
 ```c
 typedef int (*tranger2_load_record_callback_t)(

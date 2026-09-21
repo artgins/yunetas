@@ -66,6 +66,7 @@ set(SRCS
     test_out_of_order_append
     test_pkey_path_traversal
     test_topic_path_traversal
+    test_read_never_exits
     test_str2system_flag
     test_testing
 )

@@ -54,6 +54,30 @@ A5 of the 2026-09-21 review (`TODO.md`), its first half.
   critical in the middle of it used to be an `exit(0)`, which ctest reads as a
   pass.
 
+### timeranger2: a failed READ never exits the process
+
+A5 of the 2026-09-21 review, its second half (the decision: a read that fails
+has written nothing, so it is no reason to leave).
+
+- **`get_topic_rd_fd()` no longer applies `on_critical_error`.** It still logs
+  *"Cannot open file to read"* as a critical, and the caller answers an error.
+  It was the one read path that could exit, and only on a master: with the
+  default `2`, an `exit(0)` nothing relaunches.
+- **A read no longer creates a file.** `get_md_record_for_wr()` — the read
+  before `write_user_flag` / `set_*_flag` / `delete_instance`, and the whole of
+  `tranger2_read_user_flag()` — went through the write fd, which on a master
+  CREATES a missing md2; then the read failed with `on_critical_error`. It now
+  answers *"Record metadata file not found"* first, and its three criticals
+  (lseek, short read, `__t__` mismatch) do not exit: they return before
+  writing.
+- **What still exits, on purpose:** the writes, and above all a short write of
+  an md2 row (`tranger2_append_record`), because continuing would misalign
+  every later append of that file. Loading a topic's own files at open also
+  keeps `on_critical_error`.
+- New test `tests/c/timeranger2/test_read_never_exits.c`, run with
+  `LOG_OPT_EXIT_NEGATIVE` so that an exit is a FAIL for ctest (an `exit(0)`
+  reads as a pass).
+
 ## v7.24.1 (2026-09-20)
 
 ### gbmem: the leak audit does not follow what it writes, and says which ref it caught

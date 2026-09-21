@@ -330,9 +330,12 @@ entries at once:
   callback, which marks it; its next `get-page` closes it and says why, so a
   deleted key no longer reaches `get_topic_rd_fd()` through an open iterator,
   whoever deleted it. gui_treedb re-opens its whole-topic Rows card on the
-  delete-key answer. **Second half DECIDED (the user, 2026-09-21): a failed
-  READ never exits the process** -- option C, and the classification of every
-  `gobj_log_critical` of timeranger2 / tr_treedb was made first:
+  delete-key answer. **Second half SHIPPED too (unreleased): a failed READ
+  never exits the process** -- the user's option C. `get_topic_rd_fd()` and
+  the three criticals of `get_md_record_for_wr()` no longer apply
+  `on_critical_error`, and a read no longer creates a missing md2. The short
+  md2 write (`:3019`) KEEPS its exit, the user's call. Test:
+  `test_read_never_exits`. The classification it was decided on:
   - The only READ path that can exit is `get_topic_rd_fd()`
     (`timeranger2.c:2512`, `master?on_critical_error:0`); the rest of the read
     side (`read_md`, `read_record_content`, `load_first_and_last_record_md`)

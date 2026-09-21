@@ -2481,7 +2481,6 @@ PRIVATE int get_topic_rd_fd(
     );
 
     if(fd<=0) {
-        BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
         snprintf(full_path, sizeof(full_path), "%s/keys/%s/%s", topic_dir, key, filename);
 
@@ -2509,8 +2508,13 @@ PRIVATE int get_topic_rd_fd(
             }
         }
         if(fd<0) {
-            gobj_log_critical(gobj,
-                master?kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED):0,
+            /*
+             *  A failed READ never leaves the process, on_critical_error or
+             *  not: nothing was written, and the caller answers an error. It
+             *  is reached by a key deleted under an open iterator, and with
+             *  on_critical_error=2 it was an exit(0) nobody relaunches.
+             */
+            gobj_log_critical(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot open file to read",
@@ -3449,6 +3453,40 @@ PRIVATE int get_md_record_for_wr(
         return -1;
     }
 
+    /*
+     *  This is a READ before a modify, and the whole of the pure read
+     *  tranger2_read_user_flag(): a (key, __t__) with no md2 file is the
+     *  caller's, and get_topic_wr_fd() would CREATE the file on a master.
+     *  None of the three criticals below exits: they return before writing.
+     */
+    char filename[NAME_MAX*2];
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    get_t_filename(
+        filename,
+        sizeof(filename),
+        tranger,
+        topic,
+        FALSE,
+        (system_flag & sf_t_ms)? __t__/1000:__t__
+    );
+    char full_path[PATH_MAX];
+    build_path(full_path, sizeof(full_path),
+        json_string_value(json_object_get(topic, "directory")), "keys", key, filename, NULL
+    );
+    if(!is_regular_file(full_path)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Record metadata file not found",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "__t__",        "%lu", (unsigned long)__t__,
+            "path",         "%s", full_path,
+            NULL
+        );
+        return -1;
+    }
+
     int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key, FALSE, __t__);
     if(md2_fd < 0) {
         // Error already logged
@@ -3458,7 +3496,7 @@ PRIVATE int get_md_record_for_wr(
     off_t offset = (off_t) ((i_rowid-1) * sizeof(md2_record_t));
     off_t offset_ = lseek(md2_fd, offset, SEEK_SET);
     if(offset != offset_) {
-        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
+        gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "lseek() failed, topic_idx.md corrupted",
@@ -3478,7 +3516,7 @@ PRIVATE int get_md_record_for_wr(
         sizeof(md2_record_t)
     );
     if(ln != sizeof(md2_record_t)) {
-        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
+        gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot read record metadata, read FAILED",
@@ -3499,7 +3537,7 @@ PRIVATE int get_md_record_for_wr(
     md_record->__size__ = ntohll(md_record->__size__);
 
     if(get_time_t(md_record) != __t__) {
-        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
+        gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "__t__ not match, topic_idx.md corrupted",
