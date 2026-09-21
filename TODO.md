@@ -270,6 +270,330 @@ missing: changing a pkey2 value (`tr_treedb_update_instance`), two hooks on
 one fkey (`tr_treedb_schema_parse`), the snapshot clone followed by updates
 (`tr_treedb_snap_clone`).
 
+## TreeDB / timeranger2: open findings of the 2026-09-21 review
+
+A second read-only review, of everything done since the base of the first one
+(7.20.0 / gobj-ui 7.23.167): 39 C commits, 39 of gobj-ui, 4 of gobj-js, 43 of
+yunos-js, read at yunetas 7.24.1, gobj-ui 7.23.192, gobj-js 7.22.2. Every high
+and medium went through an adversarial verifier told to refute it, most were
+reproduced against `outputs/lib`, and the highs were read again by hand. The
+suites were all green while it ran (ctest 137/137, gobj-ui 823, gobj-js 146,
+gui_treedb 60): **no test catches any of this.** Nothing is fixed yet. Line
+numbers are those of `main` on 2026-09-21. **s/v** marks the five findings
+whose verification did not run.
+
+Six causes explain most of the list, and fixing the cause closes several
+entries at once:
+
+1. **The replica is the path nobody walks.** The master guard went into C_NODE
+   command by command; its siblings were left out. No test opens a treedb as a
+   replica to write. The guard belongs in `tranger2_*`.
+2. **`on_critical_error=2` turns a failed READ into a dead yuno that is not
+   relaunched** (exit 0 means "no relaunch" to `ydaemon`). A3, A5 and M10 share
+   it. A file that is no longer there is not a reason to leave the process.
+3. **Names from the wire: keys are validated, topics are not.**
+4. **Fixes of the first review that moved the defect** instead of closing it:
+   d60ec78, 441937134, 3fea635f3, 3664eb55e, c46c820a0, 141277953, af1489c66,
+   and gui_treedb's 9cdd16b, which does nothing.
+5. **`force` means two things**: "unlink the children" and "skip the snapshot
+   guard" -- and `delete_node()` says the opposite for assets (*"force means
+   'unlink the children', never 'ignore what a snapshot needs'"*).
+6. **Three sites unlink BEFORE knowing they can link**, and the -1 is dropped
+   on the way, so the caller is told it worked.
+
+**High**
+
+- **A1 -- `delete-topic` on a REPLICA removes the master's topic.**
+  `tranger2_delete_topic()` (`timeranger2.c:1548`) is the one destructive call
+  with no `master` guard (append_record, delete_key, delete_instance,
+  create_topic and write_topic_var/cols all have one), and neither
+  `treedb_delete_topic()`, C_TREEDB's `cmd_delete_topic` (`c_treedb.c:1086`)
+  nor C_TRANGER's (`c_tranger.c:1038`) adds it. 24e70a390 edited those handlers
+  and left the gap. The replica answers *"Topic deleted!"*; the master keeps
+  answering from memory, its writes go to unlinked inodes with no log, and a
+  write to a new key re-creates `keys/<k>/` without `topic_desc.json`, so the
+  master cannot start again. Fix: the guard in `tranger2_delete_topic()` and
+  `tranger2_backup_topic()`, a READ-ONLY answer up front in C_TREEDB's
+  create-topic / delete-topic / delete-treedb, and `tranger2_open_topic()`
+  returning NULL when `topic_desc.json` does not load (it goes on with
+  `topic==NULL`).
+- **A2 -- `topic_name` from the wire is never confined to the database.** The
+  four topic paths of timeranger2 (`:744`, `:1135`, `:1298`, `:1560`) are raw
+  `snprintf("%s/%s")` and the only test is `empty_string()`, while keys get
+  `is_valid_key_name`. Every C_TRANGER command that takes a `topic_name` hands
+  it straight down (create-topic, open-topic, delete-topic, delete-key, desc,
+  open-list, list-keys, open-iterator and each rkey part, open-rt), C_TREEDB's
+  create-topic registers an escaped path as a topic of the treedb so that
+  delete-topic then removes it, and C_NODE's `snap-content` (`c_node.c:4230`)
+  is the one C_NODE command that does not ask `treedb_is_treedbs_topic()`. A
+  permission on one service therefore reaches other stores the yuno's OS user
+  can read or write. Predates the range; 24e70a390 confined `treedb_name` in
+  the same handlers and left `topic_name` raw. Fix: ONE validator at the
+  tranger2 boundary, the rule keys already get (empty, `/`, `` ` ``, leading
+  `.`), in create / open / delete / backup / topic_path and in
+  `treedb_create_topic()`. Moving to `build_path()` alone is not enough: it
+  clamps `..` and still lets `<topic>/keys` through.
+- **A3 -- a name that is a directory but not a topic kills the yuno.** Same
+  root. `tranger2_open_topic()` (`timeranger2.c:1143-1170`) checks only
+  `is_directory()` and then calls `load_persistent_json(...,
+  on_critical_error)`: with 2 that is `exit(0)`, not relaunched, from a command
+  that asks only for `read`. It reaches more than a bare C_TRANGER: agent,
+  controlcenter and broker publish `tranger_system_schema` (C_TREEDB's
+  `exit_on_error=2`) and `tranger_authz` (`c_authz.c:513`). Fix: the validator
+  of A2, plus testing for `topic_desc.json` before loading it (a directory
+  without one is "not a topic": NULL and a warning).
+- **A4 -- C_TRANGER judges a handle alive by the NAME of its topic.**
+  `live_handle()` / `iterator_is_live()` (`c_tranger.c:548-571`) ask only
+  `tranger2_topic_is_open(name)`. `tranger2_close_topic()` frees every iterator
+  and rt of the topic, and anything that opens that name again makes the stale
+  pointer "live": `delete-topic` + `create-topic`, a `gobj_stop` + `gobj_start`
+  of the service (C_TREEDB does it to `tranger_system_schema`), or
+  `tranger2_backup_topic()`. The range made it worse: a multi-key entry holds N
+  raw pointers, and `ac_on_close` -> `reap_handles_of()` (af1489c66)
+  dereferences the handle by itself when the client's tab closes. Reproduced as
+  a SIGSEGV in `tranger2_close_iterator`. Fix: resolve by identity at each use
+  (`tranger2_get_iterator_by_id` and the rt twins), clear the three registries
+  in `mt_stop`, purge a topic's entries in `cmd_delete_topic`.
+- **A5 -- `delete-key` under a FILTERED iterator: the next `get-page` exits the
+  yuno.** `cmd_delete_key` (`c_tranger.c:1205`) never looks at
+  `priv->iterators` and C_TRANGER registers no `key_deleted` callback. A
+  filtered iterator pages over its own index, so the read ends in
+  `get_topic_rd_fd` with ENOENT, a critical (`timeranger2.c:2425`), and on a
+  master with `on_critical_error=2` an `exit(0)`. One gui_treedb session is
+  enough since 0.17.43: the whole-topic Rows card is not closed by the delete
+  (`ac_confirm_delete_key` closes only the cards of that key). The unfiltered
+  case does not die and lies instead: a short page, the old `total_rows`,
+  result 0, no log. Fix: `delete-key` closes the iterators (and the `parts[]`)
+  on that key in every session; and an ENOENT on a paged READ does not go
+  through `on_critical_error`.
+- **A6 -- gobj-ui: the delete of ONE row is resolved by POSITION after the
+  confirm dialog.** `c_yui_treedb_topic_with_form.js:1553` sends `{index:
+  getPosition(), row}`, `:4015` builds the question from `kw.row` and hands
+  `confirm_then` only the index, and `:4062` resolves
+  `getRowFromPosition(index)` when the person answers. A Tabulator position is
+  the index inside the DISPLAYED rows of the page and is regenerated by every
+  `addData` / `deleteRow`, and the view applies `EV_TREEDB_NODE_*` of every
+  writer while the dialog is open -- so the record deleted can be another one
+  than the dialog named, with `force: true`. Regression of **d60ec78**: to keep
+  the kw plain json it replaced the record by its position. Found by two
+  reviewers, reproduced with the real Tabulator. Fix: carry the identity (`id`,
+  and the pkey2 values where the topic has them), resolve with `getRow(id)`,
+  refuse loudly when the row is gone.
+- **A7 -- C_AUTHZ `disable-user` hands the NODE to `EV_REJECT_USER`**
+  (`c_authz.c:2036`). The event reads `username`, the node keys on `id`, so
+  the handler logs *"User not found"* and frees its kw: the user's live
+  sessions are never dropped (`disabled` is only read at login), and the same
+  pointer then goes into the response as `jn_data` -- a use after free, SIGSEGV
+  in 2 of 7 runs with a kw that carries `__md_iev__`. It is the bug 4595afeca
+  fixed in `delete-user`, whose comment at `:2128` describes it. Predates the
+  range. Fix: `json_pack("{s:s}", "username", username)` as the kw, and check
+  the NULL of `gobj_update_node()`.
+- **A8 -- four agent deletes hand a BORROWED list element to
+  `gobj_delete_node()`**, which owns its kw: `c_agent.c:2578` (public_service),
+  `:2945` (realm), `:3752` (binary), `:4180` (config). Each element has
+  refcount 1, so it is freed inside the list and `JSON_DECREF(iter)` then
+  decrements freed memory. Every other caller increfs (`c_node.c:2828`) or
+  builds a kw (`delete-yuno`). Predates the range. Fix: `json_incref(node)` at
+  the four sites, and `kw // owned` written on `gobj_delete_node` in `gobj.h`.
+- **A9 -- `shoot-snap` while a snap is ACTIVE restores the whole treedb**
+  (`tr_treedb.c:13803`; the verifiers rated it medium). With snap A active and
+  reloaded, the primary index holds A's records, all tagged, so EVERY key takes
+  the clone branch and gets the photo's content as its newest record. After the
+  deactivation the reload picks the newest: everything A knew is back to its
+  content at the shot and what was written since is buried. That is the
+  "activation as a restore" discarded on 2026-09-20. Fix: refuse `shoot-snap`
+  while a snap is active.
+
+**Medium -- tr_treedb, C_NODE, the agent**
+
+- **M1 -- `treedb_replace_links()` still unlinks first** (`tr_treedb.c:8927`).
+  A refused new parent (the cycle check, "parent node not found", a hook that
+  does not link that column) leaves the child orphaned ON DISK with UNLINKED
+  published; `mt_update_node` drops the -1 (`c_node.c:1099`) and `update-node`
+  answers *"Node update!"*. The comment that justifies the order stopped being
+  true with 3fea635f3. Reached by gobj-ui's form (`autolink: true` always).
+- **M2 -- the `fkey: {parent: hook}` mark of `parse_hooks()` is persisted in
+  the CHILD's `topic_cols.json`** (`tr_treedb.c:2479`, regression of
+  441937134). A hook rename raises only the parent's `topic_version`, so the
+  child reloads the stale mark: *"Only can be one fkey"* on every open, and the
+  links made through the new hook are lost at every restart.
+- **M3 -- a ref to a hook that no longer exists is not treated as stale**
+  (`tr_treedb.c:8432`). Since 3fea635f3 `_link_nodes()` unlinks the old ref
+  first and returns -1 when that fails, so the node can be neither re-linked,
+  cleaned, nor deleted with force. It used to repair itself at the next link.
+- **M4 -- the rowid counter is seeded from the SNAP-FILTERED index**
+  (`tr_treedb.c:5288`, 3664eb55e). A store with no `last_rowid_id` yet, a snap
+  active and a create without id give an id that exists on disk, and
+  `exist_primary_node()` reads the same index. Real case: `__graphs__`. Seed
+  from the keys of the topic. (`find-new-yunos create=1` does not reach it: it
+  sends the id.)
+- **M5 -- `now`: the census in the 7.24.0 CHANGELOG is false.** Besides the two
+  meta-topic columns there are 7 in the SDK and about 20 in the projects,
+  `['time','now','persistent']` with no `writable`, most headed "Update Time".
+  The SDK's are stamped because their writers carry the column; the projects'
+  stay frozen at the create. Untested shapes of the gate: `now` + `writable` on
+  a string column becomes `""`; a `required` integer `time` refuses the update.
+- **M6 -- `create-topic` persists a topic whose columns failed validation and
+  answers *"Topic created!"*** (`tr_treedb.c:1626`): `parse_schema_cols()` runs
+  after `tranger2_create_topic()`. A topic with no `id` column, or no cols, is
+  accepted without a log.
+- **M7 -- `check_system_schema_write()` skips two per-column rules**
+  (`tr_treedb.c:3660`): `file` needs `fkey` + string, and the hook/fkey type
+  rule. A bad column stored loses the whole topic at the next open.
+- **M8 -- "a change to a schema publishes itself" is false for a DELETE and for
+  a column created by autolink** (`tr_treedb.c:3510`): only update and link
+  call `publish_schema_change()`. `YUNO_TREEDB.md:1616` says otherwise.
+- **M9 -- the two snapshot guards fail OPEN** (`tr_treedb.c:12766`, `:12907`):
+  when `tranger2_open_list()` fails they log and answer FALSE, and the delete
+  goes on.
+- **M10 -- the three snap commands of C_NODE have no replica guard**
+  (`c_node.c:4332`, 141277953 rewrote their preambles). `shoot-snap` on a
+  replica ends in *"Cannot save record tag"* critical and `exit(0)` (every
+  C_AUTHZ with `master=0`); activate / deactivate change memory only and
+  deactivate answers *"Snap deactivated"*.
+- **M11 -- the agent's `delete-yuno` guards by the tag in MEMORY and then sets
+  `force = 1`** (`c_agent.c:5121`, `:5143`), so the guards that read the
+  records (08ba69dcb, 114dfb339) never run for `yunos`, and the memory tag is 0
+  for anything saved after the shot.
+- **M12 -- gobj-ui's topic table always deletes with `force: true`**
+  (`c_yui_treedb_topics.js:2755`), so no snapshot guard can fire from the GUI
+  and the dialog speaks only of unlinking children. The graph sends no options
+  and the guards do fire there. Needs the owner's decision on the two meanings
+  of `force`.
+- **M13 -- `delete-treedb` on a replica** (`c_treedb.c:981`, 27034d272
+  incomplete): `delete_client_treedb_schema()` also writes `__system__` and has
+  no guard; with force it unlinks in memory, the save fails, and the answer
+  names two causes that are not the one.
+- **M14 -- regression of 141277953: every `update-node` WITHOUT `options` logs
+  an ERROR with a stack** (`c_node.c:2713`): `kw_get_bool()` on a NULL dict.
+  `mt_update_node` guards it, the command does not. It is the form the docs use
+  with ycommand, and it breaks a whitelist log assertion.
+- **M15 (s/v)** -- `update-binary` / `update-config` answer result 0 when
+  `gobj_update_node()` returns NULL, and `sync-binaries` reads that as OK
+  (`c_agent.c:3530`); `delete-realm` always answers 0 (`c_agent.c:2956`);
+  C_AUTHZ's `update-user` with a role that cannot be linked strips every role
+  and answers *"User updated"* (`c_authz.c:4127`, the mechanism of M1); a DICT
+  hook takes the newest child instance, so a deleted instance stays in the
+  hook and a forced delete of the parent resurrects it on disk
+  (`tr_treedb.c:4582` -- this contradicts the premise the `delete_instance`
+  bullet of the first review was closed on); a child held by the hooks of
+  several instances of one parent is unlinked from ONE (`tr_treedb.c:8167`).
+
+**Medium -- timeranger2, C_TRANGER**
+
+- **M16 -- after a late record lands in an earlier md2 file, time-range queries
+  hide records** (`timeranger2.c:6274`, c46c820a0). A cell's `[fr_t, to_t]` is
+  rebuilt from the FIRST and LAST md2 rows, and the late record is the last row
+  with a lower `t`. A follower gets it wrong at once, the master after a
+  reload. The CHANGELOG claims the opposite (*"A reload says the same"*).
+- **M17 -- `find_cache_cell()` makes every append O(md2 files of the key)**
+  (`timeranger2.c:6076`, c46c820a0): measured 3.7 us flat, 32 us at 365 files,
+  318 us at 3650. Look at the LAST cell first and walk back only when it is not
+  the one. Queues (fixed mask) and treedbs (`%Y`) do not feel it.
+- **M18 -- a follower with two rt_disk feeds on one key** loses, for the feed
+  that fires second, the records of BOTH files when two files of the key arrive
+  in one batch (`timeranger2.c:5629`): one watermark per (feed, key), not per
+  file as the doc says. From 7.8.0; c46c820a0 adds a second supported way in.
+- **M19 -- closing the LAST Live card of a session also reaps its paging
+  iterators** (`c_tranger.c:3177`): af1489c66 added the right signal (the
+  session's `EV_ON_CLOSE`) and `mt_subscription_deleted` still calls
+  `reap_handles_of()`. The Rows card answers *"Iterator not found"* and
+  `c_tranger_view.js:3641` never re-arms.
+- **M20 -- `open-iterator backward=1` does nothing** (`c_tranger.c:2437`): the
+  direction belongs to `get-page`. The docs list it as honoured and
+  gui_treedb's "newest first" checkbox sends only that
+  (`c_tranger_view.js:3436`).
+- **M21 -- a stateful `open-list` is outside the session reaper**
+  (`c_tranger.c:1638`): no `src_gobj`, no `watch_owner()`, and
+  `reap_handles_of()` never walks `priv->lists` -- and such a list collects
+  every append in memory after its client is gone. The realtime-feed section
+  below marks that point as shipped.
+- **M22 -- `rkey=.*` opens one iterator per key and keeps them all**
+  (`c_tranger.c:2270`, 7b3fba479): O(N^2) through the linear scan of
+  `tranger2_get_iterator_by_id`, memory by keys x files (1000 keys x 60 daily
+  files = +147 MB). High from about 12k keys. gui_treedb restores the card by
+  itself on every visit.
+
+**Medium -- gobj-ui, gui_treedb, gui_agent**
+
+- **M24 -- A10 of the first review is incomplete**
+  (`c_yui_treedb_topic_with_form.js:3886`): `ac_edition_mode` still
+  dereferences the New and Delete buttons unguarded.
+- **M25 -- a REFUSED Save still closes the form and throws the edit away**
+  (`:4191`); the README and a comment say it stays open. The range multiplied
+  the refusals (pkey2, authz, snapshot, cycle).
+- **M26 -- A8 is incomplete** (`treedb_write_plan.js:112`): a `writable` time
+  column still loses its seconds on every Save of any other field
+  (`datetime-local` without seconds, and `get_form_values()` reads every
+  field). The column class was fixed, not the cause.
+- **M27 -- `EV_REQUEST_JSON`, a new output event on by default, breaks the
+  in-repo demo host** (`test-app/src/c_demo_treedb.js:438`, 20759fc): *"Event
+  NOT DEFINED in state"*. It does not declare `EV_UPDATE_FIELD` either. Private
+  hosts not checked.
+- **M28 -- +New with an id that exists is a silent upsert**
+  (`c_yui_treedb_topics.js:2503`): it overwrites and, through autolink with the
+  empty selects, UNLINKS the existing record.
+- **M29 -- `max_col_width` is a HARD ceiling** (`:1485`, 9111ec1): Tabulator's
+  `maxWidth`, so the reader cannot widen the column, although the attr, the
+  comment and the CHANGELOG say so.
+- **M30 -- the row search skips a hook's COUNT but not its children as node
+  events deliver them** (`yui_row_search.js:84`): `{id, topic_name}` fails
+  `is_fkey_ref()`, so `topic_name` is a wildcard. The test uses a fixture the
+  backend never sends.
+- **M31 -- string cells go in through `innerHTML`** (`:2093`, predates the
+  range): text with `<` is mangled. The plugin's CSP keeps script from running.
+- **M32 -- 7.23.186: a `__graphs__` echo re-takes the snapshot from the view's
+  LIVE objects** (`c_g6_nodes_tree.js:3063`), so what is unsaved in OTHER
+  topics counts as saved and the next Save skips it.
+- **M33 -- `ac_node_updated` reads an UNDECLARED `graph` inside a try/catch**
+  (`c_g6_nodes_tree.js:10633`): `update_topic_node()` is dead code and a card
+  on screen keeps its old record after any UPDATED.
+- **M35 -- "a replica opens without its write buttons" (gui_treedb 0.17.36,
+  9cdd16b) does nothing** (`c_treedb_links.js:697`, `:765`): `treedb-info` is
+  sent without `__md_command__`, the only thing `C_IEVENT_CLI` echoes back, so
+  the answer cannot be matched to a service and `master` is never stored.
+- **M36 -- gui_agent offers Edit and Apply of a schema (kill, run, play) on
+  yunos that IMPOSE the C schema** (`c_agent_treedb.js:1036`): every consumer
+  passes `impose_c_schema=1`, the edit can never apply, and no screen says so.
+
+**Medium -- docs and tests**
+
+- **M37 -- the rollback recipe tells the reader to do the opposite**
+  (`deploying-yunos.md:376`, `YUNO_LIFECYCLE.md` 6.6): *"when you decide to
+  stay on the old one, remove the pin: deactivate-snap"* -- `deactivate-snap`
+  re-promotes the NEW release and bounces the node onto it. Fix this one first.
+- **M38 -- `treedb_delete_instance()` is documented three contradictory ways**
+  (`YUNO_TREEDB.md:391`, the header, the API page): the code tombstones every
+  md2 row, never looks at links, and borrows the node.
+- **M39 -- the public header `tr_treedb.h:335`, four docs and the comment of
+  `delete_node()` (`tr_treedb.c:6448`) still say a save inherits the snap
+  tag**, or date the fix to 7.22.0 (08ba69dcb ships in 7.23.0, 12e0c762d in
+  7.24.0).
+- **M41 -- `test_c_node_authz` is a hand-written list, not the command table**:
+  create-node, delete-node, import-assets, gc-assets, set-link-events and
+  `schema-file` have no refusal test, and `schema-file` (17cde8a9a) has no test
+  at all.
+- **M42 -- no test opens a treedb as a REPLICA to write**; and the kwid fix of
+  gobj-js 7.21.0 stays green with the fix reverted (`tests/kwid.test.js:106`).
+
+**Low, worth keeping** (M23, M34 and M40 of the report were lowered by their
+verifiers and live here): the `EV_TREEDB_NODE_*` feed is outside the `read`
+permission, because the subscription authz is commented out
+(`c_ievent_srv.c:1373`, `gobj.c:8754`); a refused `__graphs__` write is
+recorded as saved and never retried (`c_g6_nodes_tree.js:3282`);
+`tranger2_write_topic_var()` answers 0 whatever
+`save_json_to_file()` did; refs `topic^id^hook` are written with `snprintf`
+into `char[NAME_MAX]` and truncate silently; hook membership is tested by bare
+id, so two children of different topics with one id collide; an id holding `^`
+is accepted and makes every ref to the node undecodable; JS `kw_get_str()`
+stringifies its default (`0` becomes the truthy `"0"`); `cmd_treedbs` /
+`cmd_links` / `cmd_hooks` still pair `json_incref(kw)` with the wrong decref;
+`treedb_activate_snap()` returns the PREVIOUS snap's tag; the warning *"Parent
+ref already in child fkey"* still fires in the legitimate case of 4e4dcdc00,
+once per `create-yuno`; `schema-file` is missing from `api/gclass/data.md`;
+`CLAUDE.md`'s link rule under "Persistence Rules" is incomplete since
+98e69ab8a / 4e4dcdc00, and it names `YUNETA_VERSION` 7.23.0.
+
 ## ESP32: `gobj_post_event()` is not in the port
 
 `kernel/c/root-esp32/components/esp_gobj/` carries its own copy of the gobj
