@@ -32,6 +32,28 @@ A1, A2 and A3 of the 2026-09-21 review (`TODO.md`).
   7.24.1: the traversal deleted the other database's topic, and the replica
   deleted the master's).
 
+### C_TRANGER: deleting a key no longer stops the master through an open iterator
+
+A5 of the 2026-09-21 review (`TODO.md`), its first half.
+
+- **An iterator open on a key that is then deleted.** A filtered iterator
+  pages over its own row index, and `tranger2_delete_key()` removes the files
+  that index points into; the next `get-page` opened a file that was gone,
+  a critical, and with C_TRANGER's default `on_critical_error=2` an `exit(0)`
+  of the master that the watcher does not relaunch. An unfiltered iterator
+  answered a short page with the old `total_rows`, result 0 and no log. One
+  gui_treedb session was enough: its whole-topic Rows card stayed open across
+  a delete-key. Every iterator C_TRANGER opens now registers timeranger2's
+  `key_deleted` callback, which only MARKS it (it runs inside
+  `tranger2_delete_key()`'s walk of those iterators); its next `get-page`
+  closes it and answers *"iterator '<id>' closed, its key '<key>' was
+  deleted: open it again"*. That covers every deleter of the tranger, not
+  only this service's `delete-key`. gui_treedb 0.17.52 re-opens its
+  whole-topic Rows card on the delete-key answer.
+- `test_c_tranger` now runs with `on_critical_error` WITHOUT the exit bit: a
+  critical in the middle of it used to be an `exit(0)`, which ctest reads as a
+  pass.
+
 ## v7.24.1 (2026-09-20)
 
 ### gbmem: the leak audit does not follow what it writes, and says which ref it caught

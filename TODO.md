@@ -325,18 +325,32 @@ entries at once:
   a SIGSEGV in `tranger2_close_iterator`. Fix: resolve by identity at each use
   (`tranger2_get_iterator_by_id` and the rt twins), clear the three registries
   in `mt_stop`, purge a topic's entries in `cmd_delete_topic`.
-- **A5 -- `delete-key` under a FILTERED iterator: the next `get-page` exits the
-  yuno.** `cmd_delete_key` (`c_tranger.c:1205`) never looks at
-  `priv->iterators` and C_TRANGER registers no `key_deleted` callback. A
-  filtered iterator pages over its own index, so the read ends in
-  `get_topic_rd_fd` with ENOENT, a critical (`timeranger2.c:2425`), and on a
-  master with `on_critical_error=2` an `exit(0)`. One gui_treedb session is
-  enough since 0.17.43: the whole-topic Rows card is not closed by the delete
-  (`ac_confirm_delete_key` closes only the cards of that key). The unfiltered
-  case does not die and lies instead: a short page, the old `total_rows`,
-  result 0, no log. Fix: `delete-key` closes the iterators (and the `parts[]`)
-  on that key in every session; and an ENOENT on a paged READ does not go
-  through `on_critical_error`.
+- **A5 -- first half SHIPPED (unreleased, see `CHANGELOG.md`; gui_treedb
+  0.17.52).** Every iterator C_TRANGER opens registers the `key_deleted`
+  callback, which marks it; its next `get-page` closes it and says why, so a
+  deleted key no longer reaches `get_topic_rd_fd()` through an open iterator,
+  whoever deleted it. gui_treedb re-opens its whole-topic Rows card on the
+  delete-key answer. **Second half DECIDED (the user, 2026-09-21): a failed
+  READ never exits the process** -- option C, and the classification of every
+  `gobj_log_critical` of timeranger2 / tr_treedb was made first:
+  - The only READ path that can exit is `get_topic_rd_fd()`
+    (`timeranger2.c:2512`, `master?on_critical_error:0`); the rest of the read
+    side (`read_md`, `read_record_content`, `load_first_and_last_record_md`)
+    already passes 0.
+  - `get_md_record_for_wr()` (`:3461/3481/3502`) is read-before-modify, the
+    trigger is caller input (a bad rowid or `__t__`), it returns before any
+    write, and it is also reached by the pure read `tranger2_read_user_flag()`.
+    Safe to pass 0. Hidden side effect to fix with it: on a master,
+    `get_topic_wr_fd()` -> `create_file()` makes an EMPTY md2 for a `__t__`
+    whose file does not exist, from a read.
+  - The one write that must keep exiting, or grow a rollback: `:3019`, a SHORT
+    write of the 32-byte md2 row leaves every later append misaligned and the
+    file unreadable at the next load (`:6438`). With 0 it needs an
+    `ftruncate(md2_fd, offset)` before returning.
+  - Also reached through helpers that take `on_critical_error`
+    (`load_persistent_json` / `save_json_to_file`): `timeranger2.c` 449, 460,
+    519, 529, 886, 1207; `tr_treedb.c` 671, 720, 1660; `tr_msg2db.c` 150, 190.
+    Loads are reads; saves are writes.
 - **A6 -- gobj-ui: the delete of ONE row is resolved by POSITION after the
   confirm dialog.** `c_yui_treedb_topic_with_form.js:1553` sends `{index:
   getPosition(), row}`, `:4015` builds the question from `kw.row` and hands

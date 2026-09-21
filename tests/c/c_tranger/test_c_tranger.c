@@ -343,10 +343,15 @@ PRIVATE int do_test(void)
     hgobj yuno = gobj_create_yuno(
         "tranger",
         C_TRANGER,
-        json_pack("{s:s, s:s, s:b}",
+        json_pack("{s:s, s:s, s:b, s:i}",
             "path", path_root,
             "database", DATABASE,
-            "master", 1
+            "master", 1,
+            /*
+             *  Not the gclass default (2 = exit(0)): a critical must FAIL
+             *  this test, and an exit(0) in the middle of it reads as a pass.
+             */
+            "on_critical_error", LOG_OPT_TRACE_STACK
         )
     );
     if(!yuno) {
@@ -1070,6 +1075,47 @@ PRIVATE int do_test(void)
     check_int("delete-key refused, D still there", find_key_records(data, KEY_D), KEY_D_ROWS);
     JSON_DECREF(r)
 
+    /*  Iterators open on D when it is deleted: a filtered one (its own row
+     *  index, whose next page opened a file that is gone -- a critical, and
+     *  exit(0) with the gclass default), an unfiltered one (it answered a
+     *  short page with the old total_rows), and a multi-key one. One on A is
+     *  the control: another key's delete does not touch it.  */
+    const char *it_on_d[] = {"itD_filtered", "itD_plain", "itD_multi", NULL};
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:i}",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_D,
+            "iterator_id", "itD_filtered",
+            "from_rowid", 2
+        ), yuno);
+    check_int("open-iterator D filtered result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_D,
+            "iterator_id", "itD_plain"
+        ), yuno);
+    check_int("open-iterator D plain result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^D$",
+            "iterator_id", "itD_multi"
+        ), yuno);
+    check_int("open-iterator D multi result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:i}",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_A,
+            "iterator_id", "itA_control",
+            "from_rowid", 2
+        ), yuno);
+    check_int("open-iterator A control result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
     r = gobj_command(yuno, "delete-key",
         json_pack("{s:s, s:s, s:b}",
             "topic_name", TOPIC_NAME,
@@ -1077,6 +1123,42 @@ PRIVATE int do_test(void)
             "force", 1
         ), yuno);
     check_int("delete-key force result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    for(int i = 0; it_on_d[i]; i++) {
+        char name[NAME_MAX];
+        r = gobj_command(yuno, "get-page",
+            json_pack("{s:s, s:i, s:i}",
+                "iterator_id", it_on_d[i],
+                "from_rowid", 1,
+                "limit", 10
+            ), yuno);
+        snprintf(name, sizeof(name), "get-page %s after delete-key result", it_on_d[i]);
+        check_int(name, kw_get_int(0, r, "result", -999, 0), -1);
+        snprintf(name, sizeof(name), "get-page %s after delete-key says why", it_on_d[i]);
+        check_bool(name,
+            strstr(kw_get_str(0, r, "comment", "", 0), "was deleted") != NULL, TRUE);
+        JSON_DECREF(r)
+
+        /*  ...and it is closed: asked again, it is not there  */
+        r = gobj_command(yuno, "get-page",
+            json_pack("{s:s}", "iterator_id", it_on_d[i]), yuno);
+        snprintf(name, sizeof(name), "get-page %s closed", it_on_d[i]);
+        check_bool(name,
+            strstr(kw_get_str(0, r, "comment", "", 0), "Iterator not found") != NULL, TRUE);
+        JSON_DECREF(r)
+    }
+
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itA_control",
+            "from_rowid", 1,
+            "limit", 10
+        ), yuno);
+    check_int("get-page A control after delete of D", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itA_control"), yuno);
     JSON_DECREF(r)
 
     r = gobj_command(yuno, "list-keys",

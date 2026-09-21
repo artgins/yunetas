@@ -152,6 +152,14 @@ PRIVATE int mt_subscription_deleted(hgobj gobj, json_t *subs);
 PRIVATE void reap_handles_of(hgobj gobj, hgobj owner);
 PRIVATE BOOL iterator_is_live(hgobj gobj, const char *iterator_id);
 PRIVATE int close_registered_iterator(hgobj gobj, const char *iterator_id);
+PRIVATE int mark_iterator_of_deleted_key(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *iterator,
+    void *user_data
+);
+PRIVATE const char *deleted_key_of_iterator(hgobj gobj, const char *iterator_id);
 PRIVATE void watch_owner(hgobj gobj, hgobj src);
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 
@@ -604,6 +612,58 @@ PRIVATE int close_registered_iterator(hgobj gobj, const char *iterator_id)
     json_object_del(priv->iterators, iterator_id);
 
     return result;
+}
+
+/***************************************************************************
+ *  key_deleted callback of every iterator this service opens.
+ *
+ *  An iterator holds an index of its key's rows, and tranger2_delete_key()
+ *  removes the files that index points into -- whoever deletes it: this
+ *  service's delete-key, or a treedb sharing the tranger. The next page of a
+ *  FILTERED iterator then opened a file that is gone, a critical, and with
+ *  on_critical_error=2 an exit(0) of the yuno; an unfiltered one answered a
+ *  short page with the old total_rows. Only MARK it here: this runs inside
+ *  tranger2_delete_key()'s walk of the topic's iterators, so closing one now
+ *  would change the array being walked. get-page closes it.
+ ***************************************************************************/
+PRIVATE int mark_iterator_of_deleted_key(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *iterator,
+    void *user_data
+)
+{
+    json_object_set_new(iterator, "deleted_key", json_string(key));
+    return 0;
+}
+
+/***************************************************************************
+ *  The key deleted under the iterator registered as `id` (any part of a
+ *  multi-key one), or NULL while all its keys are there.
+ ***************************************************************************/
+PRIVATE const char *deleted_key_of_iterator(hgobj gobj, const char *iterator_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!iterator_is_live(gobj, iterator_id)) {
+        return NULL;
+    }
+    json_t *entry = json_object_get(priv->iterators, iterator_id);
+    json_t *parts = json_object_get(entry, "parts");
+    if(parts) {
+        int idx; json_t *part;
+        json_array_foreach(parts, idx, part) {
+            json_t *iterator = (json_t *)(uintptr_t)kw_get_int(gobj, part, "ptr", 0, 0);
+            const char *key = json_string_value(json_object_get(iterator, "deleted_key"));
+            if(key) {
+                return key;
+            }
+        }
+        return NULL;
+    }
+    json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
+    return json_string_value(json_object_get(iterator, "deleted_key"));
 }
 
 /***************************************************************************
@@ -2305,6 +2365,7 @@ PRIVATE json_t *open_multi_key_iterator(
                 kw  // owned
             );
         }
+        tranger2_set_rt_key_deleted_callback(iterator, mark_iterator_of_deleted_key, gobj);
         json_int_t rows = (json_int_t)tranger2_iterator_size(iterator);
         total_rows += rows;
         json_array_append_new(parts, json_pack("{s:s, s:I, s:I}",
@@ -2478,6 +2539,7 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
             kw  // owned
         );
     }
+    tranger2_set_rt_key_deleted_callback(iterator, mark_iterator_of_deleted_key, gobj);
     register_handle(priv->iterators, iterator_id, topic_name, iterator);
     json_object_set_new(
         json_object_get(priv->iterators, iterator_id),
@@ -2552,6 +2614,23 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             -1,
             json_sprintf("%s: iterator was already closed with its topic: '%s'",
                 gobj_yuno_role_plus_name(), iterator_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *deleted_key = deleted_key_of_iterator(gobj, iterator_id);
+    if(deleted_key) {
+        json_t *comment = json_sprintf(
+            "%s: iterator '%s' closed, its key '%s' was deleted: open it again",
+            gobj_yuno_role_plus_name(), iterator_id, deleted_key
+        );
+        close_registered_iterator(gobj, iterator_id);   // Errors already logged
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            comment,
             0,
             0,
             kw  // owned
