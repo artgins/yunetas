@@ -47,3 +47,7 @@ The test checks, on a topic declared like this:
    create handed out the deleted highest id again (`4`, the id `d` had).
 6. The same for `__snaps__`: delete a snap row, shoot again, reload, shoot
    again.
+7. A store with no counter yet (`last_rowid_id` 0) and a snap ACTIVE: a node
+   created after the shot is on disk and not in the snap-filtered index. The
+   seed read that index and handed out the node's own id; it reads the keys
+   of the topic (tranger2's cache) now, so the create gets the next one.

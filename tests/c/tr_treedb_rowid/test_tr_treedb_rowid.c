@@ -18,6 +18,8 @@
  *      3. the deleted last id is not handed out again
  *      4. the counter survives close + open, even with its highest node gone
  *      5. the same in __snaps__
+ *      6. a store with no counter yet and a snap active: the seed is not
+ *         fooled by the snap-filtered index (M4)
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -357,6 +359,62 @@ PRIVATE int test_snaps(json_t *tranger)
 }
 
 /***************************************************************************
+ *  6: a store with no counter yet, and a snap active
+ *
+ *  The counter is seeded from the ids alive, and they were read from the
+ *  treedb's id index -- which, with a snap active, holds only what the snap
+ *  loaded. A node created after the shot is on disk and not in that index,
+ *  so the id handed out could be ITS id, and exist_primary_node() asks the
+ *  same index and did not see it (M4 of the 2026-09-21 review; the real case
+ *  was __graphs__). The seed reads the keys of the TOPIC, which are all of
+ *  them.
+ ***************************************************************************/
+PRIVATE int test_seed_under_an_active_snap(json_t *tranger)
+{
+    int result = 0;
+    char x[64], y[64];
+
+    set_expected_results("a snap active does not hide an id from the seed", NULL, NULL, NULL, 1);
+    if(treedb_shoot_snap(tranger, TREEDB_NAME, "before_x", "") < 0) {
+        printf("%sERROR%s --> cannot shoot snap 'before_x'\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += create_yuno(tranger, "r1", "x", x, sizeof(x));
+
+    int snap_tag = treedb_activate_snap(tranger, TREEDB_NAME, "before_x");
+    if(snap_tag < 0) {
+        printf("%sERROR%s --> cannot activate snap 'before_x'\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results(
+        "a snap active does not hide an id from the seed: the create",
+        json_pack("[{s:o}]", "msg", json_sprintf("loading snap_tag %d", snap_tag)),
+        NULL, NULL, 1
+    );
+    result += reload(tranger);
+    if(treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, x)) {
+        printf("%sERROR%s --> the snap loaded '%s', shot after it\n", On_Red BWhite, Color_Off, x);
+        result += -1;
+    }
+
+    /*  A store written before the counter existed  */
+    tranger2_write_topic_var(tranger, TOPIC_NAME, json_pack("{s:I}", "last_rowid_id", (json_int_t)0));
+
+    result += create_yuno(tranger, "r1", "y", y, sizeof(y));
+    char expected[64];
+    snprintf(expected, sizeof(expected), "%lld", atoll(x) + 1);
+    result += expect_id("create with a snap active and no counter", y, expected);
+
+    treedb_activate_snap(tranger, TREEDB_NAME, "__clear__");
+    result += reload(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 /***************************************************************************
@@ -410,6 +468,7 @@ PRIVATE int do_test(void)
         return -1;
     }
     result += test_snaps(tranger);
+    result += test_seed_under_an_active_snap(tranger);
 
     set_expected_results("close and shutdown", NULL, NULL, NULL, 1);
     treedb_close_db(tranger, TREEDB_NAME);

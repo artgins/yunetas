@@ -370,12 +370,8 @@ entries at once:
   (`tr_treedb.c:8432`). Since 3fea635f3 `_link_nodes()` unlinks the old ref
   first and returns -1 when that fails, so the node can be neither re-linked,
   cleaned, nor deleted with force. It used to repair itself at the next link.
-- **M4 -- the rowid counter is seeded from the SNAP-FILTERED index**
-  (`tr_treedb.c:5288`, 3664eb55e). A store with no `last_rowid_id` yet, a snap
-  active and a create without id give an id that exists on disk, and
-  `exist_primary_node()` reads the same index. Real case: `__graphs__`. Seed
-  from the keys of the topic. (`find-new-yunos create=1` does not reach it: it
-  sends the id.)
+- **M4 -- SHIPPED (unreleased, option A).** The rowid seed reads the
+  topic's keys (tranger2's cache), not the snap-filtered index.
 - **M5 -- `now`: the census in the 7.24.0 CHANGELOG is false.** Besides the two
   meta-topic columns there are 7 in the SDK and about 20 in the projects,
   `['time','now','persistent']` with no `writable`, most headed "Update Time".

@@ -5539,8 +5539,8 @@ PRIVATE BOOL inherit_links(
  *  becomes an instance of that node.
  *
  *  The counter lives in topic_var.json as `last_rowid_id`. The scan of the
- *  index raises it past any numeric id written explicitly, and seeds it in
- *  a store written before the counter existed. A topic_version change
+ *  topic's keys raises it past any numeric id written explicitly, and seeds
+ *  it in a store written before the counter existed. A topic_version change
  *  re-creates that file from the schema, and tranger2_create_topic() carries
  *  the counter across: seeded again from the ids alive, it would hand out
  *  the deleted highest one.
@@ -5550,16 +5550,23 @@ PRIVATE BOOL inherit_links(
 PRIVATE json_int_t get_next_rowid_id(
     hgobj gobj,
     json_t *tranger,
-    const char *treedb_name,
     const char *topic_name
 )
 {
     json_t *topic = tranger2_topic(tranger, topic_name);
     json_int_t last = kw_get_int(gobj, topic, "last_rowid_id", 0, 0);
 
-    json_t *indexx = treedb_get_id_index(tranger, treedb_name, topic_name);
-    const char *id; json_t *node;
-    json_object_foreach(indexx, id, node) {
+    /*
+     *  The keys of the TOPIC, from tranger2's cache (every key on disk),
+     *  never the treedb's id index: with a snap active that index holds
+     *  only what the snap loaded, so a node created after the shot was
+     *  missing from the seed and its id was handed out again -- and
+     *  exist_primary_node() asks the same index (M4 of the 2026-09-21
+     *  review; the real case was __graphs__).
+     */
+    json_t *topic_cache = json_object_get(topic, "cache");
+    const char *id; json_t *cell;
+    json_object_foreach(topic_cache, id, cell) {
         char *end = NULL;
         long long n = strtoll(id, &end, 10);
         if(end && *end == 0 && n > last) {
@@ -5729,7 +5736,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             id = uuid;
             json_object_set_new(kw, "id", json_string(id));
         } else if(kw_has_word(gobj, id_col_flag, "rowid", 0)) {
-            json_int_t rowid = get_next_rowid_id(gobj, tranger, treedb_name, topic_name);
+            json_int_t rowid = get_next_rowid_id(gobj, tranger, topic_name);
             if(rowid <= 0) {
                 JSON_DECREF(kw)
                 return 0;   // Error already logged
@@ -14503,7 +14510,9 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
         return ret;
     }
 
-    return (int)user_flag;
+    /*  The tag of the snap just activated. It answered `user_flag`, the tag
+     *  of the one it replaced (0 when none was active).  */
+    return (int)kw_get_int(gobj, snap, "id", 0, KW_REQUIRED|KW_WILD_NUMBER);
 }
 
 /***************************************************************************

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### treedb: a `rowid` id is not handed out again under an active snap
+
+M4 of the 2026-09-21 review, the owner's option A.
+
+- **The seed of the rowid counter read the treedb's id index**, which, with a
+  snap active, holds only what the snap loaded. In a store with no
+  `last_rowid_id` yet, a create without id got the id of a node created after
+  the shot -- on disk, not in the index -- and `exist_primary_node()` asks the
+  same index, so nothing refused it. The real case was `__graphs__`. The
+  seed reads the keys of the topic, tranger2's cache (every key on disk).
+- **`treedb_activate_snap()` returned the tag of the snap it REPLACED** (0
+  when none was active), not the tag of the one it activated, as its header
+  says. Callers only test `< 0`, so nothing broke; the `result` of C_NODE's
+  `activate-snap` carries the right tag now.
+- Test: `tr_treedb_rowid` case 7 (red against the previous library: the
+  create got `8`, the id of the node the snap did not load).
+
 ### treedb: `force` unlinks the children, `ignore_snaps` deletes what a snap holds (BREAKING)
 
 M11 and M12 of the 2026-09-21 review, the owner's option A.
