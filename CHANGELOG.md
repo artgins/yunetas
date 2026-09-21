@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### treedb: `force` unlinks the children, `ignore_snaps` deletes what a snap holds (BREAKING)
+
+M11 and M12 of the 2026-09-21 review, the owner's option A.
+
+- **`force` meant two things, and every caller that wanted one got both.**
+  `treedb_delete_node()` read it as "unlink the children" AND as "delete a
+  node a snapshot still holds". The agent's `delete-yuno` and gobj-ui's topic
+  table force every delete for the first, so no snapshot guard ever fired for
+  them: a release a snap froze was deleted without `force`, and the table
+  broke rollbacks with an ordinary delete. They are two options now:
+  `force` unlinks the children, `ignore_snaps` deletes what a snap holds.
+  `treedb_delete_instance()` takes `ignore_snaps` too (`force` was only the
+  snapshot override there, and does nothing now).
+- **BREAKING**: a `delete-node force=1` (or `treedb_delete_node()` with
+  `force`) of a node a snap holds is refused now, *"cannot delete node, a
+  snapshot still holds it"*. Pass `ignore_snaps` as well, or delete the snap
+  first.
+- **The agent keeps its contract.** Its `force=1` on `delete-yuno`,
+  `delete-binary`, `delete-config`, `delete-realm` and
+  `delete-public-service` still means "even if a snap holds it", and it
+  passes `ignore_snaps` for that. `delete-yuno` drops its own guard on the
+  tag in memory, which is 0 for anything saved after the shot; the treedb's
+  guard reads the records. So `delete-yuno yuno_release=<frozen>` without
+  `force` is refused now, as it always said it would be.
+- gobj-ui's table keeps sending `force` (for the children) and now shows the
+  snapshot refusal.
+- Tests: `tr_treedb_snap_clone` and `tr_treedb_delete_instance` pin both
+  halves (red against the previous library).
+
 ### The loose ends of the 2026-09-21 review: M15, M26, M31, M41, M42
 
 - **M15 -- commands that answered success for what they did not do.**

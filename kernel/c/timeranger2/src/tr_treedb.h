@@ -381,7 +381,11 @@ PUBLIC int set_volatil_values(
 );
 
 /**rst**
-    "force" delete links. If there are links are not force then delete_node will fail
+    "force" unlinks the children: without it a node with links is refused.
+    "ignore_snaps" deletes a node a snapshot holds a record of; without it
+    that is refused ("cannot delete node, a snapshot still holds it").
+    The two are separate on purpose: `force` used to mean both, and every
+    caller that forces for the links bypassed the snapshots too.
 
     `node` is the pure node as the index holds it: borrowed, never the
     caller's own reference. On success the index's reference is released
@@ -390,7 +394,7 @@ PUBLIC int set_volatil_values(
 PUBLIC int treedb_delete_node(
     json_t *tranger,
     json_t *node,       // NOT owned: borrowed from the index, whose reference goes on success
-    json_t *jn_options  // bool "force"
+    json_t *jn_options  // bool "force" (unlink children), bool "ignore_snaps"
 );
 
 /**rst**
@@ -400,9 +404,9 @@ PUBLIC int treedb_delete_node(
     primary `id` index is not touched (route only a NON-primary instance
     here, as `c_node.c` does); `treedb_delete_node()` wipes a whole key.
 
-    It does NOT look at links. It refuses an immutable record (`force`
-    does not override that) and an instance a snapshot holds a record of
-    (`force` overrides that).
+    It does NOT look at links. It refuses an immutable record (nothing
+    overrides that) and an instance a snapshot holds a record of
+    (`ignore_snaps` overrides that; `force` does not).
 
     `node` is borrowed from the index; the index's reference goes only on
     success.
@@ -411,7 +415,7 @@ PUBLIC int treedb_delete_instance(
     json_t *tranger,
     json_t *node,           // pure node borrowed from the index; consumed only on success
     const char *pkey2_name,
-    json_t *jn_options      // bool "force": skip the snapshot-tag guard
+    json_t *jn_options      // bool "ignore_snaps": skip the snapshot guard
 );
 
 PUBLIC int treedb_clean_node( // remove all links (fkeys)

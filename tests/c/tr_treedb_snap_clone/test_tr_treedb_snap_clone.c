@@ -333,7 +333,10 @@ PRIVATE int test_shoot_refused_while_active(json_t *tranger)
 /***************************************************************************
  *  A node a snap froze cannot be deleted after an update either: the
  *  primary carries no tag now, the frozen record below does. A delete
- *  erases the whole key. `force` still overrides.
+ *  erases the whole key. `force` does NOT override it: `force` unlinks the
+ *  children, and only `ignore_snaps` lets a frozen node go (M11/M12 of the
+ *  2026-09-21 review: the agent and the GUI force every delete, so no
+ *  snapshot guard ever fired for them).
  ***************************************************************************/
 PRIVATE int test_held_node_cannot_be_deleted(json_t *tranger)
 {
@@ -342,7 +345,10 @@ PRIVATE int test_held_node_cannot_be_deleted(json_t *tranger)
     time_measure_t time_measure;
     set_expected_results(
         test,
-        json_pack("[{s:s}]", "msg", "cannot delete node, a snapshot still holds it"),
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "cannot delete node, a snapshot still holds it",
+            "msg", "cannot delete node, a snapshot still holds it"
+        ),
         NULL, NULL, 1
     );
     MT_START_TIME(time_measure)
@@ -363,8 +369,11 @@ PRIVATE int test_held_node_cannot_be_deleted(json_t *tranger)
     if(!node) {
         printf("%s  FAIL: the refused delete took item-1 anyway%s\n", On_Red BWhite, Color_Off);
         result += -1;
-    } else if(treedb_delete_node(tranger, node, json_pack("{s:b}", "force", 1)) < 0) {
-        printf("%s  FAIL: force did not delete item-1%s\n", On_Red BWhite, Color_Off);
+    } else if(treedb_delete_node(tranger, node, json_pack("{s:b}", "force", 1)) == 0) {
+        printf("%s  FAIL: force deleted item-1, a node snaps froze%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    } else if(treedb_delete_node(tranger, node, json_pack("{s:b}", "ignore_snaps", 1)) < 0) {
+        printf("%s  FAIL: ignore_snaps did not delete item-1%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
 

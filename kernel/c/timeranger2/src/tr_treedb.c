@@ -6689,6 +6689,7 @@ PRIVATE int delete_node(
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
     const char *id = kw_get_str(gobj, node, "id", "", 0);
     BOOL force = kw_get_bool(gobj, jn_options, "force", 0, KW_WILD_NUMBER);
+    BOOL ignore_snaps = kw_get_bool(gobj, jn_options, "ignore_snaps", 0, KW_WILD_NUMBER);
 
     /*-------------------------------*
      *  Immutable guard (force does NOT override).
@@ -6720,9 +6721,14 @@ PRIVATE int delete_node(
      *  snapshot froze cannot go while that snapshot exists: the tag in
      *  memory is the primary's, and since a save is untagged the primary
      *  of a node updated after the shot carries none, so the records of
-     *  the key are asked. `force` overrides, as it did.
+     *  the key are asked.
+     *
+     *  `ignore_snaps` overrides, and `force` does NOT: `force` unlinks the
+     *  children. It did both, and the agent's delete-yuno and gobj-ui's
+     *  table force EVERY delete to get the first, so no snapshot guard
+     *  ever fired for them (M11/M12 of the 2026-09-21 review).
      */
-    if(!force && node_held_by_a_snap(gobj, tranger, treedb_name, node)) {
+    if(!ignore_snaps && node_held_by_a_snap(gobj, tranger, treedb_name, node)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -7149,7 +7155,8 @@ PRIVATE int collect_instance_md_cb(
     tombstones and re-elects the highest surviving rowid as primary. Whole-key
     delete (all instances of an id) remains `treedb_delete_node()`.
 
-    `force` only relaxes the snapshot-tag guard.
+    `ignore_snaps` relaxes the snapshot guard; `force` does not (it is
+    about links, which this does not look at).
 
     In-tree caller: `c_node.c::mt_delete_node` iterates the topic's pkey2s
     and calls this per non-primary instance before falling back to
@@ -7159,7 +7166,7 @@ PUBLIC int treedb_delete_instance(
     json_t *tranger,
     json_t *node,       // pure node borrowed from the index; consumed only on success
     const char *pkey2_name,
-    json_t *jn_options  // bool "force": skip the snapshot-tag guard
+    json_t *jn_options  // bool "ignore_snaps": skip the snapshot guard
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -7193,10 +7200,10 @@ PUBLIC int treedb_delete_instance(
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0);
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
     const char *id = kw_get_str(gobj, node, "id", "", 0);
-    BOOL force = kw_get_bool(gobj, jn_options, "force", 0, KW_WILD_NUMBER);
+    BOOL ignore_snaps = kw_get_bool(gobj, jn_options, "ignore_snaps", 0, KW_WILD_NUMBER);
 
     /*-------------------------------*
-     *  Immutable guard (force does NOT override). Same borrowed-ref
+     *  Immutable guard (nothing overrides it). Same borrowed-ref
      *  convention as the snapshot-tag guard below: on refusal the node
      *  is left untouched, the ref is consumed only on success.
      *-------------------------------*/
@@ -7231,10 +7238,11 @@ PUBLIC int treedb_delete_instance(
      *  untagged, so an instance updated after the shot carries 0 while the
      *  record the snap froze is still under it -- and this guard, reading
      *  that tag alone, let the frozen record be tombstoned. The records of
-     *  the key are asked, keeping only those of this instance. `force`
-     *  overrides, as it did.
+     *  the key are asked, keeping only those of this instance.
+     *  `ignore_snaps` overrides; `force` is about links, which a
+     *  delete-instance does not look at.
      */
-    if(!force && instance_held_by_a_snap(gobj, tranger, treedb_name, node, pkey2_name)) {
+    if(!ignore_snaps && instance_held_by_a_snap(gobj, tranger, treedb_name, node, pkey2_name)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -13235,8 +13243,9 @@ PRIVATE BOOL node_held_by_a_snap(
             "id",           "%s", id,
             NULL
         );
-        /*  A guard that cannot read closes: the delete is refused, `force`
-         *  still overrides. It answered "not held" and the delete went on.  */
+        /*  A guard that cannot read closes: the delete is refused,
+         *  `ignore_snaps` still overrides. It answered "not held" and the
+         *  delete went on.  */
         held = TRUE;
     } else {
         tranger2_close_list(tranger, list);
@@ -13379,8 +13388,9 @@ PRIVATE BOOL instance_held_by_a_snap(
             "id",           "%s", id,
             NULL
         );
-        /*  A guard that cannot read closes: the delete is refused, `force`
-         *  still overrides. It answered "not held" and the delete went on.  */
+        /*  A guard that cannot read closes: the delete is refused,
+         *  `ignore_snaps` still overrides. It answered "not held" and the
+         *  delete went on.  */
         held = TRUE;
     } else {
         tranger2_close_list(tranger, list);

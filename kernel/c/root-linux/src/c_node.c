@@ -179,7 +179,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_delete_node[] = {
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATAPM (DTP_JSON,      "record",       0,              0,          "Node content in json"),
-SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: 'force'"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: 'force' unlinks the children, 'ignore_snaps' deletes a node a snapshot holds"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_link_nodes[] = {

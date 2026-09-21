@@ -698,7 +698,7 @@ int treedb_delete_instance(
     json_t      *tranger,
     json_t      *node,       // pure node borrowed from the index; consumed only on success
     const char  *pkey2_name,
-    json_t      *jn_options  // owned, bool "force"
+    json_t      *jn_options  // owned, bool "ignore_snaps"
 );
 ```
 
@@ -709,7 +709,7 @@ int treedb_delete_instance(
 | `tranger` | `json_t *` | Pointer to the tranger database instance. |
 | `node` | `json_t *` | The instance as the `pkey2` index holds it. Borrowed: the index's reference goes on success only. |
 | `pkey2_name` | `const char *` | Name of the secondary key that identifies the instance. |
-| `jn_options` | `json_t *` | Owned. `force` skips the snapshot guard (not the immutable one). |
+| `jn_options` | `json_t *` | Owned. `ignore_snaps` skips the snapshot guard (not the immutable one). `force` does nothing here: it is about links, and this does not look at them. |
 
 **Returns**
 
@@ -739,7 +739,8 @@ carries in memory — a save is untagged, so an instance updated after a shot
 carries 0 while the record the snap froze is still under it. It reads the
 records of the key instead and keeps the ones of this instance (which
 instance a record belongs to is a FIELD, so that walk reads the content of
-the record). `force` overrides this guard. It is the twin of the one
+the record). `ignore_snaps` overrides this guard, and `force` does not
+(since after 7.24.1; it used to). It is the twin of the one
 [`treedb_delete_node()`](<#treedb_delete_node>) has for a whole key.
 
 ---
@@ -772,6 +773,22 @@ Returns 0 on success, or a negative error code if the deletion fails.
 **Notes**
 
 If the node has existing links and 'force' is not enabled, [`treedb_delete_node()`](<#treedb_delete_node>) will fail.
+
+A node that a snapshot holds a record of is refused (*"cannot delete node, a
+snapshot still holds it"*) unless `ignore_snaps` is given. **`force` does not
+override that** (unreleased, after 7.24.1): `force` means "unlink the
+children" and nothing else. It used to mean both, and the two callers that
+force every delete to get the first -- the agent's `delete-yuno` and the
+gobj-ui topic table -- switched the snapshot guard off with it.
+
+```C
+/*  a node with children, that no snap holds  */
+treedb_delete_node(tranger, node, json_pack("{s:b}", "force", 1));
+
+/*  a node a snap froze: deleting it breaks that snap's rollback  */
+treedb_delete_node(tranger, node, json_pack("{s:b, s:b}",
+    "force", 1, "ignore_snaps", 1));
+```
 
 A record marked immutable (`__md_treedb__`immutable`, see
 [`treedb_set_node_immutable()`](<#treedb_set_node_immutable>)) is refused and
@@ -1710,7 +1727,7 @@ treedb_activate_snap(tranger, treedb_name, "arranged");  // reload: x is 10 agai
 
 **What a snap holds, and for how long.** Only `shoot-snap` tags records, and a save is always written with tag 0. So `activate-snap` returns every topic to what it was when the snap was shot: rows created after it are absent, and rows updated after it show their content at the shot. This is also true for rows written WHILE the snap is activated. Two earlier rules broke this. Up to 7.22.x a save inherited the node's tag, so the latest snap followed every later update (fixed in 7.23.0). In 7.23.x a save took the tag of the activated snap, so a binary installed during a rollback went into the photo (fixed in 7.24.0). Two guards follow the snap rather than the node's tag in memory:
 
-- [`treedb_delete_node()`](<#treedb_delete_node>) erases the whole key, so it refuses a node any existing snap holds a record of (*"cannot delete node, a snapshot still holds it"*), asking the key's records when the primary carries no tag; `force` overrides.
+- [`treedb_delete_node()`](<#treedb_delete_node>) erases the whole key, so it refuses a node any existing snap holds a record of (*"cannot delete node, a snapshot still holds it"*), asking the key's records when the primary carries no tag; `ignore_snaps` overrides (`force` does not, since after 7.24.1).
 - `treedb_gc_files()` holds an asset a node named when a snap was shot for as long as that snap's row exists, whether or not the node has moved on. Deleting the snap frees it.
 
 ```C

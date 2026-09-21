@@ -2576,7 +2576,7 @@ PRIVATE json_t *cmd_delete_public_service(hgobj gobj, const char *cmd, json_t *k
     json_array_foreach(iter, idx, node) {
         json_array_append_new(jn_data, json_string(kw_get_str(gobj, node, "id", "", 0)));
         if(gobj_delete_node(
-                priv->resource, resource, kw_incref(node), json_pack("{s:b}", "force", force), src)<0) {
+                priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
             result += -1;
             break;
         }
@@ -2943,7 +2943,7 @@ PRIVATE json_t *cmd_delete_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_array_foreach(iter, idx, node) {
         json_array_append_new(jn_data, json_string(kw_get_str(gobj, node, "id", "", 0)));
         if(gobj_delete_node(
-                priv->resource, resource, kw_incref(node), json_pack("{s:b}", "force", force), src)<0) {
+                priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
             result += -1;
             break;
         }
@@ -3766,7 +3766,7 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
 
         if(gobj_delete_node(
-                priv->resource, resource, kw_incref(node), json_pack("{s:b}", "force", force), src)<0) {
+                priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
             result += -1;
             break;
         }
@@ -4205,7 +4205,7 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
         const char *version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
 
         if(gobj_delete_node(
-                priv->resource, resource, kw_incref(node), json_pack("{s:b}", "force", force), src)<0) {
+                priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
             json_t *comment = json_sprintf(
                 "Cannot delete the configuration: %s %s",
                 id, version
@@ -5064,8 +5064,8 @@ json_t* cmd_delete_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
      *  omission.  Without `yuno_release` the target is the in-memory primary,
      *  i.e. the yuno itself and every release behind it -- the destructive
      *  reading was the one you got by typing LESS, and it has already cost a
-     *  realm its auth_bff.  `force` does not stand in for this: it bypasses
-     *  the snap-tag guard, a different question.
+     *  realm its auth_bff.  `force` does not stand in for this: it deletes a
+     *  release a snap froze, a different question.
      */
     BOOL whole = kw_get_bool(gobj, kw, "whole", 0, KW_WILD_NUMBER);
     if(!by_instance && !whole) {
@@ -5145,29 +5145,17 @@ json_t* cmd_delete_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
                 kw  // owned
             );
         }
-        json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`tag", 0, 0);
-        if(__tag__ && !force) {
-            json_t *comment = json_sprintf(
-                "Cannot delete yuno '%s', it's tagged by snap %d (rollback)",
-                kw_get_str(gobj, node, "id", "", KW_REQUIRED),
-                (int)__tag__
-            );
-            JSON_DECREF(iter)
-            return msg_iev_build_response(
-                gobj,
-                -1,
-                comment,
-                0,
-                0,
-                kw  // owned
-            );
-        }
     }
 
     /*
-     *  Delete
+     *  Delete. The links go with the yuno (`force`, always); a release a
+     *  snap froze goes only when asked (`ignore_snaps` = this command's
+     *  `force`). The snapshot guard is the treedb's, and it reads the
+     *  RECORDS of the key: the tag in memory it used to read here is 0 for
+     *  anything saved after the shot, and the `force = 1` that followed
+     *  switched the treedb's own guard off too (M11 of the 2026-09-21
+     *  review), so a frozen release was deleted without force.
      */
-    force = 1; // Aquí no manejamos los delete-links, fuerza el delete
     int result = 0;
     int deleted = 0;
     json_array_foreach(iter, idx, node) {
@@ -5184,7 +5172,7 @@ json_t* cmd_delete_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
             priv->resource,
             resource,
             kw_delete,
-            json_pack("{s:b}", "force", force),
+            json_pack("{s:b, s:b}", "force", 1, "ignore_snaps", force),
             src
         )<0) {
             result += -1;

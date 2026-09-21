@@ -190,7 +190,8 @@ PRIVATE int test_delete_instance_drops_secondary_keeps_primary(
  *  the ones of this instance -- and not the tag the node carries in
  *  memory: a save is untagged, so an instance updated after the shot
  *  carries 0 while the record the snap froze is still under it. That is
- *  the case this pins; `force` still overrides.
+ *  the case this pins. `force` does NOT override it (it is about links,
+ *  which a delete-instance does not look at); `ignore_snaps` does.
  ***************************************************************************/
 PRIVATE int test_instance_held_by_a_snap(
     json_t *tranger,
@@ -202,7 +203,10 @@ PRIVATE int test_instance_held_by_a_snap(
     time_measure_t time_measure;
     set_expected_results(
         test,
-        json_pack("[{s:s}]", "msg", "cannot delete instance, a snapshot still holds it"),
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "cannot delete instance, a snapshot still holds it",
+            "msg", "cannot delete instance, a snapshot still holds it"
+        ),
         NULL, NULL, 1
     );
     MT_START_TIME(time_measure)
@@ -254,12 +258,20 @@ PRIVATE int test_instance_held_by_a_snap(
         result += -1;
     }
 
-    /*  force overrides  */
+    /*  force does not override; ignore_snaps does  */
     node = treedb_get_instance(
         tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "item-9", "v9"
     );
-    if(treedb_delete_instance(tranger, node, PKEY2_NAME, json_pack("{s:b}", "force", 1)) != 0) {
-        printf("%s  FAIL: force did not delete the held instance%s\n",
+    if(treedb_delete_instance(tranger, node, PKEY2_NAME, json_pack("{s:b}", "force", 1)) == 0) {
+        printf("%s  FAIL: force deleted an instance a snap froze%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    node = treedb_get_instance(
+        tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "item-9", "v9"
+    );
+    if(treedb_delete_instance(tranger, node, PKEY2_NAME, json_pack("{s:b}", "ignore_snaps", 1)) != 0) {
+        printf("%s  FAIL: ignore_snaps did not delete the held instance%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
@@ -298,10 +310,12 @@ PRIVATE int test_delete_node_clears_everything(
         return result;
     }
 
+    /*  The snap of the test above holds item-2 too: this one is about the
+     *  whole-key delete, so it says so  */
     int rc = treedb_delete_node(
         tranger,
         node,
-        json_pack("{s:b}", "force", 1)
+        json_pack("{s:b, s:b}", "force", 1, "ignore_snaps", 1)
     );
     if(rc != 0) {
         printf("%s  FAIL: treedb_delete_node() returned %d, expected 0%s\n",

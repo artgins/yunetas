@@ -1129,7 +1129,13 @@ cannot read the records refuses (unreleased, after 7.24.1: it used to let the
 delete through). A save is untagged,
 so a node or an instance updated after the shot carries 0 while the record
 the snap froze is still under it: the guards walk the records of the key.
-`force=1` overrides both. `treedb_gc_files()` follows the same rule for the
+`ignore_snaps=1` overrides both; **`force=1` does not** (unreleased, after
+7.24.1). `force` unlinks the children and nothing else: it used to override
+the snapshot guard too, and the agent's `delete-yuno` and gobj-ui's topic
+table force every delete for the children, so no snapshot guard ever fired
+for them. The agent keeps its own contract -- its `force=1` on the
+`delete-*` commands still means "even if a snap holds it", and it passes
+`ignore_snaps` for that. `treedb_gc_files()` follows the same rule for the
 bytes of an asset a shot record names.
 
 #### A child hooked by several instances of its parent

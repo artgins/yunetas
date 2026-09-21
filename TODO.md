@@ -387,15 +387,9 @@ entries at once:
   at the write; create, link and delete publish a schema change like update.
 - **M9, M10 -- SHIPPED (unreleased)**: the guards close when they cannot
   read; a replica cannot shoot, activate nor deactivate a snap.
-- **M11 -- the agent's `delete-yuno` guards by the tag in MEMORY and then sets
-  `force = 1`** (`c_agent.c:5121`, `:5143`), so the guards that read the
-  records (08ba69dcb, 114dfb339) never run for `yunos`, and the memory tag is 0
-  for anything saved after the shot.
-- **M12 -- gobj-ui's topic table always deletes with `force: true`**
-  (`c_yui_treedb_topics.js:2755`), so no snapshot guard can fire from the GUI
-  and the dialog speaks only of unlinking children. The graph sends no options
-  and the guards do fire there. Needs the owner's decision on the two meanings
-  of `force`.
+- **M11, M12 -- SHIPPED (unreleased, option A).** `force` unlinks the
+  children, `ignore_snaps` deletes what a snap holds; the agent maps its own
+  `force` to both, and `delete-yuno` no longer guards by the tag in memory.
 - **M13 -- SHIPPED with A1**: `delete-treedb` on a replica answers READ-ONLY
   before `delete_client_treedb_schema()` touches memory.
 - **M14 -- SHIPPED (unreleased).**
