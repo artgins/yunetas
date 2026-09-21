@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### C_TREEDB: an edit of a schema is a draft; save-schema publishes it, apply-schema puts it in use (BREAKING)
+
+M36 of the 2026-09-21 review, the owner's design. The C half; gobj-ui's
+schema editor and gui_agent's Schemas tab follow.
+
+- **An edit of `__system__` moves no version.** Every write to a `cols` or
+  `topics` node used to raise `topic_version` and `schema_version` (the
+  "a write publishes itself" of M8), so an edit half made was already the
+  schema of the next start. The writes are drafts now; `publish_schema_change()`
+  is gone, and so is the `__schema_publishing__` marker the projector set to
+  keep it from answering its own writes.
+- **`save-schema treedb_name=X [dry_run=1]`** publishes the draft: it
+  compares it with the schema file IN USE (`diff_treedb_schema()`, the
+  comparator of `diff-schema`), raises the `topic_version` of each topic that
+  differs and the `schema_version` to the one in use + 1 (never lowering a
+  number of `__system__`), writes them into `__system__`, and writes the
+  schema to `saved_schemas/X.treedb_schema.json` under the `__system__`
+  tranger -- never over the file in use. The saved schema reads like a
+  literal: empty attributes, `_geometry` and the projection's bookkeeping
+  versions are pruned, and `topics` is a list. Idempotent.
+- **`saved-schema`** answers what was saved, a `flat_diff` against the file in
+  use, `impose_c_schema` for that treedb (the code's force included) and
+  `can_apply`. **`apply-schema`** copies it over the file in use: master
+  only, refused when C imposes the treedb's schema, and only a higher
+  `schema_version`. It takes effect at the next open.
+- **BREAKING: with `impose_c_schema` off a treedb opens from its schema FILE,
+  not from `__system__`.** The literal is handed to `treedb_open_db()`
+  without `impose`, so it is installed only when it is newer; the file wins
+  on ties and when it is ahead, which is what `apply-schema` makes it.
+  `__system__` is not read at open in either mode. Every in-tree yuno and
+  every project's `db_history*` forces `impose_c_schema=1` from its code, so
+  none of them changes behaviour: for them Save works and Apply is refused.
+- Docs: `YUNO_TREEDB.md` ("A treedb never opens from `__system__`", the
+  three-step cycle with examples), the C_TREEDB page (the attribute and the
+  three commands), and the C_NODE permission table, which still listed
+  `system-schema` and `trace` as open to anyone (M41 closed that).
+- Test: `c_treedb_system_schema` -- edits and creates/deletes are drafts, the
+  whole save/saved/apply cycle (red against the previous library), and three
+  checks rewritten on the new model; its expected log is a table now.
+
 ### treedb: a `now` column is stamped by every write, `writable` or not
 
 M5 of the 2026-09-21 review, the owner's option B.

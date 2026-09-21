@@ -92,6 +92,154 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
     return allowed;
 }
 
+/*
+ *  Every log line from INFO up, in order: one per emission (strict FIFO).
+ */
+PRIVATE const char *expected_log_msgs[] = {
+    /*  start up  */
+    "Starting yuno",
+    /*  __system__ tranger + schema + its six topics  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Playing yuno",
+    "Creating __timeranger2__.json",
+    /*  client tranger + schema + __snaps__ __graphs__ users departments fidelity __assets__  */
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    /*  Test 2: schema file re-created from the literal on re-open  */
+    "Creating TreeDB schema file",
+    /*  Test 3: a literal ahead: projection, schema file, the one topic that moved  */
+    "Updating TreeDB schema in __system__",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    /*  Test 4: a literal behind the projection, then one ahead  */
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Updating TreeDB schema in __system__",
+    "Re-Creating TreeDB schema file",
+    "Updating TreeDB schema in __system__",
+    "Topic from C differs from the one in use, but its topic_version is not higher: not applied",
+    "Re-Creating TreeDB schema file",
+    /*  Test 5: the refused writes  */
+    "Value not in enum",
+    "Value not in enum",
+    "a 'file' column must be of type 'string': one file per column",
+    "Column definition refused",
+    "A column cannot be both 'hook' and 'fkey'",
+    "Column definition refused",
+    "A hook or fkey column must be of type dict, list or string",
+    "Column definition refused",
+    "Schema topic pkey must be 'id'",
+    "Node already exists",
+    "Topic already has a column with this name",
+    /*  Test 8: legacy ids move; the treedb opens (+ __assets__)  */
+    "TreeDB schema ids moved to qualified names",
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    /*  ... its draft column saved, applied, and in the treedb  */
+    "Schema saved",
+    "Schema applied",
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    /*  Test 9: impose_c_schema on: imposed over a newer file  */
+    "impose_c_schema changed",
+    "Opening TreeDB with the schema from C, __system__ not read",
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Imposing TreeDB schema from C over a newer one",
+    "Re-Creating TreeDB schema file",
+    "Imposing topic_version from C over a newer one",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    /*  ... and off again  */
+    "impose_c_schema changed",
+    "TreeDB schema from C is behind the schema in use, not applied",
+    /*  Test 10: the disk taken ahead (save + apply), then the code imposes  */
+    "Schema saved",
+    "Schema applied",
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "impose_c_schema forced by the code of the yuno, over the attribute",
+    "Opening TreeDB with the schema from C, __system__ not read",
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Imposing TreeDB schema from C over a newer one",
+    "Re-Creating TreeDB schema file",
+    "Imposing topic_version from C over a newer one",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    /*  Test 11: gobj_treedbs refused  */
+    "No permission to list the treedbs",
+    /*  Test 12: the treedb opened to be deleted  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    /*  Test 13: imposing seeds, re-makes one behind, leaves one ahead  */
+    "impose_c_schema forced by the code of the yuno, over the attribute",
+    "Opening TreeDB with the schema from C, __system__ not read",
+    "impose_c_schema forced by the code of the yuno, over the attribute",
+    "Opening TreeDB with the schema from C, __system__ not read",
+    "Updating TreeDB schema in __system__",
+    "Re-Creating TreeDB schema file",
+    "impose_c_schema forced by the code of the yuno, over the attribute",
+    "Opening TreeDB with the schema from C, __system__ not read",
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Imposing TreeDB schema from C over a newer one",
+    "Re-Creating TreeDB schema file",
+    /*  Test 13b: save-schema (twice), apply refused while imposed, applied, the file decides  */
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Schema saved",
+    "Schema saved",
+    "impose_c_schema forced by the code of the yuno, over the attribute",
+    "Opening TreeDB with the schema from C, __system__ not read",
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Schema applied",
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "impose_c_schema forced by the code of the yuno, over the attribute",
+    "Opening TreeDB with the schema from C, __system__ not read",
+    /*  end  */
+    "All treedb system schema tests PASSED",
+    "Exit to die",
+    "Exit to die",
+    "Pausing yuno",
+    "Yuno stopped, gobj end",
+    NULL
+};
+
+PRIVATE json_t *expected_log_list(void)
+{
+    json_t *list = json_array();
+    for(int i = 0; expected_log_msgs[i]; i++) {
+        json_array_append_new(list, json_pack("{s:s}", "msg", expected_log_msgs[i]));
+    }
+    return list;
+}
+
 /***************************************************************************
  *  HACK This function is executed on yunetas environment (mem, log, paths)
  *  BEFORE creating the yuno
@@ -121,135 +269,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("["
-            "{s:s},"    /* Starting yuno */
-            "{s:s}, {s:s},"                             /* __system__ tranger + schema */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* __snaps__ __graphs__ treedbs topics cols __assets__ */
-            "{s:s},"    /* Playing yuno */
-            "{s:s}, {s:s},"                             /* client tranger + schema */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* __snaps__ __graphs__ users departments fidelity __assets__ */
-            "{s:s},"    /* schema file rebuilt from __system__ on re-open */
-            "{s:s},"                                    /* schema moved forward */
-            "{s:s}, {s:s}, {s:s},"                      /* schema file + the one topic that moved */
-            "{s:s}, {s:s},"                             /* a literal behind an edit: not applied */
-            "{s:s},"                                    /* a literal ahead of the edit */
-            "{s:s}, {s:s}, {s:s},"                      /* schema file + the one topic that moved */
-            "{s:s}, {s:s}, {s:s},"                      /* a topic whose version did not move */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* the refused writes: bad enums, */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* bad columns (M7), pkey, dup */
-            "{s:s}, {s:s},"                             /* the legacy ids move; its literal is behind */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* and its treedb opens (+ __assets__) */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* impose_c_schema: on, imposed, off */
-            "{s:s}, {s:s}, {s:s}, {s:s},"               /* attribute off: opened from __system__ */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* the code imposes over the attribute */
-            "{s:s},"
-            "{s:s},"                                    /* gobj_treedbs refused */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* the treedb opened to be deleted */
-            "{s:s}, {s:s},"                             /* imposing SEEDS the projection */
-            "{s:s}, {s:s}, {s:s}, {s:s},"               /* imposing re-makes one behind */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* one ahead is left alone */
-            "{s:s}, {s:s},"                             /* and a REPLICA writes nothing */
-            "{s:s}, {s:s}, {s:s}, {s:s}"
-        "]",
-            "msg", "Starting yuno",
-            "msg", "Creating __timeranger2__.json",
-            "msg", "Creating TreeDB schema file",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Playing yuno",
-            "msg", "Creating __timeranger2__.json",
-            "msg", "Creating TreeDB schema file",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating TreeDB schema file",
-            "msg", "Updating TreeDB schema in __system__",
-            "msg", "Re-Creating TreeDB schema file",
-            "msg", "Re-Creating topic_var.json",
-            "msg", "Re-Creating topic_cols.json",
-            "msg", "TreeDB schema from C is behind the schema in use, not applied",
-            "msg", "Re-Creating TreeDB schema file",
-            "msg", "Updating TreeDB schema in __system__",
-            "msg", "Re-Creating TreeDB schema file",
-            "msg", "Re-Creating topic_var.json",
-            "msg", "Re-Creating topic_cols.json",
-            "msg", "Updating TreeDB schema in __system__",
-            "msg", "Topic from C differs from the one in use, but its topic_version is not higher: not applied",
-            "msg", "Re-Creating TreeDB schema file",
-            "msg", "Value not in enum",
-            "msg", "Value not in enum",
-            "msg", "a 'file' column must be of type 'string': one file per column",
-            "msg", "Column definition refused",
-            "msg", "A column cannot be both 'hook' and 'fkey'",
-            "msg", "Column definition refused",
-            "msg", "A hook or fkey column must be of type dict, list or string",
-            "msg", "Column definition refused",
-            "msg", "Schema topic pkey must be 'id'",
-            "msg", "Node already exists",
-            "msg", "Topic already has a column with this name",
-            "msg", "TreeDB schema ids moved to qualified names",
-            "msg", "TreeDB schema from C is behind the schema in use, not applied",
-            "msg", "Creating __timeranger2__.json",
-            "msg", "Creating TreeDB schema file",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "impose_c_schema changed",
-            "msg", "Opening TreeDB with the schema from C, __system__ not read",
-            "msg", "TreeDB schema from C is behind the schema in use, not applied",
-            "msg", "Imposing TreeDB schema from C over a newer one",
-            "msg", "Re-Creating TreeDB schema file",
-            "msg", "Imposing topic_version from C over a newer one",
-            "msg", "Re-Creating topic_var.json",
-            "msg", "Re-Creating topic_cols.json",
-            "msg", "impose_c_schema changed",
-            "msg", "TreeDB schema from C is behind the schema in use, not applied",
-            "msg", "Re-Creating TreeDB schema file",
-            "msg", "Re-Creating topic_var.json",
-            "msg", "Re-Creating topic_cols.json",
-            "msg", "impose_c_schema forced by the code of the yuno, over the attribute",
-            "msg", "Opening TreeDB with the schema from C, __system__ not read",
-            "msg", "TreeDB schema from C is behind the schema in use, not applied",
-            "msg", "Imposing TreeDB schema from C over a newer one",
-            "msg", "Re-Creating TreeDB schema file",
-            "msg", "Imposing topic_version from C over a newer one",
-            "msg", "Re-Creating topic_var.json",
-            "msg", "Re-Creating topic_cols.json",
-            "msg", "No permission to list the treedbs",
-            "msg", "Creating __timeranger2__.json",
-            "msg", "Creating TreeDB schema file",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "Creating topic",
-            "msg", "impose_c_schema forced by the code of the yuno, over the attribute",
-            "msg", "Opening TreeDB with the schema from C, __system__ not read",
-            "msg", "impose_c_schema forced by the code of the yuno, over the attribute",
-            "msg", "Opening TreeDB with the schema from C, __system__ not read",
-            "msg", "Updating TreeDB schema in __system__",
-            "msg", "Re-Creating TreeDB schema file",
-            "msg", "impose_c_schema forced by the code of the yuno, over the attribute",
-            "msg", "Opening TreeDB with the schema from C, __system__ not read",
-            "msg", "TreeDB schema from C is behind the schema in use, not applied",
-            "msg", "Imposing TreeDB schema from C over a newer one",
-            "msg", "Re-Creating TreeDB schema file",
-            "msg", "impose_c_schema forced by the code of the yuno, over the attribute",
-            "msg", "Opening TreeDB with the schema from C, __system__ not read",
-            "msg", "All treedb system schema tests PASSED",
-            "msg", "Exit to die",
-            "msg", "Exit to die",
-            "msg", "Pausing yuno",
-            "msg", "Yuno stopped, gobj end"
-        ),
+        expected_log_list(),
         NULL,   // expected
         NULL,   // ignore_keys
         1       // verbose

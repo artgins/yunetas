@@ -3616,89 +3616,6 @@ PRIVATE const char *fkey_ref_id(json_t *fkeys, char *bf, int bfsize)
 }
 
 /***************************************************************************
- *  Publish a schema change: raise the versions that make it visible.
- *
- *  A change to a schema that does not raise its versions does NOTHING, and
- *  says nothing: treedb_open_db keeps the persisted schema file on a tie,
- *  and tranger2 keeps the persisted topic_cols.json unless the incoming
- *  topic_version is higher (§3.5). Leaving those two numbers to whoever
- *  writes means every editor, script and console has to carry the rule —
- *  and the author of this code got it wrong three times in a row while
- *  debugging, knowing it.
- *
- *  So a write to a schema publishes itself: the column's topic and its
- *  treedb move up. The projector sets the versions itself and marks the
- *  tranger while it works, which is also what keeps this from answering
- *  its own writes.
- ***************************************************************************/
-PRIVATE int publish_schema_change(
-    json_t *tranger,
-    const char *treedb_name,
-    const char *topic_name,
-    json_t *node            // NOT owned, the node just written
-)
-{
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
-    if(strcmp(treedb_name, TREEDB_SYSTEM_SCHEMA_NAME)!=0) {
-        return 0;
-    }
-    if(json_boolean_value(json_object_get(tranger, "__schema_publishing__"))) {
-        return 0;
-    }
-
-    char topic_id[NAME_MAX] = {0};
-    char treedb_id[NAME_MAX] = {0};
-
-    if(strcmp(topic_name, "cols")==0) {
-        fkey_ref_id(json_object_get(node, "topics"), topic_id, sizeof(topic_id));
-    } else if(strcmp(topic_name, "topics")==0) {
-        /*  Its OWN fkey names the treedb: the topic may be gone already
-         *  (a delete publishes after it happened).  */
-        fkey_ref_id(json_object_get(node, "treedbs"), treedb_id, sizeof(treedb_id));
-    } else {
-        return 0;   /*  `treedbs` carries the version itself  */
-    }
-
-    json_object_set_new(tranger, "__schema_publishing__", json_true());
-
-    json_t *topic_node = empty_string(topic_id)?
-        NULL:
-        treedb_get_node(tranger, treedb_name, "topics", topic_id);
-    if(topic_node) {
-        fkey_ref_id(json_object_get(topic_node, "treedbs"), treedb_id, sizeof(treedb_id));
-
-        if(strcmp(topic_name, "cols")==0) {
-            /*  the topic republishes its columns  */
-            json_int_t v = kw_get_int(gobj, topic_node, "topic_version", 0, KW_WILD_NUMBER);
-            treedb_update_node(
-                tranger,
-                topic_node,
-                json_pack("{s:I}", "topic_version", (json_int_t)(v + 1)),
-                TRUE
-            );
-        }
-    }
-
-    if(!empty_string(treedb_id)) {
-        json_t *treedb_node = treedb_get_node(tranger, treedb_name, "treedbs", treedb_id);
-        if(treedb_node) {
-            json_int_t v = kw_get_int(gobj, treedb_node, "schema_version", 0, KW_WILD_NUMBER);
-            treedb_update_node(
-                tranger,
-                treedb_node,
-                json_pack("{s:I}", "schema_version", (json_int_t)(v + 1)),
-                TRUE
-            );
-        }
-    }
-
-    json_object_del(tranger, "__schema_publishing__");
-
-    return 0;
-}
-
-/***************************************************************************
  *  Guard a write that defines a schema.
  *
  *  The __system__ treedb stores treedb schemas as data (topics `treedbs` ->
@@ -6633,11 +6550,6 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
         treedb_save_node(tranger, node);
     }
 
-    {
-        const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0);
-        publish_schema_change(tranger, treedb_name, topic_name, node);
-    }
-
     JSON_DECREF(kw)
     return node;
 }
@@ -6807,22 +6719,6 @@ PRIVATE int delete_node(
         }
     }
 
-    /*
-     *  What a schema delete has to publish is named by the node's own up
-     *  links, and `force` unlinks them before the node goes: keep them.
-     */
-    json_t *schema_refs = json_object();
-    if(strcmp(treedb_name, TREEDB_SYSTEM_SCHEMA_NAME)==0) {
-        json_t *ref = json_object_get(node, "topics");
-        if(ref) {
-            json_object_set_new(schema_refs, "topics", json_deep_copy(ref));
-        }
-        ref = json_object_get(node, "treedbs");
-        if(ref) {
-            json_object_set_new(schema_refs, "treedbs", json_deep_copy(ref));
-        }
-    }
-
     /*-------------------------------*
      *  Check hooks and fkeys
      *-------------------------------*/
@@ -6923,7 +6819,6 @@ PRIVATE int delete_node(
 
     if(!to_delete) {
         // Error already logged
-        JSON_DECREF(schema_refs)
         JSON_DECREF(jn_options)
         return -1;
     }
@@ -7079,14 +6974,6 @@ PRIVATE int delete_node(
             );
         }
 
-        /*
-         *  A deleted column or topic is a schema change too: it did not
-         *  publish itself (M8 of the 2026-09-21 review). The node is still
-         *  alive here; its links, taken before `force` cut them, name
-         *  what moves.
-         */
-        publish_schema_change(tranger, treedb_name, topic_name, schema_refs);
-
         /*-------------------------------*
          *  Kill the node
          *-------------------------------*/
@@ -7101,12 +6988,10 @@ PRIVATE int delete_node(
             "id",           "%s", id,
             NULL
         );
-        JSON_DECREF(schema_refs)
         JSON_DECREF(jn_options)
         return -1;
     }
 
-    JSON_DECREF(schema_refs)
     JSON_DECREF(jn_options)
     return 0;
 }
@@ -9032,19 +8917,6 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
         }
     }
 
-    /*
-     *  A column joins its topic here when it is created with its link:
-     *  that is a schema change too (M8 of the 2026-09-21 review).
-     */
-    if(to_save) {
-        publish_schema_change(
-            tranger,
-            kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0),
-            kw_get_str(gobj, node, "__md_treedb__`topic_name", "", 0),
-            node
-        );
-    }
-
     JSON_DECREF(cols)
     JSON_DECREF(kw)
     return 0;
@@ -9440,10 +9312,6 @@ PUBLIC int treedb_replace_links(
     if(save && changed) {
         treedb_save_node(tranger, node);
     }
-    if(changed) {
-        /*  a column moved to another topic changes that topic too  */
-        publish_schema_change(tranger, treedb_name, topic_name, node);
-    }
 
     JSON_DECREF(cols)
     JSON_DECREF(kw)
@@ -9523,17 +9391,6 @@ PUBLIC int treedb_link_nodes(
      *  Only children are saved
      *----------------------------*/
     int ret = treedb_save_node(tranger, child_node);
-
-    /*
-     *  A column joins its topic HERE, so this is where a new column becomes
-     *  part of a schema: at create time it has no topic yet to publish to.
-     */
-    publish_schema_change(
-        tranger,
-        kw_get_str(gobj, child_node, "__md_treedb__`treedb_name", "", 0),
-        kw_get_str(gobj, child_node, "__md_treedb__`topic_name", "", 0),
-        child_node
-    );
 
     return ret;
 }

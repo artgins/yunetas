@@ -857,12 +857,12 @@ with an authz checker (`C_AUTHZ`). Without one, every permission is granted.
 
 | Permission | Commands |
 |---|---|
-| `read` | `nodes`, `node`, `instances`, `pkey2s`, `parents`, `children`, `jtree`, `hooks`, `links`, `snaps`, `snap-content`, `print-tranger`, `export-db`, `treedbs`, `treedb-info`, `topics`, `desc`, `descs`, `schema-file` |
+| `read` | `nodes`, `node`, `instances`, `pkey2s`, `parents`, `children`, `jtree`, `hooks`, `links`, `snaps`, `snap-content`, `print-tranger`, `export-db`, `treedbs`, `treedb-info`, `topics`, `desc`, `descs`, `schema-file`, `system-schema`, `set-link-events` (shown) |
 | `create` | `create-node`, `import-assets`, `shoot-snap` |
-| `update` | `update-node`, `link-nodes`, `unlink-nodes`, `set-link-events`, `activate-snap`, `deactivate-snap` |
+| `update` | `update-node`, `link-nodes`, `unlink-nodes`, `set-link-events` (changed), `trace`, `activate-snap`, `deactivate-snap` |
 | `delete` | `delete-node`, `gc-assets` |
 | `create` and `update` | `import-db` |
-| none | `help`, `authzs`, `system-schema`, `trace` (the last one belongs to the global gate) |
+| none | `help`, `authzs` |
 
 **`descs` and `schema-file` are two different documents, and the difference
 matters when a schema does not do what its literal says.** `descs` is the
@@ -1541,11 +1541,10 @@ cases, and only in those two:
 | `schema_version` lower than the literal's | it is re-made from the literal |
 | `schema_version` equal or **higher** | left as it is |
 
-The third row is what keeps a dynamic change readable: a write to `__system__`
-publishes itself by raising the version (*"You do not raise them: the write
-does"*, below), so an edit is never overwritten by the projection, whatever
-`impose` does to the disk. That is the half `diff-schema` compares, and the
-one that comes back when the flag is turned off.
+The third row is what keeps a dynamic change readable: `save-schema` publishes
+an edit by raising the version (*"Save publishes it"*, below), so a saved edit
+is never overwritten by the projection, whatever `impose` does to the disk.
+That is the half `diff-schema` compares.
 
 **Only the master writes `__system__`** — the ordinary rule of §2.7, and it
 holds for the projection as for anything else. A replica reads the treedb from
@@ -1685,37 +1684,55 @@ The command compares against the schema the treedb was **opened** with, kept in
 memory for that purpose, so it can only answer for a treedb opened with one. A
 treedb opened from its projection alone has no other half to compare with.
 
-**Where a treedb opens from depends on `impose_c_schema`.** With it on (the
-default), from the literal; `__system__` is not read, only projected when it
-is empty or behind (see above). With it off, from its projection: seeded from the literal and re-made whenever the
-literal moves ahead, so opening from it *is* opening from the literal until
-somebody edits it — which is what lets the schema change dynamically. The
-literal remains the fallback, for a projection that cannot be rebuilt into a
-valid schema.
+**A treedb never opens from `__system__`.** It opens from the literal or from
+its schema FILE, `<tranger_dir>/<treedb_name>.treedb_schema.json`, and which one
+depends on `impose_c_schema`:
 
-**The schema file still has the last word.** Whichever home supplies the
-schema, `treedb_open_db` compares its `schema_version` against the persisted
-`<treedb_name>.treedb_schema.json` and the **file wins on ties** (§3.5). Same
-rule again, one layer down. So a change reaches a running treedb only if
-`schema_version` moved on the `treedbs` node **and** `topic_version` on each
-topic touched — the second is what regenerates `topic_cols.json`, and without
-it the new columns exist in the schema and not in the topic.
+| `impose_c_schema` | Opens with |
+|---|---|
+| on (the default; every in-tree yuno forces it from its code) | the literal, **over** a newer file (a dynamic change being reverted) |
+| off | the FILE: the literal is installed only when it is newer, and the file wins on ties and when it is ahead |
 
-**You do not raise them: the write does.** A change that forgets either does
-nothing and says nothing, so leaving the rule to whoever writes means every
-editor, script and console has to carry it — and it is easy to get wrong even
-while looking at it. Writing a `cols` or `topics` node of `__system__`
-therefore raises the versions that publish it, walking up the fkeys to the
-column's topic and its treedb. The projector sets them itself and marks the
-tranger while it works (`__schema_publishing__`), which is also what stops the
-rule from answering its own writes.
+`__system__` is where a schema is **edited**: the master projects each literal
+into it (seeded, and re-made when the literal moves ahead), and an operator
+edits it there. Until after 7.24.1 it was also the source of an open with the
+flag off, so every edit — half made or not — was the schema of the next start.
 
-Every write publishes, whichever door it came through: an update, a link or
-unlink, a create that links its column to its topic (`autolink`, or `refs`),
-and a **delete** — which reads the column's topic from the links the node had
-before `force` cut them. Until 7.24.1 only update and link published, so a
-column added by a create or removed by a delete was stored and ignored by the
-running treedb.
+**An edit is a draft; `save-schema` publishes it; `apply-schema` puts it in
+use.** Writing a `cols` or `topics` node of `__system__` moves no version. The
+cycle is three steps, and each one is a command of `C_TREEDB`:
+
+1. **`save-schema treedb_name=X`** compares the draft with the file IN USE,
+   topic by topic. Each topic that differs gets `topic_version` = the one in
+   use + 1, the treedb gets `schema_version` = the one in use + 1 (or the
+   draft's own number, when it is already ahead: a number of `__system__` never
+   goes down), the numbers are written into `__system__`, and the schema is
+   written to `saved_schemas/X.treedb_schema.json` under the `__system__`
+   tranger — **never** over the file in use. A second save of the same draft
+   publishes the same numbers. `dry_run=1` answers the schema it would write
+   and writes nothing (the GUI's *export as C literal* uses it). The saved
+   schema reads like a literal: no empty attributes, no `_geometry`, no
+   projection bookkeeping.
+2. **`saved-schema treedb_name=X`** answers what was saved, what it changes
+   against the file in use (a `flat_diff` of the two: `added`, `removed`,
+   `changed`, one row per leaf), and `can_apply`.
+3. **`apply-schema treedb_name=X`** copies the saved schema over the file in
+   use — only on the master, only when C does not impose that treedb's schema
+   (the literal would overwrite it at the next open), and only when the saved
+   `schema_version` is higher. It takes effect at the next open of the treedb:
+   restart the yuno that owns it.
+
+```bash
+ycommand -c 'command-yuno id=<id> service=treedbs command=save-schema treedb_name=treedb_x'
+ycommand -c 'command-yuno id=<id> service=treedbs command=saved-schema treedb_name=treedb_x'
+ycommand -c 'command-yuno id=<id> service=treedbs command=apply-schema treedb_name=treedb_x'
+ycommand -c 'kill-yuno id=<id>'; ycommand -c 'run-yuno id=<id>'
+```
+
+Both numbers matter, and that is why the save raises them and nobody else
+does: `schema_version` is what makes the file win over the literal, and
+`topic_version` is what regenerates `topic_cols.json` — without it the new
+columns exist in the schema and not in the topic.
 
 **A write here is a schema change, so it answers to the rules of a schema.**
 On top of the ordinary validation of §3.6, writes to these topics are refused

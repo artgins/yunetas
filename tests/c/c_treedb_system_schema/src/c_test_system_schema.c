@@ -1580,15 +1580,15 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
 }
 
 /***************************************************************************
- *  A change to a schema publishes itself.
+ *  An edit of a schema is a DRAFT: it moves no version.
  *
- *  Raising `topic_version` and `schema_version` is what makes a change
- *  visible, and forgetting either does nothing and says nothing. Leaving
- *  that to whoever writes means every editor carries the rule; so the write
- *  carries it, and this checks that a caller who only edits a column ends
- *  up with both numbers moved.
+ *  It used to publish itself (M8 of the 2026-09-21 review, then the
+ *  owner's decision on M36): every write raised `topic_version` and
+ *  `schema_version`, so an edit half made was already the schema the next
+ *  start would take. `save-schema` publishes now, once, for the topics
+ *  that changed -- see check_save_and_apply().
  ***************************************************************************/
-PRIVATE int check_autopublished_versions(hgobj gobj, json_t *col_ids)
+PRIVATE int check_edits_are_drafts(hgobj gobj, json_t *col_ids)
 {
     int result = 0;
 
@@ -1635,11 +1635,11 @@ PRIVATE int check_autopublished_versions(hgobj gobj, json_t *col_ids)
     json_int_t schema_v1 = system_schema_version(gobj, "schema_version");
     JSON_DECREF(topic_after)
 
-    if(topic_v1 <= topic_v0 || schema_v1 <= schema_v0) {
+    if(topic_v1 != topic_v0 || schema_v1 != schema_v0) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INTERNAL,
-            "msg",              "%s", "TEST FAIL: a column edit did not publish itself",
+            "msg",              "%s", "TEST FAIL: a column edit published itself",
             "topic_version",    "%d", (int)topic_v1,
             "was",              "%d", (int)topic_v0,
             "schema_version",   "%d", (int)schema_v1,
@@ -1653,10 +1653,8 @@ PRIVATE int check_autopublished_versions(hgobj gobj, json_t *col_ids)
 }
 
 /***************************************************************************
- *  A column CREATED with its link, and a column DELETED, publish
- *  themselves too (M8 of the 2026-09-21 review): only an update and a
- *  link did, so the docs' "a change to a schema publishes itself" was
- *  false for both.
+ *  A column CREATED with its link, and a column DELETED, are drafts too:
+ *  no version moves until save-schema.
  ***************************************************************************/
 PRIVATE int versions_of_users(hgobj gobj, json_int_t *topic_v, json_int_t *schema_v)
 {
@@ -1672,7 +1670,7 @@ PRIVATE int versions_of_users(hgobj gobj, json_int_t *topic_v, json_int_t *schem
     return 0;
 }
 
-PRIVATE int check_create_and_delete_publish(hgobj gobj)
+PRIVATE int check_create_and_delete_are_drafts(hgobj gobj)
 {
     int result = 0;
     hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
@@ -1711,11 +1709,11 @@ PRIVATE int check_create_and_delete_publish(hgobj gobj)
     JSON_DECREF(created)
 
     versions_of_users(gobj, &t1, &s1);
-    if(t1 <= t0 || s1 <= s0) {
+    if(t1 != t0 || s1 != s0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "TEST FAIL: a column created with its link did not publish itself",
+            "msg",          "%s", "TEST FAIL: a column created with its link published itself",
             NULL
         );
         result += -1;
@@ -1734,11 +1732,11 @@ PRIVATE int check_create_and_delete_publish(hgobj gobj)
         return -1;
     }
     versions_of_users(gobj, &t2, &s2);
-    if(t2 <= t1 || s2 <= s1) {
+    if(t2 != t1 || s2 != s1) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "TEST FAIL: a column delete did not publish itself",
+            "msg",          "%s", "TEST FAIL: a column delete published itself",
             NULL
         );
         result += -1;
@@ -1754,7 +1752,7 @@ PRIVATE int check_create_and_delete_publish(hgobj gobj)
  *  things this test left between the literal and the projection, and
  *  nothing else:
  *
- *      - the column edit of check_autopublished_versions,
+ *      - the column edit of check_edits_are_drafts,
  *      - the `fidelity` topic, declared by the first schema and dropped by
  *        the second, which the projection keeps because removing a topic is
  *        a deliberate action, never a side effect of an upgrade,
@@ -1994,9 +1992,10 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
  *  The yuno's code imposes: open-treedb impose_c_schema=1 wins over the
  *  attribute, which Test 9 left off -- the persistent value a command set.
  *
- *  First an ordinary open, from __system__, takes the disk ahead of the
- *  literal again; then the forced one brings it back, and the command says
- *  the treedb is forced.
+ *  First the disk is taken ahead of the literal the legitimate way --
+ *  save-schema + apply-schema of what __system__ holds, and an ordinary
+ *  open; then the forced one brings it back, and the command says the
+ *  treedb is forced.
  ***************************************************************************/
 PRIVATE int check_impose_forced_by_code(hgobj gobj)
 {
@@ -2009,6 +2008,18 @@ PRIVATE int check_impose_forced_by_code(hgobj gobj)
         json_pack("{s:s, s:b}", "treedb_name", TREEDB_NAME, "force", 1),
         gobj
     );
+    JSON_DECREF(jn_resp)
+    if(open_test_treedb(gobj, legalstring2json(schema_test2, TRUE)) < 0) {
+        return -1;  // Error already logged
+    }
+    const char *steps[] = {"save-schema", "apply-schema", NULL};
+    for(int i = 0; steps[i]; i++) {
+        jn_resp = gobj_command(priv->gobj_treedbs, steps[i],
+            json_pack("{s:s}", "treedb_name", TREEDB_NAME), gobj);
+        JSON_DECREF(jn_resp)
+    }
+    jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", TREEDB_NAME, "force", 1), gobj);
     JSON_DECREF(jn_resp)
     if(open_test_treedb(gobj, legalstring2json(schema_test2, TRUE)) < 0) {
         return -1;  // Error already logged
@@ -2617,6 +2628,26 @@ PRIVATE int check_replica_writes_nothing(hgobj gobj)
     return result;
 }
 
+#define LEGACY_TREEDB   "treedb_legacy"
+
+/***************************************************************************
+ *  Does the OPEN legacy treedb have that column?
+ ***************************************************************************/
+PRIVATE BOOL legacy_treedb_has_col(hgobj gobj, const char *col_name)
+{
+    hgobj gobj_legacy_node = gobj_find_service(LEGACY_TREEDB, FALSE);
+    json_t *desc = gobj_legacy_node? gobj_topic_desc(gobj_legacy_node, "users"): NULL;
+    BOOL found = FALSE;
+    int idx; json_t *col;
+    json_array_foreach(json_object_get(desc, "cols"), idx, col) {
+        if(strcmp(kw_get_str(gobj, col, "id", "", 0), col_name)==0) {
+            found = TRUE;
+        }
+    }
+    JSON_DECREF(desc)
+    return found;
+}
+
 /***************************************************************************
  *  A projection made with rowid keys moves to qualified ones.
  *
@@ -2632,7 +2663,6 @@ PRIVATE int check_replica_writes_nothing(hgobj gobj)
  *  from C is an operator's, and moving it is the only way it survives its
  *  parent changing address.
  ***************************************************************************/
-#define LEGACY_TREEDB   "treedb_legacy"
 
 PRIVATE int check_legacy_ids_migrated(hgobj gobj)
 {
@@ -2732,10 +2762,7 @@ PRIVATE int check_legacy_ids_migrated(hgobj gobj)
      *  Opening it re-projects — the stored meta version is behind — and the
      *  re-projection is what the move rides on.
      */
-    json_t *jn_resp = gobj_command(
-        priv->gobj_treedbs,
-        "open-treedb",
-        json_pack("{s:s, s:i, s:s, s:o}",
+    json_t *legacy_open_kw = json_pack("{s:s, s:i, s:s, s:o}",
             "filename_mask", "%Y",
             "exit_on_error", 0,
             "treedb_name", LEGACY_TREEDB,
@@ -2753,7 +2780,11 @@ PRIVATE int check_legacy_ids_migrated(hgobj gobj)
                             "type", "string",
                             "flag", "persistent", "required"
             )
-        ),
+        );
+    json_t *jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "open-treedb",
+        json_deep_copy(legacy_open_kw),
         gobj
     );
     int ret = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
@@ -2833,29 +2864,256 @@ PRIVATE int check_legacy_ids_migrated(hgobj gobj)
     JSON_DECREF(operator_col)
 
     /*
-     *  And the treedb opens with it, which is the point of keeping it
+     *  In __system__ it is a DRAFT: the treedb opens from its schema file,
+     *  and the column reaches it through save-schema + apply-schema and the
+     *  next open -- which is the point of keeping it.
      */
-    hgobj gobj_legacy_node = gobj_find_service(LEGACY_TREEDB, FALSE);
-    json_t *desc = gobj_legacy_node? gobj_topic_desc(gobj_legacy_node, "users"): NULL;
-    BOOL found = FALSE;
-    int idx; json_t *col;
-    json_array_foreach(json_object_get(desc, "cols"), idx, col) {
-        if(strcmp(kw_get_str(gobj, col, "id", "", 0), "operator_col")==0) {
-            found = TRUE;
-            break;
-        }
-    }
-    if(!found) {
+    if(legacy_treedb_has_col(gobj, "operator_col")) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "TEST FAIL: the moved column did not reach the open treedb",
-            "desc",         "%j", desc,
+            "msg",          "%s", "TEST FAIL: a draft column reached the open treedb",
             NULL
         );
         result += -1;
     }
+    const char *steps[] = {"save-schema", "apply-schema", NULL};
+    for(int i = 0; steps[i]; i++) {
+        jn_resp = gobj_command(priv->gobj_treedbs, steps[i],
+            json_pack("{s:s}", "treedb_name", LEGACY_TREEDB), gobj);
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: the legacy draft could not be saved and applied",
+                "command",      "%s", steps[i],
+                "answer",       "%j", jn_resp,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+    }
+    jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", LEGACY_TREEDB, "force", 1), gobj);
+    JSON_DECREF(jn_resp)
+    jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb",
+        json_deep_copy(legacy_open_kw), gobj);
+    JSON_DECREF(jn_resp)
+    if(!legacy_treedb_has_col(gobj, "operator_col")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: the moved column did not reach the open treedb",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(legacy_open_kw)
+
+    return result;
+}
+
+/***************************************************************************
+ *  A command of C_TREEDB for the test treedb; the answer is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *treedbs_command(hgobj gobj, const char *command, json_t *kw) // kw owned
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_object_set_new(kw, "treedb_name", json_string(TREEDB_NAME));
+    return gobj_command(priv->gobj_treedbs, command, kw, gobj);
+}
+
+/***************************************************************************
+ *  The header the OPEN client treedb gives a column, or "".
+ ***************************************************************************/
+PRIVATE void client_col_header(hgobj gobj, const char *topic_name, const char *col_name,
+    char *bf, size_t bfsize)
+{
+    bf[0] = 0;
+    hgobj gobj_client_node = gobj_find_service(TREEDB_NAME, FALSE);
+    json_t *desc = gobj_client_node? gobj_topic_desc(gobj_client_node, topic_name): NULL;
+    int idx; json_t *col;
+    json_array_foreach(json_object_get(desc, "cols"), idx, col) {
+        if(strcmp(kw_get_str(gobj, col, "id", "", 0), col_name)==0) {
+            snprintf(bf, bfsize, "%s", kw_get_str(gobj, col, "header", "", 0));
+        }
+    }
     JSON_DECREF(desc)
+}
+
+PRIVATE int reopen_test_treedb(hgobj gobj, BOOL forced_by_code)
+{
+    json_t *jn_resp = treedbs_command(gobj, "close-treedb", json_pack("{s:b}", "force", 1));
+    JSON_DECREF(jn_resp)
+    return open_test_treedb_with(gobj, legalstring2json(schema_test2, TRUE), forced_by_code);
+}
+
+PRIVATE int save_fail(hgobj gobj, const char *what, json_t *jn_resp)
+{
+    gobj_log_error(gobj, 0,
+        "function",     "%s", "check_save_and_apply",
+        "msgset",       "%s", MSGSET_INTERNAL,
+        "msg",          "%s", what,
+        "answer",       "%j", jn_resp?jn_resp:json_null(),
+        NULL
+    );
+    return -1;
+}
+
+/***************************************************************************
+ *  Save and apply: the owner's design of M36 (2026-09-21 review).
+ *
+ *  An edit of __system__ is a draft. `save-schema` publishes it ONCE: the
+ *  topics that differ from the schema file IN USE get its topic_version
+ *  + 1, the treedb its schema_version + 1, and the result is written to
+ *  `saved_schemas/` under the __system__ tranger -- never over the file in
+ *  use. `saved-schema` says what that would change. `apply-schema` puts it
+ *  in place, and only for a treedb whose schema C does not impose. With
+ *  impose_c_schema off the treedb opens from the FILE, so the next open
+ *  runs the saved schema although its literal is older.
+ ***************************************************************************/
+PRIVATE int check_save_and_apply(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    json_t *jn_resp;
+
+    if(reopen_test_treedb(gobj, FALSE) < 0) {
+        return -1;  // Error already logged
+    }
+    json_int_t in_use_v = disk_schema_version(gobj);
+    json_int_t users_in_use_v = disk_topic_version(gobj, "users");
+    json_int_t departments_v = system_topic_version(gobj, "departments");
+    json_int_t users_v0, schema_v0;
+    versions_of_users(gobj, &users_v0, &schema_v0);
+
+    /*
+     *  A save publishes the version in use + 1, or the draft's own when
+     *  it is already ahead: a number of __system__ never goes down.
+     */
+    json_int_t expected_v = (schema_v0 > in_use_v + 1)? schema_v0: in_use_v + 1;
+    json_int_t expected_users_v = (users_v0 > users_in_use_v + 1)? users_v0: users_in_use_v + 1;
+
+    /*
+     *  The draft
+     */
+    json_t *ids = system_topic_cols(gobj, "users");
+    const char *username_id = json_string_value(json_object_get(ids, "username"));
+    json_t *edited = gobj_update_node(
+        gobj_find_service(SYSTEM_TREEDB, FALSE),
+        "cols",
+        json_pack("{s:s, s:s}", "id", username_id?username_id:"", "header", "Saved header"),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    JSON_DECREF(edited)
+    JSON_DECREF(ids)
+
+    /*
+     *  dry_run answers the schema a save would write, and writes nothing
+     */
+    char saved_dir[PATH_MAX];
+    build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    char saved_file[PATH_MAX];
+    build_path(saved_file, sizeof(saved_file), saved_dir, TREEDB_NAME ".treedb_schema.json", NULL);
+
+    file_remove(saved_dir, TREEDB_NAME ".treedb_schema.json");   /*  a save of an earlier check  */
+    jn_resp = treedbs_command(gobj, "save-schema", json_pack("{s:b}", "dry_run", 1));
+    json_t *dry_schema = kw_get_dict(gobj, jn_resp, "data`schema", 0, 0);
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 || !dry_schema ||
+            kw_get_int(gobj, dry_schema, "schema_version", 0, KW_WILD_NUMBER) != expected_v) {
+        result += save_fail(gobj, "TEST FAIL: save-schema dry_run did not answer the schema to save", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+    json_int_t users_v1, schema_v1;
+    versions_of_users(gobj, &users_v1, &schema_v1);
+    if(file_exists(saved_file, 0) || users_v1 != users_v0 || schema_v1 != schema_v0) {
+        result += save_fail(gobj, "TEST FAIL: save-schema dry_run wrote something", NULL);
+    }
+
+    /*
+     *  Save: twice, the second changes nothing
+     */
+    for(int i = 0; i < 2; i++) {
+        jn_resp = treedbs_command(gobj, "save-schema", json_object());
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+            result += save_fail(gobj, "TEST FAIL: save-schema failed", jn_resp);
+        }
+        JSON_DECREF(jn_resp)
+        json_int_t users_v2, schema_v2;
+        versions_of_users(gobj, &users_v2, &schema_v2);
+        if(schema_v2 != expected_v || users_v2 != expected_users_v ||
+                system_topic_version(gobj, "departments") != departments_v) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INTERNAL,
+                "msg",              "%s", "TEST FAIL: save-schema published the wrong versions",
+                "round",            "%d", i,
+                "schema_version",   "%d", (int)schema_v2,
+                "users",            "%d", (int)users_v2,
+                "in_use",           "%d", (int)in_use_v,
+                "users_in_use",     "%d", (int)users_in_use_v,
+                NULL
+            );
+            result += -1;
+        }
+    }
+    if(!file_exists(saved_file, 0) || disk_schema_version(gobj) != in_use_v) {
+        result += save_fail(gobj, "TEST FAIL: save-schema did not write beside the file in use", NULL);
+    }
+
+    /*
+     *  saved-schema says what it would change
+     */
+    jn_resp = treedbs_command(gobj, "saved-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            kw_get_int(gobj, jn_resp, "data`saved_schema_version", 0, KW_WILD_NUMBER) != expected_v ||
+            kw_get_bool(gobj, jn_resp, "data`impose_c_schema", 1, 0) ||
+            json_object_size(kw_get_dict(gobj, jn_resp, "data`diff`changed", 0, 0)) == 0) {
+        result += save_fail(gobj, "TEST FAIL: saved-schema did not say what the save changes", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  Refused while C imposes the schema; applied when it does not
+     */
+    if(reopen_test_treedb(gobj, TRUE) < 0) {
+        return result - 1;
+    }
+    jn_resp = treedbs_command(gobj, "apply-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0) {
+        result += save_fail(gobj, "TEST FAIL: apply-schema applied over an imposed schema", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    if(reopen_test_treedb(gobj, FALSE) < 0) {
+        return result - 1;
+    }
+    jn_resp = treedbs_command(gobj, "apply-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 || disk_schema_version(gobj) != expected_v) {
+        result += save_fail(gobj, "TEST FAIL: apply-schema did not put the saved schema in place", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  The file decides: the literal is older, the saved header runs
+     */
+    if(reopen_test_treedb(gobj, FALSE) < 0) {
+        return result - 1;
+    }
+    char header[NAME_MAX];
+    client_col_header(gobj, "users", "username", header, sizeof(header));
+    if(strcmp(header, "Saved header")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: the applied schema did not open",
+            "header",       "%s", header,
+            NULL
+        );
+        result += -1;
+    }
 
     return result;
 }
@@ -3321,10 +3579,10 @@ PRIVATE int run_tests(hgobj gobj)
     result += check_refused_writes(gobj, ids_after);
 
     /*-----------------------------------------------*
-     *  Test 6: a change to a schema publishes itself
+     *  Test 6: an edit of a schema is a draft
      *-----------------------------------------------*/
-    result += check_autopublished_versions(gobj, ids_after);
-    result += check_create_and_delete_publish(gobj);
+    result += check_edits_are_drafts(gobj, ids_after);
+    result += check_create_and_delete_are_drafts(gobj);
 
     /*-----------------------------------------------*
      *  Test 7: and `diff-schema` says WHAT it changed
@@ -3416,6 +3674,14 @@ PRIVATE int run_tests(hgobj gobj)
      *  it takes the master's C_TREEDB down to open
      *  the same store as a replica.
      *-----------------------------------------------*/
+    /*-----------------------------------------------*
+     *  Test 13b: an edit is a draft, save-schema
+     *  publishes it beside the file in use, and
+     *  apply-schema puts it in place when C does
+     *  not impose the schema.
+     *-----------------------------------------------*/
+    result += check_save_and_apply(gobj);
+
     result += check_replica_writes_nothing(gobj);
 
     JSON_DECREF(client_cols)

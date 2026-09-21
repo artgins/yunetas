@@ -431,9 +431,12 @@ entries at once:
 - **M31 -- SHIPPED in gobj-ui 7.23.195** (text nodes; hook cell as DOM).
 - **M32, M33 -- SHIPPED in gobj-ui 7.23.193.**
 - **M35 -- SHIPPED in gui_treedb 0.17.53.**
-- **M36 -- gui_agent offers Edit and Apply of a schema (kill, run, play) on
-  yunos that IMPOSE the C schema** (`c_agent_treedb.js:1036`): every consumer
-  passes `impose_c_schema=1`, the edit can never apply, and no screen says so.
+- **M36 -- C SHIPPED (unreleased), GUI pending.** The owner's design: an edit
+  of `__system__` is a draft; `save-schema` / `saved-schema` / `apply-schema`
+  in C_TREEDB; a treedb opens from its schema file. Pending: gobj-ui's schema
+  editor stops raising versions (`version_writes()`), and gui_agent's Schemas
+  tab gets the imposed banner, Save, Export as C literal, and an Apply dialog
+  (the relaunched yuno + the changes) enabled only when not imposed.
 
 **Medium -- docs and tests**
 

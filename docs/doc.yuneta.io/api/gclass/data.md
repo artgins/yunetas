@@ -91,7 +91,7 @@ of timeranger with JSON schema support.
 | `filename_mask` | `string` | Filename pattern. |
 | `master` | `bool` | `TRUE` for master, `FALSE` for read-only replica. |
 | `exit_on_error` | `integer` | Log options for a critical error of a treedb, handed to its tranger as `on_critical_error`. Default `"2"` = `LOG_OPT_EXIT_ZERO`: a critical error EXITS the yuno. |
-| `impose_c_schema` | `bool` | `SDF_RD\|SDF_PERSIST`, default `1`. Open every treedb with its schema from C: `__system__` is not read, and a newer schema on disk is overwritten. The MASTER still projects into `__system__` when it has no projection of that treedb or a lower `schema_version`, so the schema in use can be asked for; a replica writes nothing and reads what the master wrote. `0`: open from `__system__`, so the schema can be changed dynamically. Changed with `set-impose-c-schema`, from the next open. See [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) §3.11. |
+| `impose_c_schema` | `bool` | `SDF_RD\|SDF_PERSIST`, default `1`. Open every treedb with its schema from C, over a newer schema file on disk. `0`: open from the schema FILE (the literal is installed only when it is newer), which `apply-schema` replaces. Either way `__system__` is not read at open: it is where a schema is edited, and the MASTER projects into it when it has no projection of that treedb or a lower `schema_version`; a replica writes nothing and reads what the master wrote. Changed with `set-impose-c-schema`, from the next open. See [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) §3.11. |
 
 ### Commands
 
@@ -102,6 +102,9 @@ of timeranger with JSON schema support.
 | `create-topic` / `delete-topic` | Manage topics within a treedb that THIS service opened (not `__system__`): `command-yuno id=<id> service=treedbs command=delete-topic treedb_name=<name> topic_name=<topic>`. |
 | `diff-schema` | What the `__system__` projection of a treedb says that its schema from C does not. |
 | `set-impose-c-schema` | Show (no `set`) or change (`set=1` / `set=0`) `impose_c_schema`. Needs the permission `impose-c-schema`. Acts the next time the yuno opens its treedbs. Its answer lists in `forced_by_code` the treedbs whose code imposes, which the value does not reach. |
+| `save-schema` | Publish the draft of a schema edited in `__system__`: every topic that differs from the schema file IN USE gets its `topic_version` + 1, the treedb its `schema_version` + 1, and the schema is written to `saved_schemas/<treedb>.treedb_schema.json` under the `__system__` tranger, never over the file in use. `dry_run=1` answers it and writes nothing. Master only; permission `write`. `command-yuno id=<id> service=treedbs command=save-schema treedb_name=<name>` |
+| `saved-schema` | What `save-schema` wrote, what it changes against the file in use (`diff`: `added` / `removed` / `changed`, one row per `json2flat` leaf), `impose_c_schema` for that treedb (the code's force included) and `can_apply`. Permission `read`. |
+| `apply-schema` | Put the saved schema in place of the file in use: master only, only when C does not impose that treedb's schema, and only a saved `schema_version` higher than the one in use. It takes effect at the next open of the treedb (restart its yuno). Permission `write`. |
 
 ---
 

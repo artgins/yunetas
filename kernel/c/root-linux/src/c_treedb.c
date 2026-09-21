@@ -16,12 +16,25 @@
  *          "delete-topic"
  *          "diff-schema"   -> what the __system__ projection says that the schema from C does not
  *          "set-impose-c-schema" -> open every treedb with its schema from C, over
- *                             __system__ and over a newer schema on disk. __system__
- *                             is not read, and the MASTER still projects into it when
- *                             it has no projection or a lower version, so the schema
- *                             in use can be asked for. The yuno's code can force it
- *                             per treedb (open-treedb impose_c_schema=1), over
- *                             whatever the command left persisted
+ *                             a newer schema file on disk; 0: open from the schema
+ *                             FILE, the literal installed only when it is newer.
+ *                             The yuno's code can force it per treedb (open-treedb
+ *                             impose_c_schema=1), over whatever the command left
+ *                             persisted
+ *          "save-schema"   -> publish the draft edited in __system__: the versions of
+ *                             what differs from the file in use + 1, written to
+ *                             saved_schemas/ under the __system__ tranger
+ *          "saved-schema"  -> that saved schema, what it changes, whether it applies
+ *          "apply-schema"  -> put it in place of the file in use (master, not imposed)
+ *
+ *          __SYSTEM__ IS WHERE A SCHEMA IS EDITED, NOT WHERE A TREEDB OPENS
+ *          FROM. The master projects each literal into it (seeded, and re-made
+ *          when the literal moves ahead), an operator edits it there, and an
+ *          edit is a DRAFT: it moves no version and reaches no treedb until
+ *          save-schema publishes it and apply-schema puts it in the file the
+ *          treedb opens from. Until the owner's design of M36 (2026-09-21) it
+ *          was the source: every write raised the versions, so an edit half
+ *          made was the schema of the next start.
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -79,6 +92,17 @@ PRIVATE json_t *get_c_schema_to_impose(
     const char *treedb_name,
     json_t *jn_c_schema // not owned
 );
+PRIVATE json_t *get_treedb_schema(
+    hgobj gobj,
+    const char *treedb_name
+);
+PRIVATE const char *build_schema_node_id(
+    hgobj gobj,
+    char *bf,
+    int bfsize,
+    const char *parent_id,
+    const char *name
+);
 PRIVATE int delete_client_treedb_schema(
     hgobj gobj,
     const char *treedb_name
@@ -122,6 +146,9 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 
 PRIVATE sdata_desc_t pm_help[] = {
@@ -185,9 +212,20 @@ PRIVATE sdata_desc_t pm_diff_schema[] = {
 SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name (empty: every treedb opened with a schema from C)"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_save_schema[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_BOOLEAN,   "dry_run",      0,              0,          "Answer the schema a save would write, and write nothing"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_saved_schema[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_set_impose_c_schema[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "set",          0,              "",         "1: impose the schema from C; 0: open from __system__. Empty: show the current value"),
+SDATAPM (DTP_STRING,    "set",          0,              "",         "1: impose the schema from C; 0: open from the schema file (see apply-schema). Empty: show the current value"),
 SDATA_END()
 };
 
@@ -205,7 +243,10 @@ SDATACM2 (DTP_SCHEMA,   "delete-treedb",SDF_AUTHZ_X,    0, pm_delete_treedb,cmd_
 SDATACM2 (DTP_SCHEMA,   "create-topic", SDF_AUTHZ_X,    0, pm_create_topic, cmd_create_topic, "Create new topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic", SDF_AUTHZ_X,    0, pm_delete_topic, cmd_delete_topic, "Delete topic"),
 SDATACM2 (DTP_SCHEMA,   "diff-schema",  SDF_AUTHZ_X,    0, pm_diff_schema,  cmd_diff_schema, "Differences between the stored schema and the schema compiled in C"),
-SDATACM2 (DTP_SCHEMA,   "set-impose-c-schema",SDF_AUTHZ_X,0, pm_set_impose_c_schema, cmd_set_impose_c_schema, "Open every treedb with its schema from C, over __system__ and a newer schema on disk. __system__ is not read, and the master still projects into it when it is empty or behind. From the next open"),
+SDATACM2 (DTP_SCHEMA,   "set-impose-c-schema",SDF_AUTHZ_X,0, pm_set_impose_c_schema, cmd_set_impose_c_schema, "Open every treedb with its schema from C, over a newer schema file on disk. 0: open from the schema file (see apply-schema). From the next open"),
+SDATACM2 (DTP_SCHEMA,   "save-schema",  SDF_AUTHZ_X,    0, pm_save_schema,  cmd_save_schema, "Publish the draft of a schema edited in __system__: raise the versions of what differs from the schema file in use, and write it to saved_schemas/, never over the file in use"),
+SDATACM2 (DTP_SCHEMA,   "saved-schema", SDF_AUTHZ_X,    0, pm_saved_schema, cmd_saved_schema, "The schema save-schema wrote, what it changes against the file in use, and whether it can be applied"),
+SDATACM2 (DTP_SCHEMA,   "apply-schema", SDF_AUTHZ_X,    0, pm_saved_schema, cmd_apply_schema, "Put the saved schema in place of the file in use (master, impose_c_schema off). It is read at the next open of the treedb"),
 SDATA_END()
 };
 
@@ -222,7 +263,7 @@ SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "02770",        
 SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "0660",         "Use in creation, default 0660"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
 SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
-SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD|SDF_PERSIST, "1",            "Open every treedb with its schema from C: __system__ is not read, and a newer schema on disk is overwritten. The MASTER still projects into __system__ when it has no projection or a lower schema_version, so the schema in use can be asked for. 0: open from __system__, so the schema can be changed dynamically. Changed with set-impose-c-schema, from the next open. The yuno's code can force it per treedb (open-treedb impose_c_schema=1)"),
+SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD|SDF_PERSIST, "1",            "Open every treedb with its schema from C, over a newer schema file on disk. 0: open from the schema FILE, which apply-schema replaces with what save-schema published from __system__; the literal is installed only when it is newer. Either way __system__ is not read at open, and the MASTER projects into it when it has no projection or a lower schema_version. Changed with set-impose-c-schema, from the next open. The yuno's code can force it per treedb (open-treedb impose_c_schema=1)"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
@@ -1161,6 +1202,160 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 }
 
 /***************************************************************************
+ *  Does C impose the schema of this treedb? The attribute, or the yuno's
+ *  code for this one treedb (open-treedb impose_c_schema=1).
+ ***************************************************************************/
+PRIVATE BOOL treedb_schema_imposed(hgobj gobj, const char *treedb_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    return gobj_read_bool_attr(gobj, "impose_c_schema") ||
+        json_object_get(priv->jn_forced_treedbs, treedb_name);
+}
+
+/***************************************************************************
+ *  The directory of the schema file IN USE by a treedb opened here: the
+ *  directory of its tranger, where treedb_open_db() writes it.
+ ***************************************************************************/
+PRIVATE int in_use_schema_dir(hgobj gobj, const char *treedb_name, char *bf, size_t bfsize)
+{
+    char tranger_name[NAME_MAX];
+    snprintf(tranger_name, sizeof(tranger_name), "tranger_%s", treedb_name);
+    hgobj gobj_tranger = gobj_find_service(tranger_name, FALSE);
+    json_t *tranger = gobj_tranger? gobj_read_pointer_attr(gobj_tranger, "tranger"): NULL;
+    if(!tranger) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Treedb not open here",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        return -1;
+    }
+    snprintf(bf, bfsize, "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED));
+    return 0;
+}
+
+/***************************************************************************
+ *  Where save-schema writes: `saved_schemas/` under the __system__
+ *  tranger, never beside the file in use.
+ ***************************************************************************/
+PRIVATE void saved_schema_dir(hgobj gobj, char *bf, size_t bfsize)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    build_path(bf, bfsize,
+        kw_get_str(gobj, priv->tranger_system_, "directory", "", KW_REQUIRED),
+        "saved_schemas",
+        NULL
+    );
+}
+
+/***************************************************************************
+ *  A schema rebuilt from __system__ carries every attribute of every node,
+ *  the empty ones too ("", {}, []), plus what only the projection keeps:
+ *  `_geometry` (where a GUI drew the node) and the bookkeeping versions.
+ *  A literal says none of that, and a schema file should read like one:
+ *  what is saved, compared and exported is the schema, nothing else.
+ ***************************************************************************/
+PRIVATE void prune_schema_node(json_t *jn) // not owned, MUTATED
+{
+    if(json_is_object(jn)) {
+        const char *key; json_t *value; void *tmp;
+        json_object_foreach_safe(jn, tmp, key, value) {
+            if(strcmp(key, "_geometry")==0 ||
+                    json_is_null(value) ||
+                    (json_is_string(value) && empty_string(json_string_value(value))) ||
+                    (json_is_object(value) && json_object_size(value)==0) ||
+                    (json_is_array(value) && json_array_size(value)==0)) {
+                json_object_del(jn, key);
+                continue;
+            }
+            prune_schema_node(value);
+        }
+    } else if(json_is_array(jn)) {
+        size_t idx; json_t *value;
+        json_array_foreach(jn, idx, value) {
+            prune_schema_node(value);
+        }
+    }
+}
+
+PRIVATE void prune_schema(json_t *jn_schema) // not owned, MUTATED
+{
+    json_object_del(jn_schema, "c_schema_version");
+    json_object_del(jn_schema, "system_schema_version");
+    prune_schema_node(jn_schema);
+
+    /*
+     *  A literal lists its topics; get_treedb_schema() keys them by name.
+     *  Listed in the order they come, which is the declared one.
+     */
+    json_t *topics = json_object_get(jn_schema, "topics");
+    if(json_is_object(topics)) {
+        json_t *list = json_array();
+        const char *name; json_t *topic;
+        json_object_foreach(topics, name, topic) {
+            json_array_append(list, topic);
+        }
+        json_object_set_new(jn_schema, "topics", list);
+    }
+}
+
+/***************************************************************************
+ *  A schema file as a table, to say what changed: `topics` is a list, so
+ *  it is keyed by name first -- by position, a reordered topic would read
+ *  as every column of it changed. Pruned, and a `false` is the absence it
+ *  stands for: a literal leaves `system_topic` out, a projection says it.
+ ***************************************************************************/
+PRIVATE json_t *schema_to_flat(json_t *jn_schema) // not owned
+{
+    json_t *copy = json_deep_copy(jn_schema);
+    prune_schema(copy);
+    json_t *topics = json_object_get(copy, "topics");
+    if(json_is_array(topics)) {
+        json_t *by_name = json_object();
+        int idx; json_t *topic;
+        json_array_foreach(topics, idx, topic) {
+            const char *name = json_string_value(json_object_get(topic, "id"));
+            if(name) {
+                json_object_set(by_name, name, topic);
+            }
+        }
+        json_object_set_new(copy, "topics", by_name);
+    }
+    json_t *flat = json2flat(copy);
+    JSON_DECREF(copy)
+
+    const char *id; json_t *value; void *tmp;
+    json_object_foreach_safe(flat, tmp, id, value) {
+        if(json_is_false(value)) {
+            json_object_del(flat, id);
+        }
+    }
+    return flat;
+}
+
+/***************************************************************************
+ *  The topic_version a schema file gives a topic, 0 when it has none.
+ ***************************************************************************/
+PRIVATE json_int_t schema_topic_version(hgobj gobj, json_t *jn_schema, const char *topic_name)
+{
+    json_t *topics = json_object_get(jn_schema, "topics");
+    if(json_is_object(topics)) {
+        return kw_get_int(gobj, json_object_get(topics, topic_name), "topic_version", 0, KW_WILD_NUMBER);
+    }
+    int idx; json_t *topic;
+    json_array_foreach(topics, idx, topic) {
+        if(strcmp(kw_get_str(gobj, topic, "id", "", 0), topic_name)==0) {
+            return kw_get_int(gobj, topic, "topic_version", 0, KW_WILD_NUMBER);
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Whether the treedbs of this service open with their schema from C.
  *
  *  Persistent, and it acts at the next open: a treedb already open keeps the
@@ -1252,15 +1447,427 @@ PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw,
 }
 
 /***************************************************************************
+ *  Publish the draft of a schema: the owner's design of M36 (2026-09-21
+ *  review).
+ *
+ *  An edit of __system__ is a draft and moves no version. This compares
+ *  the draft with the schema file the treedb is USING, raises the
+ *  topic_version of every topic that differs and the schema_version, writes
+ *  them into __system__, and writes the result to `saved_schemas/` under the
+ *  __system__ tranger -- never over the file in use: apply-schema does that.
+ *  A version is the one in use + 1, so a second save of the same draft
+ *  publishes the same numbers.
+ ***************************************************************************/
+PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *permission = "write";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    BOOL dry_run = kw_get_bool(gobj, kw, "dry_run", 0, KW_WILD_NUMBER);
+    if(empty_string(treedb_name)) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: what treedb_name?", gobj_yuno_role_plus_name()),
+            0, 0, kw
+        );
+    }
+    if(!dry_run && !gobj_read_bool_attr(gobj, "master")) {
+        return build_readonly_response(gobj, treedb_name, kw);
+    }
+
+    char in_use_dir[PATH_MAX];
+    if(in_use_schema_dir(gobj, treedb_name, in_use_dir, sizeof(in_use_dir))<0) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: treedb '%s' is not open here", gobj_yuno_role_plus_name(), treedb_name),
+            0, 0, kw
+        );
+    }
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
+    json_t *in_use = load_json_from_file(gobj, in_use_dir, filename, 0);
+    if(!in_use) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: cannot read the schema in use of '%s'", gobj_yuno_role_plus_name(), treedb_name),
+            0, 0, kw
+        );
+    }
+
+    /*
+     *  What the draft changes against the file in use, by topic
+     */
+    json_t *rows = json_array();
+    json_t *summary = diff_treedb_schema(gobj, treedb_name, in_use, rows);
+    JSON_DECREF(summary)
+    json_t *changed = json_object();
+    int idx; json_t *row;
+    json_array_foreach(rows, idx, row) {
+        const char *kind = kw_get_str(gobj, row, "kind", "", 0);
+        const char *topic_name = kw_get_str(gobj, row, "topic", "", 0);
+        if(!empty_string(topic_name) && strcmp(kind, "version")!=0) {
+            json_object_set_new(changed, topic_name, json_true());
+        }
+    }
+    if(json_object_size(changed) == 0) {
+        JSON_DECREF(changed)
+        JSON_DECREF(in_use)
+        return msg_iev_build_response(gobj, 0,
+            json_sprintf("%s: nothing to save, the draft of '%s' is the schema in use",
+                gobj_yuno_role_plus_name(), treedb_name),
+            0,
+            json_pack("{s:s, s:o}", "treedb_name", treedb_name, "changes", rows),
+            kw
+        );
+    }
+
+    json_t *schema = get_treedb_schema(gobj, treedb_name);
+    if(schema) {
+        prune_schema(schema);
+    }
+    if(!schema) {
+        JSON_DECREF(changed)
+        JSON_DECREF(in_use)
+        JSON_DECREF(rows)
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: cannot rebuild the draft of '%s' from __system__",
+                gobj_yuno_role_plus_name(), treedb_name),
+            0, 0, kw
+        );
+    }
+
+    /*
+     *  The versions: the one in use + 1, or the draft's when it is already
+     *  ahead of that
+     */
+    json_int_t in_use_version = kw_get_int(gobj, in_use, "schema_version", 0, KW_WILD_NUMBER);
+    json_int_t schema_version = kw_get_int(gobj, schema, "schema_version", 0, KW_WILD_NUMBER);
+    if(schema_version < in_use_version + 1) {
+        schema_version = in_use_version + 1;
+    }
+    json_object_set_new(schema, "schema_version", json_integer(schema_version));
+
+    json_t *versions = json_object();
+    json_t *topic;
+    json_array_foreach(json_object_get(schema, "topics"), idx, topic) {
+        const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
+        if(!json_object_get(changed, topic_name)) {
+            continue;
+        }
+        json_int_t v = kw_get_int(gobj, topic, "topic_version", 0, KW_WILD_NUMBER);
+        json_int_t in_use_v = schema_topic_version(gobj, in_use, topic_name);
+        if(v < in_use_v + 1) {
+            v = in_use_v + 1;
+        }
+        json_object_set_new(topic, "topic_version", json_integer(v));
+        json_object_set_new(versions, topic_name, json_integer(v));
+    }
+    JSON_DECREF(changed)
+    JSON_DECREF(in_use)
+
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char saved_path[PATH_MAX];
+    build_path(saved_path, sizeof(saved_path), saved_dir, filename, NULL);
+
+    if(!dry_run) {
+        /*
+         *  Into __system__ first: the draft IS the saved schema, versions
+         *  included, so the next save of it publishes the same numbers
+         */
+        int ret = 0;
+        json_t *jn_v;
+        const char *topic_name;
+        json_object_foreach(versions, topic_name, jn_v) {
+            char topic_id[RECORD_KEY_VALUE_MAX];
+            if(!build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
+                ret = -1;   // Error already logged
+                continue;
+            }
+            json_t *node = gobj_update_node(
+                priv->gobj_node_system,
+                "topics",
+                json_pack("{s:s, s:O}", "id", topic_id, "topic_version", jn_v),
+                0,
+                gobj
+            );
+            if(!node) {
+                ret = -1;   // Error already logged
+            }
+            JSON_DECREF(node)
+        }
+        json_t *node = gobj_update_node(
+            priv->gobj_node_system,
+            "treedbs",
+            json_pack("{s:s, s:I}", "id", treedb_name, "schema_version", schema_version),
+            0,
+            gobj
+        );
+        if(!node) {
+            ret = -1;   // Error already logged
+        }
+        JSON_DECREF(node)
+
+        if(ret == 0) {
+            mkrdir(saved_dir, (int)gobj_read_integer_attr(gobj, "xpermission"));
+            ret = save_json_to_file(
+                gobj,
+                saved_dir,
+                filename,
+                (int)gobj_read_integer_attr(gobj, "xpermission"),
+                (int)gobj_read_integer_attr(gobj, "rpermission"),
+                0,
+                TRUE,   // create or overwrite
+                FALSE,
+                json_incref(schema)
+            );
+        }
+        if(ret < 0) {
+            JSON_DECREF(schema)
+            JSON_DECREF(versions)
+            JSON_DECREF(rows)
+            return msg_iev_build_response(gobj, -1,
+                json_sprintf("%s: cannot save the schema of '%s': %s",
+                    gobj_yuno_role_plus_name(), treedb_name, gobj_log_last_message()),
+                0, 0, kw
+            );
+        }
+        gobj_log_info(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INFO,
+            "msg",              "%s", "Schema saved",
+            "treedb_name",      "%s", treedb_name,
+            "schema_version",   "%d", (int)schema_version,
+            "path",             "%s", saved_path,
+            NULL
+        );
+    }
+
+    return msg_iev_build_response(gobj, 0,
+        json_sprintf("%s: %s '%s', schema_version %d%s",
+            gobj_yuno_role_plus_name(),
+            dry_run? "would save": "saved",
+            treedb_name,
+            (int)schema_version,
+            dry_run? "": "; apply-schema puts it in use"),
+        0,
+        json_pack("{s:s, s:I, s:o, s:s, s:o, s:o}",
+            "treedb_name", treedb_name,
+            "schema_version", schema_version,
+            "topic_versions", versions,
+            "path", saved_path,
+            "changes", rows,
+            "schema", schema
+        ),
+        kw
+    );
+}
+
+/***************************************************************************
+ *  The schema save-schema wrote, what it changes against the file in use
+ *  (as a table: `json2flat` ids, see flat_diff), and whether it can be
+ *  applied here -- the question the Apply dialog asks.
+ ***************************************************************************/
+PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    char in_use_dir[PATH_MAX];
+    if(empty_string(treedb_name) ||
+            in_use_schema_dir(gobj, treedb_name, in_use_dir, sizeof(in_use_dir))<0) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: treedb '%s' is not open here", gobj_yuno_role_plus_name(), treedb_name),
+            0, 0, kw
+        );
+    }
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char saved_path[PATH_MAX];
+    build_path(saved_path, sizeof(saved_path), saved_dir, filename, NULL);
+
+    json_t *in_use = load_json_from_file(gobj, in_use_dir, filename, 0);
+    json_t *saved = file_exists(saved_dir, filename)?
+        load_json_from_file(gobj, saved_dir, filename, 0): NULL;
+
+    json_int_t in_use_version = kw_get_int(gobj, in_use, "schema_version", 0, KW_WILD_NUMBER);
+    json_int_t saved_version = kw_get_int(gobj, saved, "schema_version", 0, KW_WILD_NUMBER);
+    BOOL imposed = treedb_schema_imposed(gobj, treedb_name);
+    BOOL master = gobj_read_bool_attr(gobj, "master");
+
+    json_t *diff = json_object();
+    if(in_use && saved) {
+        json_t *flat_in_use = schema_to_flat(in_use);
+        json_t *flat_saved = schema_to_flat(saved);
+        JSON_DECREF(diff)
+        diff = flat_diff(flat_in_use, flat_saved);
+        JSON_DECREF(flat_in_use)
+        JSON_DECREF(flat_saved)
+    }
+    JSON_DECREF(in_use)
+    JSON_DECREF(saved)
+
+    return msg_iev_build_response(gobj, 0,
+        0,
+        0,
+        json_pack("{s:s, s:b, s:b, s:b, s:I, s:I, s:b, s:s, s:o}",
+            "treedb_name", treedb_name,
+            "impose_c_schema", imposed,
+            "master", master,
+            "saved", saved_version > 0,
+            "in_use_schema_version", in_use_version,
+            "saved_schema_version", saved_version,
+            "can_apply", master && !imposed && saved_version > in_use_version,
+            "path", saved_path,
+            "diff", diff
+        ),
+        kw
+    );
+}
+
+/***************************************************************************
+ *  Put the saved schema in place of the file in use. Only on the master,
+ *  only for a treedb whose schema C does not impose (the literal would
+ *  overwrite it at the next open), and only a saved schema NEWER than the
+ *  one in use. It is read at the next open of the treedb: whoever calls
+ *  this restarts the yuno.
+ ***************************************************************************/
+PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *permission = "write";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    if(empty_string(treedb_name)) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: what treedb_name?", gobj_yuno_role_plus_name()),
+            0, 0, kw
+        );
+    }
+    if(!gobj_read_bool_attr(gobj, "master")) {
+        return build_readonly_response(gobj, treedb_name, kw);
+    }
+    if(treedb_schema_imposed(gobj, treedb_name)) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: the schema of '%s' is imposed by the binary (impose_c_schema)",
+                gobj_yuno_role_plus_name(), treedb_name),
+            0, 0, kw
+        );
+    }
+
+    char in_use_dir[PATH_MAX];
+    if(in_use_schema_dir(gobj, treedb_name, in_use_dir, sizeof(in_use_dir))<0) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: treedb '%s' is not open here", gobj_yuno_role_plus_name(), treedb_name),
+            0, 0, kw
+        );
+    }
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+
+    if(!file_exists(saved_dir, filename)) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: no saved schema of '%s' (save-schema)", gobj_yuno_role_plus_name(), treedb_name),
+            0, 0, kw
+        );
+    }
+    json_t *saved = load_json_from_file(gobj, saved_dir, filename, 0);
+    json_t *in_use = load_json_from_file(gobj, in_use_dir, filename, 0);
+    json_int_t saved_version = kw_get_int(gobj, saved, "schema_version", 0, KW_WILD_NUMBER);
+    json_int_t in_use_version = kw_get_int(gobj, in_use, "schema_version", 0, KW_WILD_NUMBER);
+    JSON_DECREF(in_use)
+    if(!saved || saved_version <= in_use_version) {
+        JSON_DECREF(saved)
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: the saved schema of '%s' (%d) is not newer than the one in use (%d)",
+                gobj_yuno_role_plus_name(), treedb_name, (int)saved_version, (int)in_use_version),
+            0, 0, kw
+        );
+    }
+    if(parse_schema(saved)<0) {
+        JSON_DECREF(saved)
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: the saved schema of '%s' does not parse: %s",
+                gobj_yuno_role_plus_name(), treedb_name, gobj_log_last_message()),
+            0, 0, kw
+        );
+    }
+
+    if(save_json_to_file(
+            gobj,
+            in_use_dir,
+            filename,
+            (int)gobj_read_integer_attr(gobj, "xpermission"),
+            (int)gobj_read_integer_attr(gobj, "rpermission"),
+            0,
+            TRUE,   // overwrite
+            FALSE,
+            saved   // owned
+        )<0) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: cannot write the schema of '%s': %s",
+                gobj_yuno_role_plus_name(), treedb_name, gobj_log_last_message()),
+            0, 0, kw
+        );
+    }
+    gobj_log_info(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_INFO,
+        "msg",              "%s", "Schema applied",
+        "treedb_name",      "%s", treedb_name,
+        "schema_version",   "%d", (int)saved_version,
+        NULL
+    );
+
+    return msg_iev_build_response(gobj, 0,
+        json_sprintf("%s: schema %d of '%s' in place, read at the next open of the treedb",
+            gobj_yuno_role_plus_name(), (int)saved_version, treedb_name),
+        0, 0, kw
+    );
+}
+
+
+/***************************************************************************
  *  What the stored schema says that the schema compiled in C does not.
  *
- *  With impose_c_schema off, a treedb opens from its projection in
- *  __system__: seeded from the schema in C and re-made whenever that moves
- *  ahead, so the two are the same thing until somebody edits the projection.
- *  With it on, the projection keeps the edits it holds while the treedb
- *  opens with C. Either way the projector never deletes, so an edit is
- *  invisible — the version numbers of the `treedbs` node say that SOMETHING
- *  was published, never what. This answers what.
+ *  The projection in __system__ is seeded from the schema in C and re-made
+ *  whenever that moves ahead, so the two are the same thing until somebody
+ *  edits the projection -- and an edit is a draft there until save-schema
+ *  and apply-schema. The projector never deletes, so an edit is invisible:
+ *  the version numbers of the `treedbs` node say that SOMETHING was
+ *  published, never what. This answers what.
  ***************************************************************************/
 PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -1587,13 +2194,6 @@ PRIVATE int migrate_schema_ids_to_qualified(
         return -1;  // Error already logged
     }
 
-    /*
-     *  A schema write publishes itself by raising the versions, and moving
-     *  a node changes no schema: say so while it works, the same way the
-     *  projector does.
-     */
-    json_object_set_new(priv->tranger_system_, "__schema_publishing__", json_true());
-
     int moved = 0;
     int idx; json_t *jn_legacy_topic_id;
     json_array_foreach(legacy_topic_ids, idx, jn_legacy_topic_id) {
@@ -1666,8 +2266,6 @@ PRIVATE int migrate_schema_ids_to_qualified(
 
         JSON_DECREF(topic)
     }
-
-    json_object_del(priv->tranger_system_, "__schema_publishing__");
 
     JSON_DECREF(treedb)
     JSON_DECREF(legacy_topic_ids)
@@ -1913,14 +2511,6 @@ PRIVATE int upsert_treedb_schema(
      */
     json_t *cols_desc = _treedb_create_topic_cols_desc();
 
-    /*
-     *  A write to a schema publishes itself by raising the versions (see
-     *  publish_schema_change in tr_treedb). The projector sets them itself,
-     *  and every node it writes is a schema write, so it says so while it
-     *  works — otherwise each column would move the versions again.
-     */
-    json_object_set_new(priv->tranger_system_, "__schema_publishing__", json_true());
-
     json_t *jn_topics = kw_get_list(gobj, kw, "topics", 0, 0);
     int idx; json_t *jn_topic;
     json_array_foreach(jn_topics, idx, jn_topic) {
@@ -2131,7 +2721,6 @@ PRIVATE int upsert_treedb_schema(
     /*
      *  free
      */
-    json_object_del(priv->tranger_system_, "__schema_publishing__");
     JSON_DECREF(cols_desc)
     json_decref(treedb);
 
@@ -2644,36 +3233,18 @@ PRIVATE json_t *get_client_treedb_schema(
     }
 
     /*
-     *  With impose_c_schema off, a treedb opens from its projection (with it
-     *  on, get_c_schema_to_impose() opens it from the literal instead). The
-     *  projection is seeded from the literal and re-made whenever the literal
-     *  moves ahead, so opening from it IS opening from the literal until
-     *  somebody edits it — which is what lets the schema change dynamically.
+     *  With impose_c_schema off, a treedb opens from its schema FILE (with
+     *  it on, get_c_schema_to_impose() opens it from the literal, over the
+     *  file). The literal is handed to treedb_open_db() without `impose`, so
+     *  it is installed only when it is newer than the file: the file wins
+     *  on ties and when it is ahead -- which is what apply-schema makes it.
      *
-     *  The literal is still the fallback, for a projection that cannot be
-     *  rebuilt into a valid schema.
+     *  __system__ is not read here. It is where a schema is EDITED: a draft
+     *  there reaches a treedb only through save-schema + apply-schema (the
+     *  owner's design of M36, 2026-09-21 review). It used to be the source,
+     *  so every edit, half made or not, was the schema of the next start.
      */
-    json_t *client_treedb_schema = get_treedb_schema(gobj, treedb_name);
-    if(client_treedb_schema) {
-        if(parse_schema(client_treedb_schema)==0) {
-            /*
-             *  Use current last treedbs schema
-             */
-            return client_treedb_schema;
-        } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB,
-                "msg",          "%s", "Last treedb schema fails",
-                NULL
-            );
-            gobj_trace_json(gobj, client_treedb_schema, "Last treedb schema fails");
-            JSON_DECREF(client_treedb_schema);
-            // continue below
-        }
-    }
-
-    client_treedb_schema = json_incref(jn_client_treedb_schema);
+    json_t *client_treedb_schema = json_incref(jn_client_treedb_schema);
 
     if(parse_schema(client_treedb_schema)<0) {
         gobj_log_error(gobj, 0,
