@@ -1432,8 +1432,9 @@ from the schema source of truth, never hand-draw them.
   gobj-ui), so an edit made in the GUI goes back into the source by replacing
   the file whole. The yuno `#include`s it and parses it; diagrams and design
   notes go in the file that includes it. Name it this way so the literal is
-  found by name. (Rule stated 2026-09-21; the SDK's own `treedb_schema_*.c`
-  still carry `#pragma once` and a diagram.)
+  found by name. (Rule stated 2026-09-21. The exception is the meta-schema,
+  `kernel/c/timeranger2/src/treedb_system_schema.c`: an `extern` array with
+  its own header, compiled on its own, and not something the editor exports.)
 
 ### Persistence Rules (CRITICAL)
 

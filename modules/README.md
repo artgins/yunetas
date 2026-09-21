@@ -102,7 +102,8 @@ Full MQTT protocol implementation supporting v3.1, v3.1.1, and v5.0. Provides bo
 | `c_mqtt_broker.c/.h` | `C_MQTT_BROKER` GClass — broker logic, session management, subscriptions |
 | `mqtt_util.c/.h` | MQTT constants, enums, validation, and utility functions |
 | `tr2q_mqtt.c/.h` | Persistent MQTT message queues backed by TimeRanger2 |
-| `treedb_schema_mqtt_broker.c` | TreeDB schema for broker persistent data model |
+| `treedb_schema_mqtt_broker.c` | TreeDB schema for broker persistent data model (the literal only) |
+| `msg2db_schema_alarms.c` | Msg2db schema of the broker's alarm log |
 
 ### C_PROT_MQTT2 GClass
 

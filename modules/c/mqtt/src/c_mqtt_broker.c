@@ -15,7 +15,173 @@
 #include <helpers.h>
 #include "c_prot_mqtt2.h"
 
+/* ◀▲▼▶
+ *  TreeDB Schema for MQTT Broker Model
+ *
+ *  Design principle:
+ *  - `clients`: persistent client identity and settings (survives sessions)
+ *  - `sessions`: session-specific data, deleted on clean_start=true
+ *  - `retained_msgs`: retained messages by topic
+ *
+ *  In-memory subscription tree is built separately from session data at startup.
+ *
+
+    ()  string hook (1 unique children)
+    {}  dict hook   (N unique children)
+    []  list hook   (n not-unique children)
+    (↖) 1 fkey      (1 parent)
+    [↖] n fkeys     (n parents)
+    {↖} N fkeys     (N parents) ???
+
+    * field required
+    = field inherited
+
+                    client_groups
+            ┌───────────────────────────┐
+            │* id                       │
+            │                           │
+            │         client_groups {}  │ ◀─┐N
+            │                           │   │
+            │         group_parent (↖)  │ ──┘ 1
+            │                           │
+            │               managers {} │ ◀─────────────────┐N
+            │                clients {} │ ◀─┐N              │
+            │                           │   │               │
+            │  description              │   │               │
+            │  icon                     │   │               │
+            │  enabled                  │   │               │
+            │  time                     │   │               │
+            │  language                 │   │               │
+            │  cluster                  │   │               │
+            │  properties               │   │               │
+            │  coordinates              │   │               │
+            │                           │   │               │
+            │                           │   │               │
+            │  _geometry                │   │               │
+            └───────────────────────────┘   │               │
+                                            │               │
+                                            │               │
+                                            │               │
+                        clients             │               │
+            ┌───────────────────────────┐   │               │
+            │* id (client_id)           │   │               │
+            │                           │   │n              │
+            │         client_groups [↖] │ ──┘               │
+            │                           │                   │
+            │           client_type [↖] │ ──┐ n             │
+            │                           │   │               │
+            │  name                     │   │               │
+            │  assigned_id              │   │               │
+            │  auto_created             │   │               │
+            │  description              │   │               │
+            │  enabled                  │   │               │
+            │  time                     │   │               │
+            │  properties               │   │               │
+            │  coordinates              │   │               │
+            │  settings             <----------------- using client_types.template_settings
+            │  yuno                     │   │               │    TODO make a shortcut to get it
+            │                           │   │               │
+            │  _geometry                │   │               │
+            └───────────────────────────┘   │               │
+                                            │               │
+                      client_types          │               │
+            ┌───────────────────────────┐   │               │
+            │* id                       │   │               │
+            │                           │   │               │
+            │                clients {} │ ◀─┘ N             │
+            │  name                     │                   │
+            │  description              │                   │
+            │  icon                     │                   │
+            │  properties               │                   │
+            │  time                     │                   │
+            │  template_settings        │                   │
+            │                           │                   │
+            │  _geometry                │                   │
+            └───────────────────────────┘                   │
+                                                            │
+                       sessions                             │
+            ┌───────────────────────────┐                   │
+            │* id (client_id)           │                   │
+            │                           │                   │
+            │  username                 │                   │
+            │  protocol_version         │                   │
+            │  clean_start              │                   │
+            │  keep_alive               │                   │
+            │  session_expiry_interval  │                   │
+            │  in_session               │                   │
+            │  time                     │                   │
+            │                           │                   │
+            │  subscriptions            │  (json array)     │
+            │  last_mid                 │  (last mid used)  │
+            │                           │                   │
+            │  will_topic               │                   │
+            │  will_payload             │                   │
+            │  will_qos                 │                   │
+            │  will_retain              │                   │
+            │  will_delay_interval      │                   │
+            │  will_properties          │                   │
+            │  will_delay_time          │                   │
+            │                           │                   │
+            │  inflight_msgs            │  (json array - QoS 1/2 pending)
+            │                           │                   │
+            │  _geometry                │                   │
+            └───────────────────────────┘                   │
+                                                            │
+                                                            │
+                        users                               │
+            ┌───────────────────────────┐                   │
+            │* id                       │                   │
+            │                           │                   │
+            │         user_groups [↖]   │ ──────────────────┘
+            │                           │ n
+            │                           │
+            │  enabled                  │
+            │  language                 │
+            │  persistent_attrs         │
+            │  properties               │
+            │  time                     │
+            │                           │
+            │  _geometry                │
+            └───────────────────────────┘
+
+
+                    retained_msgs
+            ┌───────────────────────────┐
+            │* id (topic)               │
+            │                           │
+            │  client_id                │
+            │  tm                       │
+            │  qos                      │
+            │  expiry_interval          │
+            │  properties               │
+            │  payload                  │
+            │                           │
+            │  _geometry                │
+            └───────────────────────────┘
+
+
+            alarms
+            ┌───────────────────────────┐
+            │  id                       │   client_id
+            │  tm                       │
+            │  alarm                    │
+            │  description              │
+            │  triggers                 │
+            │       measure             │
+            │       condition           │
+            │       value               │
+            │  sent                     │
+            │  validated                │
+            └───────────────────────────┘
+
+
+    The literal lives alone in `treedb_schema_mqtt_broker.c`: that file holds the array and
+    nothing else, so its whole content can be replaced with what the schema
+    editor exports (`schema_to_c()` in gobj-ui). Keep this diagram in step
+    with it by hand.
+*/
 #include "treedb_schema_mqtt_broker.c"
+#include "msg2db_schema_alarms.c"
 #include "c_mqtt_broker.h"
 
 

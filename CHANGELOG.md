@@ -1,5 +1,21 @@
 # **Changelog**
 
+## Unreleased
+
+### Schema literals live alone in `treedb_schema_<db>.c`
+
+- `treedb_schema_authzs.c`, `treedb_schema_mqtt_broker.c`,
+  `treedb_schema_controlcenter.c`, `treedb_schema_yuneta_agent.c` (and the
+  docs-only `treedb_schema_mqtt_subscriptions.c`) hold the array and nothing
+  else: no `#pragma once`, no diagram. That is exactly what the schema editor
+  exports (`schema_to_c()` in gobj-ui), so an edit made in the GUI goes back
+  into the source by replacing the file whole. The diagrams move to the file
+  that includes each literal (`c_authz.c`, `c_mqtt_broker.c`,
+  `c_controlcenter.c`, `c_agent.c`; `treedb_schema_mqtt_subscriptions.md` for
+  the docs one), and the broker's alarm msg2db schema to its own
+  `modules/c/mqtt/src/msg2db_schema_alarms.c`. No schema changed.
+  `treedb_system_schema.c`, the meta-schema, keeps its form.
+
 ## v7.25.0 (2026-09-21)
 
 ### C_TRANGER: a multi-key iterator holds no iterator per key (M22)
