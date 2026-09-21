@@ -108,6 +108,16 @@ A4 and M22 of the 2026-09-21 review.
   library: SIGSEGV), and `tests/c/timeranger2/test_iterator_index.c` for the
   index.
 
+### gobj-ui 7.23.193: block 3 of the 2026-09-21 review
+
+The `kernel/js/gobj-ui` submodule moves to 7.23.193 (its `CHANGELOG.md` has the
+detail): a row delete crosses the confirm dialog by the row's `id` and no longer
+by its position, which could delete another record (A6); a refused Save keeps
+the form open on what was typed (M25, new attr `form_waits_for_answer` with
+`EV_WRITE_DONE` / `EV_WRITE_REFUSED`); a card of the graph follows its UPDATED
+again (M33); a `__graphs__` echo no longer marks other topics' unsaved layout
+as saved (M32); and M24, M27, M29, M30.
+
 ### Block 2 of the 2026-09-21 review: disable-user, the agent deletes, snaps
 
 - **A7 — `disable-user` never dropped the user's live sessions, and used a
