@@ -329,9 +329,11 @@ entries at once:
   permission on one service therefore reaches other stores the yuno's OS user
   can read or write. Predates the range; 24e70a390 confined `treedb_name` in
   the same handlers and left `topic_name` raw. Fix: ONE validator at the
-  tranger2 boundary, the rule keys already get (empty, `/`, `` ` ``, leading
-  `.`), in create / open / delete / backup / topic_path and in
-  `treedb_create_topic()`. Moving to `build_path()` alone is not enough: it
+  tranger2 boundary, in create / open / delete / backup / topic_path and in
+  `treedb_create_topic()`, refusing empty, `.`, `..`, `/` and `` ` ``. NOT the
+  key rule's "leading `.`": MQTT queues are named `<client_id>-in/-out`
+  (`tr2q_mqtt.c:96`) and the broker accepts a `client_id` such as `.foo`, so
+  that rule would leave existing queues unopenable. Moving to `build_path()` alone is not enough: it
   clamps `..` and still lets `<topic>/keys` through.
 - **A3 -- a name that is a directory but not a topic kills the yuno.** Same
   root. `tranger2_open_topic()` (`timeranger2.c:1143-1170`) checks only
@@ -576,9 +578,9 @@ entries at once:
 - **M42 -- no test opens a treedb as a REPLICA to write**; and the kwid fix of
   gobj-js 7.21.0 stays green with the fix reverted (`tests/kwid.test.js:106`).
 
-**Low, worth keeping** (M23, M34 and M40 of the report were lowered by their
-verifiers and live here): the `EV_TREEDB_NODE_*` feed is outside the `read`
-permission, because the subscription authz is commented out
+**Low, worth keeping** (three mediums were lowered by their verifiers and live
+here; their ids, M23, M34 and M40, stay unused so the others keep theirs):
+the `EV_TREEDB_NODE_*` feed is outside the `read` permission, because the subscription authz is commented out
 (`c_ievent_srv.c:1373`, `gobj.c:8754`); a refused `__graphs__` write is
 recorded as saved and never retried (`c_g6_nodes_tree.js:3282`);
 `tranger2_write_topic_var()` answers 0 whatever
