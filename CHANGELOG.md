@@ -15,6 +15,17 @@
   the configured value back. It no longer saves anything.
 - A yuno that relied on a persisted `set=0` opens imposing again (the
   default is `1`) until its configuration says `false`.
+- **Per treedb: `dynamic_schema_treedbs`** (list, configuration, not
+  persistent) names the treedbs that open from their schema file whatever
+  `impose_c_schema` says, which stays the default of every other one:
+  `'global': {'treedbs.dynamic_schema_treedbs': ['treedb_wattyzer']}`. The
+  yuno's code still wins. `set-impose-c-schema treedb_name=<x>` moves one
+  treedb in or out of it, in memory.
+- **New command `treedbs`** in C_TREEDB: the treedbs the service opened
+  (`treedb_system_schema` first), with `impose_c_schema` as it applies to
+  each, `decided_by` (`code`, `dynamic_schema_treedbs`, `impose_c_schema`,
+  `system`), and the literal, in-use and saved schema versions. Test 9b of
+  `c_treedb_system_schema` covers both.
 
 ### Schema literals live alone in `treedb_schema_<db>.c`
 

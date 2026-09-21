@@ -1567,14 +1567,17 @@ by mistake — and restart the yuno.
 **The value is configuration, not state: it is NOT persistent.** Set it where
 the yuno is described, preferably its `main.c`, else its config file. A
 C_TREEDB created in code is a service, so the `global` section reaches it by
-gclass (or by its name, `treedbs`):
+its name (`treedbs`) — better than by gclass, which would reach every
+C_TREEDB of the yuno. `impose_c_schema` is the DEFAULT of every treedb that
+service opens; to let ONE treedb change dynamically and leave the rest
+imposed, name it in `dynamic_schema_treedbs`:
 
 ```c
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
     ...                                                             \n\
     'global': {                                                     \n\
-        'C_TREEDB.impose_c_schema': false                           \n\
+        'treedbs.dynamic_schema_treedbs': ['treedb_wattyzer']       \n\
     },                                                              \n\
     ...                                                             \n\
 }                                                                   \n\
@@ -1586,11 +1589,16 @@ the configuration, survived every new binary and lived nowhere a deploy could
 see. The command stays for the occasional case: `set-impose-c-schema`
 (permission `impose-c-schema`, logged as *"impose_c_schema changed"* with the
 user) changes the value in memory, for the next open of a treedb in the same
-run; a restart takes the configured value back.
+run; a restart takes the configured value back. With `treedb_name` it acts on
+that treedb only (it leaves or enters `dynamic_schema_treedbs`). `treedbs`
+lists what the service opened and, for each treedb, whether it imposes and who
+decided it (`decided_by`: `code`, `dynamic_schema_treedbs`, `impose_c_schema`,
+or `system` for `treedb_system_schema`).
 
 ```bash
+ycommand -c 'command-yuno id=<id> service=treedbs command=treedbs'                    # who imposes, and why
 ycommand -c 'command-yuno id=<id> service=treedbs command=set-impose-c-schema'        # show
-ycommand -c 'command-yuno id=<id> service=treedbs command=set-impose-c-schema set=0'  # until the restart
+ycommand -c 'command-yuno id=<id> service=treedbs command=set-impose-c-schema set=0 treedb_name=treedb_x'  # until the restart
 ```
 
 **The yuno's code can force it, and then no command undoes it.** A binary
@@ -1612,12 +1620,13 @@ Every treedb of the SDK is forced this way: the agent (`c_agent.c`),
 `controlcenter` and `mqtt_broker`. `C_AUTHZ` opens `treedb_authzs` without
 `open-treedb`, so it gives the same value to its `C_NODE` (attribute
 `impose_c_schema`). Of the projects' `db_history*` yunos, `db_history_co`
-forces it; `db_history_wz` and `db_history_ce` set it to `false` in their
-`main.c`.
+forces it; `db_history_wz` and `db_history_ce` name their treedb in
+`dynamic_schema_treedbs` in their `main.c`.
 
-The order, from the strongest: the yuno's code, then `set-impose-c-schema`
-(until the restart), then the configuration (`main.c`, config file), then the
-default. To impose
+The order, from the strongest: the yuno's code, then
+`dynamic_schema_treedbs`, then `impose_c_schema` (each as configured in
+`main.c` or the config file, or as `set-impose-c-schema` left it until the
+restart), then the default `1`. To impose
 the law, deploy a binary that forces it. To give the permission back, deploy
 one that does not, and from then on the attribute decides again. When the
 code overrides a `0`, the log says *"impose_c_schema forced by the code of the

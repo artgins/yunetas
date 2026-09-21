@@ -1989,6 +1989,91 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
 }
 
 /***************************************************************************
+ *  dynamic_schema_treedbs: with impose_c_schema ON, the treedb it names
+ *  opens from its schema FILE, and `treedbs` says so and says who decided.
+ *  Removing it from the list puts the default back.
+ ***************************************************************************/
+PRIVATE BOOL treedbs_row(hgobj gobj, const char *treedb_name, BOOL *impose, const char **decided_by)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    BOOL found = FALSE;
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "treedbs", json_object(), gobj);
+    int idx; json_t *row;
+    json_array_foreach(kw_get_list(gobj, jn_resp, "data", 0, 0), idx, row) {
+        if(strcmp(kw_get_str(gobj, row, "treedb_name", "", 0), treedb_name)==0) {
+            *impose = kw_get_bool(gobj, row, "impose_c_schema", 0, 0);
+            static char decided[NAME_MAX];
+            snprintf(decided, sizeof(decided), "%s", kw_get_str(gobj, row, "decided_by", "", 0));
+            *decided_by = decided;
+            found = TRUE;
+            break;
+        }
+    }
+    JSON_DECREF(jn_resp)
+    return found;
+}
+
+PRIVATE int check_dynamic_schema_treedbs(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "set-impose-c-schema",
+        json_pack("{s:s}", "set", "1"), gobj);
+    JSON_DECREF(jn_resp)
+    jn_resp = gobj_command(priv->gobj_treedbs, "set-impose-c-schema",
+        json_pack("{s:s, s:s}", "set", "0", "treedb_name", TREEDB_NAME), gobj);
+    JSON_DECREF(jn_resp)
+
+    jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", TREEDB_NAME, "force", 1), gobj);
+    JSON_DECREF(jn_resp)
+    if(open_test_treedb(gobj, legalstring2json(schema_test2, TRUE)) < 0) {
+        result += -1;  // Error already logged
+    }
+
+    BOOL impose = TRUE;
+    const char *decided_by = "";
+    BOOL found = treedbs_row(gobj, TREEDB_NAME, &impose, &decided_by);
+    if(!found || impose || strcmp(decided_by, "dynamic_schema_treedbs")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a treedb in dynamic_schema_treedbs is imposed",
+            "found",        "%d", (int)found,
+            "impose",       "%d", (int)impose,
+            "decided_by",   "%s", decided_by,
+            NULL
+        );
+        result += -1;
+    }
+
+    jn_resp = gobj_command(priv->gobj_treedbs, "set-impose-c-schema",
+        json_pack("{s:s, s:s}", "set", "1", "treedb_name", TREEDB_NAME), gobj);
+    JSON_DECREF(jn_resp)
+    found = treedbs_row(gobj, TREEDB_NAME, &impose, &decided_by);
+    if(!found || !impose || strcmp(decided_by, "impose_c_schema")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: out of dynamic_schema_treedbs, the default does not decide",
+            "found",        "%d", (int)found,
+            "impose",       "%d", (int)impose,
+            "decided_by",   "%s", decided_by,
+            NULL
+        );
+        result += -1;
+    }
+
+    jn_resp = gobj_command(priv->gobj_treedbs, "set-impose-c-schema",
+        json_pack("{s:s}", "set", "0"), gobj);
+    JSON_DECREF(jn_resp)
+
+    return result;
+}
+
+/***************************************************************************
  *  The yuno's code imposes: open-treedb impose_c_schema=1 wins over the
  *  attribute, which Test 9 left off with the command.
  *
@@ -3622,10 +3707,16 @@ PRIVATE int run_tests(hgobj gobj)
     result += check_impose_c_schema(gobj);
 
     /*-----------------------------------------------*
+     *  Test 9b: dynamic_schema_treedbs names a treedb
+     *  that opens from its file with impose_c_schema
+     *  on, and `treedbs` says who decided.
+     *-----------------------------------------------*/
+    result += check_dynamic_schema_treedbs(gobj);
+
+    /*-----------------------------------------------*
      *  Test 10: the yuno's code imposes the schema
-     *  from C over the attribute: a persistent value
-     *  set by command cannot undo what the binary
-     *  decides.
+     *  from C over the attribute: a value set by
+     *  command cannot undo what the binary decides.
      *-----------------------------------------------*/
     result += check_impose_forced_by_code(gobj);
 
