@@ -305,7 +305,7 @@ entries at once:
 
 **High**
 
-- **A1, A2, A3 -- SHIPPED (unreleased, see `CHANGELOG.md`).** A topic name is
+- **A1, A2, A3 -- SHIPPED (7.25.0, see `CHANGELOG.md`).** A topic name is
   confined to its database at the tranger2 boundary (empty, `.`, `..`, `/` and
   `` ` `` refused; a leading `.` stays legal for the MQTT queues),
   `tranger2_open_topic()` answers NULL for a directory without
@@ -315,19 +315,19 @@ entries at once:
   text: C_NODE's `snap-content` does not ask `treedb_is_treedbs_topic()` -- it
   can no longer leave the database, but it can read a topic of the tranger that
   is not a topic of that treedb.
-- **A4 -- SHIPPED (unreleased, see `CHANGELOG.md`).** C_TRANGER resolves
+- **A4 -- SHIPPED (7.25.0, see `CHANGELOG.md`).** C_TRANGER resolves
   every registered handle by its identity (topic, kind, id, creator) after
   `tranger2_topic_is_open()`, instead of trusting the pointer kept at
   registration. Test: the ABA section of `test_c_tranger`. Not done, and no
   longer needed for safety: emptying the registries in `mt_stop` and purging a
   topic's entries in `cmd_delete_topic` -- a stale entry now resolves to NULL
   and is dropped at its next use or when its session is reaped.
-- **A5 -- first half SHIPPED (unreleased, see `CHANGELOG.md`; gui_treedb
+- **A5 -- first half SHIPPED (7.25.0, see `CHANGELOG.md`; gui_treedb
   0.17.52).** Every iterator C_TRANGER opens registers the `key_deleted`
   callback, which marks it; its next `get-page` closes it and says why, so a
   deleted key no longer reaches `get_topic_rd_fd()` through an open iterator,
   whoever deleted it. gui_treedb re-opens its whole-topic Rows card on the
-  delete-key answer. **Second half SHIPPED too (unreleased): a failed READ
+  delete-key answer. **Second half SHIPPED too (7.25.0): a failed READ
   never exits the process** -- the user's option C. `get_topic_rd_fd()` and
   the three criticals of `get_md_record_for_wr()` no longer apply
   `on_critical_error`, and a read no longer creates a missing md2. The short
@@ -352,43 +352,43 @@ entries at once:
     519, 529, 886, 1207; `tr_treedb.c` 671, 720, 1660; `tr_msg2db.c` 150, 190.
     Loads are reads; saves are writes.
 - **A6 -- SHIPPED in gobj-ui 7.23.193**: the row's id crosses the dialog.
-- **A7, A8 -- SHIPPED (unreleased, see `CHANGELOG.md`).**
-- **A9 -- SHIPPED (unreleased)**: no shot while a snap is active or loaded.
+- **A7, A8 -- SHIPPED (7.25.0, see `CHANGELOG.md`).**
+- **A9 -- SHIPPED (7.25.0)**: no shot while a snap is active or loaded.
 
 **Medium -- tr_treedb, C_NODE, the agent**
 
-- **M1 -- SHIPPED (unreleased).** `treedb_replace_links()` replaces a column
+- **M1 -- SHIPPED (7.25.0).** `treedb_replace_links()` replaces a column
   whole or not at all (every new link checked before an old one is undone),
   and `update-node` answers -1 when the record was saved but its links were
   not changed.
-- **M2 -- SHIPPED (unreleased).** The fkey mark is recomputed at every open
+- **M2 -- SHIPPED (7.25.0).** The fkey mark is recomputed at every open
   and written to no file; a renamed hook no longer loses its links.
-- **M3 -- SHIPPED (unreleased).** A ref to a hook that no longer exists is
+- **M3 -- SHIPPED (7.25.0).** A ref to a hook that no longer exists is
   removed from the child with a warning when it is relinked, cleaned or
   force-deleted.
-- **M4 -- SHIPPED (unreleased, option A).** The rowid seed reads the
+- **M4 -- SHIPPED (7.25.0, option A).** The rowid seed reads the
   topic's keys (tranger2's cache), not the snap-filtered index.
-- **M5 -- SHIPPED (unreleased, option B).** `now` is stamped by every write;
+- **M5 -- SHIPPED (7.25.0, option B).** `now` is stamped by every write;
   a birth time is `time` without `now` (`__assets__.t`, topic_version 2).
-- **M6, M7, M8 -- SHIPPED (unreleased).** A topic's columns are checked before
+- **M6, M7, M8 -- SHIPPED (7.25.0).** A topic's columns are checked before
   it is created; a `__system__` column answers the `file` and hook/fkey rules
   at the write; create, link and delete publish a schema change like update.
-- **M9, M10 -- SHIPPED (unreleased)**: the guards close when they cannot
+- **M9, M10 -- SHIPPED (7.25.0)**: the guards close when they cannot
   read; a replica cannot shoot, activate nor deactivate a snap.
-- **M11, M12 -- SHIPPED (unreleased, option A).** `force` unlinks the
+- **M11, M12 -- SHIPPED (7.25.0, option A).** `force` unlinks the
   children, `ignore_snaps` deletes what a snap holds; the agent maps its own
   `force` to both, and `delete-yuno` no longer guards by the tag in memory.
 - **M13 -- SHIPPED with A1**: `delete-treedb` on a replica answers READ-ONLY
   before `delete_client_treedb_schema()` touches memory.
-- **M14 -- SHIPPED (unreleased).**
-- **M15 -- SHIPPED (unreleased).** update-binary/update-config/delete-realm
+- **M14 -- SHIPPED (7.25.0).**
+- **M15 -- SHIPPED (7.25.0).** update-binary/update-config/delete-realm
   answer their failures; create/update-user refuse a role that cannot be
   linked; a dict hook keeps the primary child instance; an unlink frees every
   instance of the parent.
 
 **Medium -- timeranger2, C_TRANGER**
 
-- **M16, M17, M18 -- SHIPPED (unreleased, see `CHANGELOG.md`).** The master
+- **M16, M17, M18 -- SHIPPED (7.25.0, see `CHANGELOG.md`).** The master
   marks a file with a late record (`<file>.unordered`) and a load reads a
   marked file whole; a follower merges ranges; the append looks at the last
   cell first (3.9 us flat up to 3650 files); a disk feed keeps one watermark
@@ -397,14 +397,14 @@ entries at once:
   a device uploads a buffered batch; only the `t` disorder marks a file. Also
   open: a crash between the md2 write and the marker leaves an unmarked
   unordered file.
-- **M19, M20 -- SHIPPED (unreleased; gui_treedb 0.17.53).** A live session's
+- **M19, M20 -- SHIPPED (7.25.0; gui_treedb 0.17.53).** A live session's
   iterators survive its last unsubscribe (its EV_ON_CLOSE reaps them), and
   `backward` means "from the end" for every iterator, defaulting to the one
   given at the open; gui_treedb sends it on every page and re-arms a card
   whose iterator is gone.
-- **M21 -- SHIPPED (unreleased).** A live `open-list` is stamped with its
+- **M21 -- SHIPPED (7.25.0).** A live `open-list` is stamped with its
   session and reaped with it, like an iterator.
-- **M22 -- SHIPPED (unreleased; gui_treedb 0.17.54).** By-id lookup is a
+- **M22 -- SHIPPED (7.25.0; gui_treedb 0.17.54).** By-id lookup is a
   hash, and a multi-key iterator keeps a row count per key and opens a part
   only while a page reads it; gui_treedb no longer reopens the whole-topic
   Rows card by itself, and starts a new Rows card at `from_rowid=-100`.
@@ -415,14 +415,14 @@ entries at once:
   `form_waits_for_answer`, which `C_YUI_TREEDB_TOPICS` sets).
 - **M26 -- SHIPPED in gobj-ui 7.23.195** (the input carries seconds).
 - **M27 -- SHIPPED in gobj-ui 7.23.193.**
-- **M28 -- SHIPPED (unreleased C `update-node` option `create_only`; gobj-ui
+- **M28 -- SHIPPED (7.25.0 C `update-node` option `create_only`; gobj-ui
   7.23.194 sends it from +New).** Against an older backend +New is still an
   upsert.
 - **M29, M30 -- SHIPPED in gobj-ui 7.23.193.**
 - **M31 -- SHIPPED in gobj-ui 7.23.195** (text nodes; hook cell as DOM).
 - **M32, M33 -- SHIPPED in gobj-ui 7.23.193.**
 - **M35 -- SHIPPED in gui_treedb 0.17.53.**
-- **M36 -- SHIPPED (unreleased C; gobj-ui 7.23.196; gui_agent 0.22.74).** The
+- **M36 -- SHIPPED (7.25.0 C; gobj-ui 7.23.196; gui_agent 0.22.74).** The
   owner's design: an edit of `__system__` is a draft; `save-schema` /
   `saved-schema` / `apply-schema` in C_TREEDB (no `treedb_name`: every treedb
   opened there); a treedb opens from its schema file; the editor stops raising
@@ -445,7 +445,7 @@ entries at once:
   comment says a save inherits a snap tag any more, and the dates are the
   real ones (inherited up to 7.22.x, activated snap's in 7.23.x, untagged
   since 7.24.0).
-- **M41, M42 -- SHIPPED (unreleased).** The authz test walks the command
+- **M41, M42 -- SHIPPED (7.25.0).** The authz test walks the command
   table (it found `system-schema`, `trace` and the `set-link-events` display
   open to anyone, fixed); a replica phase checks every write READ-ONLY;
   gobj-js' kwid test pins the 7.21.0 fix.

@@ -89,7 +89,7 @@ lookup, **and** `tranger2_delete_instance` paths, with the mirror predicate
 aligned so followers reject the same inputs. Regression coverage in
 `tests/c/timeranger2/test_pkey_path_traversal.c`.
 
-The **topic name** got the same confinement later (unreleased, after 7.24.1):
+The **topic name** got the same confinement later (since 7.25.0):
 it was checked only for being empty, so a name such as `../other_db/users`
 read, planted or deleted a topic of another database, and a name that is a
 directory but not a topic (`..`, `<topic>/keys`, any stray directory) reached
@@ -106,7 +106,7 @@ master-only, like every other destructive call. Regression coverage in
 ### `on_critical_error` is for writes, never for reads
 
 A failed READ of records logs a critical and answers an error; it never exits
-the process, whatever `on_critical_error` says (unreleased, after 7.24.1). A
+the process, whatever `on_critical_error` says (since 7.25.0). A
 read has written nothing, and the default `2` turned one into an `exit(0)`
 nothing relaunches — a key deleted under an open iterator was enough. A read
 does not create files either: `tranger2_read_user_flag()` on a `(key, __t__)`

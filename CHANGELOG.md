@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.0 (2026-09-21)
 
 ### C_TRANGER: a multi-key iterator holds no iterator per key (M22)
 

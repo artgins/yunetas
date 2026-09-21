@@ -77,7 +77,7 @@ static const json_desc_t tranger2_json_desc[] = {
 **What `on_critical_error` covers.** It is applied to the failures of a WRITE,
 and of the loading of a topic's own files at open. It is **never** applied to a
 failed READ of records: that logs a critical and answers an error, and the
-process goes on (unreleased, after 7.24.1). A read that fails has written
+process goes on (since 7.25.0). A read that fails has written
 nothing, and with the default `2` it used to be an `exit(0)` that nothing
 relaunches — reachable by paging an iterator whose key was deleted under it.
 The one write that keeps exiting on purpose is a short write of an md2 row:
@@ -107,7 +107,7 @@ typedef int (*tranger2_load_record_callback_t)(
 ```
 
 
-## Summary of [`fs_watcher.h`](https://github.com/artgins/yunetas/blob/7.24.1/kernel/c/timeranger2/src/fs_watcher.h)
+## Summary of [`fs_watcher.h`](https://github.com/artgins/yunetas/blob/7.25.0/kernel/c/timeranger2/src/fs_watcher.h)
 
 This header file defines the **fs_watcher** module, which provides filesystem event watching function.
 
