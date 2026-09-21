@@ -41,17 +41,17 @@ Builds the canonical form of a foreign-key reference, `"topic^id^hook"`.
 Reads a hook reference.
 
 (js_treedb_get_field_desc)=
-### [`treedb_get_field_desc(col)`](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L400)
+### [`treedb_get_field_desc(col)`](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L401)
 
 Builds the descriptor of a field from the definition of a column.
 
 (js_template_get_field_desc)=
-### [`template_get_field_desc(key, value)`](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L476)
+### [`template_get_field_desc(key, value)`](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L477)
 
 Builds the descriptor of a field from one entry of a template.
 
 (js_create_template_record)=
-### [`create_template_record(template, kw)`](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L553)
+### [`create_template_record(template, kw)`](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L554)
 
 Builds a new record from the definition of a template.
 

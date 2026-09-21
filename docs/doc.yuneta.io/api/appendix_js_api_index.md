@@ -333,12 +333,12 @@ Do not edit it by hand. Run the script after a submodule bump.
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`create_template_record`**](js/treedb_helpers.md#js_create_template_record) | `function create_template_record(template, kw)` | [L553](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L553) |
-| [**`template_get_field_desc`**](js/treedb_helpers.md#js_template_get_field_desc) | `function template_get_field_desc(key, value)` | [L476](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L476) |
+| [**`create_template_record`**](js/treedb_helpers.md#js_create_template_record) | `function create_template_record(template, kw)` | [L554](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L554) |
+| [**`template_get_field_desc`**](js/treedb_helpers.md#js_template_get_field_desc) | `function template_get_field_desc(key, value)` | [L477](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L477) |
 | [**`treedb_decoder_fkey`**](js/treedb_helpers.md#js_treedb_decoder_fkey) | `function treedb_decoder_fkey(col, fkey)` | [L177](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L177) |
 | [**`treedb_decoder_hook`**](js/treedb_helpers.md#js_treedb_decoder_hook) | `function treedb_decoder_hook(col, hook)` | [L268](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L268) |
 | [**`treedb_encoder_fkey`**](js/treedb_helpers.md#js_treedb_encoder_fkey) | `function treedb_encoder_fkey(col, fkey)` | [L241](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L241) |
-| [**`treedb_get_field_desc`**](js/treedb_helpers.md#js_treedb_get_field_desc) | `function treedb_get_field_desc(col)` | [L400](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L400) |
+| [**`treedb_get_field_desc`**](js/treedb_helpers.md#js_treedb_get_field_desc) | `function treedb_get_field_desc(col)` | [L401](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L401) |
 | [**`treedb_hook_data_size`**](js/treedb_helpers.md#js_treedb_hook_data_size) | `function treedb_hook_data_size(value)` | [L145](https://github.com/artgins/gobj-js/blob/7.22.2/src/lib_treedb.js#L145) |
 
 ### `src/sprintf.js` — 2 symbols
