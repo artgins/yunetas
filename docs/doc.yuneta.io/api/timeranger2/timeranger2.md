@@ -1152,7 +1152,10 @@ therefore dedupe or page by it across a file rotation.
 
 Several feeds can be open on the same key (a per-key one and a whole-topic one,
 say). Each is served exactly once per record: the feed keeps a watermark of the
-last row it was given, per key and per file, and the master hard-links each new
+last row it was given, per key and per file -- one mark per FILE, so a batch
+that touches two files of a key (a late record and a current one, or a rotation
+while the follower is busy) serves each feed both (before, unreleased after
+7.24.1, the second feed lost both) -- and the master hard-links each new
 `.md2` into the directory of every feed that wants the key. A feed's watermark
 dies with its key, so a key re-created later does not inherit it.
 

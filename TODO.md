@@ -419,19 +419,15 @@ entries at once:
 
 **Medium -- timeranger2, C_TRANGER**
 
-- **M16 -- after a late record lands in an earlier md2 file, time-range queries
-  hide records** (`timeranger2.c:6274`, c46c820a0). A cell's `[fr_t, to_t]` is
-  rebuilt from the FIRST and LAST md2 rows, and the late record is the last row
-  with a lower `t`. A follower gets it wrong at once, the master after a
-  reload. The CHANGELOG claims the opposite (*"A reload says the same"*).
-- **M17 -- `find_cache_cell()` makes every append O(md2 files of the key)**
-  (`timeranger2.c:6076`, c46c820a0): measured 3.7 us flat, 32 us at 365 files,
-  318 us at 3650. Look at the LAST cell first and walk back only when it is not
-  the one. Queues (fixed mask) and treedbs (`%Y`) do not feel it.
-- **M18 -- a follower with two rt_disk feeds on one key** loses, for the feed
-  that fires second, the records of BOTH files when two files of the key arrive
-  in one batch (`timeranger2.c:5629`): one watermark per (feed, key), not per
-  file as the doc says. From 7.8.0; c46c820a0 adds a second supported way in.
+- **M16, M17, M18 -- SHIPPED (unreleased, see `CHANGELOG.md`).** The master
+  marks a file with a late record (`<file>.unordered`) and a load reads a
+  marked file whole; a follower merges ranges; the append looks at the last
+  cell first (3.9 us flat up to 3650 files); a disk feed keeps one watermark
+  per file. **Still open, and not in the review:** the `tm` range of a cell
+  is also read from the first and last rows, and `tm` is out of order whenever
+  a device uploads a buffered batch; only the `t` disorder marks a file. Also
+  open: a crash between the md2 write and the marker leaves an unmarked
+  unordered file.
 - **M19, M20 -- SHIPPED (unreleased; gui_treedb 0.17.53).** A live session's
   iterators survive its last unsubscribe (its EV_ON_CLOSE reaps them), and
   `backward` means "from the end" for every iterator, defaulting to the one

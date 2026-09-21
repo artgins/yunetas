@@ -145,6 +145,21 @@ PRIVATE BOOL topic_name_is_confined(
     const char *caller
 );
 PRIVATE void add_iterator_to_topic(hgobj gobj, json_t *topic, json_t *iterator);
+PRIVATE void mark_file_unordered(
+    hgobj gobj,
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    json_t *cache_cell
+);
+PRIVATE int widen_cell_from_all_rows(
+    hgobj gobj,
+    const char *topic_directory,
+    const char *key,
+    const char *file_id,
+    json_t *cache_cell
+);
+PRIVATE void merge_cache_cell(json_t *cur_cache_cell, json_t *new_cache_cell);
 PRIVATE void remove_iterator_from_index(json_t *topic, json_t *iterator);
 PRIVATE int close_fd_opened_files(
     hgobj gobj,
@@ -5630,7 +5645,7 @@ PRIVATE json_int_t update_new_records_from_disk(
         json_t *cache_files = json_object_get(key_cache, "files");
         json_array_insert_new(cache_files, (size_t)insert_idx, new_cache_cell);
     } else {
-        json_object_update_new(cur_cache_cell, new_cache_cell);
+        merge_cache_cell(cur_cache_cell, new_cache_cell);
     }
 
     json_int_t totals = update_totals_of_key_cache2(
@@ -5733,14 +5748,18 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
      *  first records after it opened (they reached the sibling card and never
      *  this one).
      *
-     *  The mark carries the FILE it counts in: its rowid is relative to that
-     *  file, and the topic rotates (a new md2 restarts at rowid 1). A mark
-     *  left over from the previous file is not a watermark, it is a ceiling —
-     *  it hid every record of the new file below yesterday's row count, so
-     *  the first append after a rotation reached NO feed at all. A mark of
-     *  another file is therefore no mark: reseed it. Presence (of a mark of
-     *  THIS file) is what says "seeded" — its rowid can legitimately be 0
-     *  (a batch starting at rowid 1: a brand-new key, or a fresh file).
+     *  A mark counts in ONE FILE: its rowid is relative to that file, and the
+     *  topic rotates (a new md2 restarts at rowid 1). So there is one mark
+     *  per (feed, key, FILE): published[key] = {file_id: rowid, ...}.
+     *  It was one per (feed, key), reseeded whenever another file came, and
+     *  a batch that touched two files of a key -- a late record and a
+     *  current one, or a plain rotation while the follower was busy --
+     *  reseeded a feed's mark on the second file before that feed had read
+     *  the first: it lost the records of BOTH (M18 of the 2026-09-21
+     *  review). Only a MISSING mark is seeded, and never over another
+     *  file's. Presence is what says "seeded" -- a rowid of 0 is legit (a
+     *  batch starting at rowid 1: a brand-new key, or a fresh file). The
+     *  marks of a key are no more than its cells, and go with the key.
      */
     if(1) {
         int idx; json_t *disk;
@@ -5753,14 +5772,14 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                 published = json_object();
                 json_object_set_new(disk, "published", published);
             }
-            json_t *mark = json_object_get(published, key);
-            const char *mark_file = mark?
-                json_string_value(json_object_get(mark, "file")):NULL;
-            if(!mark_file || strcmp(mark_file, file_id?file_id:"")!=0) {
-                json_object_set_new(published, key, json_pack("{s:s, s:I}",
-                    "file", file_id?file_id:"",
-                    "rowid", (json_int_t)(from_rowid - 1)
-                ));
+            json_t *marks = json_object_get(published, key);
+            if(!json_is_object(marks)) {
+                marks = json_object();
+                json_object_set_new(published, key, marks);
+            }
+            if(!json_object_get(marks, file_id?file_id:"")) {
+                json_object_set_new(marks, file_id?file_id:"",
+                    json_integer((json_int_t)(from_rowid - 1)));
             }
         }
     }
@@ -5768,10 +5787,11 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
     json_int_t from_disk_rowid = from_rowid;
     if(fired_disk) {
         json_t *published = json_object_get(fired_disk, "published");
-        json_t *mark = published? json_object_get(published, key) : NULL;
+        json_t *marks = published? json_object_get(published, key) : NULL;
+        json_t *mark = marks? json_object_get(marks, file_id?file_id:"") : NULL;
         if(mark) {
-            from_disk_rowid = json_integer_value(json_object_get(mark, "rowid")) + 1;
-            json_object_set_new(mark, "rowid", json_integer(to_rowid));
+            from_disk_rowid = json_integer_value(mark) + 1;
+            json_object_set_new(marks, file_id?file_id:"", json_integer(to_rowid));
         }
     }
 
@@ -6211,6 +6231,34 @@ PRIVATE json_t *find_cache_cell(
     json_t *key_cache = get_key_cache(topic, key);
     json_t *cache_files = json_object_get(key_cache, "files");
 
+    /*
+     *  The LAST cell first: it is where almost every record goes (the
+     *  current file) or after which it goes (a new one). Its base is the
+     *  key's total minus its own rows, so neither case walks the cells.
+     *  The walk below, from the first cell, cost O(files of the key) on
+     *  every append -- 3.7 us at one file, 318 us at 3650 (M17 of the
+     *  2026-09-21 review).
+     */
+    size_t n_cells = json_array_size(cache_files);
+    if(n_cells > 0) {
+        json_t *last_cell = json_array_get(cache_files, n_cells - 1);
+        const char *last_id = json_string_value(json_object_get(last_cell, "id"));
+        int cmp = cmp_file_ids(last_id?last_id:"", file_id);
+        if(cmp <= 0) {
+            json_int_t total_rows = json_integer_value(
+                json_object_get(json_object_get(key_cache, "total"), "rows")
+            );
+            if(cmp == 0) {
+                *pfile_base = total_rows - json_integer_value(json_object_get(last_cell, "rows"));
+                *pinsert_idx = (int)(n_cells - 1);
+                return last_cell;
+            }
+            *pfile_base = total_rows;
+            *pinsert_idx = (int)n_cells;
+            return NULL;
+        }
+    }
+
     json_int_t file_base = 0;
     int insert_idx = (int)json_array_size(cache_files);
     json_t *found = NULL;
@@ -6401,7 +6449,174 @@ PRIVATE json_t *load_cache_cell_from_disk(
     json_t *file_cache = update_cache_cell(0, filename, &md_first_record, 0, 1);
     update_cache_cell(file_cache, filename, &md_last_record, 0, file_rows);
 
+    /*
+     *  The first and the last row give the file's range only while its rows
+     *  are in time order. A late record (a __t__ below the file's to_t) is
+     *  the LAST row with a lower time, and the range read from it hid the
+     *  file from time-range queries (M16 of the 2026-09-21 review). The
+     *  master marks such a file (mark_file_unordered); a marked one is read
+     *  whole -- 32 bytes a row, sequentially -- and only that one.
+     */
+    char marker[NAME_MAX];
+    snprintf(marker, sizeof(marker), "%s.unordered", filename);
+    char key_directory[PATH_MAX];
+    build_path(key_directory, sizeof(key_directory), topic_directory, "keys", key, NULL);
+    if(file_exists(key_directory, marker)) {
+        if(widen_cell_from_all_rows(gobj, topic_directory, key, filename, file_cache) < 0) {
+            // Error already logged: the cell keeps the first/last range
+        }
+        json_object_set_new(file_cache, "unordered", json_true());
+    }
+
     return file_cache;
+}
+
+/***************************************************************************
+ *  Read EVERY row of a md2 file and widen the cell's ranges (t and tm) to
+ *  what the rows really hold. Only for a file the master marked unordered.
+ ***************************************************************************/
+PRIVATE int widen_cell_from_all_rows(
+    hgobj gobj,
+    const char *topic_directory,
+    const char *key,
+    const char *file_id,
+    json_t *cache_cell
+)
+{
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.md2", file_id);
+    char full_path[PATH_MAX];
+    build_path(full_path, sizeof(full_path), topic_directory, "keys", key, filename, NULL);
+
+    int fd = open(full_path, O_RDONLY|O_CLOEXEC, 0);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot open md2 file to widen its range",
+            "path",         "%s", full_path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    uint64_t fr_t = (uint64_t)json_integer_value(json_object_get(cache_cell, "fr_t"));
+    uint64_t to_t = (uint64_t)json_integer_value(json_object_get(cache_cell, "to_t"));
+    uint64_t fr_tm = (uint64_t)json_integer_value(json_object_get(cache_cell, "fr_tm"));
+    uint64_t to_tm = (uint64_t)json_integer_value(json_object_get(cache_cell, "to_tm"));
+
+    md2_record_t rows[1024];
+    ssize_t ln;
+    while((ln = read(fd, rows, sizeof(rows))) > 0) {
+        size_t n = (size_t)ln / sizeof(md2_record_t);
+        for(size_t i = 0; i < n; i++) {
+            uint64_t t = (ntohll(rows[i].__t__)) & TIME_FLAG_MASK;
+            uint64_t tm = (ntohll(rows[i].__tm__)) & TIME_FLAG_MASK;
+            if(t < fr_t) {
+                fr_t = t;
+            }
+            if(t > to_t) {
+                to_t = t;
+            }
+            if(tm < fr_tm) {
+                fr_tm = tm;
+            }
+            if(tm > to_tm) {
+                to_tm = tm;
+            }
+        }
+    }
+    int ret = 0;
+    if(ln < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read md2 file to widen its range",
+            "path",         "%s", full_path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        ret = -1;
+    }
+    close(fd);
+
+    json_object_set_new(cache_cell, "fr_t", json_integer((json_int_t)fr_t));
+    json_object_set_new(cache_cell, "to_t", json_integer((json_int_t)to_t));
+    json_object_set_new(cache_cell, "fr_tm", json_integer((json_int_t)fr_tm));
+    json_object_set_new(cache_cell, "to_tm", json_integer((json_int_t)to_tm));
+    return ret;
+}
+
+/***************************************************************************
+ *  A record arrived with a __t__ below its file's to_t: from now on the
+ *  first and the last row do not give that file's range. Leave a marker
+ *  beside the md2, `<file>.unordered`, so a load reads the file whole
+ *  (see load_cache_cell_from_disk). Once per file: the cell remembers.
+ ***************************************************************************/
+PRIVATE void mark_file_unordered(
+    hgobj gobj,
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    json_t *cache_cell
+)
+{
+    if(json_is_true(json_object_get(cache_cell, "unordered"))) {
+        return;
+    }
+    char marker[NAME_MAX];
+    snprintf(marker, sizeof(marker), "%s.unordered", file_id);
+    char path[PATH_MAX];
+    build_path(path, sizeof(path),
+        json_string_value(json_object_get(topic, "directory")), "keys", key, marker, NULL
+    );
+    int fd = newfile(path, (int)json_integer_value(json_object_get(topic, "rpermission")), FALSE);
+    if(fd < 0 && !is_regular_file(path)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot mark md2 file as unordered, a reload will misread its time range",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return;
+    }
+    if(fd >= 0) {
+        close(fd);
+    }
+    json_object_set_new(cache_cell, "unordered", json_true());
+}
+
+/***************************************************************************
+ *  A cell read again from disk (a follower's update): its RANGE is the
+ *  union of what was known and what was read, never what was read alone.
+ *  The read gives the first/last rows, and after a late record the last
+ *  row is not the file's maximum.
+ ***************************************************************************/
+PRIVATE void merge_cache_cell(json_t *cur_cache_cell, json_t *new_cache_cell)
+{
+    const char *mins[] = {"fr_t", "fr_tm", NULL};
+    const char *maxs[] = {"to_t", "to_tm", NULL};
+    for(int i = 0; mins[i]; i++) {
+        json_int_t a = json_integer_value(json_object_get(cur_cache_cell, mins[i]));
+        json_int_t b = json_integer_value(json_object_get(new_cache_cell, mins[i]));
+        if(a < b) {
+            json_object_set_new(new_cache_cell, mins[i], json_integer(a));
+        }
+    }
+    for(int i = 0; maxs[i]; i++) {
+        json_int_t a = json_integer_value(json_object_get(cur_cache_cell, maxs[i]));
+        json_int_t b = json_integer_value(json_object_get(new_cache_cell, maxs[i]));
+        if(a > b) {
+            json_object_set_new(new_cache_cell, maxs[i], json_integer(a));
+        }
+    }
+    json_object_update_new(cur_cache_cell, new_cache_cell);
 }
 
 /***************************************************************************
@@ -6609,6 +6824,10 @@ PRIVATE json_int_t update_new_record_from_mem(
         json_array_insert_new(cache_files, (size_t)insert_idx, cur_cache_cell);
 
     } else {
+        if(get_time_t(md_record) <
+                (uint64_t)json_integer_value(json_object_get(cur_cache_cell, "to_t"))) {
+            mark_file_unordered(gobj, topic, key, file_id, cur_cache_cell);
+        }
         update_cache_cell(cur_cache_cell, file_id, md_record, 1, 1);
     }
 

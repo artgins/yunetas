@@ -91,6 +91,7 @@ The same layout in text:
         2026-05-22.md2                ← 32-byte binary index, one per record
         2026-05-23.json
         2026-05-23.md2
+        2026-05-22.unordered          ← only if a LATE record went into that file
         …
       <key_value_b>/
         …
@@ -134,6 +135,15 @@ at [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.24.1/kernel/c/tim
 O(1) — multiply by 32, seek the `.md2`, read offset+size, seek the
 `.json`. Lookup by time range is O(N) over `.md2` records, which is
 still fast, because each record is 32 bytes.
+
+**A file's time range comes from its first and last rows**, read at load, and
+that is right only while the file is in time order. A record appended with a
+`__t__` below what its file already holds (a late record: `append-record
+__t__=`, a migration, a clock stepping back) breaks that, so the master drops
+an empty marker beside the md2, `<file>.unordered`, and a load reads a marked
+file WHOLE to get its real range. Without it, a time-range query skipped the
+file after a reload (unreleased, after 7.24.1). A follower that reads a cell
+again from disk keeps the union of the ranges it knew and the ones it read.
 
 ### 2.3 `g_rowid` vs `i_rowid` — the rule
 

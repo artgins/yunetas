@@ -108,6 +108,38 @@ A4 and M22 of the 2026-09-21 review.
   library: SIGSEGV), and `tests/c/timeranger2/test_iterator_index.c` for the
   index.
 
+### timeranger2: block 7 of the 2026-09-21 review (the cache cell)
+
+- **M16 — after a late record, time-range queries hid records.** A cell's
+  `[fr_t, to_t]` was rebuilt from the FIRST and LAST md2 rows, and a late
+  record (a `__t__` below what its file holds) is the last row with a lower
+  time: a follower at once, and the master after a reload, dropped the file
+  from any query past that time. The 7.21.0 entry of c46c820a0 said "a reload
+  says the same"; it did not. The master now drops an empty marker beside the
+  md2, `<file>.unordered`, when a record arrives below the file's `to_t`, and
+  a load reads a marked file WHOLE for its range (only that one: a year of
+  daily files read whole would be a gigabyte per key at startup). A follower
+  merges the ranges it knew with the ones it reads instead of replacing them.
+- **M17 — every append cost O(md2 files of the key).** `find_cache_cell()`
+  walked the cells from the first one, with two `snprintf` of `NAME_MAX` each,
+  to find the one the record went into — which is the last one, or after it,
+  almost always. It looks at the last cell first, and takes its base from the
+  key's total. Measured with the review's program, appends to the last file:
+  1 file 3.8 us, 365 files 3.9 us, 3650 files 3.9 us (they were 3.7 / 32 /
+  318 us).
+- **M18 — a follower with two disk feeds on one key lost records of two
+  files.** The watermark was one per (feed, key), and a batch touching two
+  files of the key reseeded the second feed's mark on the second file before
+  it had read the first — a late record and a current one, or just a
+  rotation while the follower was busy: that feed lost both. One mark per
+  (feed, key, FILE) now, never seeded over another file's. Verified with the
+  review's two-process program (master + a SIGSTOPped follower): the second
+  feed got `W@3` alone, it gets `W C E X Y` now, rotation case included.
+- New test `tests/c/timeranger2/test_late_record.c` (red: the follower and the
+  reloaded master did not serve the record inside the range). M18 needs two
+  processes to show, so its check stays out of ctest; the in-process case is
+  in the same test and stays green.
+
 ### C_TRANGER + gui_treedb 0.17.53: block 4 of the 2026-09-21 review
 
 - **M19 — closing the LAST Live card of a session reaped its paging
