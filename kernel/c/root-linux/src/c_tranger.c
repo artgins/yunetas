@@ -1855,6 +1855,12 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
     register_handle(priv->lists, list_id, topic_name, list);
+    json_object_set_new(
+        json_object_get(priv->lists, list_id),
+        "src_gobj",
+        json_integer((json_int_t)(uintptr_t)src)
+    );
+    watch_owner(gobj, src);
 
     return msg_iev_build_response(
         gobj,
@@ -3294,11 +3300,13 @@ PRIVATE int publish_rt_callback(
 }
 
 /***************************************************************************
- *  Close every realtime feed OWNED by `owner`, and its iterators too when
- *  `with_iterators` (see mt_subscription_deleted for when they are not).
+ *  Close every realtime feed OWNED by `owner`, and its iterators and
+ *  stateful lists too when `with_iterators` (see mt_subscription_deleted
+ *  for when they are not).
  *
  *  The owner was stamped into the handle as `src_gobj` (see cmd_open_rt /
- *  cmd_open_iterator). The pointer is only COMPARED here, never used.
+ *  cmd_open_iterator / cmd_open_list). The pointer is only COMPARED here,
+ *  never used.
  ***************************************************************************/
 PRIVATE void reap_handles_of(hgobj gobj, hgobj owner, BOOL with_iterators)
 {
@@ -3349,6 +3357,36 @@ PRIVATE void reap_handles_of(hgobj gobj, hgobj owner, BOOL with_iterators)
                 NULL
             );
             close_registered_iterator(gobj, iterator_id);
+        }
+    }
+
+    /*
+     *  A stateful list goes with the iterators: it is read, not pushed
+     *  (its appends are published, but a Live card owns an rt, not a list),
+     *  and it collects every append in memory until close-list.
+     */
+    if(priv->lists && with_iterators) {
+        const char *list_id; json_t *jn_entry; void *tmp;
+        json_object_foreach_safe(priv->lists, tmp, list_id, jn_entry) {
+            json_t *list = live_handle(gobj, priv->lists, list_id);
+            if(!list) {
+                /*  Closed with its topic: nothing to close, drop the entry.  */
+                json_object_del(priv->lists, list_id);
+                continue;
+            }
+            if((hgobj)(uintptr_t)kw_get_int(gobj, jn_entry, "src_gobj", 0, 0) != owner) {
+                continue;
+            }
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Closing list of a gone subscriber",
+                "list_id",      "%s", list_id,
+                "subscriber",   "%s", gobj_short_name(owner),
+                NULL
+            );
+            tranger2_close_list(priv->tranger, list);
+            json_object_del(priv->lists, list_id);
         }
     }
 }

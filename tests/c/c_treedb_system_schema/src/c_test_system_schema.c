@@ -1409,6 +1409,42 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
     JSON_DECREF(cols_now)
 
     /*
+     *  The per-column rules an open applies (M7 of the 2026-09-21 review):
+     *  stored anyway, each of these lost the topic at the next open, or
+     *  refused every record of it.
+     */
+    {
+        const char *names[] = {"bad_file", "bad_hook_fkey", "bad_hook_type", NULL};
+        json_t *defs[] = {
+            json_pack("{s:s, s:s, s:s, s:[s,s], s:s}",
+                "value", "bad_file", "header", "Bad file", "type", "integer",
+                "flag", "fkey", "file", "topics", users_fkey),
+            json_pack("{s:s, s:s, s:s, s:[s,s], s:s}",
+                "value", "bad_hook_fkey", "header", "Bad", "type", "array",
+                "flag", "hook", "fkey", "topics", users_fkey),
+            json_pack("{s:s, s:s, s:s, s:[s], s:s}",
+                "value", "bad_hook_type", "header", "Bad", "type", "integer",
+                "flag", "hook", "topics", users_fkey),
+        };
+        for(int i = 0; names[i]; i++) {
+            json_t *stored = gobj_create_node(
+                gobj_node_system, "cols", defs[i], json_pack("{s:b}", "refs", 1), gobj
+            );
+            if(stored) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST FAIL: a column an open refuses was stored",
+                    "col",          "%s", names[i],
+                    NULL
+                );
+                result += -1;
+            }
+            JSON_DECREF(stored)
+        }
+    }
+
+    /*
      *  A topic's pkey cannot change once the topic exists: topic_desc.json
      *  is written at creation and never rewritten, so the change would be
      *  stored, shown by every reader, and ignored by the topic for good.
@@ -1613,6 +1649,100 @@ PRIVATE int check_autopublished_versions(hgobj gobj, json_t *col_ids)
         result += -1;
     }
 
+    return result;
+}
+
+/***************************************************************************
+ *  A column CREATED with its link, and a column DELETED, publish
+ *  themselves too (M8 of the 2026-09-21 review): only an update and a
+ *  link did, so the docs' "a change to a schema publishes itself" was
+ *  false for both.
+ ***************************************************************************/
+PRIVATE int versions_of_users(hgobj gobj, json_int_t *topic_v, json_int_t *schema_v)
+{
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    char users_id[NAME_MAX];
+    system_topic_id(gobj, "users", users_id, sizeof(users_id));
+    json_t *topic = gobj_get_node(
+        gobj_node_system, "topics", json_pack("{s:s}", "id", users_id), 0, gobj
+    );
+    *topic_v = kw_get_int(gobj, topic, "topic_version", 0, KW_WILD_NUMBER);
+    *schema_v = system_schema_version(gobj, "schema_version");
+    JSON_DECREF(topic)
+    return 0;
+}
+
+PRIVATE int check_create_and_delete_publish(hgobj gobj)
+{
+    int result = 0;
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    if(!gobj_node_system) {
+        return -1;  // Error already logged elsewhere
+    }
+    char users_topic_id[NAME_MAX];
+    system_topic_id(gobj, "users", users_topic_id, sizeof(users_topic_id));
+    char users_fkey[NAME_MAX + sizeof("topics^^cols")];
+    snprintf(users_fkey, sizeof(users_fkey), "topics^%s^cols", users_topic_id);
+
+    json_int_t t0, s0, t1, s1, t2, s2;
+    versions_of_users(gobj, &t0, &s0);
+
+    json_t *created = gobj_update_node(
+        gobj_node_system,
+        "cols",
+        json_pack("{s:s, s:s, s:s, s:[s], s:s}",
+            "value", "published_col", "header", "Published", "type", "string",
+            "flag", "persistent", "topics", users_fkey),
+        json_pack("{s:b, s:b, s:b}", "create", 1, "autolink", 1, "refs", 1),
+        gobj
+    );
+    if(!created) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a legal column create was refused",
+            NULL
+        );
+        return -1;
+    }
+    const char *created_id = kw_get_str(gobj, created, "id", "", 0);
+    char col_id[NAME_MAX];
+    snprintf(col_id, sizeof(col_id), "%s", created_id);
+    JSON_DECREF(created)
+
+    versions_of_users(gobj, &t1, &s1);
+    if(t1 <= t0 || s1 <= s0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a column created with its link did not publish itself",
+            NULL
+        );
+        result += -1;
+    }
+
+    /*  force: the column is linked to its topic ("has up links")  */
+    if(gobj_delete_node(
+            gobj_node_system, "cols", json_pack("{s:s}", "id", col_id),
+            json_pack("{s:b}", "force", 1), gobj) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a column delete was refused",
+            NULL
+        );
+        return -1;
+    }
+    versions_of_users(gobj, &t2, &s2);
+    if(t2 <= t1 || s2 <= s1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a column delete did not publish itself",
+            NULL
+        );
+        result += -1;
+    }
     return result;
 }
 
@@ -3194,6 +3324,7 @@ PRIVATE int run_tests(hgobj gobj)
      *  Test 6: a change to a schema publishes itself
      *-----------------------------------------------*/
     result += check_autopublished_versions(gobj, ids_after);
+    result += check_create_and_delete_publish(gobj);
 
     /*-----------------------------------------------*
      *  Test 7: and `diff-schema` says WHAT it changed

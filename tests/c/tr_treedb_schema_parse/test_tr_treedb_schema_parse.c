@@ -450,6 +450,45 @@ PRIVATE int test_open(void)
     }
     result += test_json(NULL);
 
+    /*
+     *  The columns are checked BEFORE the topic exists (M6 of the
+     *  2026-09-21 review): a topic with no `id` column, or with none at
+     *  all, was persisted and answered as created.
+     */
+    set_expected_results(
+        "create-topic refuses a topic with no id column, or no columns",
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "Topic refused: bad columns",
+            "msg", "Topic refused: bad columns"
+        ),
+        NULL, NULL, 1
+    );
+    const char *bad_topics[] = {"no_id_notes", "no_cols_notes", NULL};
+    json_t *bad_cols[] = {
+        json_pack("{s:{s:s, s:s, s:[s]}}",
+            "name", "header", "Name", "type", "string", "flag", "persistent"
+        ),
+        json_object()
+    };
+    for(int i = 0; bad_topics[i]; i++) {
+        topic = treedb_create_topic(
+            tranger, TREEDB_NAME, bad_topics[i], 1, "", 0, bad_cols[i], 0, FALSE, FALSE
+        );
+        if(topic || treedb_is_treedbs_topic(tranger, TREEDB_NAME, bad_topics[i])) {
+            printf("%sERROR%s --> treedb_create_topic() accepted '%s'\n",
+                On_Red BWhite, Color_Off, bad_topics[i]);
+            result += -1;
+        }
+        char path[PATH_MAX];
+        tranger2_topic_path(path, sizeof(path), tranger, bad_topics[i]);
+        if(is_directory(path)) {
+            printf("%sERROR%s --> the refused topic '%s' is on disk\n",
+                On_Red BWhite, Color_Off, bad_topics[i]);
+            result += -1;
+        }
+    }
+    result += test_json(NULL);
+
     set_expected_results("close and shutdown", NULL, NULL, NULL, 1);
     treedb_close_db(tranger, TREEDB_NAME);
     tranger2_shutdown(tranger);

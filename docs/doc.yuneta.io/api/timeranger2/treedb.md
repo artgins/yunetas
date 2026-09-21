@@ -671,6 +671,21 @@ schema that [`treedb_open_db()`](<#treedb_open_db>) reads.
 A topic with a column flagged both `hook` and `fkey` is refused, and the
 function returns `NULL`. See [`parse_schema()`](<#parse_schema>).
 
+So is a topic whose columns would not open: no columns, no `id` column, or a
+column that fails the validation [`parse_schema()`](<#parse_schema>) applies
+when a schema is read. The function logs *"Topic refused: bad columns"* with
+the reason, sets the last message, and creates nothing on disk. Until 7.24.1
+the topic was written first and validated after, so a caller was told
+*"Topic created!"* for a topic the next open could not load.
+
+```C
+/*  refused: no `id` column  */
+treedb_create_topic(tranger, "my_db", "things", 1, "", 0,
+    json_pack("{s:{s:s, s:s, s:[s]}}",    /* cols, keyed by column name */
+        "name", "header", "Name", "type", "string", "flag", "persistent"),
+    0, FALSE, FALSE);   /* -> NULL, and no topic on disk */
+```
+
 ---
 
 (treedb_delete_instance)=

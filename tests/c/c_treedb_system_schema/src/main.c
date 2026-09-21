@@ -135,7 +135,8 @@ static int register_yuno_and_more(void)
             "{s:s},"                                    /* a literal ahead of the edit */
             "{s:s}, {s:s}, {s:s},"                      /* schema file + the one topic that moved */
             "{s:s}, {s:s}, {s:s},"                      /* a topic whose version did not move */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* the five refused writes */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* the refused writes: bad enums, */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* bad columns (M7), pkey, dup */
             "{s:s}, {s:s},"                             /* the legacy ids move; its literal is behind */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* and its treedb opens (+ __assets__) */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* impose_c_schema: on, imposed, off */
@@ -184,6 +185,12 @@ static int register_yuno_and_more(void)
             "msg", "Re-Creating TreeDB schema file",
             "msg", "Value not in enum",
             "msg", "Value not in enum",
+            "msg", "a 'file' column must be of type 'string': one file per column",
+            "msg", "Column definition refused",
+            "msg", "A column cannot be both 'hook' and 'fkey'",
+            "msg", "Column definition refused",
+            "msg", "A hook or fkey column must be of type dict, list or string",
+            "msg", "Column definition refused",
             "msg", "Schema topic pkey must be 'id'",
             "msg", "Node already exists",
             "msg", "Topic already has a column with this name",

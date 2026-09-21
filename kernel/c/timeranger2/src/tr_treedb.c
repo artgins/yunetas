@@ -149,6 +149,14 @@ PRIVATE json_t *create_assets_topic(hgobj gobj, json_t *tranger, const char *tre
 PRIVATE int derive_file_hooks(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int check_file_columns(hgobj gobj, const char *treedb_name, const char *topic_name, json_t *cols);
 PRIVATE BOOL col_is_hook_and_fkey(hgobj gobj, const char *topic_name, const char *col_name, json_t *col);
+PRIVATE int check_file_column(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *col_name,
+    json_t *col     // NOT owned
+);
+PRIVATE BOOL link_col_type_is_valid(hgobj gobj, const char *col_name, json_t *col);
 PRIVATE int check_hook_fkey_columns(hgobj gobj, const char *topic_name, json_t *cols);
 PRIVATE int link_file_columns(hgobj gobj, json_t *tranger, json_t *node, json_t *kw, BOOL is_new, BOOL *moved);
 PRIVATE int remove_blob(hgobj gobj, json_t *tranger, json_t *node);
@@ -1463,6 +1471,63 @@ PRIVATE void clear_treedb_hooks(
 }
 
 /***************************************************************************
+ *  The columns a NEW topic is created with: some, an `id` among them (the
+ *  pkey is fixed to "id"), and every one what parse_schema_cols() accepts.
+ ***************************************************************************/
+PRIVATE int check_cols_of_new_topic(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *cols    // NOT owned
+)
+{
+    const char *why = NULL;
+    if(json_size(cols) == 0 || !(json_is_object(cols) || json_is_array(cols))) {
+        why = "no columns";
+    } else {
+        BOOL has_id = FALSE;
+        if(json_is_object(cols)) {
+            has_id = json_object_get(cols, "id")? TRUE : FALSE;
+        } else {
+            int idx; json_t *col;
+            json_array_foreach(cols, idx, col) {
+                const char *id = json_string_value(json_object_get(col, "id"));
+                if(id && strcmp(id, "id")==0) {
+                    has_id = TRUE;
+                    break;
+                }
+            }
+        }
+        if(!has_id) {
+            why = "no 'id' column (the pkey is 'id')";
+        } else {
+            json_t *wrapper = json_pack("{s:O}", "cols", cols);
+            if(parse_schema_cols(
+                topic_cols_desc,
+                kwid_new_list(gobj, wrapper, KW_VERBOSE, "cols")
+            )<0) {
+                why = "a column is not valid (see the log)";
+            }
+            JSON_DECREF(wrapper)
+        }
+    }
+    if(why) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Topic refused: bad columns",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "why",          "%s", why,
+            NULL
+        );
+        gobj_log_set_last_message("topic '%s' refused: %s", topic_name, why);
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
     Return is NOT YOURS, pkey MUST be "id"
     WARNING This function don't load hook links.
     HACK IDEMPOTENT function
@@ -1577,6 +1642,20 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     }
 
     /*------------------------------*
+     *  The columns themselves, before the topic exists too. They were
+     *  validated AFTER tranger2_create_topic() and a failure only logged:
+     *  a topic with no `id` column (the pkey is fixed to "id"), no columns,
+     *  or columns parse_schema_cols() refuses was persisted and answered
+     *  "Topic created!" (M6 of the 2026-09-21 review).
+     *------------------------------*/
+    if(check_cols_of_new_topic(gobj, treedb_name, topic_name, cols)<0) {
+        // Error already logged, and the last message set
+        JSON_DECREF(pkey2s)
+        JSON_DECREF(cols)
+        return 0;
+    }
+
+    /*------------------------------*
      *  Open/Create "user" topic
      *------------------------------*/
     // Topic version
@@ -1614,6 +1693,14 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         cols,           // owned below
         jn_topic_var    // owned below
     );
+
+    if(!topic) {
+        // Error already logged (tranger2_create_topic)
+        gobj_log_set_last_message("topic '%s' refused by timeranger2 (see the log)", topic_name);
+        JSON_DECREF(cols)
+        JSON_DECREF(jn_topic_var)
+        return 0;
+    }
 
     /*
      *  Ensure the in-memory topic carries the flag even when the on-disk
@@ -3547,7 +3634,9 @@ PRIVATE int publish_schema_change(
     if(strcmp(topic_name, "cols")==0) {
         fkey_ref_id(json_object_get(node, "topics"), topic_id, sizeof(topic_id));
     } else if(strcmp(topic_name, "topics")==0) {
-        snprintf(topic_id, sizeof(topic_id), "%s", kw_get_str(gobj, node, "id", "", 0));
+        /*  Its OWN fkey names the treedb: the topic may be gone already
+         *  (a delete publishes after it happened).  */
+        fkey_ref_id(json_object_get(node, "treedbs"), treedb_id, sizeof(treedb_id));
     } else {
         return 0;   /*  `treedbs` carries the version itself  */
     }
@@ -3687,6 +3776,29 @@ PRIVATE int check_system_schema_write(
         json_object_set(user_col, "id", json_object_get(user_col, "value"));
         json_object_del(user_col, "value");
 
+        /*
+         *  And the per-column rules an OPEN applies, that a stored column
+         *  skipped (M7 of the 2026-09-21 review): a `file` column must be an
+         *  fkey on a string, a column is a hook or an fkey but not both, and
+         *  a hook/fkey has a type a link can live in. Stored anyway, the
+         *  column lost the whole topic at the next open, or every record.
+         */
+        const char *col_name = kw_get_str(gobj, node, "value", "", 0);
+        if(check_file_column(gobj, treedb_name, topic_name, col_name, user_col)<0 ||
+                col_is_hook_and_fkey(gobj, topic_name, col_name, user_col) ||
+                !link_col_type_is_valid(gobj, col_name, user_col)) {
+            // Error already logged
+            JSON_DECREF(user_col)
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Column definition refused",
+                "col",          "%s", col_name,
+                NULL
+            );
+            return -1;
+        }
+
         if(parse_schema_cols(topic_cols_desc, user_col)<0) {   // user_col owned
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -3702,6 +3814,35 @@ PRIVATE int check_system_schema_write(
     }
 
     return 0;
+}
+
+/***************************************************************************
+ *  A hook or an fkey column lives in a dict, a list or a string: what
+ *  normalize_node_field_value() can build its value in. Any other type
+ *  refused every record of the topic, one at a time ("Bad hook col type").
+ ***************************************************************************/
+PRIVATE BOOL link_col_type_is_valid(hgobj gobj, const char *col_name, json_t *col)
+{
+    json_t *flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+    if(!kw_has_word(gobj, flag, "hook", 0) && !kw_has_word(gobj, flag, "fkey", 0)) {
+        return TRUE;
+    }
+    const char *type = kw_get_str(gobj, col, "type", "", 0);
+    static const char *valid[] = {"dict", "object", "list", "array", "string", NULL};
+    for(int i = 0; valid[i]; i++) {
+        if(strcmp(type, valid[i])==0) {
+            return TRUE;
+        }
+    }
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TREEDB,
+        "msg",          "%s", "A hook or fkey column must be of type dict, list or string",
+        "col",          "%s", col_name,
+        "type",         "%s", type,
+        NULL
+    );
+    return FALSE;
 }
 
 /***************************************************************************
@@ -6537,6 +6678,22 @@ PRIVATE int delete_node(
         }
     }
 
+    /*
+     *  What a schema delete has to publish is named by the node's own up
+     *  links, and `force` unlinks them before the node goes: keep them.
+     */
+    json_t *schema_refs = json_object();
+    if(strcmp(treedb_name, TREEDB_SYSTEM_SCHEMA_NAME)==0) {
+        json_t *ref = json_object_get(node, "topics");
+        if(ref) {
+            json_object_set_new(schema_refs, "topics", json_deep_copy(ref));
+        }
+        ref = json_object_get(node, "treedbs");
+        if(ref) {
+            json_object_set_new(schema_refs, "treedbs", json_deep_copy(ref));
+        }
+    }
+
     /*-------------------------------*
      *  Check hooks and fkeys
      *-------------------------------*/
@@ -6637,6 +6794,7 @@ PRIVATE int delete_node(
 
     if(!to_delete) {
         // Error already logged
+        JSON_DECREF(schema_refs)
         JSON_DECREF(jn_options)
         return -1;
     }
@@ -6792,6 +6950,14 @@ PRIVATE int delete_node(
             );
         }
 
+        /*
+         *  A deleted column or topic is a schema change too: it did not
+         *  publish itself (M8 of the 2026-09-21 review). The node is still
+         *  alive here; its links, taken before `force` cut them, name
+         *  what moves.
+         */
+        publish_schema_change(tranger, treedb_name, topic_name, schema_refs);
+
         /*-------------------------------*
          *  Kill the node
          *-------------------------------*/
@@ -6806,10 +6972,12 @@ PRIVATE int delete_node(
             "id",           "%s", id,
             NULL
         );
+        JSON_DECREF(schema_refs)
         JSON_DECREF(jn_options)
         return -1;
     }
 
+    JSON_DECREF(schema_refs)
     JSON_DECREF(jn_options)
     return 0;
 }
@@ -8723,6 +8891,19 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
         }
     }
 
+    /*
+     *  A column joins its topic here when it is created with its link:
+     *  that is a schema change too (M8 of the 2026-09-21 review).
+     */
+    if(to_save) {
+        publish_schema_change(
+            tranger,
+            kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0),
+            kw_get_str(gobj, node, "__md_treedb__`topic_name", "", 0),
+            node
+        );
+    }
+
     JSON_DECREF(cols)
     JSON_DECREF(kw)
     return 0;
@@ -9117,6 +9298,10 @@ PUBLIC int treedb_replace_links(
 
     if(save && changed) {
         treedb_save_node(tranger, node);
+    }
+    if(changed) {
+        /*  a column moved to another topic changes that topic too  */
+        publish_schema_change(tranger, treedb_name, topic_name, node);
     }
 
     JSON_DECREF(cols)

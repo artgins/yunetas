@@ -1656,6 +1656,13 @@ column's topic and its treedb. The projector sets them itself and marks the
 tranger while it works (`__schema_publishing__`), which is also what stops the
 rule from answering its own writes.
 
+Every write publishes, whichever door it came through: an update, a link or
+unlink, a create that links its column to its topic (`autolink`, or `refs`),
+and a **delete** — which reads the column's topic from the links the node had
+before `force` cut them. Until 7.24.1 only update and link published, so a
+column added by a create or removed by a delete was stored and ignored by the
+running treedb.
+
 **A write here is a schema change, so it answers to the rules of a schema.**
 On top of the ordinary validation of §3.6, writes to these topics are refused
 when they could not produce a working schema — at the point of writing,
@@ -1664,7 +1671,20 @@ because none of these is loud later:
 - a column is checked against the descriptor a user column answers to, the
   same one `parse_schema_cols()` applies when a schema is opened. Stored
   unchecked, the column breaks the treedb at its **next open**, far from
-  whoever wrote it;
+  whoever wrote it. That includes the two per-column rules the descriptor
+  cannot express: a `file` column is a string `fkey`, one column is never both
+  `hook` and `fkey`, and a `hook` or `fkey` column is a dict, a list or a
+  string. The refusal says *"Column definition refused"* after the rule's own
+  message, for example:
+
+  ```C
+  /*  a `cols` node of __system__, refused: a hook is a dict, list or string  */
+  gobj_create_node(gobj_node_system, "cols",
+      json_pack("{s:s, s:s, s:s, s:[s], s:s}",
+          "value", "children", "header", "Children", "type", "integer",
+          "flag", "hook", "topics", "topics^<topic id>^cols"),
+      json_pack("{s:b}", "refs", 1), src);
+  ```
 - `pkey` must be `id` and `system_flag` must be `sf_string_key` —
   `treedb_open_db()` silently drops a topic that disagrees;
 - `pkey`, `tkey` and `system_flag` **cannot change once the topic exists**:

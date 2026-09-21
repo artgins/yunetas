@@ -1539,6 +1539,23 @@ PRIVATE int do_test(void)
         check_int("still watched once after the second", json_array_size(subs), 1);
         JSON_DECREF(subs)
     }
+
+    /*  A stateful list is a handle of the session too (M21 of the
+     *  2026-09-21 review): it was stamped with no owner and reaped by
+     *  nobody, collecting every append in memory after its client died.  */
+    r = gobj_command(yuno, "open-list",
+        json_pack("{s:s, s:s, s:s}",
+            "list_id", "lstSession",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_A
+        ), session);
+    check_int("open-list session", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    {
+        json_t *subs = gobj_find_subscriptions(session, EV_ON_CLOSE, 0, yuno);
+        check_int("still watched once after the list", json_array_size(subs), 1);
+        JSON_DECREF(subs)
+    }
     global_result += test_json(NULL);
 
     /*  The session closes its LAST Live card -- its last subscription to
@@ -1561,6 +1578,11 @@ PRIVATE int do_test(void)
         ), session);
     check_int("a live session still pages after its last unsubscribe",
         kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-list-data",
+        json_pack("{s:s}", "list_id", "lstSession"), session);
+    check_bool("a live session keeps its list after its last unsubscribe",
+        strncmp(kw_get_str(0, r, "comment", "", 0), "List not found", 14) != 0, TRUE);
     JSON_DECREF(r)
     global_result += test_json(NULL);
 
@@ -1594,6 +1616,11 @@ PRIVATE int do_test(void)
             "limit", 10
         ), yuno);
     check_int("get-page on a reaped iterator 2", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-list-data",
+        json_pack("{s:s}", "list_id", "lstSession"), yuno);
+    check_bool("a gone session takes its list with it",
+        strncmp(kw_get_str(0, r, "comment", "", 0), "List not found", 14) == 0, TRUE);
     JSON_DECREF(r)
     global_result += test_json(NULL);
     gobj_destroy(session);

@@ -380,16 +380,9 @@ entries at once:
   The SDK's are stamped because their writers carry the column; the projects'
   stay frozen at the create. Untested shapes of the gate: `now` + `writable` on
   a string column becomes `""`; a `required` integer `time` refuses the update.
-- **M6 -- `create-topic` persists a topic whose columns failed validation and
-  answers *"Topic created!"*** (`tr_treedb.c:1626`): `parse_schema_cols()` runs
-  after `tranger2_create_topic()`. A topic with no `id` column, or no cols, is
-  accepted without a log.
-- **M7 -- `check_system_schema_write()` skips two per-column rules**
-  (`tr_treedb.c:3660`): `file` needs `fkey` + string, and the hook/fkey type
-  rule. A bad column stored loses the whole topic at the next open.
-- **M8 -- "a change to a schema publishes itself" is false for a DELETE and for
-  a column created by autolink** (`tr_treedb.c:3510`): only update and link
-  call `publish_schema_change()`. `YUNO_TREEDB.md:1616` says otherwise.
+- **M6, M7, M8 -- SHIPPED (unreleased).** A topic's columns are checked before
+  it is created; a `__system__` column answers the `file` and hook/fkey rules
+  at the write; create, link and delete publish a schema change like update.
 - **M9, M10 -- SHIPPED (unreleased)**: the guards close when they cannot
   read; a replica cannot shoot, activate nor deactivate a snap.
 - **M11 -- the agent's `delete-yuno` guards by the tag in MEMORY and then sets
@@ -432,11 +425,8 @@ entries at once:
   `backward` means "from the end" for every iterator, defaulting to the one
   given at the open; gui_treedb sends it on every page and re-arms a card
   whose iterator is gone.
-- **M21 -- a stateful `open-list` is outside the session reaper**
-  (`c_tranger.c:1638`): no `src_gobj`, no `watch_owner()`, and
-  `reap_handles_of()` never walks `priv->lists` -- and such a list collects
-  every append in memory after its client is gone. It is the open half of
-  #2 in the realtime-feed section below.
+- **M21 -- SHIPPED (unreleased).** A live `open-list` is stamped with its
+  session and reaped with it, like an iterator.
 - **M22 -- half SHIPPED (unreleased).** `tranger2_get_iterator_by_id()` is a
   hash lookup (`iterators_by_id` on the topic), so opening N iterators is no
   longer O(N^2) (`test_iterator_index`: 1000 opens cost 5 ms in either half
@@ -859,11 +849,9 @@ under real use (found 2026-07-12 on e.com, where the node sat at 128/128
   128/128 — but not in passing.
 
 **#2 — Tie the feed to the ievent session.** Shipped on 2026-09-16 for
-`open-rt` and `open-iterator` (see `CHANGELOG.md`). Two pieces are still open,
-both from the 2026-09-21 review above: a stateful `open-list` is neither
-stamped with `src_gobj` nor reaped (M21), and `mt_subscription_deleted` still
-reads a session's LAST unsubscribe as its death, so closing the last Live card
-closes that session's paging iterators too (M19).
+`open-rt` and `open-iterator` (see `CHANGELOG.md`), and closed by M19 and M21
+of the 2026-09-21 review: a session's iterators survive its last unsubscribe,
+and a live `open-list` is the session's and goes with it.
 
 Node-side mitigation (already provisioned, independent of the above): the deb/rpm
 packagers ship `99-yuneta-core.conf` raising the default

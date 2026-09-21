@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### treedb + C_TRANGER: a schema write is checked and published whole; a session takes its lists
+
+M6, M7, M8 and M21 of the 2026-09-21 review (`TODO.md`).
+
+- **`create-topic` wrote a topic before checking its columns** (M6) and
+  answered *"Topic created!"* for one with no columns or no `id` column, which
+  the next open could not load. `treedb_create_topic()` now validates the
+  columns first, as `parse_schema()` does at an open, and refuses with
+  *"Topic refused: bad columns"* and the reason: nothing is written. A failed
+  `tranger2_create_topic()` is no longer ignored either.
+- **A column written to `__system__` skipped two rules an open applies** (M7):
+  a `file` column must be a string `fkey`, and a `hook`/`fkey` column cannot
+  be both nor be of any type but dict, list or string. Stored, such a column
+  lost its whole topic at the next open. They are refused at the write now,
+  with *"Column definition refused"*.
+- **"A schema write publishes itself" was false for two doors** (M8): a column
+  created with its link (`autolink`/`refs`) and a DELETE raised no version, so
+  the change was stored and never reached the running treedb. Create, link and
+  delete publish like update does; a delete reads the column's topic from the
+  links it had before `force` cut them.
+- **A live `open-list` belonged to nobody** (M21): no owner was stamped and no
+  reaper walked the lists, so one opened by a session that then died went on
+  collecting every append in memory until the yuno stopped. It is the
+  session's now, like its iterators: closed with the session's `EV_ON_CLOSE`,
+  kept while the session lives.
+- Tests: `tr_treedb_schema_parse` (M6), `c_treedb_system_schema` (M7, M8) and
+  `c_tranger` (M21), each red against the previous library.
+
 ### timeranger2: a topic name stays inside its database, and a replica cannot delete a topic
 
 A1, A2 and A3 of the 2026-09-21 review (`TODO.md`).
