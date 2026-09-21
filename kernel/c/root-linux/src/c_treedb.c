@@ -87,6 +87,11 @@ PRIVATE BOOL is_treedb_opened_here(
     hgobj gobj,
     hgobj gobj_node
 );
+PRIVATE json_t *build_readonly_response(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *kw  // owned
+);
 PRIVATE json_t *diff_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
@@ -978,6 +983,10 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
+    if(!gobj_read_bool_attr(gobj, "master")) {
+        return build_readonly_response(gobj, gobj_name(priv->gobj_node_system), kw);
+    }
+
     int ret = delete_client_treedb_schema(gobj, treedb_name);
     json_object_del(priv->jn_c_schemas, treedb_name);
     json_object_del(priv->jn_forced_treedbs, treedb_name);
@@ -1057,6 +1066,9 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     }
 
     json_t *tranger = gobj_read_pointer_attr(gobj_client_node, "tranger");
+    if(!kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED)) {
+        return build_readonly_response(gobj, treedb_name, kw);
+    }
 
     json_t *topic = treedb_create_topic( // WARNING Return is NOT YOURS
         tranger,
@@ -1128,8 +1140,13 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
+    json_t *tranger = gobj_read_pointer_attr(gobj_client_node, "tranger");
+    if(!kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED)) {
+        return build_readonly_response(gobj, treedb_name, kw);
+    }
+
     int ret = treedb_delete_topic(
-        gobj_read_pointer_attr(gobj_client_node, "tranger"),
+        tranger,
         treedb_name,
         topic_name
     );
@@ -2553,6 +2570,31 @@ PRIVATE BOOL is_treedb_opened_here(
         return FALSE;
     }
     return (gobj_parent(gobj_node) == gobj)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  The response a write command gives when the tranger it would write is
+ *  a replica's. Same words as C_NODE's: on a replica nobody can write,
+ *  and the library refuses it anyway -- this says why, up front, before
+ *  anything is closed or unlinked in memory on the way to that refusal.
+ ***************************************************************************/
+PRIVATE json_t *build_readonly_response(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *kw  // owned
+)
+{
+    return msg_iev_build_response(
+        gobj,
+        -1,
+        json_sprintf("%s: treedb '%s' is READ-ONLY, this yuno is not the master of its tranger",
+            gobj_yuno_role_plus_name(),
+            treedb_name
+        ),
+        0,
+        0,
+        kw  // owned
+    );
 }
 
 /***************************************************************************

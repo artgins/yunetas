@@ -1883,6 +1883,24 @@ PUBLIC int treedb_delete_topic(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     /*-----------------------------------*
+     *  Only master, and BEFORE the topic
+     *  is closed below: a replica would
+     *  lose it from memory on the way to
+     *  tranger2_delete_topic()'s refusal
+     *-----------------------------------*/
+    if(!json_boolean_value(json_object_get(tranger, "master"))) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Only master can delete",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*-----------------------------------*
      *      Check appropriate topic
      *-----------------------------------*/
     if(!treedb_is_treedbs_topic(tranger, treedb_name, topic_name)) {

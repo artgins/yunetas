@@ -303,47 +303,16 @@ entries at once:
 
 **High**
 
-- **A1 -- `delete-topic` on a REPLICA removes the master's topic.**
-  `tranger2_delete_topic()` (`timeranger2.c:1548`) is the one destructive call
-  with no `master` guard (append_record, delete_key, delete_instance,
-  create_topic and write_topic_var/cols all have one), and neither
-  `treedb_delete_topic()`, C_TREEDB's `cmd_delete_topic` (`c_treedb.c:1086`)
-  nor C_TRANGER's (`c_tranger.c:1038`) adds it. 24e70a390 edited those handlers
-  and left the gap. The replica answers *"Topic deleted!"*; the master keeps
-  answering from memory, its writes go to unlinked inodes with no log, and a
-  write to a new key re-creates `keys/<k>/` without `topic_desc.json`, so the
-  master cannot start again. Fix: the guard in `tranger2_delete_topic()` and
-  `tranger2_backup_topic()`, a READ-ONLY answer up front in C_TREEDB's
-  create-topic / delete-topic / delete-treedb, and `tranger2_open_topic()`
-  returning NULL when `topic_desc.json` does not load (it goes on with
-  `topic==NULL`).
-- **A2 -- `topic_name` from the wire is never confined to the database.** The
-  four topic paths of timeranger2 (`:744`, `:1135`, `:1298`, `:1560`) are raw
-  `snprintf("%s/%s")` and the only test is `empty_string()`, while keys get
-  `is_valid_key_name`. Every C_TRANGER command that takes a `topic_name` hands
-  it straight down (create-topic, open-topic, delete-topic, delete-key, desc,
-  open-list, list-keys, open-iterator and each rkey part, open-rt), C_TREEDB's
-  create-topic registers an escaped path as a topic of the treedb so that
-  delete-topic then removes it, and C_NODE's `snap-content` (`c_node.c:4230`)
-  is the one C_NODE command that does not ask `treedb_is_treedbs_topic()`. A
-  permission on one service therefore reaches other stores the yuno's OS user
-  can read or write. Predates the range; 24e70a390 confined `treedb_name` in
-  the same handlers and left `topic_name` raw. Fix: ONE validator at the
-  tranger2 boundary, in create / open / delete / backup / topic_path and in
-  `treedb_create_topic()`, refusing empty, `.`, `..`, `/` and `` ` ``. NOT the
-  key rule's "leading `.`": MQTT queues are named `<client_id>-in/-out`
-  (`tr2q_mqtt.c:96`) and the broker accepts a `client_id` such as `.foo`, so
-  that rule would leave existing queues unopenable. Moving to `build_path()` alone is not enough: it
-  clamps `..` and still lets `<topic>/keys` through.
-- **A3 -- a name that is a directory but not a topic kills the yuno.** Same
-  root. `tranger2_open_topic()` (`timeranger2.c:1143-1170`) checks only
-  `is_directory()` and then calls `load_persistent_json(...,
-  on_critical_error)`: with 2 that is `exit(0)`, not relaunched, from a command
-  that asks only for `read`. It reaches more than a bare C_TRANGER: agent,
-  controlcenter and broker publish `tranger_system_schema` (C_TREEDB's
-  `exit_on_error=2`) and `tranger_authz` (`c_authz.c:513`). Fix: the validator
-  of A2, plus testing for `topic_desc.json` before loading it (a directory
-  without one is "not a topic": NULL and a warning).
+- **A1, A2, A3 -- SHIPPED (unreleased, see `CHANGELOG.md`).** A topic name is
+  confined to its database at the tranger2 boundary (empty, `.`, `..`, `/` and
+  `` ` `` refused; a leading `.` stays legal for the MQTT queues),
+  `tranger2_open_topic()` answers NULL for a directory without
+  `topic_desc.json` instead of a critical, and `tranger2_delete_topic()` /
+  `tranger2_backup_topic()` / `treedb_delete_topic()` are master-only. Test:
+  `tests/c/timeranger2/test_topic_path_traversal.c`. Still open from their
+  text: C_NODE's `snap-content` does not ask `treedb_is_treedbs_topic()` -- it
+  can no longer leave the database, but it can read a topic of the tranger that
+  is not a topic of that treedb.
 - **A4 -- C_TRANGER judges a handle alive by the NAME of its topic.**
   `live_handle()` / `iterator_is_live()` (`c_tranger.c:548-571`) ask only
   `tranger2_topic_is_open(name)`. `tranger2_close_topic()` frees every iterator
@@ -462,10 +431,8 @@ entries at once:
   and the dialog speaks only of unlinking children. The graph sends no options
   and the guards do fire there. Needs the owner's decision on the two meanings
   of `force`.
-- **M13 -- `delete-treedb` on a replica** (`c_treedb.c:981`, 27034d272
-  incomplete): `delete_client_treedb_schema()` also writes `__system__` and has
-  no guard; with force it unlinks in memory, the save fails, and the answer
-  names two causes that are not the one.
+- **M13 -- SHIPPED with A1**: `delete-treedb` on a replica answers READ-ONLY
+  before `delete_client_treedb_schema()` touches memory.
 - **M14 -- regression of 141277953: every `update-node` WITHOUT `options` logs
   an ERROR with a stack** (`c_node.c:2713`): `kw_get_bool()` on a NULL dict.
   `mt_update_node` guards it, the command does not. It is the form the docs use

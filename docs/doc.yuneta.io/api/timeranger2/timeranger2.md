@@ -163,6 +163,8 @@ A JSON object representing the new topic backup.
 
 If `overwrite_backup` is true and the backup exists, `tranger_backup_deleting_callback` is called. If it returns true, the existing backup is not removed.
 
+Only a master can back up a topic (the backup moves its directory): on a replica it returns `NULL` with *"Only master can back up"*. The topic name follows the [topic name rule](<#timeranger2_topic_name_rule>).
+
 ---
 
 (tranger2_close_all_lists)=
@@ -393,6 +395,21 @@ Returns a JSON object representing the topic metadata. The returned JSON object 
 **Notes**
 
 This function is idempotent. This means that if the topic already exists, it will return the existing topic metadata instead of creating a new one. If the primary key (`pkey`) is not specified, the function defaults to `sf_string_key` if `pkey` is defined, otherwise it defaults to `sf_int_key`.
+
+(timeranger2_topic_name_rule)=
+**Topic names.** A topic name is ONE directory under the database, and a segment of the backtick kw paths (`` topics`<name>`cols ``). Every call that takes a topic name — create, open, delete, backup, `tranger2_topic_path()`, `tranger2_write_topic_var()` / `_cols()` — refuses, with the error *"Invalid topic name (path metacharacters not allowed)"*:
+
+- an empty name, `.` and `..`;
+- any name that holds `/` or `` ` ``.
+
+A leading `.` is accepted, unlike a key: MQTT queues are named `<client_id>-IN` / `-OUT`, and the broker accepts a `client_id` such as `.foo`.
+
+```C
+tranger2_create_topic(tranger, "users", "id", "tm", 0, sf_string_key, 0, 0);   // OK
+tranger2_create_topic(tranger, ".foo-IN", "", "", 0, sf_rowid_key, 0, 0);      // OK
+tranger2_create_topic(tranger, "../other_db/users", "id", "tm", 0, 0, 0, 0);   // refused
+tranger2_create_topic(tranger, "users/keys", "id", "tm", 0, 0, 0, 0);          // refused
+```
 
 ---
 
@@ -631,6 +648,8 @@ Returns `0` on success, or a negative value if an error occurs.
 **Notes**
 
 Deleting a topic is irreversible. Make sure that the topic is no longer needed before calling [`tranger2_delete_topic()`](<#tranger2_delete_topic>).
+
+Only a master can delete: on a replica (`master=0`) it returns `-1` with *"Only master can delete"*, and the directory stays. The topic name follows the [topic name rule](<#timeranger2_topic_name_rule>): `tranger2_delete_topic(tranger, "../other_db/users")` returns `-1` and deletes nothing.
 
 ---
 
@@ -1192,6 +1211,8 @@ A JSON object representing the opened topic. The returned object is not owned by
 **Notes**
 
 This function is idempotent. This means that calling it multiple times with the same `topic_name` will return the same JSON object without creating a new instance.
+
+It returns `NULL`, never a critical, when the name is refused by the [topic name rule](<#timeranger2_topic_name_rule>), and when the directory exists but is not a topic (it has no `topic_desc.json`): *"Not a topic: topic_desc.json not found"*, logged only with `verbose`. A peer can send any name, and with `on_critical_error=2` a critical is an `exit(0)` of the yuno.
 
 ---
 

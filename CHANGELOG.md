@@ -1,5 +1,37 @@
 # **Changelog**
 
+## Unreleased
+
+### timeranger2: a topic name stays inside its database, and a replica cannot delete a topic
+
+A1, A2 and A3 of the 2026-09-21 review (`TODO.md`).
+
+- **A topic name from the wire reached the filesystem unchecked** — the only
+  test was "not empty". With a `read` permission on a C_TRANGER, a name such
+  as `../other_db/users` read another database whole; with `delete` it
+  removed a topic there; with `create` it planted one. Create, open, delete,
+  backup, `tranger2_topic_path()` and `tranger2_write_topic_var()` / `_cols()`
+  now refuse an empty name, `.`, `..`, and any name holding `/` or `` ` ``,
+  with *"Invalid topic name (path metacharacters not allowed)"*. A leading `.`
+  stays legal, unlike a key: MQTT queues are `<client_id>-IN/-OUT`, and the
+  broker accepts a client id such as `.foo`.
+- **One `read` command could stop the yuno.** A name that is a directory but
+  not a topic (`..`, `<topic>/keys`, any stray directory) went to
+  `load_persistent_json()` as a critical, and with `on_critical_error=2` that
+  is an `exit(0)` the watcher does not relaunch — reachable on the agent,
+  controlcenter and broker through `tranger_system_schema` and
+  `tranger_authz`. `tranger2_open_topic()` now answers `NULL` for a directory
+  without `topic_desc.json`: *"Not a topic: topic_desc.json not found"*.
+- **`delete-topic` on a REPLICA removed the master's topic.**
+  `tranger2_delete_topic()` was the one destructive call with no `master`
+  guard; it and `tranger2_backup_topic()` have one now. `treedb_delete_topic()`
+  refuses before it closes the topic in memory, and C_TREEDB's
+  `create-topic`, `delete-topic` and `delete-treedb` answer a replica with the
+  READ-ONLY response C_NODE already gives.
+- New test `tests/c/timeranger2/test_topic_path_traversal.c` (red against
+  7.24.1: the traversal deleted the other database's topic, and the replica
+  deleted the master's).
+
 ## v7.24.1 (2026-09-20)
 
 ### gbmem: the leak audit does not follow what it writes, and says which ref it caught

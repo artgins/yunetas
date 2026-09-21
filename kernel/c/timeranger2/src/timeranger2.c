@@ -138,6 +138,12 @@ typedef gbuffer_t * (*filter_callback_t) (   // Remember to free returned gbuffe
     gbuffer_t * gbuf  // must be owned
 );
 
+PRIVATE BOOL topic_name_is_confined(
+    hgobj gobj,
+    json_t *tranger,
+    const char *topic_name,
+    const char *caller
+);
 PRIVATE int close_fd_opened_files(
     hgobj gobj,
     json_t *topic,
@@ -689,6 +695,38 @@ PRIVATE BOOL only_the_order_moved(
 }
 
 /***************************************************************************
+ *  A topic name is ONE directory component under the database, and it is
+ *  also a segment of the backtick kw paths (`topics`<name>`cols`). Refuse
+ *  what could escape the database or split a path: empty, "." and "..",
+ *  '/' and '`'. Unlike a key, a leading '.' is legit: MQTT queues are
+ *  "<client_id>-IN/-OUT" and the broker accepts a client_id such as ".foo".
+ ***************************************************************************/
+PRIVATE BOOL topic_name_is_confined(
+    hgobj gobj,
+    json_t *tranger,
+    const char *topic_name,
+    const char *caller
+)
+{
+    if(empty_string(topic_name) ||
+       strcmp(topic_name, ".")==0 ||
+       strcmp(topic_name, "..")==0 ||
+       strchr(topic_name, '/') != NULL ||
+       strchr(topic_name, '`') != NULL) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", caller,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Invalid topic name (path metacharacters not allowed)",
+            "database",     "%s", kw_get_str(gobj, tranger, "directory", "", 0),
+            "topic_name",   "%s", topic_name?topic_name:"",
+            NULL
+        );
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
    Create topic if not exist. Alias create table.
    HACK IDEMPOTENT function
  ***************************************************************************/
@@ -721,14 +759,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     if(!tkey) {
         tkey = "";
     }
-    if(empty_string(topic_name)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
-            "msg",          "%s", "tranger_create_topic(): What topic name?",
-            NULL
-        );
+    if(!topic_name_is_confined(gobj, tranger, topic_name, __FUNCTION__)) {
         JSON_DECREF(jn_cols)
         JSON_DECREF(jn_var)
         JSON_DECREF(jn_topic_ext)
@@ -1112,14 +1143,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     /*-------------------------------*
      *      Some checks
      *-------------------------------*/
-    if(empty_string(topic_name)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
-            "msg",          "%s", "tranger_open_topic(): What topic name?",
-            NULL
-        );
+    if(!topic_name_is_confined(gobj, tranger, topic_name, __FUNCTION__)) {
         return NULL;
     }
 
@@ -1147,6 +1171,23 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "tranger_open_topic(): directory not found",
                 "directory",    "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+                NULL
+            );
+        }
+        return NULL;
+    }
+
+    /*
+     *  A directory that is not a topic is not a critical: the name may come
+     *  from a peer, and with on_critical_error=2 the critical is an exit(0).
+     */
+    if(!file_exists(directory, "topic_desc.json")) {
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Not a topic: topic_desc.json not found",
+                "directory",    "%s", directory,
                 NULL
             );
         }
@@ -1296,6 +1337,13 @@ PUBLIC int tranger2_topic_path(
     json_t *tranger,
     const char *topic_name
 ) {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    if(!topic_name_is_confined(gobj, tranger, topic_name, __FUNCTION__)) {
+        if(bfsize > 0) {
+            *bf = 0;
+        }
+        return -1;
+    }
     snprintf(bf, bfsize, "%s/%s",
         kw_get_str(0, tranger, "directory", "", KW_REQUIRED),
         topic_name
@@ -1551,6 +1599,21 @@ PUBLIC int tranger2_delete_topic(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+
+    if(!master) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Only master can delete",
+            "topic_name",   "%s", topic_name?topic_name:"",
+            NULL
+        );
+        return -1;
+    }
+    if(!topic_name_is_confined(gobj, tranger, topic_name, __FUNCTION__)) {
+        return -1;
+    }
 
     /*
      *  Build directory path first so we can check existence without
@@ -1631,6 +1694,21 @@ PUBLIC json_t *tranger2_backup_topic(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+
+    if(!master) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Only master can back up",
+            "topic_name",   "%s", topic_name?topic_name:"",
+            NULL
+        );
+        return 0;
+    }
+    if(!topic_name_is_confined(gobj, tranger, topic_name, __FUNCTION__)) {
+        return 0;
+    }
 
     /*
      *  Close topic
@@ -1848,6 +1926,10 @@ PUBLIC int tranger2_write_topic_var(
         JSON_DECREF(jn_topic_var)
         return -1;
     }
+    if(!topic_name_is_confined(gobj, tranger, topic_name, __FUNCTION__)) {
+        JSON_DECREF(jn_topic_var)
+        return -1;
+    }
     char directory[PATH_MAX];
     snprintf(
         directory,
@@ -1928,6 +2010,10 @@ PUBLIC int tranger2_write_topic_cols(
             "msg",          "%s", "Only master can write",
             NULL
         );
+        JSON_DECREF(jn_topic_cols)
+        return -1;
+    }
+    if(!topic_name_is_confined(gobj, tranger, topic_name, __FUNCTION__)) {
         JSON_DECREF(jn_topic_cols)
         return -1;
     }

@@ -89,6 +89,20 @@ lookup, **and** `tranger2_delete_instance` paths, with the mirror predicate
 aligned so followers reject the same inputs. Regression coverage in
 `tests/c/timeranger2/test_pkey_path_traversal.c`.
 
+The **topic name** got the same confinement later (unreleased, after 7.24.1):
+it was checked only for being empty, so a name such as `../other_db/users`
+read, planted or deleted a topic of another database, and a name that is a
+directory but not a topic (`..`, `<topic>/keys`, any stray directory) reached
+`load_persistent_json()` as a critical — an `exit(0)` with
+`on_critical_error=2`. Create, open, delete, backup, `tranger2_topic_path()` and
+`tranger2_write_topic_var()` / `_cols()` now refuse an empty name, `.`, `..`,
+and any name holding `/` or `` ` ``. A leading `.` stays legal (MQTT queues
+are `<client_id>-IN/-OUT`, and the broker accepts `.foo` as a client id).
+`tranger2_open_topic()` answers `NULL` for a directory without
+`topic_desc.json`. `tranger2_delete_topic()` and `tranger2_backup_topic()` are
+master-only, like every other destructive call. Regression coverage in
+`tests/c/timeranger2/test_topic_path_traversal.c`.
+
 ### Subscriber propagation on `tranger2_delete_key`
 
 In-process subscribers (rt_mem, rt_disk in the same yuno, open_iterator)
