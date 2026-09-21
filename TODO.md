@@ -6,22 +6,6 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 `docs/doc.yuneta.io/yunos/mqtt_broker.md`,
 `docs/doc.yuneta.io/guide/guide_tls.md`) and git history.
 
-## `gobj_post_event()`: ESP32 still has its own contract
-
-C and JS agree since 7.10.0 (JS aligned in gobj-js `7.10.0`). ESP32 does not:
-
-| | C + JS | ESP32 (`c_esp_yuno.c`) |
-|---|---|---|
-| When | next turn of the loop, a snapshot at a time | an `esp_event` loop |
-| Destroyed destination | entry dropped | not handled |
-| Destroyed source | `src` cleared, event still delivered | not handled |
-| Undeclared event | refused when posting, so the error names the caller | seen later |
-| Ceiling | 10000, and reaching it is an error | the esp_event queue |
-| Trace | a `machine` line | none |
-
-The two that matter are the lifetime ones: an event delivered to a destroyed
-gobj is a crash, and on ESP32 nothing stops it today.
-
 ## Schema editing: the admin console
 
 The console is gui_agent's **Schemas** workspace (design and traps in
@@ -69,16 +53,6 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     directly instead of going through `C_TREEDB`'s `open-treedb`, so
     `treedb_authzs` never reaches `__system__` and cannot be edited. Any other
     direct `C_NODE` consumer is in the same position.
-
-- **The ESP32 persistence (`esp_persistent.c`) has the defects fixed in
-    `dbsimple.c`, and more.** `save_json()` returns 0 when `nvs_set_str()` or
-    `nvs_commit()` fails, and `dbesp_save/remove_persistent_attrs()` drop its
-    result anyway, so a value that was not saved reports success.
-    `load_json()` returns on `ESP_ERR_NVS_NOT_FOUND` without `nvs_close()` (a
-    handle lost on every load of a gobj with nothing saved), and uses raw
-    `malloc`/`free`. `dbesp_load_persistent_attrs()` leaks `keys` when nothing
-    is saved. Not changed with the Linux fix: the `ESP_PLATFORM` code is not
-    built or tested on the development node.
 
 - **A removed column with data behind it is still nobody's problem.** The
     write guard refuses what cannot produce a working schema, but dropping a
@@ -173,21 +147,6 @@ stringifies its default (`0` becomes the truthy `"0"`); `cmd_treedbs` /
 `treedb_activate_snap()` returns the PREVIOUS snap's tag; the warning *"Parent
 ref already in child fkey"* still fires in the legitimate case of 4e4dcdc00,
 once per `create-yuno`.
-
-## ESP32: `gobj_post_event()` is not in the port
-
-`kernel/c/root-esp32/components/esp_gobj/` carries its own copy of the gobj
-sources, so the call added to `kernel/c/gobj-c/` does not reach it. A gclass
-that uses it does not build for ESP32.
-
-Porting it is two pieces: the queue and its API in the copy of `gobj.c`, and
-the delivery point in whatever drives the ESP-IDF side, which is where the
-decision is. On Linux `yev_loop_run()` owns the cycle and the drain goes at
-the top of it; the ESP32 port has no equivalent single loop to hang it on.
-
-Until then, a deferral there stays a `C_TIMER0`, and the two implementations
-of the same framework differ on a documented call. Nothing uses it on ESP32
-today, which is why this is a note and not a blocker.
 
 ## Agent: the spare agent is only refreshed on the package path
 
