@@ -9,6 +9,8 @@
  *            2. role-holding user, no force      -> refused (result -1), kept
  *            3. role-holding user, force=1       -> deleted (roles unlinked)
  *            4. immutable seed user, even force  -> refused (result -1), kept
+ *            5. disable-user                     -> disables it, logs no error
+ *                                                   (A7 of the 2026-09-21 review)
  *
  *          A real C_AUTHZ service is instantiated over a temp tranger store;
  *          a role and an immutable user are seeded via initial_load, and the
@@ -47,6 +49,7 @@
  *              Data
  ***************************************************************/
 PRIVATE int s_result = 0;   /* accumulated check result, read after entry_point */
+PRIVATE int s_errors = 0;   /* logs of priority ERROR and up, see count_errors() */
 
 GOBJ_DEFINE_GCLASS(C_TEST_DELUSER);
 
@@ -149,6 +152,34 @@ PRIVATE int cmd_result(hgobj authz, const char *command, json_t *kw)
     return result;
 }
 
+PRIVATE BOOL user_disabled(const char *username)
+{
+    hgobj treedb = gobj_find_service("treedb_authzs", FALSE);
+    if(!treedb) {
+        return FALSE;
+    }
+    json_t *node = gobj_get_node(
+        treedb,
+        "users",
+        json_pack("{s:s}", "id", username),
+        0,
+        treedb
+    );
+    BOOL disabled = kw_get_bool(0, node, "disabled", 0, 0);
+    JSON_DECREF(node)
+    return disabled;
+}
+
+/*
+ *  A log handler that only counts: a check reads the difference around one
+ *  command, so what the rest of the test logs does not count.
+ */
+PRIVATE int count_errors(void *h, int priority, const char *bf, size_t len)
+{
+    s_errors++;
+    return 0;
+}
+
 PRIVATE BOOL user_exists(const char *username)
 {
     hgobj treedb = gobj_find_service("treedb_authzs", FALSE);
@@ -221,6 +252,23 @@ PRIVATE void run_checks(hgobj gobj)
             json_pack("{s:s, s:b}", "username", "seed_immutable", "force", 1)),
         -1);
     check_int("seed_immutable kept", user_exists("seed_immutable"), 1);
+
+    /*
+     *  Case 5: disable-user (A7 of the 2026-09-21 review). It handed the
+     *  NODE to EV_REJECT_USER, which reads "username" (the node keys on
+     *  "id"): the lookup failed with a logged error, the user's live
+     *  sessions were never dropped, and the event freed the node that the
+     *  response then used. The bug delete-user had, fixed there, not here.
+     */
+    check_int("create local_to_disable",
+        cmd_result(authz, "create-user", json_pack("{s:s}", "username", "local_to_disable")),
+        0);
+    int errors_before = s_errors;
+    check_int("disable local_to_disable",
+        cmd_result(authz, "disable-user", json_pack("{s:s}", "username", "local_to_disable")),
+        0);
+    check_int("disable-user logs no error", s_errors - errors_before, 0);
+    check_int("local_to_disable is disabled", user_disabled("local_to_disable"), 1);
 }
 
 /***************************************************************
@@ -346,6 +394,8 @@ int main(int argc, char *argv[])
 {
     glog_init();
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+    gobj_log_register_handler("count_errors", 0, count_errors, 0);
+    gobj_log_add_handler("count_errors", "count_errors", LOG_OPT_UP_ERROR, 0);
 
     unsigned long memory_check_list[] = {0, 0};
     set_memory_check_list(memory_check_list);

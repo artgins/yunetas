@@ -1824,8 +1824,8 @@ PUBLIC json_t *gobj_update_node( // Return is YOURS
 PUBLIC int gobj_delete_node(
     hgobj gobj,
     const char *topic_name,
-    json_t *kw,         // 'id' and pkey2s fields are used to find the node
-    json_t *jn_options, // "force" "no_verbose"
+    json_t *kw,         // owned, 'id' and pkey2s fields are used to find the node
+    json_t *jn_options, // owned, "force" "no_verbose"
     hgobj src
 );
 

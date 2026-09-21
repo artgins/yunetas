@@ -1072,6 +1072,26 @@ additive; this one is not.
 | update / save | ignores it for that key: the new record descends from the photo |
 | create of an id born after the shot | the same, by another door: it appends over it |
 | delete | **destroys it**: the key is erased, and deactivating does not undo that |
+| shoot-snap | **refused** (unreleased, after 7.24.1): *"Cannot shoot a snap while snap 'S' is active: deactivate it first"* |
+
+**No shot from inside a snap.** With S active the primary index holds S's
+records, all of them tagged, so a shot would have to CLONE every key (a record
+takes one tag) — and the clone, being the newest record of its key, becomes
+the primary after the deactivation. The whole treedb would be back to S: the
+activation as a RESTORE, which is exactly what this design refuses. So
+`treedb_shoot_snap()` refuses while a snap is active, and also while the treedb
+is still loaded from one (deactivated but not reloaded: *"reload it first"*).
+To keep the state you reached from inside a snap, deactivate, reload, then
+shoot:
+
+```
+deactivate-snap                     # reload onto the newest records
+shoot-snap name=after-the-fix       # a photo of the live state
+```
+
+A replica can do none of it: shooting, activating and deactivating are writes
+of `__snaps__`, and a replica answers *"READ-ONLY"* (C_NODE) or *"Only master
+can shoot a snap"* / *"… activate a snap"* (the library).
 
 **Going forward again.** Leaving a snap undoes nothing either: deactivating
 and reloading puts every key back on its newest record. For the keys written
@@ -1092,7 +1112,9 @@ A snap holds the records it tagged, and two deletes ask before taking them:
   md2 row of one `(id, pkey2 value)`, so it asks the same question narrowed
   to that instance: *"cannot delete instance, a snapshot still holds it"*.
 
-Neither guard reads the tag the node carries in memory. A save is untagged,
+Neither guard reads the tag the node carries in memory, and a guard that
+cannot read the records refuses (unreleased, after 7.24.1: it used to let the
+delete through). A save is untagged,
 so a node or an instance updated after the shot carries 0 while the record
 the snap froze is still under it: the guards walk the records of the key.
 `force=1` overrides both. `treedb_gc_files()` follows the same rule for the

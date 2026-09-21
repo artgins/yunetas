@@ -276,6 +276,61 @@ PRIVATE int test_write_while_active_is_untagged(json_t *tranger)
 }
 
 /***************************************************************************
+ *  No shoot-snap while a snap is active (A9 of the 2026-09-21 review).
+ *
+ *  With snap A active and reloaded, the primary index holds A's records,
+ *  all tagged, so EVERY key took the clone branch of treedb_shoot_snap() and
+ *  got the photo's content appended as its NEWEST record. After the
+ *  deactivation the reload picked that clone: the whole treedb was back to
+ *  A, and what was written since was buried -- the "activation as a
+ *  restore" the owner discarded. The same holds while the treedb is still
+ *  LOADED from a snap that was deactivated but not reloaded.
+ ***************************************************************************/
+PRIVATE int test_shoot_refused_while_active(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "no shoot-snap while a snap is active";
+    time_measure_t time_measure;
+    set_expected_results(
+        test,
+        json_pack("[{s:s}, {s:s}, {s:s}]",
+            "msg", "loading snap_tag 1",
+            "msg", "Cannot shoot a snap while snap 'A' is active: deactivate it first",
+            "msg", "Cannot shoot a snap while the treedb is loaded from a snap: reload it first"
+        ),
+        NULL, NULL, 1
+    );
+    MT_START_TIME(time_measure)
+
+    /*  The live payload of item-1 is p2 (the previous test); A froze p0  */
+    treedb_activate_snap(tranger, TREEDB_NAME, "A");
+    result += reload_treedb(tranger);
+    result += assert_payload(tranger, "p0", "snap A active");
+
+    if(treedb_shoot_snap(tranger, TREEDB_NAME, "C", "while A is active") >= 0) {
+        printf("%s  FAIL: shoot-snap was accepted while snap A is active%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  Deactivated but not reloaded: the index is still A's  */
+    treedb_activate_snap(tranger, TREEDB_NAME, "__clear__");
+    if(treedb_shoot_snap(tranger, TREEDB_NAME, "D", "loaded from A") >= 0) {
+        printf("%s  FAIL: shoot-snap was accepted while loaded from snap A%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    result += reload_treedb(tranger);
+    result += assert_payload(tranger, "p2", "the live state, not restored to A");
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  A node a snap froze cannot be deleted after an update either: the
  *  primary carries no tag now, the frozen record below does. A delete
  *  erases the whole key. `force` still overrides.
@@ -312,6 +367,65 @@ PRIVATE int test_held_node_cannot_be_deleted(json_t *tranger)
         printf("%s  FAIL: force did not delete item-1%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  A replica cannot shoot, activate nor deactivate a snap (M10 of the
+ *  2026-09-21 review). A shot on a replica ended in the critical "Cannot
+ *  save record tag" -- an exit(0) with on_critical_error=2 -- and an
+ *  activation changed the snap in memory while its save failed.
+ ***************************************************************************/
+PRIVATE int test_replica_cannot_snap(const char *path_root)
+{
+    int result = 0;
+    const char *test = "a replica cannot shoot, activate nor deactivate a snap";
+    time_measure_t time_measure;
+    set_expected_results(
+        test,
+        json_pack("[{s:s}, {s:s}, {s:s}]",
+            "msg", "Only master can shoot a snap",
+            "msg", "Only master can activate a snap",
+            "msg", "Only master can activate a snap"
+        ),
+        NULL, NULL, 1
+    );
+    MT_START_TIME(time_measure)
+
+    json_t *replica = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 0,
+        "on_critical_error", LOG_OPT_TRACE_STACK
+    ), 0);
+    json_t *jn_schema = legalstring2json(schema_sample, TRUE);
+    if(!replica || !treedb_open_db(replica, TREEDB_NAME, jn_schema, 0)) {
+        printf("%s  FAIL: cannot open the replica%s\n", On_Red BWhite, Color_Off);
+        if(replica) {
+            tranger2_shutdown(replica);
+        }
+        return -1;
+    }
+
+    if(treedb_shoot_snap(replica, TREEDB_NAME, "R", "on a replica") >= 0) {
+        printf("%s  FAIL: a replica shot a snap%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_activate_snap(replica, TREEDB_NAME, "A") >= 0) {
+        printf("%s  FAIL: a replica activated a snap%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_activate_snap(replica, TREEDB_NAME, "__clear__") >= 0) {
+        printf("%s  FAIL: a replica deactivated a snap%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    treedb_close_db(replica, TREEDB_NAME);
+    tranger2_shutdown(replica);
 
     MT_INCREMENT_COUNT(time_measure, 1)
     MT_PRINT_TIME(time_measure, test)
@@ -393,7 +507,9 @@ PRIVATE int do_test(void)
     result += test_clone_moves_the_metadata(tranger);
     result += test_update_follows_no_snap(tranger);
     result += test_write_while_active_is_untagged(tranger);
+    result += test_shoot_refused_while_active(tranger);
     result += test_held_node_cannot_be_deleted(tranger);
+    result += test_replica_cannot_snap(path_root);
 
     /*------------------------------------*
      *  Shutdown

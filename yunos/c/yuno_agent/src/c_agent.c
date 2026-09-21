@@ -2576,7 +2576,7 @@ PRIVATE json_t *cmd_delete_public_service(hgobj gobj, const char *cmd, json_t *k
     json_array_foreach(iter, idx, node) {
         json_array_append_new(jn_data, json_string(kw_get_str(gobj, node, "id", "", 0)));
         if(gobj_delete_node(
-                priv->resource, resource, node, json_pack("{s:b}", "force", force), src)<0) {
+                priv->resource, resource, kw_incref(node), json_pack("{s:b}", "force", force), src)<0) {
             result += -1;
             break;
         }
@@ -2943,7 +2943,7 @@ PRIVATE json_t *cmd_delete_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_array_foreach(iter, idx, node) {
         json_array_append_new(jn_data, json_string(kw_get_str(gobj, node, "id", "", 0)));
         if(gobj_delete_node(
-                priv->resource, resource, node, json_pack("{s:b}", "force", force), src)<0) {
+                priv->resource, resource, kw_incref(node), json_pack("{s:b}", "force", force), src)<0) {
             result += -1;
             break;
         }
@@ -3750,7 +3750,7 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
 
         if(gobj_delete_node(
-                priv->resource, resource, node, json_pack("{s:b}", "force", force), src)<0) {
+                priv->resource, resource, kw_incref(node), json_pack("{s:b}", "force", force), src)<0) {
             result += -1;
             break;
         }
@@ -4178,7 +4178,7 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
         const char *version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
 
         if(gobj_delete_node(
-                priv->resource, resource, node, json_pack("{s:b}", "force", force), src)<0) {
+                priv->resource, resource, kw_incref(node), json_pack("{s:b}", "force", force), src)<0) {
             json_t *comment = json_sprintf(
                 "Cannot delete the configuration: %s %s",
                 id, version

@@ -740,6 +740,35 @@ PRIVATE int run_tests(hgobj gobj)
         result += -1;
     }
 
+    /*-----------------------------------------------*
+     *  Test 13: the update-node COMMAND without
+     *  `options`, the form the docs use with ycommand
+     *  (M14 of the 2026-09-21 review). It asked the
+     *  NULL options for `create` and logged "kw must be
+     *  list or dict" with a stack on every call; the
+     *  expected log list of this test has no room for it.
+     *-----------------------------------------------*/
+    jn_resp = gobj_command(priv->gobj_node, "update-node",
+        json_pack("{s:s, s:{s:s, s:s}}",
+            "topic_name", "users",
+            "record",
+                "id", "alice",
+                "username", "alice_w"
+        ),
+        gobj
+    );
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: update-node without options was refused",
+            "comment", "%s", kw_get_str(gobj, jn_resp, "comment", "", 0),
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(jn_resp)
+
     if(result == 0) {
         gobj_log_info(gobj, 0,
             "msgset", "%s", MSGSET_INFO,

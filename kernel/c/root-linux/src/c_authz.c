@@ -2033,7 +2033,26 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         0,
         src
     );
-    gobj_send_event(gobj, EV_REJECT_USER, user, src);
+    if(!user) {
+        // Error already logged
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot disable user '%s' (see the log)",
+                gobj_yuno_role_plus_name(), username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  Kick the user's live sessions. EV_REJECT_USER reads "username" and
+     *  OWNS its kw: the node (which keys on "id") made the kick a no-op, and
+     *  the event freed the node the response below hands out. The same bug
+     *  cmd_delete_user had.
+     */
+    gobj_send_event(gobj, EV_REJECT_USER, json_pack("{s:s}", "username", username), src);
 
     return msg_iev_build_response(
         gobj,

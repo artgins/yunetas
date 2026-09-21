@@ -2710,7 +2710,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  node that does not exist yet also asks for `create`: it used to be
      *  created under `update` alone. A node that exists does not.
      */
-    if(kw_get_bool(gobj, _jn_options, "create", 0, KW_WILD_NUMBER)) {
+    if(_jn_options && kw_get_bool(gobj, _jn_options, "create", 0, KW_WILD_NUMBER)) {
         /*
          *  The same lookup the update makes, and a silent one: an unknown
          *  topic is refused by the update itself, with its own error.
@@ -4334,6 +4334,10 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     /*
      *  A snap is a new row of __snaps__
      */
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
     json_t *refused = refuse_without_authz(gobj, "create", kw, src);
     if(refused) {
         return refused;
@@ -4386,6 +4390,10 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
     json_t *refused = refuse_without_authz(gobj, "update", kw, src);
     if(refused) {
         return refused;
@@ -4427,6 +4435,10 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
     json_t *refused = refuse_without_authz(gobj, "update", kw, src);
     if(refused) {
         return refused;

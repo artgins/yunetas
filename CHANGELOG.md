@@ -108,6 +108,41 @@ A4 and M22 of the 2026-09-21 review.
   library: SIGSEGV), and `tests/c/timeranger2/test_iterator_index.c` for the
   index.
 
+### Block 2 of the 2026-09-21 review: disable-user, the agent deletes, snaps
+
+- **A7 — `disable-user` never dropped the user's live sessions, and used a
+  freed node.** C_AUTHZ handed the NODE to `EV_REJECT_USER`, which reads
+  `username` (the node keys on `id`): the lookup failed, the sessions stayed
+  authenticated (`disabled` is only read at login), and the event freed the
+  node the response then handed out. It passes `{username}` now, as
+  `delete-user` already did, and a failed update is answered as one.
+- **A8 — four agent deletes handed a borrowed list element to
+  `gobj_delete_node()`**, which owns its kw: `delete-public-service`,
+  `delete-realm`, `delete-binary`, `delete-config`. The element was freed
+  inside its list and the list's decref then wrote into freed memory —
+  silent, which is why daily `delete-binary` never crashed. They pass a
+  `kw_incref()` now, and `gobj.h` says `owned` on both parameters.
+- **M14 — every `update-node` command WITHOUT `options` logged an ERROR with
+  a stack** ("kw must be list or dict", from asking the absent options for
+  `create`). It is the form the docs use with ycommand.
+- **A9 — `shoot-snap` while a snap is active restored the whole treedb to
+  it.** Every key took the clone branch, the clone became the newest record,
+  and the deactivation reloaded the photo over everything written since.
+  `treedb_shoot_snap()` refuses while a snap is active, and while the treedb
+  is still loaded from one.
+- **M10 — a replica could shoot, activate and deactivate a snap**: the shot
+  ended in the critical "Cannot save record tag" (an `exit(0)` with
+  `on_critical_error=2`), and deactivate answered success after changing
+  only memory. The library refuses on a replica and C_NODE answers READ-ONLY.
+- **M9 — the two snapshot guards of the deletes opened when they could not
+  read the records.** They refuse now; `force` still overrides.
+- Tests: `command_delete_user` (disable-user, red: a logged error),
+  `c_node_link_events` (update-node without options, red: the ERROR),
+  `tr_treedb_snap_clone` (a shot refused while a snap is active, red: the
+  live payload came back as the photo's; and a replica, red: the critical).
+  A8 and M9 have no red test: A8 corrupts freed memory without a trace, and
+  M9 needs `tranger2_open_list()` to fail, which a clean test cannot make.
+
 ## v7.24.1 (2026-09-20)
 
 ### gbmem: the leak audit does not follow what it writes, and says which ref it caught

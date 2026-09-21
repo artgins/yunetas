@@ -362,37 +362,8 @@ entries at once:
   reviewers, reproduced with the real Tabulator. Fix: carry the identity (`id`,
   and the pkey2 values where the topic has them), resolve with `getRow(id)`,
   refuse loudly when the row is gone.
-- **A7 -- C_AUTHZ `disable-user` hands the NODE to `EV_REJECT_USER`**
-  (`c_authz.c:2036`). The event reads `username`, the node keys on `id`, so
-  the handler logs *"User not found"* and frees its kw: the user's live
-  sessions are never dropped (`disabled` is only read at login), and the same
-  pointer then goes into the response as `jn_data` -- a use after free, SIGSEGV
-  in 2 of 7 runs with a kw that carries `__md_iev__`. It is the bug 4595afeca
-  fixed in `delete-user`, whose comment at `:2128` describes it. Predates the
-  range. Fix: `json_pack("{s:s}", "username", username)` as the kw, and check
-  the NULL of `gobj_update_node()`.
-- **A8 -- four agent deletes hand a BORROWED list element to
-  `gobj_delete_node()`**, which owns its kw: `c_agent.c:2578` (public_service),
-  `:2945` (realm), `:3752` (binary), `:4180` (config). Each element has
-  refcount 1, so it is freed inside the list and `JSON_DECREF(iter)` then
-  decrements freed memory. Every other caller increfs (`c_node.c:2828`) or
-  builds a kw (`delete-yuno`). Predates the range. Fix: `json_incref(node)` at
-  the four sites, and `kw // owned` written on `gobj_delete_node` in `gobj.h`.
-- **A9 -- `shoot-snap` while a snap is ACTIVE restores the whole treedb**
-  (`tr_treedb.c:13803`; the verifiers rated it medium). With snap A active and
-  reloaded, the primary index holds A's records, all tagged, so EVERY key takes
-  the clone branch and gets the photo's content as its newest record. After the
-  deactivation the reload picks the newest: everything A knew is back to its
-  content at the shot and what was written since is buried. That is the
-  "activation as a restore" discarded on 2026-09-20. Fix: refuse `shoot-snap`
-  while a snap is active.
-
-**Found while fixing A2 (2026-09-21), not from the review:**
-`tranger2_list_topic_names()` skips every entry that starts with `.` and
-returns the `<topic>.bak` backups as topics. So the MQTT broker's orphan-queue
-clean-up (`c_mqtt_broker.c:829`) never sees a `.foo-IN` queue (legal: the
-broker accepts `.foo` as a client id), and it takes `X-OUT.bak` for a queue
-with no session and deletes it -- the backup `tr2q_mqtt.c:726` just made.
+- **A7, A8 -- SHIPPED (unreleased, see `CHANGELOG.md`).**
+- **A9 -- SHIPPED (unreleased)**: no shot while a snap is active or loaded.
 
 **Medium -- tr_treedb, C_NODE, the agent**
 
@@ -433,14 +404,8 @@ with no session and deletes it -- the backup `tr2q_mqtt.c:726` just made.
 - **M8 -- "a change to a schema publishes itself" is false for a DELETE and for
   a column created by autolink** (`tr_treedb.c:3510`): only update and link
   call `publish_schema_change()`. `YUNO_TREEDB.md:1616` says otherwise.
-- **M9 -- the two snapshot guards fail OPEN** (`tr_treedb.c:12766`, `:12907`):
-  when `tranger2_open_list()` fails they log and answer FALSE, and the delete
-  goes on.
-- **M10 -- the three snap commands of C_NODE have no replica guard**
-  (`c_node.c:4332`, 141277953 rewrote their preambles). `shoot-snap` on a
-  replica ends in *"Cannot save record tag"* critical and `exit(0)` (every
-  C_AUTHZ with `master=0`); activate / deactivate change memory only and
-  deactivate answers *"Snap deactivated"*.
+- **M9, M10 -- SHIPPED (unreleased)**: the guards close when they cannot
+  read; a replica cannot shoot, activate nor deactivate a snap.
 - **M11 -- the agent's `delete-yuno` guards by the tag in MEMORY and then sets
   `force = 1`** (`c_agent.c:5121`, `:5143`), so the guards that read the
   records (08ba69dcb, 114dfb339) never run for `yunos`, and the memory tag is 0
@@ -452,10 +417,7 @@ with no session and deletes it -- the backup `tr2q_mqtt.c:726` just made.
   of `force`.
 - **M13 -- SHIPPED with A1**: `delete-treedb` on a replica answers READ-ONLY
   before `delete_client_treedb_schema()` touches memory.
-- **M14 -- regression of 141277953: every `update-node` WITHOUT `options` logs
-  an ERROR with a stack** (`c_node.c:2713`): `kw_get_bool()` on a NULL dict.
-  `mt_update_node` guards it, the command does not. It is the form the docs use
-  with ycommand, and it breaks a whitelist log assertion.
+- **M14 -- SHIPPED (unreleased).**
 - **M15 (s/v)** -- `update-binary` / `update-config` answer result 0 when
   `gobj_update_node()` returns NULL, and `sync-binaries` reads that as OK
   (`c_agent.c:3530`); `delete-realm` always answers 0 (`c_agent.c:2956`);

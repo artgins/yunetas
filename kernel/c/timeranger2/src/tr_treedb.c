@@ -12791,6 +12791,9 @@ PRIVATE BOOL node_held_by_a_snap(
             "id",           "%s", id,
             NULL
         );
+        /*  A guard that cannot read closes: the delete is refused, `force`
+         *  still overrides. It answered "not held" and the delete went on.  */
+        held = TRUE;
     } else {
         tranger2_close_list(tranger, list);
     }
@@ -12932,6 +12935,9 @@ PRIVATE BOOL instance_held_by_a_snap(
             "id",           "%s", id,
             NULL
         );
+        /*  A guard that cannot read closes: the delete is refused, `force`
+         *  still overrides. It answered "not held" and the delete went on.  */
+        held = TRUE;
     } else {
         tranger2_close_list(tranger, list);
     }
@@ -13670,6 +13676,22 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
+    /*
+     *  A shot writes __snaps__ and tags records: on a replica it ended in the
+     *  critical "Cannot save record tag", an exit(0) with on_critical_error=2.
+     */
+    if(!json_boolean_value(json_object_get(tranger, "master"))) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Only master can shoot a snap",
+            "treedb_name",  "%s", treedb_name,
+            "snap",         "%s", snap_name,
+            NULL
+        );
+        return -1;
+    }
+
     /*-----------------------------------*
      *  Check if the tag already exists
      *-----------------------------------*/
@@ -13700,6 +13722,40 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
         return -1;
     }
     JSON_DECREF(snaps)
+
+    /*-----------------------------------*
+     *  Not while a snap is active, nor
+     *  while the treedb is still loaded
+     *  from one: the primary index holds
+     *  the snap's records, every key would
+     *  take the clone branch below, and
+     *  the photo would become the newest
+     *  record of every key -- a restore.
+     *-----------------------------------*/
+    uint32_t active_tag = 0;
+    json_t *active_snap = treedb_get_activated_snap_tag(gobj, tranger, treedb_name, &active_tag);
+    if(active_snap || current_snap_tag(tranger, treedb_name) != 0) {
+        char temp[NAME_MAX];
+        if(active_snap) {
+            snprintf(temp, sizeof(temp),
+                "Cannot shoot a snap while snap '%s' is active: deactivate it first",
+                kw_get_str(gobj, active_snap, "name", "", 0)
+            );
+        } else {
+            snprintf(temp, sizeof(temp),
+                "Cannot shoot a snap while the treedb is loaded from a snap: reload it first"
+            );
+        }
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", temp,
+            "snap",         "%s", snap_name,
+            NULL
+        );
+        gobj_log_set_last_message("%s", temp);
+        return -1;
+    }
 
     /*
      *  Register the tag
@@ -13872,6 +13928,22 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    /*
+     *  An activation is a write of __snaps__: on a replica it changed the
+     *  snap in memory, the save failed, and deactivate answered success.
+     */
+    if(!json_boolean_value(json_object_get(tranger, "master"))) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Only master can activate a snap",
+            "treedb_name",  "%s", treedb_name,
+            "snap",         "%s", snap_name,
+            NULL
+        );
+        return -1;
+    }
 
     if(strcmp(snap_name, "__clear__")==0) {
         /*-------------------------*
