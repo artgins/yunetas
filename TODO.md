@@ -506,8 +506,8 @@ entries at once:
 - **M21 -- a stateful `open-list` is outside the session reaper**
   (`c_tranger.c:1638`): no `src_gobj`, no `watch_owner()`, and
   `reap_handles_of()` never walks `priv->lists` -- and such a list collects
-  every append in memory after its client is gone. The realtime-feed section
-  below marks that point as shipped.
+  every append in memory after its client is gone. It is the open half of
+  #2 in the realtime-feed section below.
 - **M22 -- `rkey=.*` opens one iterator per key and keeps them all**
   (`c_tranger.c:2270`, 7b3fba479): O(N^2) through the linear scan of
   `tranger2_get_iterator_by_id`, memory by keys x files (1000 keys x 60 daily
@@ -946,11 +946,12 @@ under real use (found 2026-07-12 on e.com, where the node sat at 128/128
   counts inotify instances (`info-inotify`). Worth doing — the node sat at
   128/128 — but not in passing.
 
-**#2 — Tie the feed to the ievent session — SHIPPED**, and the paging-only
-session with it (2026-09-16): `mt_subscription_deleted` reaps what a subscriber
-leaked, and `ac_on_close` reaps what a session that never subscribed leaked,
-both keyed on the `src_gobj` stamped at `open-rt` / `open-iterator`. See
-`CHANGELOG.md`.
+**#2 — Tie the feed to the ievent session.** Shipped on 2026-09-16 for
+`open-rt` and `open-iterator` (see `CHANGELOG.md`). Two pieces are still open,
+both from the 2026-09-21 review above: a stateful `open-list` is neither
+stamped with `src_gobj` nor reaped (M21), and `mt_subscription_deleted` still
+reads a session's LAST unsubscribe as its death, so closing the last Live card
+closes that session's paging iterators too (M19).
 
 Node-side mitigation (already provisioned, independent of the above): the deb/rpm
 packagers ship `99-yuneta-core.conf` raising the default
