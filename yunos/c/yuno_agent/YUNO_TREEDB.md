@@ -1562,25 +1562,40 @@ one case `impose` exists to repair.
 Turn it off (`0`) to let a user or a customer change the schema dynamically
 (gui_agent, ytreedb). Turn it back on to impose the code again — because
 somebody lost that permission, or because the system was broken or changed
-by mistake — and restart the yuno. The value changes only
-through the command `set-impose-c-schema`, which needs the permission
-`impose-c-schema`, so the change is authorized and logged (*"impose_c_schema
-changed"*, with the user). It acts the next time the yuno opens its treedbs,
-that is, at its next start. Because the value persists, the one in the deploy
-config (`"global": {"treedbs.impose_c_schema": 0}`) is only its first value:
+by mistake — and restart the yuno.
 
-```bash
-# The agent itself
-ycommand -c 'command-agent service=treedbs command=set-impose-c-schema'        # show
-ycommand -c 'command-agent service=treedbs command=set-impose-c-schema set=0'  # allow dynamic changes
-# A yuno managed by the agent
-ycommand -c 'command-yuno id=<id> service=treedbs command=set-impose-c-schema set=1'
+**The value is configuration, not state: it is NOT persistent.** Set it where
+the yuno is described, preferably its `main.c`, else its config file. A
+C_TREEDB created in code is a service, so the `global` section reaches it by
+gclass (or by its name, `treedbs`):
+
+```c
+PRIVATE char variable_config[]= "\
+{                                                                   \n\
+    ...                                                             \n\
+    'global': {                                                     \n\
+        'C_TREEDB.impose_c_schema': false                           \n\
+    },                                                              \n\
+    ...                                                             \n\
+}                                                                   \n\
+";
 ```
 
-**The yuno's code can force it, and then no command undoes it.** Because the
-value persists, a `set=0` survives every restart and every new binary. So a
-binary that must impose its schema, whatever was decided at run time, says so
-itself, per treedb, with the `open-treedb` parameter `impose_c_schema`:
+Until 7.25.0 the value persisted, and a `set=0` given by a command outranked
+the configuration, survived every new binary and lived nowhere a deploy could
+see. The command stays for the occasional case: `set-impose-c-schema`
+(permission `impose-c-schema`, logged as *"impose_c_schema changed"* with the
+user) changes the value in memory, for the next open of a treedb in the same
+run; a restart takes the configured value back.
+
+```bash
+ycommand -c 'command-yuno id=<id> service=treedbs command=set-impose-c-schema'        # show
+ycommand -c 'command-yuno id=<id> service=treedbs command=set-impose-c-schema set=0'  # until the restart
+```
+
+**The yuno's code can force it, and then no command undoes it.** A binary
+that must impose its schema, whatever its configuration says, says so itself,
+per treedb, with the `open-treedb` parameter `impose_c_schema`:
 
 ```c
 json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
@@ -1596,10 +1611,13 @@ json_t *jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb", kw_treedb, gob
 Every treedb of the SDK is forced this way: the agent (`c_agent.c`),
 `controlcenter` and `mqtt_broker`. `C_AUTHZ` opens `treedb_authzs` without
 `open-treedb`, so it gives the same value to its `C_NODE` (attribute
-`impose_c_schema`). The `db_history*` yunos of the projects do the same.
+`impose_c_schema`). Of the projects' `db_history*` yunos, `db_history_co`
+forces it; `db_history_wz` and `db_history_ce` set it to `false` in their
+`main.c`.
 
-The order, from the strongest: the yuno's code, then the value set by
-`set-impose-c-schema`, then the deploy config, then the default. To impose
+The order, from the strongest: the yuno's code, then `set-impose-c-schema`
+(until the restart), then the configuration (`main.c`, config file), then the
+default. To impose
 the law, deploy a binary that forces it. To give the permission back, deploy
 one that does not, and from then on the attribute decides again. When the
 code overrides a `0`, the log says *"impose_c_schema forced by the code of the

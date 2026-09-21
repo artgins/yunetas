@@ -18,9 +18,10 @@
  *          "set-impose-c-schema" -> open every treedb with its schema from C, over
  *                             a newer schema file on disk; 0: open from the schema
  *                             FILE, the literal installed only when it is newer.
- *                             The yuno's code can force it per treedb (open-treedb
- *                             impose_c_schema=1), over whatever the command left
- *                             persisted
+ *                             In memory only: the value a yuno runs with is its
+ *                             configuration (main.c or config file). The yuno's
+ *                             code can force it per treedb (open-treedb
+ *                             impose_c_schema=1)
  *          "save-schema"   -> publish the draft edited in __system__: the versions of
  *                             what differs from the file in use + 1, written to
  *                             saved_schemas/ under the __system__ tranger
@@ -243,7 +244,7 @@ SDATACM2 (DTP_SCHEMA,   "delete-treedb",SDF_AUTHZ_X,    0, pm_delete_treedb,cmd_
 SDATACM2 (DTP_SCHEMA,   "create-topic", SDF_AUTHZ_X,    0, pm_create_topic, cmd_create_topic, "Create new topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic", SDF_AUTHZ_X,    0, pm_delete_topic, cmd_delete_topic, "Delete topic"),
 SDATACM2 (DTP_SCHEMA,   "diff-schema",  SDF_AUTHZ_X,    0, pm_diff_schema,  cmd_diff_schema, "Differences between the stored schema and the schema compiled in C"),
-SDATACM2 (DTP_SCHEMA,   "set-impose-c-schema",SDF_AUTHZ_X,0, pm_set_impose_c_schema, cmd_set_impose_c_schema, "Open every treedb with its schema from C, over a newer schema file on disk. 0: open from the schema file (see apply-schema). From the next open"),
+SDATACM2 (DTP_SCHEMA,   "set-impose-c-schema",SDF_AUTHZ_X,0, pm_set_impose_c_schema, cmd_set_impose_c_schema, "Open every treedb with its schema from C, over a newer schema file on disk. 0: open from the schema file (see apply-schema). From the next open; in memory only, a restart takes the configured value back"),
 SDATACM2 (DTP_SCHEMA,   "save-schema",  SDF_AUTHZ_X,    0, pm_save_schema,  cmd_save_schema, "Publish the draft of a schema edited in __system__: raise the versions of what differs from the schema file in use, and write it to saved_schemas/, never over the file in use"),
 SDATACM2 (DTP_SCHEMA,   "saved-schema", SDF_AUTHZ_X,    0, pm_saved_schema, cmd_saved_schema, "The schema save-schema wrote, what it changes against the file in use, and whether it can be applied"),
 SDATACM2 (DTP_SCHEMA,   "apply-schema", SDF_AUTHZ_X,    0, pm_saved_schema, cmd_apply_schema, "Put the saved schema in place of the file in use (master, impose_c_schema off). It is read at the next open of the treedb"),
@@ -263,7 +264,7 @@ SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "02770",        
 SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "0660",         "Use in creation, default 0660"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
 SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
-SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD|SDF_PERSIST, "1",            "Open every treedb with its schema from C, over a newer schema file on disk. 0: open from the schema FILE, which apply-schema replaces with what save-schema published from __system__; the literal is installed only when it is newer. Either way __system__ is not read at open, and the MASTER projects into it when it has no projection or a lower schema_version. Changed with set-impose-c-schema, from the next open. The yuno's code can force it per treedb (open-treedb impose_c_schema=1)"),
+SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD,     "1",            "Open every treedb with its schema from C, over a newer schema file on disk. 0: open from the schema FILE, which apply-schema replaces with what save-schema published from __system__; the literal is installed only when it is newer. Either way __system__ is not read at open, and the MASTER projects into it when it has no projection or a lower schema_version. NOT persistent: it is configuration, set in the yuno's main.c ('global': {'C_TREEDB.impose_c_schema': false}) or its config file; set-impose-c-schema changes it until the next restart. The yuno's code can force it per treedb (open-treedb impose_c_schema=1)"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
@@ -1358,13 +1359,18 @@ PRIVATE json_int_t schema_topic_version(hgobj gobj, json_t *jn_schema, const cha
 /***************************************************************************
  *  Whether the treedbs of this service open with their schema from C.
  *
- *  Persistent, and it acts at the next open: a treedb already open keeps the
- *  schema it opened with (closing it from outside while the yuno plays is not
- *  safe), so the change reaches it when its yuno restarts.
+ *  In memory only, and it acts at the next open: a treedb already open keeps
+ *  the schema it opened with. NOT persistent, on purpose: the value a yuno
+ *  runs with is its configuration -- its main.c ('global':
+ *  {'C_TREEDB.impose_c_schema': false}) or its config file -- where it can be
+ *  read, versioned and deployed. A value saved by a command lived nowhere a
+ *  deploy could see, and outranked the configuration. So this is for the
+ *  occasional case (close-treedb + open-treedb in the same run); a restart
+ *  takes the configured value back.
  *
  *  It does not reach a treedb whose yuno's code imposes the schema from C
- *  (open-treedb impose_c_schema=1): that one is the binary's decision, and a
- *  persistent value set here must not undo it. The answer lists them.
+ *  (open-treedb impose_c_schema=1): that one is the binary's decision. The
+ *  answer lists them.
  ***************************************************************************/
 PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -1391,23 +1397,6 @@ PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw,
     if(!empty_string(set)) {
         BOOL impose = kw_get_bool(gobj, kw, "set", 0, KW_WILD_NUMBER);
         gobj_write_bool_attr(gobj, "impose_c_schema", impose);
-        if(gobj_save_persistent_attrs(gobj, json_string("impose_c_schema")) < 0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "Cannot save impose_c_schema",
-                NULL
-            );
-            gobj_write_bool_attr(gobj, "impose_c_schema", was);
-            return msg_iev_build_response(
-                gobj,
-                -1,
-                json_sprintf("%s: cannot save impose_c_schema", gobj_yuno_role_plus_name()),
-                0,
-                0,
-                kw  // owned
-            );
-        }
         if(impose != was) {
             gobj_log_info(gobj, 0,
                 "function",         "%s", __FUNCTION__,
@@ -1434,7 +1423,7 @@ PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw,
         json_sprintf("%s: impose_c_schema is %s%s%s",
             gobj_yuno_role_plus_name(),
             impose_c_schema? "on": "off",
-            empty_string(set)? "": ", from the next open of each treedb",
+            empty_string(set)? "": ", from the next open of each treedb, until the yuno restarts",
             forced? "; forced on by the yuno's code for the treedbs in forced_by_code": ""
         ),
         0,

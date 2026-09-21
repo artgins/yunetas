@@ -1979,7 +1979,7 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
     JSON_DECREF(system_cols)
 
     /*
-     *  The flag is persistent: leave it off, or the next run opens imposing
+     *  Leave it off, as the tests after this one expect
      */
     if(set_impose_c_schema(gobj, "0") < 0) {
         result += -1;   // Error already logged
@@ -1990,7 +1990,7 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
 
 /***************************************************************************
  *  The yuno's code imposes: open-treedb impose_c_schema=1 wins over the
- *  attribute, which Test 9 left off -- the persistent value a command set.
+ *  attribute, which Test 9 left off with the command.
  *
  *  First the disk is taken ahead of the literal the legitimate way --
  *  save-schema + apply-schema of what __system__ holds, and an ordinary

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### C_TREEDB: `impose_c_schema` is configuration, not a persisted attribute (BREAKING)
+
+- The attribute loses `SDF_PERSIST`. The value a yuno runs with is its
+  configuration: its `main.c` (`'global': {'C_TREEDB.impose_c_schema':
+  false}`) or its config file. A value saved by the command outranked the
+  configuration, survived every new binary, and lived nowhere a deploy could
+  see. A file saved by an older release is ignored (the loader reads only
+  `SDF_PERSIST` attributes).
+- `set-impose-c-schema` stays, for the occasional case: it changes the value
+  in memory, for the next open of a treedb in the same run; a restart takes
+  the configured value back. It no longer saves anything.
+- A yuno that relied on a persisted `set=0` opens imposing again (the
+  default is `1`) until its configuration says `false`.
+
 ### Schema literals live alone in `treedb_schema_<db>.c`
 
 - `treedb_schema_authzs.c`, `treedb_schema_mqtt_broker.c`,
