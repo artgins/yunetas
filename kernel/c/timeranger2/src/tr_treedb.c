@@ -6525,15 +6525,18 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
             /*
              *  A `now` column is stamped by the clock, not by the caller:
              *  normalize_node_field_value() ignores the value it is handed.
-             *  So an update stamps it too, although no kw ever carries it --
-             *  but only when the column is `writable`, which is what tells
-             *  the two kinds of `now` apart: `__graphs__.time` says when the
-             *  layout was last saved, while `__assets__.t` is not writable
-             *  because it says when the BYTES arrived, and renaming the asset
-             *  must not move it.
+             *  So EVERY write stamps it, although no kw ever carries it --
+             *  `writable` or not, persistent or volatile. 7.24.0 stamped only
+             *  a `writable` one, and every "Update Time" of the projects,
+             *  declared ['persistent','time','now'], stayed frozen at the
+             *  create (M5 of the 2026-09-21 review). The instant a thing was
+             *  BORN is a `time` column without `now` (`__assets__.t`): a
+             *  create with no value gives it the clock, and an update does
+             *  not touch it. An epoch is an integer: a `now` of another type
+             *  is not stamped (it would be written as "").
              */
             BOOL stamp_now = (kw_has_word(gobj, desc_flag, "now", 0) &&
-                kw_has_word(gobj, desc_flag, "writable", 0))?TRUE:FALSE;
+                strcmp(kw_get_str(gobj, col, "type", "", 0), "integer")==0)?TRUE:FALSE;
             if(new_value || stamp_now) {
                 if(normalize_node_field_value(
                     topic_name,
@@ -11332,7 +11335,11 @@ PUBLIC json_t *treedb_get_topic_hooks(
  *  and rewrites the column into the full fkey reference. See
  *  kernel/c/timeranger2/DESIGN-treedb-files.md.
  ***************************************************************************/
-#define TREEDB_ASSETS_TOPIC_VERSION     1
+/*
+ *  2: `t` lost `now` (it is when the BYTES arrived, and `now` is stamped by
+ *  every write since M5 of the 2026-09-21 review).
+ */
+#define TREEDB_ASSETS_TOPIC_VERSION     2
 #define TREEDB_BLOBS_DIR                ".blobs"
 
 PRIVATE const char *files_default_types[] = {
@@ -12509,7 +12516,7 @@ PRIVATE json_t *create_assets_topic(
         "{s:{s:s, s:s, s:i, s:s, s:[s,s]},"     /* id */
         " s:{s:s, s:s, s:i, s:s, s:[s]},"       /* content_type */
         " s:{s:s, s:s, s:i, s:s, s:[s]},"       /* size */
-        " s:{s:s, s:s, s:i, s:s, s:[s,s,s]},"   /* t */
+        " s:{s:s, s:s, s:i, s:s, s:[s,s]},"     /* t */
         " s:{s:s, s:s, s:i, s:s, s:[s,s]},"     /* original_name */
         " s:{s:s, s:s, s:i, s:s, s:[s]}}",      /* uploaded_by */
         "id",
@@ -12535,7 +12542,7 @@ PRIVATE json_t *create_assets_topic(
             "header", "Time",
             "fillspace", 20,
             "type", "integer",
-            "flag", "persistent", "time", "now",
+            "flag", "persistent", "time",
         "original_name",
             "id", "original_name",
             "header", "Name",

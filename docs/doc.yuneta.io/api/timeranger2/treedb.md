@@ -1984,16 +1984,19 @@ treedb_create_node(tranger, treedb_name, "binaries",
 
 Only the fields the `kw` carries are normalized — with ONE exception, a column
 flagged `now`: the clock writes it, not the caller, so no `kw` ever carries
-one. An update stamps it when the column is also `writable`, and leaves it
-alone when it is not. That is the difference between *when this record was
-last written* and *when this record was born*:
+one. Every write stamps it, create and update, `writable` or not, persistent
+or volatile (since after 7.24.1; 7.24.0 stamped it on an update only when it
+was `writable`). The instant a record was BORN is a `time` column without
+`now`: the create gives it the clock when the kw brings no value, and an
+update leaves it alone. A `now` column is an integer epoch; of any other type
+it is not stamped.
 
 ```C
-/*  writable: every save stamps it  */
-"time", "id","time", "type","integer", "flag",["persistent","time","now","writable"]
+/*  `now`: every write stamps it -- when this record was last written  */
+"updated", "id","updated", "type","integer", "flag",["persistent","time","now"]
 
-/*  not writable: the create stamps it, and nothing else does  */
-"t",    "id","t",    "type","integer", "flag",["persistent","time","now"]
+/*  `time` alone: the create stamps it -- when this record was born  */
+"t",       "id","t",       "type","integer", "flag",["persistent","time"]
 ```
 
 ```C

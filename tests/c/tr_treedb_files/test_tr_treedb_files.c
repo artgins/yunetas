@@ -28,7 +28,7 @@
  *           16. the gc takes the bytes that no row names
  *           17. a second arrival under the SAME name appends nothing
  *           18. a create of an existing id stores no file
-           19. `now` is stamped on an update -- of a `writable` column
+           19. `now` is stamped by every write, `writable` or not
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -1576,18 +1576,21 @@ PRIVATE int test_gc_takes_orphan_blobs(json_t *tranger)
  *
  ***************************************************************************/
 /***************************************************************************
- *  19. `now` is stamped on an update -- of a `writable` column
+ *  19. `now` is stamped by every write, `writable` or not
  *
  *  The flag says the CLOCK writes the column, and only the create wrote
  *  it: a `__graphs__` layout saved four times said, four times, that it
- *  was saved the first time. `writable` is what tells the two kinds of
- *  `now` apart -- `__assets__.t` is the instant the BYTES arrived, and it
- *  carries no `writable` because renaming the asset must not move it.
+ *  was saved the first time. 7.24.0 stamped it on an update only for a
+ *  `writable` column, and every "Update Time" of the projects -- declared
+ *  ['persistent','time','now'] -- stayed frozen at the create (M5 of the
+ *  2026-09-21 review). `now` is stamped by every write, volatile or not.
+ *  The instant a thing was BORN is a `time` column without `now`:
+ *  `__assets__.t`, which a rename of the asset must not move.
  ***************************************************************************/
 PRIVATE int test_now_is_stamped_on_update(json_t *tranger)
 {
     int result = 0;
-    const char *test = "19. `now` is stamped on an update of a writable column";
+    const char *test = "19. `now` is stamped by every write, writable or not";
     set_expected_results(test, NULL, NULL, NULL, 1);
 
     /*
@@ -1651,6 +1654,8 @@ PRIVATE int test_now_is_stamped_on_update(json_t *tranger)
         printf("%s  FAIL: the device was refused%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
+    json_object_set_new(node, "updated", json_integer(1));
+    json_object_set_new(node, "seen", json_integer(1));
 
     const char *id_h = sha(PNG_H, sizeof(PNG_H)-1);
     json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_h);
@@ -1678,6 +1683,22 @@ PRIVATE int test_now_is_stamped_on_update(json_t *tranger)
     }
     if(kw_get_int(0, asset, "t", 0, 0) != 1) {
         printf("%s  FAIL: a rename moved the instant the bytes arrived%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*-------------------------------------------*
+     *  devices.updated / .seen, no `writable`:
+     *  the device was written, they move
+     *-------------------------------------------*/
+    node = treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-stamp");
+    if(kw_get_int(0, node, "updated", 0, 0) <= 1) {
+        printf("%s  FAIL: a write left a non-writable `now` where the create put it%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(kw_get_int(0, node, "seen", 0, 0) <= 1) {
+        printf("%s  FAIL: a write left a volatile `now` where the create put it%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }

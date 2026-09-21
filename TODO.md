@@ -372,12 +372,8 @@ entries at once:
   cleaned, nor deleted with force. It used to repair itself at the next link.
 - **M4 -- SHIPPED (unreleased, option A).** The rowid seed reads the
   topic's keys (tranger2's cache), not the snap-filtered index.
-- **M5 -- `now`: the census in the 7.24.0 CHANGELOG is false.** Besides the two
-  meta-topic columns there are 7 in the SDK and about 20 in the projects,
-  `['time','now','persistent']` with no `writable`, most headed "Update Time".
-  The SDK's are stamped because their writers carry the column; the projects'
-  stay frozen at the create. Untested shapes of the gate: `now` + `writable` on
-  a string column becomes `""`; a `required` integer `time` refuses the update.
+- **M5 -- SHIPPED (unreleased, option B).** `now` is stamped by every write;
+  a birth time is `time` without `now` (`__assets__.t`, topic_version 2).
 - **M6, M7, M8 -- SHIPPED (unreleased).** A topic's columns are checked before
   it is created; a `__system__` column answers the `file` and hook/fkey rules
   at the write; create, link and delete publish a schema change like update.

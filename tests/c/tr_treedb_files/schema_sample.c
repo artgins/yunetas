@@ -3,7 +3,9 @@
 /*
  *  Two host topics with 'file' columns, and nothing else: __assets__ and
  *  its hooks are treedb's own business, derived at open.
- *    - devices: 'foto' and 'qr' are files (two files in one record)
+ *    - devices: 'foto' and 'qr' are files (two files in one record);
+ *      'updated' and 'seen' are `now` columns with no `writable`, as the
+ *      "Update Time" of the projects -- 'seen' volatile (not persistent)
  *    - places:  'plano' is a file narrowed to pdf, 4 KB, by its column
  */
 static char schema_sample[]= "\
@@ -37,6 +39,18 @@ static char schema_sample[]= "\
                     'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': ['fkey','file','writable']              \n\
+                },                                                  \n\
+                'updated': {                                        \n\
+                    'header': 'Update Time',                        \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'integer',                              \n\
+                    'flag': ['persistent','time','now']             \n\
+                },                                                  \n\
+                'seen': {                                           \n\
+                    'header': 'Seen',                               \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'integer',                              \n\
+                    'flag': ['time','now']                          \n\
                 }                                                   \n\
             }                                                       \n\
         },                                                          \n\

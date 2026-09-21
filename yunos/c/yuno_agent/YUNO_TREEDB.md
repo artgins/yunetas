@@ -653,7 +653,7 @@ Flags (parsed by [`kw_has_word`](#kw_has_word) throughout [`tr_treedb.c`](https:
 | `password`   | Treated as opaque secret on inspection.                                 |
 | `email`/`url`/`enum`/`wild` | Semantic types, mostly informational.                    |
 | `inherit`    | Inherits a value from a related node.                                   |
-| `time`/`now` | The column holds an instant. `now` means the CLOCK writes it, whatever the kw says — on the create, and on every update when the column is also `writable`. A `now` column WITHOUT `writable` is stamped once, at the create, and says when the record was born. |
+| `time`/`now` | The column holds an instant (an integer epoch). `now` means the CLOCK writes it, whatever the kw says, on EVERY write — the create and every update, `writable` or not, persistent or volatile: *when this record was last written*. A `time` column WITHOUT `now` gets the clock at the create when the kw brings no value, and an update leaves it alone: *when this record was born*. (7.24.0 stamped a `now` column on an update only if it was `writable`; since after 7.24.1 `writable` plays no part.) |
 
 Absence of `persistent` + absence of `hook`/`fkey` means **volatile** —
 in-memory only.
@@ -811,16 +811,31 @@ traces.
 | `notnull` | yes | **yes** |
 | `enum` membership | **yes** | **yes** |
 | A pkey2 value | names the instance | **must not change** (refused) |
-| A `now` column | stamped | **stamped, if it is `writable`** |
+| A `now` column | stamped | **stamped** |
 
 The `now` row is the one exception to *"only the fields the kw carries are
 normalized"*: no kw ever carries a `now` column, because the whole point of
-the flag is that the clock writes it and not the caller. Until this was
-fixed, `__graphs__.time` — the instant a treedb layout was saved — kept the
-instant of the FIRST save for the life of the record. `writable` is what
-separates the two meanings: `__graphs__.time` is *when it was last written*,
-`__assets__.t` is *when the bytes arrived*, so a rename of the asset (an
-update of the asset node) leaves it alone.
+the flag is that the clock writes it and not the caller. Until 7.24.0,
+`__graphs__.time` — the instant a treedb layout was saved — kept the instant
+of the FIRST save for the life of the record. 7.24.0 made `writable` the gate,
+and every "Update Time" of the projects, declared without it, stayed frozen at
+the create. Now the two meanings are two flags: `now` is *when it was last
+written* (`__graphs__.time`), and a `time` column without `now` is *when it was
+born* (`__assets__.t`, the instant the bytes arrived — a rename of the asset
+leaves it alone).
+
+```C
+'updated': {
+    'header': 'Update Time',
+    'type': 'integer',
+    'flag': ['persistent', 'time', 'now']   /*  every write stamps it  */
+},
+'created': {
+    'header': 'Create Time',
+    'type': 'integer',
+    'flag': ['persistent', 'time']          /*  the create stamps it  */
+}
+```
 
 An update used to store whatever it was handed: no type, no `notnull`, no
 `enum`. And `enum` was checked only when a *schema* was parsed, never when a

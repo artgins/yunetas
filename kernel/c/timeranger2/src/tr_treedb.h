@@ -152,7 +152,10 @@ PUBLIC int treedb_set_callback(
 
         // Field attributes  (WARNING duplicated in lib_treedb.js)
 
-        "persistent"    // implicit "readable"
+        "persistent"    // stored on disk; implicit "readable", NOT "writable"
+                        // (a treedb column is edited by a user only when it
+                        // says "writable"; unlike SDF_PERSIST of a gobj attr,
+                        // which implies SDF_WR). Without it: volatile.
         "required"
         "notnull"
         "wild"
@@ -182,8 +185,8 @@ PUBLIC int treedb_set_callback(
         "password"
         "email"
         "url"
-        "time"
-        "now"
+        "time"          // an integer epoch; a create with no value stamps it
+        "now"           // stamped by the clock on EVERY write (integer)
         "date"
         "color"
         "image"        // a FILE: an url or a data uri, drawn with <img>

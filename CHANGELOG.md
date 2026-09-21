@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### treedb: a `now` column is stamped by every write, `writable` or not
+
+M5 of the 2026-09-21 review, the owner's option B.
+
+- **7.24.0 stamped a `now` column on an update only if it was `writable`**,
+  and its CHANGELOG said there were two `now` columns in the tree. There are
+  about twenty more -- the "Update Time" of wattyzer, estadodelaire, hidraulia,
+  yunovatios, the mqtt broker and treedb_authzs -- declared
+  `['persistent','time','now']`, with no `writable`: they stayed frozen at
+  the create. `now` is stamped by EVERY write now, persistent or volatile;
+  `writable` plays no part.
+- **The instant a thing was born is a `time` column without `now`.** A create
+  with no value gives it the clock and an update leaves it alone -- which is
+  what `__assets__.t` (when the bytes arrived) needs, so it lost `now`
+  (`__assets__` topic_version 2). No new flag was needed: that is the only
+  column in the tree that wants a birth time.
+- A `now` column is an integer epoch; one of another type is not stamped (it
+  used to be written as `""` by every stamp). None exists in the tree.
+- `tr_treedb.h` / `lib_treedb.js`: the comment of `persistent` says what the
+  treedb does with it -- stored on disk, readable, NOT writable (unlike
+  `SDF_PERSIST` of a gobj attribute, which implies `SDF_WR`).
+- Test: `tr_treedb_files` case 19 (red against the previous library: a
+  non-writable and a volatile `now` column stayed where the create put them).
+
 ### treedb: a `rowid` id is not handed out again under an active snap
 
 M4 of the 2026-09-21 review, the owner's option A.
