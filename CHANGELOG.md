@@ -221,8 +221,8 @@ M6, M7, M8 and M21 of the 2026-09-21 review (`TODO.md`).
 - **"A schema write publishes itself" was false for two doors** (M8): a column
   created with its link (`autolink`/`refs`) and a DELETE raised no version, so
   the change was stored and never reached the running treedb. Create, link and
-  delete publish like update does; a delete reads the column's topic from the
-  links it had before `force` cut them.
+  delete published like update did -- superseded, in this same release, by
+  M36 below: no write publishes any more, `save-schema` does.
 - **A live `open-list` belonged to nobody** (M21): no owner was stamped and no
   reaper walked the lists, so one opened by a session that then died went on
   collecting every append in memory until the yuno stopped. It is the
