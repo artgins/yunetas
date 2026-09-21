@@ -214,13 +214,13 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_save_schema[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name (empty: every treedb opened here)"),
 SDATAPM (DTP_BOOLEAN,   "dry_run",      0,              0,          "Answer the schema a save would write, and write nothing"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_saved_schema[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name (empty: every treedb opened here)"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_set_impose_c_schema[] = {
@@ -1447,6 +1447,67 @@ PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw,
 }
 
 /***************************************************************************
+ *  A schema command with no `treedb_name` acts on every treedb opened here
+ *  with a schema from C, as diff-schema does: one request per C_TREEDB is
+ *  what a console holding a whole yuno wants. Each treedb answers as if it
+ *  had been asked alone, and the answer lists them; `skip_unapplicable`
+ *  leaves out, for apply-schema, a treedb whose saved schema cannot be
+ *  applied (imposed, or nothing newer) -- asked for all, that is not a
+ *  failure.
+ ***************************************************************************/
+PRIVATE json_t *for_every_treedb(
+    hgobj gobj,
+    const char *cmd,
+    json_t *kw,     // owned
+    hgobj src,
+    json_t *(*one)(hgobj gobj, const char *cmd, json_t *kw, hgobj src),
+    BOOL skip_unapplicable
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *answers = json_array();
+    int result = 0;
+    int done = 0;
+    const char *name; json_t *jn_schema;
+    json_object_foreach(priv->jn_c_schemas, name, jn_schema) {
+        if(skip_unapplicable) {
+            json_t *kw_q = json_deep_copy(kw);
+            json_object_set_new(kw_q, "treedb_name", json_string(name));
+            json_t *q = cmd_saved_schema(gobj, "saved-schema", kw_q, src);
+            BOOL can_apply = kw_get_bool(gobj, q, "data`can_apply", 0, 0);
+            JSON_DECREF(q)
+            if(!can_apply) {
+                continue;
+            }
+        }
+        json_t *kw_one = json_deep_copy(kw);
+        json_object_set_new(kw_one, "treedb_name", json_string(name));
+        json_t *answer = one(gobj, cmd, kw_one, src);
+        int r = (int)kw_get_int(gobj, answer, "result", -1, 0);
+        if(r < 0) {
+            result = r;
+        }
+        json_array_append_new(answers, json_pack("{s:s, s:i, s:O, s:O}",
+            "treedb_name", name,
+            "result", r,
+            "comment", json_object_get(answer, "comment")?json_object_get(answer, "comment"):json_null(),
+            "data", json_object_get(answer, "data")?json_object_get(answer, "data"):json_null()
+        ));
+        JSON_DECREF(answer)
+        done++;
+    }
+
+    return msg_iev_build_response(gobj,
+        result,
+        json_sprintf("%s: %s, %d treedb(s)", gobj_yuno_role_plus_name(), cmd, done),
+        0,
+        answers,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
  *  Publish the draft of a schema: the owner's design of M36 (2026-09-21
  *  review).
  *
@@ -1477,10 +1538,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     BOOL dry_run = kw_get_bool(gobj, kw, "dry_run", 0, KW_WILD_NUMBER);
     if(empty_string(treedb_name)) {
-        return msg_iev_build_response(gobj, -1,
-            json_sprintf("%s: what treedb_name?", gobj_yuno_role_plus_name()),
-            0, 0, kw
-        );
+        return for_every_treedb(gobj, cmd, kw, src, cmd_save_schema, FALSE);
     }
     if(!dry_run && !gobj_read_bool_attr(gobj, "master")) {
         return build_readonly_response(gobj, treedb_name, kw);
@@ -1692,9 +1750,11 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     }
 
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    if(empty_string(treedb_name)) {
+        return for_every_treedb(gobj, cmd, kw, src, cmd_saved_schema, FALSE);
+    }
     char in_use_dir[PATH_MAX];
-    if(empty_string(treedb_name) ||
-            in_use_schema_dir(gobj, treedb_name, in_use_dir, sizeof(in_use_dir))<0) {
+    if(in_use_schema_dir(gobj, treedb_name, in_use_dir, sizeof(in_use_dir))<0) {
         return msg_iev_build_response(gobj, -1,
             json_sprintf("%s: treedb '%s' is not open here", gobj_yuno_role_plus_name(), treedb_name),
             0, 0, kw
@@ -1769,10 +1829,7 @@ PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     if(empty_string(treedb_name)) {
-        return msg_iev_build_response(gobj, -1,
-            json_sprintf("%s: what treedb_name?", gobj_yuno_role_plus_name()),
-            0, 0, kw
-        );
+        return for_every_treedb(gobj, cmd, kw, src, cmd_apply_schema, TRUE);
     }
     if(!gobj_read_bool_attr(gobj, "master")) {
         return build_readonly_response(gobj, treedb_name, kw);

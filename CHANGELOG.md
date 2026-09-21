@@ -4,8 +4,15 @@
 
 ### C_TREEDB: an edit of a schema is a draft; save-schema publishes it, apply-schema puts it in use (BREAKING)
 
-M36 of the 2026-09-21 review, the owner's design. The C half; gobj-ui's
-schema editor and gui_agent's Schemas tab follow.
+M36 of the 2026-09-21 review, the owner's design. With gobj-ui 7.23.196 (the
+schema editor stops raising versions and marks drafts) and gui_agent 0.22.74
+(Save, the imposed banner, and an Apply dialog with the relaunched yuno and
+the changes).
+
+- The three commands take no `treedb_name` too: then they act on every
+  treedb opened there with a schema from C and list the answers
+  (`apply-schema` then applies only what `can_apply`), which is what a
+  console holding a whole yuno sends.
 
 - **An edit of `__system__` moves no version.** Every write to a `cols` or
   `topics` node used to raise `topic_version` and `schema_version` (the

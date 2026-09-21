@@ -3076,6 +3076,24 @@ PRIVATE int check_save_and_apply(hgobj gobj)
     JSON_DECREF(jn_resp)
 
     /*
+     *  Unnamed, the command answers for every treedb opened here: what a
+     *  console holding a whole yuno asks
+     */
+    jn_resp = gobj_command(priv->gobj_treedbs, "saved-schema", json_object(), gobj);
+    BOOL listed = FALSE;
+    int idx; json_t *jn_one;
+    json_array_foreach(kw_get_list(gobj, jn_resp, "data", 0, 0), idx, jn_one) {
+        if(strcmp(kw_get_str(gobj, jn_one, "treedb_name", "", 0), TREEDB_NAME)==0 &&
+                kw_get_bool(gobj, jn_one, "data`can_apply", 0, 0)) {
+            listed = TRUE;
+        }
+    }
+    if(!listed) {
+        result += save_fail(gobj, "TEST FAIL: an unnamed saved-schema did not list the treedb", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
      *  Refused while C imposes the schema; applied when it does not
      */
     if(reopen_test_treedb(gobj, TRUE) < 0) {

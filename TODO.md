@@ -431,12 +431,14 @@ entries at once:
 - **M31 -- SHIPPED in gobj-ui 7.23.195** (text nodes; hook cell as DOM).
 - **M32, M33 -- SHIPPED in gobj-ui 7.23.193.**
 - **M35 -- SHIPPED in gui_treedb 0.17.53.**
-- **M36 -- C SHIPPED (unreleased), GUI pending.** The owner's design: an edit
-  of `__system__` is a draft; `save-schema` / `saved-schema` / `apply-schema`
-  in C_TREEDB; a treedb opens from its schema file. Pending: gobj-ui's schema
-  editor stops raising versions (`version_writes()`), and gui_agent's Schemas
-  tab gets the imposed banner, Save, Export as C literal, and an Apply dialog
-  (the relaunched yuno + the changes) enabled only when not imposed.
+- **M36 -- SHIPPED (unreleased C; gobj-ui 7.23.196; gui_agent 0.22.74).** The
+  owner's design: an edit of `__system__` is a draft; `save-schema` /
+  `saved-schema` / `apply-schema` in C_TREEDB (no `treedb_name`: every treedb
+  opened there); a treedb opens from its schema file; the editor stops raising
+  versions; gui_agent's Schemas tab has Save, the imposed banner, and an Apply
+  dialog (relaunched yuno + changes) enabled only when something saved can be
+  applied. Every in-tree yuno forces impose, so Apply is off on all of them
+  until one stops forcing it.
 
 **Medium -- docs and tests**
 

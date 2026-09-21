@@ -1729,6 +1729,11 @@ ycommand -c 'command-yuno id=<id> service=treedbs command=apply-schema treedb_na
 ycommand -c 'kill-yuno id=<id>'; ycommand -c 'run-yuno id=<id>'
 ```
 
+Without `treedb_name` each command acts on every treedb that `C_TREEDB` opened
+and lists the answers — `apply-schema` then applies only the treedbs whose
+saved schema can be applied. It is what gui_agent's Schemas tab sends: one
+request per `C_TREEDB` of the yuno.
+
 Both numbers matter, and that is why the save raises them and nobody else
 does: `schema_version` is what makes the file win over the literal, and
 `topic_version` is what regenerates `topic_cols.json` — without it the new
