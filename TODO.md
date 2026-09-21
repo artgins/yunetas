@@ -361,11 +361,8 @@ entries at once:
   whole or not at all (every new link checked before an old one is undone),
   and `update-node` answers -1 when the record was saved but its links were
   not changed.
-- **M2 -- the `fkey: {parent: hook}` mark of `parse_hooks()` is persisted in
-  the CHILD's `topic_cols.json`** (`tr_treedb.c:2479`, regression of
-  441937134). A hook rename raises only the parent's `topic_version`, so the
-  child reloads the stale mark: *"Only can be one fkey"* on every open, and the
-  links made through the new hook are lost at every restart.
+- **M2 -- SHIPPED (unreleased).** The fkey mark is recomputed at every open
+  and written to no file; a renamed hook no longer loses its links.
 - **M3 -- a ref to a hook that no longer exists is not treated as stale**
   (`tr_treedb.c:8432`). Since 3fea635f3 `_link_nodes()` unlinks the old ref
   first and returns -1 when that fails, so the node can be neither re-linked,

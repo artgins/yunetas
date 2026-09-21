@@ -150,6 +150,8 @@ PRIVATE json_t *apply_child_list_options(
  *  must not be something a client can spell.
  */
 PRIVATE int delete_node(json_t *tranger, json_t *node, json_t *jn_options, BOOL snaps_walked);
+PRIVATE void strip_fkey_marks_of_cols(json_t *cols);
+PRIVATE void strip_fkey_marks(json_t *schema);
 PRIVATE int append_node_record(
     hgobj gobj,
     json_t *tranger,
@@ -737,7 +739,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                 "schema_file",      "%s", schema_full_path,
                 NULL
             );
-            JSON_INCREF(jn_schema)
+            json_t *jn_schema_file = json_deep_copy(jn_schema);
+            strip_fkey_marks(jn_schema_file);   /*  derived, never written  */
             save_json_to_file(
                 gobj,
                 kw_get_str(gobj, tranger, "directory", 0, KW_REQUIRED),
@@ -747,7 +750,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                 (log_opt_t)kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 TRUE, // Create file if not exists or overwrite.
                 FALSE, // only_read
-                jn_schema     // owned
+                jn_schema_file     // owned
             );
 
         } while(0);
@@ -1211,6 +1214,13 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         json_t *pkey2s = kw_get_dict_value(gobj, schema_topic, "pkey2s", 0, 0);
         BOOL system_topic = kw_get_bool(gobj, schema_topic, "system_topic", 0, 0);
 
+        /*  A copy without the fkey marks: they are derived (see
+         *  strip_fkey_marks), and these cols are what topic_cols.json is
+         *  written from.  */
+        json_t *schema_cols = kwid_new_dict(gobj, schema_topic, KW_VERBOSE, "cols");
+        json_t *topic_cols = json_deep_copy(schema_cols);
+        JSON_DECREF(schema_cols)
+        strip_fkey_marks_of_cols(topic_cols);
         json_t *topic = treedb_create_topic( // WARNING Return is NOT YOURS
             tranger,
             treedb_name,
@@ -1218,7 +1228,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             topic_version,
             topic_tkey,
             json_incref(pkey2s),
-            kwid_new_dict(gobj, schema_topic, KW_VERBOSE, "cols"), // owned
+            topic_cols, // owned
             snap_tag,
             system_topic,
             FALSE // create_schema
@@ -2475,6 +2485,51 @@ PUBLIC int parse_schema_cols(
 }
 
 /***************************************************************************
+ *  The `fkey` mark of a column is DERIVED: parse_hooks() writes on a child's
+ *  fkey column the one hook that fills it, `"fkey": {parent_topic: hook}`,
+ *  and the loader keeps only the links it names. It is recomputed from the
+ *  hooks at every open, so it must never reach a file: written into the
+ *  child's topic_cols.json, it outlived a rename of the hook (only the
+ *  PARENT's topic_version rises), and the child reloaded the old one --
+ *  "Only can be one fkey" at every open, and the links of the new hook
+ *  dropped at every restart (M2 of the 2026-09-21 review).
+ ***************************************************************************/
+PRIVATE void strip_fkey_marks_of_cols(json_t *cols) // not owned, MUTATED
+{
+    if(json_is_object(cols)) {
+        const char *name; json_t *col;
+        json_object_foreach(cols, name, col) {
+            if(json_is_object(json_object_get(col, "fkey"))) {
+                json_object_del(col, "fkey");
+            }
+        }
+    } else if(json_is_array(cols)) {
+        size_t idx; json_t *col;
+        json_array_foreach(cols, idx, col) {
+            if(json_is_object(json_object_get(col, "fkey"))) {
+                json_object_del(col, "fkey");
+            }
+        }
+    }
+}
+
+PRIVATE void strip_fkey_marks(json_t *schema) // not owned, MUTATED
+{
+    json_t *topics = json_object_get(schema, "topics");
+    if(json_is_object(topics)) {
+        const char *name; json_t *topic;
+        json_object_foreach(topics, name, topic) {
+            strip_fkey_marks_of_cols(json_object_get(topic, "cols"));
+        }
+    } else if(json_is_array(topics)) {
+        size_t idx; json_t *topic;
+        json_array_foreach(topics, idx, topic) {
+            strip_fkey_marks_of_cols(json_object_get(topic, "cols"));
+        }
+    }
+}
+
+/***************************************************************************
  *  Return 0 if ok or # of errors in negative
  ***************************************************************************/
 PUBLIC int parse_hooks(
@@ -2486,6 +2541,16 @@ PUBLIC int parse_hooks(
 
     json_t *topics = kwid_new_dict(gobj, schema, KW_VERBOSE, "topics");
     const char *topic_name; json_t *topic;
+
+    /*
+     *  The marks are recomputed from the hooks of THIS schema: the ones it
+     *  carries (a stale one read from a file written by an older release,
+     *  or those of an earlier pass) go first, or they read as second hooks.
+     */
+    json_object_foreach(topics, topic_name, topic) {
+        strip_fkey_marks_of_cols(json_object_get(topic, "cols"));
+    }
+
     json_object_foreach(topics, topic_name, topic) {
         json_t *cols = kwid_new_list(gobj, topic, KW_VERBOSE, "cols");
         if(!cols) {

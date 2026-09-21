@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### treedb: the fkey mark is derived, and no file carries it -- a hook can be renamed
+
+M2 of the 2026-09-21 review.
+
+- `parse_hooks()` marks each child fkey column with the one hook that fills
+  it (`"fkey": {parent_topic: hook}`), and the loader keeps only the links it
+  names. The mark was written to disk: `parse_schema()` marks the literal in
+  place, and that literal is what the child's `topic_cols.json` and the
+  treedb schema file are written from. Renaming a hook raises only the
+  PARENT's `topic_version`, so the child reloaded the old mark -- "Only can
+  be one fkey" at every open, and the links made through the new hook
+  dropped at every restart.
+- `parse_hooks()` clears every mark before it computes them, so a stale one
+  read from a file of an older release is ignored; `treedb_open_db()` writes
+  the schema file and the topics' cols without it. In memory (and in
+  `descs`) the mark is as it was.
+- Test: `tr_treedb_hook_rename` (red against the previous library on the
+  error, the lost link and both files).
+
 ### C_TREEDB: an edit of a schema is a draft; save-schema publishes it, apply-schema puts it in use (BREAKING)
 
 M36 of the 2026-09-21 review, the owner's design. With gobj-ui 7.23.196 (the

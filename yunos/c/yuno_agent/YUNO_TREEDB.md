@@ -1893,6 +1893,31 @@ treedb builds them again when it scans the children. This is why a corrupt
 fkey on a child makes the hook of its parent look short. Read the child
 first.
 
+**The loader knows which hook fills an fkey from a mark it derives.** At every
+open `parse_hooks()` writes, in memory, on each child fkey column the one hook
+that fills it, and keeps only the links that mark names:
+
+```C
+/*  the parent declares the hook...  */
+'users': {'type': 'dict', 'flag': ['hook'], 'hook': {'users': 'departments'}}
+
+/*  ...and in memory the child's fkey column carries its mark
+ *  (what `descs` answers; never in a file)  */
+'departments': {'type': 'array', 'flag': ['fkey'], 'fkey': {'departments': 'users'}}
+```
+
+The mark is recomputed from the hooks of the schema in use at every open, and
+**no file carries it** (unreleased, after 7.24.1): not the child's
+`topic_cols.json`, not the treedb schema file. It used to be written into both,
+so a **renamed hook** — which raises only the PARENT's `topic_version` — left
+the child reloading the old mark: *"Only can be one fkey"* at every open, and
+the links made through the new hook dropped at every restart. A store written
+by an older release still has the mark in its files; it is ignored, and it
+goes the next time that topic's version rises. Renaming a hook is now: rename
+the column in the parent, raise the parent's `topic_version` and the
+`schema_version`. The references a child already holds name the OLD hook
+(`departments^d1^users`) and hang from nothing after the rename.
+
 ### 4.11 No raw `malloc` / `free` for treedb-allocated [`json_t`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_t)
 
 CLAUDE.md hard rule. `gbmem_*` everywhere. Jansson is routed through
