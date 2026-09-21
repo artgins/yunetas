@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### C_TRANGER: a multi-key iterator holds no iterator per key (M22)
+
+The memory half of M22 of the 2026-09-21 review.
+
+- `open-iterator rkey=...` kept one full tranger2 iterator per matching key
+  for the life of the iterator -- keys x files of memory, +147 MB for one
+  whole-topic card over 1000 keys with 60 daily files, and gui_treedb reopened
+  that card on every visit. It counts each key's rows at open, keeps a number
+  per key and the match conditions, and `get-page` opens only the keys its
+  page touches, and closes them. Same answers, same `total_rows`, frozen at
+  open as before. A filtered page rebuilds the index of the keys it reads.
+- A topic closed and opened again still makes such an iterator "gone" (the
+  A4 rule): the topic carries an epoch in memory, and the iterator is valid
+  only on the opening it was made on. A deleted key is found by asking the
+  topic, since no part iterator is there to be marked.
+- gui_treedb 0.17.54: the whole-topic Rows card is no longer remembered and
+  reopened on every visit; its options offer `keys (regex)`, filled with
+  `.*`; a new Rows card starts at `from rowid = -100`.
+- Test: `c_tranger` (no tranger2 iterator held after the open, nor after a
+  page; red against the previous library).
+
 ### treedb: the fkey mark is derived, and no file carries it -- a hook can be renamed
 
 M2 and M3 of the 2026-09-21 review.

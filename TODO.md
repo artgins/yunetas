@@ -404,15 +404,10 @@ entries at once:
   whose iterator is gone.
 - **M21 -- SHIPPED (unreleased).** A live `open-list` is stamped with its
   session and reaped with it, like an iterator.
-- **M22 -- half SHIPPED (unreleased).** `tranger2_get_iterator_by_id()` is a
-  hash lookup (`iterators_by_id` on the topic), so opening N iterators is no
-  longer O(N^2) (`test_iterator_index`: 1000 opens cost 5 ms in either half
-  of 2000). **Still open, and it is a design change for the owner:** the
-  MEMORY -- `rkey=.*` opens one full iterator per key up front and keeps them
-  all (keys x files segments: 1000 keys x 60 daily files = +147 MB), and
-  gui_treedb restores that card by itself on every visit. The fix would open
-  the parts lazily, as pages reach them (`c_tranger.c` `open_multi_key_iterator`
-  / `get_multi_key_page`), which changes what `total_rows` costs to compute.
+- **M22 -- SHIPPED (unreleased; gui_treedb 0.17.54).** By-id lookup is a
+  hash, and a multi-key iterator keeps a row count per key and opens a part
+  only while a page reads it; gui_treedb no longer reopens the whole-topic
+  Rows card by itself, and starts a new Rows card at `from_rowid=-100`.
 
 **Medium -- gobj-ui, gui_treedb, gui_agent**
 

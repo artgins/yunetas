@@ -174,7 +174,8 @@ PRIVATE json_t *find_handle_by_identity(
     const char *id,
     json_t *registered_ptr
 );
-PRIVATE json_t *live_part(hgobj gobj, const char *topic_name, json_t *part);
+PRIVATE json_t *open_part(hgobj gobj, const char *iterator_id, json_t *entry, json_t *part);
+PRIVATE json_int_t topic_epoch(hgobj gobj, const char *topic_name);
 PRIVATE void watch_owner(hgobj gobj, hgobj src);
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 
@@ -467,6 +468,7 @@ typedef struct _PRIVATE_DATA {
     json_t *lists;      // open lists registry: list_id -> integer pointer of the list handle
     json_t *iterators;  // open iterators registry: iterator_id -> integer pointer of the iterator handle
     json_t *rts;        // open realtime feeds registry: rt_id -> integer pointer of the rt handle
+    json_int_t topic_epochs;    // last epoch stamped on an open topic, see topic_epoch()
 
 } PRIVATE_DATA;
 
@@ -632,13 +634,59 @@ PRIVATE json_t *find_handle_by_identity(
 }
 
 /***************************************************************************
- *  One part of a multi-key iterator, by identity (see above).
+ *  WHICH opening of a topic a multi-key iterator was made on.
+ *
+ *  A multi-key iterator holds no tranger2 handle between pages, so nothing
+ *  of it dies when its topic is closed -- and a topic closed and opened again
+ *  must still read as gone (A4 of the 2026-09-21 review): the row counts it
+ *  pages with were taken from the opening before. So the topic gets a number
+ *  the first time one is asked of it, and a topic opened again is a new json
+ *  with none: the numbers differ.
  ***************************************************************************/
-PRIVATE json_t *live_part(hgobj gobj, const char *topic_name, json_t *part)
+PRIVATE json_int_t topic_epoch(hgobj gobj, const char *topic_name)
 {
-    return find_handle_by_identity(gobj, topic_name, "iterator",
-        kw_get_str(gobj, part, "id", "", 0), NULL
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+    if(!topic) {
+        return 0;   // Error already logged
+    }
+    json_int_t epoch = json_integer_value(json_object_get(topic, "__c_tranger_epoch__"));
+    if(!epoch) {
+        epoch = ++priv->topic_epochs;
+        json_object_set_new(topic, "__c_tranger_epoch__", json_integer(epoch));
+    }
+    return epoch;
+}
+
+/***************************************************************************
+ *  Open ONE part of a multi-key iterator, for the page that reads it: with
+ *  the match_cond the iterator was opened with. The caller closes it.
+ ***************************************************************************/
+PRIVATE json_t *open_part(
+    hgobj gobj,
+    const char *iterator_id,
+    json_t *entry,  // not owned, the registry entry
+    json_t *part    // not owned
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *key = kw_get_str(gobj, part, "key", "", 0);
+    json_t *jn_part_id = json_sprintf("%s^%s", iterator_id, key);
+    json_t *iterator = tranger2_open_iterator(
+        priv->tranger,
+        kw_get_str(gobj, entry, "topic_name", "", 0),
+        key,
+        json_deep_copy(json_object_get(entry, "match_cond")), // owned
+        NULL,               // index only
+        json_string_value(jn_part_id),
+        gobj_name(gobj),    // creator
+        NULL,               // data
+        NULL                // extra
     );
+    JSON_DECREF(jn_part_id)
+    return iterator;    // Error already logged when NULL
 }
 
 /***************************************************************************
@@ -659,14 +707,13 @@ PRIVATE BOOL iterator_is_live(hgobj gobj, const char *iterator_id)
     if(!parts) {
         return live_handle(gobj, priv->iterators, iterator_id)? TRUE : FALSE;
     }
+    /*  A multi-key iterator holds no tranger2 iterator: it lives while the
+     *  opening of its topic it was made on is the open one.  */
     const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
-    int idx; json_t *part;
-    json_array_foreach(parts, idx, part) {
-        if(!live_part(gobj, topic_name, part)) {
-            return FALSE;
-        }
+    if(!tranger2_topic_is_open(priv->tranger, topic_name)) {
+        return FALSE;
     }
-    return TRUE;
+    return topic_epoch(gobj, topic_name) == kw_get_int(gobj, entry, "epoch", -1, 0);
 }
 
 /***************************************************************************
@@ -686,15 +733,8 @@ PRIVATE int close_registered_iterator(hgobj gobj, const char *iterator_id)
     int result = 0;
     json_t *parts = json_object_get(entry, "parts");
     if(parts) {
-        /*  Part by part: one that is gone was freed with its topic.  */
-        const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
-        int idx; json_t *part;
-        json_array_foreach(parts, idx, part) {
-            json_t *iterator = live_part(gobj, topic_name, part);
-            if(iterator && tranger2_close_iterator(priv->tranger, iterator) < 0) {
-                result = -1;    // Error already logged
-            }
-        }
+        /*  Nothing to close: a multi-key iterator holds no tranger2
+         *  iterator between pages.  */
     } else {
         json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
         if(iterator) {
@@ -744,12 +784,14 @@ PRIVATE const char *deleted_key_of_iterator(hgobj gobj, const char *iterator_id)
     json_t *entry = json_object_get(priv->iterators, iterator_id);
     json_t *parts = json_object_get(entry, "parts");
     if(parts) {
+        /*  No iterator of its own to be marked: ask whether each key is
+         *  still in the topic.  */
         const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
+        json_t *cache = json_object_get(tranger2_topic(priv->tranger, topic_name), "cache");
         int idx; json_t *part;
         json_array_foreach(parts, idx, part) {
-            json_t *iterator = live_part(gobj, topic_name, part);
-            const char *key = json_string_value(json_object_get(iterator, "deleted_key"));
-            if(key) {
+            const char *key = kw_get_str(gobj, part, "key", "", 0);
+            if(!json_object_get(cache, key)) {
                 return key;
             }
         }
@@ -772,7 +814,8 @@ PRIVATE const char *deleted_key_of_iterator(hgobj gobj, const char *iterator_id)
  ***************************************************************************/
 PRIVATE json_t *get_multi_key_page(
     hgobj gobj,
-    const char *topic_name,
+    const char *iterator_id,
+    json_t *entry,      // not owned, the registry entry
     json_t *parts,
     json_int_t from_rowid,  // based 1
     json_int_t limit,
@@ -821,18 +864,10 @@ PRIVATE json_t *get_multi_key_page(
             json_int_t local_first = (first > offset? first : offset) - offset;
             json_int_t local_last = (last < offset + rows? last : offset + rows) - offset;
             const char *key = kw_get_str(gobj, part, "key", "", 0);
-            json_t *iterator = live_part(gobj, topic_name, part);
+            json_t *iterator = open_part(gobj, iterator_id, entry, part);
             if(!iterator) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL,
-                    "msg",          "%s", "Part of a multi-key iterator is gone",
-                    "topic_name",   "%s", topic_name,
-                    "key",          "%s", key,
-                    NULL
-                );
                 JSON_DECREF(data)
-                return NULL;
+                return NULL;    // Error already logged
             }
 
             json_t *page = tranger2_iterator_get_page(
@@ -842,6 +877,7 @@ PRIVATE json_t *get_multi_key_page(
                 (size_t)(local_last - local_first),
                 FALSE
             );
+            tranger2_close_iterator(priv->tranger, iterator);
             if(!page) {
                 JSON_DECREF(data)
                 return NULL;    // Error already logged
@@ -2510,14 +2546,7 @@ PRIVATE json_t *open_multi_key_iterator(
         );
         JSON_DECREF(jn_part_id)
         if(!iterator) {
-            json_t *part;
-            int idx2;
-            json_array_foreach(parts, idx2, part) {
-                tranger2_close_iterator(
-                    priv->tranger,
-                    (json_t *)(uintptr_t)kw_get_int(gobj, part, "ptr", 0, 0)
-                );
-            }
+            /*  The parts counted so far are closed already  */
             JSON_DECREF(parts)
             JSON_DECREF(jn_keys)
             JSON_DECREF(match_cond)
@@ -2530,23 +2559,29 @@ PRIVATE json_t *open_multi_key_iterator(
                 kw  // owned
             );
         }
-        tranger2_set_rt_key_deleted_callback(iterator, mark_iterator_of_deleted_key, gobj);
+        /*
+         *  Counted and CLOSED: a part is opened again only while a page
+         *  reads it (get_multi_key_page). Held for the life of the card, one
+         *  iterator per key cost keys x files of memory -- 1000 keys with 60
+         *  daily files, +147 MB for one whole-topic card, which the treedb
+         *  GUI reopened on every visit (M22 of the 2026-09-21 review).
+         */
         json_int_t rows = (json_int_t)tranger2_iterator_size(iterator);
+        tranger2_close_iterator(priv->tranger, iterator);
         total_rows += rows;
-        json_array_append_new(parts, json_pack("{s:s, s:s, s:I, s:I}",
+        json_array_append_new(parts, json_pack("{s:s, s:I}",
             "key", key,
-            "id", json_string_value(json_object_get(iterator, "id")),
-            "ptr", (json_int_t)(uintptr_t)iterator,
             "rows", rows
         ));
     }
     JSON_DECREF(jn_keys)
-    JSON_DECREF(match_cond)
 
-    json_object_set_new(priv->iterators, iterator_id, json_pack("{s:s, s:I, s:o, s:b}",
+    json_object_set_new(priv->iterators, iterator_id, json_pack("{s:s, s:I, s:I, s:o, s:o, s:b}",
         "topic_name", topic_name,
         "src_gobj", (json_int_t)(uintptr_t)src,
+        "epoch", topic_epoch(gobj, topic_name),
         "parts", parts,
+        "match_cond", match_cond,   // owned
         "backward", kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER)
     ));
     watch_owner(gobj, src);
@@ -2826,7 +2861,8 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     if(parts) {
         page = get_multi_key_page(
             gobj,
-            kw_get_str(gobj, jn_ptr, "topic_name", "", 0),
+            iterator_id,
+            jn_ptr,
             parts,
             from_rowid,
             limit>0?limit:0,

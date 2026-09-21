@@ -59,6 +59,18 @@ command-yuno id=<id> service=<tranger> command=close-iterator iterator_id=all1
 
 The answer of `open-iterator` also gives `keys`, the number of keys it found.
 
+**What it costs.** The open counts the rows of each key once (for a filtered
+iterator that is building and dropping each key's index) and keeps only a
+number per key; a `get-page` opens the keys its page touches, reads, and closes
+them. Until after 7.24.1 it kept one tranger2 iterator per key for its whole
+life — 1000 keys with 60 daily files was +147 MB for one card. The counts are
+the ones taken at open. Bound it anyway: a negative `from_rowid` reads the last
+N records of EACH key, and is what gui_treedb's whole-topic card starts with:
+
+```
+command-yuno id=<id> service=<tranger> command=open-iterator iterator_id=all1 topic_name=binaries rkey=.* from_rowid=-100
+```
+
 A tranger record carries **two independent timestamps**, and a browser of raw
 records needs both:
 

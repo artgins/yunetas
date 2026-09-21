@@ -696,6 +696,13 @@ PRIVATE int do_test(void)
      *      order (5 + 3 + 4 = 12). A page that straddles two keys comes
      *      back in that order, each record naming its key.
      *-------------------------------------------------*/
+    /*  M22 of the 2026-09-21 review: the parts are not held. A multi-key
+     *  iterator kept one full tranger2 iterator per key for its whole life
+     *  (1000 keys x 60 daily files, +147 MB for one whole-topic card); it
+     *  keeps a row count per key now, and opens a part only while a page
+     *  reads it.  */
+    size_t iterators_before = json_array_size(
+        kw_get_list(0, tranger2_topic(tranger, TOPIC_NAME), "iterators", 0, 0));
     r = gobj_command(yuno, "open-iterator",
         json_pack("{s:s, s:s, s:s}",
             "iterator_id", "itABC",
@@ -703,6 +710,9 @@ PRIVATE int do_test(void)
             "rkey", "^[ABC]$"
         ), yuno);
     check_int("open-iterator rkey result", kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("open-iterator rkey holds no tranger2 iterator",
+        (int)json_array_size(kw_get_list(0, tranger2_topic(tranger, TOPIC_NAME), "iterators", 0, 0)),
+        (int)iterators_before);
     data = kw_get_dict(0, r, "data", 0, 0);
     check_int("open-iterator rkey total_rows", kw_get_int(0, data, "total_rows", -1, 0),
         KEY_A_ROWS + KEY_B_ROWS + KEY_C_ROWS);
@@ -720,6 +730,9 @@ PRIVATE int do_test(void)
     check_int("get-page rkey total_rows", kw_get_int(0, data, "total_rows", -1, 0),
         KEY_A_ROWS + KEY_B_ROWS + KEY_C_ROWS);
     check_int("get-page rkey pages", kw_get_int(0, data, "pages", -1, 0), 3);
+    check_int("get-page rkey leaves no tranger2 iterator",
+        (int)json_array_size(kw_get_list(0, tranger2_topic(tranger, TOPIC_NAME), "iterators", 0, 0)),
+        (int)iterators_before);
     {
         json_t *page = kw_get_list(0, data, "data", 0, 0);
         static const char *keys[] = {KEY_A, KEY_A, KEY_B, KEY_B};
