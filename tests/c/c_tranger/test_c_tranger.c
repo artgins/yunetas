@@ -35,6 +35,7 @@
 #define TOPIC_NAME  "topic_cmd"
 #define TOPIC_NAME2 "topic_cmd2"    // closed under its open handles (UAF regression)
 #define TOPIC_NAME3 "topic_cmd3"    // deleted by command with force=1 as an integer
+#define TOPIC_NAME4 "topic_cmd4"    // a no_rt list outlives its topic (leak regression)
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 
 /*  key "A" gets 5 records, key "B" gets 3 records  */
@@ -60,6 +61,11 @@
  *  again under a multi-key iterator (N4 and N5 of the 2026-09-22 review).  */
 #define KEY_E       "E"
 #define KEY_F       "F"
+
+/*  key "G" is paged backward by a MULTI-key iterator while it grows; key
+ *  "H" is deleted beside it, and is none of that iterator's business.  */
+#define KEY_G       "G"
+#define KEY_H       "H"
 
 /***************************************************************
  *              Data
@@ -259,6 +265,7 @@ PRIVATE int g_rt_count = 0;
  *  `rt_id` of the publish is what says which feed produced it.  */
 PRIVATE int g_rt_keyed = 0;     /*  publishes carrying rt_id "rtKEYED"   */
 PRIVATE int g_rt_all = 0;       /*  publishes carrying rt_id "rtALL"     */
+PRIVATE int g_rt_watch_id = 0;  /*  publishes carrying rt_id "itW^__keys__"  */
 
 /*  The probe is also the PARENT of the fake session below: a C_IEVENT_SRV
  *  subscribes its parent to everything it publishes (CHILD model), so the
@@ -284,6 +291,8 @@ PRIVATE int ac_rt_added(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         g_rt_keyed++;
     } else if(strcmp(rt_id, "rtALL")==0) {
         g_rt_all++;
+    } else if(strcmp(rt_id, "itW^__keys__")==0) {
+        g_rt_watch_id++;
     }
 
     KW_DECREF(kw)
@@ -1677,6 +1686,219 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
     r = gobj_command(yuno, "close-iterator",
         json_pack("{s:s}", "iterator_id", "itF"), yuno);
+    JSON_DECREF(r)
+    global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
+     *      A MULTI-key iterator paged backward counts from the LIVE end
+     *      too: N4 was fixed for one key, and the parts of an rkey
+     *      iterator kept the row counts of the open -- so "newest first"
+     *      on the whole-topic card never showed a row appended after it.
+     *-------------------------------------------------*/
+    set_expected_results("a multi-key backward page counts from the live end", NULL, NULL, NULL, 1);
+    for(int j = 0; j < 4; j++) {
+        if(append_one(tranger, KEY_G, BASE_T + j) < 0) {
+            printf("%s: FAIL (append G)\n", APP);
+            return -1;
+        }
+    }
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:b}",
+            "iterator_id", "itG",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^" KEY_G "$",
+            "backward", 1
+        ), yuno);
+    check_int("open-iterator G multi backward result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    for(int j = 4; j < 6; j++) {
+        if(append_one(tranger, KEY_G, BASE_T + j) < 0) {
+            printf("%s: FAIL (append G again)\n", APP);
+            return -1;
+        }
+    }
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itG",
+            "from_rowid", 1,
+            "limit", 2
+        ), yuno);
+    {
+        json_t *page = kw_get_dict(0, r, "data", 0, 0);
+        json_t *rows = kw_get_list(0, page, "data", 0, 0);
+        check_int("multi backward page 1 after appends: total_rows",
+            kw_get_int(0, page, "total_rows", -1, 0), 6);
+        check_int("multi backward page 1 after appends: len", json_array_size(rows), 2);
+        check_int("multi backward page 1 after appends: newest",
+            record_rowid(json_array_get(rows, 0)), 6);
+        check_int("multi backward page 1 after appends: next",
+            record_rowid(json_array_get(rows, 1)), 5);
+    }
+    JSON_DECREF(r)
+
+    /*  A key the iterator does not page is deleted: its keys watch hears
+     *  it, and must not keep it -- it recorded every delete of the topic
+     *  for the life of the iterator.  */
+    for(int j = 0; j < 2; j++) {
+        if(append_one(tranger, KEY_H, BASE_T + j) < 0) {
+            printf("%s: FAIL (append H)\n", APP);
+            return -1;
+        }
+    }
+    r = gobj_command(yuno, "delete-key",
+        json_pack("{s:s, s:s, s:b}",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_H,
+            "force", 1
+        ), yuno);
+    check_int("delete-key H result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    {
+        char creator[NAME_MAX];
+        snprintf(creator, sizeof(creator), "%s^keys", gobj_name(yuno));
+        json_t *watch = tranger2_get_rt_mem_by_id(tranger, TOPIC_NAME, "itG^__keys__", creator);
+        check_bool("the keys watch is under its own creator", watch != NULL, TRUE);
+        check_bool("the keys watch keeps no key it does not page",
+            json_object_get(json_object_get(watch, "deleted_keys"), KEY_H) != NULL, FALSE);
+    }
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itG",
+            "from_rowid", 1,
+            "limit", 2
+        ), yuno);
+    check_int("get-page G after another key was deleted", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itG"), yuno);
+    JSON_DECREF(r)
+    global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
+     *      The keys watch of a multi-key iterator is named
+     *      "<iterator_id>^__keys__", a name a client can give its own
+     *      feed. Under the same creator, the client's feed took the id
+     *      and the iterator could not open; and a get-page of a DEAD
+     *      iterator closed the client's feed as if it were the watch.
+     *-------------------------------------------------*/
+    set_expected_results("a keys watch is not a client's feed", NULL, NULL, NULL, 1);
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s, s:s, s:s}",
+            "rt_id", "itW^__keys__",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_G
+        ), yuno);
+    check_int("open-rt named like a keys watch", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itW",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^" KEY_G "$"
+        ), yuno);
+    check_int("open-iterator beside a feed named like its watch",
+        kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itW"), yuno);
+    check_int("close-iterator itW", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    g_rt_watch_id = 0;
+    append_one(tranger, KEY_G, BASE_T + 10);
+    check_int("the client's feed survives the iterator's close", g_rt_watch_id, 1);
+    r = gobj_command(yuno, "close-rt",
+        json_pack("{s:s}", "rt_id", "itW^__keys__"), yuno);
+    check_bool("close-rt of the client's feed closes it",
+        strncmp(kw_get_str(0, r, "comment", "", 0), "Realtime feed closed", 20) == 0, TRUE);
+    JSON_DECREF(r)
+    global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
+     *      open-rt refuses an rt_id no directory entry can hold: on a
+     *      replica the feed is a directory named after it, and it
+     *      answered "opened" and never delivered.
+     *-------------------------------------------------*/
+    {
+        char long_id[NAME_MAX + 10];
+        memset(long_id, 'x', sizeof(long_id) - 1);
+        long_id[sizeof(long_id) - 1] = 0;
+        r = gobj_command(yuno, "open-rt",
+            json_pack("{s:s, s:s}",
+                "rt_id", long_id,
+                "topic_name", TOPIC_NAME
+            ), yuno);
+        check_int("open-rt with an rt_id longer than NAME_MAX", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+    }
+
+    /*-------------------------------------------------*
+     *      A no_rt list (open-list with to_rowid: no realtime) is not
+     *      its topic's, and it outlives it. Every path that drops a
+     *      registry entry "closed with its topic" asked the topic first,
+     *      and a closed topic answered for the list too: nobody freed it
+     *      (10 KB per list). The leak check at the end is the assertion.
+     *-------------------------------------------------*/
+    set_expected_results("a no_rt list is freed when its topic goes", NULL, NULL, NULL, 1);
+    if(!tranger2_create_topic(
+            tranger,
+            TOPIC_NAME4,
+            "id",
+            "tm",
+            NULL,
+            sf_string_key,
+            json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+            0
+        )) {
+        printf("%s: FAIL (create topic4)\n", APP);
+        return -1;
+    }
+    for(int j = 0; j < 4; j++) {
+        json_t *jn_record = json_pack("{s:s, s:I, s:s}",
+            "id", KEY_A, "tm", (json_int_t)(BASE_T + j), "content", "payload"
+        );
+        md2_record_ex_t md = {0};
+        if(tranger2_append_record(tranger, TOPIC_NAME4, BASE_T + j, 0, &md, jn_record) < 0) {
+            printf("%s: FAIL (append topic4)\n", APP);
+            return -1;
+        }
+    }
+    r = gobj_command(yuno, "open-list",
+        json_pack("{s:s, s:s, s:s, s:i}",
+            "list_id", "lstNoRt1",
+            "topic_name", TOPIC_NAME4,
+            "key", KEY_A,
+            "to_rowid", 3
+        ), yuno);
+    check_int("open-list no_rt 1", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-list",
+        json_pack("{s:s, s:s, s:s, s:i}",
+            "list_id", "lstNoRt2",
+            "topic_name", TOPIC_NAME4,
+            "key", KEY_A,
+            "to_rowid", 3
+        ), yuno);
+    check_int("open-list no_rt 2", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    /*  closed by somebody else: close-list still frees it  */
+    tranger2_close_topic(tranger, TOPIC_NAME4);
+    r = gobj_command(yuno, "close-list", json_pack("{s:s}", "list_id", "lstNoRt1"), yuno);
+    check_bool("close-list of a no_rt list whose topic is closed closes it",
+        strncmp(kw_get_str(0, r, "comment", "", 0), "List closed", 11) == 0, TRUE);
+    JSON_DECREF(r)
+
+    /*  delete-topic drops the other one, and frees it  */
+    r = gobj_command(yuno, "delete-topic",
+        json_pack("{s:s, s:i}",
+            "topic_name", TOPIC_NAME4,
+            "force", 1
+        ), yuno);
+    check_int("delete-topic topic4", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-list", json_pack("{s:s}", "list_id", "lstNoRt2"), yuno);
+    check_bool("delete-topic dropped the no_rt list",
+        strncmp(kw_get_str(0, r, "comment", "", 0), "List not found", 14) == 0, TRUE);
     JSON_DECREF(r)
     global_result += test_json(NULL);
 

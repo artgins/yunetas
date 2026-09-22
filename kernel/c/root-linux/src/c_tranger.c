@@ -77,6 +77,7 @@ command-yuno id=1911 service=tranger command=close-rt rt_id=rt1
  ***********************************************************************/
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #define PCRE2_STATIC
 #define PCRE2_CODE_UNIT_WIDTH 8
@@ -153,6 +154,8 @@ PRIVATE void reap_handles_of(hgobj gobj, hgobj owner, BOOL with_iterators);
 PRIVATE BOOL iterator_is_live(hgobj gobj, const char *iterator_id);
 PRIVATE int close_registered_iterator(hgobj gobj, const char *iterator_id);
 PRIVATE void parts_creator(hgobj gobj, char *bf, size_t bfsize);
+PRIVATE void keys_watch_creator(hgobj gobj, char *bf, size_t bfsize);
+PRIVATE json_t *find_keys_watch(hgobj gobj, json_t *entry);
 PRIVATE void drop_handles_of_topic(hgobj gobj, const char *topic_name);
 PRIVATE int ignore_record_callback(
     json_t *tranger,
@@ -611,7 +614,10 @@ PRIVATE json_t *live_handle(hgobj gobj, json_t *registry, const char *id)
  *  tranger2_topic(), which OPENS a closed topic.
  *
  *  A "no_rt" list is not the topic's, so it has no identity to ask for:
- *  its pointer is the handle.
+ *  its pointer is the handle, and it outlives its topic. It is answered
+ *  BEFORE the topic is asked about: answered NULL for a closed topic, every
+ *  caller dropped the entry as "closed with its topic" and nobody freed the
+ *  list (10 KB per list after a delete-topic).
  ***************************************************************************/
 PRIVATE json_t *find_handle_by_identity(
     hgobj gobj,
@@ -623,6 +629,9 @@ PRIVATE json_t *find_handle_by_identity(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(strcmp(kind, "no_rt")==0) {
+        return registered_ptr;
+    }
     if(!tranger2_topic_is_open(priv->tranger, topic_name)) {
         return NULL;
     }
@@ -634,9 +643,6 @@ PRIVATE json_t *find_handle_by_identity(
     }
     if(strcmp(kind, "rt_disk")==0) {
         return tranger2_get_rt_disk_by_id(priv->tranger, topic_name, id, gobj_name(gobj));
-    }
-    if(strcmp(kind, "no_rt")==0) {
-        return registered_ptr;
     }
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
@@ -688,6 +694,41 @@ PRIVATE json_int_t topic_epoch(hgobj gobj, const char *topic_name)
 PRIVATE void parts_creator(hgobj gobj, char *bf, size_t bfsize)
 {
     snprintf(bf, bfsize, "%s^parts", gobj_name(gobj));
+}
+
+/***************************************************************************
+ *  The creator the KEYS WATCH of a multi-key iterator is opened under, for
+ *  the reason parts_creator() gives: its id `<iterator_id>^__keys__` is a
+ *  name a client can give its own feed. Under the creator of the feeds, a
+ *  client's open-rt took that id first and the iterator could not open,
+ *  and a get-page of a dead iterator closed the CLIENT's feed as if it were
+ *  the watch.
+ ***************************************************************************/
+PRIVATE void keys_watch_creator(hgobj gobj, char *bf, size_t bfsize)
+{
+    snprintf(bf, bfsize, "%s^keys", gobj_name(gobj));
+}
+
+/***************************************************************************
+ *  The keys watch of the multi-key iterator registered as `entry`, or NULL
+ *  when its topic is closed (the watch went with it).
+ ***************************************************************************/
+PRIVATE json_t *find_keys_watch(hgobj gobj, json_t *entry)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
+    if(!tranger2_topic_is_open(priv->tranger, topic_name)) {
+        return NULL;
+    }
+    char creator[NAME_MAX];
+    keys_watch_creator(gobj, creator, sizeof(creator));
+    return tranger2_get_rt_mem_by_id(
+        priv->tranger,
+        topic_name,
+        kw_get_str(gobj, entry, "keys_watch", "", 0),
+        creator
+    );
 }
 
 /***************************************************************************
@@ -768,12 +809,7 @@ PRIVATE int close_registered_iterator(hgobj gobj, const char *iterator_id)
     if(parts) {
         /*  A multi-key iterator holds no tranger2 iterator between pages,
          *  only the rt_mem that watches its keys for a delete.  */
-        json_t *watch = find_handle_by_identity(gobj,
-            kw_get_str(gobj, entry, "topic_name", "", 0),
-            "rt_mem",
-            kw_get_str(gobj, entry, "keys_watch", "", 0),
-            NULL
-        );
+        json_t *watch = find_keys_watch(gobj, entry);
         if(watch) {
             result = tranger2_close_rt_mem(priv->tranger, watch);
         }
@@ -843,12 +879,20 @@ PRIVATE int mark_deleted_key_of_keys_watch(
     void *user_data
 )
 {
+    /*
+     *  Only the keys the iterator pages: the watch is over every key of the
+     *  topic, and recording every delete it hears grew without bound for the
+     *  life of the iterator on a topic whose keys come and go.
+     */
+    if(!json_object_get(json_object_get(iterator, "watched_keys"), key)) {
+        return 0;
+    }
     json_t *deleted_keys = json_object_get(iterator, "deleted_keys");
     if(!deleted_keys) {
-        deleted_keys = json_array();
+        deleted_keys = json_object();
         json_object_set_new(iterator, "deleted_keys", deleted_keys);
     }
-    json_array_append_new(deleted_keys, json_string(key));
+    json_object_set_new(deleted_keys, key, json_true());
     return 0;
 }
 
@@ -869,19 +913,14 @@ PRIVATE const char *deleted_key_of_iterator(hgobj gobj, const char *iterator_id)
         /*  No iterator of its own to be marked: its keys watch was, and a
          *  key gone from the topic since the open counts as deleted too.  */
         const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
-        json_t *watch = find_handle_by_identity(gobj, topic_name, "rt_mem",
-            kw_get_str(gobj, entry, "keys_watch", "", 0), NULL
-        );
+        json_t *watch = find_keys_watch(gobj, entry);
         json_t *deleted_keys = watch? json_object_get(watch, "deleted_keys") : NULL;
         json_t *cache = json_object_get(tranger2_topic(priv->tranger, topic_name), "cache");
         int idx; json_t *part;
         json_array_foreach(parts, idx, part) {
             const char *key = kw_get_str(gobj, part, "key", "", 0);
-            int i; json_t *jn_deleted;
-            json_array_foreach(deleted_keys, i, jn_deleted) {
-                if(strcmp(json_string_value(jn_deleted), key)==0) {
-                    return key;
-                }
+            if(json_object_get(deleted_keys, key)) {
+                return key;
             }
             if(!json_object_get(cache, key)) {
                 return key;
@@ -894,10 +933,33 @@ PRIVATE const char *deleted_key_of_iterator(hgobj gobj, const char *iterator_id)
 }
 
 /***************************************************************************
+ *  The rows a part of a multi-key iterator holds NOW. An unfiltered part is
+ *  its key, which grows under the iterator: counted live, as a one-key
+ *  iterator is (get_single_key_page). With the count frozen at the open, a
+ *  backward page ("newest first", the whole-topic card of the treedb GUI)
+ *  never showed a row appended after it -- N4 of the 2026-09-22 review,
+ *  fixed for one key only. A filtered part pages the index built at its
+ *  open, which does not grow: its count is the one taken then.
+ ***************************************************************************/
+PRIVATE json_int_t part_rows(hgobj gobj, json_t *entry, json_t *part)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(kw_get_bool(gobj, part, "indexed", 0, 0)) {
+        return kw_get_int(gobj, part, "rows", 0, 0);
+    }
+    return (json_int_t)tranger2_topic_key_size(
+        priv->tranger,
+        kw_get_str(gobj, entry, "topic_name", "", 0),
+        kw_get_str(gobj, part, "key", "", 0)
+    );
+}
+
+/***************************************************************************
  *  A page of a multi-key iterator: its parts are one-key iterators laid end
  *  to end in key order, as tr2list prints a topic, so `from_rowid` is a
- *  position in that concatenation (1-based). Each part counts the rows it
- *  had when it was opened — the snapshot the positions were computed from.
+ *  position in that concatenation (1-based). Each part counts its rows as
+ *  part_rows() says: live when unfiltered, as at the open when filtered.
  *  Every record carries its key in __md_tranger__, since the page mixes them.
  *
  *  Backward counts from the end of the concatenation: the parts are read
@@ -916,15 +978,23 @@ PRIVATE json_t *get_multi_key_page(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  Counted once for the whole page: both loops below must cut the
+     *  concatenation with the same numbers.
+     */
+    json_t *live_rows = json_array();
     json_int_t total_rows = 0;
     int idx; json_t *part;
     json_array_foreach(parts, idx, part) {
-        total_rows += kw_get_int(gobj, part, "rows", 0, 0);
+        json_int_t rows = part_rows(gobj, entry, part);
+        json_array_append_new(live_rows, json_integer(rows));
+        total_rows += rows;
     }
     json_int_t pages = (limit > 0)? (total_rows + limit - 1) / limit : 0;
 
     json_t *data = json_array();
     if(from_rowid < 1 || from_rowid > total_rows || limit <= 0) {
+        JSON_DECREF(live_rows)
         return json_pack("{s:I, s:I, s:o}",
             "total_rows", total_rows,
             "pages", pages,
@@ -948,7 +1018,7 @@ PRIVATE json_t *get_multi_key_page(
 
     json_int_t offset = 0;
     json_array_foreach(parts, idx, part) {
-        json_int_t rows = kw_get_int(gobj, part, "rows", 0, 0);
+        json_int_t rows = json_integer_value(json_array_get(live_rows, (size_t)idx));
         if(offset >= last) {
             break;
         }
@@ -958,6 +1028,7 @@ PRIVATE json_t *get_multi_key_page(
             const char *key = kw_get_str(gobj, part, "key", "", 0);
             json_t *iterator = open_part(gobj, iterator_id, entry, part);
             if(!iterator) {
+                JSON_DECREF(live_rows)
                 JSON_DECREF(data)
                 return NULL;    // Error already logged
             }
@@ -971,6 +1042,7 @@ PRIVATE json_t *get_multi_key_page(
             );
             tranger2_close_iterator(priv->tranger, iterator);
             if(!page) {
+                JSON_DECREF(live_rows)
                 JSON_DECREF(data)
                 return NULL;    // Error already logged
             }
@@ -986,6 +1058,7 @@ PRIVATE json_t *get_multi_key_page(
         }
         offset += rows;
     }
+    JSON_DECREF(live_rows)
 
     if(backward) {
         size_t size = json_array_size(data);
@@ -1374,7 +1447,10 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     return msg_iev_build_response(gobj,
         topic?0:-1,
-        topic?json_sprintf("Topic created: '%s'", topic_name):json_string(gobj_log_last_message()),
+        topic?
+            json_sprintf("Topic created: '%s'", topic_name):
+            json_sprintf("%s: cannot create topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
         0,
         json_incref(topic),
         kw  // owned
@@ -1423,7 +1499,10 @@ PRIVATE json_t *cmd_open_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     return msg_iev_build_response(gobj,
         topic?0:-1,
-        topic?json_sprintf("Topic opened: '%s'", topic_name):json_string(gobj_log_last_message()),
+        topic?
+            json_sprintf("Topic opened: '%s'", topic_name):
+            json_sprintf("%s: cannot open topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
         0,
         json_incref(topic),
         kw  // owned
@@ -1499,7 +1578,10 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     return msg_iev_build_response(gobj,
         ret,
-        ret>=0?json_sprintf("Topic deleted: '%s'", topic_name):json_string(gobj_log_last_message()),
+        ret>=0?
+            json_sprintf("Topic deleted: '%s'", topic_name):
+            json_sprintf("%s: cannot delete topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
         0,
         0,
         kw  // owned
@@ -1614,7 +1696,8 @@ PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
                 topic_name,
                 (unsigned long)records
             ):
-            json_string(gobj_log_last_message()),
+            json_sprintf("%s: cannot delete key '%s' of topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), key, topic_name),
         0,
         0,
         kw  // owned
@@ -1672,7 +1755,8 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     return msg_iev_build_response(gobj,
         topics?0:-1,
-        topics?0:json_string(gobj_log_last_message()),
+        topics?0:json_sprintf("%s: cannot list the topics (see the log)",
+            gobj_yuno_role_plus_name()),
         0,
         topic_list,
         kw  // owned
@@ -1728,7 +1812,8 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     return msg_iev_build_response(gobj,
         desc?0:-1,
-        desc?0:json_string(gobj_log_last_message()),
+        desc?0:json_sprintf("%s: cannot read the columns of topic '%s' (see the log)",
+            gobj_yuno_role_plus_name(), topic_name),
         0,
         desc,
         kw  // owned
@@ -2033,7 +2118,8 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -1,
-            json_string(gobj_log_last_message()),
+            json_sprintf("%s: cannot open list '%s' on topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), list_id, topic_name),
             0,
             0,
             kw  // owned
@@ -2123,7 +2209,10 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     return msg_iev_build_response(
         gobj,
         result,
-        result>=0?json_sprintf("List closed: '%s'", list_id):json_string(gobj_log_last_message()),
+        result>=0?
+            json_sprintf("List closed: '%s'", list_id):
+            json_sprintf("%s: cannot close list '%s' (see the log)",
+                gobj_yuno_role_plus_name(), list_id),
         0,
         0,
         kw  // owned
@@ -2641,8 +2730,9 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
  *  client that wants another one sorts the page it holds.
  *
  *  Each part is an ordinary one-key iterator with the same match_cond, so a
- *  filter bounds every key alike, and its row count is frozen at open: that
- *  count is what get-page cuts the concatenation with (get_multi_key_page).
+ *  filter bounds every key alike. Its row count is taken at open, and it is
+ *  what get-page cuts the concatenation with for a FILTERED part; an
+ *  unfiltered one is counted live at every page (part_rows).
  *  Registered like a one-key iterator, with `parts` in place of `ptr`.
  *  Takes ownership of match_cond and of kw.
  ***************************************************************************/
@@ -2704,7 +2794,8 @@ PRIVATE json_t *open_multi_key_iterator(
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_string(gobj_log_last_message()),   // Error already logged
+                json_sprintf("%s: cannot open iterator '%s' on key '%s' of topic '%s' (see the log)",
+                    gobj_yuno_role_plus_name(), iterator_id, key, topic_name),
                 0,
                 0,
                 kw  // owned
@@ -2718,11 +2809,13 @@ PRIVATE json_t *open_multi_key_iterator(
          *  GUI reopened on every visit (M22 of the 2026-09-21 review).
          */
         json_int_t rows = (json_int_t)tranger2_iterator_size(iterator);
+        BOOL indexed = json_object_get(iterator, "index")? TRUE : FALSE;
         tranger2_close_iterator(priv->tranger, iterator);
         total_rows += rows;
-        json_array_append_new(parts, json_pack("{s:s, s:I}",
+        json_array_append_new(parts, json_pack("{s:s, s:I, s:b}",
             "key", key,
-            "rows", rows
+            "rows", rows,
+            "indexed", indexed
         ));
     }
     JSON_DECREF(jn_keys)
@@ -2732,6 +2825,8 @@ PRIVATE json_t *open_multi_key_iterator(
      *  it is the handle the library tells of a deleted key.
      */
     json_t *jn_watch_id = json_sprintf("%s^__keys__", iterator_id);
+    char watch_creator[NAME_MAX];
+    keys_watch_creator(gobj, watch_creator, sizeof(watch_creator));
     json_t *watch = tranger2_open_rt_mem(
         priv->tranger,
         topic_name,
@@ -2739,7 +2834,7 @@ PRIVATE json_t *open_multi_key_iterator(
         json_pack("{s:b}", "only_md", 1),   // match_cond, owned
         ignore_record_callback,
         json_string_value(jn_watch_id),
-        gobj_name(gobj),    // creator
+        watch_creator,
         json_pack("{s:I}",  // extra, owned
             "src_gobj", (json_int_t)(uintptr_t)src
         )
@@ -2751,12 +2846,18 @@ PRIVATE json_t *open_multi_key_iterator(
         return msg_iev_build_response(
             gobj,
             -1,
-            json_string(gobj_log_last_message()),   // Error already logged
+            json_sprintf("%s: cannot open the keys watch of iterator '%s' on topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), iterator_id, topic_name),
             0,
             0,
             kw  // owned
         );
     }
+    json_t *watched_keys = json_object();
+    json_array_foreach(parts, idx, jn_key) {
+        json_object_set_new(watched_keys, kw_get_str(gobj, jn_key, "key", "", 0), json_true());
+    }
+    json_object_set_new(watch, "watched_keys", watched_keys);
     tranger2_set_rt_key_deleted_callback(watch, mark_deleted_key_of_keys_watch, gobj);
 
     json_object_set_new(priv->iterators, iterator_id, json_pack("{s:s, s:I, s:I, s:o, s:o, s:b, s:o}",
@@ -2922,7 +3023,8 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_string(gobj_log_last_message()),
+            json_sprintf("%s: cannot open iterator '%s' on key '%s' of topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), iterator_id, key, topic_name),
             0,
             0,
             kw  // owned
@@ -3069,7 +3171,8 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_string(gobj_log_last_message()),
+            json_sprintf("%s: cannot read a page of iterator '%s' (see the log)",
+                gobj_yuno_role_plus_name(), iterator_id),
             0,
             0,
             kw  // owned
@@ -3149,7 +3252,10 @@ PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgob
     return msg_iev_build_response(
         gobj,
         result,
-        result>=0?json_sprintf("Iterator closed: '%s'", iterator_id):json_string(gobj_log_last_message()),
+        result>=0?
+            json_sprintf("Iterator closed: '%s'", iterator_id):
+            json_sprintf("%s: cannot close iterator '%s' (see the log)",
+                gobj_yuno_role_plus_name(), iterator_id),
         0,
         0,
         kw  // owned
@@ -3200,6 +3306,31 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             gobj,
             -1,
             json_sprintf("What topic_name?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    /*
+     *  A replica names a directory after the id of an rt_disk feed, and a
+     *  name longer than a directory entry can be is a feed that never
+     *  delivers. It answered "opened" all the same. Refused here for the
+     *  master's rt_mem too: one rule for the id, whichever side opens it.
+     */
+    if(strlen(rt_id) > NAME_MAX) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "rt_id too long",
+            "topic_name",   "%s", topic_name,
+            "length",       "%d", (int)strlen(rt_id),
+            "max",          "%d", NAME_MAX,
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: rt_id longer than %d bytes", gobj_yuno_role_plus_name(), NAME_MAX),
             0,
             0,
             kw  // owned
@@ -3275,7 +3406,8 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_string(gobj_log_last_message()),
+            json_sprintf("%s: cannot open realtime feed '%s' on topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), rt_id, topic_name),
             0,
             0,
             kw  // owned
@@ -3359,7 +3491,10 @@ PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return msg_iev_build_response(
         gobj,
         result,
-        result>=0?json_sprintf("Realtime feed closed: '%s'", rt_id):json_string(gobj_log_last_message()),
+        result>=0?
+            json_sprintf("Realtime feed closed: '%s'", rt_id):
+            json_sprintf("%s: cannot close realtime feed '%s' (see the log)",
+                gobj_yuno_role_plus_name(), rt_id),
         0,
         0,
         kw  // owned
@@ -3800,7 +3935,8 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, gobj_event_t event, json_t *kw, hg
         );
 
         if(result<0) {
-            jn_comment = json_string(gobj_log_last_message());
+            jn_comment = json_sprintf("%s: cannot append the record to topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name);
             break;
         } else {
            jn_comment = json_sprintf("Record added");

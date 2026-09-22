@@ -26,12 +26,12 @@ on time-series topics.
 | `open-topic` | Open an existing topic. |
 | `delete-topic` | Delete a topic. **Irrecoverable.** A topic that still holds records needs `force=1`, and the refusal says so: `command-yuno id=<id> service=<tranger> command=delete-topic topic_name=frames force=1`. Before 7.20.x (Unreleased) the guard never fired and a topic with records was deleted on the first call. |
 | `delete-key` | Delete a whole key (primary key) of a topic and every record it holds. **Irrecoverable and master-only**; the delete propagates to the in-process subscribers and to the `rt_by_disk` followers. A key that still holds records needs `force=1` — the refusal names the record count. A key that is not there is an error, not a silent success. |
-| `open-list` / `close-list` | Open or close a record list (one-shot snapshot with `return_data=1`, else a live list collecting realtime appends). A live list opened by a remote session is that session's, like its iterators: it is closed when the session closes, and survives the session closing its last Live card. A **keyless** list accepts `rkey` (PCRE2 regex over the keys), and it governs both the disk load **and** the realtime feed. |
+| `open-list` / `close-list` | Open or close a record list (one-shot snapshot with `return_data=1`, else a live list collecting realtime appends). A live list opened by a remote session is that session's, like its iterators: it is closed when the session closes, and survives the session closing its last Live card. A **keyless** list accepts `rkey` (PCRE2 regex over the keys), and it governs both the disk load **and** the realtime feed. A list with no realtime feed (`to_rowid` set) is not its topic's, so it outlives it: `close-list` frees it after its topic closed, and a `delete-topic` frees the ones of that topic (after 7.25.3 they leaked, 10 KB each). |
 | `get-list-data` | Retrieve an open list's data. |
 | `list-keys` | List a topic's keys with their record counts **and their time span on both axes**: `[{key, records, fr_t, to_t, fr_tm, to_tm}]`. Lets a client bound a time picker to what the key really holds without reading a record. Filters, sorts and pages **in the server**: `rkey` (PCRE2 regex), `order=key\|records` + `desc`, and `from`/`limit` (with `limit>0` the answer is a page `{total_rows, pages, data}`, and `limit=0` keeps the plain full list). |
 | `open-iterator` / `close-iterator` | Open/close a stateful per-key iterator (row index only, no upfront load) for cursor pagination. The handles a remote session opens are stamped with it and reaped when the session closes, whether or not it subscribed to anything (the service watches the session's `EV_ON_CLOSE`, once per session). Takes the match conditions below. A filtered iterator indexes the matching rows at open, so `total_rows` and the pages count only those. Give `key` for one key, or `rkey` (PCRE2 regex) for several keys: see *Several keys in one iterator* below. |
 | `get-page` | Get a page `{total_rows, pages, data}` from an open iterator (`limit`, optional `backward`). `from_rowid` is 1-based and, on a **filtered** iterator, is a position among the MATCHING rows (a global rowid only when the iterator does not filter). **`backward` counts from the END and returns the newest rows first**, for every kind of iterator — one key filtered or not, several keys: `get-page iterator_id=it1 from_rowid=1 limit=100 backward=1` is the newest 100. A `get-page` that does not say takes the direction the iterator was OPENED with (`open-iterator … backward=1`). Before 7.25.0 an unfiltered one-key iterator kept the window counted from the start and only reversed it, and `open-iterator backward=1` did nothing. An iterator whose key was deleted since it opened (by `delete-key`, or by a treedb sharing the tranger) is closed at its next `get-page`, which answers `-1` with *"iterator 'it1' closed, its key 'D' was deleted: open it again"*; asked again, it is *"Iterator not found"*. A multi-key iterator closes when ANY of its keys goes. |
-| `open-rt` / `close-rt` | Open/close a realtime feed on a topic key (no history load). New appends are published as `EV_TRANGER_RECORD_ADDED` to subscribers. |
+| `open-rt` / `close-rt` | Open/close a realtime feed on a topic key (no history load). New appends are published as `EV_TRANGER_RECORD_ADDED` to subscribers. An `rt_id` longer than `NAME_MAX` (255 bytes) is refused with `-1` (a replica names a directory after it), and so is any feed the tranger cannot open: `open-rt` answers `-1` and names the feed, it never answers "opened" for a feed that does not deliver. |
 | `add-record` | Append a record. |
 | `print-tranger` | Dump tranger state as bounded JSON (`expanded`, `lists_limit` and `dicts_limit`. Unexpanded containers answer as `[[size]]`). |
 | `desc` | Describe topic schema. |
@@ -73,12 +73,24 @@ service): the entry is dropped at the stop, after the `delete-topic`, when a
 `open-rt` / `open-list` meet the id again — so the same id opens a new handle,
 with data, instead of *"already open"* and no data.
 
+**The keys watch is not a client's feed.** It is named
+`<iterator_id>^__keys__` and opened under a creator of its own, so a client's
+`open-rt rt_id=all1^__keys__` is another feed: until after 7.25.3 the two
+collided, `open-iterator` answered `-1`, and a `get-page` of a dead iterator
+closed the client's feed. It records only the deletes of the keys its iterator
+pages.
+
 **What it costs.** The open counts the rows of each key once (for a filtered
 iterator that is building and dropping each key's index) and keeps only a
 number per key; a `get-page` opens the keys its page touches, reads, and closes
 them. Until after 7.24.1 it kept one tranger2 iterator per key for its whole
-life — 1000 keys with 60 daily files was +147 MB for one card. The counts are
-the ones taken at open. Bound it anyway: a negative `from_rowid` reads the last
+life — 1000 keys with 60 daily files was +147 MB for one card. A key the
+iterator does not filter is counted LIVE at every `get-page`, like a one-key
+iterator: a backward page (newest first) shows the rows appended since the open.
+A filtered key keeps the count of the rows its filter matched at open (after
+7.25.3; before, every key kept the count of the open, so the whole-topic card
+never showed a new row). A key CREATED after the open is not in the iterator:
+open it again to see it. Bound it anyway: a negative `from_rowid` reads the last
 N records of EACH key, and is what gui_treedb's whole-topic card starts with:
 
 ```
