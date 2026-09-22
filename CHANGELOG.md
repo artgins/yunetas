@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### gobj-ui 7.25.3, yunos-js gui_agent 0.22.76
+
+- `kernel/js/gobj-ui` -> 7.25.3: the schema editor rebuilds its drafts from
+  the host (`EV_DRAFTS`, N13). `yunos/js` -> gui_agent 0.22.76: the Schemas
+  tab reads `draft_changed` off every `saved-schema` answer and sends it to
+  every editor under its tree; both SPAs on gobj-ui ^7.25.3. JS API index
+  regenerated.
+
 ### timeranger2: a marked md2 file is not read whole at every wake-up of a follower
 
 - A file the master marked `.unordered` (a late record, M16) was read whole
