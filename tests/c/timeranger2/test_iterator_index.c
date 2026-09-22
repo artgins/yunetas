@@ -16,6 +16,11 @@
  *      - a duplicate (id, creator) is still refused;
  *      - closing every iterator leaves the index empty (no reference kept).
  *
+ *  And the pages of an unfiltered iterator: its segments are taken again
+ *  when the key's cache moved (N4 of the 2026-09-22 review: an append must
+ *  be in the next page), and ONLY then -- they used to be deep-copied from
+ *  the cache on every page of an idle key.
+ *
  *  It also PRINTS the time of the two halves of the opens: with a linear
  *  lookup the second half costs more than the first; with the index they
  *  cost the same. Printed, not asserted: a timing is not a test.
@@ -261,6 +266,43 @@ PRIVATE int do_test(void)
             (int)json_array_size(json_object_get(topic, "iterators")));
         result += -1;
     }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  The segments of an unfiltered
+     *  iterator: taken again when the key
+     *  moved, and only then
+     *-------------------------------------*/
+    set_expected_results("pages take the segments again only when the key moved",
+        NULL, NULL, NULL, 1);
+    json_t *pager = open_one(tranger, 0, "pager");
+    json_t *page = tranger2_iterator_get_page(tranger, pager, 1, 10, TRUE);
+    json_t *segments_1 = json_object_get(pager, "segments");
+    JSON_DECREF(page)
+    page = tranger2_iterator_get_page(tranger, pager, 1, 10, TRUE);
+    if(json_object_get(pager, "segments") != segments_1) {
+        printf("%sERROR%s --> a page of an idle key took the segments again\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(page)
+
+    char key0[NAME_MAX];
+    build_key(key0, sizeof(key0), 0);
+    md2_record_ex_t md = {0};
+    tranger2_append_record(tranger, TOPIC_NAME, BASE_T + 1, 0, &md,
+        json_pack("{s:s, s:I}", "id", key0, "tm", (json_int_t)(BASE_T + 1))
+    );
+    page = tranger2_iterator_get_page(tranger, pager, 1, 10, TRUE);
+    json_t *newest = json_array_get(json_object_get(page, "data"), 0);
+    if(kw_get_int(0, page, "total_rows", 0, 0) != 2 ||
+            kw_get_int(0, newest, "tm", 0, 0) != BASE_T + 1) {
+        printf("%sERROR%s --> the page after an append does not have it: total_rows %d\n",
+            On_Red BWhite, Color_Off, (int)kw_get_int(0, page, "total_rows", 0, 0));
+        result += -1;
+    }
+    JSON_DECREF(page)
+    tranger2_close_iterator(tranger, pager);
     result += test_json(NULL);
 
     set_expected_results("shutdown", NULL, NULL, NULL, 1);

@@ -309,6 +309,7 @@ PRIVATE json_int_t next_segment_row(
     json_int_t *rowid
 );
 PRIVATE BOOL segment_t_ordered(json_t *segment);
+PRIVATE json_t *key_cache_stamp(json_t *topic, const char *key);
 PRIVATE BOOL tranger2_match_metadata(
     json_t *match_cond,
     json_int_t total_rows,
@@ -852,6 +853,58 @@ PRIVATE BOOL rt_id_is_confined(
 }
 
 /***************************************************************************
+ *  Replace a topic's topic_var.json WHOLE (no merge with what it held),
+ *  through a temporary file and a rename(): at every instant the file on
+ *  disk is the old one or the new one, never none.
+ ***************************************************************************/
+PRIVATE int replace_topic_var(
+    hgobj gobj,
+    json_t *tranger,
+    const char *directory,
+    const char *topic_name,
+    json_t *jn_topic_var  // owned
+)
+{
+    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
+    if(topic) {
+        kw_update_except(gobj, topic, jn_topic_var, topic_fields); // data from topic disk are inmutable!
+    }
+
+    if(save_json_to_file(
+        gobj,
+        directory,
+        "topic_var.json.new",
+        (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
+        (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
+        0,
+        TRUE,   // create
+        FALSE,  // only_read
+        jn_topic_var  // owned
+    )<0) {
+        // Error already logged
+        return -1;
+    }
+
+    char path_new[PATH_MAX];
+    char path_var[PATH_MAX];
+    build_path(path_new, sizeof(path_new), directory, "topic_var.json.new", NULL);
+    build_path(path_var, sizeof(path_var), directory, "topic_var.json", NULL);
+    if(rename(path_new, path_var)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot replace topic_var.json, rename() FAILED",
+            "path",         "%s", path_var,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
    Create topic if not exist. Alias create table.
    HACK IDEMPOTENT function
  ***************************************************************************/
@@ -1156,12 +1209,40 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                     );
                 }
                 file_remove(directory, "topic_cols.json");
-                file_remove(directory, "topic_var.json");
                 version_changed = TRUE;
             }
         }
 
-        if(!file_exists(directory, "topic_var.json")) {
+        if(version_changed) {
+            /*----------------------------------------*
+             *  Replace topic_var.json
+             *
+             *  The version change re-creates topic_var.json from the
+             *  schema, so a key the schema no longer carries (pkey2s)
+             *  goes away with it. `last_rowid_id` is not schema: it is the
+             *  counter treedb keeps there so a rowid id is never handed out
+             *  twice, and re-seeding it from the ids still alive would hand
+             *  out the deleted highest one again. It survives the change.
+             *  The file is REPLACED, never removed first: a process dying
+             *  between a remove and the write-back lost the counter.
+             *----------------------------------------*/
+            json_t *new_var = json_deep_copy(jn_var);
+            if(last_rowid_id > 0) {
+                json_object_set_new(new_var, "last_rowid_id", json_integer(last_rowid_id));
+            }
+            if(replace_topic_var(gobj, tranger, directory, topic_name, new_var)<0) {
+                // Error already logged: the old topic_var.json is still there
+            }
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Re-Creating topic_var.json",
+                "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
+                "topic",        "%s", topic_name,
+                NULL
+            );
+
+        } else if(!file_exists(directory, "topic_var.json")) {
             /*----------------------------------------*
              *      Create topic_var.json
              *----------------------------------------*/
@@ -1181,23 +1262,6 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             );
         }
 
-        /*
-         *  The version change re-creates topic_var.json from the schema, so
-         *  a key the schema no longer carries (pkey2s) goes away with it.
-         *  `last_rowid_id` is not schema: it is the counter treedb keeps
-         *  there so a rowid id is never handed out twice, and re-seeding it
-         *  from the ids still alive would hand out the deleted highest one
-         *  again. It survives the change.
-         */
-        if(version_changed && last_rowid_id > 0) {
-            if(tranger2_write_topic_var(
-                tranger,
-                topic_name,
-                json_pack("{s:I}", "last_rowid_id", last_rowid_id)
-            )<0) {
-                // Error already logged
-            }
-        }
 
         if(!file_exists(directory, "topic_cols.json")) {
             /*----------------------------------------*
@@ -2309,7 +2373,18 @@ PRIVATE char *get_file_id(
         filename_mask = json_string_value(json_object_get(tranger, "filename_mask"));
     }
 
-    strftime(bf, bfsize, filename_mask, tm);
+    if(empty_string(filename_mask) || strftime(bf, (size_t)bfsize, filename_mask, tm) == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "filename_mask gives no file id",
+            "filename_mask","%s", filename_mask?filename_mask:"",
+            "t",            "%lu", (unsigned long)__t__,
+            NULL
+        );
+        *bf = 0;
+        return NULL;
+    }
     return bf;
 }
 
@@ -2327,7 +2402,13 @@ PRIVATE char *get_t_filename(
 )
 {
     char filename[NAME_MAX];
-    get_file_id(filename, sizeof(filename), tranger, topic, __t__);
+    if(!get_file_id(filename, sizeof(filename), tranger, topic, __t__)) {
+        // Error already logged
+        if(bfsize > 0) {
+            *bf = 0;
+        }
+        return NULL;
+    }
 
     snprintf(bf, bfsize, "%s.%s",
         filename,
@@ -5305,14 +5386,18 @@ PRIVATE int master_to_update_client_load_record_callback(
     char filename[NAME_MAX*2];
     system_flag2_t system_flag = md_record_ex->system_flag;
 
-    get_t_filename(
+    if(!get_t_filename(
         filename,
         sizeof(filename),
         tranger,
         topic,
         FALSE,
         (system_flag & sf_t_ms)? md_record_ex->__t__/1000 : md_record_ex->__t__
-    );
+    )) {
+        // Error already logged: no file to link into the feed's directory
+        JSON_DECREF(record)
+        return 0;
+    }
     snprintf(full_path_dest, sizeof(full_path_dest), "%s/%s/%s", disk_path, key, filename);
 
     const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
@@ -5795,7 +5880,18 @@ PRIVATE json_int_t update_new_records_from_disk(
      *  file is then read from the row after the ones the cell counted.
      */
     char file_id_[NAME_MAX];
-    snprintf(file_id_, sizeof(file_id_), "%s", filename);
+    if(snprintf(file_id_, sizeof(file_id_), "%s", filename) >= (int)sizeof(file_id_)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "md2 filename too long",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "filename",     "%s", filename,
+            NULL
+        );
+        return -1;
+    }
     char *ext = strrchr(file_id_, '.');
     if(ext) {
         *ext = 0;
@@ -7363,6 +7459,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     json_object_set_new(iterator, "topic_name", json_string(topic_name));
     json_object_set_new(iterator, "match_cond", match_cond);    // owned
     json_object_set_new(iterator, "segments", segments);        // owned
+    json_object_set_new(iterator, "segments_stamp", key_cache_stamp(topic, key));
 
     json_object_set_new(iterator, "cur_segment", json_integer(0));
     json_object_set_new(iterator, "cur_rowid", json_integer(0));
@@ -7917,20 +8014,25 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
      *  while total_rows below is the live count: a page past the count of
      *  the open came back empty, and a client reading newest first missed
      *  the newest rows (N4 of the 2026-09-22 review). Taken again from the
-     *  cache, which every append keeps current, before each page.
+     *  cache, which every append keeps current -- but only when the key's
+     *  cache moved since they were taken: get_segments() deep-copies every
+     *  cell of the key, and a client paging an idle key paid it per page.
      */
-    BOOL realtime;
-    json_t *fresh_segments = get_segments(
-        gobj,
-        tranger,
-        topic,
-        key,
-        json_object_get(iterator, "match_cond"),
-        &realtime
-    );
-    if(fresh_segments) {
-        json_object_set_new(iterator, "segments", fresh_segments);
-        segments = fresh_segments;
+    json_t *stamp = key_cache_stamp(topic, key);
+    if(!json_equal(stamp, json_object_get(iterator, "segments_stamp"))) {
+        BOOL realtime;
+        segments = get_segments(
+            gobj,
+            tranger,
+            topic,
+            key,
+            json_object_get(iterator, "match_cond"),
+            &realtime
+        );
+        json_object_set_new(iterator, "segments", segments);
+        json_object_set_new(iterator, "segments_stamp", stamp);
+    } else {
+        JSON_DECREF(stamp)
     }
 
     json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
@@ -8055,6 +8157,25 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         "total_rows", total_rows,
         "pages", pages,
         "data", data
+    );
+}
+
+/***************************************************************************
+ *  What the segments of a key are taken from, in three numbers: the rows
+ *  of the key, its files, and its last file. An append moves the rows, a
+ *  new file the count and the last id, a deleted key all of them. Equal
+ *  stamps, equal segments: they are cut from rows and files only.
+ ***************************************************************************/
+PRIVATE json_t *key_cache_stamp(json_t *topic, const char *key)
+{
+    json_t *cache_files = get_cache_files(topic, key);
+    json_t *cache_total = get_cache_total(topic, key);
+    size_t n_files = json_array_size(cache_files);
+    json_t *last_file = n_files > 0? json_array_get(cache_files, n_files - 1): NULL;
+    return json_pack("{s:I, s:I, s:s}",
+        "rows", (json_int_t)json_integer_value(json_object_get(cache_total, "rows")),
+        "files", (json_int_t)n_files,
+        "last_file", last_file? json_string_value(json_object_get(last_file, "id")): ""
     );
 }
 
@@ -10174,14 +10295,17 @@ PUBLIC void tranger2_print_md2_record(
     uint64_t size = md_record_ex->__size__;
 
     char filename[NAME_MAX*2];
-    get_t_filename(
+    if(!get_t_filename(
         filename,
         sizeof(filename),
         tranger,
         topic,
         TRUE,   // TRUE for data, FALSE for md2
         (system_flag & sf_t_ms)? t/1000:t  // WARNING must be in seconds!
-    );
+    )) {
+        // Error already logged: the line says so instead of naming no file
+        snprintf(filename, sizeof(filename), "%s", "?");
+    }
 
     const char *topic_dir = kw_get_str(0, topic, "directory", "", KW_REQUIRED);
 
@@ -10217,6 +10341,7 @@ PUBLIC void tranger2_print_record_filename(
     system_flag2_t system_flag = md_record_ex->system_flag;
 
     time_t t = (time_t)md_record_ex->__t__;
+    /*  A failure is logged there, and leaves bf empty  */
     get_t_filename(
         bf,
         bfsize,

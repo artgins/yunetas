@@ -431,6 +431,11 @@ PRIVATE int do_test(void)
                             ], \
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
+                            'segments_stamp': { \
+                                'rows': 90000, \
+                                'files': 2, \
+                                'last_file': '2000-01-02' \
+                            }, \
                             'list_type': 'iterator',\
                             'load_record_callback': 9999 \
                         }, \
@@ -467,6 +472,11 @@ PRIVATE int do_test(void)
                             ], \
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
+                            'segments_stamp': { \
+                                'rows': 90000, \
+                                'files': 2, \
+                                'last_file': '2000-01-02' \
+                            }, \
                             'list_type': 'iterator',\
                             'load_record_callback': 9999 \
                         } \
@@ -738,6 +748,11 @@ PRIVATE int do_test(void)
                             ], \
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
+                            'segments_stamp': { \
+                                'rows': 90000, \
+                                'files': 2, \
+                                'last_file': '2000-01-02' \
+                            }, \
                             'list_type': 'iterator',\
                             'load_record_callback': 9999 \
                         }, \
@@ -774,6 +789,11 @@ PRIVATE int do_test(void)
                             ], \
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
+                            'segments_stamp': { \
+                                'rows': 90000, \
+                                'files': 2, \
+                                'last_file': '2000-01-02' \
+                            }, \
                             'list_type': 'iterator',\
                             'load_record_callback': 9999 \
                         } \
