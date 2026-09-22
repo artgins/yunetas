@@ -46,6 +46,18 @@ filtered iterator opens never enter its count or its pages, while an unfiltered
 one recounts the key on every call. `tranger2_topic_key_range()` reports a
 key's span on both axes without reading a record.
 
+The rows of a key are in `t` order except in a file that holds a late record
+(marked `<file>.unordered`); a `t` scan reads such a file through instead of
+stopping at the first row past its range. Rows are never assumed in `tm` order:
+a `tm` condition skips a row and never ends a scan, in either direction.
+
+```C
+/*  E1 t=100, E2 t=50000, E3 t=200 (late) in one file: [150, 250] gives E3  */
+json_t *it = tranger2_open_iterator(tranger, "readings", key,
+    json_pack("{s:I, s:I}", "from_t", (json_int_t)150, "to_t", (json_int_t)250),
+    NULL, "range", "", data, NULL);
+```
+
 > **In the md2 record, the times carry flags.** On disk the 16 high bits of
 > `__t__` hold the `user_flag` and those of `__tm__` the `system_flag`; only the
 > low 44 bits are the time. Always read them through `get_time_t()` /
@@ -100,8 +112,12 @@ and any name holding `/` or `` ` ``. A leading `.` stays legal (MQTT queues
 are `<client_id>-IN/-OUT`, and the broker accepts `.foo` as a client id).
 `tranger2_open_topic()` answers `NULL` for a directory without
 `topic_desc.json`. `tranger2_delete_topic()` and `tranger2_backup_topic()` are
-master-only, like every other destructive call. Regression coverage in
-`tests/c/timeranger2/test_topic_path_traversal.c`.
+master-only, like every other destructive call. The **rt id** of a disk feed
+(`<topic>/disks/<id>/`) follows the directory half of the rule, and is refused
+longer than `NAME_MAX` too; an id already in use by a live feed of the topic is
+refused whatever its creator (one id, one directory, one feed). Regression
+coverage in `tests/c/timeranger2/test_topic_path_traversal.c` and
+`test_rt_disk_multi_feed.c`.
 
 ### `on_critical_error` is for writes, never for reads
 
