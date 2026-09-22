@@ -3280,8 +3280,9 @@ PRIVATE int load_record_callback(
  *  Realtime-only callback (open-rt): stream each NEW append as
  *  EV_TRANGER_RECORD_ADDED, WITHOUT retaining it anywhere (the feed loads
  *  no history and keeps no data list — the subscriber gets the pushes).
- *  Stamps a __md_tranger__ with the same field names get-page emits so the
- *  consumer renders live and paged records identically.
+ *  The record arrives with the __md_tranger__ timeranger2 attaches for the
+ *  feeds that take it, the same dict get-page emits, so the consumer renders
+ *  live and paged records identically.
  ***************************************************************************/
 PRIVATE int publish_rt_callback(
     json_t *tranger,
@@ -3298,18 +3299,6 @@ PRIVATE int publish_rt_callback(
     if(!jn_record) {
         /*  content not available for this append — nothing to stream  */
         return 0;
-    }
-
-    if(json_is_object(jn_record)) {
-        json_t *__md_tranger__ = json_pack("{s:I, s:I, s:I, s:I, s:i, s:i}",
-            "g_rowid", (json_int_t)rowid,
-            "i_rowid", (json_int_t)md_record_ex->rowid,
-            "t", (json_int_t)md_record_ex->__t__,
-            "tm", (json_int_t)md_record_ex->__tm__,
-            "system_flag", (int)md_record_ex->system_flag,
-            "user_flag", (int)md_record_ex->user_flag
-        );
-        json_object_set_new(jn_record, "__md_tranger__", __md_tranger__);
     }
 
     /*

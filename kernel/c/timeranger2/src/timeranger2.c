@@ -2647,12 +2647,11 @@ PRIVATE int close_fd_opened_files(
  *  Return json object with record metadata
  ***************************************************************************/
 PRIVATE json_t *md2json(
-    md2_record_ex_t *md_record_ex,
-    json_int_t rowid
+    md2_record_ex_t *md_record_ex
 )
 {
     json_t *jn_md = json_object();
-    json_object_set_new(jn_md, "g_rowid", json_integer(rowid));
+    json_object_set_new(jn_md, "g_rowid", json_integer((json_int_t)md_record_ex->g_rowid));
     json_object_set_new(jn_md, "i_rowid", json_integer((json_int_t)md_record_ex->rowid));
     json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record_ex->__t__));
     json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record_ex->__tm__));
@@ -2928,8 +2927,11 @@ PUBLIC int tranger2_append_record(
         md_record.__offset__ = __offset__;
 
         /*--------------------------------------------*
-         *  Get the record's content, always json
+         *  Get the record's content, always json.
+         *  A __md_tranger__ the record carries (from an earlier append, or
+         *  from a load) is the metadata of THAT record, not content.
          *--------------------------------------------*/
+        json_object_del(record, "__md_tranger__");
         char *srecord = json_dumps(record, JSON_COMPACT|JSON_ENCODE_ANY);
         if(!srecord) {
             gobj_log_error(gobj, 0,
@@ -3099,18 +3101,14 @@ PUBLIC int tranger2_append_record(
     md_record_ex->system_flag = get_system_flag(&md_record);
     md_record_ex->user_flag = get_user_flag(&md_record);
     md_record_ex->rowid = i_rowid;
+    md_record_ex->g_rowid = g_rowid;
 
     /*
-     *  Only when somebody can see it: the caller kept a reference to the
-     *  record, or a realtime list below takes the record (it wants the key
-     *  and not only its metadata). Otherwise the record is freed at the end
-     *  of this function, and its metadata with it.
+     *  The caller has the metadata in md_record_ex. The record gets a
+     *  __md_tranger__ only when a realtime list below takes it (it wants
+     *  the key and not only its metadata), built once, before the first.
      */
     BOOL md_attached = FALSE;
-    if(record->refcount > 1) {
-        json_object_set_new(record, "__md_tranger__", md2json(md_record_ex, g_rowid));
-        md_attached = TRUE;
-    }
 
     /*--------------------------------------------*
      *      FEED the lists
@@ -3129,7 +3127,7 @@ PUBLIC int tranger2_append_record(
             if(load_record_callback) {
                 BOOL only_md = feed_wants_only_md(list);
                 if(!only_md && !md_attached) {
-                    json_object_set_new(record, "__md_tranger__", md2json(md_record_ex, g_rowid));
+                    json_object_set_new(record, "__md_tranger__", md2json(md_record_ex));
                     md_attached = TRUE;
                 }
                 // Inform to the user list: record real time from memory
@@ -5882,6 +5880,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
          *  as records it already had.
          */
         json_int_t g_rowid = file_base + rowid;
+        md_record_ex.g_rowid = g_rowid;
 
         json_t *record = NULL;
         if(need_body) {
@@ -5893,12 +5892,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                 &md_record_ex
             );
             if(record) {
-                json_t *__md_tranger__ = md2json(&md_record_ex, g_rowid);
-                json_object_set_new(
-                    record,
-                    "__md_tranger__",
-                    __md_tranger__  // owned
-                );
+                json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
             }
         }
 
@@ -7240,12 +7234,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                         &md_record_ex
                     );
                     if(record) {
-                        json_t *__md_tranger__ = md2json(&md_record_ex, rowid);
-                        json_object_set_new(
-                            record,
-                            "__md_tranger__",
-                            __md_tranger__  // owned
-                        );
+                        json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
                     }
                 }
 
@@ -7682,7 +7671,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
                     tranger, topic, key, file_id, &md_record_ex
                 );
                 if(record) {
-                    json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex, rowid));
+                    json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
                     json_array_append_new(data, record);
                 }
             }
@@ -7791,12 +7780,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
                 &md_record_ex
             );
             if(record) {
-                json_t *__md_tranger__ = md2json(&md_record_ex, rowid);
-                json_object_set_new(
-                    record,
-                    "__md_tranger__",
-                    __md_tranger__  // owned
-                );
+                json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
             }
 
             json_array_append_new(data, record);
@@ -8970,7 +8954,7 @@ PRIVATE int get_md_by_rowid(
      *  Get file handler
      */
     const char *file_id = json_string_value(json_object_get(segment, "id"));
-    return read_md(
+    if(read_md(
         gobj,
         tranger,
         topic,
@@ -8978,7 +8962,12 @@ PRIVATE int get_md_by_rowid(
         file_id,
         relative_rowid, // relative to 1
         md_record_ex
-    );
+    )<0) {
+        // Error already logged
+        return -1;
+    }
+    md_record_ex->g_rowid = rowid;
+    return 0;
 }
 
 /***************************************************************************
@@ -9145,13 +9134,16 @@ PUBLIC json_t *tranger2_read_record_content( // return is yours
     }
 
     char file_id[NAME_MAX];
-    get_file_id(
+    if(!get_file_id(
         file_id,
         sizeof(file_id),
         tranger,
         topic,
         t
-    );
+    )) {
+        // Error already logged
+        return NULL;
+    }
 
     json_t *record = read_record_content(
         tranger,
@@ -9160,12 +9152,11 @@ PUBLIC json_t *tranger2_read_record_content( // return is yours
         file_id,
         md_record_ex
     );
-    json_t *__md_tranger__ = md2json(md_record_ex, md_record_ex->rowid);
-    json_object_set_new(
-        record,
-        "__md_tranger__",
-        __md_tranger__  // owned
-    );
+    if(!record) {
+        // Error already logged
+        return NULL;
+    }
+    json_object_set_new(record, "__md_tranger__", md2json(md_record_ex));
 
     return record;
 }

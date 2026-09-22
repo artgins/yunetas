@@ -100,13 +100,11 @@ PRIVATE json_int_t append_one(json_t *tranger, uint64_t t, const char *content)
         "tm", (json_int_t)t,
         "content", content
     );
-    json_incref(record);
     md2_record_ex_t md = {0};
     json_int_t g_rowid = -1;
     if(tranger2_append_record(tranger, TOPIC_NAME, t, 0, &md, record) == 0) {
-        g_rowid = kw_get_int(0, record, "__md_tranger__`g_rowid", -1, 0);
+        g_rowid = (json_int_t)md.g_rowid;
     }
-    json_decref(record);
     return g_rowid;
 }
 

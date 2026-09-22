@@ -152,6 +152,7 @@ typedef struct {
     uint16_t system_flag;   // system flags managed internally by timeranger
     uint16_t user_flag;     // user flags managed by the user. Examples: tag in treedb, msg pending in queues
     uint64_t rowid;         // row id of the record in the flat file
+    uint64_t g_rowid;       // GLOBAL row id of the key, files included: what __md_tranger__ stores as g_rowid
 } md2_record_ex_t;
 
 typedef struct {
@@ -516,8 +517,12 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
     are extracted from `jn_record` per the topic schema. MASTER-ONLY.
     If `__t__` is 0 the time is set to now (milliseconds if the topic is sf_t_ms,
     else seconds). The new record's metadata is returned through the required
-    `md_record_ex` out-param (NOT the return value). `jn_record` is owned
-    (consumed, even on error).
+    `md_record_ex` out-param (NOT the return value), its global rowid included
+    (`md_record_ex->g_rowid`). `jn_record` is owned (consumed, even on error).
+    The record is stored WITHOUT a `__md_tranger__` (one it carries from an
+    earlier append or a load is dropped: it is metadata, not content), and the
+    function adds one only to the record it hands to the realtime lists that
+    take it, never for the caller: read the out-param instead.
     Return: 0 on success, -1 on error (record NULL, not master, topic not found,
     missing/oversized pkey, or an unsafe key that would escape keys/).
 */
@@ -677,7 +682,7 @@ typedef int (*tranger2_load_record_callback_t)(
                         // WARNING absolute = the key's GLOBAL rowid, files included: a topic
                         // rotates its md2 (filename_mask) and the position INSIDE the new file
                         // restarts at 1, so a consumer deduping/paging by this must be given
-                        // the global one (it is what md2json() stores as g_rowid)
+                        // the global one (md_record_ex->g_rowid, what __md_tranger__ stores as g_rowid)
     md2_record_ex_t *md_record_ex,
     json_t *jn_record  // must be JSON owned
 );

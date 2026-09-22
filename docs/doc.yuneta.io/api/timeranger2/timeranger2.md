@@ -106,30 +106,27 @@ Returns 0 on success, or a negative value on failure.
 
 The function makes sure that the record is appended to the specified topic in [`tranger2_startup()`](<#tranger2_startup>). If the topic does not exist, it must be created using [`tranger2_create_topic()`](<#tranger2_create_topic>) before calling this function.
 
-**Reading the metadata back.** The metadata of the new record is always
-returned in `md2_record_ex`. The function also adds it to the record, as the
-key `__md_tranger__` (`g_rowid`, `i_rowid`, `t`, `tm`, `offset`, `size`,
-`system_flag`, `user_flag`), but only when somebody can see it: when the
-caller keeps a reference to the record, or when a realtime list of the topic
-takes the record (it wants the key and not only its metadata; its callback
-receives the record). A list opened on another key, or with `only_md`, does
-not make the append build it. To read `__md_tranger__` after the call, keep
-a reference:
+**Reading the metadata back.** The metadata of the new record is returned in
+`md2_record_ex`, and that is where a caller reads it: `md.g_rowid` is the
+key's global rowid (the one that never resets), `md.rowid` the row's position
+inside its `.md2` file (`i_rowid`), then `__t__`, `__tm__`, `__offset__`,
+`__size__`, `system_flag`, `user_flag`. Hand the function your only reference:
 
 ```C
 md2_record_ex_t md;
-if(tranger2_append_record(tranger, "topic", 0, 0, &md, json_incref(record)) == 0) {
-    json_int_t g_rowid = json_integer_value(
-        json_object_get(json_object_get(record, "__md_tranger__"), "g_rowid")
-    );
+if(tranger2_append_record(tranger, "topic", 0, 0, &md, record) == 0) {
+    json_int_t g_rowid = (json_int_t)md.g_rowid;
 }
-JSON_DECREF(record)
 ```
 
-If you give the function your only reference, it does not build
-`__md_tranger__`, because the record is freed before anybody could read it.
-Take what you need from `md2_record_ex` instead (`md.rowid` is the `i_rowid`).
-The key is never written to disk: the record is stored before it is added.
+The function does not add a `__md_tranger__` to the record for the caller.
+It adds one (`g_rowid`, `i_rowid`, `t`, `tm`, `offset`, `size`,
+`system_flag`, `user_flag`, the same dict a load attaches) only to the record
+it hands to a realtime list that takes it: one that wants the key and is not
+an `only_md` feed. A list open on another key does not make the append build
+it. Nor is a `__md_tranger__` ever stored: one the record carries in, from an
+earlier append or from a load, is the metadata of THAT record and is dropped
+before the content is written.
 
 **A `__t__` that belongs to an earlier file.** The record goes to the file that
 its `__t__` selects (through the topic's `filename_mask`), even if that file is
@@ -143,8 +140,8 @@ tranger2_append_record(tranger, "topic", t_2000_01_01 + 10, 0, &md, jn_c);
 /*  C gets g_rowid 2, and B is now 3: an iterator serves A, C, B  */
 ```
 
-The `g_rowid` in the record's `__md_tranger__` is its place, the same number a
-reload gives. If you keep global rowids, for example as a page position, a
+The `g_rowid` in `md2_record_ex` is its place, the same number a reload gives
+(and stores in the loaded record's `__md_tranger__`). If you keep global rowids, for example as a page position, a
 record written into an earlier file makes the rowids of the later records
 stale. Records written with `__t__ = 0` (now) always go to the last file, and
 move nothing. Until 2026-09-15 the cache in memory disagreed with the disk

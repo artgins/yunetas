@@ -5910,35 +5910,26 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
         0, // user_flag: only shoot-snap tags a record
         &md_record, // md_record,
-        json_incref(record) // owned
+        record // owned
     );
     if(ret < 0) {
         // Error already logged
         JSON_DECREF(pkey2_list)
         JSON_DECREF(kw)
         JSON_DECREF(node)
-        JSON_DECREF(record)
         return NULL;
     }
 
     /*-------------------*
      *  Build metadata
      *-------------------*/
-    json_int_t g_rowid = json_integer_value(
-        json_object_get(
-            json_object_get(record, "__md_tranger__"),
-            "g_rowid"
-        )
-    );
     json_t *jn_node_md = md2json(
         treedb_name,
         topic_name,
         &md_record,
-        g_rowid
+        (json_int_t)md_record.g_rowid
     );
     json_object_set_new(node, "__md_treedb__", jn_node_md);
-
-    JSON_DECREF(record)
 
     /*---------------------------------------------------*
      *  Si tienes la marca grupo, pasas, eres el activo.
@@ -6191,11 +6182,10 @@ PRIVATE int append_node_record(
         0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
         tag, // user_flag,
         &md_record, // md_record,
-        json_incref(record) // owned
+        record // owned
     );
     if(ret < 0) {
         // Error already logged
-        JSON_DECREF(record)
         return -1;
     }
 
@@ -6203,13 +6193,7 @@ PRIVATE int append_node_record(
      *  Build metadata
      *  HACK only numeric fields! strings cannot
      *--------------------------------------------*/
-    json_int_t g_rowid = json_integer_value(
-        json_object_get(
-            json_object_get(record, "__md_tranger__"),
-            "g_rowid"
-        )
-    );
-    JSON_DECREF(record)
+    json_int_t g_rowid = (json_int_t)md_record.g_rowid;
 
     json_t *__md_treedb__ = json_object_get(node, "__md_treedb__");
     json_object_set_new(__md_treedb__, "g_rowid", json_integer(g_rowid));

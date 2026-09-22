@@ -2,21 +2,41 @@
 
 ## Unreleased
 
-### timeranger2: an append builds `__md_tranger__` only when somebody can see it
+### timeranger2: the append returns its metadata in the out-param, `g_rowid` included
 
-- `tranger2_append_record()` adds `__md_tranger__` (the record's metadata,
-  8 integers) to the record it appends. Now only when the caller kept a
-  reference to the record (`refcount > 1`) or a realtime list of the topic
-  takes the record: one that wants the key and is not an `only_md` feed. It
-  is built right before the first callback that takes it, so a list open on
-  another key does not make every append of the topic build it. Otherwise
-  the record is freed at the end of the append and the metadata was built
-  for nobody. Callers that keep the record and read
-  `__md_tranger__` afterwards (treedb, msg2db, the queues, `c_tranger`)
-  still get it, and so do realtime-list callbacks. Pays off for callers
-  that hand over their only reference with no realtime list open, as a
-  `db_tracks` ingesting `raw_tracks`: +13.5% appends/s in
-  `test_topic_pkey_integer` (+21% together with the change below).
+- **`md2_record_ex_t` has a new field, `g_rowid`**: the key's GLOBAL rowid,
+  files included, the number `__md_tranger__` stores as `g_rowid`. Every
+  place that fills the struct fills it (the append, `get_md_by_rowid()`, the
+  disk feed), so a callback or a queue that copies the struct carries it.
+  It was the one thing the out-param did not return, and the only reason a
+  caller had to read `__md_tranger__` off the record after the append:
+  treedb did, in two places, and now reads `md_record.g_rowid`.
+- `tranger2_append_record()` no longer adds `__md_tranger__` to the record
+  for the caller. It adds it only to the record it hands to a realtime list
+  that takes it (one that wants the key and is not an `only_md` feed), built
+  once, right before the first such callback. It used to decide by the
+  record's `refcount`, which says who HOLDS the record, not who reads the
+  dict: the queues, `c_tranger` and `webstats` hold it for other reasons and
+  paid for a dict they never read (the queues then kept it in memory per
+  queued message until `msg_iev_clean_metadata()` stripped it on send).
+  Callers hand over their only reference and read the out-param. Pays off
+  for a `db_tracks` ingesting `raw_tracks` with no realtime list open:
+  +13.5% appends/s in `test_topic_pkey_integer` (+21% together with the
+  change below).
+- **A `__md_tranger__` the record carries in is dropped before the content
+  is written.** Nothing stripped it, so a record appended again with the
+  dict inside (`webstats` stores the report it keeps each run; an
+  `add-record` of `c_tranger` with a record taken from a `get-page`) wrote
+  the metadata of the EARLIER record into the `.json` as content: eight
+  lying integers per record, invisible on read because the load overwrites
+  the key, and permanent on disk.
+- `tranger2_read_record_content()` refuses a `__t__` it cannot name a file
+  for, and a body it cannot read, instead of attaching the metadata to a
+  NULL record; and the `g_rowid` it attaches is the struct's, where it used
+  to put the file-relative `rowid` there.
+- `C_TRANGER`'s realtime-only feed (`open-rt`) stops rebuilding a
+  `__md_tranger__` over the one the append attaches; the consumer gets the
+  same eight fields `get-page` emits.
 
 ### timeranger2: an append names its file once
 
