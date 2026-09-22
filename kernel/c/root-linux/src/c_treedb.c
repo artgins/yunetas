@@ -119,6 +119,7 @@ PRIVATE json_t *diff_treedb_schema(
     json_t *jn_schema,  // the schema from C, not owned
     json_t *rows        // not owned, where the differences are appended
 );
+PRIVATE json_t *schema_topics_as_list(hgobj gobj, json_t *jn_schema);
 PRIVATE int diff_node_attrs(
     hgobj gobj,
     json_t *rows,           // not owned
@@ -1383,7 +1384,11 @@ PRIVATE json_int_t schema_topic_version(hgobj gobj, json_t *jn_schema, const cha
 {
     json_t *topics = json_object_get(jn_schema, "topics");
     if(json_is_object(topics)) {
-        return kw_get_int(gobj, json_object_get(topics, topic_name), "topic_version", 0, KW_WILD_NUMBER);
+        json_t *topic = json_object_get(topics, topic_name);
+        if(!topic) {
+            return 0;   // a topic the file does not hold, as the list below answers
+        }
+        return kw_get_int(gobj, topic, "topic_version", 0, KW_WILD_NUMBER);
     }
     int idx; json_t *topic;
     json_array_foreach(topics, idx, topic) {
@@ -3734,7 +3739,7 @@ PRIVATE json_t *diff_treedb_schema(
     json_t *cols_desc = _treedb_create_topic_cols_desc();
     json_t *seen_topics = json_object();
 
-    json_t *jn_topics = kw_get_list(gobj, jn_schema, "topics", 0, 0);
+    json_t *jn_topics = schema_topics_as_list(gobj, jn_schema);  // yours
     int idx; json_t *jn_topic;
     json_array_foreach(jn_topics, idx, jn_topic) {
         const char *topic_name = kw_get_str(gobj, jn_topic, "id", "", 0);
@@ -3872,11 +3877,52 @@ PRIVATE json_t *diff_treedb_schema(
     /*
      *  free
      */
+    JSON_DECREF(jn_topics)
     JSON_DECREF(seen_topics)
     JSON_DECREF(cols_desc)
     JSON_DECREF(current)
 
     return summary;
+}
+
+/***************************************************************************
+ *  The topics of a schema as a LIST, whatever shape the schema holds them
+ *  in. A literal, and the file a save writes, carry a list; the file in use
+ *  of a node opened with impose off before the draft model carries a DICT
+ *  keyed by topic name, written from get_treedb_schema() as it was. Read as
+ *  no topic at all, that file made every topic "changed" and every version
+ *  was bumped and written again (N11 of the 2026-09-22 review). A dict's
+ *  topic takes its name as `id` when it carries none. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *schema_topics_as_list(hgobj gobj, json_t *jn_schema)
+{
+    json_t *topics = json_object_get(jn_schema, "topics");
+    json_t *list = json_array();
+    if(json_is_array(topics)) {
+        json_array_extend(list, topics);
+        return list;
+    }
+    if(json_is_object(topics)) {
+        const char *topic_name; json_t *topic;
+        json_object_foreach(topics, topic_name, topic) {
+            if(!json_is_object(topic)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "A topic of the schema is not a dict",
+                    "topic_name",   "%s", topic_name,
+                    NULL
+                );
+                continue;
+            }
+            json_t *as_listed = json_copy(topic);   // shallow, yours
+            if(!kw_has_key(as_listed, "id") && !kw_has_key(as_listed, "topic_name")) {
+                json_object_set_new(as_listed, "id", json_string(topic_name));
+            }
+            json_array_append_new(list, as_listed);
+        }
+    }
+    return list;
 }
 
 

@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### gobj-ui 7.25.2, yunos-js gui_agent 0.22.75
+
+- `kernel/js/gobj-ui` -> 7.25.2: a topic form's write is answered every way
+  it ends, the transport closing and a write asked with no session included
+  (N8 of the 2026-09-22 review), and a form busy twice comes back whole
+  (N9). `yunos/js` -> gui_agent 0.22.75: an apply-schema that one owner
+  refuses after another applied goes on to the restart and says who refused
+  (N10); both SPAs take gobj-ui ^7.25.2. JS API index regenerated.
+
+### C_TREEDB: the diff of a save reads a schema file whose topics are a dict
+
+- `save-schema` (and `saved-schema`, `diff-schema`) diff the draft against
+  the file in use through `diff_treedb_schema()`, which read the file's
+  topics with `kw_get_list()`: a file whose `topics` is a DICT keyed by name
+  -- what a node opened with `impose_c_schema` off wrote before 7.25.0, from
+  `get_treedb_schema()` as it was -- read as no topic at all, so every topic
+  was "changed", `nothing to save` never answered, and every `topic_version`
+  and the `schema_version` were bumped and written again at each save (N11
+  of the 2026-09-22 review). The topics are read as a list whatever shape
+  the file holds them in (`schema_topics_as_list()`), a dict's topic taking
+  its name as `id`; and `schema_topic_version()` no longer logs *"kw must be
+  list or dict"* for a topic a dict-shaped file does not hold. Red test in
+  `test_c_treedb_system_schema`: the same file in use as a list and as a
+  dict gives the same changes.
+
 ### C_NODE: `activate-snap` answers result 0; C_AUTHZ: `enable-user` answers the refusal
 
 - `activate-snap` passed the return of `treedb_activate_snap()` through as

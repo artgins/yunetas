@@ -3175,6 +3175,74 @@ PRIVATE int check_save_and_apply(hgobj gobj)
     }
 
     /*
+     *  The file in use of a node opened with impose off before the draft
+     *  model held its `topics` as a DICT keyed by name (what
+     *  get_treedb_schema() answers, written as it was). It is the same
+     *  schema, and the diff of a save must read it as such (N11 of the
+     *  2026-09-22 review): read as no topic at all, every topic was
+     *  "changed" and every version was bumped and written again.
+     */
+    {
+        char in_use_dir[PATH_MAX];
+        build_path(in_use_dir, sizeof(in_use_dir), priv->path_database, TREEDB_NAME, NULL);
+
+        jn_resp = treedbs_command(gobj, "save-schema", json_pack("{s:b}", "dry_run", 1));
+        json_t *dry_data = kw_get_dict(gobj, jn_resp, "data", 0, 0);
+        json_t *changes_list = dry_data? kw_get_list(gobj, dry_data, "changes", 0, 0) : NULL;
+        int list_changes = 0;
+        int idx_c; json_t *row_c;
+        json_array_foreach(changes_list, idx_c, row_c) {
+            if(strcmp(kw_get_str(gobj, row_c, "kind", "", 0), "version")!=0) {
+                list_changes++;
+            }
+        }
+        JSON_DECREF(jn_resp)
+
+        json_t *in_use = load_json_from_file(gobj, in_use_dir, TREEDB_NAME ".treedb_schema.json", 0);
+        json_t *as_list = json_deep_copy(in_use);
+        json_t *as_dict = json_object();
+        int idx_t; json_t *jn_topic;
+        json_array_foreach(json_object_get(in_use, "topics"), idx_t, jn_topic) {
+            json_object_set(as_dict, kw_get_str(gobj, jn_topic, "id", "", 0), jn_topic);
+        }
+        json_object_set_new(in_use, "topics", as_dict);
+        save_json_to_file(gobj, in_use_dir, TREEDB_NAME ".treedb_schema.json",
+            02770, 0660, 0, TRUE, FALSE, in_use  // owned
+        );
+
+        jn_resp = treedbs_command(gobj, "save-schema", json_pack("{s:b}", "dry_run", 1));
+        dry_data = kw_get_dict(gobj, jn_resp, "data", 0, 0);
+        changes_list = dry_data? kw_get_list(gobj, dry_data, "changes", 0, 0) : NULL;
+        int dict_changes = 0;
+        BOOL departments_changed = FALSE;
+        json_array_foreach(changes_list, idx_c, row_c) {
+            if(strcmp(kw_get_str(gobj, row_c, "kind", "", 0), "version")!=0) {
+                dict_changes++;
+            }
+            if(strcmp(kw_get_str(gobj, row_c, "topic", "", 0), "departments")==0) {
+                departments_changed = TRUE;
+            }
+        }
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 || dict_changes != list_changes ||
+                departments_changed) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a file in use with dict topics reads as another schema",
+                "list_changes", "%d", list_changes,
+                "dict_changes", "%d", dict_changes,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+
+        save_json_to_file(gobj, in_use_dir, TREEDB_NAME ".treedb_schema.json",
+            02770, 0660, 0, TRUE, FALSE, as_list  // owned: the file as it was
+        );
+    }
+
+    /*
      *  saved-schema says what it would change
      */
     jn_resp = treedbs_command(gobj, "saved-schema", json_object());
