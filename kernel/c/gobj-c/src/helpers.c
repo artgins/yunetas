@@ -1726,10 +1726,12 @@ PUBLIC int save_json_to_file(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "Cannot write in json file",
+            "filename",     "%s", full_path,
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
             NULL
         );
+        close(fp);
         JSON_DECREF(jn_data)
         return -1;
     }
