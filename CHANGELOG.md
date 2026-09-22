@@ -23,6 +23,28 @@
 
 ## v7.25.3 (2026-09-23)
 
+### BREAKING in this release (flagged after the fact, 2026-09-23)
+
+These behaviour changes shipped in 7.25.3 without the flag:
+
+- **`tranger2_append_record()` no longer attaches `__md_tranger__` to the
+  caller's record.** Read the out-param instead: `md2_record_ex_t` gained
+  `g_rowid` (the key's global rowid). The dict is attached only to what a
+  realtime list takes. **`md2_record_ex_t` grew**: any object built against
+  the old header must be rebuilt (the md2 format on disk did not change).
+- **`treedb_update_node()` / `gobj_update_node()` answer NULL** on a replica
+  (saved update) and when the save fails; they used to answer the node.
+- **C_TRANGER `open-iterator` / `open-rt` / `open-list` on an id already
+  open answer -1**, not 0.
+- **C_NODE `activate-snap` answers result 0** on success (7.25.0-7.25.2
+  answered the activated snap's id).
+- **C_AUTHZ write commands answer "READ-ONLY replica"** up front on a
+  replica.
+- **Permissions of the schema commands:** the notes below say `apply-schema`
+  asks `create-delete` and `save-schema` keeps `write`. As shipped, the
+  check landed on `save-schema` instead (a `write`-only user could Apply and
+  could not Save). Corrected in the next release.
+
 ### gobj-js 7.25.0
 
 - `kernel/js/gobj-js` -> 7.25.0: the version back in line with the SDK, no
