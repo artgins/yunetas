@@ -5696,6 +5696,24 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     /*-----------------------------------*
+     *  A create is a write: on a replica the append refuses it, but only
+     *  after the bytes of a `file` column went into the master's store.
+     *-----------------------------------*/
+    if(!kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot create node, NO master",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        gobj_log_set_last_message("Cannot create node in '%s', NO master", topic_name);
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    /*-----------------------------------*
      *      Check appropriate topic
      *-----------------------------------*/
     if(!treedb_is_treedbs_topic(tranger, treedb_name, topic_name)) {
@@ -6455,6 +6473,29 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
     /*-------------------------------*
+     *  A save on a replica is refused by the append, and the node in
+     *  memory took the update all the same while the answer was the node:
+     *  a write that "worked" until the next reload (pattern 1 of the
+     *  2026-09-21 review). Refused BEFORE anything moves: below, the bytes
+     *  of a `file` column go into the master's store and its links move in
+     *  memory. A memory-only update (save FALSE) is a replica's business,
+     *  and goes on.
+     *-------------------------------*/
+    if(save && !kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot update node, NO master",
+            "treedb_name",  "%s", kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0),
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        gobj_log_set_last_message("Cannot update node in '%s', NO master", topic_name);
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    /*-------------------------------*
      *  The bytes of the 'file' columns
      *-------------------------------*/
     {
@@ -6598,27 +6639,6 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
             JSON_DECREF(kw)
             return 0;
         }
-    }
-
-    /*-------------------------------*
-     *  A save on a replica is refused by the append, and the node in
-     *  memory took the update all the same while the answer was the node:
-     *  a write that "worked" until the next reload (pattern 1 of the
-     *  2026-09-21 review). Refused BEFORE the memory moves. A memory-only
-     *  update (save FALSE) is a replica's business, and goes on.
-     *-------------------------------*/
-    if(save && !kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "Cannot update node, NO master",
-            "treedb_name",  "%s", kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0),
-            "topic_name",   "%s", topic_name,
-            NULL
-        );
-        JSON_DECREF(updates)
-        JSON_DECREF(kw)
-        return 0;
     }
 
     json_object_update(node, updates);
@@ -12297,6 +12317,25 @@ PUBLIC int treedb_store_files(
             /*--------------------------------------------*
              *  Bytes arrived for this column
              *--------------------------------------------*/
+            if(!kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED)) {
+                /*
+                 *  The blob goes into the MASTER's store before the
+                 *  __assets__ append refuses the row: a replica left bytes
+                 *  nothing names, whatever its caller answered.
+                 */
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "Cannot store a file, NO master",
+                    "treedb_name",  "%s", treedb_name,
+                    "topic_name",   "%s", topic_name,
+                    "col",          "%s", col_name,
+                    NULL
+                );
+                gobj_log_set_last_message("Cannot store the file of '%s', NO master", col_name);
+                ret = -1;
+                break;
+            }
             const char *content64 = kw_get_str(gobj, manifest, "content64", "", 0);
             const char *declared_type = kw_get_str(gobj, manifest, "content_type", "", 0);
             const char *original_name = kw_get_str(gobj, manifest, "original_name", "", 0);

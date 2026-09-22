@@ -29,6 +29,7 @@
  *           17. a second arrival under the SAME name appends nothing
  *           18. a create of an existing id stores no file
            19. `now` is stamped by every write, `writable` or not
+ *           20. a replica writes no file and moves no link
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -69,6 +70,8 @@
 #define PNG_F   "\x89PNG\r\n\x1a\n" "IHDR fixture F, the same bytes arriving twice"
 #define PNG_G   "\x89PNG\r\n\x1a\n" "IHDR fixture G, handed to a create that is refused"
 #define PNG_H   "\x89PNG\r\n\x1a\n" "IHDR fixture H, an asset that gets renamed"
+#define PNG_I   "\x89PNG\r\n\x1a\n" "IHDR fixture I, the foto of the replica case"
+#define PNG_J   "\x89PNG\r\n\x1a\n" "IHDR fixture J, handed to a replica"
 #define SVG_A   "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
 
 /*  One CONTAINER, two legal names for it: isobmff is 'video/mp4' by its
@@ -1707,6 +1710,130 @@ PRIVATE int test_now_is_stamped_on_update(json_t *tranger)
     return result;
 }
 
+/***************************************************************************
+ *  20. A replica writes no file and moves no link
+ *
+ *  Every write of a replica is refused, and it used to be refused LATE:
+ *  treedb_update_node() checked `master` after the bytes of a `file`
+ *  column were in the master's store and the links of the column had
+ *  moved in memory, so a refused update left a blob nothing names and a
+ *  node whose photo was gone until the next reload. A create did the same
+ *  through the append that refused it.
+ ***************************************************************************/
+PRIVATE int test_replica_writes_nothing(const char *path_root)
+{
+    int result = 0;
+    const char *test = "20. a replica writes no file and moves no link";
+    set_expected_results(
+        test,
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "a 'file' column without 'writable' cannot be filled by a person",
+            "msg", "a 'file' column without 'writable' cannot be filled by a person",
+            "msg", "Cannot update node, NO master",
+            "msg", "Cannot update node, NO master",
+            "msg", "Cannot store a file, NO master",
+            "msg", "Cannot create node, NO master"
+        ),
+        NULL, NULL, 1
+    );
+
+    /*-------------------------------------------*
+     *  The master leaves one device with a foto
+     *-------------------------------------------*/
+    json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b}",
+        "path", path_root, "database", DATABASE, "master", 1), 0);
+    helper_quote2doublequote(schema_sample);
+    treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
+    json_t *node = create_device_with_foto(
+        tranger, "dev-replica", PNG_I, sizeof(PNG_I)-1, "image/png", NULL
+    );
+    if(!node) {
+        printf("%s  FAIL: the master could not create the device%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+
+    /*-------------------------------------------*
+     *  The replica
+     *-------------------------------------------*/
+    tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b}",
+        "path", path_root, "database", DATABASE, "master", 0), 0);
+    treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
+
+    node = treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-replica");
+    const char *id_i = sha(PNG_I, sizeof(PNG_I)-1);
+    json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_i);
+    if(!node || !asset) {
+        printf("%s  FAIL: the replica does not see the device and its asset%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    } else {
+        /*  a refused update that empties the file column  */
+        if(treedb_update_node(tranger, node, json_pack("{s:s}", "foto", ""), TRUE)) {
+            printf("%s  FAIL: a replica updated a node%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(strcmp(fkey_id(node, "foto"), id_i)!=0) {
+            printf("%s  FAIL: a refused update emptied the column in memory%s\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(!json_object_get(json_object_get(asset, "as_devices_foto"), "dev-replica")) {
+            printf("%s  FAIL: a refused update unlinked the asset in memory%s\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+        }
+
+        /*  a refused update that hands new bytes, saved or not  */
+        const char *id_j = sha(PNG_J, sizeof(PNG_J)-1);
+        for(int save=1; save>=0; save--) {
+            json_t *kw = json_pack("{s:s, s:{s:{s:o, s:s, s:s}}}",
+                "qr", "",
+                "__files__",
+                    "qr",
+                        "content64", b64(PNG_J, sizeof(PNG_J)-1),
+                        "original_name", "qr.png",
+                        "content_type", "image/png"
+            );
+            if(treedb_update_node(tranger, node, kw, save?TRUE:FALSE)) {
+                printf("%s  FAIL: a replica took the bytes of a file (save %d)%s\n",
+                    On_Red BWhite, save, Color_Off);
+                result += -1;
+            }
+            if(blob_exists(tranger, id_j, "image/png")) {
+                printf("%s  FAIL: a replica wrote a blob (save %d)%s\n",
+                    On_Red BWhite, save, Color_Off);
+                result += -1;
+            }
+        }
+
+        /*  a refused create that hands bytes  */
+        json_t *kw = json_pack("{s:s, s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
+            "id", "dev-replica-2", "name", "dev-replica-2", "foto", "", "qr", "",
+            "__files__",
+                "foto",
+                    "content64", b64(PNG_J, sizeof(PNG_J)-1),
+                    "original_name", "foto.png",
+                    "content_type", "image/png"
+        );
+        if(treedb_create_node(tranger, TREEDB_NAME, "devices", kw)) {
+            printf("%s  FAIL: a replica created a node%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(blob_exists(tranger, id_j, "image/png")) {
+            printf("%s  FAIL: a refused create wrote a blob%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+    }
+
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+
+    result += test_json(NULL);
+    return result;
+}
+
 PRIVATE int do_test(void)
 {
     int result = 0;
@@ -1795,6 +1922,8 @@ PRIVATE int do_test(void)
         tranger2_shutdown(tranger);
         result += test_json(NULL);
     }
+
+    result += test_replica_writes_nothing(path_root);
 
     return result;
 }
