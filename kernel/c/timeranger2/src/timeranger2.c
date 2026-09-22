@@ -7925,6 +7925,31 @@ PUBLIC size_t tranger2_iterator_size(
 }
 
 /***************************************************************************
+ *  A page that cannot read a row of its key: is the key still on disk? The
+ *  delete of a key is seen (key_deleted) only in the process that deleted
+ *  it; a replica's iterator just meets the files gone. Say so, beside the
+ *  read error, so the cause is not guessed from an errno.
+ ***************************************************************************/
+PRIVATE void log_if_key_gone(hgobj gobj, json_t *topic, const char *key)
+{
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir),
+        json_string_value(json_object_get(topic, "directory")), "keys", key, NULL
+    );
+    if(!is_directory(key_dir)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Key gone from disk while its iterator was open: deleted (by the master?)",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        gobj_log_set_last_message("key '%s' was deleted", key);
+    }
+}
+
+/***************************************************************************
  *      Get a page of records from iterator
  *      Return
  *          total_rows:     iterator size (nº of rows)
@@ -7997,6 +8022,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
                 if(get_md_by_rowid(
                     gobj, tranger, topic, key, segment, rowid, &md_record_ex
                 )<0) {
+                    log_if_key_gone(gobj, topic, key);
                     break;      // Error already logged
                 }
                 const char *file_id = json_string_value(json_object_get(segment, "id"));
@@ -8113,7 +8139,8 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
             rowid,
             &md_record_ex
         )<0) {
-            break;
+            log_if_key_gone(gobj, topic, key);
+            break;      // Error already logged
         }
 
         if(is_deleted_instance(&md_record_ex)) {

@@ -65,6 +65,11 @@ feed over the topic (`only_md`, fed to nobody) for its `key_deleted` callback:
 the next `get-page` after a `delete-key` of one of its keys answers -1 *"was
 deleted"* and closes the iterator, like a one-key iterator does, even when the
 key was created again in between. Open it again to page the reborn key.
+**Only in the process that deleted the key** (the master): the callback fires
+in the delete itself, so a REPLICA's feed never hears it. There the next
+`get-page` reads files that are gone: it fails on the read, logs *"Key gone
+from disk while its iterator was open: deleted (by the master?)"*, and the
+iterator stays open. Close it and open it again.
 
 **An id is free again the moment its handle is gone.** A handle goes with its
 topic (a close and reopen, `delete-topic` + `create-topic`, a stop/start of the

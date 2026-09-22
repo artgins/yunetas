@@ -37,7 +37,7 @@ PRIVATE int yev_callback(
     yev_event_h yev_event
 );
 PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *event);
-PRIVATE int add_watch(fs_event_t *fs_event, const char *path);
+PRIVATE int add_watch(fs_event_t *fs_event, const char *path, BOOL may_vanish);
 PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd);
 PRIVATE const char *get_path(fs_event_t *fs_event, int wd);
 PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path);
@@ -205,7 +205,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     if(fs_flag & FS_FLAG_RECURSIVE_PATHS) {
         add_watch_recursive(fs_event, path);
     } else {
-        add_watch(fs_event, path);
+        add_watch(fs_event, path, FALSE);
     }
 
     return fs_event;
@@ -567,7 +567,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
                  *  removal.
                  */
                 if(is_directory(full_path)) {
-                    add_watch(fs_event, full_path);
+                    add_watch(fs_event, full_path, TRUE);
                 }
             }
             fs_event->fs_type = FS_SUBDIR_CREATED_TYPE;
@@ -621,19 +621,25 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
+PRIVATE int add_watch(
+    fs_event_t *fs_event,
+    const char *path,
+    BOOL may_vanish     // a subdirectory met by the watch, not the root it was given
+)
 {
     hgobj gobj = fs_event->gobj;
 
     int wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
     if (wd == -1) {
-        if(errno == ENOENT) {
+        if(errno == ENOENT && may_vanish) {
             /*
              *  Seen created, gone before it could be watched. A master
              *  signals a deleted key to its followers by creating and
              *  removing the key's directory (appear-and-vanish), so in a
              *  recursive watch this is that signal arriving late, not a
-             *  fault: the parent's IN_DELETE follows.
+             *  fault: the parent's IN_DELETE follows. Only for what the
+             *  watch meets on its way: a ROOT that does not exist is a
+             *  misconfigured path, and stays an error.
              */
             gobj_log_warning(fs_event->gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -778,13 +784,13 @@ PRIVATE BOOL search_by_paths_cb(
 )
 {
     fs_event_t *fs_event = user_data;
-    add_watch(fs_event, fullpath);
+    add_watch(fs_event, fullpath, TRUE);
     return TRUE; // to continue
 }
 
 PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path)
 {
-    add_watch(fs_event, path);
+    add_watch(fs_event, path, FALSE);
     walk_dir_tree(
         0,
         path,

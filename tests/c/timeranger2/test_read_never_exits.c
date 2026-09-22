@@ -7,7 +7,9 @@
  *
  *      - a filtered iterator whose key was deleted under it: its next page
  *        opens an md2 file that is gone (get_topic_rd_fd). On a master with
- *        on_critical_error=2 that was an exit(0), not relaunched.
+ *        on_critical_error=2 that was an exit(0), not relaunched. The page
+ *        also says the likely cause: the key is gone from disk (a replica
+ *        hears of a delete no other way).
  *      - tranger2_read_user_flag() on a (key, __t__) whose md2 file does not
  *        exist: a master CREATED an empty md2 there (the read went through
  *        the write fd), then failed to read it with on_critical_error.
@@ -147,8 +149,9 @@ PRIVATE int do_test(void)
      *-------------------------------------*/
     set_expected_results(
         "a page of an iterator whose key was deleted is an error, not an exit",
-        json_pack("[{s:s}]",
-            "msg", "Cannot open file to read"
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot open file to read",
+            "msg", "Key gone from disk while its iterator was open: deleted (by the master?)"
         ),
         NULL, NULL, 1
     );
