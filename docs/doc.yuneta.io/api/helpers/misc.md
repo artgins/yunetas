@@ -320,6 +320,83 @@ The number of open file descriptors found and logged.
 
 ---
 
+(sha256_digest)=
+## [`sha256_digest()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/gobj-c/src/helpers.c#L7907)
+
+Computes the SHA-256 (FIPS 180-4) of a buffer. Standalone: no TLS backend is involved, so it works in any yuno, whatever `.config` selects.
+
+```C
+#define SHA256_DIGEST_LEN   32
+
+void sha256_digest(
+    const void *data,
+    size_t      len,
+    uint8_t     digest[SHA256_DIGEST_LEN]
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `data` | `const void *` | The bytes to hash. |
+| `len` | `size_t` | Number of bytes. `0` hashes the empty input. |
+| `digest` | `uint8_t [32]` | Where the 32 raw bytes of the digest are written. |
+
+**Returns**
+
+Nothing: it cannot fail.
+
+**Example**
+
+```C
+uint8_t digest[SHA256_DIGEST_LEN];
+sha256_digest("abc", 3, digest);
+/* digest[0] == 0xba, digest[1] == 0x78, ... */
+```
+
+---
+
+(sha256_hex)=
+## [`sha256_hex()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/gobj-c/src/helpers.c#L7949)
+
+The SHA-256 of a buffer as 64 lowercase hex characters plus the terminating nul — the form a content address or a checksum field stores. It is [`sha256_digest()`](#sha256_digest), written out.
+
+```C
+#define SHA256_HEX_LEN      64
+
+int sha256_hex(
+    const void *data,
+    size_t      len,
+    char       *bf,
+    size_t      bflen
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `data` | `const void *` | The bytes to hash. |
+| `len` | `size_t` | Number of bytes. |
+| `bf` | `char *` | Output buffer. |
+| `bflen` | `size_t` | Size of `bf`: at least `SHA256_HEX_LEN + 1` (65). |
+
+**Returns**
+
+`0` on success. `-1` when `bf` is NULL or smaller than 65 bytes, with the error *"buffer too small for a sha256"* logged; `bf` is not written.
+
+**Example**
+
+```C
+char hex[SHA256_HEX_LEN + 1];
+if(sha256_hex("abc", 3, hex, sizeof(hex)) == 0) {
+    /* hex == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" */
+}
+```
+
+---
+
 (source2base64_for_yunetas)=
 ## [`source2base64_for_yunetas()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/gobj-c/src/helpers.c#L7527)
 

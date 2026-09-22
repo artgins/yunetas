@@ -63,6 +63,9 @@ int register_c_<name>(void);
 
 ## Individual functions
 
+(register_c_assets)=
+### `register_c_assets()` — [C_ASSETS](../gclass/data.md#gclass-c-assets)
+
 (register_c_auth_bff)=
 ### `register_c_auth_bff()` — [C_AUTH_BFF](../gclass/auth.md#gclass-c-auth-bff)
 
@@ -80,6 +83,9 @@ int register_c_<name>(void);
 
 (register_c_gss_udp_s)=
 ### `register_c_gss_udp_s()` — [C_GSS_UDP_S](../gclass/system.md#gclass-c-gss-udp-s)
+
+(register_c_idp_keycloak)=
+### `register_c_idp_keycloak()` — [C_IDP_KEYCLOAK](../gclass/auth.md#gclass-c-idp-keycloak)
 
 (register_c_ievent_cli)=
 ### `register_c_ievent_cli()` — [C_IEVENT_CLI](../gclass/ievent.md#gclass-c-ievent-cli)

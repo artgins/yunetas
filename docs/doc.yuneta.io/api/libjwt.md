@@ -347,6 +347,40 @@ int jwt_checker_verify(jwt_checker_t *checker, const char *token);
 
 ---
 
+(jwt_checker_verify2)=
+### [`jwt_checker_verify2()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/libjwt/src/jwt-checker.c#L341)
+
+The ArtGins variant of [`jwt_checker_verify()`](#jwt_checker_verify): verifies the token and **returns its claims**, so the caller reads them without parsing the token a second time. It **fails closed** (since 7.6.0, commit `46f62d8be`): a non-NULL return means the token passed every check -- signature, algorithm, `exp`/`nbf`, a `crit` header refused -- and on any failure it returns `NULL` with the cause in the checker, never the claims of a token that did not verify.
+
+```C
+json_t *jwt_checker_verify2(jwt_checker_t *checker, const char *token);
+```
+
+**Returns**
+
+The claims (a `json_t` object, **yours**: `json_decref()` it), or `NULL` with `jwt_checker_error(checker)` set and the message in `jwt_checker_error_msg(checker)`.
+
+**Example**
+
+```C
+json_t *claims = jwt_checker_verify2(checker, token);
+if(!claims) {
+    gobj_log_warning(gobj, 0,
+        "msgset",   "%s", MSGSET_AUTH,
+        "msg",      "%s", "token refused",
+        "error",    "%s", jwt_checker_error_msg(checker),
+        NULL
+    );
+    return -1;
+}
+const char *username = json_string_value(json_object_get(claims, "preferred_username"));
+json_decref(claims);
+```
+
+Canonical consumer: `c_authz.c`.
+
+---
+
 (jwt_checker_claim_get)=
 ### [`jwt_checker_claim_get()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/libjwt/src/jwt-checker.c#L196)
 
@@ -698,6 +732,69 @@ int jwks_item_key_oct(const jwk_item_t *item, const unsigned char **buf, size_t 
 
 ```C
 int jwks_item_key_bits(const jwk_item_t *item);
+```
+
+---
+
+(jwk_process_one)=
+### [`jwk_process_one()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/libjwt/src/jwks.c#L140)
+
+ArtGins addition. Builds ONE key item from one JWK (a `json_t` object with `kty` `EC`, `RSA`, `OKP` or `oct`), for a set that is filled a key at a time -- `c_authz` adds each key its IdP publishes this way, instead of reloading the whole JWKS. The JWK is copied: the caller keeps `jwk`.
+
+```C
+jwk_item_t *jwk_process_one(jwk_set_t *jwk_set, json_t *jwk);
+```
+
+**Returns**
+
+A new item, not yet in the set: add it with [`jwks_item_add()`](#jwks_item_add) or free it with [`jwks_item_free2()`](#jwks_item_free2). `NULL` only when memory runs out (the error is written in `jwk_set`). A JWK that cannot be used (no `kty`, an unknown one) still returns an item, with the error written IN THE ITEM: check `jwks_item_error(item)` before using it.
+
+---
+
+(jwks_item_add)=
+### [`jwks_item_add()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/libjwt/src/jwks.c#L306)
+
+ArtGins addition. Appends an item made by [`jwk_process_one()`](#jwk_process_one) to the set; from then on the set owns it and frees it with the set.
+
+```C
+int jwks_item_add(jwk_set_t *jwk_set, jwk_item_t *item);
+```
+
+**Returns**
+
+`0`.
+
+---
+
+(jwks_item_free2)=
+### [`jwks_item_free2()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/libjwt/src/jwks.c#L342)
+
+ArtGins addition. Frees ONE item by pointer (an HMAC key is scrubbed before it is freed) and unlinks it from the set if it was in it. [`jwks_item_free()`](#jwks_item_free) frees by index.
+
+```C
+int jwks_item_free2(jwk_set_t *jwk_set, jwk_item_t *item);
+```
+
+**Returns**
+
+`1` when freed, `0` when `jwk_set` or `item` is `NULL`.
+
+**Example**
+
+The way `c_authz.c` adds one key of the IdP, and undoes it when the next step fails:
+
+```C
+jwk_item_t *jwk_item = jwk_process_one(priv->jwks, jn_jwk);
+if(!jwk_item) {
+    return -1;
+}
+jwks_item_add(priv->jwks, jwk_item);
+
+jwt_checker_t *jwt_checker = jwt_checker_new();
+if(!jwt_checker) {
+    jwks_item_free2(priv->jwks, jwk_item);
+    return -1;
+}
 ```
 
 ---

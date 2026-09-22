@@ -14,6 +14,9 @@ Use your browser's find (**Ctrl+F**) to search by name.
 The [Alphabetical Index](#alphabetical-index) at the end lists every function sorted A–Z
 with links to the API documentation.
 
+This file is written by `scripts/api_index.py` from the headers: do not edit
+it by hand, run the script.
+
 ## gobj-c (Core Framework)
 
 ### `command_parser.h` — 5 functions
@@ -212,7 +215,7 @@ with links to the API documentation.
 
 34. [**`print_error`**](logging/log.md#print_error) — `PUBLIC void print_error( pe_flag_t quit, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 2, 3)))`
 
-### `gobj.h` — 248 functions
+### `gobj.h` — 251 functions
 
 **Source:** `kernel/c/gobj-c/src/gobj.h`
 
@@ -496,225 +499,229 @@ with links to the API documentation.
 
 140. [**`gobj_set_volatil`**](gobj/info.md#gobj_set_volatil) — `PUBLIC int gobj_set_volatil(hgobj gobj, BOOL set)`
 
-140b. [**`gobj_set_manual_start`**](gobj/info.md#gobj_set_manual_start) — `PUBLIC int gobj_set_manual_start(hgobj gobj, BOOL set)`
+141. [**`gobj_set_manual_start`**](gobj/info.md#gobj_set_manual_start) — `PUBLIC int gobj_set_manual_start(hgobj gobj, BOOL set)`
 
-141. [**`gobj_is_pure_child`**](gobj/info.md#gobj_is_pure_child) — `PUBLIC BOOL gobj_is_pure_child(hgobj gobj)`
+142. [**`gobj_is_pure_child`**](gobj/info.md#gobj_is_pure_child) — `PUBLIC BOOL gobj_is_pure_child(hgobj gobj)`
 
-142. [**`gobj_is_bottom_gobj`**](gobj/info.md#gobj_is_bottom_gobj) — `PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj)`
+143. [**`gobj_is_bottom_gobj`**](gobj/info.md#gobj_is_bottom_gobj) — `PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj)`
 
-143. [**`gobj_typeof_gclass`**](gobj/info.md#gobj_typeof_gclass) — `PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name)`
+144. [**`gobj_typeof_gclass`**](gobj/info.md#gobj_typeof_gclass) — `PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name)`
 
-144. [**`gobj_typeof_inherited_gclass`**](gobj/info.md#gobj_typeof_inherited_gclass) — `PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj, const char *gclass_name)`
+145. [**`gobj_typeof_inherited_gclass`**](gobj/info.md#gobj_typeof_inherited_gclass) — `PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj, const char *gclass_name)`
 
-145. [**`gobj_command_desc`**](gobj/info.md#gobj_command_desc) — `PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj, const char *name, BOOL verbose)`
+146. [**`gobj_command_desc`**](gobj/info.md#gobj_command_desc) — `PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj, const char *name, BOOL verbose)`
 
-146. [**`get_sdata_flag_table`**](gobj/info.md#get_sdata_flag_table) — `PUBLIC const char **get_sdata_flag_table(void)`
+147. [**`get_sdata_flag_table`**](gobj/info.md#get_sdata_flag_table) — `PUBLIC const char **get_sdata_flag_table(void)`
 
-147. [**`get_attrs_schema`**](gobj/info.md#get_attrs_schema) — `PUBLIC json_t *get_attrs_schema(hgobj gobj)`
+148. [**`get_attrs_schema`**](gobj/info.md#get_attrs_schema) — `PUBLIC json_t *get_attrs_schema(hgobj gobj)`
 
-148. [**`gobj2json`**](gobj/info.md#gobj2json) — `PUBLIC json_t *gobj2json( hgobj gobj, json_t *jn_filter )`
+149. [**`gobj2json`**](gobj/info.md#gobj2json) — `PUBLIC json_t *gobj2json( hgobj gobj, json_t *jn_filter )`
 
-149. [**`gobj_view_tree`**](gobj/info.md#gobj_view_tree) — `PUBLIC json_t *gobj_view_tree( hgobj gobj, json_t *jn_filter )`
+150. [**`gobj_view_tree`**](gobj/info.md#gobj_view_tree) — `PUBLIC json_t *gobj_view_tree( hgobj gobj, json_t *jn_filter )`
 
-150. [**`gobj_send_event`**](gobj/events_state.md#gobj_send_event) — `PUBLIC int gobj_send_event( hgobj dst, gobj_event_t event, json_t *kw, hgobj src )`
+151. [**`gobj_send_event`**](gobj/events_state.md#gobj_send_event) — `PUBLIC int gobj_send_event( hgobj dst, gobj_event_t event, json_t *kw, hgobj src )`
 
-151. [**`gobj_send_event_to_children`**](gobj/events_state.md#gobj_send_event_to_children) — `PUBLIC int gobj_send_event_to_children( hgobj gobj, gobj_event_t event, json_t *kw, hgobj src )`
+152. [**`gobj_send_event_to_children`**](gobj/events_state.md#gobj_send_event_to_children) — `PUBLIC int gobj_send_event_to_children( hgobj gobj, gobj_event_t event, json_t *kw, hgobj src )`
 
-152. [**`gobj_send_event_to_children_tree`**](gobj/events_state.md#gobj_send_event_to_children_tree) — `PUBLIC int gobj_send_event_to_children_tree( hgobj gobj, gobj_event_t event, json_t *kw, hgobj src )`
+153. [**`gobj_send_event_to_children_tree`**](gobj/events_state.md#gobj_send_event_to_children_tree) — `PUBLIC int gobj_send_event_to_children_tree( hgobj gobj, gobj_event_t event, json_t *kw, hgobj src )`
 
-153. [**`gobj_post_event`**](gobj/events_state.md#gobj_post_event) — `PUBLIC int gobj_post_event( hgobj gobj, gobj_event_t event, json_t *kw )`
+154. [**`gobj_post_event`**](gobj/events_state.md#gobj_post_event) — `PUBLIC int gobj_post_event( hgobj dst, gobj_event_t event, json_t *kw, hgobj src )`
 
-154. [**`gobj_posted_events_size`**](gobj/events_state.md#gobj_posted_events_size) — `PUBLIC size_t gobj_posted_events_size(void)`
+155. [**`gobj_posted_events_size`**](gobj/events_state.md#gobj_posted_events_size) — `PUBLIC size_t gobj_posted_events_size(void)`
 
-155. [**`gobj_deliver_posted_events`**](gobj/events_state.md#gobj_deliver_posted_events) — `PUBLIC int gobj_deliver_posted_events(void)`
+156. [**`gobj_deliver_posted_events`**](gobj/events_state.md#gobj_deliver_posted_events) — `PUBLIC int gobj_deliver_posted_events(void)`
 
-156. [**`gobj_change_state`**](gobj/events_state.md#gobj_change_state) — `PUBLIC BOOL gobj_change_state( hgobj gobj, gobj_state_t state_name )`
+157. [**`gobj_change_state`**](gobj/events_state.md#gobj_change_state) — `PUBLIC BOOL gobj_change_state( hgobj gobj, gobj_state_t state_name )`
 
-157. [**`gobj_current_state`**](gobj/events_state.md#gobj_current_state) — `PUBLIC gobj_state_t gobj_current_state(hgobj gobj)`
+158. [**`gobj_current_state`**](gobj/events_state.md#gobj_current_state) — `PUBLIC gobj_state_t gobj_current_state(hgobj gobj)`
 
-158. [**`gobj_in_this_state`**](gobj/events_state.md#gobj_in_this_state) — `PUBLIC BOOL gobj_in_this_state(hgobj gobj, gobj_state_t state)`
+159. [**`gobj_in_this_state`**](gobj/events_state.md#gobj_in_this_state) — `PUBLIC BOOL gobj_in_this_state(hgobj gobj, gobj_state_t state)`
 
-159. [**`gobj_has_state`**](gobj/events_state.md#gobj_has_state) — `PUBLIC BOOL gobj_has_state(hgobj gobj, gobj_state_t state)`
+160. [**`gobj_has_state`**](gobj/events_state.md#gobj_has_state) — `PUBLIC BOOL gobj_has_state(hgobj gobj, gobj_state_t state)`
 
-160. [**`gobj_state_find_by_name`**](gobj/events_state.md#gobj_state_find_by_name) — `PUBLIC hgclass gobj_state_find_by_name(gclass_name_t gclass_name)`
+161. [**`gobj_state_find_by_name`**](gobj/events_state.md#gobj_state_find_by_name) — `PUBLIC hgclass gobj_state_find_by_name(gclass_name_t gclass_name)`
 
-161. [**`gobj_has_event`**](gobj/events_state.md#gobj_has_event) — `PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)`
+162. [**`gobj_has_event`**](gobj/events_state.md#gobj_has_event) — `PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)`
 
-162. [**`gobj_has_output_event`**](gobj/events_state.md#gobj_has_output_event) — `PUBLIC BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)`
+163. [**`gobj_has_output_event`**](gobj/events_state.md#gobj_has_output_event) — `PUBLIC BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)`
 
-163. [**`gobj_event_type`**](gobj/events_state.md#gobj_event_type) — `PUBLIC event_type_t *gobj_event_type( hgobj gobj, gobj_event_t event, BOOL include_system_events )`
+164. [**`gobj_event_type`**](gobj/events_state.md#gobj_event_type) — `PUBLIC event_type_t *gobj_event_type( hgobj gobj, gobj_event_t event, BOOL include_system_events )`
 
-164. [**`gobj_event_type_by_name`**](gobj/events_state.md#gobj_event_type_by_name) — `PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj, const char *event_name)`
+165. [**`gobj_event_type_by_name`**](gobj/events_state.md#gobj_event_type_by_name) — `PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj, const char *event_name)`
 
-165. [**`gobj_subs_desc`**](gobj/publish.md#gobj_subs_desc) — `PUBLIC const sdata_desc_t *gobj_subs_desc(void)`
+166. [**`gobj_subs_desc`**](gobj/publish.md#gobj_subs_desc) — `PUBLIC const sdata_desc_t *gobj_subs_desc(void)`
 
-166. [**`gobj_subscribe_event`**](gobj/publish.md#gobj_subscribe_event) — `PUBLIC json_t *gobj_subscribe_event( hgobj publisher, gobj_event_t event, json_t *kw, hgobj subscriber )`
+167. [**`gobj_subscribe_event`**](gobj/publish.md#gobj_subscribe_event) — `PUBLIC json_t *gobj_subscribe_event( hgobj publisher, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-167. [**`gobj_unsubscribe_event`**](gobj/publish.md#gobj_unsubscribe_event) — `PUBLIC int gobj_unsubscribe_event( hgobj publisher, gobj_event_t event, json_t *kw, hgobj subscriber )`
+168. [**`gobj_unsubscribe_event`**](gobj/publish.md#gobj_unsubscribe_event) — `PUBLIC int gobj_unsubscribe_event( hgobj publisher, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-168. [**`gobj_unsubscribe_list`**](gobj/publish.md#gobj_unsubscribe_list) — `PUBLIC int gobj_unsubscribe_list( hgobj gobj, json_t *dl_subs, BOOL force )`
+169. [**`gobj_unsubscribe_list`**](gobj/publish.md#gobj_unsubscribe_list) — `PUBLIC int gobj_unsubscribe_list( hgobj gobj, json_t *dl_subs, BOOL force )`
 
-169. [**`gobj_find_subscriptions`**](gobj/publish.md#gobj_find_subscriptions) — `PUBLIC json_t *gobj_find_subscriptions( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
+170. [**`gobj_find_subscriptions`**](gobj/publish.md#gobj_find_subscriptions) — `PUBLIC json_t *gobj_find_subscriptions( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-170. [**`gobj_find_subscribings`**](gobj/publish.md#gobj_find_subscribings) — `PUBLIC json_t *gobj_find_subscribings( hgobj gobj, gobj_event_t event, json_t *kw, hgobj publisher )`
+171. [**`gobj_find_subscribings`**](gobj/publish.md#gobj_find_subscribings) — `PUBLIC json_t *gobj_find_subscribings( hgobj gobj, gobj_event_t event, json_t *kw, hgobj publisher )`
 
-171. [**`gobj_list_subscriptions`**](gobj/publish.md#gobj_list_subscriptions) — `PUBLIC json_t *gobj_list_subscriptions( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
+172. [**`gobj_list_subscriptions`**](gobj/publish.md#gobj_list_subscriptions) — `PUBLIC json_t *gobj_list_subscriptions( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-172. [**`gobj_list_subscribings`**](gobj/publish.md#gobj_list_subscribings) — `PUBLIC json_t *gobj_list_subscribings( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
+173. [**`gobj_list_subscribings`**](gobj/publish.md#gobj_list_subscribings) — `PUBLIC json_t *gobj_list_subscribings( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-173. [**`gobj_publish_event`**](gobj/publish.md#gobj_publish_event) — `PUBLIC int gobj_publish_event( hgobj publisher, gobj_event_t event, json_t *kw )`
+174. [**`gobj_publish_event`**](gobj/publish.md#gobj_publish_event) — `PUBLIC int gobj_publish_event( hgobj publisher, gobj_event_t event, json_t *kw )`
 
-174. [**`gobj_authenticate`**](gobj/authz.md#gobj_authenticate) — `PUBLIC json_t *gobj_authenticate( hgobj gobj, json_t *kw, hgobj src )`
+175. [**`gobj_authenticate`**](gobj/authz.md#gobj_authenticate) — `PUBLIC json_t *gobj_authenticate( hgobj gobj, json_t *kw, hgobj src )`
 
-175. [**`gobj_authzs`**](gobj/authz.md#gobj_authzs) — `PUBLIC json_t *gobj_authzs( hgobj gobj )`
+176. [**`gobj_authzs`**](gobj/authz.md#gobj_authzs) — `PUBLIC json_t *gobj_authzs( hgobj gobj )`
 
-176. [**`gobj_authz`**](gobj/authz.md#gobj_authz) — `PUBLIC json_t *gobj_authz( hgobj gobj, const char *authz )`
+177. [**`gobj_authz`**](gobj/authz.md#gobj_authz) — `PUBLIC json_t *gobj_authz( hgobj gobj, const char *authz )`
 
-177. [**`gobj_user_has_authz`**](gobj/authz.md#gobj_user_has_authz) — `PUBLIC BOOL gobj_user_has_authz( hgobj gobj, const char *authz, json_t *kw, hgobj src )`
+178. [**`gobj_user_has_authz`**](gobj/authz.md#gobj_user_has_authz) — `PUBLIC BOOL gobj_user_has_authz( hgobj gobj, const char *authz, json_t *kw, hgobj src )`
 
-178. [**`gobj_get_global_authz_table`**](gobj/authz.md#gobj_get_global_authz_table) — `PUBLIC const sdata_desc_t *gobj_get_global_authz_table(void)`
+179. [**`gobj_get_global_authz_table`**](gobj/authz.md#gobj_get_global_authz_table) — `PUBLIC const sdata_desc_t *gobj_get_global_authz_table(void)`
 
-179. [**`authzs_list`**](gobj/authz.md#authzs_list) — `PUBLIC json_t *authzs_list( hgobj gobj, const char *authz )`
+180. [**`authzs_list`**](gobj/authz.md#authzs_list) — `PUBLIC json_t *authzs_list( hgobj gobj, const char *authz )`
 
-180. [**`authz_get_level_desc`**](gobj/authz.md#authz_get_level_desc) — `PUBLIC const sdata_desc_t *authz_get_level_desc( const sdata_desc_t *authz_table, const char *authz )`
+181. [**`authz_get_level_desc`**](gobj/authz.md#authz_get_level_desc) — `PUBLIC const sdata_desc_t *authz_get_level_desc( const sdata_desc_t *authz_table, const char *authz )`
 
-181. [**`gobj_build_authzs_doc`**](gobj/authz.md#gobj_build_authzs_doc) — `PUBLIC json_t *gobj_build_authzs_doc( hgobj gobj, const char *cmd, json_t *kw )`
+182. [**`gobj_build_authzs_doc`**](gobj/authz.md#gobj_build_authzs_doc) — `PUBLIC json_t *gobj_build_authzs_doc( hgobj gobj, const char *cmd, json_t *kw )`
 
-182. [**`gobj_set_stat`**](gobj/stats.md#gobj_set_stat) — `PUBLIC json_int_t gobj_set_stat(hgobj gobj, const char *path, json_int_t value)`
+183. [**`gobj_set_stat`**](gobj/stats.md#gobj_set_stat) — `PUBLIC json_int_t gobj_set_stat(hgobj gobj, const char *path, json_int_t value)`
 
-183. [**`gobj_incr_stat`**](gobj/stats.md#gobj_incr_stat) — `PUBLIC json_int_t gobj_incr_stat(hgobj gobj, const char *path, json_int_t value)`
+184. [**`gobj_incr_stat`**](gobj/stats.md#gobj_incr_stat) — `PUBLIC json_int_t gobj_incr_stat(hgobj gobj, const char *path, json_int_t value)`
 
-184. [**`gobj_decr_stat`**](gobj/stats.md#gobj_decr_stat) — `PUBLIC json_int_t gobj_decr_stat(hgobj gobj, const char *path, json_int_t value)`
+185. [**`gobj_decr_stat`**](gobj/stats.md#gobj_decr_stat) — `PUBLIC json_int_t gobj_decr_stat(hgobj gobj, const char *path, json_int_t value)`
 
-185. [**`gobj_get_stat`**](gobj/stats.md#gobj_get_stat) — `PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path)`
+186. [**`gobj_get_stat`**](gobj/stats.md#gobj_get_stat) — `PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path)`
 
-186. [**`gobj_jn_stats`**](gobj/stats.md#gobj_jn_stats) — `PUBLIC json_t *gobj_jn_stats(hgobj gobj)`
+187. [**`gobj_jn_stats`**](gobj/stats.md#gobj_jn_stats) — `PUBLIC json_t *gobj_jn_stats(hgobj gobj)`
 
-187. [**`gobj_create_resource`**](gobj/resource.md#gobj_create_resource) — `PUBLIC json_t *gobj_create_resource( hgobj gobj, const char *resource, json_t *kw, json_t *jn_options )`
+188. [**`gobj_create_resource`**](gobj/resource.md#gobj_create_resource) — `PUBLIC json_t *gobj_create_resource( hgobj gobj, const char *resource, json_t *kw, json_t *jn_options )`
 
-188. [**`gobj_save_resource`**](gobj/resource.md#gobj_save_resource) — `PUBLIC int gobj_save_resource( hgobj gobj, const char *resource, json_t *record, json_t *jn_options )`
+189. [**`gobj_save_resource`**](gobj/resource.md#gobj_save_resource) — `PUBLIC int gobj_save_resource( hgobj gobj, const char *resource, json_t *record, json_t *jn_options )`
 
-189. [**`gobj_delete_resource`**](gobj/resource.md#gobj_delete_resource) — `PUBLIC int gobj_delete_resource( hgobj gobj, const char *resource, json_t *record, json_t *jn_options )`
+190. [**`gobj_delete_resource`**](gobj/resource.md#gobj_delete_resource) — `PUBLIC int gobj_delete_resource( hgobj gobj, const char *resource, json_t *record, json_t *jn_options )`
 
-190. [**`gobj_list_resource`**](gobj/resource.md#gobj_list_resource) — `PUBLIC json_t *gobj_list_resource( hgobj gobj, const char *resource, json_t *jn_filter, json_t *jn_options )`
+191. [**`gobj_list_resource`**](gobj/resource.md#gobj_list_resource) — `PUBLIC json_t *gobj_list_resource( hgobj gobj, const char *resource, json_t *jn_filter, json_t *jn_options )`
 
-191. [**`gobj_get_resource`**](gobj/resource.md#gobj_get_resource) — `PUBLIC json_t *gobj_get_resource( hgobj gobj, const char *resource, json_t *jn_filter, json_t *jn_options )`
+192. [**`gobj_get_resource`**](gobj/resource.md#gobj_get_resource) — `PUBLIC json_t *gobj_get_resource( hgobj gobj, const char *resource, json_t *jn_filter, json_t *jn_options )`
 
-192. [**`gobj_treedbs`**](gobj/node.md#gobj_treedbs) — `PUBLIC json_t *gobj_treedbs( hgobj gobj, json_t *kw, hgobj src )`
+193. [**`gobj_treedbs`**](gobj/node.md#gobj_treedbs) — `PUBLIC json_t *gobj_treedbs( hgobj gobj, json_t *kw, hgobj src )`
 
-193. [**`gobj_treedb_topics`**](gobj/node.md#gobj_treedb_topics) — `PUBLIC json_t *gobj_treedb_topics( hgobj gobj, const char *treedb_name, json_t *options, hgobj src )`
+194. [**`gobj_treedb_topics`**](gobj/node.md#gobj_treedb_topics) — `PUBLIC json_t *gobj_treedb_topics( hgobj gobj, const char *treedb_name, json_t *options, hgobj src )`
 
-194. [**`gobj_topic_desc`**](gobj/node.md#gobj_topic_desc) — `PUBLIC json_t *gobj_topic_desc( hgobj gobj, const char *topic_name )`
+195. [**`gobj_topic_desc`**](gobj/node.md#gobj_topic_desc) — `PUBLIC json_t *gobj_topic_desc( hgobj gobj, const char *topic_name )`
 
-195. [**`gobj_topic_links`**](gobj/node.md#gobj_topic_links) — `PUBLIC json_t *gobj_topic_links( hgobj gobj, const char *treedb_name, const char *topic_name, json_t *kw, hgobj src )`
+196. [**`gobj_topic_links`**](gobj/node.md#gobj_topic_links) — `PUBLIC json_t *gobj_topic_links( hgobj gobj, const char *treedb_name, const char *topic_name, json_t *kw, hgobj src )`
 
-196. [**`gobj_topic_hooks`**](gobj/node.md#gobj_topic_hooks) — `PUBLIC json_t *gobj_topic_hooks( hgobj gobj, const char *treedb_name, const char *topic_name, json_t *kw, hgobj src )`
+197. [**`gobj_topic_hooks`**](gobj/node.md#gobj_topic_hooks) — `PUBLIC json_t *gobj_topic_hooks( hgobj gobj, const char *treedb_name, const char *topic_name, json_t *kw, hgobj src )`
 
-197. [**`gobj_topic_size`**](gobj/node.md#gobj_topic_size) — `PUBLIC size_t gobj_topic_size( hgobj gobj, const char *topic_name, const char *key )`
+198. [**`gobj_topic_size`**](gobj/node.md#gobj_topic_size) — `PUBLIC size_t gobj_topic_size( hgobj gobj, const char *topic_name, const char *key )`
 
-198. [**`gobj_create_node`**](gobj/node.md#gobj_create_node) — `PUBLIC json_t *gobj_create_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+199. [**`gobj_create_node`**](gobj/node.md#gobj_create_node) — `PUBLIC json_t *gobj_create_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-199. [**`gobj_update_node`**](gobj/node.md#gobj_update_node) — `PUBLIC json_t *gobj_update_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+200. [**`gobj_update_node`**](gobj/node.md#gobj_update_node) — `PUBLIC json_t *gobj_update_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-200. [**`gobj_delete_node`**](gobj/node.md#gobj_delete_node) — `PUBLIC int gobj_delete_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+201. [**`gobj_delete_node`**](gobj/node.md#gobj_delete_node) — `PUBLIC int gobj_delete_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-201. [**`gobj_link_nodes`**](gobj/node.md#gobj_link_nodes) — `PUBLIC int gobj_link_nodes( hgobj gobj, const char *hook, const char *parent_topic_name, json_t *parent_record, const char *child_topic_name, json_t *child_record, hgobj src )`
+202. [**`gobj_link_nodes`**](gobj/node.md#gobj_link_nodes) — `PUBLIC int gobj_link_nodes( hgobj gobj, const char *hook, const char *parent_topic_name, json_t *parent_record, const char *child_topic_name, json_t *child_record, hgobj src )`
 
-202. [**`gobj_unlink_nodes`**](gobj/node.md#gobj_unlink_nodes) — `PUBLIC int gobj_unlink_nodes( hgobj gobj, const char *hook, const char *parent_topic_name, json_t *parent_record, const char *child_topic_name, json_t *child_record, hgobj src )`
+203. [**`gobj_unlink_nodes`**](gobj/node.md#gobj_unlink_nodes) — `PUBLIC int gobj_unlink_nodes( hgobj gobj, const char *hook, const char *parent_topic_name, json_t *parent_record, const char *child_topic_name, json_t *child_record, hgobj src )`
 
-203. [**`gobj_get_node`**](gobj/node.md#gobj_get_node) — `PUBLIC json_t *gobj_get_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+204. [**`gobj_get_node`**](gobj/node.md#gobj_get_node) — `PUBLIC json_t *gobj_get_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-204. [**`gobj_list_nodes`**](gobj/node.md#gobj_list_nodes) — `PUBLIC json_t *gobj_list_nodes( hgobj gobj, const char *topic_name, json_t *jn_filter, json_t *jn_options, hgobj src )`
+205. [**`gobj_list_nodes`**](gobj/node.md#gobj_list_nodes) — `PUBLIC json_t *gobj_list_nodes( hgobj gobj, const char *topic_name, json_t *jn_filter, json_t *jn_options, hgobj src )`
 
-205. [**`gobj_list_instances`**](gobj/node.md#gobj_list_instances) — `PUBLIC json_t *gobj_list_instances( hgobj gobj, const char *topic_name, const char *pkey2_field, json_t *jn_filter, json_t *jn_options, hgobj src )`
+206. [**`gobj_list_instances`**](gobj/node.md#gobj_list_instances) — `PUBLIC json_t *gobj_list_instances( hgobj gobj, const char *topic_name, const char *pkey2_field, json_t *jn_filter, json_t *jn_options, hgobj src )`
 
-206. [**`gobj_node_parents`**](gobj/node.md#gobj_node_parents) — `PUBLIC json_t *gobj_node_parents( hgobj gobj, const char *topic_name, json_t *kw, const char *link, json_t *jn_options, hgobj src )`
+207. [**`gobj_node_parents`**](gobj/node.md#gobj_node_parents) — `PUBLIC json_t *gobj_node_parents( hgobj gobj, const char *topic_name, json_t *kw, const char *link, json_t *jn_options, hgobj src )`
 
-207. [**`gobj_node_children`**](gobj/node.md#gobj_node_children) — `PUBLIC json_t *gobj_node_children( hgobj gobj, const char *topic_name, json_t *kw, const char *hook, json_t *jn_filter, json_t *jn_options, hgobj src )`
+208. [**`gobj_node_children`**](gobj/node.md#gobj_node_children) — `PUBLIC json_t *gobj_node_children( hgobj gobj, const char *topic_name, json_t *kw, const char *hook, json_t *jn_filter, json_t *jn_options, hgobj src )`
 
-208. [**`gobj_topic_jtree`**](gobj/node.md#gobj_topic_jtree) — `PUBLIC json_t *gobj_topic_jtree( hgobj gobj, const char *topic_name, const char *hook, const char *rename_hook, json_t *kw, json_t *jn_filter, json_t *jn_options, hgobj src )`
+209. [**`gobj_topic_jtree`**](gobj/node.md#gobj_topic_jtree) — `PUBLIC json_t *gobj_topic_jtree( hgobj gobj, const char *topic_name, const char *hook, const char *rename_hook, json_t *kw, json_t *jn_filter, json_t *jn_options, hgobj src )`
 
-209. [**`gobj_node_tree`**](gobj/node.md#gobj_node_tree) — `PUBLIC json_t *gobj_node_tree( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+210. [**`gobj_node_tree`**](gobj/node.md#gobj_node_tree) — `PUBLIC json_t *gobj_node_tree( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-210. [**`gobj_shoot_snap`**](gobj/node.md#gobj_shoot_snap) — `PUBLIC int gobj_shoot_snap( hgobj gobj, const char *tag, json_t *kw, hgobj src )`
+211. [**`gobj_shoot_snap`**](gobj/node.md#gobj_shoot_snap) — `PUBLIC int gobj_shoot_snap( hgobj gobj, const char *tag, json_t *kw, hgobj src )`
 
-211. [**`gobj_activate_snap`**](gobj/node.md#gobj_activate_snap) — `PUBLIC int gobj_activate_snap( hgobj gobj, const char *tag, json_t *kw, hgobj src )`
+212. [**`gobj_activate_snap`**](gobj/node.md#gobj_activate_snap) — `PUBLIC int gobj_activate_snap( hgobj gobj, const char *tag, json_t *kw, hgobj src )`
 
-212. [**`gobj_list_snaps`**](gobj/node.md#gobj_list_snaps) — `PUBLIC json_t *gobj_list_snaps( hgobj gobj, json_t *filter, hgobj src )`
+213. [**`gobj_list_snaps`**](gobj/node.md#gobj_list_snaps) — `PUBLIC json_t *gobj_list_snaps( hgobj gobj, json_t *filter, hgobj src )`
 
-213. [**`gobj_repr_global_trace_levels`**](logging/trace.md#gobj_repr_global_trace_levels) — `PUBLIC json_t * gobj_repr_global_trace_levels(void)`
+214. [**`gobj_repr_global_trace_levels`**](logging/trace.md#gobj_repr_global_trace_levels) — `PUBLIC json_t * gobj_repr_global_trace_levels(void)`
 
-214. [**`gobj_repr_gclass_trace_levels`**](logging/trace.md#gobj_repr_gclass_trace_levels) — `PUBLIC json_t * gobj_repr_gclass_trace_levels(const char *gclass_name)`
+215. [**`gobj_repr_gclass_trace_levels`**](logging/trace.md#gobj_repr_gclass_trace_levels) — `PUBLIC json_t * gobj_repr_gclass_trace_levels(const char *gclass_name)`
 
-215. [**`gobj_trace_level_list`**](logging/trace.md#gobj_trace_level_list) — `PUBLIC json_t *gobj_trace_level_list(hgclass gclass)`
+216. [**`gobj_trace_level_list`**](logging/trace.md#gobj_trace_level_list) — `PUBLIC json_t *gobj_trace_level_list(hgclass gclass)`
 
-216. [**`gobj_get_global_trace_level`**](logging/trace.md#gobj_get_global_trace_level) — `PUBLIC json_t *gobj_get_global_trace_level(void)`
+217. [**`gobj_get_global_trace_level`**](logging/trace.md#gobj_get_global_trace_level) — `PUBLIC json_t *gobj_get_global_trace_level(void)`
 
-217. [**`gobj_get_gclass_trace_level`**](logging/trace.md#gobj_get_gclass_trace_level) — `PUBLIC json_t *gobj_get_gclass_trace_level(hgclass gclass)`
+218. [**`gobj_get_global_trace_no_level`**](logging/trace.md#gobj_get_global_trace_no_level) — `PUBLIC json_t *gobj_get_global_trace_no_level(void)`
 
-218. [**`gobj_get_gclass_trace_no_level`**](logging/trace.md#gobj_get_gclass_trace_no_level) — `PUBLIC json_t *gobj_get_gclass_trace_no_level(hgclass gclass)`
+219. [**`gobj_get_gclass_trace_level`**](logging/trace.md#gobj_get_gclass_trace_level) — `PUBLIC json_t *gobj_get_gclass_trace_level(hgclass gclass)`
 
-219. [**`gobj_get_gobj_trace_level`**](logging/trace.md#gobj_get_gobj_trace_level) — `PUBLIC json_t *gobj_get_gobj_trace_level(hgobj gobj)`
+220. [**`gobj_get_gclass_trace_level2`**](logging/trace.md#gobj_get_gclass_trace_level2) — `PUBLIC json_t *gobj_get_gclass_trace_level2(hgclass gclass)`
 
-220. [**`gobj_get_gobj_trace_no_level`**](logging/trace.md#gobj_get_gobj_trace_no_level) — `PUBLIC json_t *gobj_get_gobj_trace_no_level(hgobj gobj)`
+221. [**`gobj_get_gclass_trace_no_level`**](logging/trace.md#gobj_get_gclass_trace_no_level) — `PUBLIC json_t *gobj_get_gclass_trace_no_level(hgclass gclass)`
 
-221. [**`gobj_get_gclass_trace_level_list`**](logging/trace.md#gobj_get_gclass_trace_level_list) — `PUBLIC json_t *gobj_get_gclass_trace_level_list(hgclass gclass)`
+222. [**`gobj_get_gobj_trace_level`**](logging/trace.md#gobj_get_gobj_trace_level) — `PUBLIC json_t *gobj_get_gobj_trace_level(hgobj gobj)`
 
-222. [**`gobj_get_gclass_trace_no_level_list`**](logging/trace.md#gobj_get_gclass_trace_no_level_list) — `PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass)`
+223. [**`gobj_get_gobj_trace_no_level`**](logging/trace.md#gobj_get_gobj_trace_no_level) — `PUBLIC json_t *gobj_get_gobj_trace_no_level(hgobj gobj)`
 
-223. [**`gobj_get_gobj_trace_level_tree`**](logging/trace.md#gobj_get_gobj_trace_level_tree) — `PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj)`
+224. [**`gobj_get_gclass_trace_level_list`**](logging/trace.md#gobj_get_gclass_trace_level_list) — `PUBLIC json_t *gobj_get_gclass_trace_level_list(hgclass gclass)`
 
-224. [**`gobj_get_gobj_trace_no_level_tree`**](logging/trace.md#gobj_get_gobj_trace_no_level_tree) — `PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj)`
+225. [**`gobj_get_gclass_trace_no_level_list`**](logging/trace.md#gobj_get_gclass_trace_no_level_list) — `PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass)`
 
-225. [**`gobj_global_trace_level`**](logging/trace.md#gobj_global_trace_level) — `PUBLIC uint32_t gobj_global_trace_level(void)`
+226. [**`gobj_get_gobj_trace_level_tree`**](logging/trace.md#gobj_get_gobj_trace_level_tree) — `PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj)`
 
-226. [**`gobj_global_trace_level2`**](logging/trace.md#gobj_global_trace_level2) — `PUBLIC uint32_t gobj_global_trace_level2(void)`
+227. [**`gobj_get_gobj_trace_no_level_tree`**](logging/trace.md#gobj_get_gobj_trace_no_level_tree) — `PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj)`
 
-227. [**`gobj_trace_level`**](logging/trace.md#gobj_trace_level) — `PUBLIC uint32_t gobj_trace_level(hgobj gobj)`
+228. [**`gobj_global_trace_level`**](logging/trace.md#gobj_global_trace_level) — `PUBLIC uint32_t gobj_global_trace_level(void)`
 
-228. [**`gobj_trace_no_level`**](logging/trace.md#gobj_trace_no_level) — `PUBLIC uint32_t gobj_trace_no_level(hgobj gobj)`
+229. [**`gobj_global_trace_level2`**](logging/trace.md#gobj_global_trace_level2) — `PUBLIC uint32_t gobj_global_trace_level2(void)`
 
-229. [**`gobj_is_level_tracing`**](logging/trace.md#gobj_is_level_tracing) — `PUBLIC BOOL gobj_is_level_tracing(hgobj gobj, uint32_t level)`
+230. [**`gobj_trace_level`**](logging/trace.md#gobj_trace_level) — `PUBLIC uint32_t gobj_trace_level(hgobj gobj)`
 
-230. [**`gobj_is_level_not_tracing`**](logging/trace.md#gobj_is_level_not_tracing) — `PUBLIC BOOL gobj_is_level_not_tracing(hgobj gobj, uint32_t level)`
+231. [**`gobj_trace_no_level`**](logging/trace.md#gobj_trace_no_level) — `PUBLIC uint32_t gobj_trace_no_level(hgobj gobj)`
 
-231. [**`gobj_set_gobj_trace`**](logging/trace.md#gobj_set_gobj_trace) — `PUBLIC int gobj_set_gobj_trace(hgobj gobj, const char* level, BOOL set, json_t* kw)`
+232. [**`gobj_is_level_tracing`**](logging/trace.md#gobj_is_level_tracing) — `PUBLIC BOOL gobj_is_level_tracing(hgobj gobj, uint32_t level)`
 
-232. [**`gobj_set_gclass_trace`**](logging/trace.md#gobj_set_gclass_trace) — `PUBLIC int gobj_set_gclass_trace(hgclass gclass, const char *level, BOOL set)`
+233. [**`gobj_is_level_not_tracing`**](logging/trace.md#gobj_is_level_not_tracing) — `PUBLIC BOOL gobj_is_level_not_tracing(hgobj gobj, uint32_t level)`
 
-233. [**`gobj_set_deep_tracing`**](logging/trace.md#gobj_set_deep_tracing) — `PUBLIC int gobj_set_deep_tracing(int level)`
+234. [**`gobj_set_gobj_trace`**](logging/trace.md#gobj_set_gobj_trace) — `PUBLIC int gobj_set_gobj_trace(hgobj gobj, const char* level, BOOL set, json_t* kw)`
 
-234. [**`gobj_get_deep_tracing`**](logging/trace.md#gobj_get_deep_tracing) — `PUBLIC int gobj_get_deep_tracing(void)`
+235. [**`gobj_set_gclass_trace`**](logging/trace.md#gobj_set_gclass_trace) — `PUBLIC int gobj_set_gclass_trace(hgclass gclass, const char *level, BOOL set)`
 
-235. [**`gobj_set_global_trace`**](logging/trace.md#gobj_set_global_trace) — `PUBLIC int gobj_set_global_trace(const char *level, BOOL set)`
+236. [**`gobj_set_deep_tracing`**](logging/trace.md#gobj_set_deep_tracing) — `PUBLIC int gobj_set_deep_tracing(int level)`
 
-236. [**`gobj_set_global_no_trace`**](logging/trace.md#gobj_set_global_no_trace) — `PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set)`
+237. [**`gobj_get_deep_tracing`**](logging/trace.md#gobj_get_deep_tracing) — `PUBLIC int gobj_get_deep_tracing(void)`
 
-237. [**`gobj_set_global_trace2`**](logging/trace.md#gobj_set_global_trace2) — `PUBLIC int gobj_set_global_trace2(uint32_t level, BOOL set)`
+238. [**`gobj_set_global_trace`**](logging/trace.md#gobj_set_global_trace) — `PUBLIC int gobj_set_global_trace(const char *level, BOOL set)`
 
-238. [**`gobj_set_global_no_trace2`**](logging/trace.md#gobj_set_global_no_trace2) — `PUBLIC int gobj_set_global_no_trace2(uint32_t level, BOOL set)`
+239. [**`gobj_set_global_no_trace`**](logging/trace.md#gobj_set_global_no_trace) — `PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set)`
 
-239. [**`gobj_load_trace_filter`**](logging/trace.md#gobj_load_trace_filter) — `PUBLIC int gobj_load_trace_filter(hgclass gclass, json_t *jn_trace_filter)`
+240. [**`gobj_set_global_trace2`**](logging/trace.md#gobj_set_global_trace2) — `PUBLIC int gobj_set_global_trace2(uint32_t level, BOOL set)`
 
-240. [**`gobj_add_trace_filter`**](logging/trace.md#gobj_add_trace_filter) — `PUBLIC int gobj_add_trace_filter(hgclass gclass, const char *attr, const char *value)`
+241. [**`gobj_set_global_no_trace2`**](logging/trace.md#gobj_set_global_no_trace2) — `PUBLIC int gobj_set_global_no_trace2(uint32_t level, BOOL set)`
 
-241. [**`gobj_remove_trace_filter`**](logging/trace.md#gobj_remove_trace_filter) — `PUBLIC int gobj_remove_trace_filter(hgclass gclass, const char *attr, const char *value)`
+242. [**`gobj_load_trace_filter`**](logging/trace.md#gobj_load_trace_filter) — `PUBLIC int gobj_load_trace_filter(hgclass gclass, json_t *jn_trace_filter)`
 
-242. [**`gobj_get_trace_filter`**](logging/trace.md#gobj_get_trace_filter) — `PUBLIC json_t *gobj_get_trace_filter(hgclass gclass)`
+243. [**`gobj_add_trace_filter`**](logging/trace.md#gobj_add_trace_filter) — `PUBLIC int gobj_add_trace_filter(hgclass gclass, const char *attr, const char *value)`
 
-243. [**`gobj_set_gclass_no_trace`**](logging/trace.md#gobj_set_gclass_no_trace) — `PUBLIC int gobj_set_gclass_no_trace(hgclass gclass, const char *level, BOOL set)`
+244. [**`gobj_remove_trace_filter`**](logging/trace.md#gobj_remove_trace_filter) — `PUBLIC int gobj_remove_trace_filter(hgclass gclass, const char *attr, const char *value)`
 
-244. [**`gobj_set_gobj_no_trace`**](logging/trace.md#gobj_set_gobj_no_trace) — `PUBLIC int gobj_set_gobj_no_trace(hgobj gobj, const char *level, BOOL set)`
+245. [**`gobj_get_trace_filter`**](logging/trace.md#gobj_get_trace_filter) — `PUBLIC json_t *gobj_get_trace_filter(hgclass gclass)`
 
-245. [**`trace_machine`**](logging/trace.md#trace_machine) — `PUBLIC void trace_machine(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)))`
+246. [**`gobj_set_gclass_no_trace`**](logging/trace.md#gobj_set_gclass_no_trace) — `PUBLIC int gobj_set_gclass_no_trace(hgclass gclass, const char *level, BOOL set)`
 
-246. [**`trace_machine2`**](logging/trace.md#trace_machine2) — `PUBLIC void trace_machine2(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)))`
+247. [**`gobj_set_gobj_no_trace`**](logging/trace.md#gobj_set_gobj_no_trace) — `PUBLIC int gobj_set_gobj_no_trace(hgobj gobj, const char *level, BOOL set)`
 
-247. [**`gobj_set_trace_machine_format`**](logging/trace.md#gobj_set_trace_machine_format) — `PUBLIC void gobj_set_trace_machine_format(int format)`
+248. [**`trace_machine`**](logging/trace.md#trace_machine) — `PUBLIC void trace_machine(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)))`
 
-248. [**`tab`**](logging/trace.md#tab) — `PUBLIC char *tab(char *bf, int bflen)`
+249. [**`trace_machine2`**](logging/trace.md#trace_machine2) — `PUBLIC void trace_machine2(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)))`
 
-### `helpers.h` — 168 functions
+250. [**`gobj_set_trace_machine_format`**](logging/trace.md#gobj_set_trace_machine_format) — `PUBLIC void gobj_set_trace_machine_format(int format)`
+
+251. [**`tab`**](logging/trace.md#tab) — `PUBLIC char *tab(char *bf, int bflen)`
+
+### `helpers.h` — 171 functions
 
 **Source:** `kernel/c/gobj-c/src/helpers.h`
 
@@ -808,253 +815,259 @@ with links to the API documentation.
 
 45. [**`str_in_list`**](helpers/string_helper.md#str_in_list) — `PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case)`
 
-46. [**`json_config`**](helpers/json_helper.md#json_config) — `PUBLIC json_t *json_config( BOOL print_verbose_config, BOOL print_final_config, const char *fixed_config, const char *variable_config, const char *config_json_file, const char *parameter_config, pe_flag_t quit )`
+46. [**`json_config`**](helpers/json_helper.md#json_config) — `PUBLIC char *json_config( BOOL print_verbose_config, BOOL print_final_config, const char *fixed_config, const char *variable_config, const char *config_json_file, const char *parameter_config, pe_flag_t quit )`
 
-47. [**`json_replace_var_custom`**](helpers/json_helper.md#json_replace_var_custom) — `PUBLIC json_t *json_replace_var_custom( json_t *jn_dict, json_t *jn_vars, const char *open, const char *close )`
+47. [**`json_config`**](helpers/json_helper.md#json_config) — `PUBLIC json_t *json_config( BOOL print_verbose_config, BOOL print_final_config, const char *fixed_config, const char *variable_config, const char *config_json_file, const char *parameter_config, pe_flag_t quit )`
 
-48. [**`json_replace_var`**](helpers/json_helper.md#json_replace_var) — `PUBLIC json_t *json_replace_var( json_t *jn_dict, json_t *jn_vars )`
+48. [**`json_replace_var_custom`**](helpers/json_helper.md#json_replace_var_custom) — `PUBLIC json_t *json_replace_var_custom( json_t *jn_dict, json_t *jn_vars, const char *open, const char *close )`
 
-49. [**`load_persistent_json`**](helpers/json_helper.md#load_persistent_json) — `PUBLIC json_t *load_persistent_json( hgobj gobj, const char *directory, const char *filename, log_opt_t on_critical_error, int *pfd, BOOL exclusive, BOOL silence )`
+49. [**`json_replace_var`**](helpers/json_helper.md#json_replace_var) — `PUBLIC json_t *json_replace_var( json_t *jn_dict, json_t *jn_vars )`
 
-50. [**`load_json_from_file`**](helpers/json_helper.md#load_json_from_file) — `PUBLIC json_t *load_json_from_file( hgobj gobj, const char *directory, const char *filename, log_opt_t on_critical_error )`
+50. [**`load_persistent_json`**](helpers/json_helper.md#load_persistent_json) — `PUBLIC json_t *load_persistent_json( hgobj gobj, const char *directory, const char *filename, log_opt_t on_critical_error, int *pfd, BOOL exclusive, BOOL silence )`
 
-51. [**`save_json_to_file`**](helpers/json_helper.md#save_json_to_file) — `PUBLIC int save_json_to_file( hgobj gobj, const char *directory, const char *filename, int xpermission, int rpermission, log_opt_t on_critical_error, BOOL create, BOOL only_read, json_t *jn_data )`
+51. [**`load_json_from_file`**](helpers/json_helper.md#load_json_from_file) — `PUBLIC json_t *load_json_from_file( hgobj gobj, const char *directory, const char *filename, log_opt_t on_critical_error )`
 
-52. [**`create_json_record`**](helpers/json_helper.md#create_json_record) — `PUBLIC json_t *create_json_record( hgobj gobj, const json_desc_t *json_desc )`
+52. [**`save_json_to_file`**](helpers/json_helper.md#save_json_to_file) — `PUBLIC int save_json_to_file( hgobj gobj, const char *directory, const char *filename, int xpermission, int rpermission, log_opt_t on_critical_error, BOOL create, BOOL only_read, json_t *jn_data )`
 
-53. [**`json_desc_to_schema`**](helpers/json_helper.md#json_desc_to_schema) — `PUBLIC json_t *json_desc_to_schema(const json_desc_t *json_desc)`
+53. [**`create_json_record`**](helpers/json_helper.md#create_json_record) — `PUBLIC json_t *create_json_record( hgobj gobj, const json_desc_t *json_desc )`
 
-54. [**`bits2jn_strlist`**](helpers/json_helper.md#bits2jn_strlist) — `PUBLIC json_t *bits2jn_strlist( const char **strings_table, uint64_t bits )`
+54. [**`json_desc_to_schema`**](helpers/json_helper.md#json_desc_to_schema) — `PUBLIC json_t *json_desc_to_schema(const json_desc_t *json_desc)`
 
-55. [**`bits2gbuffer`**](helpers/json_helper.md#bits2gbuffer) — `PUBLIC gbuffer_t *bits2gbuffer( const char **strings_table, uint64_t bits )`
+55. [**`bits2jn_strlist`**](helpers/json_helper.md#bits2jn_strlist) — `PUBLIC json_t *bits2jn_strlist( const char **strings_table, uint64_t bits )`
 
-56. [**`strings2bits`**](helpers/json_helper.md#strings2bits) — `PUBLIC uint64_t strings2bits( const char **strings_table, const char *str, const char *separators )`
+56. [**`bits2gbuffer`**](helpers/json_helper.md#bits2gbuffer) — `PUBLIC gbuffer_t *bits2gbuffer( const char **strings_table, uint64_t bits )`
 
-57. [**`json_list_str_index`**](helpers/json_helper.md#json_list_str_index) — `PUBLIC int json_list_str_index(json_t *jn_list, const char *str, BOOL ignore_case)`
+57. [**`strings2bits`**](helpers/json_helper.md#strings2bits) — `PUBLIC uint64_t strings2bits( const char **strings_table, const char *str, const char *separators )`
 
-58. [**`json_list_int`**](helpers/json_helper.md#json_list_int) — `PUBLIC json_int_t json_list_int(json_t *jn_list, size_t idx)`
+58. [**`json_list_str_index`**](helpers/json_helper.md#json_list_str_index) — `PUBLIC int json_list_str_index(json_t *jn_list, const char *str, BOOL ignore_case)`
 
-59. [**`json_list_int_index`**](helpers/json_helper.md#json_list_int_index) — `PUBLIC int json_list_int_index(json_t *jn_list, json_int_t value)`
+59. [**`json_list_int`**](helpers/json_helper.md#json_list_int) — `PUBLIC json_int_t json_list_int(json_t *jn_list, size_t idx)`
 
-60. [**`json_list_find`**](helpers/json_helper.md#json_list_find) — `PUBLIC int json_list_find(json_t *list, json_t *value)`
+60. [**`json_list_int_index`**](helpers/json_helper.md#json_list_int_index) — `PUBLIC int json_list_int_index(json_t *jn_list, json_int_t value)`
 
-61. [**`json_list_update`**](helpers/json_helper.md#json_list_update) — `PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set_type)`
+61. [**`json_list_find`**](helpers/json_helper.md#json_list_find) — `PUBLIC int json_list_find(json_t *list, json_t *value)`
 
-62. [**`json_is_range`**](helpers/json_helper.md#json_is_range) — `PUBLIC BOOL json_is_range(json_t *list, json_int_t *pfirst, json_int_t *psecond)`
+62. [**`json_list_update`**](helpers/json_helper.md#json_list_update) — `PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set_type)`
 
-63. [**`json_range_list`**](helpers/json_helper.md#json_range_list) — `PUBLIC json_t *json_range_list(json_t *list)`
+63. [**`json_is_range`**](helpers/json_helper.md#json_is_range) — `PUBLIC BOOL json_is_range(json_t *list, json_int_t *pfirst, json_int_t *psecond)`
 
-64. [**`json_listsrange2set`**](helpers/json_helper.md#json_listsrange2set) — `PUBLIC json_t *json_listsrange2set( json_t *listsrange )`
+64. [**`json_range_list`**](helpers/json_helper.md#json_range_list) — `PUBLIC json_t *json_range_list(json_t *list)`
 
-65. [**`json_dict_recursive_update`**](helpers/json_helper.md#json_dict_recursive_update) — `PUBLIC int json_dict_recursive_update(json_t *object, json_t *other, BOOL overwrite)`
+65. [**`json_listsrange2set`**](helpers/json_helper.md#json_listsrange2set) — `PUBLIC json_t *json_listsrange2set( json_t *listsrange )`
 
-66. [**`jn2real`**](helpers/json_helper.md#jn2real) — `PUBLIC double jn2real( json_t *jn_var )`
+66. [**`json_dict_recursive_update`**](helpers/json_helper.md#json_dict_recursive_update) — `PUBLIC int json_dict_recursive_update(json_t *object, json_t *other, BOOL overwrite)`
 
-67. [**`jn2integer`**](helpers/json_helper.md#jn2integer) — `PUBLIC json_int_t jn2integer( json_t *jn_var )`
+67. [**`jn2real`**](helpers/json_helper.md#jn2real) — `PUBLIC double jn2real( json_t *jn_var )`
 
-68. [**`jn2string`**](helpers/json_helper.md#jn2string) — `PUBLIC char *jn2string( json_t *jn_var )`
+68. [**`jn2integer`**](helpers/json_helper.md#jn2integer) — `PUBLIC json_int_t jn2integer( json_t *jn_var )`
 
-69. [**`jn2bool`**](helpers/json_helper.md#jn2bool) — `PUBLIC BOOL jn2bool( json_t *jn_var )`
+69. [**`jn2string`**](helpers/json_helper.md#jn2string) — `PUBLIC char *jn2string( json_t *jn_var )`
 
-70. [**`cmp_two_simple_json`**](helpers/json_helper.md#cmp_two_simple_json) — `PUBLIC int cmp_two_simple_json( json_t *jn_var1, json_t *jn_var2 )`
+70. [**`jn2bool`**](helpers/json_helper.md#jn2bool) — `PUBLIC BOOL jn2bool( json_t *jn_var )`
 
-71. [**`json_is_identical`**](helpers/json_helper.md#json_is_identical) — `PUBLIC BOOL json_is_identical( json_t *kw1, json_t *kw2 )`
+71. [**`cmp_two_simple_json`**](helpers/json_helper.md#cmp_two_simple_json) — `PUBLIC int cmp_two_simple_json( json_t *jn_var1, json_t *jn_var2 )`
 
-72. [**`anystring2json`**](helpers/json_helper.md#anystring2json) — `PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)`
+72. [**`json_is_identical`**](helpers/json_helper.md#json_is_identical) — `PUBLIC BOOL json_is_identical( json_t *kw1, json_t *kw2 )`
 
-73. [**`anyfile2json`**](helpers/json_helper.md#anyfile2json) — `PUBLIC json_t *anyfile2json(const char *path, BOOL verbose)`
+73. [**`anystring2json`**](helpers/json_helper.md#anystring2json) — `PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)`
 
-74. [**`string2json`**](helpers/json_helper.md#string2json) — `PUBLIC json_t *string2json(const char *str, BOOL verbose)`
+74. [**`anyfile2json`**](helpers/json_helper.md#anyfile2json) — `PUBLIC json_t *anyfile2json(const char *path, BOOL verbose)`
 
-75. [**`json_config_string2json`**](helpers/json_helper.md#json_config_string2json) — `PUBLIC json_t *json_config_string2json(const char *bf, BOOL verbose)`
+75. [**`string2json`**](helpers/json_helper.md#string2json) — `PUBLIC json_t *string2json(const char *str, BOOL verbose)`
 
-76. [**`set_real_precision`**](helpers/json_helper.md#set_real_precision) — `PUBLIC int set_real_precision(int precision)`
+76. [**`json_config_string2json`**](helpers/json_helper.md#json_config_string2json) — `PUBLIC json_t *json_config_string2json(const char *bf, BOOL verbose)`
 
-77. [**`get_real_precision`**](helpers/json_helper.md#get_real_precision) — `PUBLIC int get_real_precision(void)`
+77. [**`set_real_precision`**](helpers/json_helper.md#set_real_precision) — `PUBLIC int set_real_precision(int precision)`
 
-78. [**`json2str`**](helpers/json_helper.md#json2str) — `PUBLIC char *json2str(const json_t *jn)`
+78. [**`get_real_precision`**](helpers/json_helper.md#get_real_precision) — `PUBLIC int get_real_precision(void)`
 
-79. [**`json2uglystr`**](helpers/json_helper.md#json2uglystr) — `PUBLIC char *json2uglystr(const json_t *jn)`
+79. [**`json2str`**](helpers/json_helper.md#json2str) — `PUBLIC char *json2str(const json_t *jn)`
 
-80. [**`json_check_refcounts`**](helpers/json_helper.md#json_check_refcounts) — `PUBLIC int json_check_refcounts( json_t *kw, int max_refcount, int *result )`
+80. [**`json2uglystr`**](helpers/json_helper.md#json2uglystr) — `PUBLIC char *json2uglystr(const json_t *jn)`
 
-81. [**`json_print_refcounts`**](helpers/json_helper.md#json_print_refcounts) — `PUBLIC int json_print_refcounts( json_t *jn, int level )`
+81. [**`json_check_refcounts`**](helpers/json_helper.md#json_check_refcounts) — `PUBLIC int json_check_refcounts( json_t *kw, int max_refcount, int *result )`
 
-82. [**`json_str_in_list`**](helpers/json_helper.md#json_str_in_list) — `PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL ignore_case)`
+82. [**`json_print_refcounts`**](helpers/json_helper.md#json_print_refcounts) — `PUBLIC int json_print_refcounts( json_t *jn, int level )`
 
-83. [**`walk_dir_tree`**](helpers/directory_walk.md#walk_dir_tree) — `PUBLIC int walk_dir_tree( hgobj gobj, const char *root_dir, const char *pattern, wd_option opt, walkdir_cb cb, void *user_data )`
+83. [**`json_str_in_list`**](helpers/json_helper.md#json_str_in_list) — `PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL ignore_case)`
 
-84. [**`find_files_with_suffix_array`**](helpers/directory_walk.md#find_files_with_suffix_array) — `PUBLIC int find_files_with_suffix_array( hgobj gobj, const char *directory, const char *suffix, dir_array_t *da )`
+84. [**`walk_dir_tree`**](helpers/directory_walk.md#walk_dir_tree) — `PUBLIC int walk_dir_tree( hgobj gobj, const char *root_dir, const char *pattern, wd_option opt, walkdir_cb cb, void *user_data )`
 
-85. [**`dir_array_sort`**](helpers/directory_walk.md#dir_array_sort) — `PUBLIC void dir_array_sort( dir_array_t *da )`
+85. [**`find_files_with_suffix_array`**](helpers/directory_walk.md#find_files_with_suffix_array) — `PUBLIC int find_files_with_suffix_array( hgobj gobj, const char *directory, const char *suffix, dir_array_t *da )`
 
-86. [**`dir_array_free`**](helpers/directory_walk.md#dir_array_free) — `PUBLIC void dir_array_free( dir_array_t *da )`
+86. [**`dir_array_sort`**](helpers/directory_walk.md#dir_array_sort) — `PUBLIC void dir_array_sort( dir_array_t *da )`
 
-87. [**`walk_dir_array`**](helpers/directory_walk.md#walk_dir_array) — `PUBLIC int walk_dir_array( hgobj gobj, const char *root_dir, const char *re, wd_option opt, dir_array_t *da )`
+87. [**`dir_array_free`**](helpers/directory_walk.md#dir_array_free) — `PUBLIC void dir_array_free( dir_array_t *da )`
 
-88. [**`get_ordered_filename_array`**](helpers/directory_walk.md#get_ordered_filename_array) — `PUBLIC int get_ordered_filename_array( hgobj gobj, const char *root_dir, const char *re, wd_option opt, dir_array_t *da )`
+88. [**`walk_dir_array`**](helpers/directory_walk.md#walk_dir_array) — `PUBLIC int walk_dir_array( hgobj gobj, const char *root_dir, const char *re, wd_option opt, dir_array_t *da )`
 
-89. [**`tm_to_time_t`**](helpers/time_date.md#tm_to_time_t) — `PUBLIC time_t tm_to_time_t(const struct tm *tm)`
+89. [**`get_ordered_filename_array`**](helpers/directory_walk.md#get_ordered_filename_array) — `PUBLIC int get_ordered_filename_array( hgobj gobj, const char *root_dir, const char *re, wd_option opt, dir_array_t *da )`
 
-90. [**`date_mode_from_type`**](helpers/time_date.md#date_mode_from_type) — `PUBLIC struct date_mode *date_mode_from_type(enum date_mode_type type)`
+90. [**`tm_to_time_t`**](helpers/time_date.md#tm_to_time_t) — `PUBLIC time_t tm_to_time_t(const struct tm *tm)`
 
-91. [**`show_date`**](helpers/time_date.md#show_date) — `PUBLIC const char *show_date(timestamp_t time, int timezone, const struct date_mode *mode)`
+91. [**`date_mode_from_type`**](helpers/time_date.md#date_mode_from_type) — `PUBLIC struct date_mode *date_mode_from_type(enum date_mode_type type)`
 
-92. [**`show_date_relative`**](helpers/time_date.md#show_date_relative) — `PUBLIC void show_date_relative( timestamp_t time, char *timebuf, int timebufsize )`
+92. [**`show_date`**](helpers/time_date.md#show_date) — `PUBLIC const char *show_date(timestamp_t time, int timezone, const struct date_mode *mode)`
 
-93. [**`parse_date`**](helpers/time_date.md#parse_date) — `PUBLIC int parse_date( const char *date, char *out, int outsize )`
+93. [**`show_date_relative`**](helpers/time_date.md#show_date_relative) — `PUBLIC void show_date_relative( timestamp_t time, char *timebuf, int timebufsize )`
 
-94. [**`parse_date_basic`**](helpers/time_date.md#parse_date_basic) — `PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset)`
+94. [**`parse_date`**](helpers/time_date.md#parse_date) — `PUBLIC int parse_date( const char *date, char *out, int outsize )`
 
-95. [**`parse_expiry_date`**](helpers/time_date.md#parse_expiry_date) — `PUBLIC int parse_expiry_date(const char *date, timestamp_t *timestamp)`
+95. [**`parse_date_basic`**](helpers/time_date.md#parse_date_basic) — `PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset)`
 
-96. [**`datestamp`**](helpers/time_date.md#datestamp) — `PUBLIC void datestamp( char *out, int outsize )`
+96. [**`parse_expiry_date`**](helpers/time_date.md#parse_expiry_date) — `PUBLIC int parse_expiry_date(const char *date, timestamp_t *timestamp)`
 
-97. [**`parse_date_format`**](helpers/time_date.md#parse_date_format) — `PUBLIC void parse_date_format(const char *format, struct date_mode *mode)`
+97. [**`datestamp`**](helpers/time_date.md#datestamp) — `PUBLIC void datestamp( char *out, int outsize )`
 
-98. [**`date_overflows`**](helpers/time_date.md#date_overflows) — `PUBLIC int date_overflows(timestamp_t date)`
+98. [**`parse_date_format`**](helpers/time_date.md#parse_date_format) — `PUBLIC void parse_date_format(const char *format, struct date_mode *mode)`
 
-99. [**`hex2bin`**](helpers/string_helper.md#hex2bin) — `PUBLIC char *hex2bin(char *bf, int bfsize, const char *hex, size_t hex_len, size_t *out_len)`
+99. [**`date_overflows`**](helpers/time_date.md#date_overflows) — `PUBLIC int date_overflows(timestamp_t date)`
 
-100. [**`bin2hex`**](helpers/string_helper.md#bin2hex) — `PUBLIC char *bin2hex(char *bf, int bfsize, const uint8_t *bin, size_t bin_len)`
+100. [**`hex2bin`**](helpers/string_helper.md#hex2bin) — `PUBLIC char *hex2bin(char *bf, int bfsize, const char *hex, size_t hex_len, size_t *out_len)`
 
-101. [**`tdump`**](helpers/backtrace.md#tdump) — `PUBLIC void tdump(const char *prefix, const uint8_t *s, size_t len, view_fn_t view, int nivel)`
+101. [**`bin2hex`**](helpers/string_helper.md#bin2hex) — `PUBLIC char *bin2hex(char *bf, int bfsize, const uint8_t *bin, size_t bin_len)`
 
-102. [**`tdump2json`**](helpers/backtrace.md#tdump2json) — `PUBLIC json_t *tdump2json(const uint8_t *s, size_t len)`
+102. [**`tdump`**](helpers/backtrace.md#tdump) — `PUBLIC void tdump(const char *prefix, const uint8_t *s, size_t len, view_fn_t view, int nivel)`
 
-103. [**`print_json`**](helpers/json_helper.md#print_json) — `PUBLIC int print_json(const char *label, json_t *jn)`
+103. [**`tdump2json`**](helpers/backtrace.md#tdump2json) — `PUBLIC json_t *tdump2json(const uint8_t *s, size_t len)`
 
-104. [**`debug_json`**](helpers/json_helper.md#debug_json) — `PUBLIC int debug_json(const char *label, json_t *jn, BOOL verbose)`
+104. [**`print_json`**](helpers/json_helper.md#print_json) — `PUBLIC int print_json(const char *label, json_t *jn)`
 
-105. [**`debug_json2`**](helpers/json_helper.md#debug_json2) — `PUBLIC int debug_json2(json_t *jn, const char *format, ...)JANSSON_ATTRS((format(printf, 2, 3)))`
+105. [**`debug_json`**](helpers/json_helper.md#debug_json) — `PUBLIC int debug_json(const char *label, json_t *jn, BOOL verbose)`
 
-106. [**`current_timestamp`**](helpers/time_date.md#current_timestamp) — `PUBLIC char *current_timestamp(char *bf, size_t bfsize)`
+106. [**`debug_json2`**](helpers/json_helper.md#debug_json2) — `PUBLIC int debug_json2(json_t *jn, const char *format, ...)JANSSON_ATTRS((format(printf, 2, 3)))`
 
-107. [**`tm2timestamp`**](helpers/time_date.md#tm2timestamp) — `PUBLIC char *tm2timestamp(char *bf, int bfsize, struct tm *tm)`
+107. [**`current_timestamp`**](helpers/time_date.md#current_timestamp) — `PUBLIC char *current_timestamp(char *bf, size_t bfsize)`
 
-108. [**`t2timestamp`**](helpers/time_date.md#t2timestamp) — `PUBLIC char *t2timestamp(char *bf, int bfsize, time_t t, BOOL local)`
+108. [**`tm2timestamp`**](helpers/time_date.md#tm2timestamp) — `PUBLIC char *tm2timestamp(char *bf, int bfsize, struct tm *tm)`
 
-109. [**`start_sectimer`**](helpers/time_date.md#start_sectimer) — `PUBLIC time_t start_sectimer(time_t seconds)`
+109. [**`t2timestamp`**](helpers/time_date.md#t2timestamp) — `PUBLIC char *t2timestamp(char *bf, int bfsize, time_t t, BOOL local)`
 
-110. [**`test_sectimer`**](helpers/time_date.md#test_sectimer) — `PUBLIC BOOL test_sectimer(time_t value)`
+110. [**`start_sectimer`**](helpers/time_date.md#start_sectimer) — `PUBLIC time_t start_sectimer(time_t seconds)`
 
-111. [**`start_msectimer`**](helpers/time_date.md#start_msectimer) — `PUBLIC uint64_t start_msectimer(uint64_t milliseconds)`
+111. [**`test_sectimer`**](helpers/time_date.md#test_sectimer) — `PUBLIC BOOL test_sectimer(time_t value)`
 
-112. [**`test_msectimer`**](helpers/time_date.md#test_msectimer) — `PUBLIC BOOL test_msectimer(uint64_t value)`
+112. [**`start_msectimer`**](helpers/time_date.md#start_msectimer) — `PUBLIC uint64_t start_msectimer(uint64_t milliseconds)`
 
-113. [**`time_in_milliseconds_monotonic`**](helpers/time_date.md#time_in_milliseconds_monotonic) — `PUBLIC uint64_t time_in_milliseconds_monotonic(void)`
+113. [**`test_msectimer`**](helpers/time_date.md#test_msectimer) — `PUBLIC BOOL test_msectimer(uint64_t value)`
 
-114. [**`time_in_milliseconds`**](helpers/time_date.md#time_in_milliseconds) — `PUBLIC uint64_t time_in_milliseconds(void)`
+114. [**`time_in_milliseconds_monotonic`**](helpers/time_date.md#time_in_milliseconds_monotonic) — `PUBLIC uint64_t time_in_milliseconds_monotonic(void)`
 
-115. [**`time_in_seconds`**](helpers/time_date.md#time_in_seconds) — `PUBLIC time_t time_in_seconds(void)`
+115. [**`time_in_milliseconds`**](helpers/time_date.md#time_in_milliseconds) — `PUBLIC uint64_t time_in_milliseconds(void)`
 
-116. [**`cpu_usage`**](helpers/misc.md#cpu_usage) — `PUBLIC uint64_t cpu_usage(void)`
+116. [**`time_in_seconds`**](helpers/time_date.md#time_in_seconds) — `PUBLIC time_t time_in_seconds(void)`
 
-117. [**`cpu_usage_percent`**](helpers/misc.md#cpu_usage_percent) — `PUBLIC double cpu_usage_percent( uint64_t *last_cpu_ticks, uint64_t *last_ms )`
+117. [**`cpu_usage`**](helpers/misc.md#cpu_usage) — `PUBLIC uint64_t cpu_usage(void)`
 
-118. [**`htonll`**](helpers/time_date.md#htonll) — `PUBLIC uint64_t htonll(uint64_t value)`
+118. [**`cpu_usage_percent`**](helpers/misc.md#cpu_usage_percent) — `PUBLIC double cpu_usage_percent( uint64_t *last_cpu_ticks, uint64_t *last_ms )`
 
-119. [**`ntohll`**](helpers/time_date.md#ntohll) — `PUBLIC uint64_t ntohll(uint64_t value)`
+119. [**`htonll`**](helpers/time_date.md#htonll) — `PUBLIC uint64_t htonll(uint64_t value)`
 
-120. [**`list_open_files`**](helpers/time_date.md#list_open_files) — `PUBLIC void list_open_files(void)`
+120. [**`ntohll`**](helpers/time_date.md#ntohll) — `PUBLIC uint64_t ntohll(uint64_t value)`
 
-121. [**`gmtime2timezone`**](helpers/time_date.md#gmtime2timezone) — `PUBLIC time_t gmtime2timezone(time_t t, const char *tz, struct tm *ltm, time_t *offset)`
+121. [**`list_open_files`**](helpers/time_date.md#list_open_files) — `PUBLIC void list_open_files(void)`
 
-122. [**`formatdate`**](helpers/time_date.md#formatdate) — `PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format)`
+122. [**`gmtime2timezone`**](helpers/time_date.md#gmtime2timezone) — `PUBLIC time_t gmtime2timezone(time_t t, const char *tz, struct tm *ltm, time_t *offset)`
 
-123. [**`count_char`**](helpers/string_helper.md#count_char) — `PUBLIC int count_char(const char *s, char c)`
+123. [**`formatdate`**](helpers/time_date.md#formatdate) — `PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format)`
 
-124. [**`get_hostname`**](helpers/misc.md#get_hostname) — `PUBLIC const char *get_hostname(void)`
+124. [**`count_char`**](helpers/string_helper.md#count_char) — `PUBLIC int count_char(const char *s, char c)`
 
-125. [**`create_random_uuid`**](helpers/misc.md#create_random_uuid) — `PUBLIC int create_random_uuid(char *bf, int bfsize)`
+125. [**`get_hostname`**](helpers/misc.md#get_hostname) — `PUBLIC const char *get_hostname(void)`
 
-126. [**`node_uuid`**](helpers/misc.md#node_uuid) — `PUBLIC const char *node_uuid(void)`
+126. [**`create_random_uuid`**](helpers/misc.md#create_random_uuid) — `PUBLIC int create_random_uuid(char *bf, int bfsize)`
 
-127. [**`is_metadata_key`**](helpers/json_helper.md#is_metadata_key) — `PUBLIC BOOL is_metadata_key(const char *key)`
+127. [**`node_uuid`**](helpers/misc.md#node_uuid) — `PUBLIC const char *node_uuid(void)`
 
-128. [**`is_private_key`**](helpers/json_helper.md#is_private_key) — `PUBLIC BOOL is_private_key(const char *key)`
+128. [**`is_metadata_key`**](helpers/json_helper.md#is_metadata_key) — `PUBLIC BOOL is_metadata_key(const char *key)`
 
-129. [**`comm_prot_register`**](helpers/common_protocol.md#comm_prot_register) — `PUBLIC int comm_prot_register(gclass_name_t gclass_name, const char *schema)`
+129. [**`is_private_key`**](helpers/json_helper.md#is_private_key) — `PUBLIC BOOL is_private_key(const char *key)`
 
-130. [**`comm_prot_get_gclass`**](helpers/common_protocol.md#comm_prot_get_gclass) — `PUBLIC gclass_name_t comm_prot_get_gclass(const char *schema)`
+130. [**`comm_prot_register`**](helpers/common_protocol.md#comm_prot_register) — `PUBLIC int comm_prot_register(gclass_name_t gclass_name, const char *schema)`
 
-131. [**`comm_prot_free`**](helpers/common_protocol.md#comm_prot_free) — `PUBLIC void comm_prot_free(void)`
+131. [**`comm_prot_get_gclass`**](helpers/common_protocol.md#comm_prot_get_gclass) — `PUBLIC gclass_name_t comm_prot_get_gclass(const char *schema)`
 
-132. [**`launch_daemon`**](helpers/daemon_launcher.md#launch_daemon) — `PUBLIC int launch_daemon( BOOL redirect_stdio_to_null, const char *program, ... )`
+132. [**`comm_prot_free`**](helpers/common_protocol.md#comm_prot_free) — `PUBLIC void comm_prot_free(void)`
 
-133. [**`parse_url`**](helpers/url_parsing.md#parse_url) — `PUBLIC int parse_url( hgobj gobj, const char *uri, char *schema, size_t schema_size, char *host, size_t host_size, char *port, size_t port_size, char *path, size_t path_size, char *query, size_t query_size, BOOL no_schema )`
+133. [**`launch_daemon`**](helpers/daemon_launcher.md#launch_daemon) — `PUBLIC int launch_daemon( BOOL redirect_stdio_to_null, const char *program, ... )`
 
-134. [**`get_url_schema`**](helpers/url_parsing.md#get_url_schema) — `PUBLIC int get_url_schema( hgobj gobj, const char *uri, char *schema, size_t schema_size )`
+134. [**`parse_url`**](helpers/url_parsing.md#parse_url) — `PUBLIC int parse_url( hgobj gobj, const char *uri, char *schema, size_t schema_size, char *host, size_t host_size, char *port, size_t port_size, char *path, size_t path_size, char *query, size_t query_size, BOOL no_schema )`
 
-135. [**`free_ram_in_kb`**](helpers/misc.md#free_ram_in_kb) — `PUBLIC unsigned long free_ram_in_kb(void)`
+135. [**`get_url_schema`**](helpers/url_parsing.md#get_url_schema) — `PUBLIC int get_url_schema( hgobj gobj, const char *uri, char *schema, size_t schema_size )`
 
-136. [**`total_ram_in_kb`**](helpers/misc.md#total_ram_in_kb) — `PUBLIC unsigned long total_ram_in_kb(void)`
+136. [**`free_ram_in_kb`**](helpers/misc.md#free_ram_in_kb) — `PUBLIC unsigned long free_ram_in_kb(void)`
 
-137. [**`read_process_cmdline`**](helpers/file_system.md#read_process_cmdline) — `PUBLIC int read_process_cmdline(char *bf, size_t bfsize, pid_t pid)`
+137. [**`total_ram_in_kb`**](helpers/misc.md#total_ram_in_kb) — `PUBLIC unsigned long total_ram_in_kb(void)`
 
-138. [**`copyfile`**](helpers/file_system.md#copyfile) — `PUBLIC int copyfile( const char* source, const char* destination, int permission, BOOL overwrite )`
+138. [**`read_process_cmdline`**](helpers/file_system.md#read_process_cmdline) — `PUBLIC int read_process_cmdline(char *bf, size_t bfsize, pid_t pid)`
 
-139. [**`set_nonblocking`**](helpers/file_system.md#set_nonblocking) — `PUBLIC int set_nonblocking(int fd)`
+139. [**`copyfile`**](helpers/file_system.md#copyfile) — `PUBLIC int copyfile( const char* source, const char* destination, int permission, BOOL overwrite )`
 
-140. [**`set_cloexec`**](helpers/file_system.md#set_cloexec) — `PUBLIC int set_cloexec(int fd)`
+140. [**`set_nonblocking`**](helpers/file_system.md#set_nonblocking) — `PUBLIC int set_nonblocking(int fd)`
 
-141. [**`upper`**](helpers/string_helper.md#upper) — `PUBLIC char *upper(char *s)`
+141. [**`set_cloexec`**](helpers/file_system.md#set_cloexec) — `PUBLIC int set_cloexec(int fd)`
 
-142. [**`lower`**](helpers/string_helper.md#lower) — `PUBLIC char *lower(char *s)`
+142. [**`upper`**](helpers/string_helper.md#upper) — `PUBLIC char *upper(char *s)`
 
-143. [**`capitalize`**](helpers/string_helper.md#capitalize) — `PUBLIC char *capitalize(char *s)`
+143. [**`lower`**](helpers/string_helper.md#lower) — `PUBLIC char *lower(char *s)`
 
-144. [**`set_tcp_socket_options`**](helpers/common_protocol.md#set_tcp_socket_options) — `PUBLIC int set_tcp_socket_options(int fd, int delay)`
+144. [**`capitalize`**](helpers/string_helper.md#capitalize) — `PUBLIC char *capitalize(char *s)`
 
-145. [**`is_tcp_socket`**](helpers/common_protocol.md#is_tcp_socket) — `PUBLIC BOOL is_tcp_socket(int fd)`
+145. [**`set_tcp_socket_options`**](helpers/common_protocol.md#set_tcp_socket_options) — `PUBLIC int set_tcp_socket_options(int fd, int delay)`
 
-146. [**`is_udp_socket`**](helpers/common_protocol.md#is_udp_socket) — `PUBLIC BOOL is_udp_socket(int fd)`
+146. [**`is_tcp_socket`**](helpers/common_protocol.md#is_tcp_socket) — `PUBLIC BOOL is_tcp_socket(int fd)`
 
-147. [**`print_socket_address`**](helpers/common_protocol.md#print_socket_address) — `PUBLIC int print_socket_address(char *buf, size_t buflen, const struct sockaddr *sa)`
+147. [**`is_udp_socket`**](helpers/common_protocol.md#is_udp_socket) — `PUBLIC BOOL is_udp_socket(int fd)`
 
-148. [**`get_peername`**](helpers/common_protocol.md#get_peername) — `PUBLIC int get_peername(char *bf, size_t bfsize, int fd)`
+148. [**`print_socket_address`**](helpers/common_protocol.md#print_socket_address) — `PUBLIC int print_socket_address(char *buf, size_t buflen, const struct sockaddr *sa)`
 
-149. [**`get_sockname`**](helpers/common_protocol.md#get_sockname) — `PUBLIC int get_sockname(char *bf, size_t bfsize, int fd)`
+149. [**`get_peername`**](helpers/common_protocol.md#get_peername) — `PUBLIC int get_peername(char *bf, size_t bfsize, int fd)`
 
-150. [**`check_open_fds`**](helpers/misc.md#check_open_fds) — `PUBLIC int check_open_fds(void)`
+150. [**`get_sockname`**](helpers/common_protocol.md#get_sockname) — `PUBLIC int get_sockname(char *bf, size_t bfsize, int fd)`
 
-151. [**`print_open_fds`**](helpers/misc.md#print_open_fds) — `PUBLIC int print_open_fds(const char *fmt, ...)`
+151. [**`check_open_fds`**](helpers/misc.md#check_open_fds) — `PUBLIC int check_open_fds(void)`
 
-152. [**`get_inotify_self_usage`**](helpers/misc.md#get_inotify_self_usage) — `PUBLIC int get_inotify_self_usage(int *instances, int *watches)`
+152. [**`print_open_fds`**](helpers/misc.md#print_open_fds) — `PUBLIC int print_open_fds(const char *fmt, ...)`
 
-153. [**`is_yuneta_user`**](helpers/misc.md#is_yuneta_user) — `PUBLIC int is_yuneta_user(const char *username)`
+153. [**`get_inotify_self_usage`**](helpers/misc.md#get_inotify_self_usage) — `PUBLIC int get_inotify_self_usage(int *instances, int *watches)`
 
-154. [**`yuneta_getpwuid`**](helpers/misc.md#yuneta_getpwuid) — `PUBLIC struct passwd *yuneta_getpwuid(uid_t uid)`
+154. [**`is_yuneta_user`**](helpers/misc.md#is_yuneta_user) — `PUBLIC int is_yuneta_user(const char *username)`
 
-155. [**`yuneta_getpwnam`**](helpers/misc.md#yuneta_getpwnam) — `PUBLIC struct passwd *yuneta_getpwnam(const char *name)`
+155. [**`yuneta_getpwuid`**](helpers/misc.md#yuneta_getpwuid) — `PUBLIC struct passwd *yuneta_getpwuid(uid_t uid)`
 
-156. [**`yuneta_getgrnam`**](helpers/misc.md#yuneta_getgrnam) — `PUBLIC struct group *yuneta_getgrnam(const char *name)`
+156. [**`yuneta_getpwnam`**](helpers/misc.md#yuneta_getpwnam) — `PUBLIC struct passwd *yuneta_getpwnam(const char *name)`
 
-157. [**`yuneta_getgrouplist`**](helpers/misc.md#yuneta_getgrouplist) — `PUBLIC int yuneta_getgrouplist(const char *user, gid_t group, gid_t *groups, int *ngroups)`
+157. [**`yuneta_getgrnam`**](helpers/misc.md#yuneta_getgrnam) — `PUBLIC struct group *yuneta_getgrnam(const char *name)`
 
-158. [**`path_basename`**](helpers/string_helper.md#path_basename) — `PUBLIC const char *path_basename(const char *path)`
+158. [**`yuneta_getgrouplist`**](helpers/misc.md#yuneta_getgrouplist) — `PUBLIC int yuneta_getgrouplist(const char *user, gid_t group, gid_t *groups, int *ngroups)`
 
-159. [**`get_yunetas_base`**](helpers/misc.md#get_yunetas_base) — `PUBLIC const char *get_yunetas_base(void)`
+159. [**`path_basename`**](helpers/string_helper.md#path_basename) — `PUBLIC const char *path_basename(const char *path)`
 
-160. [**`source2base64_for_yunetas`**](helpers/misc.md#source2base64_for_yunetas) — `PUBLIC gbuffer_t *source2base64_for_yunetas( const char *source, char *comment, int commentlen )`
+160. [**`get_yunetas_base`**](helpers/misc.md#get_yunetas_base) — `PUBLIC const char *get_yunetas_base(void)`
 
-161. [**`replace_cli_vars`**](helpers/string_helper.md#replace_cli_vars) — `PUBLIC gbuffer_t *replace_cli_vars( const char *command, char *comment, int commentlen )`
+161. [**`source2base64_for_yunetas`**](helpers/misc.md#source2base64_for_yunetas) — `PUBLIC gbuffer_t *source2base64_for_yunetas( const char *source, char *comment, int commentlen )`
 
-162. [**`get_number_from_nn_table`**](helpers/misc.md#get_number_from_nn_table) — `PUBLIC int get_number_from_nn_table(const number_name_table_t *table, const char *name)`
+162. [**`replace_cli_vars`**](helpers/string_helper.md#replace_cli_vars) — `PUBLIC gbuffer_t *replace_cli_vars( const char *command, char *comment, int commentlen )`
 
-163. [**`get_name_from_nn_table`**](helpers/misc.md#get_name_from_nn_table) — `PUBLIC const char *get_name_from_nn_table(const number_name_table_t *table, int number)`
+163. [**`get_number_from_nn_table`**](helpers/misc.md#get_number_from_nn_table) — `PUBLIC int get_number_from_nn_table(const number_name_table_t *table, const char *name)`
 
-164. [**`get_hours_range`**](helpers/time_date.md#get_hours_range) — `PUBLIC time_range_t get_hours_range(time_t t, int range, const char *TZ)`
+164. [**`get_name_from_nn_table`**](helpers/misc.md#get_name_from_nn_table) — `PUBLIC const char *get_name_from_nn_table(const number_name_table_t *table, int number)`
 
-165. [**`get_days_range`**](helpers/time_date.md#get_days_range) — `PUBLIC time_range_t get_days_range(time_t t, int range, const char *TZ)`
+165. [**`get_hours_range`**](helpers/time_date.md#get_hours_range) — `PUBLIC time_range_t get_hours_range(time_t t, int range, const char *TZ)`
 
-166. [**`get_weeks_range`**](helpers/time_date.md#get_weeks_range) — `PUBLIC time_range_t get_weeks_range(time_t t, int range, const char *TZ)`
+166. [**`get_days_range`**](helpers/time_date.md#get_days_range) — `PUBLIC time_range_t get_days_range(time_t t, int range, const char *TZ)`
 
-167. [**`get_months_range`**](helpers/time_date.md#get_months_range) — `PUBLIC time_range_t get_months_range(time_t t, int range, const char *TZ)`
+167. [**`get_weeks_range`**](helpers/time_date.md#get_weeks_range) — `PUBLIC time_range_t get_weeks_range(time_t t, int range, const char *TZ)`
 
-168. [**`get_years_range`**](helpers/time_date.md#get_years_range) — `PUBLIC time_range_t get_years_range(time_t t, int range, const char *TZ)`
+168. [**`get_months_range`**](helpers/time_date.md#get_months_range) — `PUBLIC time_range_t get_months_range(time_t t, int range, const char *TZ)`
 
-### `kwid.h` — 52 functions
+169. [**`get_years_range`**](helpers/time_date.md#get_years_range) — `PUBLIC time_range_t get_years_range(time_t t, int range, const char *TZ)`
+
+170. [**`sha256_digest`**](helpers/misc.md#sha256_digest) — `PUBLIC void sha256_digest(const void *data, size_t len, uint8_t digest[SHA256_DIGEST_LEN])`
+
+171. [**`sha256_hex`**](helpers/misc.md#sha256_hex) — `PUBLIC int sha256_hex(const void *data, size_t len, char *bf, size_t bflen)`
+
+### `kwid.h` — 58 functions
 
 **Source:** `kernel/c/gobj-c/src/kwid.h`
 
@@ -1158,9 +1171,21 @@ with links to the API documentation.
 
 50. [**`kwid_match_nid`**](helpers/kwid.md#kwid_match_nid) — `PUBLIC BOOL kwid_match_nid( hgobj gobj, json_t *ids, const char *id, int max_id_size )`
 
-51. [**`json_flatten_dict`**](helpers/kwid.md#json_flatten_dict) — `PUBLIC json_t *json_flatten_dict(json_t *jn_nested)`
+51. [**`json2flat`**](helpers/kwid.md#json2flat) — `PUBLIC json_t *json2flat(json_t *jn_nested)`
 
-52. [**`json_unflatten_dict`**](helpers/kwid.md#json_unflatten_dict) — `PUBLIC json_t *json_unflatten_dict(json_t *jn_flat)`
+52. [**`flat2json`**](helpers/kwid.md#flat2json) — `PUBLIC json_t *flat2json(json_t *jn_flat, char *error, int error_size)`
+
+53. [**`flat_key_join`**](helpers/kwid.md#flat_key_join) — `PUBLIC char *flat_key_join(json_t *jn_segments)`
+
+54. [**`flat_key_split`**](helpers/kwid.md#flat_key_split) — `PUBLIC json_t *flat_key_split(const char *key)`
+
+55. [**`flat_diff`**](helpers/kwid.md#flat_diff) — `PUBLIC json_t *flat_diff(json_t *jn_flat1, json_t *jn_flat2)`
+
+56. [**`flat_apply`**](helpers/kwid.md#flat_apply) — `PUBLIC int flat_apply(json_t *jn_flat, json_t *jn_diff, char *error, int error_size)`
+
+57. [**`json_flatten_dict`**](helpers/kwid.md#json_flatten_dict) — `PUBLIC json_t *json_flatten_dict(json_t *jn_nested)`
+
+58. [**`json_unflatten_dict`**](helpers/kwid.md#json_unflatten_dict) — `PUBLIC json_t *json_unflatten_dict(json_t *jn_flat)`
 
 ### `log_udp_handler.h` — 6 functions
 
@@ -1212,7 +1237,7 @@ with links to the API documentation.
 
 3. [**`build_stats_response`**](parsers/stats_parser.md#build_stats_response) — `PUBLIC json_t *build_stats_response( hgobj gobj, json_int_t result, json_t *jn_comment, json_t *jn_schema, json_t *jn_data )`
 
-### `testing.h` — 9 functions
+### `testing.h` — 10 functions
 
 **Source:** `kernel/c/gobj-c/src/testing.h`
 
@@ -1220,25 +1245,27 @@ with links to the API documentation.
 
 2. [**`set_expected_results`**](testing/testing.md#set_expected_results) — `PUBLIC void set_expected_results( const char *name, json_t *errors_list, json_t *expected, const char **ignore_keys, BOOL verbose )`
 
-3. [**`test_json_file`**](testing/testing.md#test_json_file) — `PUBLIC int test_json_file( const char *file )`
+3. [**`set_expected_results_unordered`**](testing/testing.md#set_expected_results_unordered) — `PUBLIC void set_expected_results_unordered( const char *name, json_t *errors_list, json_t *expected, const char **ignore_keys, BOOL verbose )`
 
-4. [**`test_json`**](testing/testing.md#test_json) — `PUBLIC int test_json( json_t *jn_found )`
+4. [**`test_json_file`**](testing/testing.md#test_json_file) — `PUBLIC int test_json_file( const char *file )`
 
-5. [**`test_directory_permission`**](testing/testing.md#test_directory_permission) — `PUBLIC int test_directory_permission(const char *path, mode_t permission)`
+5. [**`test_json`**](testing/testing.md#test_json) — `PUBLIC int test_json( json_t *jn_found )`
 
-6. [**`test_file_permission_and_size`**](testing/testing.md#test_file_permission_and_size) — `PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, off_t size)`
+6. [**`test_directory_permission`**](testing/testing.md#test_directory_permission) — `PUBLIC int test_directory_permission(const char *path, mode_t permission)`
 
-7. [**`test_list`**](testing/testing.md#test_list) — `PUBLIC int test_list(json_t *found, json_t *expected, const char *msg, ...) JANSSON_ATTRS((format(printf, 3, 4)))`
+7. [**`test_file_permission_and_size`**](testing/testing.md#test_file_permission_and_size) — `PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, off_t size)`
 
-8. [**`set_measure_times`**](yev_loop/yev_loop.md#set_measure_times) — `PUBLIC void set_measure_times(int types)`
+8. [**`test_list`**](testing/testing.md#test_list) — `PUBLIC int test_list(json_t *found, json_t *expected, const char *msg, ...) JANSSON_ATTRS((format(printf, 3, 4)))`
 
-9. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
+9. [**`set_measure_times`**](yev_loop/yev_loop.md#set_measure_times) — `PUBLIC void set_measure_times(int types)`
 
-**Total: 579 functions**
+10. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
+
+**Total: 597 functions**
 
 ## libjwt (JWT Authentication)
 
-### `jwt.h` — 80 functions
+### `jwt.h` — 84 functions
 
 **Source:** `kernel/c/libjwt/src/jwt.h`
 
@@ -1282,127 +1309,135 @@ with links to the API documentation.
 
 20. [**`jwt_checker_verify`**](libjwt.md#jwt_checker_verify) — `int jwt_checker_verify(jwt_checker_t *checker, const char *token)`
 
-21. [**`jwt_builder_header_set`**](libjwt.md#jwt_builder_header_set) — `jwt_value_error_t jwt_builder_header_set(jwt_builder_t *builder, jwt_value_t *value)`
+21. [**`jwt_checker_verify2`**](libjwt.md#jwt_checker_verify2) — `json_t *jwt_checker_verify2(jwt_checker_t *checker, const char *token)`
 
-22. [**`jwt_builder_header_get`**](libjwt.md#jwt_builder_header_get) — `jwt_value_error_t jwt_builder_header_get(jwt_builder_t *builder, jwt_value_t *value)`
+22. [**`jwt_builder_header_set`**](libjwt.md#jwt_builder_header_set) — `jwt_value_error_t jwt_builder_header_set(jwt_builder_t *builder, jwt_value_t *value)`
 
-23. [**`jwt_builder_header_del`**](libjwt.md#jwt_builder_header_del) — `jwt_value_error_t jwt_builder_header_del(jwt_builder_t *builder, const char *header)`
+23. [**`jwt_builder_header_get`**](libjwt.md#jwt_builder_header_get) — `jwt_value_error_t jwt_builder_header_get(jwt_builder_t *builder, jwt_value_t *value)`
 
-24. [**`jwt_builder_claim_set`**](libjwt.md#jwt_builder_claim_set) — `jwt_value_error_t jwt_builder_claim_set(jwt_builder_t *builder, jwt_value_t *value)`
+24. [**`jwt_builder_header_del`**](libjwt.md#jwt_builder_header_del) — `jwt_value_error_t jwt_builder_header_del(jwt_builder_t *builder, const char *header)`
 
-25. [**`jwt_builder_claim_get`**](libjwt.md#jwt_builder_claim_get) — `jwt_value_error_t jwt_builder_claim_get(jwt_builder_t *builder, jwt_value_t *value)`
+25. [**`jwt_builder_claim_set`**](libjwt.md#jwt_builder_claim_set) — `jwt_value_error_t jwt_builder_claim_set(jwt_builder_t *builder, jwt_value_t *value)`
 
-26. [**`jwt_builder_claim_del`**](libjwt.md#jwt_builder_claim_del) — `jwt_value_error_t jwt_builder_claim_del(jwt_builder_t *builder, const char *claim)`
+26. [**`jwt_builder_claim_get`**](libjwt.md#jwt_builder_claim_get) — `jwt_value_error_t jwt_builder_claim_get(jwt_builder_t *builder, jwt_value_t *value)`
 
-27. [**`jwt_builder_time_offset`**](libjwt.md#jwt_builder_time_offset) — `int jwt_builder_time_offset(jwt_builder_t *builder, jwt_claims_t claim, time_t secs)`
+27. [**`jwt_builder_claim_del`**](libjwt.md#jwt_builder_claim_del) — `jwt_value_error_t jwt_builder_claim_del(jwt_builder_t *builder, const char *claim)`
 
-28. [**`jwt_checker_claim_get`**](libjwt.md#jwt_checker_claim_get) — `const char *jwt_checker_claim_get(jwt_checker_t *checker, jwt_claims_t type)`
+28. [**`jwt_builder_time_offset`**](libjwt.md#jwt_builder_time_offset) — `int jwt_builder_time_offset(jwt_builder_t *builder, jwt_claims_t claim, time_t secs)`
 
-29. [**`jwt_checker_claim_set`**](libjwt.md#jwt_checker_claim_set) — `int jwt_checker_claim_set(jwt_checker_t *checker, jwt_claims_t type, const char *value)`
+29. [**`jwt_checker_claim_get`**](libjwt.md#jwt_checker_claim_get) — `const char *jwt_checker_claim_get(jwt_checker_t *checker, jwt_claims_t type)`
 
-30. [**`jwt_checker_claim_del`**](libjwt.md#jwt_checker_claim_del) — `int jwt_checker_claim_del(jwt_checker_t *checker, jwt_claims_t type)`
+30. [**`jwt_checker_claim_set`**](libjwt.md#jwt_checker_claim_set) — `int jwt_checker_claim_set(jwt_checker_t *checker, jwt_claims_t type, const char *value)`
 
-31. [**`jwt_checker_time_leeway`**](libjwt.md#jwt_checker_time_leeway) — `int jwt_checker_time_leeway(jwt_checker_t *checker, jwt_claims_t claim, time_t secs)`
+31. [**`jwt_checker_claim_del`**](libjwt.md#jwt_checker_claim_del) — `int jwt_checker_claim_del(jwt_checker_t *checker, jwt_claims_t type)`
 
-32. [**`jwt_header_set`**](libjwt.md#jwt_header_set) — `jwt_value_error_t jwt_header_set(jwt_t *jwt, jwt_value_t *value)`
+32. [**`jwt_checker_time_leeway`**](libjwt.md#jwt_checker_time_leeway) — `int jwt_checker_time_leeway(jwt_checker_t *checker, jwt_claims_t claim, time_t secs)`
 
-33. [**`jwt_header_get`**](libjwt.md#jwt_header_get) — `jwt_value_error_t jwt_header_get(jwt_t *jwt, jwt_value_t *value)`
+33. [**`jwt_header_set`**](libjwt.md#jwt_header_set) — `jwt_value_error_t jwt_header_set(jwt_t *jwt, jwt_value_t *value)`
 
-34. [**`jwt_header_del`**](libjwt.md#jwt_header_del) — `jwt_value_error_t jwt_header_del(jwt_t *jwt, const char *header)`
+34. [**`jwt_header_get`**](libjwt.md#jwt_header_get) — `jwt_value_error_t jwt_header_get(jwt_t *jwt, jwt_value_t *value)`
 
-35. [**`jwt_claim_set`**](libjwt.md#jwt_claim_set) — `jwt_value_error_t jwt_claim_set(jwt_t *jwt, jwt_value_t *value)`
+35. [**`jwt_header_del`**](libjwt.md#jwt_header_del) — `jwt_value_error_t jwt_header_del(jwt_t *jwt, const char *header)`
 
-36. [**`jwt_claim_get`**](libjwt.md#jwt_claim_get) — `jwt_value_error_t jwt_claim_get(jwt_t *jwt, jwt_value_t *value)`
+36. [**`jwt_claim_set`**](libjwt.md#jwt_claim_set) — `jwt_value_error_t jwt_claim_set(jwt_t *jwt, jwt_value_t *value)`
 
-37. [**`jwt_claim_del`**](libjwt.md#jwt_claim_del) — `jwt_value_error_t jwt_claim_del(jwt_t *jwt, const char *claim)`
+37. [**`jwt_claim_get`**](libjwt.md#jwt_claim_get) — `jwt_value_error_t jwt_claim_get(jwt_t *jwt, jwt_value_t *value)`
 
-38. [**`jwt_alg_str`**](libjwt.md#jwt_alg_str) — `const char *jwt_alg_str(jwt_alg_t alg)`
+38. [**`jwt_claim_del`**](libjwt.md#jwt_claim_del) — `jwt_value_error_t jwt_claim_del(jwt_t *jwt, const char *claim)`
 
-39. [**`jwt_str_alg`**](libjwt.md#jwt_str_alg) — `jwt_alg_t jwt_str_alg(const char *alg)`
+39. [**`jwt_alg_str`**](libjwt.md#jwt_alg_str) — `const char *jwt_alg_str(jwt_alg_t alg)`
 
-40. [**`jwks_load`**](libjwt.md#jwks_load) — `jwk_set_t *jwks_load(jwk_set_t *jwk_set, const char *jwk_json_str)`
+40. [**`jwt_str_alg`**](libjwt.md#jwt_str_alg) — `jwt_alg_t jwt_str_alg(const char *alg)`
 
-41. [**`jwks_load_strn`**](libjwt.md#jwks_load_strn) — `jwk_set_t *jwks_load_strn(jwk_set_t *jwk_set, const char *jwk_json_str, const size_t len)`
+41. [**`jwks_load`**](libjwt.md#jwks_load) — `jwk_set_t *jwks_load(jwk_set_t *jwk_set, const char *jwk_json_str)`
 
-42. [**`jwks_load_fromfile`**](libjwt.md#jwks_load_fromfile) — `jwk_set_t *jwks_load_fromfile(jwk_set_t *jwk_set, const char *file_name)`
+42. [**`jwks_load_strn`**](libjwt.md#jwks_load_strn) — `jwk_set_t *jwks_load_strn(jwk_set_t *jwk_set, const char *jwk_json_str, const size_t len)`
 
-43. [**`jwks_load_fromfp`**](libjwt.md#jwks_load_fromfp) — `jwk_set_t *jwks_load_fromfp(jwk_set_t *jwk_set, FILE *input)`
+43. [**`jwks_load_fromfile`**](libjwt.md#jwks_load_fromfile) — `jwk_set_t *jwks_load_fromfile(jwk_set_t *jwk_set, const char *file_name)`
 
-44. [**`jwks_load_fromurl`**](libjwt.md#jwks_load_fromurl) — `jwk_set_t *jwks_load_fromurl(jwk_set_t *jwk_set, const char *url, int verify)`
+44. [**`jwks_load_fromfp`**](libjwt.md#jwks_load_fromfp) — `jwk_set_t *jwks_load_fromfp(jwk_set_t *jwk_set, FILE *input)`
 
-45. [**`jwks_create`**](libjwt.md#jwks_create) — `jwk_set_t *jwks_create(const char *jwk_json_str)`
+45. [**`jwks_load_fromurl`**](libjwt.md#jwks_load_fromurl) — `jwk_set_t *jwks_load_fromurl(jwk_set_t *jwk_set, const char *url, int verify)`
 
-46. [**`jwks_create_strn`**](libjwt.md#jwks_create_strn) — `jwk_set_t *jwks_create_strn(const char *jwk_json_str, const size_t len)`
+46. [**`jwks_create`**](libjwt.md#jwks_create) — `jwk_set_t *jwks_create(const char *jwk_json_str)`
 
-47. [**`jwks_create_fromfile`**](libjwt.md#jwks_create_fromfile) — `jwk_set_t *jwks_create_fromfile(const char *file_name)`
+47. [**`jwk_process_one`**](libjwt.md#jwk_process_one) — `jwk_item_t *jwk_process_one(jwk_set_t *jwk_set, json_t *jwk)`
 
-48. [**`jwks_create_fromfp`**](libjwt.md#jwks_create_fromfp) — `jwk_set_t *jwks_create_fromfp(FILE *input)`
+48. [**`jwks_item_add`**](libjwt.md#jwks_item_add) — `int jwks_item_add(jwk_set_t *jwk_set, jwk_item_t *item)`
 
-49. [**`jwks_create_fromurl`**](libjwt.md#jwks_create_fromurl) — `jwk_set_t *jwks_create_fromurl(const char *url, int verify)`
+49. [**`jwks_item_free2`**](libjwt.md#jwks_item_free2) — `int jwks_item_free2(jwk_set_t *jwk_set, jwk_item_t *item)`
 
-50. [**`jwks_error`**](libjwt.md#jwks_error) — `int jwks_error(const jwk_set_t *jwk_set)`
+50. [**`jwks_create_strn`**](libjwt.md#jwks_create_strn) — `jwk_set_t *jwks_create_strn(const char *jwk_json_str, const size_t len)`
 
-51. [**`jwks_error_any`**](libjwt.md#jwks_error_any) — `int jwks_error_any(const jwk_set_t *jwk_set)`
+51. [**`jwks_create_fromfile`**](libjwt.md#jwks_create_fromfile) — `jwk_set_t *jwks_create_fromfile(const char *file_name)`
 
-52. [**`jwks_error_msg`**](libjwt.md#jwks_error_msg) — `const char *jwks_error_msg(const jwk_set_t *jwk_set)`
+52. [**`jwks_create_fromfp`**](libjwt.md#jwks_create_fromfp) — `jwk_set_t *jwks_create_fromfp(FILE *input)`
 
-53. [**`jwks_error_clear`**](libjwt.md#jwks_error_clear) — `void jwks_error_clear(jwk_set_t *jwk_set)`
+53. [**`jwks_create_fromurl`**](libjwt.md#jwks_create_fromurl) — `jwk_set_t *jwks_create_fromurl(const char *url, int verify)`
 
-54. [**`jwks_free`**](libjwt.md#jwks_free) — `void jwks_free(jwk_set_t *jwk_set)`
+54. [**`jwks_error`**](libjwt.md#jwks_error) — `int jwks_error(const jwk_set_t *jwk_set)`
 
-55. [**`jwks_item_get`**](libjwt.md#jwks_item_get) — `const jwk_item_t *jwks_item_get(const jwk_set_t *jwk_set, size_t index)`
+55. [**`jwks_error_any`**](libjwt.md#jwks_error_any) — `int jwks_error_any(const jwk_set_t *jwk_set)`
 
-56. [**`jwks_find_bykid`**](libjwt.md#jwks_find_bykid) — `jwk_item_t *jwks_find_bykid(jwk_set_t *jwk_set, const char *kid)`
+56. [**`jwks_error_msg`**](libjwt.md#jwks_error_msg) — `const char *jwks_error_msg(const jwk_set_t *jwk_set)`
 
-57. [**`jwks_item_is_private`**](libjwt.md#jwks_item_is_private) — `int jwks_item_is_private(const jwk_item_t *item)`
+57. [**`jwks_error_clear`**](libjwt.md#jwks_error_clear) — `void jwks_error_clear(jwk_set_t *jwk_set)`
 
-58. [**`jwks_item_error`**](libjwt.md#jwks_item_error) — `int jwks_item_error(const jwk_item_t *item)`
+58. [**`jwks_free`**](libjwt.md#jwks_free) — `void jwks_free(jwk_set_t *jwk_set)`
 
-59. [**`jwks_item_error_msg`**](libjwt.md#jwks_item_error_msg) — `const char *jwks_item_error_msg(const jwk_item_t *item)`
+59. [**`jwks_item_get`**](libjwt.md#jwks_item_get) — `const jwk_item_t *jwks_item_get(const jwk_set_t *jwk_set, size_t index)`
 
-60. [**`jwks_item_curve`**](libjwt.md#jwks_item_curve) — `const char *jwks_item_curve(const jwk_item_t *item)`
+60. [**`jwks_find_bykid`**](libjwt.md#jwks_find_bykid) — `jwk_item_t *jwks_find_bykid(jwk_set_t *jwk_set, const char *kid)`
 
-61. [**`jwks_item_kid`**](libjwt.md#jwks_item_kid) — `const char *jwks_item_kid(const jwk_item_t *item)`
+61. [**`jwks_item_is_private`**](libjwt.md#jwks_item_is_private) — `int jwks_item_is_private(const jwk_item_t *item)`
 
-62. [**`jwks_item_alg`**](libjwt.md#jwks_item_alg) — `jwt_alg_t jwks_item_alg(const jwk_item_t *item)`
+62. [**`jwks_item_error`**](libjwt.md#jwks_item_error) — `int jwks_item_error(const jwk_item_t *item)`
 
-63. [**`jwks_item_kty`**](libjwt.md#jwks_item_kty) — `jwk_key_type_t jwks_item_kty(const jwk_item_t *item)`
+63. [**`jwks_item_error_msg`**](libjwt.md#jwks_item_error_msg) — `const char *jwks_item_error_msg(const jwk_item_t *item)`
 
-64. [**`jwks_item_use`**](libjwt.md#jwks_item_use) — `jwk_pub_key_use_t jwks_item_use(const jwk_item_t *item)`
+64. [**`jwks_item_curve`**](libjwt.md#jwks_item_curve) — `const char *jwks_item_curve(const jwk_item_t *item)`
 
-65. [**`jwks_item_key_ops`**](libjwt.md#jwks_item_key_ops) — `jwk_key_op_t jwks_item_key_ops(const jwk_item_t *item)`
+65. [**`jwks_item_kid`**](libjwt.md#jwks_item_kid) — `const char *jwks_item_kid(const jwk_item_t *item)`
 
-66. [**`jwks_item_pem`**](libjwt.md#jwks_item_pem) — `const char *jwks_item_pem(const jwk_item_t *item)`
+66. [**`jwks_item_alg`**](libjwt.md#jwks_item_alg) — `jwt_alg_t jwks_item_alg(const jwk_item_t *item)`
 
-67. [**`jwks_item_key_oct`**](libjwt.md#jwks_item_key_oct) — `int jwks_item_key_oct(const jwk_item_t *item, const unsigned char **buf, size_t *len)`
+67. [**`jwks_item_kty`**](libjwt.md#jwks_item_kty) — `jwk_key_type_t jwks_item_kty(const jwk_item_t *item)`
 
-68. [**`jwks_item_key_bits`**](libjwt.md#jwks_item_key_bits) — `int jwks_item_key_bits(const jwk_item_t *item)`
+68. [**`jwks_item_use`**](libjwt.md#jwks_item_use) — `jwk_pub_key_use_t jwks_item_use(const jwk_item_t *item)`
 
-69. [**`jwks_item_free`**](libjwt.md#jwks_item_free) — `int jwks_item_free(jwk_set_t *jwk_set, size_t index)`
+69. [**`jwks_item_key_ops`**](libjwt.md#jwks_item_key_ops) — `jwk_key_op_t jwks_item_key_ops(const jwk_item_t *item)`
 
-70. [**`jwks_item_free_all`**](libjwt.md#jwks_item_free_all) — `int jwks_item_free_all(jwk_set_t *jwk_set)`
+70. [**`jwks_item_pem`**](libjwt.md#jwks_item_pem) — `const char *jwks_item_pem(const jwk_item_t *item)`
 
-71. [**`jwks_item_free_bad`**](libjwt.md#jwks_item_free_bad) — `int jwks_item_free_bad(jwk_set_t *jwk_set)`
+71. [**`jwks_item_key_oct`**](libjwt.md#jwks_item_key_oct) — `int jwks_item_key_oct(const jwk_item_t *item, const unsigned char **buf, size_t *len)`
 
-72. [**`jwks_item_count`**](libjwt.md#jwks_item_count) — `size_t jwks_item_count(const jwk_set_t *jwk_set)`
+72. [**`jwks_item_key_bits`**](libjwt.md#jwks_item_key_bits) — `int jwks_item_key_bits(const jwk_item_t *item)`
 
-73. [**`jwt_set_alloc`**](libjwt.md#jwt_set_alloc) — `int jwt_set_alloc(jwt_malloc_t pmalloc, jwt_free_t pfree)`
+73. [**`jwks_item_free`**](libjwt.md#jwks_item_free) — `int jwks_item_free(jwk_set_t *jwk_set, size_t index)`
 
-74. [**`jwt_get_alloc`**](libjwt.md#jwt_get_alloc) — `void jwt_get_alloc(jwt_malloc_t *pmalloc, jwt_free_t *pfree)`
+74. [**`jwks_item_free_all`**](libjwt.md#jwks_item_free_all) — `int jwks_item_free_all(jwk_set_t *jwk_set)`
 
-75. [**`jwt_get_crypto_ops`**](libjwt.md#jwt_get_crypto_ops) — `const char *jwt_get_crypto_ops(void)`
+75. [**`jwks_item_free_bad`**](libjwt.md#jwks_item_free_bad) — `int jwks_item_free_bad(jwk_set_t *jwk_set)`
 
-76. [**`jwt_get_crypto_ops_t`**](libjwt.md#jwt_get_crypto_ops_t) — `jwt_crypto_provider_t jwt_get_crypto_ops_t(void)`
+76. [**`jwks_item_count`**](libjwt.md#jwks_item_count) — `size_t jwks_item_count(const jwk_set_t *jwk_set)`
 
-77. [**`jwt_set_crypto_ops`**](libjwt.md#jwt_set_crypto_ops) — `int jwt_set_crypto_ops(const char *opname)`
+77. [**`jwt_set_alloc`**](libjwt.md#jwt_set_alloc) — `int jwt_set_alloc(jwt_malloc_t pmalloc, jwt_free_t pfree)`
 
-78. [**`jwt_set_crypto_ops_t`**](libjwt.md#jwt_set_crypto_ops_t) — `int jwt_set_crypto_ops_t(jwt_crypto_provider_t opname)`
+78. [**`jwt_get_alloc`**](libjwt.md#jwt_get_alloc) — `void jwt_get_alloc(jwt_malloc_t *pmalloc, jwt_free_t *pfree)`
 
-79. [**`jwt_crypto_ops_supports_jwk`**](libjwt.md#jwt_crypto_ops_supports_jwk) — `int jwt_crypto_ops_supports_jwk(void)`
+79. [**`jwt_get_crypto_ops`**](libjwt.md#jwt_get_crypto_ops) — `const char *jwt_get_crypto_ops(void)`
 
-80. [**`jwt_init`**](libjwt.md#jwt_init) — `void jwt_init(void)`
+80. [**`jwt_get_crypto_ops_t`**](libjwt.md#jwt_get_crypto_ops_t) — `jwt_crypto_provider_t jwt_get_crypto_ops_t(void)`
 
-**Total: 80 functions**
+81. [**`jwt_set_crypto_ops`**](libjwt.md#jwt_set_crypto_ops) — `int jwt_set_crypto_ops(const char *opname)`
+
+82. [**`jwt_set_crypto_ops_t`**](libjwt.md#jwt_set_crypto_ops_t) — `int jwt_set_crypto_ops_t(jwt_crypto_provider_t opname)`
+
+83. [**`jwt_crypto_ops_supports_jwk`**](libjwt.md#jwt_crypto_ops_supports_jwk) — `int jwt_crypto_ops_supports_jwk(void)`
+
+84. [**`jwt_init`**](libjwt.md#jwt_init) — `JWT_CONSTRUCTOR void jwt_init(void)`
+
+**Total: 84 functions**
 
 ## ytls (TLS Abstraction)
 
@@ -1418,7 +1453,7 @@ with links to the API documentation.
 
 1. [**`openssl_api_tls`**](ytls/ytls.md#openssl_api_tls) — `PUBLIC api_tls_t *openssl_api_tls(void)`
 
-### `ytls.h` — 12 functions
+### `ytls.h` — 16 functions
 
 **Source:** `kernel/c/ytls/src/ytls.h`
 
@@ -1426,31 +1461,35 @@ with links to the API documentation.
 
 2. [**`ytls_cleanup`**](ytls/ytls.md#ytls_cleanup) — `PUBLIC void ytls_cleanup(hytls ytls)`
 
-3. [**`ytls_version`**](ytls/ytls.md#ytls_version) — `PUBLIC const char * ytls_version(hytls ytls)`
+3. [**`ytls_reload_certificates`**](ytls/ytls.md#ytls_reload_certificates) — `PUBLIC int ytls_reload_certificates( hytls ytls, json_t *jn_config )`
 
-4. [**`ytls_new_secure_filter`**](ytls/ytls.md#ytls_new_secure_filter) — `PUBLIC hsskt ytls_new_secure_filter( hytls ytls, int (*on_handshake_done_cb)(void *user_data, int error), int (*on_clear_data_cb)( void *user_data, gbuffer_t *gbuf ), int (*on_encrypted_data_cb)( void *user_data, gbuffer_t *gbuf ), void *user_data )`
+4. [**`ytls_get_cert_info`**](ytls/ytls.md#ytls_get_cert_info) — `PUBLIC json_t *ytls_get_cert_info(hytls ytls)`
 
-5. [**`ytls_shutdown`**](ytls/ytls.md#ytls_shutdown) — `PUBLIC void ytls_shutdown(hytls ytls, hsskt sskt)`
+5. [**`ytls_version`**](ytls/ytls.md#ytls_version) — `PUBLIC const char * ytls_version(hytls ytls)`
 
-6. [**`ytls_free_secure_filter`**](ytls/ytls.md#ytls_free_secure_filter) — `PUBLIC void ytls_free_secure_filter(hytls ytls, hsskt sskt)`
+6. [**`ytls_new_secure_filter`**](ytls/ytls.md#ytls_new_secure_filter) — `PUBLIC hsskt ytls_new_secure_filter( hytls ytls, int (*on_handshake_done_cb)(void *user_data, int error), int (*on_clear_data_cb)( void *user_data, gbuffer_t *gbuf ), int (*on_encrypted_data_cb)( void *user_data, gbuffer_t *gbuf ), void *user_data )`
 
-7. [**`ytls_do_handshake`**](ytls/ytls.md#ytls_do_handshake) — `PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt)`
+7. [**`ytls_shutdown`**](ytls/ytls.md#ytls_shutdown) — `PUBLIC void ytls_shutdown(hytls ytls, hsskt sskt)`
 
-8. [**`ytls_encrypt_data`**](ytls/ytls.md#ytls_encrypt_data) — `PUBLIC int ytls_encrypt_data( hytls ytls, hsskt sskt, gbuffer_t *gbuf )`
+8. [**`ytls_free_secure_filter`**](ytls/ytls.md#ytls_free_secure_filter) — `PUBLIC void ytls_free_secure_filter(hytls ytls, hsskt sskt)`
 
-9. [**`ytls_decrypt_data`**](ytls/ytls.md#ytls_decrypt_data) — `PUBLIC int ytls_decrypt_data( hytls ytls, hsskt sskt, gbuffer_t *gbuf )`
+9. [**`ytls_do_handshake`**](ytls/ytls.md#ytls_do_handshake) — `PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt)`
 
-10. [**`ytls_get_last_error`**](ytls/ytls.md#ytls_get_last_error) — `PUBLIC const char *ytls_get_last_error(hytls ytls, hsskt sskt)`
+10. [**`ytls_encrypt_data`**](ytls/ytls.md#ytls_encrypt_data) — `PUBLIC int ytls_encrypt_data( hytls ytls, hsskt sskt, gbuffer_t *gbuf )`
 
-11. [**`ytls_set_trace`**](ytls/ytls.md#ytls_set_trace) — `PUBLIC void ytls_set_trace(hytls ytls, hsskt sskt, BOOL set)`
+11. [**`ytls_decrypt_data`**](ytls/ytls.md#ytls_decrypt_data) — `PUBLIC int ytls_decrypt_data( hytls ytls, hsskt sskt, gbuffer_t *gbuf )`
 
-12. [**`ytls_flush`**](ytls/ytls.md#ytls_flush) — `PUBLIC int ytls_flush(hytls ytls, hsskt sskt)`
+12. [**`ytls_get_last_error`**](ytls/ytls.md#ytls_get_last_error) — `PUBLIC const char *ytls_get_last_error(hytls ytls, hsskt sskt)`
 
-13. [**`ytls_reload_certificates`**](ytls/ytls.md#ytls_reload_certificates) — `PUBLIC int ytls_reload_certificates( hytls ytls, json_t *jn_config )`
+13. [**`ytls_set_trace`**](ytls/ytls.md#ytls_set_trace) — `PUBLIC void ytls_set_trace(hytls ytls, hsskt sskt, BOOL set)`
 
-14. [**`ytls_get_cert_info`**](ytls/ytls.md#ytls_get_cert_info) — `PUBLIC json_t *ytls_get_cert_info( hytls ytls )`
+14. [**`ytls_set_peer_name`**](ytls/ytls.md#ytls_set_peer_name) — `PUBLIC void ytls_set_peer_name(hytls ytls, hsskt sskt, const char *peername, const char *sockname)`
 
-**Total: 16 functions**
+15. [**`ytls_flush`**](ytls/ytls.md#ytls_flush) — `PUBLIC int ytls_flush(hytls ytls, hsskt sskt)`
+
+16. [**`ytls_get_system_ca_bundle`**](ytls/ytls.md#ytls_get_system_ca_bundle) — `PUBLIC const char *ytls_get_system_ca_bundle(void)`
+
+**Total: 18 functions**
 
 ## yev_loop (Event Loop)
 
@@ -1526,7 +1565,7 @@ with links to the API documentation.
 
 3. [**`fs_stop_watcher_event`**](timeranger2/fs_watcher.md#fs_stop_watcher_event) — `PUBLIC int fs_stop_watcher_event( fs_event_t *fs_event )`
 
-### `timeranger2.h` — 49 functions
+### `timeranger2.h` — 52 functions
 
 **Source:** `kernel/c/timeranger2/src/timeranger2.h`
 
@@ -1580,7 +1619,7 @@ with links to the API documentation.
 
 25. [**`tranger2_append_record`**](timeranger2/timeranger2.md#tranger2_append_record) — `PUBLIC int tranger2_append_record( json_t *tranger, const char *topic_name, uint64_t __t__, uint16_t user_flag, md2_record_ex_t *md_record_ex, json_t *jn_record )`
 
-26. [**`tranger2_delete_key`**](timeranger2/timeranger2.md#tranger2_delete_key) — `PUBLIC int tranger2_delete_key( json_t *tranger, const char *topic_name, const char *key )` *(legacy alias: `tranger2_delete_record`)*
+26. [**`tranger2_delete_key`**](timeranger2/timeranger2.md#tranger2_delete_key) — `PUBLIC int tranger2_delete_key( json_t *tranger, const char *topic_name, const char *key )`
 
 27. [**`tranger2_delete_instance`**](timeranger2/timeranger2.md#tranger2_delete_instance) — `PUBLIC int tranger2_delete_instance( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid, BOOL zero_payload )`
 
@@ -1588,49 +1627,51 @@ with links to the API documentation.
 
 29. [**`tranger2_set_user_flag`**](timeranger2/timeranger2.md#tranger2_set_user_flag) — `PUBLIC int tranger2_set_user_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid, uint16_t mask, BOOL set )`
 
-30. [**`tranger2_read_user_flag`**](timeranger2/timeranger2.md#tranger2_read_user_flag) — `PUBLIC uint16_t tranger2_read_user_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid )`
+30. [**`tranger2_set_system_flag`**](timeranger2/timeranger2.md#tranger2_set_system_flag) — `PUBLIC int tranger2_set_system_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid, uint16_t mask, BOOL set )`
 
-31. [**`tranger2_open_iterator`**](timeranger2/timeranger2.md#tranger2_open_iterator) — `PUBLIC json_t *tranger2_open_iterator( json_t *tranger, const char *topic_name, const char *key, json_t *match_cond, tranger2_load_record_callback_t load_record_callback, const char *iterator_id, const char *creator, json_t *data, json_t *extra )`
+31. [**`tranger2_read_user_flag`**](timeranger2/timeranger2.md#tranger2_read_user_flag) — `PUBLIC uint16_t tranger2_read_user_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid )`
 
-32. [**`tranger2_close_iterator`**](timeranger2/timeranger2.md#tranger2_close_iterator) — `PUBLIC int tranger2_close_iterator( json_t *tranger, json_t *iterator )`
+32. [**`tranger2_set_rt_key_deleted_callback`**](timeranger2/timeranger2.md#tranger2_set_rt_key_deleted_callback) — `PUBLIC int tranger2_set_rt_key_deleted_callback( json_t *list, tranger2_key_deleted_callback_t cb, void *user_data )`
 
-33. [**`tranger2_get_iterator_by_id`**](timeranger2/timeranger2.md#tranger2_get_iterator_by_id) — `PUBLIC json_t *tranger2_get_iterator_by_id( json_t *tranger, const char *topic_name, const char *iterator_id, const char *creator )`
+33. [**`tranger2_open_iterator`**](timeranger2/timeranger2.md#tranger2_open_iterator) — `PUBLIC json_t *tranger2_open_iterator( json_t *tranger, const char *topic_name, const char *key, json_t *match_cond, tranger2_load_record_callback_t load_record_callback, const char *iterator_id, const char *creator, json_t *data, json_t *extra )`
 
-34. [**`tranger2_iterator_size`**](timeranger2/timeranger2.md#tranger2_iterator_size) — `PUBLIC size_t tranger2_iterator_size( json_t *iterator )`
+34. [**`tranger2_close_iterator`**](timeranger2/timeranger2.md#tranger2_close_iterator) — `PUBLIC int tranger2_close_iterator( json_t *tranger, json_t *iterator )`
 
-35. [**`tranger2_iterator_get_page`**](timeranger2/timeranger2.md#tranger2_iterator_get_page) — `PUBLIC json_t *tranger2_iterator_get_page( json_t *tranger, json_t *iterator, json_int_t from_rowid, size_t limit, BOOL backward )`
+35. [**`tranger2_get_iterator_by_id`**](timeranger2/timeranger2.md#tranger2_get_iterator_by_id) — `PUBLIC json_t *tranger2_get_iterator_by_id( json_t *tranger, const char *topic_name, const char *iterator_id, const char *creator )`
 
-36. [**`tranger2_open_rt_mem`**](timeranger2/timeranger2.md#tranger2_open_rt_mem) — `PUBLIC json_t *tranger2_open_rt_mem( json_t *tranger, const char *topic_name, const char *key, json_t *match_cond, tranger2_load_record_callback_t load_record_callback, const char *list_id, const char *creator, json_t *extra )`
+36. [**`tranger2_iterator_size`**](timeranger2/timeranger2.md#tranger2_iterator_size) — `PUBLIC size_t tranger2_iterator_size( json_t *iterator )`
 
-37. [**`tranger2_close_rt_mem`**](timeranger2/timeranger2.md#tranger2_close_rt_mem) — `PUBLIC int tranger2_close_rt_mem( json_t *tranger, json_t *mem )`
+37. [**`tranger2_iterator_get_page`**](timeranger2/timeranger2.md#tranger2_iterator_get_page) — `PUBLIC json_t *tranger2_iterator_get_page( json_t *tranger, json_t *iterator, json_int_t from_rowid, size_t limit, BOOL backward )`
 
-38. [**`tranger2_get_rt_mem_by_id`**](timeranger2/timeranger2.md#tranger2_get_rt_mem_by_id) — `PUBLIC json_t *tranger2_get_rt_mem_by_id( json_t *tranger, const char *topic_name, const char *rt_id, const char *creator )`
+38. [**`tranger2_open_rt_mem`**](timeranger2/timeranger2.md#tranger2_open_rt_mem) — `PUBLIC json_t *tranger2_open_rt_mem( json_t *tranger, const char *topic_name, const char *key, json_t *match_cond, tranger2_load_record_callback_t load_record_callback, const char *list_id, const char *creator, json_t *extra )`
 
-39. [**`tranger2_open_rt_disk`**](timeranger2/timeranger2.md#tranger2_open_rt_disk) — `PUBLIC json_t *tranger2_open_rt_disk( json_t *tranger, const char *topic_name, const char *key, json_t *match_cond, tranger2_load_record_callback_t load_record_callback, const char *rt_id, const char *creator, json_t *extra )`
+39. [**`tranger2_close_rt_mem`**](timeranger2/timeranger2.md#tranger2_close_rt_mem) — `PUBLIC int tranger2_close_rt_mem( json_t *tranger, json_t *mem )`
 
-40. [**`tranger2_close_rt_disk`**](timeranger2/timeranger2.md#tranger2_close_rt_disk) — `PUBLIC int tranger2_close_rt_disk( json_t *tranger, json_t *disk )`
+40. [**`tranger2_get_rt_mem_by_id`**](timeranger2/timeranger2.md#tranger2_get_rt_mem_by_id) — `PUBLIC json_t *tranger2_get_rt_mem_by_id( json_t *tranger, const char *topic_name, const char *rt_id, const char *creator )`
 
-41. [**`tranger2_get_rt_disk_by_id`**](timeranger2/timeranger2.md#tranger2_get_rt_disk_by_id) — `PUBLIC json_t *tranger2_get_rt_disk_by_id( json_t *tranger, const char *topic_name, const char *rt_id, const char *creator )`
+41. [**`tranger2_open_rt_disk`**](timeranger2/timeranger2.md#tranger2_open_rt_disk) — `PUBLIC json_t *tranger2_open_rt_disk( json_t *tranger, const char *topic_name, const char *key, json_t *match_cond, tranger2_load_record_callback_t load_record_callback, const char *rt_id, const char *creator, json_t *extra )`
 
-42. [**`tranger2_open_list`**](timeranger2/timeranger2.md#tranger2_open_list) — `PUBLIC json_t *tranger2_open_list( json_t *tranger, const char *topic_name, json_t *match_cond, json_t *extra, const char *rt_id, BOOL rt_by_disk, const char *creator )`
+42. [**`tranger2_close_rt_disk`**](timeranger2/timeranger2.md#tranger2_close_rt_disk) — `PUBLIC int tranger2_close_rt_disk( json_t *tranger, json_t *disk )`
 
-43. [**`tranger2_close_list`**](timeranger2/timeranger2.md#tranger2_close_list) — `PUBLIC int tranger2_close_list( json_t *tranger, json_t *list )`
+43. [**`tranger2_get_rt_disk_by_id`**](timeranger2/timeranger2.md#tranger2_get_rt_disk_by_id) — `PUBLIC json_t *tranger2_get_rt_disk_by_id( json_t *tranger, const char *topic_name, const char *rt_id, const char *creator )`
 
-44. [**`tranger2_close_all_lists`**](timeranger2/timeranger2.md#tranger2_close_all_lists) — `PUBLIC int tranger2_close_all_lists( json_t *tranger, const char *topic_name, const char *rt_id, const char *creator )`
+44. [**`tranger2_open_list`**](timeranger2/timeranger2.md#tranger2_open_list) — `PUBLIC json_t *tranger2_open_list( json_t *tranger, const char *topic_name, json_t *match_cond, json_t *extra, const char *rt_id, BOOL rt_by_disk, const char *creator )`
 
-45. [**`tranger2_read_record_content`**](timeranger2/timeranger2.md#tranger2_read_record_content) — `PUBLIC json_t *tranger2_read_record_content( json_t *tranger, json_t *topic, const char *key, md2_record_ex_t *md_record_ex )`
+45. [**`tranger2_close_list`**](timeranger2/timeranger2.md#tranger2_close_list) — `PUBLIC int tranger2_close_list( json_t *tranger, json_t *list )`
 
-46. [**`tranger2_print_md0_record`**](timeranger2/timeranger2.md#tranger2_print_md0_record) — `PUBLIC void tranger2_print_md0_record( char *bf, int bfsize, const char *key, json_int_t rowid, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
+46. [**`tranger2_close_all_lists`**](timeranger2/timeranger2.md#tranger2_close_all_lists) — `PUBLIC int tranger2_close_all_lists( json_t *tranger, const char *topic_name, const char *creator, const char *rt_id )`
 
-47. [**`tranger2_print_md1_record`**](timeranger2/timeranger2.md#tranger2_print_md1_record) — `PUBLIC void tranger2_print_md1_record( char *bf, int bfsize, const char *key, json_int_t rowid, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
+47. [**`tranger2_read_record_content`**](timeranger2/timeranger2.md#tranger2_read_record_content) — `PUBLIC json_t *tranger2_read_record_content( json_t *tranger, json_t *topic, const char *key, md2_record_ex_t *md_record_ex )`
 
-48. [**`tranger2_print_md2_record`**](timeranger2/timeranger2.md#tranger2_print_md2_record) — `PUBLIC void tranger2_print_md2_record( char *bf, int bfsize, json_t *tranger, json_t *topic, const char *key, json_int_t rowid, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
+48. [**`tranger2_print_md0_record`**](timeranger2/timeranger2.md#tranger2_print_md0_record) — `PUBLIC void tranger2_print_md0_record( char *bf, int bfsize, const char *key, json_int_t rowid, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
 
-49. [**`tranger2_print_record_filename`**](timeranger2/timeranger2.md#tranger2_print_record_filename) — `PUBLIC void tranger2_print_record_filename( char *bf, int bfsize, json_t *tranger, json_t *topic, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
+49. [**`tranger2_print_md1_record`**](timeranger2/timeranger2.md#tranger2_print_md1_record) — `PUBLIC void tranger2_print_md1_record( char *bf, int bfsize, const char *key, json_int_t rowid, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
 
-50. [**`tranger2_set_trace_level`**](timeranger2/timeranger2.md#tranger2_set_trace_level) — `PUBLIC void tranger2_set_trace_level( json_t *tranger, int trace_level )`
+50. [**`tranger2_print_md2_record`**](timeranger2/timeranger2.md#tranger2_print_md2_record) — `PUBLIC void tranger2_print_md2_record( char *bf, int bfsize, json_t *tranger, json_t *topic, const char *key, json_int_t rowid, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
 
-51. [**`tranger2_set_rt_key_deleted_callback`**](timeranger2/timeranger2.md#tranger2_set_rt_key_deleted_callback) — `PUBLIC int tranger2_set_rt_key_deleted_callback( json_t *list, tranger2_key_deleted_callback_t cb, void *user_data )`
+51. [**`tranger2_print_record_filename`**](timeranger2/timeranger2.md#tranger2_print_record_filename) — `PUBLIC void tranger2_print_record_filename( char *bf, int bfsize, json_t *tranger, json_t *topic, const md2_record_ex_t *md_record_ex, BOOL print_local_time )`
+
+52. [**`tranger2_set_trace_level`**](timeranger2/timeranger2.md#tranger2_set_trace_level) — `PUBLIC void tranger2_set_trace_level( json_t *tranger, int trace_level )`
 
 ### `tr_msg.h` — 16 functions
 
@@ -1722,7 +1763,7 @@ with links to the API documentation.
 
 17. [**`trq_check_backup`**](timeranger2/tr_queue.md#trq_check_backup) — `PUBLIC int trq_check_backup(tr_queue_t * trq)`
 
-### `tr_treedb.h` — 51 functions
+### `tr_treedb.h` — 61 functions
 
 **Source:** `kernel/c/timeranger2/src/tr_treedb.h`
 
@@ -1732,7 +1773,7 @@ with links to the API documentation.
 
 3. [**`treedb_set_callback`**](timeranger2/treedb.md#treedb_set_callback) — `PUBLIC int treedb_set_callback( json_t *tranger, const char *treedb_name, treedb_callback_t treedb_callback, void *user_data, treedb_callback_flag_t flags )`
 
-4. [**`treedb_create_topic`**](timeranger2/treedb.md#treedb_create_topic) — `PUBLIC json_t *treedb_create_topic( json_t *tranger, const char *treedb_name, const char *topic_name, int topic_version, const char *topic_tkey, json_t *pkey2s, json_t *jn_cols, uint32_t snap_tag, BOOL create_schema )`
+4. [**`treedb_create_topic`**](timeranger2/treedb.md#treedb_create_topic) — `PUBLIC json_t *treedb_create_topic( json_t *tranger, const char *treedb_name, const char *topic_name, int topic_version, const char *topic_tkey, json_t *pkey2s, json_t *jn_cols, uint32_t snap_tag, BOOL system_topic, BOOL create_schema )`
 
 5. [**`treedb_close_topic`**](timeranger2/treedb.md#treedb_close_topic) — `PUBLIC int treedb_close_topic( json_t *tranger, const char *treedb_name, const char *topic_name )`
 
@@ -1744,93 +1785,119 @@ with links to the API documentation.
 
 9. [**`treedb_topic_size`**](timeranger2/treedb.md#treedb_topic_size) — `PUBLIC size_t treedb_topic_size( json_t *tranger, const char *treedb_name, const char *topic_name )`
 
-10. [**`_treedb_create_topic_cols_desc`**](timeranger2/treedb.md#_treedb_create_topic_cols_desc) — `PUBLIC json_t *_treedb_create_topic_cols_desc(void)`
+10. [**`treedb_create_system_schema`**](timeranger2/treedb.md#treedb_create_system_schema) — `PUBLIC json_t *treedb_create_system_schema(void)`
 
-11. [**`parse_schema`**](timeranger2/treedb.md#parse_schema) — `PUBLIC int parse_schema( json_t *schema )`
+11. [**`_treedb_create_topic_cols_desc`**](timeranger2/treedb.md#_treedb_create_topic_cols_desc) — `PUBLIC json_t *_treedb_create_topic_cols_desc(void)`
 
-12. [**`parse_schema_cols`**](timeranger2/treedb.md#parse_schema_cols) — `PUBLIC int parse_schema_cols( json_t *cols_desc, json_t *data )`
+12. [**`parse_schema`**](timeranger2/treedb.md#parse_schema) — `PUBLIC int parse_schema( json_t *schema )`
 
-13. [**`parse_hooks`**](timeranger2/treedb.md#parse_hooks) — `PUBLIC int parse_hooks( json_t *schema )`
+13. [**`parse_schema_cols`**](timeranger2/treedb.md#parse_schema_cols) — `PUBLIC int parse_schema_cols( json_t *cols_desc, json_t *data )`
 
-14. [**`topic_desc_hook_names`**](timeranger2/treedb.md#topic_desc_hook_names) — `PUBLIC json_t *topic_desc_hook_names( json_t *topic_desc )`
+14. [**`parse_hooks`**](timeranger2/treedb.md#parse_hooks) — `PUBLIC int parse_hooks( json_t *schema )`
 
-15. [**`topic_desc_fkey_names`**](timeranger2/treedb.md#topic_desc_fkey_names) — `PUBLIC json_t *topic_desc_fkey_names( json_t *topic_desc )`
+15. [**`topic_desc_hook_names`**](timeranger2/treedb.md#topic_desc_hook_names) — `PUBLIC json_t *topic_desc_hook_names( json_t *topic_desc )`
 
-16. [**`get_hook_list`**](timeranger2/treedb.md#get_hook_list) — `PUBLIC json_t *get_hook_list( hgobj gobj, json_t *hook_data )`
+16. [**`topic_desc_fkey_names`**](timeranger2/treedb.md#topic_desc_fkey_names) — `PUBLIC json_t *topic_desc_fkey_names( json_t *topic_desc )`
 
-17. [**`current_snap_tag`**](timeranger2/treedb.md#current_snap_tag) — `PUBLIC int current_snap_tag( json_t *tranger, const char *treedb_name )`
+17. [**`get_hook_list`**](timeranger2/treedb.md#get_hook_list) — `PUBLIC json_t *get_hook_list( hgobj gobj, json_t *hook_data )`
 
-18. [**`treedb_is_treedbs_topic`**](timeranger2/treedb.md#treedb_is_treedbs_topic) — `PUBLIC BOOL treedb_is_treedbs_topic( json_t *tranger, const char *treedb_name, const char *topic_name )`
+18. [**`current_snap_tag`**](timeranger2/treedb.md#current_snap_tag) — `PUBLIC int current_snap_tag( json_t *tranger, const char *treedb_name )`
 
-19. [**`treedb_get_id_index`**](timeranger2/treedb.md#treedb_get_id_index) — `PUBLIC json_t *treedb_get_id_index( json_t *tranger, const char *treedb_name, const char *topic_name )`
+19. [**`treedb_is_treedbs_topic`**](timeranger2/treedb.md#treedb_is_treedbs_topic) — `PUBLIC BOOL treedb_is_treedbs_topic( json_t *tranger, const char *treedb_name, const char *topic_name )`
 
-20. [**`treedb_topic_pkey2s`**](timeranger2/treedb.md#treedb_topic_pkey2s) — `PUBLIC json_t *treedb_topic_pkey2s( json_t *tranger, const char *topic_name )`
+20. [**`treedb_get_id_index`**](timeranger2/treedb.md#treedb_get_id_index) — `PUBLIC json_t *treedb_get_id_index( json_t *tranger, const char *treedb_name, const char *topic_name )`
 
-21. [**`treedb_topic_pkey2s_filter`**](timeranger2/treedb.md#treedb_topic_pkey2s_filter) — `PUBLIC json_t *treedb_topic_pkey2s_filter( json_t *tranger, const char *topic_name, json_t *node, const char *id )`
+21. [**`treedb_topic_pkey2s`**](timeranger2/treedb.md#treedb_topic_pkey2s) — `PUBLIC json_t *treedb_topic_pkey2s( json_t *tranger, const char *topic_name )`
 
-22. [**`treedb_set_trace`**](timeranger2/treedb.md#treedb_set_trace) — `PUBLIC int treedb_set_trace(BOOL set)`
+22. [**`treedb_topic_pkey2s_filter`**](timeranger2/treedb.md#treedb_topic_pkey2s_filter) — `PUBLIC json_t *treedb_topic_pkey2s_filter( json_t *tranger, const char *topic_name, json_t *node, const char *id )`
 
-23. [**`decode_parent_ref`**](timeranger2/treedb.md#decode_parent_ref) — `PUBLIC BOOL decode_parent_ref( const char *pref, char *topic_name, int topic_name_size, char *id, int id_size, char *hook_name, int hook_name_size )`
+23. [**`treedb_set_trace`**](timeranger2/treedb.md#treedb_set_trace) — `PUBLIC int treedb_set_trace(BOOL set)`
 
-24. [**`decode_child_ref`**](timeranger2/treedb.md#decode_child_ref) — `PUBLIC BOOL decode_child_ref( const char *pref, char *topic_name, int topic_name_size, char *id, int id_size )`
+24. [**`decode_parent_ref`**](timeranger2/treedb.md#decode_parent_ref) — `PUBLIC BOOL decode_parent_ref( const char *pref, char *topic_name, int topic_name_size, char *id, int id_size, char *hook_name, int hook_name_size )`
 
-25. [**`treedb_create_node`**](timeranger2/treedb.md#treedb_create_node) — `PUBLIC json_t *treedb_create_node( json_t *tranger, const char *treedb_name, const char *topic_name, json_t *kw )`
+25. [**`decode_child_ref`**](timeranger2/treedb.md#decode_child_ref) — `PUBLIC BOOL decode_child_ref( const char *pref, char *topic_name, int topic_name_size, char *id, int id_size )`
 
-26. [**`treedb_save_node`**](timeranger2/treedb.md#treedb_save_node) — `PUBLIC int treedb_save_node( json_t *tranger, json_t *node )`
+26. [**`treedb_create_node`**](timeranger2/treedb.md#treedb_create_node) — `PUBLIC json_t *treedb_create_node( json_t *tranger, const char *treedb_name, const char *topic_name, json_t *kw )`
 
-27. [**`treedb_update_node`**](timeranger2/treedb.md#treedb_update_node) — `PUBLIC json_t *treedb_update_node( json_t *tranger, json_t *node, json_t *kw, BOOL save )`
+27. [**`treedb_save_node`**](timeranger2/treedb.md#treedb_save_node) — `PUBLIC int treedb_save_node( json_t *tranger, json_t *node )`
 
-28. [**`set_volatil_values`**](timeranger2/treedb.md#set_volatil_values) — `PUBLIC int set_volatil_values( json_t *tranger, const char *topic_name, json_t *record, json_t *kw, BOOL broadcast )`
+28. [**`treedb_set_node_immutable`**](timeranger2/treedb.md#treedb_set_node_immutable) — `PUBLIC int treedb_set_node_immutable( json_t *tranger, json_t *node, BOOL set )`
 
-29. [**`treedb_delete_node`**](timeranger2/treedb.md#treedb_delete_node) — `PUBLIC int treedb_delete_node( json_t *tranger, json_t *node, json_t *jn_options )`
+29. [**`treedb_update_node`**](timeranger2/treedb.md#treedb_update_node) — `PUBLIC json_t *treedb_update_node( json_t *tranger, json_t *node, json_t *kw, BOOL save )`
 
-30. [**`treedb_delete_instance`**](timeranger2/treedb.md#treedb_delete_instance) — `PUBLIC int treedb_delete_instance( json_t *tranger, json_t *node, const char *pkey2_name, json_t *jn_options )`
+30. [**`set_volatil_values`**](timeranger2/treedb.md#set_volatil_values) — `PUBLIC int set_volatil_values( json_t *tranger, const char *topic_name, json_t *record, json_t *kw, BOOL broadcast )`
 
-31. [**`treedb_clean_node`**](timeranger2/treedb.md#treedb_clean_node) — `PUBLIC int treedb_clean_node( json_t *tranger, json_t *node, BOOL save )`
+31. [**`treedb_delete_node`**](timeranger2/treedb.md#treedb_delete_node) — `PUBLIC int treedb_delete_node( json_t *tranger, json_t *node, json_t *jn_options )`
 
-32. [**`treedb_autolink`**](timeranger2/treedb.md#treedb_autolink) — `PUBLIC int treedb_autolink( json_t *tranger, json_t *node, json_t *kw, BOOL save )`
+32. [**`treedb_delete_instance`**](timeranger2/treedb.md#treedb_delete_instance) — `PUBLIC int treedb_delete_instance( json_t *tranger, json_t *node, const char *pkey2_name, json_t *jn_options )`
 
-33. [**`treedb_replace_links`**](timeranger2/treedb.md#treedb_replace_links) — `PUBLIC int treedb_replace_links( json_t *tranger, json_t *node, json_t *kw, BOOL save )`
+33. [**`treedb_clean_node`**](timeranger2/treedb.md#treedb_clean_node) — `PUBLIC int treedb_clean_node( json_t *tranger, json_t *node, BOOL save )`
 
-34. [**`treedb_link_nodes`**](timeranger2/treedb.md#treedb_link_nodes) — `PUBLIC int treedb_link_nodes( json_t *tranger, const char *hook, json_t *parent_node, json_t *child_node )`
+34. [**`treedb_autolink`**](timeranger2/treedb.md#treedb_autolink) — `PUBLIC int treedb_autolink( json_t *tranger, json_t *node, json_t *kw, BOOL save )`
 
-35. [**`treedb_unlink_nodes`**](timeranger2/treedb.md#treedb_unlink_nodes) — `PUBLIC int treedb_unlink_nodes( json_t *tranger, const char *hook, json_t *parent_node, json_t *child_node )`
+35. [**`treedb_replace_links`**](timeranger2/treedb.md#treedb_replace_links) — `PUBLIC int treedb_replace_links( json_t *tranger, json_t *node, json_t *kw, BOOL save )`
 
-36. [**`treedb_get_node`**](timeranger2/treedb.md#treedb_get_node) — `PUBLIC json_t *treedb_get_node( json_t *tranger, const char *treedb_name, const char *topic_name, const char *id )`
+36. [**`treedb_link_nodes`**](timeranger2/treedb.md#treedb_link_nodes) — `PUBLIC int treedb_link_nodes( json_t *tranger, const char *hook, json_t *parent_node, json_t *child_node )`
 
-37. [**`treedb_get_instance`**](timeranger2/treedb.md#treedb_get_instance) — `PUBLIC json_t *treedb_get_instance( json_t *tranger, const char *treedb_name, const char *topic_name, const char *pkey2_name, const char *id, const char *key2 )`
+37. [**`treedb_unlink_nodes`**](timeranger2/treedb.md#treedb_unlink_nodes) — `PUBLIC int treedb_unlink_nodes( json_t *tranger, const char *hook, json_t *parent_node, json_t *child_node )`
 
-38. [**`node_collapsed_view`**](timeranger2/treedb.md#node_collapsed_view) — `PUBLIC json_t *node_collapsed_view( json_t *tranger, json_t *node, json_t *jn_options )`
+38. [**`treedb_get_node`**](timeranger2/treedb.md#treedb_get_node) — `PUBLIC json_t *treedb_get_node( json_t *tranger, const char *treedb_name, const char *topic_name, const char *id )`
 
-39. [**`treedb_list_nodes`**](timeranger2/treedb.md#treedb_list_nodes) — `PUBLIC json_t *treedb_list_nodes( json_t *tranger, const char *treedb_name, const char *topic_name, json_t *jn_filter, BOOL (*match_fn) ( json_t *topic_desc, json_t *node, json_t *jn_filter ) )`
+39. [**`treedb_get_instance`**](timeranger2/treedb.md#treedb_get_instance) — `PUBLIC json_t *treedb_get_instance( json_t *tranger, const char *treedb_name, const char *topic_name, const char *pkey2_name, const char *id, const char *key2 )`
 
-40. [**`treedb_list_instances`**](timeranger2/treedb.md#treedb_list_instances) — `PUBLIC json_t *treedb_list_instances( json_t *tranger, const char *treedb_name, const char *topic_name, const char *pkey2_name, json_t *jn_filter, BOOL (*match_fn) ( json_t *topic_desc, json_t *node, json_t *jn_filter ) )`
+40. [**`node_collapsed_view`**](timeranger2/treedb.md#node_collapsed_view) — `PUBLIC json_t *node_collapsed_view( json_t *tranger, json_t *node, json_t *jn_options )`
 
-41. [**`treedb_parent_refs`**](timeranger2/treedb.md#treedb_parent_refs) — `PUBLIC json_t *treedb_parent_refs( json_t *tranger, const char *fkey, json_t *node, json_t *jn_options )`
+41. [**`treedb_list_nodes`**](timeranger2/treedb.md#treedb_list_nodes) — `PUBLIC json_t *treedb_list_nodes( json_t *tranger, const char *treedb_name, const char *topic_name, json_t *jn_filter, BOOL (*match_fn) ( json_t *topic_desc, json_t *node, json_t *jn_filter ) )`
 
-42. [**`treedb_list_parents`**](timeranger2/treedb.md#treedb_list_parents) — `PUBLIC json_t *treedb_list_parents( json_t *tranger, const char *fkey, json_t *node, json_t *jn_options )`
+42. [**`treedb_list_instances`**](timeranger2/treedb.md#treedb_list_instances) — `PUBLIC json_t *treedb_list_instances( json_t *tranger, const char *treedb_name, const char *topic_name, const char *pkey2_name, json_t *jn_filter, BOOL (*match_fn) ( json_t *topic_desc, json_t *node, json_t *jn_filter ) )`
 
-43. [**`treedb_node_children`**](timeranger2/treedb.md#treedb_node_children) — `PUBLIC json_t *treedb_node_children( json_t *tranger, const char *hook, json_t *node, json_t *jn_filter, json_t *jn_options )`
+43. [**`treedb_parent_refs`**](timeranger2/treedb.md#treedb_parent_refs) — `PUBLIC json_t *treedb_parent_refs( json_t *tranger, const char *fkey, json_t *node, json_t *jn_options )`
 
-44. [**`add_jtree_path`**](timeranger2/treedb.md#add_jtree_path) — `PUBLIC int add_jtree_path( json_t *parent, json_t *child )`
+44. [**`treedb_list_parents`**](timeranger2/treedb.md#treedb_list_parents) — `PUBLIC json_t *treedb_list_parents( json_t *tranger, const char *fkey, json_t *node, json_t *jn_options )`
 
-45. [**`treedb_node_jtree`**](timeranger2/treedb.md#treedb_node_jtree) — `PUBLIC json_t *treedb_node_jtree( json_t *tranger, const char *hook, const char *rename_hook, json_t *node, json_t *jn_filter, json_t *jn_options )`
+45. [**`treedb_node_children`**](timeranger2/treedb.md#treedb_node_children) — `PUBLIC json_t *treedb_node_children( json_t *tranger, const char *hook, json_t *node, json_t *jn_filter, json_t *jn_options )`
 
-46. [**`treedb_get_topic_links`**](timeranger2/treedb.md#treedb_get_topic_links) — `PUBLIC json_t *treedb_get_topic_links( json_t *tranger, const char *treedb_name, const char *topic_name )`
+46. [**`add_jtree_path`**](timeranger2/treedb.md#add_jtree_path) — `PUBLIC int add_jtree_path( json_t *parent, json_t *child )`
 
-47. [**`treedb_get_topic_hooks`**](timeranger2/treedb.md#treedb_get_topic_hooks) — `PUBLIC json_t *treedb_get_topic_hooks( json_t *tranger, const char *treedb_name, const char *topic_name )`
+47. [**`treedb_node_jtree`**](timeranger2/treedb.md#treedb_node_jtree) — `PUBLIC json_t *treedb_node_jtree( json_t *tranger, const char *hook, const char *rename_hook, json_t *node, json_t *jn_filter, json_t *jn_options )`
 
-48. [**`treedb_shoot_snap`**](timeranger2/treedb.md#treedb_shoot_snap) — `PUBLIC int treedb_shoot_snap( json_t *tranger, const char *treedb_name, const char *snap_name, const char *description )`
+48. [**`treedb_get_topic_links`**](timeranger2/treedb.md#treedb_get_topic_links) — `PUBLIC json_t *treedb_get_topic_links( json_t *tranger, const char *treedb_name, const char *topic_name )`
 
-49. [**`treedb_activate_snap`**](timeranger2/treedb.md#treedb_activate_snap) — `PUBLIC int treedb_activate_snap( json_t *tranger, const char *treedb_name, const char *snap_name )`
+49. [**`treedb_get_topic_hooks`**](timeranger2/treedb.md#treedb_get_topic_hooks) — `PUBLIC json_t *treedb_get_topic_hooks( json_t *tranger, const char *treedb_name, const char *topic_name )`
 
-50. [**`treedb_list_snaps`**](timeranger2/treedb.md#treedb_list_snaps) — `PUBLIC json_t *treedb_list_snaps( json_t *tranger, const char *treedb_name, json_t *filter )`
+50. [**`treedb_store_files`**](timeranger2/treedb.md#treedb_store_files) — `PUBLIC int treedb_store_files( json_t *tranger, const char *treedb_name, const char *topic_name, json_t *kw )`
 
-51. [**`create_template_record`**](timeranger2/treedb.md#create_template_record) — `PUBLIC json_t *create_template_record( const char *template_name, json_t *cols, json_t *kw )`
+51. [**`treedb_set_files_limits`**](timeranger2/treedb.md#treedb_set_files_limits) — `PUBLIC int treedb_set_files_limits( json_t *tranger, const char *treedb_name, json_int_t max_size, json_t *content_types )`
 
-**Total: 140 functions**
+52. [**`treedb_blob_path`**](timeranger2/treedb.md#treedb_blob_path) — `PUBLIC int treedb_blob_path( json_t *tranger, const char *id, const char *content_type, char *bf, size_t bflen )`
+
+53. [**`treedb_file_ext`**](timeranger2/treedb.md#treedb_file_ext) — `PUBLIC const char *treedb_file_ext(const char *content_type)`
+
+54. [**`treedb_content_type_of_name`**](timeranger2/treedb.md#treedb_content_type_of_name) — `PUBLIC const char *treedb_content_type_of_name(const char *name)`
+
+55. [**`treedb_sniff_content_type`**](timeranger2/treedb.md#treedb_sniff_content_type) — `PUBLIC const char *treedb_sniff_content_type(const char *data, size_t len)`
+
+56. [**`treedb_import_files`**](timeranger2/treedb.md#treedb_import_files) — `PUBLIC json_t *treedb_import_files( json_t *tranger, const char *treedb_name, const char *import_root, const char *source_dir, BOOL dry_run, const char *uploaded_by )`
+
+57. [**`treedb_gc_files`**](timeranger2/treedb.md#treedb_gc_files) — `PUBLIC json_t *treedb_gc_files( json_t *tranger, const char *treedb_name, BOOL dry_run )`
+
+58. [**`treedb_shoot_snap`**](timeranger2/treedb.md#treedb_shoot_snap) — `PUBLIC int treedb_shoot_snap( json_t *tranger, const char *treedb_name, const char *snap_name, const char *description )`
+
+59. [**`treedb_activate_snap`**](timeranger2/treedb.md#treedb_activate_snap) — `PUBLIC int treedb_activate_snap( json_t *tranger, const char *treedb_name, const char *snap_name )`
+
+60. [**`treedb_list_snaps`**](timeranger2/treedb.md#treedb_list_snaps) — `PUBLIC json_t *treedb_list_snaps( json_t *tranger, const char *treedb_name, json_t *filter )`
+
+61. [**`create_template_record`**](timeranger2/treedb.md#create_template_record) — `PUBLIC json_t *create_template_record( const char *template_name, json_t *cols, json_t *kw )`
+
+**Total: 155 functions**
 
 ## root-linux (Runtime GClasses)
+
+### `c_assets.h` — 1 functions
+
+**Source:** `kernel/c/root-linux/src/c_assets.h`
+
+1. [**`register_c_assets`**](runtime/registration.md#register_c_assets) — `PUBLIC int register_c_assets(void)`
 
 ### `c_auth_bff.h` — 1 functions
 
@@ -1871,6 +1938,12 @@ with links to the API documentation.
 **Source:** `kernel/c/root-linux/src/c_gss_udp_s.h`
 
 1. [**`register_c_gss_udp_s`**](runtime/registration.md#register_c_gss_udp_s) — `PUBLIC int register_c_gss_udp_s(void)`
+
+### `c_idp_keycloak.h` — 1 functions
+
+**Source:** `kernel/c/root-linux/src/c_idp_keycloak.h`
+
+1. [**`register_c_idp_keycloak`**](runtime/registration.md#register_c_idp_keycloak) — `PUBLIC int register_c_idp_keycloak(void)`
 
 ### `c_ievent_cli.h` — 1 functions
 
@@ -2062,7 +2135,7 @@ with links to the API documentation.
 
 4. [**`db_list_persistent_attrs`**](runtime/dbsimple.md#db_list_persistent_attrs) — `PUBLIC json_t *db_list_persistent_attrs( hgobj gobj, json_t *keys )`
 
-### `entry_point.h` — 4 functions
+### `entry_point.h` — 5 functions
 
 **Source:** `kernel/c/root-linux/src/entry_point.h`
 
@@ -2072,7 +2145,9 @@ with links to the API documentation.
 
 3. [**`set_auto_kill_time`**](runtime/runtime_entry_point.md#set_auto_kill_time) — `PUBLIC void set_auto_kill_time(int seconds)`
 
-4. [**`yuneta_json_config`**](runtime/runtime_entry_point.md#yuneta_json_config) — `PUBLIC json_t *yuneta_json_config(void)`
+4. [**`yuneta_is_daemon`**](runtime/runtime_entry_point.md#yuneta_is_daemon) — `PUBLIC BOOL yuneta_is_daemon(void)`
+
+5. [**`yuneta_json_config`**](runtime/runtime_entry_point.md#yuneta_json_config) — `PUBLIC json_t *yuneta_json_config(void)`
 
 ### `ghttp_parser.h` — 4 functions
 
@@ -2230,12 +2305,12 @@ with links to the API documentation.
 
 1. [**`yunetas_register_c_core`**](runtime/runtime_entry_point.md#yunetas_register_c_core) — `PUBLIC int yunetas_register_c_core(void)`
 
-**Total: 119 functions**
+**Total: 118 functions**
 
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **958 functions** sorted alphabetically with their source header.
+All **999 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2315,6 +2390,11 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`filesize`**](helpers/file_system.md#filesize) | `helpers.h` | gobj-c (Core Framework) |
 | [**`filesize2`**](helpers/file_system.md#filesize2) | `helpers.h` | gobj-c (Core Framework) |
 | [**`find_files_with_suffix_array`**](helpers/directory_walk.md#find_files_with_suffix_array) | `helpers.h` | gobj-c (Core Framework) |
+| [**`flat2json`**](helpers/kwid.md#flat2json) | `kwid.h` | gobj-c (Core Framework) |
+| [**`flat_apply`**](helpers/kwid.md#flat_apply) | `kwid.h` | gobj-c (Core Framework) |
+| [**`flat_diff`**](helpers/kwid.md#flat_diff) | `kwid.h` | gobj-c (Core Framework) |
+| [**`flat_key_join`**](helpers/kwid.md#flat_key_join) | `kwid.h` | gobj-c (Core Framework) |
+| [**`flat_key_split`**](helpers/kwid.md#flat_key_split) | `kwid.h` | gobj-c (Core Framework) |
 | [**`formatdate`**](helpers/time_date.md#formatdate) | `helpers.h` | gobj-c (Core Framework) |
 | [**`free_ram_in_kb`**](helpers/misc.md#free_ram_in_kb) | `helpers.h` | gobj-c (Core Framework) |
 | [**`fs_create_watcher_event`**](timeranger2/fs_watcher.md#fs_create_watcher_event) | `fs_watcher.h` | timeranger2 (Time-Series DB) |
@@ -2462,11 +2542,13 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`gobj_get_deep_tracing`**](logging/trace.md#gobj_get_deep_tracing) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_get_exit_code`**](gobj/startup.md#gobj_get_exit_code) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_get_gclass_trace_level`**](logging/trace.md#gobj_get_gclass_trace_level) | `gobj.h` | gobj-c (Core Framework) |
+| [**`gobj_get_gclass_trace_level2`**](logging/trace.md#gobj_get_gclass_trace_level2) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_get_gclass_trace_level_list`**](logging/trace.md#gobj_get_gclass_trace_level_list) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_get_gclass_trace_no_level`**](logging/trace.md#gobj_get_gclass_trace_no_level) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_get_gclass_trace_no_level_list`**](logging/trace.md#gobj_get_gclass_trace_no_level_list) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_get_global_authz_table`**](gobj/authz.md#gobj_get_global_authz_table) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_get_global_trace_level`**](logging/trace.md#gobj_get_global_trace_level) | `gobj.h` | gobj-c (Core Framework) |
+| [**`gobj_get_global_trace_no_level`**](logging/trace.md#gobj_get_global_trace_no_level) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_get_gobj_trace_level`**](logging/trace.md#gobj_get_gobj_trace_level) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_get_gobj_trace_level_tree`**](logging/trace.md#gobj_get_gobj_trace_level_tree) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_get_gobj_trace_no_level`**](logging/trace.md#gobj_get_gobj_trace_no_level) | `gobj.h` | gobj-c (Core Framework) |
@@ -2689,10 +2771,12 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`jn2integer`**](helpers/json_helper.md#jn2integer) | `helpers.h` | gobj-c (Core Framework) |
 | [**`jn2real`**](helpers/json_helper.md#jn2real) | `helpers.h` | gobj-c (Core Framework) |
 | [**`jn2string`**](helpers/json_helper.md#jn2string) | `helpers.h` | gobj-c (Core Framework) |
+| [**`json2flat`**](helpers/kwid.md#json2flat) | `kwid.h` | gobj-c (Core Framework) |
 | [**`json2gbuf`**](helpers/gbuffer.md#json2gbuf) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`json2str`**](helpers/json_helper.md#json2str) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json2uglystr`**](helpers/json_helper.md#json2uglystr) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_check_refcounts`**](helpers/json_helper.md#json_check_refcounts) | `helpers.h` | gobj-c (Core Framework) |
+| [**`json_config`**](helpers/json_helper.md#json_config) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_config`**](helpers/json_helper.md#json_config) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_config_string2json`**](helpers/json_helper.md#json_config_string2json) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_desc_to_schema`**](helpers/json_helper.md#json_desc_to_schema) | `helpers.h` | gobj-c (Core Framework) |
@@ -2712,6 +2796,7 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`json_replace_var_custom`**](helpers/json_helper.md#json_replace_var_custom) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_str_in_list`**](helpers/json_helper.md#json_str_in_list) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_unflatten_dict`**](helpers/kwid.md#json_unflatten_dict) | `kwid.h` | gobj-c (Core Framework) |
+| [**`jwk_process_one`**](libjwt.md#jwk_process_one) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_create`**](libjwt.md#jwks_create) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_create_fromfile`**](libjwt.md#jwks_create_fromfile) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_create_fromfp`**](libjwt.md#jwks_create_fromfp) | `jwt.h` | libjwt (JWT Authentication) |
@@ -2723,12 +2808,14 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`jwks_error_msg`**](libjwt.md#jwks_error_msg) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_find_bykid`**](libjwt.md#jwks_find_bykid) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_free`**](libjwt.md#jwks_free) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_add`**](libjwt.md#jwks_item_add) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_item_alg`**](libjwt.md#jwks_item_alg) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_item_count`**](libjwt.md#jwks_item_count) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_item_curve`**](libjwt.md#jwks_item_curve) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_item_error`**](libjwt.md#jwks_item_error) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_item_error_msg`**](libjwt.md#jwks_item_error_msg) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_item_free`**](libjwt.md#jwks_item_free) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_free2`**](libjwt.md#jwks_item_free2) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_item_free_all`**](libjwt.md#jwks_item_free_all) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_item_free_bad`**](libjwt.md#jwks_item_free_bad) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwks_item_get`**](libjwt.md#jwks_item_get) | `jwt.h` | libjwt (JWT Authentication) |
@@ -2776,6 +2863,7 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`jwt_checker_setkey`**](libjwt.md#jwt_checker_setkey) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwt_checker_time_leeway`**](libjwt.md#jwt_checker_time_leeway) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwt_checker_verify`**](libjwt.md#jwt_checker_verify) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_verify2`**](libjwt.md#jwt_checker_verify2) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwt_claim_del`**](libjwt.md#jwt_claim_del) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwt_claim_get`**](libjwt.md#jwt_claim_get) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`jwt_claim_set`**](libjwt.md#jwt_claim_set) | `jwt.h` | libjwt (JWT Authentication) |
@@ -2891,12 +2979,14 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`print_track_mem`**](helpers/memory.md#print_track_mem) | `gbmem.h` | gobj-c (Core Framework) |
 | [**`pty_sync_spawn`**](runtime/run_command.md#pty_sync_spawn) | `run_command.h` | root-linux (Runtime GClasses) |
 | [**`read_process_cmdline`**](helpers/file_system.md#read_process_cmdline) | `helpers.h` | gobj-c (Core Framework) |
+| [**`register_c_assets`**](runtime/registration.md#register_c_assets) | `c_assets.h` | root-linux (Runtime GClasses) |
 | [**`register_c_auth_bff`**](runtime/registration.md#register_c_auth_bff) | `c_auth_bff.h` | root-linux (Runtime GClasses) |
 | [**`register_c_authz`**](runtime/registration.md#register_c_authz) | `c_authz.h` | root-linux (Runtime GClasses) |
 | [**`register_c_channel`**](runtime/registration.md#register_c_channel) | `c_channel.h` | root-linux (Runtime GClasses) |
 | [**`register_c_counter`**](runtime/registration.md#register_c_counter) | `c_counter.h` | root-linux (Runtime GClasses) |
 | [**`register_c_fs`**](runtime/registration.md#register_c_fs) | `c_fs.h` | root-linux (Runtime GClasses) |
 | [**`register_c_gss_udp_s`**](runtime/registration.md#register_c_gss_udp_s) | `c_gss_udp_s.h` | root-linux (Runtime GClasses) |
+| [**`register_c_idp_keycloak`**](runtime/registration.md#register_c_idp_keycloak) | `c_idp_keycloak.h` | root-linux (Runtime GClasses) |
 | [**`register_c_ievent_cli`**](runtime/registration.md#register_c_ievent_cli) | `c_ievent_cli.h` | root-linux (Runtime GClasses) |
 | [**`register_c_ievent_srv`**](runtime/registration.md#register_c_ievent_srv) | `c_ievent_srv.h` | root-linux (Runtime GClasses) |
 | [**`register_c_iogate`**](runtime/registration.md#register_c_iogate) | `c_iogate.h` | root-linux (Runtime GClasses) |
@@ -2946,6 +3036,7 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`set_auto_kill_time`**](runtime/runtime_entry_point.md#set_auto_kill_time) | `entry_point.h` | root-linux (Runtime GClasses) |
 | [**`set_cloexec`**](helpers/file_system.md#set_cloexec) | `helpers.h` | gobj-c (Core Framework) |
 | [**`set_expected_results`**](testing/testing.md#set_expected_results) | `testing.h` | gobj-c (Core Framework) |
+| [**`set_expected_results_unordered`**](testing/testing.md#set_expected_results_unordered) | `testing.h` | gobj-c (Core Framework) |
 | [**`set_measure_times`**](yev_loop/yev_loop.md#set_measure_times) | `testing.h` | gobj-c (Core Framework) |
 | [**`set_memory_check_list`**](helpers/memory.md#set_memory_check_list) | `gbmem.h` | gobj-c (Core Framework) |
 | [**`set_nonblocking`**](helpers/file_system.md#set_nonblocking) | `helpers.h` | gobj-c (Core Framework) |
@@ -2960,6 +3051,8 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`set_trace_with_short_name`**](logging/log.md#set_trace_with_short_name) | `glogger.h` | gobj-c (Core Framework) |
 | [**`set_volatil_values`**](timeranger2/treedb.md#set_volatil_values) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`set_yuno_must_die`**](runtime/yuno.md#set_yuno_must_die) | `c_yuno.h` | root-linux (Runtime GClasses) |
+| [**`sha256_digest`**](helpers/misc.md#sha256_digest) | `helpers.h` | gobj-c (Core Framework) |
+| [**`sha256_hex`**](helpers/misc.md#sha256_hex) | `helpers.h` | gobj-c (Core Framework) |
 | [**`show_date`**](helpers/time_date.md#show_date) | `helpers.h` | gobj-c (Core Framework) |
 | [**`show_date_relative`**](helpers/time_date.md#show_date_relative) | `helpers.h` | gobj-c (Core Framework) |
 | [**`source2base64_for_yunetas`**](helpers/misc.md#source2base64_for_yunetas) | `helpers.h` | gobj-c (Core Framework) |
@@ -3042,6 +3135,7 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`tranger2_read_record_content`**](timeranger2/timeranger2.md#tranger2_read_record_content) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_read_user_flag`**](timeranger2/timeranger2.md#tranger2_read_user_flag) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_set_rt_key_deleted_callback`**](timeranger2/timeranger2.md#tranger2_set_rt_key_deleted_callback) | `timeranger2.h` | timeranger2 (Time-Series DB) |
+| [**`tranger2_set_system_flag`**](timeranger2/timeranger2.md#tranger2_set_system_flag) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_set_trace_level`**](timeranger2/timeranger2.md#tranger2_set_trace_level) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_set_user_flag`**](timeranger2/timeranger2.md#tranger2_set_user_flag) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_shutdown`**](timeranger2/timeranger2.md#tranger2_shutdown) | `timeranger2.h` | timeranger2 (Time-Series DB) |
@@ -3062,19 +3156,25 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`translate_string`**](helpers/string_helper.md#translate_string) | `helpers.h` | gobj-c (Core Framework) |
 | [**`treedb_activate_snap`**](timeranger2/treedb.md#treedb_activate_snap) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_autolink`**](timeranger2/treedb.md#treedb_autolink) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
+| [**`treedb_blob_path`**](timeranger2/treedb.md#treedb_blob_path) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_clean_node`**](timeranger2/treedb.md#treedb_clean_node) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_close_db`**](timeranger2/treedb.md#treedb_close_db) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_close_topic`**](timeranger2/treedb.md#treedb_close_topic) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
+| [**`treedb_content_type_of_name`**](timeranger2/treedb.md#treedb_content_type_of_name) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_create_node`**](timeranger2/treedb.md#treedb_create_node) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
+| [**`treedb_create_system_schema`**](timeranger2/treedb.md#treedb_create_system_schema) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_create_topic`**](timeranger2/treedb.md#treedb_create_topic) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_delete_instance`**](timeranger2/treedb.md#treedb_delete_instance) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_delete_node`**](timeranger2/treedb.md#treedb_delete_node) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_delete_topic`**](timeranger2/treedb.md#treedb_delete_topic) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
+| [**`treedb_file_ext`**](timeranger2/treedb.md#treedb_file_ext) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
+| [**`treedb_gc_files`**](timeranger2/treedb.md#treedb_gc_files) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_get_id_index`**](timeranger2/treedb.md#treedb_get_id_index) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_get_instance`**](timeranger2/treedb.md#treedb_get_instance) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_get_node`**](timeranger2/treedb.md#treedb_get_node) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_get_topic_hooks`**](timeranger2/treedb.md#treedb_get_topic_hooks) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_get_topic_links`**](timeranger2/treedb.md#treedb_get_topic_links) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
+| [**`treedb_import_files`**](timeranger2/treedb.md#treedb_import_files) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_is_treedbs_topic`**](timeranger2/treedb.md#treedb_is_treedbs_topic) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_link_nodes`**](timeranger2/treedb.md#treedb_link_nodes) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_list_instances`**](timeranger2/treedb.md#treedb_list_instances) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
@@ -3089,8 +3189,12 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`treedb_replace_links`**](timeranger2/treedb.md#treedb_replace_links) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_save_node`**](timeranger2/treedb.md#treedb_save_node) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_set_callback`**](timeranger2/treedb.md#treedb_set_callback) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
+| [**`treedb_set_files_limits`**](timeranger2/treedb.md#treedb_set_files_limits) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
+| [**`treedb_set_node_immutable`**](timeranger2/treedb.md#treedb_set_node_immutable) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_set_trace`**](timeranger2/treedb.md#treedb_set_trace) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_shoot_snap`**](timeranger2/treedb.md#treedb_shoot_snap) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
+| [**`treedb_sniff_content_type`**](timeranger2/treedb.md#treedb_sniff_content_type) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
+| [**`treedb_store_files`**](timeranger2/treedb.md#treedb_store_files) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_topic_pkey2s`**](timeranger2/treedb.md#treedb_topic_pkey2s) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_topic_pkey2s_filter`**](timeranger2/treedb.md#treedb_topic_pkey2s_filter) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_topic_size`**](timeranger2/treedb.md#treedb_topic_size) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
@@ -3176,9 +3280,11 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`ytls_free_secure_filter`**](ytls/ytls.md#ytls_free_secure_filter) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_get_cert_info`**](ytls/ytls.md#ytls_get_cert_info) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_get_last_error`**](ytls/ytls.md#ytls_get_last_error) | `ytls.h` | ytls (TLS Abstraction) |
+| [**`ytls_get_system_ca_bundle`**](ytls/ytls.md#ytls_get_system_ca_bundle) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_init`**](ytls/ytls.md#ytls_init) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_new_secure_filter`**](ytls/ytls.md#ytls_new_secure_filter) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_reload_certificates`**](ytls/ytls.md#ytls_reload_certificates) | `ytls.h` | ytls (TLS Abstraction) |
+| [**`ytls_set_peer_name`**](ytls/ytls.md#ytls_set_peer_name) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_set_trace`**](ytls/ytls.md#ytls_set_trace) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_shutdown`**](ytls/ytls.md#ytls_shutdown) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_version`**](ytls/ytls.md#ytls_version) | `ytls.h` | ytls (TLS Abstraction) |
@@ -3190,6 +3296,7 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`yuneta_getgrouplist`**](helpers/misc.md#yuneta_getgrouplist) | `helpers.h` | gobj-c (Core Framework) |
 | [**`yuneta_getpwnam`**](helpers/misc.md#yuneta_getpwnam) | `helpers.h` | gobj-c (Core Framework) |
 | [**`yuneta_getpwuid`**](helpers/misc.md#yuneta_getpwuid) | `helpers.h` | gobj-c (Core Framework) |
+| [**`yuneta_is_daemon`**](runtime/runtime_entry_point.md#yuneta_is_daemon) | `entry_point.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_json_config`**](runtime/runtime_entry_point.md#yuneta_json_config) | `entry_point.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_log_dir`**](runtime/environment.md#yuneta_log_dir) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_log_file`**](runtime/environment.md#yuneta_log_file) | `yunetas_environment.h` | root-linux (Runtime GClasses) |

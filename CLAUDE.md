@@ -514,11 +514,13 @@ Corollaries:
   all for a `DTP_JSON`. A type that lies is what makes the guard necessary;
   `crypto` was `DTP_JSON` in seven gclasses and is a dict in all seven.
 
-- **`jwt_checker_verify2()` returns claims even on FAILED verification**
-  (`kernel/c/libjwt`). Only `jwt_checker_error(checker)` is authoritative —
-  never treat a non-NULL payload as "verified" (that accepts forged tokens),
-  and always `json_decref` the returned payload regardless of outcome.
-  Canonical consumer: `c_authz.c`.
+- **`jwt_checker_verify2()` fails closed** (`kernel/c/libjwt`, since 7.6.0,
+  `46f62d8be`): a non-NULL return is the claims of a token that passed every
+  check, and it is YOURS to `json_decref`; on any failure it returns `NULL`
+  with the cause in `jwt_checker_error(checker)` /
+  `jwt_checker_error_msg()`. (It used to return the claims of a failed token
+  too, with the verdict only in the checker -- a caller that looked at the
+  payload accepted forged tokens.) Canonical consumer: `c_authz.c`.
 - **`kw["gbuffer"]` is auto-decref'd** by gobj's serializer table when the kw
   is decref'd. Reading the pointer with `extract=FALSE` and then calling
   `GBUFFER_DECREF` before `KW_DECREF` is a double-free (*"BAD gbuf_decref()"*).
@@ -1838,6 +1840,14 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   `--write` regenerates `api/appendix_js_api_index.md`. Run the script with no
   flag as a guard before tagging — it exits non-zero on a new undocumented
   export, a stale anchor, or an index that drifted.
+- **The C API reference is complete before a tag:**
+  `python3 scripts/verify_api_coverage.py` shows no `[!!]` (every public
+  function of the checked headers has its page entry, with an example), and
+  `python3 scripts/api_index.py --check` passes -- the appendix
+  `api/appendix_api_index.md` is WRITTEN by `scripts/api_index.py` from the
+  headers, never edited by hand (by hand it had drifted 26 functions and two
+  whole headers). A gap found is fixed in the same pass, not listed as
+  pending: the docs are always current and published.
 - **Every release includes the live docs:** repin the `blob/<old>/` /
   `tree/<old>/` deep links across `docs/doc.yuneta.io/**` and
   `yunos/c/yuno_agent/*.md` with

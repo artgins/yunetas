@@ -161,6 +161,33 @@ This function does not return a value.
 
 ---
 
+(yuneta_is_daemon)=
+## [`yuneta_is_daemon()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/root-linux/src/entry_point.c#L1049)
+
+`TRUE` when the process was launched with `--start`, that is, it runs as a
+daemon under the ydaemon watcher. `FALSE` for a plain foreground process: a
+CLI utility, a test, a yuno run by hand. The signal policy depends on it (see
+the `SIGTERM` case in `c_yuno.c`).
+
+```C
+BOOL yuneta_is_daemon(void);
+```
+
+**Returns**
+
+`TRUE` under the watcher, `FALSE` in the foreground.
+
+**Example**
+
+```C
+if(!yuneta_is_daemon()) {
+    /* run by hand: print to the terminal as well */
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+}
+```
+
+---
+
 (yuneta_json_config)=
 ## [`yuneta_json_config()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/root-linux/src/entry_point.c#L1057)
 

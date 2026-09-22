@@ -13,6 +13,6 @@ that communicates through events.
 | [Gateway](gateway.md) | C_CHANNEL, C_IOGATE, C_QIOGATE, C_MQIOGATE | Message routing, multiplexing, and persistent queuing. |
 | [Inter-Event](ievent.md) | C_IEVENT_CLI, C_IEVENT_SRV | RPC-like communication between yunos. |
 | [Data](data.md) | C_TRANGER, C_TREEDB, C_NODE, C_RESOURCE2, C_ASSETS | Time-series, graph DB, resource persistence, the `file` columns of a treedb and the way out of their bytes. |
-| [Auth](auth.md) | C_AUTHZ, C_AUTH_BFF, C_TASK_AUTHENTICATE | Authentication, authorization, and OAuth 2. |
+| [Auth](auth.md) | C_AUTHZ, C_AUTH_BFF, C_IDP_KEYCLOAK, C_TASK_AUTHENTICATE | Authentication, authorization, and OAuth 2. |
 | [Task & Timer](task_timer.md) | C_TASK, C_TIMER, C_TIMER0, C_COUNTER | Async task execution, timers, and counters. |
 | [System](system.md) | C_YUNO, C_FS, C_PTY, C_OTA, C_GSS_UDP_S | Core runtime, file-system watcher, PTY, OTA updates. |

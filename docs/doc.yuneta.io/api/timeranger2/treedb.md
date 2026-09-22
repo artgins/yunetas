@@ -472,6 +472,47 @@ It only ADDS links, and it stops at the first ref it cannot link. To make the li
 
 ---
 
+(treedb_blob_path)=
+## [`treedb_blob_path()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/tr_treedb.c#L11511)
+
+Where the bytes of an asset of a `file` column live: `<treedb dir>/.blobs/ab/cd/<id>.<ext>`. The id is the lowercase sha256 of the bytes; the two fanout levels are its first four hex characters, and the extension comes from the stored content type ([`treedb_file_ext()`](#treedb_file_ext)), never from the name the file was given. The directory starts with a dot so no scan of the treedb directory takes it for a topic.
+
+```C
+int treedb_blob_path(
+    json_t      *tranger,
+    const char  *id,
+    const char  *content_type,
+    char        *bf,
+    size_t      bflen
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | The tranger of the treedb (its `directory` is the root). |
+| `id` | `const char *` | The asset id: 64 lowercase hex characters. |
+| `content_type` | `const char *` | The stored mime type; it picks the extension. |
+| `bf` | `char *` | Output buffer. |
+| `bflen` | `size_t` | Size of `bf` (`PATH_MAX`). |
+
+**Returns**
+
+`0`, or `-1` with *"Asset id is not a lowercase sha256"* logged when `id` is not one, or when the path does not fit.
+
+**Example**
+
+```C
+char path[PATH_MAX];
+treedb_blob_path(tranger,
+    "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    "image/png", path, sizeof(path));
+/* <directory>/.blobs/ba/78/ba7816bf...15ad.png */
+```
+
+---
+
 (treedb_clean_node)=
 ## [`treedb_clean_node()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/tr_treedb.c#L8770)
 
@@ -560,6 +601,37 @@ Returns `0` on success, or a negative error code if the operation fails.
 **Notes**
 
 Make sure that the topic is not in use before calling [`treedb_close_topic()`](<#treedb_close_topic>).
+
+---
+
+(treedb_content_type_of_name)=
+## [`treedb_content_type_of_name()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/tr_treedb.c#L11362)
+
+The mime type a file NAME claims, by its extension (case-insensitive). The pairs that share a container are told apart by extension on purpose: `.webm` is video and `.weba` audio, `.mp4` video and `.m4a` audio, `.ogv` video and `.ogg` audio. A name is only a claim: the write path checks it against the bytes ([`treedb_sniff_content_type()`](#treedb_sniff_content_type)).
+
+```C
+const char *treedb_content_type_of_name(
+    const char  *name
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `name` | `const char *` | A file name or path. |
+
+**Returns**
+
+A static string: one of `image/jpeg`, `image/png`, `image/webp`, `image/gif`, `application/pdf`, `video/mp4`, `video/webm`, `video/quicktime`, `video/ogg`, `video/x-matroska`, `audio/mpeg`, `audio/mp4`, `audio/ogg`, `audio/wav`, `audio/webm`, `audio/flac`. `""` when the name has no extension or an unknown one.
+
+**Example**
+
+```C
+treedb_content_type_of_name("nave-1.JPG");     /* "image/jpeg" */
+treedb_content_type_of_name("voice.m4a");      /* "audio/mp4" */
+treedb_content_type_of_name("notes.txt");      /* "" */
+```
 
 ---
 
@@ -830,6 +902,71 @@ is refused. There is no `force` override.
 
 ---
 
+(treedb_file_ext)=
+## [`treedb_file_ext()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/tr_treedb.c#L11335)
+
+The extension a blob is stored with, derived from its mime type: it is what a web server reads to set the `Content-Type`, so it comes from the type stored and never from the name given.
+
+```C
+const char *treedb_file_ext(
+    const char  *content_type
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `content_type` | `const char *` | A mime type. |
+
+**Returns**
+
+A static string without the dot: `jpg`, `png`, `webp`, `gif`, `pdf`, `mp4`, `webm`, `mov`, `ogv`, `mkv`, `mp3`, `m4a`, `ogg`, `wav`, `weba`, `flac`; `bin` for an empty or unknown type.
+
+**Example**
+
+```C
+treedb_file_ext("video/quicktime");    /* "mov" */
+treedb_file_ext("text/plain");         /* "bin" */
+```
+
+---
+
+(treedb_gc_files)=
+## [`treedb_gc_files()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/tr_treedb.c#L13613)
+
+The garbage collector of the bytes of `file` columns. It takes every asset of `__assets__` that **no live node and no snapshotted version of a node** links (row and bytes), and every blob of `.blobs/` that no row names (what an interrupted write leaves: the blob goes down before the index node). Never automatic: `treedb_delete_node()` with `force` UNLINKS the children instead of deleting them, so an unlinked asset is a normal intermediate state of a bulk operation. It reads the snapshots on disk, which makes the answer conservative. The command is C_NODE's `gc-assets`.
+
+```C
+json_t *treedb_gc_files(
+    json_t      *tranger,
+    const char  *treedb_name,
+    BOOL        dry_run
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | The tranger of the treedb. |
+| `treedb_name` | `const char *` | The treedb. |
+| `dry_run` | `BOOL` | `TRUE`: take nothing, answer what would be taken. |
+
+**Returns**
+
+The list of asset ids taken (or that would be taken), **yours** to decref. `NULL` with *"__assets__ index not found"* logged when the treedb has no `__assets__` topic.
+
+**Example**
+
+```C
+json_t *would = treedb_gc_files(tranger, "treedb_yunovatioscedb", TRUE);
+/* ["3f1c...", "9a0b..."]: look at them before running it for real */
+JSON_DECREF(would)
+```
+
+---
+
 (treedb_get_id_index)=
 ## [`treedb_get_id_index()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/tr_treedb.c#L329)
 
@@ -990,6 +1127,53 @@ A JSON array containing the names of the columns that are foreign key links in t
 **Notes**
 
 The function provides insight into the schema of a topic by identifying its foreign key relationships. The returned list must not be modified or freed by the caller.
+
+---
+
+(treedb_import_files)=
+## [`treedb_import_files()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/tr_treedb.c#L13885)
+
+The second door of `file` columns: a directory already on the node becomes N assets in one call, with no bytes on the wire. It creates index nodes in `__assets__` and links nothing; it **answers the map `path -> id`**, so the loader can link what it imported (where a file came from is a fact of the load, not of the asset). The command is C_NODE's `import-assets`.
+
+It is confined to `import_root`, and an empty root means **refused** -- a call that reads a path is a call that reads anything on the node. The confinement is resolved, not only spelled: a `source_dir` with `..`, or one that resolves out of `import_root` through a symlink, is refused.
+
+```C
+json_t *treedb_import_files(
+    json_t      *tranger,
+    const char  *treedb_name,
+    const char  *import_root,
+    const char  *source_dir,
+    BOOL        dry_run,
+    const char  *uploaded_by
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | The tranger of the treedb. |
+| `treedb_name` | `const char *` | The treedb. |
+| `import_root` | `const char *` | The only tree it may read. Empty: refused. |
+| `source_dir` | `const char *` | Directory under `import_root` to import, walked recursively. |
+| `dry_run` | `BOOL` | `TRUE`: store nothing, answer what would be imported. |
+| `uploaded_by` | `const char *` | Kept in each asset node. |
+
+**Returns**
+
+`{"source_dir", "dry_run", "imported", "would_import", "skipped", "failed", "bytes", "files": {"<relative path>": "<id>"}}`, **yours**. `NULL` with the cause in `gobj_log_last_message()` when refused (no root, `..`, not a directory, out of the root).
+
+**Example**
+
+```C
+json_t *result = treedb_import_files(
+    tranger, "treedb_yunovatioscedb",
+    "/yuneta/store/censo", "memorias/malaga",
+    FALSE, "yuneta"
+);
+/* result.files: {"memorias/malaga/nave-1.jpg": "ba7816bf..."} */
+JSON_DECREF(result)
+```
 
 ---
 
@@ -1604,6 +1788,44 @@ The callback function must follow the `treedb_callback_t` signature and will rec
 
 ---
 
+(treedb_set_files_limits)=
+## [`treedb_set_files_limits()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/tr_treedb.c#L11548)
+
+The ceiling of a treedb's `file` columns: the largest file one write may cost this process, and the mime types the store will ever hold. A column may NARROW it with its `properties.max_size` / `properties.content_types`, never raise it. Without a call the ceiling is 128 MB and the sixteen types of [`treedb_content_type_of_name()`](#treedb_content_type_of_name). C_TREEDB forwards `files_max_size` / `files_content_types` of `open-treedb` here.
+
+```C
+int treedb_set_files_limits(
+    json_t      *tranger,
+    const char  *treedb_name,
+    json_int_t  max_size,
+    json_t      *content_types  // owned
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | The tranger of the treedb. |
+| `treedb_name` | `const char *` | The treedb (must be open). |
+| `max_size` | `json_int_t` | Bytes. `0` keeps the current ceiling. |
+| `content_types` | `json_t *` | Owned. A list of mime types; `NULL` keeps the current list. |
+
+**Returns**
+
+`0`, or `-1` with *"TreeDB not found"* or *"files content_types must be a list"* logged.
+
+**Example**
+
+```C
+treedb_set_files_limits(tranger, "treedb_wattyzer",
+    20*1024*1024,
+    json_pack("[s,s,s]", "image/jpeg", "image/png", "application/pdf")
+);
+```
+
+---
+
 (treedb_set_node_immutable)=
 ## [`treedb_set_node_immutable()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/tr_treedb.c#L6382)
 
@@ -1739,6 +1961,87 @@ treedb_activate_snap(tranger, "treedb_yuneta_agent", "pre-upgrade");   // reload
 **Notes**
 
 Snapshots allow restoring the TreeDB to a previous state using [`treedb_activate_snap()`](<#treedb_activate_snap>). Like all snap operations, the visibility change is materialised on the next `treedb_open_db()`, not in memory at call time — see [`treedb_activate_snap()`](<#treedb_activate_snap>) for the reload semantics.
+
+---
+
+(treedb_sniff_content_type)=
+## [`treedb_sniff_content_type()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/tr_treedb.c#L11396)
+
+The mime type the BYTES say, from their first bytes (magic numbers). Containers shared by several types answer one representative (`video/mp4` for the ISO-BMFF family, `video/webm` for EBML, `audio/ogg` for Ogg); the declared type then picks the member. An SVG or any HTML/XML text is recognised on purpose, as `image/svg+xml` / `text/html`, so the allowlist can REFUSE it by name: declared as `image/png` by a client, it would otherwise walk past the check.
+
+```C
+const char *treedb_sniff_content_type(
+    const char  *data,
+    size_t      len
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `data` | `const char *` | The first bytes of the file (a few dozen are enough). |
+| `len` | `size_t` | How many. Under 4 answers `""`. |
+
+**Returns**
+
+A static string: a mime type, or `""` when the content is not recognised.
+
+**Example**
+
+```C
+treedb_sniff_content_type("\x89PNG\r\n\x1a\n....", 12);   /* "image/png" */
+treedb_sniff_content_type("  <svg xmlns=...", 16);          /* "image/svg+xml": refused */
+```
+
+---
+
+(treedb_store_files)=
+## [`treedb_store_files()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/tr_treedb.c#L12189)
+
+The write path of a record with `file` columns: it consumes the `__files__` manifest (and the kw's `gbuffer`), stores the bytes under `.blobs/`, creates or refreshes the `__assets__` node and rewrites every `file` column into its full fkey reference, `__assets__^<id>^as_<topic>_<column>`. [`treedb_create_node()`](#treedb_create_node), [`treedb_update_node()`](#treedb_update_node) and [`treedb_autolink()`](#treedb_autolink) call it; a direct caller needs it only for a kw that never goes through them. Idempotent: a second pass finds full references and no manifest, and does nothing. Design: [`DESIGN-treedb-files.md`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/DESIGN-treedb-files.md).
+
+```C
+int treedb_store_files(
+    json_t      *tranger,
+    const char  *treedb_name,
+    const char  *topic_name,
+    json_t      *kw     // NOT owned, modified in place
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | The tranger of the treedb. |
+| `treedb_name` | `const char *` | The treedb. |
+| `topic_name` | `const char *` | The topic of the record. |
+| `kw` | `json_t *` | The record as it arrived. Modified: each `file` column leaves holding its reference, and `__files__`, `gbuffer` and `__username__` are dropped. A column with a bare id and no manifest names an asset that must already exist. |
+
+The manifest has two doors, one per transport. The second one slices the kw's single `gbuffer`, which carries the bytes of every column:
+
+```json
+"__files__": {"plano": {"content64": "...", "original_name": "plano.pdf", "content_type": "application/pdf"}}
+"__files__": {"plano": {"offset": 0, "size": 51234, "original_name": "plano.pdf", "content_type": "application/pdf"}}
+```
+
+**Returns**
+
+`0`, or `-1` with the cause in `gobj_log_last_message()` (a `file` column not flagged `fkey`, bytes that do not match the declared type, a type outside the allowlist, a file over the ceiling).
+
+**Example**
+
+```C
+json_t *kw = json_pack("{s:s, s:{s:{s:s, s:s, s:s}}}",
+    "id", "nave-1",
+    "__files__",
+        "foto", "content64", b64, "original_name", "nave-1.jpg", "content_type", "image/jpeg"
+);
+if(treedb_store_files(tranger, "treedb_yunovatioscedb", "places", kw) == 0) {
+    /* kw.foto == "__assets__^<sha256>^as_places_foto" */
+}
+```
 
 ---
 
