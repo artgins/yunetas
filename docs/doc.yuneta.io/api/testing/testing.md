@@ -4,11 +4,11 @@ Helpers used by Yuneta's C test suite: expected-log capture, JSON result compari
 
 Source code:
 
-- [`testing.h`](https://github.com/artgins/yunetas/blob/7.25.1/kernel/c/gobj-c/src/testing.h)
-- [`testing.c`](https://github.com/artgins/yunetas/blob/7.25.1/kernel/c/gobj-c/src/testing.c)
+- [`testing.h`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/gobj-c/src/testing.h)
+- [`testing.c`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/gobj-c/src/testing.c)
 
 (capture_log_write)=
-## [`capture_log_write()`](https://github.com/artgins/yunetas/blob/7.25.1/kernel/c/gobj-c/src/testing.c#L55)
+## [`capture_log_write()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/gobj-c/src/testing.c#L55)
 
 `capture_log_write()` processes log messages, comparing them against expected log messages and categorizing them as expected or unexpected.
 
@@ -41,7 +41,7 @@ If a log message matches an expected message, it is removed from the expected li
 ---
 
 (set_expected_results)=
-## [`set_expected_results()`](https://github.com/artgins/yunetas/blob/7.25.1/kernel/c/gobj-c/src/testing.c#L211)
+## [`set_expected_results()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/gobj-c/src/testing.c#L211)
 
 `set_expected_results()` initializes the expected test results, including expected errors, expected JSON output, ignored keys, and verbosity settings.
 
@@ -87,7 +87,7 @@ and read what it gives up before reaching for it.
 ---
 
 (set_expected_results_unordered)=
-## [`set_expected_results_unordered()`](https://github.com/artgins/yunetas/blob/7.25.1/kernel/c/gobj-c/src/testing.c#L227)
+## [`set_expected_results_unordered()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/gobj-c/src/testing.c#L227)
 
 The same as [`set_expected_results()`](#set_expected_results), with
 `errors_list` read as a **whitelist** instead of a script.
@@ -147,7 +147,7 @@ set_expected_results_unordered(
 ---
 
 (test_directory_permission)=
-## [`test_directory_permission()`](https://github.com/artgins/yunetas/blob/7.25.1/kernel/c/gobj-c/src/testing.c#L315)
+## [`test_directory_permission()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/gobj-c/src/testing.c#L315)
 
 `test_directory_permission()` checks if a directory has the specified permission mode.
 
@@ -176,7 +176,7 @@ This function internally retrieves the directory's permission mode and compares 
 ---
 
 (test_file_permission_and_size)=
-## [`test_file_permission_and_size()`](https://github.com/artgins/yunetas/blob/7.25.1/kernel/c/gobj-c/src/testing.c#L328)
+## [`test_file_permission_and_size()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/gobj-c/src/testing.c#L328)
 
 `test_file_permission_and_size()` verifies if a file has the specified permissions and size.
 
@@ -207,7 +207,7 @@ This function internally calls `file_permission()` and `file_size()` to retrieve
 ---
 
 (test_json)=
-## [`test_json()`](https://github.com/artgins/yunetas/blob/7.25.1/kernel/c/gobj-c/src/testing.c#L274)
+## [`test_json()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/gobj-c/src/testing.c#L274)
 
 `test_json()` compares a given JSON object with an expected JSON object and verifies if they match. It also checks for expected and unexpected log messages.
 
@@ -248,7 +248,7 @@ result += test_json(json_incref(record));   // record is borrowed
 ---
 
 (test_json_file)=
-## [`test_json_file()`](https://github.com/artgins/yunetas/blob/7.25.1/kernel/c/gobj-c/src/testing.c#L243)
+## [`test_json_file()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/gobj-c/src/testing.c#L243)
 
 `test_json_file()` compares the JSON content of a file with the expected JSON structure and validates log results.
 

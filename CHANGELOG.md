@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.2 (2026-09-22)
 
 ### gobj-c: `gbuf2json_from_peer()` -- a frame from a peer that is not json is a warning
 
