@@ -149,6 +149,7 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_accesses(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *refuse_on_replica(hgobj gobj, json_t *kw);
+PRIVATE BOOL users_store_written_here(hgobj gobj, const char *what, const char *username);
 PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE BOOL role_ref_is_linkable(hgobj gobj, const char *role_ref);
 PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -1691,6 +1692,29 @@ PRIVATE json_t *refuse_on_replica(hgobj gobj, json_t *kw)
         );
     }
     return NULL;
+}
+
+/***************************************************************************
+ *  The same question for the EVENT doors -- EV_ADD_USER, EV_REJECT_USER,
+ *  EV_IDP_USER_CREATED -- which no command guard sees: FALSE on a replica,
+ *  and said in the log, naming what was not done.
+ ***************************************************************************/
+PRIVATE BOOL users_store_written_here(hgobj gobj, const char *what, const char *username)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->tranger && !kw_get_bool(gobj, priv->tranger, "master", 0, KW_REQUIRED)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "READ-ONLY replica, the users store cannot be written here",
+            "what",         "%s", what,
+            "username",     "%s", username,
+            NULL
+        );
+        return FALSE;
+    }
+    return TRUE;
 }
 
 /***************************************************************************
@@ -4199,6 +4223,11 @@ PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     json_t *credentials = kw_get_dict_value(gobj, kw, "credentials", 0, 0);
     json_t *properties = kw_get_dict_value(gobj, kw, "properties", 0, 0);
 
+    if(!users_store_written_here(gobj, "create or update a user", username)) {
+        KW_DECREF(kw)
+        return -1;
+    }
+
     /*
      *  A role that cannot be linked is refused before anything is written.
      *  The treedb refused the link on its own and the user was saved all
@@ -4327,19 +4356,38 @@ PRIVATE int ac_reject_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
         return -1;
     }
 
-
+    /*
+     *  FAIL CLOSED. The sessions are the ones of the node read ABOVE, and
+     *  they are dropped whatever happens to the write of `disabled`: it used
+     *  to replace `user` with the return of that write, so a refused write
+     *  (a replica, a failed append) left `user` NULL, no session was read,
+     *  and the rejected user stayed connected (M5 of the 2026-09-23 review).
+     */
+    int ret = 0;
     if(kw_has_key(kw, "disabled")) {
         BOOL disabled = kw_get_bool(gobj, kw, "disabled", 0, 0);
-        json_object_set_new(user, "disabled", disabled?json_true():json_false());
-        user = gobj_update_node(
-            priv->gobj_treedb,
-            "users",
-            user,
-            json_pack("{s:b}",
-                "with_metadata", 1
-            ),
-            src
-        );
+        if(!users_store_written_here(gobj, "write 'disabled' of a rejected user", username)) {
+            ret = -1;   // Error already logged, the sessions are dropped all the same
+        } else {
+            json_t *updated = gobj_update_node(
+                priv->gobj_treedb,
+                "users",
+                json_pack("{s:s, s:b}", "id", username, "disabled", disabled),
+                0,
+                src
+            );
+            if(!updated) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "cannot write 'disabled' of the rejected user, its sessions are dropped anyway",
+                    "username",     "%s", username,
+                    NULL
+                );
+                ret = -1;
+            }
+            JSON_DECREF(updated)
+        }
     }
 
     /*-----------------*
@@ -4351,12 +4399,13 @@ PRIVATE int ac_reject_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "__sessions NULL",
+            "username",     "%s", username,
             NULL
         );
     }
     json_t *session;
     void *n; const char *k;
-    int ret = 0;
+    int dropped = 0;
     json_object_foreach_safe(sessions, n, k, session) {
         /*-------------------------------*
          *  Drop sessions
@@ -4364,9 +4413,13 @@ PRIVATE int ac_reject_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
         hgobj prev_channel_gobj = (hgobj)(uintptr_t)kw_get_int(gobj, session, "channel_gobj", 0, KW_REQUIRED);
         gobj_send_event(prev_channel_gobj, EV_DROP, 0, gobj);
         json_object_del(sessions, k);
-        ret++;
+        dropped++;
     }
 
+    /*
+     *  `volatil` writes memory only (the sessions are not persistent), so it
+     *  is done on a replica too
+     */
     json_t *updated = gobj_update_node(
         priv->gobj_treedb,
         "users",
@@ -4389,7 +4442,7 @@ PRIVATE int ac_reject_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     JSON_DECREF(updated)
 
     KW_DECREF(kw)
-    return ret;
+    return ret < 0? ret : dropped;
 }
 
                     /***************************
@@ -4472,6 +4525,10 @@ PRIVATE int ac_idp_user_created(hgobj gobj, gobj_event_t event, json_t *kw, hgob
             "msg",          "%s", "EV_IDP_USER_CREATED without username",
             NULL
         );
+        KW_DECREF(kw)
+        return -1;
+    }
+    if(!users_store_written_here(gobj, "record an IdP user", username)) {
         KW_DECREF(kw)
         return -1;
     }

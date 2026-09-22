@@ -22,7 +22,7 @@ JWT tokens, and manages users and their access rules.
 | Command | Description |
 |---------|-------------|
 | `list-jwk` / `add-jwk` / `remove-jwk` | Manage JSON Web Keys. |
-| `users` / `create-user` / `update-user` / `enable-user` / `disable-user` / `delete-user` | User management. A `role` given to `create-user` / `update-user` is a ref `roles^<role id>^users` to a role that exists; anything else is refused before the user is written (*"Role does not exist"*, *"Bad role ref, expected roles^ROLE^users"*), and the user keeps the roles it had. Example: `ycommand -c 'command-yuno id=<id> service=authz command=update-user username=ana@example.com role=roles^operator^users'`. |
+| `users` / `create-user` / `update-user` / `enable-user` / `disable-user` / `delete-user` | User management. A `role` given to `create-user` / `update-user` is a ref `roles^<role id>^users` to a role that exists; anything else is refused before the user is written (*"Role does not exist"*, *"Bad role ref, expected roles^ROLE^users"*), and the user keeps the roles it had. Example: `ycommand -c 'command-yuno id=<id> service=authz command=update-user username=ana@example.com role=roles^operator^users'`. On a replica every write is refused (*"READ-ONLY replica"*), the commands AND the events: `EV_ADD_USER` and `EV_IDP_USER_CREATED` return `-1` and log *"READ-ONLY replica, the users store cannot be written here"* (after 7.25.3). |
 | `accesses` | List access rules. |
 
 ---

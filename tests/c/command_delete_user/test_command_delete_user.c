@@ -14,6 +14,11 @@
  *                                                   (A7 of the 2026-09-21 review)
  *            6. a role that cannot be linked     -> create/update-user refused,
  *                                                   the user keeps its role (M15)
+ *            8. EV_REJECT_USER on a replica      -> the live sessions are dropped
+ *                                                   although `disabled` cannot be
+ *                                                   written, -1 (M5 of 2026-09-23)
+ *            9. EV_ADD_USER / EV_IDP_USER_CREATED on a replica -> -1, nothing
+ *                                                   created, nothing moved (M4)
  *
  *          A real C_AUTHZ service is instantiated over a temp tranger store;
  *          a role and an immutable user are seeded via initial_load, and the
@@ -53,6 +58,7 @@
  ***************************************************************/
 PRIVATE int s_result = 0;   /* accumulated check result, read after entry_point */
 PRIVATE int s_errors = 0;   /* logs of priority ERROR and up, see count_errors() */
+PRIVATE int s_drops = 0;    /* EV_DROP received: a session of a rejected user dropped */
 
 GOBJ_DEFINE_GCLASS(C_TEST_DELUSER);
 
@@ -349,6 +355,109 @@ PRIVATE void run_checks(hgobj gobj)
             check_int("local_to_disable is enabled", user_disabled("local_to_disable"), 0);
         }
     }
+
+    /*
+     *  Case 8: EV_REJECT_USER when `disabled` cannot be written (M5 of the
+     *  2026-09-23 review). The write's NULL replaced the user node, so its
+     *  __sessions were never read and a rejected user stayed connected. The
+     *  sessions are dropped from the node read before the write now, and
+     *  the event answers -1 for the write it could not do. The session is
+     *  this driver: EV_DROP reaches it.
+     */
+    {
+        hgobj treedb = gobj_find_service("treedb_authzs", FALSE);
+        json_t *tranger = treedb? gobj_read_pointer_attr(treedb, "tranger") : NULL;
+        check_int("create local_session",
+            cmd_result(authz, "create-user", json_pack("{s:s}", "username", "local_session")),
+            0);
+        json_t *with_session = gobj_update_node(
+            treedb,
+            "users",
+            json_pack("{s:s, s:{s:{s:I}}}",
+                "id", "local_session",
+                "__sessions",
+                    "session-1",
+                        "channel_gobj", (json_int_t)(uintptr_t)gobj
+            ),
+            json_pack("{s:b}", "volatil", 1),
+            gobj
+        );
+        check_int("a live session injected", with_session? 1 : 0, 1);
+        JSON_DECREF(with_session)
+
+        if(tranger) {
+            json_object_set_new(tranger, "master", json_false());
+        }
+        s_drops = 0;
+        int ret = gobj_send_event(
+            authz,
+            EV_REJECT_USER,
+            json_pack("{s:s, s:b}", "username", "local_session", "disabled", 1),
+            gobj
+        );
+        if(tranger) {
+            json_object_set_new(tranger, "master", json_true());
+        }
+        check_int("reject on a replica answers -1", ret, -1);
+        check_int("reject on a replica drops the session", s_drops, 1);
+        check_int("reject on a replica wrote nothing", user_disabled("local_session"), 0);
+
+        json_t *node = gobj_get_node(
+            treedb, "users", json_pack("{s:s}", "id", "local_session"), 0, gobj
+        );
+        check_int("the dropped session is gone from the node",
+            (int)json_object_size(kw_get_dict(0, node, "__sessions", 0, 0)), 0);
+        JSON_DECREF(node)
+    }
+
+    /*
+     *  Case 9: the EVENT doors on a replica. refuse_on_replica() guards the
+     *  commands only; EV_ADD_USER (with a role: the autolink path of
+     *  C_NODE, M4) and EV_IDP_USER_CREATED went on to the treedb.
+     */
+    {
+        hgobj treedb = gobj_find_service("treedb_authzs", FALSE);
+        json_t *tranger = treedb? gobj_read_pointer_attr(treedb, "tranger") : NULL;
+        if(tranger) {
+            json_object_set_new(tranger, "master", json_false());
+        }
+        int ret_add = gobj_send_event(
+            authz,
+            EV_ADD_USER,
+            json_pack("{s:s, s:s}", "username", "replica_user", "role", "roles^testrole^users"),
+            gobj
+        );
+        int ret_role = gobj_send_event(
+            authz,
+            EV_ADD_USER,
+            json_pack("{s:s, s:s}", "username", "local_badrole", "role", "roles^testrole^users"),
+            gobj
+        );
+        int ret_idp = gobj_send_event(
+            authz,
+            EV_IDP_USER_CREATED,
+            json_pack("{s:s}", "username", "idp_replica_user"),
+            gobj
+        );
+        json_t *node = gobj_update_node(
+            treedb,
+            "users",
+            json_pack("{s:s, s:[s]}", "id", "local_session", "roles", "roles^testrole^users"),
+            json_pack("{s:b}", "autolink", 1),
+            gobj
+        );
+        if(tranger) {
+            json_object_set_new(tranger, "master", json_true());
+        }
+        check_int("EV_ADD_USER on a replica answers -1", ret_add, -1);
+        check_int("EV_ADD_USER of an existing user on a replica answers -1", ret_role, -1);
+        check_int("EV_IDP_USER_CREATED on a replica answers -1", ret_idp, -1);
+        check_int("autolink update on a replica answers NULL", node? 1 : 0, 0);
+        JSON_DECREF(node)
+        check_int("replica_user was not created", user_exists("replica_user"), 0);
+        check_int("idp_replica_user was not created", user_exists("idp_replica_user"), 0);
+        check_int("local_session got no role on a replica", user_has_role("local_session", "testrole"), 0);
+    }
 }
 
 /***************************************************************
@@ -392,6 +501,17 @@ PRIVATE int mt_pause(hgobj gobj)
  *              Actions
  ***************************************************************/
 /*
+ *  EV_DROP: C_AUTHZ drops a session of a rejected user by sending it to the
+ *  session's channel, and case 8 names this driver as that channel.
+ */
+PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    s_drops++;
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/*
  *  First fire (dying==FALSE): run the checks, then arm the death timer.
  *  Second fire (dying==TRUE): set_yuno_must_die() -- from inside the running
  *  loop, so the yuno teardown (and the tranger's async fs_watcher
@@ -434,6 +554,7 @@ PRIVATE int register_c_test_deluser(void)
 {
     ev_action_t st_idle[] = {
         {EV_TIMEOUT, ac_timer, 0},
+        {EV_DROP, ac_drop, 0},
         {0, 0, 0}
     };
     states_t states[] = {
@@ -442,6 +563,7 @@ PRIVATE int register_c_test_deluser(void)
     };
     event_type_t event_types[] = {
         {EV_TIMEOUT, 0},
+        {EV_DROP, 0},
         {0, 0}
     };
     hgclass gc = gclass_create(

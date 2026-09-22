@@ -815,6 +815,24 @@ All are declared with `SDF_AUTHZ_X`, requiring `__execute_command__` — enforce
 only when the broker yuno sets `enable_command_authz` (§4.5). It is off by
 default.
 
+**The event doors.** `C_AUTHZ` also writes users from three input events that
+no command guard sees: `EV_ADD_USER` (create or update, what `create-user`
+sends itself), `EV_REJECT_USER` (drop the user's sessions, and write
+`disabled` when the kw carries it) and `EV_IDP_USER_CREATED` (an IdP
+provisioner created an account). A project's gclass sends them directly:
+
+```c
+gobj_send_event(priv->gobj_authz, EV_REJECT_USER,
+    json_pack("{s:s, s:b}", "username", username, "disabled", 1), gobj);
+```
+
+On a READ-ONLY replica of the users store `EV_ADD_USER` and
+`EV_IDP_USER_CREATED` return `-1` and write nothing. `EV_REJECT_USER` **fails
+closed**: it drops the live sessions of the user whatever happens to the write
+of `disabled` -- refused on a replica, or a failed append -- and returns `-1`
+when that write did not happen (after 7.25.3; the refused write left the user
+connected, because the sessions were read from the write's `NULL` answer).
+
 Agent-side: [`cmd_authzs_yuno`](https://github.com/artgins/yunetas/blob/7.25.3/yunos/c/yuno_agent/src/c_agent.c#L6406) ([`c_agent.c:6406`](https://github.com/artgins/yunetas/blob/7.25.3/yunos/c/yuno_agent/src/c_agent.c#L6406), registered as
 `authzs-yuno` at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.25.3/yunos/c/yuno_agent/src/c_agent.c)) is the agent's wrapper to broadcast
 authz data to all running yunos.
