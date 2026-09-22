@@ -35,6 +35,8 @@ The suite already ships every binary in `outputs/yunos/` in the `.deb` and the
   for 30 days. Only the daily aggregates go to TimeRanger2.
 - It does not speak SMTP. `emailsender` does.
 - It does not follow the log in real time. See §4.
+- It does not geolocate. The country and the organisation of a client come
+  from the network registries (§7.3), not from a GeoIP database.
 
 ## 3. Where the logs are
 
@@ -105,7 +107,10 @@ day is 1.5 MB to 3.5 MB. It is not a cost.
 webstats (yuno)
 └── webstats  C_WEBSTATS       service, default_service
     ├── timer     C_TIMER      the daily schedule
-    └── reader_N  C_LOG_READER one per file being read (created, used, destroyed)
+    ├── whois     C_TIMER      the time of one lookup, and of its client's stop
+    ├── reader    C_LOG_READER one per file being read (created, used, destroyed)
+    └── whois     C_PROT_HTTP_CL one per lookup (created, used, destroyed)
+        └── whois C_TCP        built by C_WEBSTATS, which listens to its EV_STOPPED
 
 The two continuations of a run -- take the next file, read the next chunk --
 are not timers. They are events the gobj posts to itself with
@@ -123,10 +128,14 @@ wrong moment fails loudly and names its sender.
 |---|---|
 | `ST_IDLE` | waiting for the next scheduled run |
 | `ST_READING` | one or more readers are feeding lines |
+| `ST_LOOKING_UP` | asking the registries about the top clients (§7.3) |
 | `ST_REPORTING` | building the report and handing it to `emailsender` |
 
-Events in: `EV_TIMEOUT` (schedule), `EV_LOG_LINES`, `EV_LOG_EOF`,
-`EV_LOG_ERROR` (from the readers), `EV_NEXT_FILE` (posted to itself).
+Events in: `EV_TIMEOUT` (schedule; in `ST_LOOKING_UP`, the lookup timer),
+`EV_LOG_LINES`, `EV_LOG_EOF`, `EV_LOG_ERROR` (from the readers),
+`EV_NEXT_FILE` (posted to itself); in `ST_LOOKING_UP`, `EV_ON_OPEN`,
+`EV_ON_MESSAGE`, `EV_ON_CLOSE` (from the lookup client), `EV_STOPPED` (from
+its C_TCP), and `EV_NEXT_LOOKUP` / `EV_LOOKUP_DONE` (posted to itself).
 Events out: `EV_REPORT_READY` (`EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS`) so a
 future consumer — controlcenter, a SPA view — can take the report without
 touching this yuno.
@@ -169,12 +178,17 @@ Turns one file into events. It knows nothing about nginx.
 ### 5.3 Why the one timer left here is not polling
 
 The framework forbids a timer that re-issues the same query to see if
-something changed. The only timer in this yuno is a **schedule**: it fires
+something changed. The daily timer in this yuno is a **schedule**: it fires
 once a day because the report is defined per day, and no producer can publish
 the event instead. The continuations that used to look like timers are posted
 messages now, which is what they always were.
 The code carries this comment, so nobody removes it later as a discarded
 pattern.
+
+The `whois` timer is not polling either. It is a **limit**: the time one
+lookup may take. C_TCP retries a connection that fails and tells nobody while
+it does, so without this limit a registry that is down would hold the daily
+run in `ST_LOOKING_UP` for ever.
 
 ## 6. Configuration
 
@@ -200,6 +214,11 @@ Attributes of `C_WEBSTATS`, all settable from the batch config.
 | `bot_agents` | list | the usual marks | a user agent that says it is a crawler |
 | `new_visitor_days` | int | 30 | days of history that decide whether a visitor is new |
 | `visitor_salt` | str | — | salt of the visitor fingerprint (§8.5) |
+| `whois_enabled` | bool | true | look up the country and organisation of the top clients (§7.3) |
+| `rdap_url` | str | `https://rdap.db.ripe.net/ip/` | RDAP service; the address is appended. It must be `https` |
+| `whois_rows` | int | 10 | rows of each table of clients that are looked up |
+| `whois_cache_days` | int | 30 | an answer younger than this is taken from the stored days |
+| `whois_timeout` | int | 15000 | milliseconds one lookup may take (each redirect hop has its own) |
 
 `report_hour` defaults to 06:00 and not to 00:05 on purpose: the window comes
 from the timestamps, so there is no reason to race `logrotate`, and a report
@@ -309,6 +328,77 @@ count, the first and last time, and one full sample line.
 **one** error line, the one for the failing `404.html`, and that line names the
 original request. It is one event, not two. Do not count it as two.
 
+### 7.3 Who the top clients are
+
+An address says nothing to the reader of the mail. `45.148.10.1` with 600
+probes is a number; `AD · TECHOFF SRV LIMITED (DMZHOST)` is somebody. So the
+rows of **Top clients** and **Top offenders** carry the country, the
+organisation that holds the network, the network name and its range.
+
+The source is **RDAP**, the JSON successor of whois, over HTTPS:
+
+```
+GET https://rdap.db.ripe.net/ip/51.38.52.119
+Accept: application/rdap+json
+
+200  {"name": "SD-1G-SBG3-S327B-326B", "country": "FR",
+      "startAddress": "51.38.52.0", "endAddress": "51.38.55.255",
+      "entities": [{"roles": ["registrant"], "handle": "ORG-OS3-RIPE",
+                    "vcardArray": ["vcard", [["fn", {}, "text", "OVH SAS"], …]]}, …]}
+```
+
+One service answers for every address: RIPE sends an address that is not
+in its registry to the registry that holds it with a `301`
+(`8.8.8.8` → ARIN, `1.1.1.1` → APNIC), and the lookup follows up to three
+hops. Only `https` is followed.
+
+Not port 43 whois: each registry writes its own text format, and that is five
+parsers to keep. Not a GeoIP database: a licence and a monthly update to run
+on every node. Not a third-party API: it would send the addresses of our
+clients to somebody else.
+
+What is read from the answer:
+
+| Field | From |
+|---|---|
+| `country` | the network's `country`. ARIN and LACNIC leave it null, so then the registrant's address: its country field, or the last line of its label (ARIN writes a name there, `United States`, not a code) |
+| `org` | the `fn` of the registrant. RIPE and APNIC list the organisation (`ORG-…`) and its maintainers (`…-MNT`) as registrant; the organisation is the one with the name |
+| `net` | the network's `name` |
+| `range` | `startAddress - endAddress` |
+| `source` | the registry that answered |
+| `looked_up_at` | when |
+
+A private, loopback or link-local address is never asked: it belongs to no
+registry. The same check keeps the key of the log out of the URL as anything
+but an address — the key is written by whoever made the request.
+
+**The stored days are the cache.** Before asking, the run reads the records
+of the last `whois_cache_days` days (the day being reported included, for a
+day reported again) and takes any answer younger than that. The records
+already hold every day's top clients with what was learned about them, so a
+second store would only repeat them. In steady state a run asks for the few
+addresses it has not seen this month. It also keeps the registries' rate
+limits out of the picture.
+
+**A lookup never stops the mail.** One address at a time, each by a client
+built for it and destroyed after it. A registry that does not answer, answers
+something that is not RDAP, or refuses, leaves `{"error": "…",
+"looked_up_at": …}` on that row, a WARNING in the log, and `lookup failed: …`
+in the mail. A failure is never taken from the cache: the next run asks
+again.
+
+The record says how the names were obtained: `"whois": {"enabled": true,
+"cached": 7, "looked_up": 3, "failed": 0}`, printed under **Sources**.
+
+⚠️ **Everything in an RDAP answer is escaped before it goes in the mail**, the
+same as the log. The registry records are written by whoever holds the
+network.
+
+⚠️ **The body arrives as a gbuffer, not as json.** RDAP answers
+`application/rdap+json`, and the http parser only turns
+`application/json` into json. The gbuffer belongs to the kw, so the parse
+takes its own reference.
+
 ## 8. Persistence
 
 TimeRanger2, one topic.
@@ -362,7 +452,7 @@ history — a number with nothing to compare it to carries no information.
 A day with no history says `days_of_history: 0` instead of comparing against
 zero. Against zero, the first morning reads as *everything doubled*.
 
-### 8.1 Record shape (version 1)
+### 8.1 Record shape (version 2)
 
 ```json
 {
@@ -381,9 +471,16 @@ zero. Against zero, the first morning reads as *everything doubled*.
                                    "latency": {}, "latency_summary": {}}},
     "latency": {"count": 0, "sum": 0.0, "max": 0.0, "buckets": [0]},
     "latency_summary": {"avg": 0.0, "p50": 0.0, "p95": 0.0, "p99": 0.0},
-    "top": {"paths": [], "not_found": [], "referrers": [], "agents": [], "clients": []},
+    "top": {"paths": [], "not_found": [], "referrers": [], "agents": [],
+            "clients": [{"key": "51.38.52.119", "count": 9,
+                         "whois": {"country": "FR", "org": "OVH SAS",
+                                   "net": "SD-1G-SBG3-S327B-326B",
+                                   "range": "51.38.52.0 - 51.38.55.255",
+                                   "source": "rdap.db.ripe.net",
+                                   "looked_up_at": 1790072400}}]},
     "server_errors": [{"host": "", "client": "", "status": 500, "path": "", "hour": 0}],
     "probes": {"requests": 0, "clients": 0, "top_patterns": [], "top_clients": []},
+    "whois": {"enabled": true, "cached": 0, "looked_up": 0, "failed": 0},
     "errors": {"total": 0, "distinct": 0, "by_signature": [
         {"signature": "", "count": 0, "first": "", "last": "", "sample": ""}
     ]},
@@ -391,7 +488,10 @@ zero. Against zero, the first morning reads as *everything doubled*.
 }
 ```
 
-Every `top` row is `{"key": …, "count": …}`. `latency` keeps the raw buckets
+Every `top` row is `{"key": …, "count": …}`. The first `whois_rows` rows of
+`top.clients` and `probes.top_clients` also carry `whois` (§7.3), unless the
+address is private. Version 2 added `whois`; a version 1 record is the same
+without it. `latency` keeps the raw buckets
 so two days can be added. `latency_summary` is what a reader looks at.
 `sources[].lines` is what the file holds, `kept` is what fell inside the day,
 and `unparsed` is what the parser did not understand. A file that was not read
@@ -588,6 +688,7 @@ that reaches the gclass directly.
 | `read` | file opened, chunks, lines, EOF |
 | `parse` | lines the parser rejected, with the line |
 | `report` | the built report before it is handed to `emailsender` |
+| `whois` | each RDAP request (url) and the status of each answer |
 
 `parse` is the one that matters: it is the only way to see a format change that
 the parser silently tolerates.

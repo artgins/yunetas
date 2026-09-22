@@ -1,5 +1,30 @@
 # **Changelog**
 
+## Unreleased
+
+### webstats: the top clients are named -- country and organisation, from RDAP
+
+- The first `whois_rows` (10) rows of *Top clients* and *Top offenders* now
+  carry who the address is: country, the organisation that holds the
+  network, the network name and its range, looked up over RDAP (the JSON
+  successor of whois, over HTTPS). One service answers for every address:
+  RIPE redirects an address it does not hold to its registry, and the
+  lookup follows it (verified against the five registries and IPv6).
+- New state `ST_LOOKING_UP` between reading and reporting. One lookup at a
+  time, each by a `C_PROT_HTTP_CL` built for it and destroyed once its
+  `C_TCP` says it stopped; a `whois_timeout` bounds each one. **A lookup
+  never stops the mail**: a failure leaves `{"error": ...}` on the row, a
+  WARNING in the log and `lookup failed: ...` in the mail.
+- The stored days are the cache: an answer younger than `whois_cache_days`
+  (30) is taken from them, not asked again. Failures are never cached.
+- Private, loopback and link-local addresses are never asked. Everything in
+  an RDAP answer is HTML-escaped before it reaches the mail.
+- Record `version` 2: adds `whois` on the rows and a `whois` summary
+  (`cached` / `looked_up` / `failed`), printed under *Sources*.
+- New attributes `whois_enabled`, `rdap_url`, `whois_rows`,
+  `whois_cache_days`, `whois_timeout`; new trace level `whois`. The node
+  must reach the registries on port 443.
+
 ## v7.25.2 (2026-09-22)
 
 ### gobj-c: `gbuf2json_from_peer()` -- a frame from a peer that is not json is a warning

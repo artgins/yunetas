@@ -18,8 +18,14 @@ answer out.
 ```
 C_WEBSTATS
     C_TIMER         <- the daily schedule
+    C_TIMER         <- the time one whois lookup may take
     C_LOG_READER    <- one per file being read (created, used, destroyed)
+    C_PROT_HTTP_CL  <- one per whois lookup (created, used, destroyed)
+        C_TCP
 ```
+
+A run goes `ST_IDLE` → `ST_READING` → `ST_LOOKING_UP` → `ST_REPORTING` →
+`ST_IDLE`. `ST_LOOKING_UP` is skipped when there is nothing to look up.
 
 `C_LOG_READER` turns one file into events (`EV_LOG_LINES`, `EV_LOG_EOF`,
 `EV_LOG_ERROR`) and knows nothing about nginx.
@@ -58,6 +64,11 @@ clients / agents / referrers, every 5xx whole, probes (counted, never banned —
 that is `fail2ban`'s job), a latency histogram, and the error log grouped by
 signature.
 
+**Who the top clients are.** The first rows of *Top clients* and *Top
+offenders* carry the country, the organisation that holds the network, and
+the network name, looked up in the registries over RDAP (the JSON successor of
+whois). See [below](#webstats-whois).
+
 A probe is matched on the **percent-decoded** path, so the scanner that asks
 for `/%2eenv` is counted with the ones that ask for `/.env`.
 
@@ -79,6 +90,48 @@ for `/%2eenv` is counted with the ones that ask for `/.env`.
 | `new_visitor_days` | 30 | History that decides whether a visitor is new |
 | `visitor_salt` | — | Salt of the visitor fingerprint |
 | `keep_days` | 400 | Days of aggregates kept |
+| `whois_enabled` | `true` | Look up who the top clients are |
+| `rdap_url` | `https://rdap.db.ripe.net/ip/` | RDAP service, the address is appended. Only `https` |
+| `whois_rows` | 10 | Rows of each table of clients that are looked up |
+| `whois_cache_days` | 30 | An answer younger than this is taken from the stored days |
+| `whois_timeout` | 15000 | Milliseconds one lookup may take |
+
+A batch config that turns the lookups off, for a node that cannot reach the
+registries:
+
+```json
+"global": {
+    "C_WEBSTATS.whois_enabled": false
+}
+```
+
+(webstats-whois)=
+## Who the top clients are
+
+One RDAP service answers for every address: RIPE redirects an address it does
+not hold to the registry that does (`8.8.8.8` → ARIN, `1.1.1.1` → APNIC), and
+the lookup follows the redirect. The row of the record gets:
+
+```json
+{"key": "51.38.52.119", "count": 9,
+ "whois": {"country": "FR", "org": "OVH SAS", "net": "SD-1G-SBG3-S327B-326B",
+           "range": "51.38.52.0 - 51.38.55.255", "source": "rdap.db.ripe.net",
+           "looked_up_at": 1790072400}}
+```
+
+and the mail prints `51.38.52.119  FR  OVH SAS SD-1G-SBG3-S327B-326B  9`.
+
+- **The stored days are the cache.** An address answered in the last
+  `whois_cache_days` days is taken from those records and not asked again, so
+  a normal run asks only for the addresses it has not seen this month.
+- **A lookup never stops the mail.** A registry that does not answer within
+  `whois_timeout`, or refuses, leaves `{"error": "timeout"}` on the row, a
+  warning in the log and `lookup failed: timeout` in the mail. A failure is
+  not cached: the next run asks again.
+- Private, loopback and link-local addresses are never asked.
+- The record says how the names were obtained, and the mail prints it under
+  *Sources*: `"whois": {"enabled": true, "cached": 7, "looked_up": 3, "failed": 0}`.
+- The node must reach the registries on port 443.
 
 ## Installing it on a node
 
@@ -136,6 +189,7 @@ rotated away overwrites a good record with an empty one.
 |--------|-------|-------|
 | `C_WEBSTATS` | `parse` | The lines the parser rejected, with the line |
 | `C_WEBSTATS` | `report` | The built record before it is sent |
+| `C_WEBSTATS` | `whois` | Each RDAP request and the status of each answer |
 | `C_LOG_READER` | `read` | File opened, chunks, EOF |
 
 Enable with

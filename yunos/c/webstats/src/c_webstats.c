@@ -13,6 +13,14 @@
  *          offset, does not care when logrotate runs, and can rebuild any
  *          day that is still on disk. See README.md, section 4.
  *
+ *          The busiest clients are named, not only counted: before the
+ *          record is written, their addresses are looked up in the
+ *          registries (RDAP) for the country, the organisation and the
+ *          network. One address at a time, each lookup by a volatile
+ *          C_PROT_HTTP_CL child, and an address looked up in the last
+ *          `whois_cache_days` is taken from the stored records instead of
+ *          being asked again. See README.md, section 7.3.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -25,6 +33,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <arpa/inet.h>  /* inet_pton() */
 
 #include "c_log_reader.h"
 #include "c_webstats.h"
@@ -42,6 +51,7 @@
 #define MAX_SERVER_ERRORS   500     // 5xx lines kept whole
 #define MAX_SAMPLE_LEN      512     // of an error line kept as the sample
 #define MAX_QUOTES          16      // more than the widest generation needs
+#define WHOIS_MAX_REDIRECTS 3       // RIPE sends one hop to the right registry
 
 /*
  *  The bucket edges of the latency histogram, in seconds. A histogram and
@@ -144,6 +154,12 @@ PRIVATE void compare_with_history(hgobj gobj);
 PRIVATE void count_new_visitors(hgobj gobj);
 PRIVATE const char *visitor_key(hgobj gobj, const char *client, char *bf, size_t bfsize);
 PRIVATE json_t *headline_of(hgobj gobj, json_t *record);
+PRIVATE int complete_run(hgobj gobj);
+PRIVATE int start_lookups(hgobj gobj);
+PRIVATE int open_whois_client(hgobj gobj);
+PRIVATE void whois_done(hgobj gobj, json_t *jn_whois);
+PRIVATE void whois_failed(hgobj gobj, const char *reason);
+PRIVATE void apply_whois(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -234,6 +250,11 @@ SDATA (DTP_LIST,    "bot_agents",       SDF_RD,             "[]",       "User ag
 SDATA (DTP_INTEGER, "new_visitor_days", SDF_WR|SDF_PERSIST, "30",       "Days of history that decide whether a visitor is new"),
 SDATA (DTP_STRING,  "visitor_salt",     SDF_RD,             "",         "Salt of the visitor fingerprint. Empty: none, see README"),
 SDATA (DTP_INTEGER, "keep_days",        SDF_RD,             "400",      "Days of aggregates kept"),
+SDATA (DTP_BOOLEAN, "whois_enabled",    SDF_WR|SDF_PERSIST, "true",     "Look up the country and organisation of the top clients"),
+SDATA (DTP_STRING,  "rdap_url",         SDF_RD,             "https://rdap.db.ripe.net/ip/", "RDAP service the address is appended to. It redirects to the registry of the address"),
+SDATA (DTP_INTEGER, "whois_rows",       SDF_RD,             "10",       "Rows of each top table of clients that are looked up"),
+SDATA (DTP_INTEGER, "whois_cache_days", SDF_WR|SDF_PERSIST, "30",       "An answer younger than this is taken from the stored days, not asked again"),
+SDATA (DTP_INTEGER, "whois_timeout",    SDF_RD,             "15000",    "Milliseconds a lookup may take, redirects included in each hop"),
 SDATA (DTP_STRING,  "tranger_path",     SDF_RD,             "/yuneta/store/webstats", "Where the daily records live"),
 SDATA (DTP_STRING,  "tranger_database", SDF_RD,             "webstats", "TimeRanger2 database"),
 SDATA (DTP_STRING,  "topic_daily",      SDF_RD,             "daily_stats", "Topic of the daily records"),
@@ -248,10 +269,12 @@ SDATA_END()
 enum {
     TRACE_PARSE  = 0x0001,
     TRACE_REPORT = 0x0002,
+    TRACE_WHOIS  = 0x0004,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
 {"parse",           "Trace the lines the parser rejected"},
 {"report",          "Trace the built report"},
+{"whois",           "Trace the RDAP lookups of the top clients"},
 {0, 0},
 };
 
@@ -299,6 +322,25 @@ typedef struct _PRIVATE_DATA {
     char target_date[DATE_SIZE];    // the day of this run
     BOOL send_when_done;
 
+    /*
+     *  The lookups of the top clients. One at a time: the address being
+     *  looked up is always the first of jn_whois_pending.
+     */
+    hgobj whois_timer;              // a lookup that never answers, and a client that never stops
+    hgobj gobj_http;                // C_PROT_HTTP_CL of the lookup going, or 0
+    hgobj gobj_http_tcp;            // its C_TCP, whose EV_STOPPED says it can be destroyed
+    json_t *jn_whois;               // address -> answer, cached ones included
+    json_t *jn_whois_pending;       // addresses still to look up
+    char whois_url[PATH_MAX];       // where the current address is asked, after the redirects
+    char whois_resource[PATH_MAX];  // the path of whois_url
+    int whois_hops;
+    BOOL whois_answered;            // the current request has its answer, or its failure
+    BOOL whois_stopping;            // the client was told to stop
+    BOOL whois_stopped;             // ... and it did
+    json_int_t whois_cached;
+    json_int_t whois_looked_up;
+    json_int_t whois_failed;
+
     uint64_t cur_kept;              // lines of the target day in the file being read
     uint64_t cur_unparsed;          // lines of the file the parser did not understand
 
@@ -327,6 +369,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->whois_timer = gobj_create_pure_child("whois", C_TIMER, 0, gobj);
 
     /*
      *  SERVICE subscription model
@@ -389,6 +432,8 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->jn_asset_list)
     JSON_DECREF(priv->jn_bot_list)
     JSON_DECREF(priv->jn_visitors)
+    JSON_DECREF(priv->jn_whois)
+    JSON_DECREF(priv->jn_whois_pending)
 }
 
 /***************************************************************************
@@ -407,6 +452,10 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
+    clear_timeout(priv->whois_timer);
+    if(priv->gobj_http) {
+        gobj_stop_tree(priv->gobj_http);
+    }
 
     return 0;
 }
@@ -2562,6 +2611,569 @@ PRIVATE void close_report(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Is `ip` an address worth asking the registries about.
+ *
+ *  A private, loopback or link-local address belongs to no registry. This
+ *  is also what keeps the key out of the URL as anything but an address:
+ *  the key comes from the log, and the log is written by whoever made the
+ *  request.
+ ***************************************************************************/
+PRIVATE BOOL is_public_address(const char *ip)
+{
+    unsigned char a[16];
+
+    if(empty_string(ip)) {
+        return FALSE;
+    }
+
+    if(inet_pton(AF_INET, ip, a) == 1) {
+        if(a[0] == 0 || a[0] == 10 || a[0] == 127) {
+            return FALSE;
+        }
+        if(a[0] == 172 && (a[1] & 0xf0) == 16) {
+            return FALSE;
+        }
+        if(a[0] == 192 && a[1] == 168) {
+            return FALSE;
+        }
+        if(a[0] == 169 && a[1] == 254) {
+            return FALSE;
+        }
+        if(a[0] == 100 && (a[1] & 0xc0) == 64) {
+            return FALSE;       // carrier-grade NAT
+        }
+        return TRUE;
+    }
+
+    if(inet_pton(AF_INET6, ip, a) == 1) {
+        static const unsigned char zero[15] = {0};
+        if(memcmp(a, zero, 15) == 0 && (a[15] == 0 || a[15] == 1)) {
+            return FALSE;       // unspecified, loopback
+        }
+        if((a[0] & 0xfe) == 0xfc) {
+            return FALSE;       // unique local
+        }
+        if(a[0] == 0xfe && (a[1] & 0xc0) == 0x80) {
+            return FALSE;       // link local
+        }
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************
+ *  The string value of a json, or "" -- quiet on a missing key or a null,
+ *  which RDAP answers use freely.
+ ***************************************************************************/
+PRIVATE const char *str_or_empty(json_t *jn)
+{
+    const char *s = json_string_value(jn);
+    return s? s : "";
+}
+
+/***************************************************************************
+ *  The item `name` of the vCard of an RDAP entity: ["fn", {}, "text", "X"]
+ ***************************************************************************/
+PRIVATE json_t *vcard_item(json_t *jn_entity, const char *name)
+{
+    json_t *jn_items = json_array_get(json_object_get(jn_entity, "vcardArray"), 1);
+
+    size_t idx;
+    json_t *jn_item;
+    json_array_foreach(jn_items, idx, jn_item) {
+        if(strcmp(str_or_empty(json_array_get(jn_item, 0)), name) == 0) {
+            return jn_item;
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  The entity that owns the network.
+ *
+ *  RIPE and APNIC list the organisation AND its maintainer objects as
+ *  registrant. The organisation (handle ORG-...) is the one that carries the
+ *  company name; a maintainer (...-MNT) carries only its own handle again.
+ ***************************************************************************/
+PRIVATE json_t *registrant_of(json_t *jn_rdap)
+{
+    json_t *jn_first = NULL;
+
+    size_t idx;
+    json_t *jn_entity;
+    json_array_foreach(json_object_get(jn_rdap, "entities"), idx, jn_entity) {
+        BOOL registrant = FALSE;
+        size_t r;
+        json_t *jn_role;
+        json_array_foreach(json_object_get(jn_entity, "roles"), r, jn_role) {
+            if(strcmp(str_or_empty(jn_role), "registrant") == 0) {
+                registrant = TRUE;
+                break;
+            }
+        }
+        if(!registrant) {
+            continue;
+        }
+
+        const char *handle = str_or_empty(json_object_get(jn_entity, "handle"));
+        if(strncmp(handle, "ORG-", 4) == 0) {
+            return jn_entity;
+        }
+        size_t ln = strlen(handle);
+        BOOL maintainer = ln > 4 && strcmp(handle + ln - 4, "-MNT") == 0;
+        if(!jn_first && !maintainer) {
+            jn_first = jn_entity;
+        }
+    }
+
+    return jn_first;
+}
+
+/***************************************************************************
+ *  What the report keeps of an RDAP answer about a network.
+ *
+ *  The country is the network's own when the registry gives one (RIPE,
+ *  APNIC, AFRINIC). ARIN and LACNIC leave it null and put it in the
+ *  registrant's address instead: the country field of the structured
+ *  address, or else the last line of its label, which ARIN writes as a name
+ *  ("United States") and not as a code.
+ ***************************************************************************/
+PRIVATE json_t *whois_of_rdap(json_t *jn_rdap, const char *source)
+{
+    char country[NAME_MAX];
+    snprintf(country, sizeof(country), "%s", str_or_empty(json_object_get(jn_rdap, "country")));
+
+    const char *org = "";
+    json_t *jn_registrant = registrant_of(jn_rdap);
+    if(jn_registrant) {
+        org = str_or_empty(json_array_get(vcard_item(jn_registrant, "fn"), 3));
+
+        if(empty_string(country)) {
+            json_t *jn_adr = vcard_item(jn_registrant, "adr");
+            snprintf(country, sizeof(country), "%s",
+                str_or_empty(json_array_get(json_array_get(jn_adr, 3), 6))
+            );
+            if(empty_string(country)) {
+                const char *label = str_or_empty(
+                    json_object_get(json_array_get(jn_adr, 1), "label")
+                );
+                const char *last = strrchr(label, '\n');
+                snprintf(country, sizeof(country), "%s", last? last+1 : "");
+            }
+        }
+    }
+
+    char range[2*NAME_MAX];
+    const char *start = str_or_empty(json_object_get(jn_rdap, "startAddress"));
+    const char *end = str_or_empty(json_object_get(jn_rdap, "endAddress"));
+    if(!empty_string(start) && !empty_string(end)) {
+        snprintf(range, sizeof(range), "%s - %s", start, end);
+    } else {
+        snprintf(range, sizeof(range), "%s", str_or_empty(json_object_get(jn_rdap, "handle")));
+    }
+
+    return json_pack("{s:s, s:s, s:s, s:s, s:s, s:I}",
+        "country", country,
+        "org", org,
+        "net", str_or_empty(json_object_get(jn_rdap, "name")),
+        "range", range,
+        "source", source,
+        "looked_up_at", (json_int_t)time(NULL)
+    );
+}
+
+/***************************************************************************
+ *  The addresses to name: the first `whois_rows` of the two tables of
+ *  clients, once each, public only. In the order of the tables, so the
+ *  busiest are asked first.
+ ***************************************************************************/
+PRIVATE json_t *whois_candidates(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t rows = gobj_read_integer_attr(gobj, "whois_rows");
+    json_t *jn_tables[] = {
+        json_object_get(json_object_get(priv->jn_report, "top"), "clients"),
+        json_object_get(json_object_get(priv->jn_report, "probes"), "top_clients"),
+        0
+    };
+
+    json_t *jn_seen = json_object();
+    json_t *jn_ips = json_array();
+    for(int t=0; jn_tables[t]; t++) {
+        size_t idx;
+        json_t *jn_row;
+        json_array_foreach(jn_tables[t], idx, jn_row) {
+            if((json_int_t)idx >= rows) {
+                break;
+            }
+            const char *ip = str_or_empty(json_object_get(jn_row, "key"));
+            if(!is_public_address(ip) || json_object_get(jn_seen, ip)) {
+                continue;
+            }
+            json_object_set_new(jn_seen, ip, json_true());
+            json_array_append_new(jn_ips, json_string(ip));
+        }
+    }
+    JSON_DECREF(jn_seen)
+
+    return jn_ips;
+}
+
+/***************************************************************************
+ *  The answers still fresh in the stored days: address -> whois.
+ *
+ *  The stored records ARE the cache. They already hold the top clients of
+ *  every day with what was learned about them, so a second store would only
+ *  repeat them. The same day is read too: a day reported again finds its
+ *  own first run. The newest answer wins, and a failure is never taken --
+ *  it is asked again.
+ ***************************************************************************/
+PRIVATE json_t *whois_cache_from_history(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_cache = json_object();
+
+    json_int_t days = gobj_read_integer_attr(gobj, "whois_cache_days");
+    if(days <= 0) {
+        return jn_cache;
+    }
+    json_int_t oldest = (json_int_t)time(NULL) - days*24*60*60;
+
+    struct tm tm;
+    memset(&tm, 0, sizeof(tm));
+    if(!strptime(priv->target_date, "%Y-%m-%d", &tm)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot read back the target date",
+            "date",         "%s", priv->target_date,
+            NULL
+        );
+        return jn_cache;
+    }
+    tm.tm_hour = 12;                // noon, so a DST day cannot shift the date
+    tm.tm_isdst = -1;
+    time_t target = mktime(&tm);
+    if(target == (time_t)-1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "mktime() FAILED on the target date",
+            "date",         "%s", priv->target_date,
+            NULL
+        );
+        return jn_cache;
+    }
+
+    for(json_int_t back=0; back<=days; back++) {
+        char date[DATE_SIZE];
+        if(date_of(gobj, target - back*24*60*60, date, sizeof(date)) < 0) {
+            continue;               // Error already logged
+        }
+
+        json_t *record = load_report(gobj, date);
+        if(!record) {
+            continue;               // a day with no report is not an error
+        }
+
+        json_t *jn_tables[] = {
+            json_object_get(json_object_get(record, "top"), "clients"),
+            json_object_get(json_object_get(record, "probes"), "top_clients"),
+            0
+        };
+        for(int t=0; jn_tables[t]; t++) {
+            size_t idx;
+            json_t *jn_row;
+            json_array_foreach(jn_tables[t], idx, jn_row) {
+                json_t *jn_whois = json_object_get(jn_row, "whois");
+                const char *ip = str_or_empty(json_object_get(jn_row, "key"));
+                if(!json_is_object(jn_whois) || empty_string(ip)) {
+                    continue;
+                }
+                if(json_object_get(jn_whois, "error")) {
+                    continue;
+                }
+                if(json_integer_value(json_object_get(jn_whois, "looked_up_at")) < oldest) {
+                    continue;
+                }
+                if(!json_object_get(jn_cache, ip)) {
+                    json_object_set(jn_cache, ip, jn_whois);
+                }
+            }
+        }
+        JSON_DECREF(record)
+    }
+
+    return jn_cache;
+}
+
+/***************************************************************************
+ *  Take what the cache knows and queue the rest.
+ *  Return the number of lookups queued: 0 means the run can complete now.
+ ***************************************************************************/
+PRIVATE int start_lookups(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    JSON_DECREF(priv->jn_whois)
+    JSON_DECREF(priv->jn_whois_pending)
+    priv->jn_whois = json_object();
+    priv->jn_whois_pending = json_array();
+    priv->whois_cached = 0;
+    priv->whois_looked_up = 0;
+    priv->whois_failed = 0;
+    priv->whois_url[0] = 0;
+
+    if(!gobj_read_bool_attr(gobj, "whois_enabled")) {
+        return 0;
+    }
+
+    json_t *jn_ips = whois_candidates(gobj);
+    if(json_array_size(jn_ips) == 0) {
+        JSON_DECREF(jn_ips)
+        return 0;
+    }
+
+    json_t *jn_cache = whois_cache_from_history(gobj);
+
+    size_t idx;
+    json_t *jn_ip;
+    json_array_foreach(jn_ips, idx, jn_ip) {
+        const char *ip = json_string_value(jn_ip);
+        json_t *jn_cached = json_object_get(jn_cache, ip);
+        if(jn_cached) {
+            json_object_set(priv->jn_whois, ip, jn_cached);
+            priv->whois_cached++;
+        } else {
+            json_array_append(priv->jn_whois_pending, jn_ip);
+        }
+    }
+    JSON_DECREF(jn_cache)
+    JSON_DECREF(jn_ips)
+
+    size_t pending = json_array_size(priv->jn_whois_pending);
+    if(pending == 0) {
+        return 0;
+    }
+
+    gobj_change_state(gobj, ST_LOOKING_UP);
+    gobj_post_event(gobj, EV_NEXT_LOOKUP, 0, gobj);
+
+    return (int)pending;
+}
+
+/***************************************************************************
+ *  A client for whois_url, which is the address to ask for the first
+ *  address of the queue: the configured service, or where it redirected.
+ ***************************************************************************/
+PRIVATE int open_whois_client(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char schema[32], host[NAME_MAX], port[32], path[PATH_MAX], query[PATH_MAX];
+    if(parse_url(gobj, priv->whois_url,
+            schema, sizeof(schema),
+            host, sizeof(host),
+            port, sizeof(port),
+            path, sizeof(path),
+            query, sizeof(query),
+            FALSE) < 0) {
+        // Error already logged
+        return -1;
+    }
+    if(strcmp(schema, "https") != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "The RDAP url is not https, refused",
+            "url",          "%s", priv->whois_url,
+            NULL
+        );
+        return -1;
+    }
+
+    char base[PATH_MAX];
+    if(empty_string(port)) {
+        snprintf(base, sizeof(base), "%s://%s", schema, host);
+    } else {
+        snprintf(base, sizeof(base), "%s://%s:%s", schema, host, port);
+    }
+    int ln = snprintf(priv->whois_resource, sizeof(priv->whois_resource), "%s%s%s",
+        empty_string(path)? "/" : path,
+        empty_string(query)? "" : "?",
+        query
+    );
+    if(ln < 0 || (size_t)ln >= sizeof(priv->whois_resource)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "The RDAP url is too long",
+            "url",          "%s", priv->whois_url,
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  CHILD: the client publishes EV_ON_OPEN/EV_ON_MESSAGE/EV_ON_CLOSE to
+     *  this gobj. Its C_TCP is built here and not by the client, so this
+     *  gobj can subscribe to the EV_STOPPED that says the socket is closed
+     *  and the pair can be destroyed.
+     */
+    priv->gobj_http = gobj_create("whois", C_PROT_HTTP_CL,
+        json_pack("{s:s}", "url", base),
+        gobj
+    );
+    if(!priv->gobj_http) {
+        // Error already logged
+        return -1;
+    }
+    priv->gobj_http_tcp = gobj_create_pure_child("whois", C_TCP,
+        json_pack("{s:s, s:O}",
+            "url", base,
+            "crypto", gobj_read_json_attr(priv->gobj_http, "crypto")    // verify the server
+        ),
+        priv->gobj_http
+    );
+    if(!priv->gobj_http_tcp) {
+        // Error already logged
+        EXEC_AND_RESET(gobj_destroy, priv->gobj_http)
+        return -1;
+    }
+    gobj_set_bottom_gobj(priv->gobj_http, priv->gobj_http_tcp);
+    gobj_subscribe_event(priv->gobj_http_tcp, EV_STOPPED, 0, gobj);
+
+    priv->whois_answered = FALSE;
+    priv->whois_stopping = FALSE;
+    priv->whois_stopped = FALSE;
+
+    if(gobj_trace_level(gobj) & TRACE_WHOIS) {
+        gobj_trace_msg(gobj, "webstats: whois %s%s",
+            base, priv->whois_resource
+        );
+    }
+
+    set_timeout(priv->whois_timer, gobj_read_integer_attr(gobj, "whois_timeout"));
+    gobj_start(priv->gobj_http);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Tell the client to stop, once, out of its own publish stack.
+ ***************************************************************************/
+PRIVATE void request_whois_stop(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->whois_stopping) {
+        return;
+    }
+    priv->whois_stopping = TRUE;
+    gobj_post_event(gobj, EV_LOOKUP_DONE, 0, gobj);
+}
+
+/***************************************************************************
+ *  The first address of the queue has its answer (owned).
+ ***************************************************************************/
+PRIVATE void whois_done(hgobj gobj, json_t *jn_whois)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *ip = json_string_value(json_array_get(priv->jn_whois_pending, 0));
+    if(ip) {
+        json_object_set_new(priv->jn_whois, ip, jn_whois);
+        json_array_remove(priv->jn_whois_pending, 0);
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "An answer with no address waiting for it",
+            NULL
+        );
+        JSON_DECREF(jn_whois)
+    }
+
+    priv->whois_url[0] = 0;
+    priv->whois_answered = TRUE;
+    request_whois_stop(gobj);
+}
+
+/***************************************************************************
+ *  The first address of the queue gets no answer. The record says so on
+ *  its row, and the next run asks again.
+ ***************************************************************************/
+PRIVATE void whois_failed(hgobj gobj, const char *reason)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->whois_answered) {
+        return;
+    }
+
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_OPERATIONAL,
+        "msg",          "%s", "RDAP lookup failed",
+        "reason",       "%s", reason,
+        "client",       "%s", str_or_empty(json_array_get(priv->jn_whois_pending, 0)),
+        "url",          "%s", priv->whois_url,
+        NULL
+    );
+
+    priv->whois_failed++;
+    whois_done(gobj, json_pack("{s:s, s:I}",
+        "error", reason,
+        "looked_up_at", (json_int_t)time(NULL)
+    ));
+}
+
+/***************************************************************************
+ *  Put the answers on the rows they are about, and say in the record how
+ *  they were obtained.
+ ***************************************************************************/
+PRIVATE void apply_whois(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->jn_report) {
+        return;
+    }
+
+    BOOL enabled = gobj_read_bool_attr(gobj, "whois_enabled");
+    json_object_set_new(priv->jn_report, "whois", json_pack("{s:b, s:I, s:I, s:I}",
+        "enabled", enabled,
+        "cached", priv->whois_cached,
+        "looked_up", priv->whois_looked_up,
+        "failed", priv->whois_failed
+    ));
+
+    json_t *jn_tables[] = {
+        json_object_get(json_object_get(priv->jn_report, "top"), "clients"),
+        json_object_get(json_object_get(priv->jn_report, "probes"), "top_clients"),
+        0
+    };
+    for(int t=0; jn_tables[t]; t++) {
+        size_t idx;
+        json_t *jn_row;
+        json_array_foreach(jn_tables[t], idx, jn_row) {
+            json_t *jn_whois = json_object_get(priv->jn_whois,
+                str_or_empty(json_object_get(jn_row, "key"))
+            );
+            if(jn_whois) {
+                json_object_set(jn_row, "whois", jn_whois);
+            }
+        }
+    }
+
+    JSON_DECREF(priv->jn_whois)
+    JSON_DECREF(priv->jn_whois_pending)
+}
+
+/***************************************************************************
  *  Start a run for a day. Returns -1 if a run is already going.
  ***************************************************************************/
 PRIVATE int start_run(hgobj gobj, const char *date, BOOL send)
@@ -2597,7 +3209,7 @@ PRIVATE int start_run(hgobj gobj, const char *date, BOOL send)
     JSON_DECREF(priv->jn_report)
     priv->jn_report = json_pack("{s:s, s:i, s:s, s:I, s:[], s:[], s:[], s:[], s:{}}",
         "date", date,
-        "version", 1,
+        "version", 2,
         "node", get_hostname(),
         "generated_at", (json_int_t)time(NULL),
         "sources",
@@ -2757,17 +3369,31 @@ PRIVATE int start_next_file(hgobj gobj)
 }
 
 /***************************************************************************
- *  The run is over: write the record, send the mail, arm the schedule.
+ *  The files are read: close the counters, then name the top clients.
  ***************************************************************************/
 PRIVATE int finish_run(hgobj gobj)
+{
+    close_report(gobj);
+    count_new_visitors(gobj);
+    compare_with_history(gobj);
+
+    if(start_lookups(gobj) > 0) {
+        return 0;       // complete_run() runs when the last lookup ends
+    }
+
+    return complete_run(gobj);
+}
+
+/***************************************************************************
+ *  The record is whole: write it, send the mail, arm the schedule.
+ ***************************************************************************/
+PRIVATE int complete_run(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_change_state(gobj, ST_REPORTING);
 
-    close_report(gobj);
-    count_new_visitors(gobj);
-    compare_with_history(gobj);
+    apply_whois(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_REPORT) {
         gobj_trace_json(gobj, priv->jn_report, "webstats: report of %s", priv->target_date);
@@ -3043,6 +3669,23 @@ PRIVATE void top_table(gbuffer_t *gbuf, const char *title, json_t *jn_top, int l
         return;
     }
 
+    /*
+     *  A table of clients whose rows were looked up gets two more columns:
+     *  the country and the organisation that holds the network.
+     */
+    BOOL with_whois = FALSE;
+    size_t idx;
+    json_t *jn_row;
+    json_array_foreach(jn_top, idx, jn_row) {
+        if((int)idx >= limit) {
+            break;
+        }
+        if(json_object_get(jn_row, "whois")) {
+            with_whois = TRUE;
+            break;
+        }
+    }
+
     gbuffer_printf(gbuf,
         "<h3 style=\"font:600 13px sans-serif;margin:18px 0 6px\">%s</h3>"
         "<table style=\"border-collapse:collapse;font:12px monospace\">",
@@ -3050,18 +3693,49 @@ PRIVATE void top_table(gbuffer_t *gbuf, const char *title, json_t *jn_top, int l
     );
 
     char bf[2048];
-    size_t idx;
-    json_t *jn_row;
+    char bf2[2048];
+    char bf3[2048];
     json_array_foreach(jn_top, idx, jn_row) {
         if((int)idx >= limit) {
             break;
         }
         gbuffer_printf(gbuf,
             "<tr>"
-            "<td style=\"padding:2px 10px 2px 0;border-bottom:1px solid #f0f0f0\">%s</td>"
+            "<td style=\"padding:2px 10px 2px 0;border-bottom:1px solid #f0f0f0\">%s</td>",
+            html_escape(json_string_value(json_object_get(jn_row, "key")), bf, sizeof(bf))
+        );
+
+        if(with_whois) {
+            json_t *jn_whois = json_object_get(jn_row, "whois");
+            const char *error = json_string_value(json_object_get(jn_whois, "error"));
+            if(!jn_whois) {
+                gbuffer_printf(gbuf, "%s",
+                    "<td style=\"border-bottom:1px solid #f0f0f0\"></td>"
+                    "<td style=\"border-bottom:1px solid #f0f0f0\"></td>"
+                );
+            } else if(error) {
+                gbuffer_printf(gbuf,
+                    "<td style=\"border-bottom:1px solid #f0f0f0\"></td>"
+                    "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;"
+                    "color:#999;font-family:sans-serif\">lookup failed: %s</td>",
+                    html_escape(error, bf, sizeof(bf))
+                );
+            } else {
+                gbuffer_printf(gbuf,
+                    "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0\">%s</td>"
+                    "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;"
+                    "font-family:sans-serif\">%s "
+                    "<span style=\"color:#999\">%s</span></td>",
+                    html_escape(json_string_value(json_object_get(jn_whois, "country")), bf, sizeof(bf)),
+                    html_escape(json_string_value(json_object_get(jn_whois, "org")), bf2, sizeof(bf2)),
+                    html_escape(json_string_value(json_object_get(jn_whois, "net")), bf3, sizeof(bf3))
+                );
+            }
+        }
+
+        gbuffer_printf(gbuf,
             "<td style=\"padding:2px 0;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
             "</tr>",
-            html_escape(json_string_value(json_object_get(jn_row, "key")), bf, sizeof(bf)),
             (long long)json_integer_value(json_object_get(jn_row, "count"))
         );
     }
@@ -3554,6 +4228,20 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
     }
     gbuffer_printf(gbuf, "%s", "</table>");
 
+    /*
+     *  How the clients were named, so a table with no names says why.
+     */
+    json_t *jn_whois = json_object_get(report, "whois");
+    if(json_is_true(json_object_get(jn_whois, "enabled"))) {
+        gbuffer_printf(gbuf,
+            "<div style=\"font:11px monospace;color:#888;margin-top:4px\">"
+            "whois: %lld from the stored days, %lld looked up, %lld failed</div>",
+            (long long)json_integer_value(json_object_get(jn_whois, "cached")),
+            (long long)json_integer_value(json_object_get(jn_whois, "looked_up")),
+            (long long)json_integer_value(json_object_get(jn_whois, "failed"))
+        );
+    }
+
     gbuffer_printf(gbuf,
         "<div style=\"color:#999;font-size:11px;margin-top:20px;"
         "border-top:1px solid #eee;padding-top:8px\">"
@@ -3819,6 +4507,280 @@ PRIVATE int ac_next_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Out of the client's stack: destroy the last one and ask for the next
+ *  address, or complete the run when none is left.
+ ***************************************************************************/
+PRIVATE int ac_next_lookup(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout(priv->whois_timer);
+    if(priv->gobj_http) {
+        gobj_destroy(priv->gobj_http);      // its C_TCP goes with it
+        priv->gobj_http = 0;
+        priv->gobj_http_tcp = 0;
+    }
+
+    if(json_array_size(priv->jn_whois_pending) == 0) {
+        complete_run(gobj);     // Error already logged
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    if(empty_string(priv->whois_url)) {
+        snprintf(priv->whois_url, sizeof(priv->whois_url), "%s%s",
+            gobj_read_str_attr(gobj, "rdap_url"),
+            json_string_value(json_array_get(priv->jn_whois_pending, 0))
+        );
+        priv->whois_hops = 0;
+    }
+
+    if(open_whois_client(gobj) < 0) {
+        /*
+         *  Error already logged. The address is marked and the queue goes
+         *  on: a report that stops at a lookup it cannot make is worse than
+         *  a report with one row unnamed.
+         */
+        priv->whois_answered = FALSE;
+        priv->whois_stopping = TRUE;        // there is no client to stop
+        whois_failed(gobj, "cannot create the client");
+        gobj_post_event(gobj, EV_NEXT_LOOKUP, 0, gobj);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Connected: ask.
+ ***************************************************************************/
+PRIVATE int ac_whois_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->whois_answered && !priv->whois_stopping) {
+        json_t *kw_request = json_pack("{s:s, s:s, s:{s:s}}",
+            "method", "GET",
+            "resource", priv->whois_resource,
+            "headers",
+                "Accept", "application/rdap+json"
+        );
+        gobj_send_event(src, EV_SEND_MESSAGE, kw_request, gobj);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The answer of the registry, a redirect to the right one, or a refusal.
+ ***************************************************************************/
+PRIVATE int ac_whois_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->whois_answered || priv->whois_stopping) {
+        KW_DECREF(kw)
+        return 0;       // a late answer of a lookup already closed by its timeout
+    }
+
+    int status = (int)kw_get_int(gobj, kw, "response_status_code", 0, 0);
+
+    if(gobj_trace_level(gobj) & TRACE_WHOIS) {
+        gobj_trace_msg(gobj, "webstats: whois answer %d from %s", status, priv->whois_url);
+    }
+
+    if(status == 301 || status == 302 || status == 303 || status == 307 || status == 308) {
+        /*
+         *  The service answers for every address by sending the ones that
+         *  are not in its registry to the registry that holds them. The
+         *  address stays at the head of the queue and is asked again there.
+         */
+        const char *location = kw_get_str(gobj,
+            kw_get_dict(gobj, kw, "headers", 0, 0), "LOCATION", "", 0
+        );
+        if(empty_string(location)) {
+            whois_failed(gobj, "redirect without a location");
+        } else if(priv->whois_hops >= WHOIS_MAX_REDIRECTS) {
+            whois_failed(gobj, "too many redirects");
+        } else {
+            snprintf(priv->whois_url, sizeof(priv->whois_url), "%s", location);
+            priv->whois_hops++;
+            priv->whois_answered = TRUE;
+            request_whois_stop(gobj);
+        }
+
+    } else if(status == 200) {
+        /*
+         *  RDAP answers `application/rdap+json`, which the http parser does
+         *  not take for json, so the body arrives as a gbuffer. The kw owns
+         *  that gbuffer and frees it with the kw: the parse gets its own
+         *  reference.
+         */
+        json_t *jn_rdap = NULL;
+        json_t *jn_body = kw_get_dict_value(gobj, kw, "body", 0, 0);
+        if(json_is_object(jn_body)) {
+            jn_rdap = json_incref(jn_body);
+        } else {
+            gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+            if(gbuf) {
+                jn_rdap = gbuf2json_from_peer(gobj, gbuffer_incref(gbuf), src);
+            }
+        }
+
+        if(!json_is_object(jn_rdap)) {
+            JSON_DECREF(jn_rdap)
+            whois_failed(gobj, "the answer is not an RDAP object");
+        } else {
+            char schema[32], host[NAME_MAX];
+            if(parse_url(gobj, priv->whois_url,
+                    schema, sizeof(schema),
+                    host, sizeof(host),
+                    0, 0, 0, 0, 0, 0, FALSE) < 0) {
+                host[0] = 0;    // Error already logged
+            }
+            priv->whois_looked_up++;
+            whois_done(gobj, whois_of_rdap(jn_rdap, host));
+            JSON_DECREF(jn_rdap)
+        }
+
+    } else {
+        char reason[64];
+        snprintf(reason, sizeof(reason), "http status %d", status);
+        whois_failed(gobj, reason);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The connection closed. After an answer it is the stop that was asked
+ *  for, or the registry closing after it spoke; before one, the lookup
+ *  failed.
+ ***************************************************************************/
+PRIVATE int ac_whois_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->whois_answered && !priv->whois_stopping) {
+        whois_failed(gobj, "closed without an answer");
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Out of the client's stack: stop it. It is destroyed once its socket is
+ *  closed, which C_TCP says with EV_STOPPED -- or at once, when it had
+ *  nothing in flight and is already stopped.
+ ***************************************************************************/
+PRIVATE int ac_lookup_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  The timer watches the stop now: a client that never says it stopped
+     *  must not hold the daily run in this state for ever.
+     */
+    set_timeout(priv->whois_timer, gobj_read_integer_attr(gobj, "whois_timeout"));
+
+    if(priv->gobj_http) {
+        gobj_stop_tree(priv->gobj_http);
+    }
+
+    if(!priv->whois_stopped) {
+        if(!priv->gobj_http_tcp || gobj_current_state(priv->gobj_http_tcp) == ST_STOPPED) {
+            priv->whois_stopped = TRUE;
+            gobj_post_event(gobj, EV_NEXT_LOOKUP, 0, gobj);
+        }
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The socket of the client is closed.
+ ***************************************************************************/
+PRIVATE int ac_whois_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src != priv->gobj_http_tcp) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_STOPPED from a gobj that is not the client of the lookup",
+            "src",          "%s", gobj_short_name(src),
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    if(!priv->whois_stopping) {
+        /*
+         *  The socket stopped with nobody asking: whatever it was, the
+         *  lookup is over.
+         */
+        whois_failed(gobj, "the client stopped");
+    }
+
+    if(!priv->whois_stopped) {
+        priv->whois_stopped = TRUE;
+        gobj_post_event(gobj, EV_NEXT_LOOKUP, 0, gobj);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The time of a lookup is over: the registry did not answer, or did not
+ *  let the connection go.
+ *
+ *  C_TCP keeps retrying a connection that fails, and says nothing to this
+ *  gobj while it does, so this timer is what ends a lookup to a registry
+ *  that is down.
+ ***************************************************************************/
+PRIVATE int ac_whois_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src != priv->whois_timer) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_TIMEOUT from a timer that is not the one of the lookups",
+            "src",          "%s", gobj_short_name(src),
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    if(!priv->whois_stopping) {
+        whois_failed(gobj, "timeout");
+
+    } else if(!priv->whois_stopped) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The client of a lookup did not stop, destroyed anyway",
+            "url",          "%s", priv->whois_url,
+            NULL
+        );
+        priv->whois_stopped = TRUE;
+        gobj_post_event(gobj, EV_NEXT_LOOKUP, 0, gobj);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *                          FSM
  ***************************************************************************/
 /*---------------------------------------------*
@@ -3843,6 +4805,7 @@ GOBJ_DEFINE_GCLASS(C_WEBSTATS);
  *      States
  *------------------------*/
 GOBJ_DEFINE_STATE(ST_READING);
+GOBJ_DEFINE_STATE(ST_LOOKING_UP);
 GOBJ_DEFINE_STATE(ST_REPORTING);
 
 /*------------------------*
@@ -3850,6 +4813,8 @@ GOBJ_DEFINE_STATE(ST_REPORTING);
  *------------------------*/
 GOBJ_DEFINE_EVENT(EV_REPORT_READY);
 GOBJ_DEFINE_EVENT(EV_NEXT_FILE);
+GOBJ_DEFINE_EVENT(EV_NEXT_LOOKUP);
+GOBJ_DEFINE_EVENT(EV_LOOKUP_DONE);
 
 /***************************************************************************
  *          Create the GClass
@@ -3882,6 +4847,16 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_NEXT_FILE,              ac_next_file,           0},
         {0,0,0}
     };
+    ev_action_t st_looking_up[] = {
+        {EV_NEXT_LOOKUP,            ac_next_lookup,         0},
+        {EV_ON_OPEN,                ac_whois_open,          0},
+        {EV_ON_MESSAGE,             ac_whois_message,       0},
+        {EV_ON_CLOSE,               ac_whois_close,         0},
+        {EV_LOOKUP_DONE,            ac_lookup_done,         0},
+        {EV_STOPPED,                ac_whois_stopped,       0},
+        {EV_TIMEOUT,                ac_whois_timeout,       0},
+        {0,0,0}
+    };
     ev_action_t st_reporting[] = {
         {0,0,0}
     };
@@ -3889,6 +4864,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     states_t states[] = {
         {ST_IDLE,       st_idle},
         {ST_READING,    st_reading},
+        {ST_LOOKING_UP, st_looking_up},
         {ST_REPORTING,  st_reporting},
         {0, 0}
     };
@@ -3902,6 +4878,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_LOG_LINES,              0},
         {EV_LOG_EOF,                0},
         {EV_LOG_ERROR,              0},
+        {EV_NEXT_LOOKUP,            0},
+        {EV_LOOKUP_DONE,            0},
+        {EV_ON_OPEN,                0},
+        {EV_ON_MESSAGE,             0},
+        {EV_ON_CLOSE,               0},
+        {EV_STOPPED,                0},
         {EV_REPORT_READY,           EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {NULL, 0}
     };
