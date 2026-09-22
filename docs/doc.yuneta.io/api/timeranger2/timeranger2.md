@@ -1687,7 +1687,40 @@ Returns `0` on success, or a negative value if an error occurs.
 
 **Notes**
 
-This function must be called before shutting down the database using [`tranger2_shutdown()`](<#tranger2_shutdown>).
+[`tranger2_shutdown()`](<#tranger2_shutdown>) calls it when nobody did. Call it
+yourself when the event loop needs a turn between the two, to finish the
+watchers the topics close.
+
+What the stop does:
+
+- It closes every topic, and the fds of `fd_opened_files`: the
+  `__timeranger2__.json` lock of a master is one of them, so **the stop gives
+  the single-master lock back**. Each closed fd is marked `-1`: a second stop,
+  or the shutdown, never closes that number again (by then it can belong to
+  somebody else).
+- A tranger stays usable after the stop. The first topic opened again
+  **revives** it: the shutdown then closes what the revival opened, and a
+  master takes its lock again. If another process took the store in the
+  meantime, the revival logs *"Master lock NOT retaken after a stop, go on as
+  not master"* and the tranger goes on as a replica: its appends are refused.
+  A lookup of a topic that is already open revives nothing.
+
+This is the life of the tranger of a `C_TRANGER` that is stopped and started
+again: the tranger is built in `mt_create`, stopped in `mt_stop`, and shut down
+only in `mt_destroy`.
+
+```C
+json_t *tranger = tranger2_startup(0, jn_tranger, yev_loop);   // master, lock taken
+tranger2_open_topic(tranger, "devices", TRUE);
+
+tranger2_stop(tranger);         // topics closed, lock given back
+                                // (C_TRANGER mt_stop)
+
+tranger2_topic(tranger, "devices");  // opens it again: revived, lock retaken
+                                     // (C_TRANGER started again)
+
+tranger2_shutdown(tranger);     // closes what the revival opened
+```
 
 ---
 

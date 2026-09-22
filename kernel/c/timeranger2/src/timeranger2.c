@@ -603,16 +603,64 @@ PUBLIC int tranger2_stop(json_t *tranger)
         tranger2_close_topic(tranger, key);
     }
 
+    /*
+     *  A closed fd is marked -1: the number is free for anybody from now
+     *  on, and a second stop closed whatever took it.
+     */
     json_t *opened_files = kw_get_dict(gobj, tranger, "fd_opened_files", 0, KW_REQUIRED);
     json_object_foreach(opened_files, key, jn_value) {
         int fd = (int)kw_get_int(gobj, opened_files, key, 0, KW_REQUIRED);
         if(fd >= 0) {
             close(fd);
         }
+        json_object_set_new(opened_files, key, json_integer(-1));
     }
     json_object_set_new(tranger, "__closed__", json_true());
 
     return 0;
+}
+
+/***************************************************************************
+ *  A tranger that opens a topic again after tranger2_stop() is alive
+ *  again: its shutdown must close what it opens from now on. And a master
+ *  gave its lock back at the stop, so it takes it again, or it is not the
+ *  master any more -- another process may have taken the store meanwhile.
+ ***************************************************************************/
+PRIVATE void revive_stopped_tranger(hgobj gobj, json_t *tranger)
+{
+    if(!kw_get_bool(gobj, tranger, "__closed__", 0, 0)) {
+        return;
+    }
+    json_object_del(tranger, "__closed__");
+
+    if(!json_boolean_value(json_object_get(tranger, "master"))) {
+        return;
+    }
+
+    const char *directory = kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED);
+    int fd = -1;
+    json_t *jn_disk_tranger = load_persistent_json(
+        gobj,
+        directory,
+        "__timeranger2__.json",
+        LOG_NONE,
+        &fd,
+        TRUE,   // exclusive
+        TRUE    // silence
+    );
+    JSON_DECREF(jn_disk_tranger)
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Master lock NOT retaken after a stop, go on as not master",
+            "path",         "%s", directory,
+            NULL
+        );
+        json_object_set_new(tranger, "master", json_false());
+        return;
+    }
+    kw_set_subdict_value(gobj, tranger, "fd_opened_files", "__timeranger2__.json", json_integer(fd));
 }
 
 /***************************************************************************
@@ -1307,6 +1355,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     /*
      *  Add the topic to topics
      */
+    revive_stopped_tranger(gobj, tranger);
     kw_set_subdict_value(gobj, tranger, "topics", topic_name, topic);
 
     /*
@@ -1393,11 +1442,6 @@ PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
         }
     }
 
-    /*
-     *  A topic open again after a stop: the tranger is alive again, and
-     *  a shutdown must close what it opened (the stop set __closed__).
-     */
-    json_object_del(tranger, "__closed__");
     return topic;
 }
 

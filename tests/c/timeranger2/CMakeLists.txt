@@ -69,6 +69,7 @@ set(SRCS
     test_read_never_exits
     test_iterator_index
     test_late_record
+    test_stop_reopen
     test_str2system_flag
     test_testing
 )

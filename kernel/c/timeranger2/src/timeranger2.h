@@ -226,6 +226,11 @@ PUBLIC json_t *tranger2_startup(
    descriptor, and mark the handle `__closed__`. Memory is deliberately RETAINED
    (not freed) so pending yev_loop events can still drain; tranger2_shutdown()
    frees it. `tranger` is borrowed. Always returns 0.
+
+   A closed fd is marked -1 in `fd_opened_files`, so no later stop closes its
+   number again. A master gives its single-master lock back here. The first
+   topic OPENED after the stop revives the handle (clears `__closed__`) and a
+   master retakes its lock; if it cannot, it goes on as a non-master.
 */
 PUBLIC int tranger2_stop(json_t *tranger);
 
