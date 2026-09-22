@@ -7507,6 +7507,14 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
 
         json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
 
+        /*
+         *  A row whose metadata cannot be read ends the load, and the
+         *  iterator says so in `load_failed` (the cause is logged where it
+         *  failed): a caller that ASKS the history a question -- is any
+         *  record of the key frozen by a snapshot? -- must not read "no" in
+         *  a load that stopped half way. A content that cannot be read is
+         *  handed to the callback as NULL, as it always was.
+         */
         BOOL end = FALSE;
         while(!end && cur_segment >= 0) {
             json_t *segment = json_array_get(segments, cur_segment);
@@ -7522,7 +7530,8 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 rowid,
                 &md_record_ex
             )<0) {
-                break;
+                json_object_set_new(iterator, "load_failed", json_true());
+                break;  // Error already logged
             }
             if(is_deleted_instance(&md_record_ex)) {
                 cur_segment = next_segment_row(
@@ -9830,7 +9839,28 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             NULL,   // to store LOADING data, not owned
             json_incref(extra) // extra, owned
         );
-        tranger2_close_iterator(tranger, ll);
+        /*
+         *  The list IS the history of its key: one that could not be
+         *  loaded is not a list. It was closed with the error swallowed,
+         *  and the caller took the half it got for the whole.
+         */
+        BOOL load_failed = (!ll || json_is_true(json_object_get(ll, "load_failed")))? TRUE: FALSE;
+        if(ll) {
+            tranger2_close_iterator(tranger, ll);
+        }
+        if(load_failed) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "Cannot load the history of the list's key",
+                "topic_name",   "%s", topic_name,
+                "key",          "%s", key,
+                NULL
+            );
+            JSON_DECREF(match_cond)
+            JSON_DECREF(extra)
+            return NULL;
+        }
 
     } else {
         /*

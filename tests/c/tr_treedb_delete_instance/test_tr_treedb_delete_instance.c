@@ -19,6 +19,7 @@
 #include <string.h>
 #include <signal.h>
 #include <limits.h>
+#include <unistd.h>
 
 #include <gobj.h>
 #include <timeranger2.h>
@@ -278,6 +279,76 @@ PRIVATE int test_instance_held_by_a_snap(
 
     MT_INCREMENT_COUNT(time_measure, 1)
     MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  A snapshot guard that cannot READ the key refuses (fails closed).
+ *
+ *  Both guards read the key's records from disk when the tag in memory
+ *  does not answer. A read that failed half way (a row of the md2 that is
+ *  not there) was taken as "no snapshot holds it", and the delete went on.
+ *  The md2 of the key is cut behind treedb's back to make the read fail.
+ ***************************************************************************/
+PRIVATE int test_guard_that_cannot_read_refuses(
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int result = 0;
+    const char *test = "a snapshot guard that cannot read refuses the delete";
+    set_expected_results_unordered(
+        test,
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+            "msg", "Cannot read record metadata, read FAILED",
+            "msg", "cannot read the records of a key",
+            "msg", "cannot delete instance, cannot tell whether a snapshot holds it (see the log)",
+            "msg", "cannot delete node, cannot tell whether a snapshot holds it (see the log)"
+        ),
+        NULL, NULL, 1
+    );
+
+    /*  a snap exists (test_instance_held_by_a_snap shot "S"); this key is
+     *  newer than it, so the tag in memory does not answer: the disk does  */
+    treedb_create_node(
+        tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "item-11", "version", "v11", "payload", "x")
+    );
+    json_t *node = treedb_get_instance(
+        tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "item-11", "v11"
+    );
+    treedb_update_node(tranger, node, json_pack("{s:s}", "payload", "y"), TRUE);
+
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir),
+        getenv("HOME"), "tests_yuneta", DATABASE, TOPIC_NAME, "keys", "item-11", NULL);
+    dir_array_t da;
+    get_ordered_filename_array(0, key_dir, ".*\\.md2", WD_MATCH_REGULAR_FILE, &da);
+    for(int i=0; i<da.count; i++) {
+        if(truncate(da.items[i], 0) < 0) {
+            printf("%s  FAIL: cannot cut %s%s\n", On_Red BWhite, da.items[i], Color_Off);
+            result += -1;
+        }
+    }
+    if(da.count == 0) {
+        printf("%s  FAIL: no md2 of the key under %s%s\n", On_Red BWhite, key_dir, Color_Off);
+        result += -1;
+    }
+    dir_array_free(&da);
+
+    if(treedb_delete_instance(tranger, node, PKEY2_NAME, NULL) == 0) {
+        printf("%s  FAIL: delete_instance went on with a guard that could not read%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    node = treedb_get_node(tranger, treedb_name, TOPIC_NAME, "item-11");
+    if(!node || treedb_delete_node(tranger, node, json_pack("{s:b}", "force", 1)) == 0) {
+        printf("%s  FAIL: delete_node went on with a guard that could not read%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
     result += test_json(NULL);
     return result;
 }
@@ -563,6 +634,7 @@ PRIVATE int do_test(void)
      *------------------------------------*/
     result += test_delete_instance_drops_secondary_keeps_primary(tranger, treedb_name);
     result += test_instance_held_by_a_snap(tranger, treedb_name);
+    result += test_guard_that_cannot_read_refuses(tranger, treedb_name);
     result += test_delete_node_clears_everything(tranger, treedb_name);
 
     /*------------------------------------*

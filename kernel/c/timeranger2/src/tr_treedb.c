@@ -13311,32 +13311,42 @@ PRIVATE int node_held_by_a_snap(
 
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", "", KW_REQUIRED);
     const char *id = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
-    json_t *match_cond = json_pack("{s:s, s:b, s:b, s:I, s:I}",
-        "key", id,
+    json_t *match_cond = json_pack("{s:b, s:b, s:I}",
         "backward", 0,
         "only_md", 1,
-        "to_rowid", (json_int_t)0x7fffffffffffLL,  // one-shot load, no realtime
-        "load_record_callback", (json_int_t)(uintptr_t)held_scan_callback
+        "to_rowid", (json_int_t)0x7fffffffffffLL  // one-shot load, no realtime
     );
     /*
-     *  The answer travels as a pointer: with an exact key the list is an
-     *  iterator that copies `extra` and is closed before this returns.
+     *  The answer travels as a pointer: the iterator copies `extra` and is
+     *  closed before this returns. An iterator of its OWN id: under the
+     *  key's name (what a list of one key opens) it met any iterator a
+     *  client had open on the key, and the refusal was swallowed.
      */
     BOOL held = FALSE;
     json_t *extra = json_pack("{s:I, s:I}",
         "snaps", (json_int_t)(uintptr_t)snaps,
         "held", (json_int_t)(uintptr_t)&held
     );
-    json_t *list = tranger2_open_list(
+    json_t *it = tranger2_open_iterator(
         tranger,
         topic_name,
+        id,
         match_cond,     // owned
-        extra,          // owned
+        held_scan_callback,
         "treedb-held-walk",
-        FALSE,
-        treedb_name
+        treedb_name,
+        NULL,           // data
+        extra           // owned
     );
-    if(!list) {
+    BOOL read_all = (it && !json_is_true(json_object_get(it, "load_failed")))? TRUE: FALSE;
+    if(it) {
+        tranger2_close_iterator(tranger, it);
+    }
+    JSON_DECREF(snaps)
+    if(!read_all && !held) {
+        /*  A guard that cannot read closes: the delete is refused,
+         *  `ignore_snaps` still overrides. It answered "not held" and the
+         *  delete went on. -1 says the cause: not a snapshot, a read.  */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -13346,15 +13356,8 @@ PRIVATE int node_held_by_a_snap(
             "id",           "%s", id,
             NULL
         );
-        /*  A guard that cannot read closes: the delete is refused,
-         *  `ignore_snaps` still overrides. It answered "not held" and the
-         *  delete went on. -1 says the cause: not a snapshot, a read.  */
-        JSON_DECREF(snaps)
         return -1;
-    } else {
-        tranger2_close_list(tranger, list);
     }
-    JSON_DECREF(snaps)
     return held? 1 : 0;
 }
 
@@ -13384,11 +13387,20 @@ PRIVATE int held_instance_scan_callback(
     }
     json_t *snaps = (json_t *)(uintptr_t)kw_get_int(gobj, list, "snaps", 0, KW_REQUIRED);
     BOOL *held = (BOOL *)(uintptr_t)kw_get_int(gobj, list, "held", 0, KW_REQUIRED);
+    BOOL *unreadable = (BOOL *)(uintptr_t)kw_get_int(gobj, list, "unreadable", 0, KW_REQUIRED);
     const char *pkey2_name = kw_get_str(gobj, list, "pkey2_name", "", KW_REQUIRED);
     const char *pkey2_value = kw_get_str(gobj, list, "pkey2_value", "", KW_REQUIRED);
-    if(!snaps || !held) {
+    if(!snaps || !held || !unreadable) {
         JSON_DECREF(jn_record)
         return -1;  // Error already logged
+    }
+    if(!jn_record) {
+        /*
+         *  A tagged record whose content cannot be read: it may be one of
+         *  this instance, and nobody can say it is not.
+         */
+        *unreadable = TRUE;
+        return -1;  // Error already logged by the read
     }
 
     if(strcmp(kw_get_str(gobj, jn_record, pkey2_name, "", 0), pkey2_value)!=0) {
@@ -13442,6 +13454,11 @@ PRIVATE int instance_held_by_a_snap(
     const char *id = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
     const char *pkey2_value = get_key2_value(tranger, topic_name, pkey2_name, node);
     if(empty_string(pkey2_value)) {
+        /*
+         *  Without its pkey2 value the instance cannot be told from the
+         *  others of the key: "cannot tell", which refuses, never "not
+         *  held", which let the delete go on.
+         */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -13453,36 +13470,48 @@ PRIVATE int instance_held_by_a_snap(
             NULL
         );
         JSON_DECREF(snaps)
-        return FALSE;
+        return -1;
     }
 
-    json_t *match_cond = json_pack("{s:s, s:b, s:I, s:I}",
-        "key", id,
+    json_t *match_cond = json_pack("{s:b, s:I}",
         "backward", 0,
-        "to_rowid", (json_int_t)0x7fffffffffffLL,  // one-shot load, no realtime
-        "load_record_callback", (json_int_t)(uintptr_t)held_instance_scan_callback
+        "to_rowid", (json_int_t)0x7fffffffffffLL  // one-shot load, no realtime
     );
     /*
-     *  The answer travels as a pointer: with an exact key the list is an
-     *  iterator that copies `extra` and is closed before this returns.
+     *  The answer travels as a pointer: the iterator copies `extra` and is
+     *  closed before this returns. An iterator of its OWN id, see
+     *  node_held_by_a_snap().
      */
     BOOL held = FALSE;
-    json_t *extra = json_pack("{s:I, s:I, s:s, s:s}",
+    BOOL unreadable = FALSE;
+    json_t *extra = json_pack("{s:I, s:I, s:I, s:s, s:s}",
         "snaps", (json_int_t)(uintptr_t)snaps,
         "held", (json_int_t)(uintptr_t)&held,
+        "unreadable", (json_int_t)(uintptr_t)&unreadable,
         "pkey2_name", pkey2_name,
         "pkey2_value", pkey2_value
     );
-    json_t *list = tranger2_open_list(
+    json_t *it = tranger2_open_iterator(
         tranger,
         topic_name,
+        id,
         match_cond,     // owned
-        extra,          // owned
+        held_instance_scan_callback,
         "treedb-held-instance-walk",
-        FALSE,
-        treedb_name
+        treedb_name,
+        NULL,           // data
+        extra           // owned
     );
-    if(!list) {
+    BOOL read_all = (it && !unreadable && !json_is_true(json_object_get(it, "load_failed")))?
+        TRUE: FALSE;
+    if(it) {
+        tranger2_close_iterator(tranger, it);
+    }
+    JSON_DECREF(snaps)
+    if(!read_all && !held) {
+        /*  A guard that cannot read closes: the delete is refused,
+         *  `ignore_snaps` still overrides. It answered "not held" and the
+         *  delete went on. -1 says the cause: not a snapshot, a read.  */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -13492,15 +13521,8 @@ PRIVATE int instance_held_by_a_snap(
             "id",           "%s", id,
             NULL
         );
-        /*  A guard that cannot read closes: the delete is refused,
-         *  `ignore_snaps` still overrides. It answered "not held" and the
-         *  delete went on. -1 says the cause: not a snapshot, a read.  */
-        JSON_DECREF(snaps)
         return -1;
-    } else {
-        tranger2_close_list(tranger, list);
     }
-    JSON_DECREF(snaps)
     return held? 1 : 0;
 }
 
@@ -14519,13 +14541,22 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
             // desactivate tag
             json_object_set_new(old_snap, "active", json_false());
             if(treedb_save_node(tranger, old_snap)<0) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                /*
+                 *  Not saved: the snap is still the active one on disk, and
+                 *  it goes on being it in memory. It answered 0, success.
+                 */
+                json_object_set_new(old_snap, "active", json_true());
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "Cannot deactivate snap",
-                    "snap",         "%s", snap_name,
+                    "snap",         "%s", kw_get_str(gobj, old_snap, "name", "", 0),
                     NULL
                 );
+                gobj_log_set_last_message("Cannot deactivate snap '%s'",
+                    kw_get_str(gobj, old_snap, "name", "", 0)
+                );
+                return -1;
             }
         }
         return 0;
@@ -14590,13 +14621,22 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
         // desactivate tag
         json_object_set_new(old_snap, "active", json_false());
         if(treedb_save_node(tranger, old_snap)<0) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            /*
+             *  Two snaps active on disk is what a reload would find if the
+             *  new one went on: the activation stops here, nothing moved.
+             */
+            json_object_set_new(old_snap, "active", json_true());
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Cannot deactivate snap",
                 "snap",         "%s", kw_get_str(gobj, old_snap, "name", "", KW_REQUIRED),
                 NULL
             );
+            gobj_log_set_last_message("Cannot deactivate snap '%s'",
+                kw_get_str(gobj, old_snap, "name", "", 0)
+            );
+            return -1;
         }
     }
 
@@ -14605,6 +14645,7 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
 
     int ret = treedb_save_node(tranger, snap);
     if(ret < 0) {
+        json_object_set_new(snap, "active", json_false());  // Error already logged
         return ret;
     }
 

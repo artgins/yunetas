@@ -387,7 +387,15 @@ int treedb_activate_snap(
 
 **Returns**
 
-Returns the snapshot tag (snap `id` = its `g_rowid` in `__snaps__`) as an integer on success, `0` for the `"__clear__"` deactivate path, or a negative value on error (`-1` if the named snap is not found).
+Returns the snapshot tag (snap `id` = its `g_rowid` in `__snaps__`) as an integer on success, `0` for the `"__clear__"` deactivate path, or a negative value on error (`-1` if the named snap is not found, on a replica, or when a snap node cannot be saved).
+
+A save that fails changes nothing, in memory either: the snap that was active stays active, and the one being activated stays inactive. Until 7.25.3 the `"__clear__"` path answered `0` with the save failed, and the snap went on being active on disk.
+
+```C
+if(treedb_activate_snap(tranger, "treedb_agent", "__clear__") < 0) {
+    // still active: the cause is in the log (and gobj_log_last_message())
+}
+```
 
 **Behavior**
 
