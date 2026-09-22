@@ -2740,8 +2740,12 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  With `create` an update is an UPSERT (the SPAs create this way), so a
      *  node that does not exist yet also asks for `create`: it used to be
      *  created under `update` alone. A node that exists does not.
+     *  `create_only` creates too (mt_update_node turns it into `create`).
      */
-    if(_jn_options && kw_get_bool(gobj, _jn_options, "create", 0, KW_WILD_NUMBER)) {
+    if(_jn_options && (
+        kw_get_bool(gobj, _jn_options, "create", 0, KW_WILD_NUMBER) ||
+        kw_get_bool(gobj, _jn_options, "create_only", 0, KW_WILD_NUMBER)
+    )) {
         /*
          *  The same lookup the update makes, and a silent one: an unknown
          *  topic is refused by the update itself, with its own error.

@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### timeranger2: the id of a disk feed stays inside its topic
+
+- `tranger2_open_rt_disk()` refuses an `id` that is empty, `.`, `..` or holds
+  `/`, with *"Invalid rt id (path metacharacters not allowed)"*. The id is the
+  directory `<topic>/disks/<id>/`, and a follower `rmrdir()`s it before
+  creating it (and again on close): the `rt_id` of `open-rt` and the
+  `list_id` of a realtime `open-list` reached it from the wire unconfined,
+  under the `read` permission, so `rt_id=../../../../<dir>` removed that
+  directory as the yuno's user. Same family as the topic-name rule of 7.25.0,
+  which confined every OTHER name from the wire. A backtick is accepted: an
+  rt id is not a kw path segment, and treedb names its own feeds with them.
+  Red test in `test_topic_path_traversal`.
+
+### C_NODE: `update-node` with `create_only` asks for `create`
+
+- The `create` permission check of `cmd_update_node` was keyed on
+  `options.create` alone, while `mt_update_node` turns `options.create_only`
+  into `create`: a caller with `update` and no `create` created nodes with
+  `{"create_only": 1}` (the GUI sends both, so its path was checked; a raw
+  `ycommand` was not). Both options ask for `create` now when the node does
+  not exist. Red test in `test_c_node_authz`.
+
 ### timeranger2: the append returns its metadata in the out-param, `g_rowid` included
 
 - **`md2_record_ex_t` has a new field, `g_rowid`**: the key's GLOBAL rowid,

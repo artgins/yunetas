@@ -191,7 +191,8 @@ does not exist yet. A refusal answers `-403`, and nothing is written.
 `options.create_only=1` makes a NEW node and refuses one that exists
 (*"Node already exists"*); `options.create=1` alone is an upsert, and a taken
 id there is an update of the existing record. A table's +New sends
-`create_only` (gobj-ui 7.23.194).
+`create_only` (gobj-ui 7.23.194). Both ask for `create` when the node does
+not exist: `create_only` alone used to create under `update`.
 
 ```
 command-yuno id=<id> service=<treedb> command=update-node topic_name=users record='{"id":"bob","username":"Bob"}' options='{"create_only":1}'

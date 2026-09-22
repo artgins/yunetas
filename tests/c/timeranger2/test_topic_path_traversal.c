@@ -18,6 +18,10 @@
  *        topic_desc.json) answers NULL with an error, not a critical: with
  *        on_critical_error=2 that critical was an exit(0) of the yuno.
  *      - A replica (master=0) cannot delete or back up a topic.
+ *      - The id of a disk feed (tranger2_open_rt_disk, the rt_id of a
+ *        follower's open-rt / open-list) is a directory component too,
+ *        `<topic>/disks/<id>/`, that the follower rmrdir()s before creating
+ *        it: the same rule refuses it, and "../../<dir>" removes nothing.
  *
  *  The negative assertions FAIL against the unguarded library: the traversal
  *  name deletes the other database's topic, "." / ".." / the non-topic dir
@@ -51,6 +55,9 @@
 #define ESCAPE_TOPIC    "../" OTHER_DATABASE "/" OTHER_TOPIC
 
 #define INVALID_TOPIC_MSG   "Invalid topic name (path metacharacters not allowed)"
+#define INVALID_RT_ID_MSG   "Invalid rt id (path metacharacters not allowed)"
+#define VICTIM_DIR          "victim_of_rt_id"
+#define ESCAPE_RT_ID        "../../" VICTIM_DIR
 
 /***************************************************************
  *              Data
@@ -60,6 +67,20 @@ PRIVATE yev_loop_h yev_loop;
 /***************************************************************
  *              Helpers
  ***************************************************************/
+PRIVATE int rt_disk_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record_ex,
+    json_t *jn_record
+)
+{
+    JSON_DECREF(jn_record)
+    return 0;
+}
+
 PRIVATE json_t *startup_tranger(const char *path_root, const char *database, BOOL master)
 {
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i, s:I}",
@@ -362,6 +383,57 @@ PRIVATE int do_test(void)
             On_Red BWhite, Color_Off, path_topic);
         result += -1;
     }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  Negative: the rt id of a disk feed is
+     *  a directory component too, and the
+     *  follower rmrdir()s it before creating
+     *  it: "../../<dir>" must not leave the
+     *  topic's disks/
+     *-------------------------------------*/
+    set_expected_results(
+        "negative: a follower's rt id cannot escape the topic",
+        json_pack("[{s:s}]",
+            "msg", INVALID_RT_ID_MSG
+        ),
+        NULL, NULL, 1
+    );
+    char path_victim[PATH_MAX], path_victim_file[PATH_MAX];
+    build_path(path_victim, sizeof(path_victim), path_root, VICTIM_DIR, NULL);
+    build_path(path_victim_file, sizeof(path_victim_file), path_victim, "keep.txt", NULL);
+    rmrdir(path_victim);
+    mkrdir(path_victim, 02770);
+    save_json_to_file(0, path_victim, "keep.txt", 0660, 0, 0, TRUE, TRUE, json_object());
+    json_t *follower = startup_tranger(path_root, DATABASE, FALSE);
+    if(!follower) {
+        printf("%sERROR%s --> cannot start the follower\n", On_Red BWhite, Color_Off);
+        result += -1;
+    } else {
+        json_t *rt = tranger2_open_rt_disk(
+            follower,
+            TOPIC_NAME,
+            "",
+            NULL,
+            rt_disk_callback,
+            ESCAPE_RT_ID,
+            "",
+            NULL
+        );
+        if(rt) {
+            printf("%sERROR%s --> a follower opened a disk feed with rt id '%s'\n",
+                On_Red BWhite, Color_Off, ESCAPE_RT_ID);
+            tranger2_close_rt_disk(follower, rt);
+            result += -1;
+        }
+        tranger2_shutdown(follower);
+    }
+    if(!is_regular_file(path_victim_file)) {
+        printf("%sERROR%s --> the rt id escaped the topic and removed: %s\n",
+            On_Red BWhite, Color_Off, path_victim);
+        result += -1;
+    }
+    rmrdir(path_victim);
     result += test_json(NULL);
 
     /*-------------------------------------*

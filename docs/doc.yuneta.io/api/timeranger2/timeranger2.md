@@ -426,6 +426,20 @@ This function is idempotent. This means that if the topic already exists, it wil
 
 A leading `.` is accepted, unlike a key: MQTT queues are named `<client_id>-IN` / `-OUT`, and the broker accepts a `client_id` such as `.foo`.
 
+**The id of a disk feed follows the directory half of the rule.** The `id`
+of [`tranger2_open_rt_disk()`](<#tranger2_open_rt_disk>) (the `rt_id` of a
+follower's `open-rt` / `open-list`) becomes the directory
+`<topic>/disks/<id>/`, and the follower removes that directory before creating
+it. An empty id, `.`, `..`, or an id holding `/` is refused with *"Invalid rt
+id (path metacharacters not allowed)"*; a backtick is accepted, since an rt id
+is not a segment of any kw path (treedb names its own feeds
+`` <treedb>`<topic>`<id> ``).
+
+```C
+tranger2_open_rt_disk(tranger, "users", "", 0, cb, "gui-42", "", 0);          // OK
+tranger2_open_rt_disk(tranger, "users", "", 0, cb, "../../etc", "", 0);       // refused
+```
+
 ```C
 tranger2_create_topic(tranger, "users", "id", "tm", 0, sf_string_key, 0, 0);   // OK
 tranger2_create_topic(tranger, ".foo-IN", "", "", 0, sf_rowid_key, 0, 0);      // OK

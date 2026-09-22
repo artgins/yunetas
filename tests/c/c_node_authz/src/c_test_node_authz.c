@@ -18,7 +18,8 @@
  *                shoot-snap `create`, import-db `create` AND `update`;
  *              - update-node with create=1 asks `create` only for a node
  *                that does not exist: an `editor` saves an existing node
- *                through it, and cannot create one;
+ *                through it, and cannot create one; and create_only=1
+ *                alone asks it too (it created under `update` alone);
  *              - EVERY command of C_NODE's table refuses `nobody`, walked
  *                from the table itself, so a new command is covered the
  *                day it is added (M41 of the 2026-09-21 review);
@@ -467,6 +468,45 @@ PRIVATE int run_tests(hgobj gobj)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "TEST FAIL: a creator could not create through update-node",
+            NULL
+        );
+        result += -1;
+    }
+
+    /*-----------------------------------------------*
+     *  update-node with create_only=1 and no create:
+     *  it creates too, so it asks `create` too
+     *-----------------------------------------------*/
+    result += expect(gobj, "editor", "update-node",
+        json_pack("{s:s, s:{s:s, s:s}, s:{s:b}}",
+            "topic_name", "items",
+            "record", "id", "item-only", "name", "created by an editor",
+            "options", "create_only", 1
+        ),
+        TRUE
+    );
+    if(treedb_get_node(priv->tranger, TREEDB_NAME, "items", "item-only")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: an editor created a node with create_only",
+            NULL
+        );
+        result += -1;
+    }
+    result += expect(gobj, "creator", "update-node",
+        json_pack("{s:s, s:{s:s, s:s}, s:{s:b}}",
+            "topic_name", "items",
+            "record", "id", "item-only", "name", "created by a creator",
+            "options", "create_only", 1
+        ),
+        FALSE
+    );
+    if(!treedb_get_node(priv->tranger, TREEDB_NAME, "items", "item-only")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a creator could not create with create_only",
             NULL
         );
         result += -1;

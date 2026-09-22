@@ -719,6 +719,17 @@ PRIVATE BOOL only_the_order_moved(
  *  '/' and '`'. Unlike a key, a leading '.' is legit: MQTT queues are
  *  "<client_id>-IN/-OUT" and the broker accepts a client_id such as ".foo".
  ***************************************************************************/
+PRIVATE BOOL name_escapes_its_directory(const char *name)
+{
+    if(empty_string(name) ||
+       strcmp(name, ".")==0 ||
+       strcmp(name, "..")==0 ||
+       strchr(name, '/') != NULL) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
 PRIVATE BOOL topic_name_is_confined(
     hgobj gobj,
     json_t *tranger,
@@ -726,17 +737,41 @@ PRIVATE BOOL topic_name_is_confined(
     const char *caller
 )
 {
-    if(empty_string(topic_name) ||
-       strcmp(topic_name, ".")==0 ||
-       strcmp(topic_name, "..")==0 ||
-       strchr(topic_name, '/') != NULL ||
-       strchr(topic_name, '`') != NULL) {
+    if(name_escapes_its_directory(topic_name) || strchr(topic_name, '`') != NULL) {
         gobj_log_error(gobj, 0,
             "function",     "%s", caller,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Invalid topic name (path metacharacters not allowed)",
             "database",     "%s", kw_get_str(gobj, tranger, "directory", "", 0),
             "topic_name",   "%s", topic_name?topic_name:"",
+            NULL
+        );
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The id of a disk feed is a directory too, `<topic>/disks/<id>/`, and
+ *  the follower rmrdir()s it before creating it: the directory half of the
+ *  topic-name rule, or an id from the wire removes whatever it points at.
+ *  A backtick is fine here: an rt id is not a segment of any kw path, and
+ *  treedb names its own feeds `<treedb>`<topic>`<id>`.
+ ***************************************************************************/
+PRIVATE BOOL rt_id_is_confined(
+    hgobj gobj,
+    json_t *topic,
+    const char *id,
+    const char *caller
+)
+{
+    if(name_escapes_its_directory(id)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", caller,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Invalid rt id (path metacharacters not allowed)",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "id",           "%s", id?id:"",
             NULL
         );
         return FALSE;
@@ -4503,6 +4538,12 @@ PUBLIC json_t *tranger2_open_rt_disk(
             "msg",          "%s", "what id?",
             NULL
         );
+        JSON_DECREF(match_cond)
+        JSON_DECREF(extra)
+        return NULL;
+    }
+    if(!rt_id_is_confined(gobj, topic, id, __FUNCTION__)) {
+        // Error already logged
         JSON_DECREF(match_cond)
         JSON_DECREF(extra)
         return NULL;
