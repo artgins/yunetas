@@ -106,6 +106,29 @@ Returns 0 on success, or a negative value on failure.
 
 The function makes sure that the record is appended to the specified topic in [`tranger2_startup()`](<#tranger2_startup>). If the topic does not exist, it must be created using [`tranger2_create_topic()`](<#tranger2_create_topic>) before calling this function.
 
+**Reading the metadata back.** The metadata of the new record is always
+returned in `md2_record_ex`. The function also adds it to the record, as the
+key `__md_tranger__` (`g_rowid`, `i_rowid`, `t`, `tm`, `offset`, `size`,
+`system_flag`, `user_flag`), but only when somebody can see it: when the
+caller keeps a reference to the record, or when the topic has realtime lists
+(their callbacks receive the record). To read `__md_tranger__` after the call,
+keep a reference:
+
+```C
+md2_record_ex_t md;
+if(tranger2_append_record(tranger, "topic", 0, 0, &md, json_incref(record)) == 0) {
+    json_int_t g_rowid = json_integer_value(
+        json_object_get(json_object_get(record, "__md_tranger__"), "g_rowid")
+    );
+}
+JSON_DECREF(record)
+```
+
+If you give the function your only reference, it does not build
+`__md_tranger__`, because the record is freed before anybody could read it.
+Take what you need from `md2_record_ex` instead (`md.rowid` is the `i_rowid`).
+The key is never written to disk: the record is stored before it is added.
+
 **A `__t__` that belongs to an earlier file.** The record goes to the file that
 its `__t__` selects (through the topic's `filename_mask`), even if that file is
 not the newest one. A key's global rowid counts the records in the order of its
