@@ -3095,18 +3095,25 @@ PUBLIC int tranger2_append_record(
     md_record_ex->user_flag = get_user_flag(&md_record);
     md_record_ex->rowid = i_rowid;
 
-    json_t *__md_tranger__ = md2json(md_record_ex, g_rowid);
-    json_object_set_new(
-        record,
-        "__md_tranger__",
-        __md_tranger__  // owned
-    );
+    /*
+     *  Only when somebody can see it: the caller kept a reference to the
+     *  record, or a realtime list is fed below. Otherwise the record is
+     *  freed at the end of this function, and its metadata with it.
+     */
+    json_t *lists = json_object_get(topic, "lists");
+    if(record->refcount > 1 || json_array_size(lists) > 0) {
+        json_t *__md_tranger__ = md2json(md_record_ex, g_rowid);
+        json_object_set_new(
+            record,
+            "__md_tranger__",
+            __md_tranger__  // owned
+        );
+    }
 
     /*--------------------------------------------*
      *      FEED the lists
      *      Call callbacks of realtime lists
      *--------------------------------------------*/
-    json_t *lists = json_object_get(topic, "lists");
     int idx;
     json_t *list;
     json_array_foreach(lists, idx, list) {

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### timeranger2: an append builds `__md_tranger__` only when somebody can see it
+
+- `tranger2_append_record()` adds `__md_tranger__` (the record's metadata,
+  8 integers) to the record it appends. Now only when the caller kept a
+  reference to the record (`refcount > 1`) or the topic has realtime lists
+  to feed; otherwise the record is freed at the end of the append and the
+  metadata was built for nobody. Callers that keep the record and read
+  `__md_tranger__` afterwards (treedb, msg2db, the queues, `c_tranger`)
+  still get it, and so do realtime-list callbacks. Pays off for callers
+  that hand over their only reference with no realtime list open, as a
+  `db_tracks` ingesting `raw_tracks`: +13.5% appends/s in
+  `test_topic_pkey_integer` (+21% together with the change below).
+
 ### timeranger2: an append names its file once
 
 - `tranger2_append_record()` computed the record's file id (`gmtime` +
