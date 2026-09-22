@@ -97,8 +97,13 @@ backed by timeranger. Provides ack-based delivery with automatic retry.
 (gclass-c-mqiogate)=
 ## C_MQIOGATE
 
-Multiple-queue I/O gate — distributes messages to child C_QIOGATE
-instances based on key hashing.
+Multiple-queue I/O gate. It sends each message to one of its `C_QIOGATE`
+children, chosen from a key of the message, or to all of them. Each child is
+a persistent queue towards one destination, so an outage of one destination
+does not stop the others. This is the entry gateway that spreads the keys of
+a treedb over several nodes (see [the key](#philosophy-the-key)).
+
+Its children must all be `C_QIOGATE`.
 
 | Property | Value |
 |----------|-------|
@@ -110,9 +115,78 @@ instances based on key hashing.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `method` | `string` | Routing method. |
-| `digits` | `integer` | Hash digits for distribution. |
-| `key` | `string` | JSON field name used as routing key. |
+| `method` | `string` | `lastdigits` (default): send to ONE child. `broadcast`: send to every child. |
+| `digits` | `integer` | How many characters at the end of the key value choose the child. Default `1`. |
+| `key` | `string` | Field of the message kw that holds the key. Default `id`. It must be a **string**. |
+
+### How `lastdigits` chooses the child
+
+1. Take the last `digits` characters of `kw[key]`.
+2. Read them as a decimal number if they are all digits. Otherwise read
+   them as hexadecimal.
+3. The child is that number modulo the number of children (child 0 is the
+   first).
+
+With two children and `digits: 1`, `id: "dev-0042"` goes to `output-0`
+(2 % 2 = 0) and `id: "dev-0043"` goes to `output-1`. With `id: "a1b2c3"` the
+last character `3` is used.
+
+The same key always goes to the same child while the number of children
+stays the same. **If you add or remove a child, keys move to other
+children.** Plan the number of children, or move the data of the keys with
+them.
+
+A key that is not a string, or is empty, is logged as an error and goes to
+the first child.
+
+### Example
+
+Two destinations, one queue each (the queue kw is the `C_QIOGATE` one,
+shortened here):
+
+```json
+{
+    "name": "__output_side__",
+    "gclass": "C_MQIOGATE",
+    "kw": {
+        "method": "lastdigits",
+        "digits": 1,
+        "key": "id"
+    },
+    "children": [
+        {
+            "name": "output-0",
+            "gclass": "C_QIOGATE",
+            "kw": {"topic_name": "gate_events", "tkey": "tm"},
+            "children": [
+                {"name": "output-0", "gclass": "C_IOGATE", "children": [
+                    {"name": "output-0", "gclass": "C_CHANNEL", "children": [
+                        {"name": "output-0", "gclass": "C_PROT_TCP4H", "children": [
+                            {"name": "output-0", "gclass": "C_TCP",
+                             "kw": {"url": "tcp://node-0:2000"}}
+                        ]}
+                    ]}
+                ]}
+            ]
+        },
+        {
+            "name": "output-1",
+            "gclass": "C_QIOGATE",
+            "kw": {"topic_name": "gate_events", "tkey": "tm"},
+            "children": [
+                {"name": "output-1", "gclass": "C_IOGATE", "children": [
+                    {"name": "output-1", "gclass": "C_CHANNEL", "children": [
+                        {"name": "output-1", "gclass": "C_PROT_TCP4H", "children": [
+                            {"name": "output-1", "gclass": "C_TCP",
+                             "kw": {"url": "tcp://node-1:2000"}}
+                        ]}
+                    ]}
+                ]}
+            ]
+        }
+    ]
+}
+```
 
 ### Commands
 

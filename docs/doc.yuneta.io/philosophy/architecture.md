@@ -127,6 +127,16 @@ and — when it is opened with `with_link_events`, or switched to it with
 returns through the one channel that exists. This is also why Yuneta refuses
 polling. The producer publishes, and the consumer subscribes.
 
+**The store scales by the key.** A treedb is held in memory, so the RAM of
+one node limits it. It grows by adding nodes, not by growing one node. Every
+key has its own directory, and an entry gateway
+([`C_MQIOGATE`](#gclass-c-mqiogate)) routes each message to the node that
+holds its key. A feature that needs every key of a topic in one process is a
+convenience of one node, not part of the model. Examples are a multi-key
+iterator of `C_TRANGER` (`rkey`) and the mark that only the process that
+deleted a key sees. See [the key](#philosophy-the-key) on the Inspiration
+page.
+
 ## The dynamic layer: services and roles
 
 Everything above this section is compiled. A gclass registers at start-up. The

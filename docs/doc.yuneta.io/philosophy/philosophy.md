@@ -51,6 +51,24 @@ history) mirrors the outside of each gobj it contains. This
 fractal-like consistency is the reason a single set of tools —
 [`ycommand`](#util-ycommand), tracing, logging, persistence — works at every scale.
 
+(philosophy-the-key)=
+### The same unit inside and outside: the key
+
+The rule holds for data too. A [treedb](../../../yunos/c/yuno_agent/YUNO_TREEDB.md)
+lives in memory, so the RAM of one node limits it. Yuneta does not answer
+that with a bigger node. It answers with more nodes, and the unit it spreads
+over them is the **key**.
+
+Inside a node, every key already has its own directory in timeranger2
+(`<topic>/keys/<key>/`), with its own files and its own index. No key is
+tied to another key on disk. Outside, an entry gateway sends each message to
+the node that holds its key: [`C_MQIOGATE`](#gclass-c-mqiogate) chooses one
+child queue from the last digits of the key, so a key always goes to the same
+place.
+
+What a node holds is a set of keys, and a key is the same on any node. What
+is inside is outside.
+
 ## Time is the axis everything hangs from
 
 Events happen **in order**, and Yuneta never forgets the order.
