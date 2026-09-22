@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### gobj-js 7.25.0
+
+- `kernel/js/gobj-js` -> 7.25.0: the version back in line with the SDK, no
+  runtime change since 7.22.2 (a comment in `lib_treedb.js`, a test of
+  `kwid_new_dict()`). Published and tagged so the documented anchors of
+  `lib_treedb.js` point into a tag again; JS API index repinned.
+
 ### gobj-ui 7.25.4, yunos-js gui_treedb 0.17.55 / gui_agent 0.22.77
 
 - The JS half of the 2026-09-22 lows: `kernel/js/gobj-ui` -> 7.25.4 (a
