@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### timeranger2: an append names its file once
+
+- `tranger2_append_record()` computed the record's file id (`gmtime` +
+  `strftime` of the `filename_mask`) three times: for the `.json`, for the
+  `.md2` and for the cache cell. It is computed once and handed to the three;
+  `get_topic_wr_fd()` takes the file id instead of `__t__`. The data, the
+  metadata and the cache cell now name the same file by construction (the
+  cell used to recompute it from the masked time). +4.6% appends/s in
+  `test_topic_pkey_integer`.
+- `mark_file_unordered()` logs an error instead of silently truncating a
+  `<file_id>.unordered` marker name that does not fit.
+
 ### timeranger2: an append reuses the integers of the cache it updates
 
 - `tranger2_append_record()` updates the key's cache on every append (the

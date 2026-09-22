@@ -221,9 +221,9 @@ PRIVATE json_int_t load_first_and_last_record_md(
 
 PRIVATE json_int_t update_new_record_from_mem(
     hgobj gobj,
-    json_t *tranger,
     json_t *topic,
     const char *key,
+    const char *file_id,    // the file the record was written to
     md2_record_t *md_record
 );
 PRIVATE json_int_t update_totals_of_key_cache(
@@ -2352,26 +2352,17 @@ PRIVATE int get_topic_wr_fd( // optimized
     json_t *topic,
     const char *key,
     BOOL for_data,
-    uint64_t __t__
+    const char *file_id     // get_file_id() of the record's __t__
 )
 {
     char full_path[PATH_MAX];
     char relative_path[PATH_MAX];
     char filename[NAME_MAX*2];
 
-    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-
     /*-----------------------------*
      *      Check file
      *-----------------------------*/
-    get_t_filename(
-        filename,
-        sizeof(filename),
-        tranger,
-        topic,
-        for_data,
-        (system_flag & sf_t_ms)? __t__/1000:__t__
-    );
+    snprintf(filename, sizeof(filename), "%s.%s", file_id, for_data?"json":"md2");
 
     /*------------------------------------------*
      *  Open content file fd,
@@ -2890,9 +2881,22 @@ PUBLIC int tranger2_append_record(
     // TEST performance 600000
 
     /*------------------------------------------------------*
+     *  The file of the record, named by its __t__:
+     *  the data and md2 files and the cache cell share it
+     *------------------------------------------------------*/
+    char file_id[NAME_MAX];
+    get_file_id(
+        file_id,
+        sizeof(file_id),
+        tranger,
+        topic,
+        (system_flag & sf_t_ms)? __t__/1000:__t__
+    );
+
+    /*------------------------------------------------------*
      *  Save content, to file
      *------------------------------------------------------*/
-    int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, __t__);
+    int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, file_id);
 
     // TEST performance 475000
 
@@ -3003,7 +3007,7 @@ PUBLIC int tranger2_append_record(
 
     json_int_t g_rowid = 0;
     json_int_t i_rowid = 0;
-    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, __t__);
+    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, file_id);
 
     if(md2_fd >= 0) {
         off_t offset = lseek(md2_fd, 0, SEEK_END);
@@ -3055,7 +3059,7 @@ PUBLIC int tranger2_append_record(
         /*
          *  Update cache
          */
-        g_rowid = update_new_record_from_mem(gobj, tranger, topic, key_value, &md_record);
+        g_rowid = update_new_record_from_mem(gobj, topic, key_value, file_id, &md_record);
         if(system_flag_key_type & sf_rowid_key) {
             if(g_rowid != i_rowid) {
                 gobj_log_error(gobj, 0,
@@ -3506,7 +3510,15 @@ PRIVATE int get_md_record_for_wr(
         return -1;
     }
 
-    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key, FALSE, __t__);
+    char file_id[NAME_MAX];
+    get_file_id(
+        file_id,
+        sizeof(file_id),
+        tranger,
+        topic,
+        (system_flag & sf_t_ms)? __t__/1000:__t__
+    );
+    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key, FALSE, file_id);
     if(md2_fd < 0) {
         // Error already logged
         return -1;
@@ -4024,7 +4036,15 @@ PUBLIC int tranger2_delete_instance(
      *  Optional payload wipe
      *----------------------------------------*/
     if(zero_payload && payload_size > 0) {
-        int data_fd = get_topic_wr_fd(gobj, tranger, topic, key, TRUE, __t__);
+        char file_id[NAME_MAX];
+        get_file_id(
+            file_id,
+            sizeof(file_id),
+            tranger,
+            topic,
+            (topic_flag & sf_t_ms)? __t__/1000:__t__
+        );
+        int data_fd = get_topic_wr_fd(gobj, tranger, topic, key, TRUE, file_id);
         if(data_fd < 0) {
             // Error already logged
             return -1;
@@ -6587,7 +6607,18 @@ PRIVATE void mark_file_unordered(
         return;
     }
     char marker[NAME_MAX];
-    snprintf(marker, sizeof(marker), "%s.unordered", file_id);
+    if(snprintf(marker, sizeof(marker), "%s.unordered", file_id) >= (int)sizeof(marker)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot mark md2 file as unordered, file_id too long",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "file_id",      "%s", file_id,
+            NULL
+        );
+        return;
+    }
     char path[PATH_MAX];
     build_path(path, sizeof(path),
         json_string_value(json_object_get(topic, "directory")), "keys", key, marker, NULL
@@ -6782,9 +6813,9 @@ PRIVATE json_int_t load_first_and_last_record_md(
  ***************************************************************************/
 PRIVATE json_int_t update_new_record_from_mem(
     hgobj gobj,
-    json_t *tranger,
     json_t *topic,
     const char *key,
+    const char *file_id,    // the file the record was written to
     md2_record_t *md_record
 )
 {
@@ -6800,23 +6831,6 @@ PRIVATE json_int_t update_new_record_from_mem(
         );
         return -1;
     }
-
-    /*
-     *  The cache id is the file_id, the file_id is based in the time __t__ of the record.
-     */
-    uint64_t t = get_time_t(md_record);
-    if(get_system_flag(md_record) & sf_t_ms) {
-        t /= 1000;
-    }
-
-    char file_id[NAME_MAX];
-    get_file_id(
-        file_id,
-        sizeof(file_id),
-        tranger,
-        topic,
-        t
-    );
 
     /*
      *  The cell of the record's file, wherever it is: a __t__ of an earlier
