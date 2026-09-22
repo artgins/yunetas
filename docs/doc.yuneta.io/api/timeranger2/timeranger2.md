@@ -110,9 +110,11 @@ The function makes sure that the record is appended to the specified topic in [`
 returned in `md2_record_ex`. The function also adds it to the record, as the
 key `__md_tranger__` (`g_rowid`, `i_rowid`, `t`, `tm`, `offset`, `size`,
 `system_flag`, `user_flag`), but only when somebody can see it: when the
-caller keeps a reference to the record, or when the topic has realtime lists
-(their callbacks receive the record). To read `__md_tranger__` after the call,
-keep a reference:
+caller keeps a reference to the record, or when a realtime list of the topic
+takes the record (it wants the key and not only its metadata; its callback
+receives the record). A list opened on another key, or with `only_md`, does
+not make the append build it. To read `__md_tranger__` after the call, keep
+a reference:
 
 ```C
 md2_record_ex_t md;

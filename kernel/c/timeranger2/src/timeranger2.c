@@ -3102,23 +3102,21 @@ PUBLIC int tranger2_append_record(
 
     /*
      *  Only when somebody can see it: the caller kept a reference to the
-     *  record, or a realtime list is fed below. Otherwise the record is
-     *  freed at the end of this function, and its metadata with it.
+     *  record, or a realtime list below takes the record (it wants the key
+     *  and not only its metadata). Otherwise the record is freed at the end
+     *  of this function, and its metadata with it.
      */
-    json_t *lists = json_object_get(topic, "lists");
-    if(record->refcount > 1 || json_array_size(lists) > 0) {
-        json_t *__md_tranger__ = md2json(md_record_ex, g_rowid);
-        json_object_set_new(
-            record,
-            "__md_tranger__",
-            __md_tranger__  // owned
-        );
+    BOOL md_attached = FALSE;
+    if(record->refcount > 1) {
+        json_object_set_new(record, "__md_tranger__", md2json(md_record_ex, g_rowid));
+        md_attached = TRUE;
     }
 
     /*--------------------------------------------*
      *      FEED the lists
      *      Call callbacks of realtime lists
      *--------------------------------------------*/
+    json_t *lists = json_object_get(topic, "lists");
     int idx;
     json_t *list;
     json_array_foreach(lists, idx, list) {
@@ -3129,6 +3127,11 @@ PUBLIC int tranger2_append_record(
                 );
 
             if(load_record_callback) {
+                BOOL only_md = feed_wants_only_md(list);
+                if(!only_md && !md_attached) {
+                    json_object_set_new(record, "__md_tranger__", md2json(md_record_ex, g_rowid));
+                    md_attached = TRUE;
+                }
                 // Inform to the user list: record real time from memory
                 load_record_callback(
                     tranger,
@@ -3137,7 +3140,7 @@ PUBLIC int tranger2_append_record(
                     list,
                     g_rowid,
                     md_record_ex,
-                    feed_wants_only_md(list)? NULL : json_incref(record)
+                    only_md? NULL : json_incref(record)
                 );
             }
         }
@@ -3494,16 +3497,20 @@ PRIVATE int get_md_record_for_wr(
      *  caller's, and get_topic_wr_fd() would CREATE the file on a master.
      *  None of the three criticals below exits: they return before writing.
      */
-    char filename[NAME_MAX*2];
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-    get_t_filename(
-        filename,
-        sizeof(filename),
+    char file_id[NAME_MAX];
+    if(!get_file_id(
+        file_id,
+        sizeof(file_id),
         tranger,
         topic,
-        FALSE,
         (system_flag & sf_t_ms)? __t__/1000:__t__
-    );
+    )) {
+        // Error already logged
+        return -1;
+    }
+    char filename[NAME_MAX*2];
+    snprintf(filename, sizeof(filename), "%s.md2", file_id);
     char full_path[PATH_MAX];
     build_path(full_path, sizeof(full_path),
         json_string_value(json_object_get(topic, "directory")), "keys", key, filename, NULL
@@ -3522,17 +3529,6 @@ PRIVATE int get_md_record_for_wr(
         return -1;
     }
 
-    char file_id[NAME_MAX];
-    if(!get_file_id(
-        file_id,
-        sizeof(file_id),
-        tranger,
-        topic,
-        (system_flag & sf_t_ms)? __t__/1000:__t__
-    )) {
-        // Error already logged
-        return -1;
-    }
     int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key, FALSE, file_id);
     if(md2_fd < 0) {
         // Error already logged

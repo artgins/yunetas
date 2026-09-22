@@ -6,9 +6,12 @@
 
 - `tranger2_append_record()` adds `__md_tranger__` (the record's metadata,
   8 integers) to the record it appends. Now only when the caller kept a
-  reference to the record (`refcount > 1`) or the topic has realtime lists
-  to feed; otherwise the record is freed at the end of the append and the
-  metadata was built for nobody. Callers that keep the record and read
+  reference to the record (`refcount > 1`) or a realtime list of the topic
+  takes the record: one that wants the key and is not an `only_md` feed. It
+  is built right before the first callback that takes it, so a list open on
+  another key does not make every append of the topic build it. Otherwise
+  the record is freed at the end of the append and the metadata was built
+  for nobody. Callers that keep the record and read
   `__md_tranger__` afterwards (treedb, msg2db, the queues, `c_tranger`)
   still get it, and so do realtime-list callbacks. Pays off for callers
   that hand over their only reference with no realtime list open, as a
@@ -23,7 +26,9 @@
   `get_topic_wr_fd()` takes the file id instead of `__t__`. The data, the
   metadata and the cache cell now name the same file by construction (the
   cell used to recompute it from the masked time). +4.6% appends/s in
-  `test_topic_pkey_integer`.
+  `test_topic_pkey_integer`. The write of a user flag and
+  `tranger2_delete_instance()` name the file once too: they computed it for
+  the existence check and again for the descriptor.
 - `mark_file_unordered()` logs an error instead of silently truncating a
   `<file_id>.unordered` marker name that does not fit, and still flags the
   cell as unordered in memory: a marker that cannot be written is not a file
