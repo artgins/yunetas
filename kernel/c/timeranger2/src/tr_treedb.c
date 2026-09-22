@@ -160,8 +160,8 @@ PRIVATE int append_node_record(
     uint16_t tag
 );
 PRIVATE json_t *existing_snap_tags(hgobj gobj, json_t *tranger);
-PRIVATE BOOL node_held_by_a_snap(hgobj gobj, json_t *tranger, const char *treedb_name, json_t *node);
-PRIVATE BOOL instance_held_by_a_snap(
+PRIVATE int node_held_by_a_snap(hgobj gobj, json_t *tranger, const char *treedb_name, json_t *node);
+PRIVATE int instance_held_by_a_snap(
     hgobj gobj, json_t *tranger, const char *treedb_name, json_t *node, const char *pkey2_name
 );
 PRIVATE json_t *assets_held_by_snaps(hgobj gobj, json_t *tranger, const char *treedb_name);
@@ -3058,9 +3058,10 @@ PRIVATE int normalize_node_field_value(
     json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
 
     /*
-     *  Required
+     *  Required. A `now` column is the clock's, not the caller's: nobody
+     *  sends it, and `required` cannot be asking for it.
      */
-    if(kw_has_word(gobj, desc_flag, "required", 0)) {
+    if(kw_has_word(gobj, desc_flag, "required", 0) && !kw_has_word(gobj, desc_flag, "now", 0)) {
         if(!value) {
             char temp[NAME_MAX];
             snprintf(temp, sizeof(temp), "Field required: '%s'", field);
@@ -3829,7 +3830,15 @@ PRIVATE BOOL link_col_type_is_valid(hgobj gobj, const char *col_name, json_t *co
         return TRUE;
     }
     const char *type = kw_get_str(gobj, col, "type", "", 0);
-    static const char *valid[] = {"dict", "object", "list", "array", "string", NULL};
+    /*
+     *  A hook holds its children as a dict or a list; a string hook was
+     *  blessed here and refused by every link into it ("wrong parent hook
+     *  type"), after the unlink of a replace. An fkey may be a string.
+     */
+    BOOL is_hook = kw_has_word(gobj, flag, "hook", 0);
+    static const char *valid_hook[] = {"dict", "object", "list", "array", NULL};
+    static const char *valid_fkey[] = {"dict", "object", "list", "array", "string", NULL};
+    const char **valid = is_hook? valid_hook : valid_fkey;
     for(int i = 0; valid[i]; i++) {
         if(strcmp(type, valid[i])==0) {
             return TRUE;
@@ -3838,7 +3847,9 @@ PRIVATE BOOL link_col_type_is_valid(hgobj gobj, const char *col_name, json_t *co
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_TREEDB,
-        "msg",          "%s", "A hook or fkey column must be of type dict, list or string",
+        "msg",          "%s", is_hook?
+            "A hook column must be of type dict or list" :
+            "An fkey column must be of type dict, list or string",
         "col",          "%s", col_name,
         "type",         "%s", type,
         NULL
@@ -6725,11 +6736,14 @@ PRIVATE int delete_node(
      *  table force EVERY delete to get the first, so no snapshot guard
      *  ever fired for them (M11/M12 of the 2026-09-21 review).
      */
-    if(!ignore_snaps && node_held_by_a_snap(gobj, tranger, treedb_name, node)) {
+    int held = ignore_snaps? 0 : node_held_by_a_snap(gobj, tranger, treedb_name, node);
+    if(held != 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "cannot delete node, a snapshot still holds it",
+            "msg",          "%s", held < 0?
+                "cannot delete node, cannot tell whether a snapshot holds it (see the log)" :
+                "cannot delete node, a snapshot still holds it",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             "id",           "%s", id,
@@ -7212,11 +7226,14 @@ PUBLIC int treedb_delete_instance(
      *  `ignore_snaps` overrides; `force` is about links, which a
      *  delete-instance does not look at.
      */
-    if(!ignore_snaps && instance_held_by_a_snap(gobj, tranger, treedb_name, node, pkey2_name)) {
+    int held = ignore_snaps? 0 : instance_held_by_a_snap(gobj, tranger, treedb_name, node, pkey2_name);
+    if(held != 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "cannot delete instance, a snapshot still holds it",
+            "msg",          "%s", held < 0?
+                "cannot delete instance, cannot tell whether a snapshot holds it (see the log)" :
+                "cannot delete instance, a snapshot still holds it",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             "id",           "%s", id,
@@ -13167,7 +13184,7 @@ PRIVATE int held_scan_callback(
  *  disk, metadata only: a node updated after a snap carries no tag on
  *  its primary while the record the snap froze is still there below.
  ***************************************************************************/
-PRIVATE BOOL node_held_by_a_snap(
+PRIVATE int node_held_by_a_snap(
     hgobj gobj,
     json_t *tranger,
     const char *treedb_name,
@@ -13228,13 +13245,14 @@ PRIVATE BOOL node_held_by_a_snap(
         );
         /*  A guard that cannot read closes: the delete is refused,
          *  `ignore_snaps` still overrides. It answered "not held" and the
-         *  delete went on.  */
-        held = TRUE;
+         *  delete went on. -1 says the cause: not a snapshot, a read.  */
+        JSON_DECREF(snaps)
+        return -1;
     } else {
         tranger2_close_list(tranger, list);
     }
     JSON_DECREF(snaps)
-    return held;
+    return held? 1 : 0;
 }
 
 /***************************************************************************
@@ -13294,7 +13312,7 @@ PRIVATE int held_instance_scan_callback(
  *  memory. A save is untagged, so an instance updated after a shot carries
  *  tag 0 while the record the snap froze is still under it.
  ***************************************************************************/
-PRIVATE BOOL instance_held_by_a_snap(
+PRIVATE int instance_held_by_a_snap(
     hgobj gobj,
     json_t *tranger,
     const char *treedb_name,
@@ -13373,13 +13391,14 @@ PRIVATE BOOL instance_held_by_a_snap(
         );
         /*  A guard that cannot read closes: the delete is refused,
          *  `ignore_snaps` still overrides. It answered "not held" and the
-         *  delete went on.  */
-        held = TRUE;
+         *  delete went on. -1 says the cause: not a snapshot, a read.  */
+        JSON_DECREF(snaps)
+        return -1;
     } else {
         tranger2_close_list(tranger, list);
     }
     JSON_DECREF(snaps)
-    return held;
+    return held? 1 : 0;
 }
 
 /***************************************************************************

@@ -1260,11 +1260,21 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
         gobj,
         directory,
         "topic_desc.json",
-        kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+        0,      // a failed READ never exits: the name may come from a peer
         0,
         FALSE, // exclusive
         FALSE // silence
     );
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot open topic: topic_desc.json does not load",
+            "directory",    "%s", directory,
+            NULL
+        );
+        return NULL;
+    }
 
     /*
      *  topic_var
@@ -1382,6 +1392,12 @@ PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
             return 0;
         }
     }
+
+    /*
+     *  A topic open again after a stop: the tranger is alive again, and
+     *  a shutdown must close what it opened (the stop set __closed__).
+     */
+    json_object_del(tranger, "__closed__");
     return topic;
 }
 

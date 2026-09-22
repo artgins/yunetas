@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### The lows of the 2026-09-22 review, C side
+
+- timeranger2: a `topic_desc.json` that does not load answers NULL at once
+  (it went on with `topic == NULL` through seventeen spurious errors), and
+  its load carries no exit bit: a failed READ never exits, and the name may
+  come from a peer (the TOCTOU between the existence check and the load
+  ends in an error, not an exit). A topic opened again after `tranger2_stop()`
+  clears `__closed__`, so the shutdown closes what it opened.
+- C_TRANGER: `open-iterator` / `open-rt` / `open-list` on an id that is
+  open answer -1 *"already open"* (an open that opens nothing was a
+  success-shaped 0 with no data); the epoch a multi-key iterator is judged
+  by is one counter for the process, not per gobj (two C_TRANGERs over one
+  tranger could hand the same number to two openings); the parts of a
+  multi-key iterator are opened under their own creator (`<gobj>^parts`),
+  so a client's one-key iterator named `<id>^<key>` no longer collides with
+  them (test in `test_c_tranger`).
+- treedb: a hook column of type `string` is refused at the `__system__`
+  write (it was blessed there and refused by every link into it, after the
+  unlink of a replace); a `required` column flagged `now` is the clock's
+  and is not asked of the caller; a snapshot guard that cannot READ the
+  key's records says so (*"cannot tell whether a snapshot holds it"*)
+  instead of naming a snapshot; `update-node`'s refusal names its contract
+  (*"some of its links were NOT changed ... that column was left as it
+  was"*), and the flag it reads survives an update-node re-entered through
+  a treedb event.
+- C_TREEDB: `prune_schema_node()` keeps a column's `default` as written,
+  `[]`, `{}` and null included; `apply-schema` asks `create-delete`, as
+  `create-topic` / `delete-topic` do (`save-schema` keeps `write`); the
+  replica guards of `save-schema` / `apply-schema` / `saved-schema` read
+  the tranger's EFFECTIVE `master` when the treedb is open (a master that
+  could not take the store in exclusive opened as a replica); an unnamed
+  command over several treedbs names the ones that FAILED in its comment.
+- C_AUTHZ: every write command (`create-user`, `update-user`,
+  `enable-user`, `disable-user`, `delete-user`, `set-user-pwd`,
+  `set-max-sessions`) answers *"READ-ONLY replica"* up front on a replica;
+  `set-max-sessions` answers the refusal of its update, and the session
+  drop of a rejected user logs the refusal of its volatile update.
+- Docs: `shoot-snap` after `deactivate-snap` waits for a reload (treedb.md);
+  `apply-schema`'s permission (data.md).
+
 ### gobj-ui 7.25.3, yunos-js gui_agent 0.22.76
 
 - `kernel/js/gobj-ui` -> 7.25.3: the schema editor rebuilds its drafts from

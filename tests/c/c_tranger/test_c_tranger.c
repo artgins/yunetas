@@ -917,7 +917,8 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
 
     /*-------------------------------------------------*
-     *      open-iterator again same id -> already open (0)
+     *      open-iterator again same id -> already open (-1: an open that
+     *      opens nothing is not a success, since the 2026-09-22 lows)
      *-------------------------------------------------*/
     r = gobj_command(yuno, "open-iterator",
         json_pack("{s:s, s:s, s:s}",
@@ -925,7 +926,7 @@ PRIVATE int do_test(void)
             "topic_name", TOPIC_NAME,
             "key", KEY_A
         ), yuno);
-    check_int("open-iterator dup result", kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("open-iterator dup result", kw_get_int(0, r, "result", -999, 0), -1);
     JSON_DECREF(r)
 
     /*-------------------------------------------------*
@@ -998,7 +999,7 @@ PRIVATE int do_test(void)
     check_int("rt no cross-key publish", g_rt_count, 1);
 
     /*-------------------------------------------------*
-     *      open-rt dup -> already open (0)
+     *      open-rt dup -> already open (-1)
      *-------------------------------------------------*/
     r = gobj_command(yuno, "open-rt",
         json_pack("{s:s, s:s, s:s}",
@@ -1006,7 +1007,7 @@ PRIVATE int do_test(void)
             "topic_name", TOPIC_NAME,
             "key", KEY_A
         ), yuno);
-    check_int("open-rt dup result", kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("open-rt dup result", kw_get_int(0, r, "result", -999, 0), -1);
     JSON_DECREF(r)
 
     /*-------------------------------------------------*
@@ -1676,6 +1677,46 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
     r = gobj_command(yuno, "close-iterator",
         json_pack("{s:s}", "iterator_id", "itF"), yuno);
+    JSON_DECREF(r)
+    global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
+     *      A one-key iterator named like a PART of a multi-key one
+     *      ("<id>^<key>") is another identity: the parts are opened
+     *      under their own creator (a low of the 2026-09-22 review;
+     *      before, "Iterator already exists" and every page over that
+     *      key answered -1).
+     *-------------------------------------------------*/
+    set_expected_results("a part id is not a client's iterator id", NULL, NULL, NULL, 1);
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itP^" KEY_A,
+            "topic_name", TOPIC_NAME,
+            "key", KEY_A
+        ), yuno);
+    check_int("open-iterator named like a part", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itP",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^" KEY_A "$"
+        ), yuno);
+    check_int("open-iterator multi beside it", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itP",
+            "from_rowid", 1,
+            "limit", 2
+        ), yuno);
+    check_int("get-page of the multi over the shared key", kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("get-page of the multi over the shared key: len",
+        json_array_size(kw_get_list(0, kw_get_dict(0, r, "data", 0, 0), "data", 0, 0)), 2);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator", json_pack("{s:s}", "iterator_id", "itP"), yuno);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator", json_pack("{s:s}", "iterator_id", "itP^" KEY_A), yuno);
     JSON_DECREF(r)
     global_result += test_json(NULL);
 

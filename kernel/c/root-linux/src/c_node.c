@@ -2769,6 +2769,14 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     hand_files_to_record(gobj, kw, jn_content, gbuf_files);
 
+    /*
+     *  A treedb event this update fires can bring ANOTHER update-node into
+     *  this service before this one answers, and its mt_update_node
+     *  clears the flag this one reads below. Kept apart across the call.
+     */
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    BOOL links_refused_outer = priv->links_refused;
+    priv->links_refused = FALSE;
     json_t *node = gobj_update_node(
         gobj,
         topic_name,
@@ -2776,6 +2784,8 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_incref(_jn_options),
         src
     );
+    BOOL links_refused = priv->links_refused;
+    priv->links_refused = links_refused_outer;
 
     /*
      *  The record was saved, but a link it names could not be made and its
@@ -2783,12 +2793,11 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  answered "Node update!" (M1 of the 2026-09-21 review), and a form
      *  closed on a parent the operator had not got.
      */
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(node && priv->links_refused) {
+    if(node && links_refused) {
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf(
-                "%s: node '%s' saved, but its links were NOT changed: a link it names cannot be made (see the log)",
+                "%s: node '%s' saved, but some of its links were NOT changed: a link it names cannot be made, and that column was left as it was (see the log)",
                 gobj_yuno_role_plus_name(), kw_get_str(gobj, node, "id", "", 0)
             ),
             gobj_topic_desc(gobj, topic_name),

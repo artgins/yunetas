@@ -120,6 +120,7 @@ PRIVATE json_t *diff_treedb_schema(
     json_t *rows        // not owned, where the differences are appended
 );
 PRIVATE json_t *schema_topics_as_list(hgobj gobj, json_t *jn_schema);
+PRIVATE BOOL treedb_is_written_here(hgobj gobj, const char *treedb_name);
 PRIVATE json_t *draft_changed_from_rows(hgobj gobj, json_t *rows);
 PRIVATE int diff_node_attrs(
     hgobj gobj,
@@ -1305,6 +1306,12 @@ PRIVATE void prune_schema_node(json_t *jn) // not owned, MUTATED
     if(json_is_object(jn)) {
         const char *key; json_t *value; void *tmp;
         json_object_foreach_safe(jn, tmp, key, value) {
+            /*  A column's `default` is what the author wrote, `[]`, `{}` and
+             *  null included: an empty container IS a default (a list column
+             *  declares `[]`), and pruned it read as "no default".  */
+            if(strcmp(key, "default")==0) {
+                continue;
+            }
             if(strcmp(key, "_geometry")==0 ||
                     json_is_null(value) ||
                     (json_is_string(value) && empty_string(json_string_value(value))) ||
@@ -1499,6 +1506,7 @@ PRIVATE json_t *for_every_treedb(
     json_t *answers = json_array();
     int result = 0;
     int done = 0;
+    json_t *failed = json_array();
     const char *name; json_t *jn_schema;
     json_object_foreach(priv->jn_c_schemas, name, jn_schema) {
         if(skip_unapplicable) {
@@ -1517,6 +1525,7 @@ PRIVATE json_t *for_every_treedb(
         int r = (int)kw_get_int(gobj, answer, "result", -1, 0);
         if(r < 0) {
             result = r;
+            json_array_append_new(failed, json_string(name));
         }
         json_array_append_new(answers, json_pack("{s:s, s:i, s:O, s:O}",
             "treedb_name", name,
@@ -1528,13 +1537,52 @@ PRIVATE json_t *for_every_treedb(
         done++;
     }
 
+    /*
+     *  No atomicity across treedbs: each one answered for itself, and the
+     *  ones that succeeded are done. The comment names the ones that were
+     *  not, so a -1 does not hide a completed write.
+     */
+    json_t *comment;
+    if(json_array_size(failed) > 0) {
+        json_t *jn_names = json_string("");
+        size_t i; json_t *jn_name;
+        json_array_foreach(failed, i, jn_name) {
+            json_t *joined = json_sprintf("%s%s%s",
+                json_string_value(jn_names), i? ", " : "", json_string_value(jn_name));
+            JSON_DECREF(jn_names)
+            jn_names = joined;
+        }
+        comment = json_sprintf("%s: %s, %d treedb(s), FAILED for: %s",
+            gobj_yuno_role_plus_name(), cmd, done, json_string_value(jn_names));
+        JSON_DECREF(jn_names)
+    } else {
+        comment = json_sprintf("%s: %s, %d treedb(s)", gobj_yuno_role_plus_name(), cmd, done);
+    }
+    JSON_DECREF(failed)
+
     return msg_iev_build_response(gobj,
         result,
-        json_sprintf("%s: %s, %d treedb(s)", gobj_yuno_role_plus_name(), cmd, done),
+        comment,
         0,
         answers,
         kw  // owned
     );
+}
+
+/***************************************************************************
+ *  Can a write of `treedb_name`'s schema land here? The tranger's EFFECTIVE
+ *  flag when the treedb is open (a master that could not take the store in
+ *  exclusive opened as a replica -- what reconcile reads), this service's
+ *  `master` attribute when it is not.
+ ***************************************************************************/
+PRIVATE BOOL treedb_is_written_here(hgobj gobj, const char *treedb_name)
+{
+    hgobj gobj_node = gobj_find_service(treedb_name, FALSE);
+    json_t *tranger = gobj_node? gobj_read_pointer_attr(gobj_node, "tranger") : NULL;
+    if(tranger) {
+        return kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
+    }
+    return gobj_read_bool_attr(gobj, "master");
 }
 
 /***************************************************************************
@@ -1553,7 +1601,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *permission = "write";
+    const char *permission = "create-delete";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         return msg_iev_build_response(
             gobj,
@@ -1570,7 +1618,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     if(empty_string(treedb_name)) {
         return for_every_treedb(gobj, cmd, kw, src, cmd_save_schema, FALSE);
     }
-    if(!dry_run && !gobj_read_bool_attr(gobj, "master")) {
+    if(!dry_run && !treedb_is_written_here(gobj, treedb_name)) {
         return build_readonly_response(gobj, treedb_name, kw);
     }
 
@@ -1796,7 +1844,7 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_int_t in_use_version = schema_version_of(gobj, in_use);
     json_int_t saved_version = schema_version_of(gobj, saved);
     BOOL imposed = treedb_schema_imposed(gobj, treedb_name);
-    BOOL master = gobj_read_bool_attr(gobj, "master");
+    BOOL master = treedb_is_written_here(gobj, treedb_name);
 
     json_t *diff = json_object();
     if(in_use && saved) {
@@ -1891,7 +1939,7 @@ PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     if(empty_string(treedb_name)) {
         return for_every_treedb(gobj, cmd, kw, src, cmd_apply_schema, TRUE);
     }
-    if(!gobj_read_bool_attr(gobj, "master")) {
+    if(!treedb_is_written_here(gobj, treedb_name)) {
         return build_readonly_response(gobj, treedb_name, kw);
     }
     if(treedb_schema_imposed(gobj, treedb_name)) {

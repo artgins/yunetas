@@ -152,6 +152,7 @@ PRIVATE int mt_subscription_deleted(hgobj gobj, json_t *subs);
 PRIVATE void reap_handles_of(hgobj gobj, hgobj owner, BOOL with_iterators);
 PRIVATE BOOL iterator_is_live(hgobj gobj, const char *iterator_id);
 PRIVATE int close_registered_iterator(hgobj gobj, const char *iterator_id);
+PRIVATE void parts_creator(hgobj gobj, char *bf, size_t bfsize);
 PRIVATE void drop_handles_of_topic(hgobj gobj, const char *topic_name);
 PRIVATE int ignore_record_callback(
     json_t *tranger,
@@ -485,7 +486,6 @@ typedef struct _PRIVATE_DATA {
     json_t *lists;      // open lists registry: list_id -> integer pointer of the list handle
     json_t *iterators;  // open iterators registry: iterator_id -> integer pointer of the iterator handle
     json_t *rts;        // open realtime feeds registry: rt_id -> integer pointer of the rt handle
-    json_int_t topic_epochs;    // last epoch stamped on an open topic, see topic_epoch()
 
 } PRIVATE_DATA;
 
@@ -670,10 +670,24 @@ PRIVATE json_int_t topic_epoch(hgobj gobj, const char *topic_name)
     }
     json_int_t epoch = json_integer_value(json_object_get(topic, "__c_tranger_epoch__"));
     if(!epoch) {
-        epoch = ++priv->topic_epochs;
+        /*  One counter for the process, not per gobj: two C_TRANGERs over
+         *  one tranger would hand the same number to two openings.  */
+        static json_int_t topic_epochs = 0;
+        epoch = ++topic_epochs;
         json_object_set_new(topic, "__c_tranger_epoch__", json_integer(epoch));
     }
     return epoch;
+}
+
+/***************************************************************************
+ *  The creator the PARTS of a multi-key iterator are opened under. A part
+ *  is named `<iterator_id>^<key>`, and a one-key iterator a client names
+ *  so collided with it ("Iterator already exists", every page over that
+ *  key -1): under their own creator the two are different identities.
+ ***************************************************************************/
+PRIVATE void parts_creator(hgobj gobj, char *bf, size_t bfsize)
+{
+    snprintf(bf, bfsize, "%s^parts", gobj_name(gobj));
 }
 
 /***************************************************************************
@@ -691,6 +705,8 @@ PRIVATE json_t *open_part(
 
     const char *key = kw_get_str(gobj, part, "key", "", 0);
     json_t *jn_part_id = json_sprintf("%s^%s", iterator_id, key);
+    char creator[NAME_MAX];
+    parts_creator(gobj, creator, sizeof(creator));
     json_t *iterator = tranger2_open_iterator(
         priv->tranger,
         kw_get_str(gobj, entry, "topic_name", "", 0),
@@ -698,7 +714,7 @@ PRIVATE json_t *open_part(
         json_deep_copy(json_object_get(entry, "match_cond")), // owned
         NULL,               // index only
         json_string_value(jn_part_id),
-        gobj_name(gobj),    // creator
+        creator,
         NULL,               // data
         NULL                // extra
     );
@@ -1787,7 +1803,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     if(kw_has_key(priv->lists, list_id)) {
         return msg_iev_build_response(
             gobj,
-            0,
+            -1,
             json_sprintf("List is already open: '%s'", list_id),
             0,
             0,
@@ -2664,6 +2680,8 @@ PRIVATE json_t *open_multi_key_iterator(
     json_array_foreach(jn_keys, idx, jn_key) {
         const char *key = kw_get_str(gobj, jn_key, "key", "", 0);
         json_t *jn_part_id = json_sprintf("%s^%s", iterator_id, key);
+        char creator[NAME_MAX];
+        parts_creator(gobj, creator, sizeof(creator));
         json_t *iterator = tranger2_open_iterator(
             priv->tranger,
             topic_name,
@@ -2671,7 +2689,7 @@ PRIVATE json_t *open_multi_key_iterator(
             json_deep_copy(match_cond), // owned
             NULL,               // index only, get-page reads lazily
             json_string_value(jn_part_id),
-            gobj_name(gobj),    // creator
+            creator,
             NULL,               // data
             json_pack("{s:I}",  // extra, owned
                 "src_gobj", (json_int_t)(uintptr_t)src
@@ -2849,7 +2867,7 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
     if(kw_has_key(priv->iterators, iterator_id)) {
         return msg_iev_build_response(
             gobj,
-            0,
+            -1,
             json_sprintf("Iterator is already open: '%s'", iterator_id),
             0,
             0,
@@ -3204,7 +3222,7 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     if(kw_has_key(priv->rts, rt_id)) {
         return msg_iev_build_response(
             gobj,
-            0,
+            -1,
             json_sprintf("Realtime feed is already open: '%s'", rt_id),
             0,
             0,

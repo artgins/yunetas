@@ -1949,6 +1949,15 @@ treedb_activate_snap(tranger, treedb_name, "arranged");  // reload: x is 10 agai
 
 **What a snap holds, and for how long.** Only `shoot-snap` tags records, and a save is always written with tag 0. So `activate-snap` returns every topic to what it was when the snap was shot: rows created after it are absent, and rows updated after it show their content at the shot. This is also true for rows written WHILE the snap is activated. Two earlier rules broke this. Up to 7.22.x a save inherited the node's tag, so the latest snap followed every later update (fixed in 7.23.0). In 7.23.x a save took the tag of the activated snap, so a binary installed during a rollback went into the photo (fixed in 7.24.0). Two guards follow the snap rather than the node's tag in memory:
 
+**After `deactivate-snap`, `shoot-snap` waits for a reload.** The refusal of a
+shot while a snap is active (7.25.0) also holds while the treedb is still
+LOADED from one: `deactivate-snap` clears the tag on disk but the primary
+index in memory is the filtered one until the treedb is opened again, and a
+shot of that index would be a shot of the photo. C_NODE has no reload command;
+the agent's `deactivate-snap` reloads (`restart_nodes()`), any other yuno is
+restarted. Until then `shoot-snap` answers *"reload it first"*.
+
+
 - [`treedb_delete_node()`](<#treedb_delete_node>) erases the whole key, so it refuses a node any existing snap holds a record of (*"cannot delete node, a snapshot still holds it"*), asking the key's records when the primary carries no tag; `ignore_snaps` overrides (`force` does not, since after 7.24.1).
 - `treedb_gc_files()` holds an asset a node named when a snap was shot for as long as that snap's row exists, whether or not the node has moved on. Deleting the snap frees it.
 

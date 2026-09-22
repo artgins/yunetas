@@ -1414,7 +1414,7 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
      *  refused every record of it.
      */
     {
-        const char *names[] = {"bad_file", "bad_hook_fkey", "bad_hook_type", NULL};
+        const char *names[] = {"bad_file", "bad_hook_fkey", "bad_hook_type", "bad_hook_string", NULL};
         json_t *defs[] = {
             json_pack("{s:s, s:s, s:s, s:[s,s], s:s}",
                 "value", "bad_file", "header", "Bad file", "type", "integer",
@@ -1424,6 +1424,12 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
                 "flag", "hook", "fkey", "topics", users_fkey),
             json_pack("{s:s, s:s, s:s, s:[s], s:s}",
                 "value", "bad_hook_type", "header", "Bad", "type", "integer",
+                "flag", "hook", "topics", users_fkey),
+            /*  A string hook was blessed here and refused by every link
+             *  into it ("wrong parent hook type"), after the unlink of a
+             *  replace: the M1 shape again (a low of the 2026-09-22 review).  */
+            json_pack("{s:s, s:s, s:s, s:[s], s:s}",
+                "value", "bad_hook_string", "header", "Bad", "type", "string",
                 "flag", "hook", "topics", users_fkey),
         };
         for(int i = 0; names[i]; i++) {

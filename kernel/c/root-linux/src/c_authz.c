@@ -148,6 +148,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_accesses(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *refuse_on_replica(hgobj gobj, json_t *kw);
 PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE BOOL role_ref_is_linkable(hgobj gobj, const char *role_ref);
 PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -1669,11 +1670,39 @@ PRIVATE json_t *cmd_accesses(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Every write of this service lands on the users treedb, and a replica
+ *  refuses it: the update answered the node all the same until 7.25.3
+ *  (and the in-memory node had moved). Refused here, up front, with one
+ *  answer, before anything is read or moved.
+ ***************************************************************************/
+PRIVATE json_t *refuse_on_replica(hgobj gobj, json_t *kw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->tranger && !kw_get_bool(gobj, priv->tranger, "master", 0, KW_REQUIRED)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: READ-ONLY replica, the users store cannot be written here",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    return NULL;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused = refuse_on_replica(gobj, kw);
+    if(refused) {
+        return refused;
+    }
 
     /*--------------------------*
      *      Get parameters
@@ -1803,6 +1832,10 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused = refuse_on_replica(gobj, kw);
+    if(refused) {
+        return refused;
+    }
 
     /*--------------------------*
      *      Get parameters
@@ -1933,6 +1966,10 @@ PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused = refuse_on_replica(gobj, kw);
+    if(refused) {
+        return refused;
+    }
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
     if(empty_string(username)) {
@@ -2004,6 +2041,10 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused = refuse_on_replica(gobj, kw);
+    if(refused) {
+        return refused;
+    }
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
     if(empty_string(username)) {
@@ -2083,6 +2124,10 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused = refuse_on_replica(gobj, kw);
+    if(refused) {
+        return refused;
+    }
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
     BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
@@ -2273,6 +2318,10 @@ PRIVATE json_t *cmd_check_user_passw(hgobj gobj, const char *cmd, json_t *kw, hg
 PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused = refuse_on_replica(gobj, kw);
+    if(refused) {
+        return refused;
+    }
 
     /*--------------------------*
      *      Get parameters
@@ -2598,6 +2647,10 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *refused = refuse_on_replica(gobj, kw);
+    if(refused) {
+        return refused;
+    }
 
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
     int max_sessions = (int)kw_get_int(gobj, kw, "max_sessions", 0, KW_WILD_NUMBER);
@@ -2632,7 +2685,7 @@ PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hg
 
         json_object_set_new(user, "max_sessions", json_integer(max_sessions));
 
-        json_decref(gobj_update_node(
+        json_t *updated = gobj_update_node(
             priv->gobj_treedb,
             "users",
             user,
@@ -2640,7 +2693,20 @@ PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hg
                 "with_metadata", 1
             ),
             src
-        ));
+        );
+        if(!updated) {
+            // Error already logged
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: cannot set max_sessions of user '%s' (see the log)",
+                    gobj_yuno_role_plus_name(), username),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        JSON_DECREF(updated)
     }
 
     return msg_iev_build_response(
@@ -4301,7 +4367,7 @@ PRIVATE int ac_reject_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
         ret++;
     }
 
-    json_decref(gobj_update_node(
+    json_t *updated = gobj_update_node(
         priv->gobj_treedb,
         "users",
         user,
@@ -4310,7 +4376,17 @@ PRIVATE int ac_reject_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
             "with_metadata", 1
         ),
         src
-    ));
+    );
+    if(!updated) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "cannot record the dropped sessions of the user (see the log)",
+            "username",     "%s", username,
+            NULL
+        );
+    }
+    JSON_DECREF(updated)
 
     KW_DECREF(kw)
     return ret;
