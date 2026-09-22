@@ -84,7 +84,7 @@ with links to the API documentation.
 
 15. [**`print_track_mem`**](helpers/memory.md#print_track_mem) — `PUBLIC void print_track_mem(void)`
 
-### `gbuffer.h` — 25 functions
+### `gbuffer.h` — 26 functions
 
 **Source:** `kernel/c/gobj-c/src/gbuffer.h`
 
@@ -132,11 +132,13 @@ with links to the API documentation.
 
 22. [**`gbuf2json`**](helpers/gbuffer.md#gbuf2json) — `PUBLIC json_t *gbuf2json( gbuffer_t *gbuf, int verbose )`
 
-23. [**`config_gbuffer2json`**](helpers/gbuffer.md#config_gbuffer2json) — `PUBLIC json_t *config_gbuffer2json( gbuffer_t *gbuf, int verbose )`
+23. [**`gbuf2json_from_peer`**](helpers/gbuffer.md#gbuf2json_from_peer) — `PUBLIC json_t *gbuf2json_from_peer( hgobj gobj, gbuffer_t *gbuf, hgobj peer_gobj )`
 
-24. [**`gobj_trace_dump_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_gbuf) — `PUBLIC void gobj_trace_dump_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
+24. [**`config_gbuffer2json`**](helpers/gbuffer.md#config_gbuffer2json) — `PUBLIC json_t *config_gbuffer2json( gbuffer_t *gbuf, int verbose )`
 
-25. [**`gobj_trace_dump_full_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_full_gbuf) — `PUBLIC void gobj_trace_dump_full_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
+25. [**`gobj_trace_dump_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_gbuf) — `PUBLIC void gobj_trace_dump_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
+
+26. [**`gobj_trace_dump_full_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_full_gbuf) — `PUBLIC void gobj_trace_dump_full_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
 
 ### `glogger.h` — 34 functions
 
@@ -1232,7 +1234,7 @@ with links to the API documentation.
 
 9. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 578 functions**
+**Total: 579 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2331,6 +2333,7 @@ All **958 functions** sorted alphabetically with their source header.
 | [**`gbmem_strndup`**](helpers/memory.md#gbmem_strndup) | `gbmem.h` | gobj-c (Core Framework) |
 | [**`gbuf2file`**](helpers/gbuffer.md#gbuf2file) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuf2json`**](helpers/gbuffer.md#gbuf2json) | `gbuffer.h` | gobj-c (Core Framework) |
+| [**`gbuf2json_from_peer`**](helpers/gbuffer.md#gbuf2json_from_peer) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuffer_append`**](helpers/gbuffer.md#gbuffer_append) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuffer_append_gbuf`**](helpers/gbuffer.md#gbuffer_append_gbuf) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuffer_append_json`**](helpers/gbuffer.md#gbuffer_append_json) | `gbuffer.h` | gobj-c (Core Framework) |

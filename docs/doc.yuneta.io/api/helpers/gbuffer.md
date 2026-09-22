@@ -34,6 +34,54 @@ Returns a `json_t *` object if parsing is successful. Returns `NULL` if parsing 
 
 The function uses `json_load_callback()` to parse the JSON data from the buffer. If parsing fails, an error is logged based on the `verbose` level.
 
+Use it for JSON that YOUR code wrote. For JSON received from a peer, use [`gbuf2json_from_peer()`](#gbuf2json_from_peer): `gbuf2json(gbuf, 2)` logs a frame from outside as an ERROR with a stack trace and the whole buffer, and names no peer.
+
+---
+
+(gbuf2json_from_peer)=
+## [`gbuf2json_from_peer()`](https://github.com/artgins/yunetas/blob/7.25.1/kernel/c/gobj-c/src/gbuffer.c#L1200)
+
+Converts a [`gbuffer_t *`](#gbuffer_t) RECEIVED from a peer into a `json_t *`. Bytes that are not JSON are the peer's doing, not a broken invariant of ours, so the failure is one WARNING (`MSGSET_PROTOCOL`, *"frame is not json"*) that names the peer, gives the parser's error and the length, and dumps at most 256 bytes. No stack trace.
+
+```C
+json_t *gbuf2json_from_peer(
+    hgobj gobj,
+    gbuffer_t *gbuf,    // owned
+    hgobj peer_gobj     // the channel it came through, NULL if unknown
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj that logs the warning. |
+| `gbuf` | `gbuffer_t *` | The received data. It is consumed: do not use it after the call. |
+| `peer_gobj` | `hgobj` | Any gobj above the transport the data came through (the channel of a `C_IOGATE`, or the protocol gobj). The `peername` of the transport under it goes into the warning. `NULL` if unknown. |
+
+**Returns**
+
+A `json_t *` (yours) if the data is JSON, `NULL` otherwise.
+
+**Example**
+
+A gate reading the frames of its input side:
+
+```C
+gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+GBUFFER_INCREF(gbuf)
+json_t *jn_msg = gbuf2json_from_peer(
+    gobj,
+    gbuf,
+    (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", (json_int_t)(size_t)src, 0)
+);
+if(!jn_msg) {
+    // Error already logged, as a warning: the bytes are the peer's
+    KW_DECREF(kw);
+    return -1;
+}
+```
+
 ---
 
 (gbuffer_append)=

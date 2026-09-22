@@ -372,6 +372,20 @@ PUBLIC json_t *gbuf2json(
 );
 
 /*
+ *  The same, for bytes that came from a PEER: a frame that is not json is
+ *  the peer's doing, not a broken invariant of ours, so it is logged as a
+ *  WARNING (MSGSET_PROTOCOL, no stack) naming the peer (the `peername` of
+ *  the transport under peer_gobj), with the parser's
+ *  error and a capped dump of the bytes. Use it wherever the gbuffer was
+ *  received; use gbuf2json() for what we wrote ourselves.
+ */
+PUBLIC json_t *gbuf2json_from_peer(
+    hgobj gobj,
+    gbuffer_t *gbuf,        // owned
+    hgobj peer_gobj         // the channel (or any gobj above the transport) it came through, NULL if unknown
+);
+
+/*
  *  Convert a json config with comments in gbuffer to json
  */
 PUBLIC json_t *config_gbuffer2json(

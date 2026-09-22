@@ -924,8 +924,14 @@ PRIVATE int process_ack(
 
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
+    hgobj channel_gobj = (hgobj)(uintptr_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
     gbuffer_incref(gbuf);
-    json_t *jn_ack_message = gbuf2json(gbuf, 2);
+    json_t *jn_ack_message = gbuf2json_from_peer(gobj, gbuf, channel_gobj?channel_gobj:src);
+    if(!jn_ack_message) {
+        // Error already logged, as a warning: the bytes are the peer's
+        KW_DECREF(kw)
+        return -1;
+    }
 
     json_t *trq_md = trq_get_metadata(jn_ack_message);
     uint64_t rowid = kw_get_int(

@@ -1420,7 +1420,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     bf = gbuffer_cur_rd_pointer(gbuf);
     if(*bf == '{') {
         gbuffer_incref(gbuf);
-        json_t *jn_value = gbuf2json(gbuf, 2); // gbuf stolen
+        json_t *jn_value = gbuf2json_from_peer(gobj, gbuf, src); // gbuf stolen; a truncated datagram is a warning
         if(jn_value) {
             do_log_stats(gobj, priority, jn_value);
             json_decref(jn_value);

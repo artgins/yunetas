@@ -358,6 +358,11 @@ Corollaries:
   broken **internal invariant** ⇒ `gobj_log_error` with stack trace. Ask:
   "could a remote peer trigger this with bad bytes?" → warning; "our own
   contract is broken" → error.
+  **Json received from a peer is parsed with `gbuf2json_from_peer(gobj,
+  gbuf, channel_gobj)`**, which does exactly that (warning, `peername`,
+  capped dump, no stack). `gbuf2json(gbuf, 2)` is for json WE wrote: on a
+  frame from outside it logs an ERROR with a stack and the whole buffer, and
+  names no peer.
 
 ## C coding rules
 

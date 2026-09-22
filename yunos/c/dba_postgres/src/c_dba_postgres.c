@@ -923,7 +923,11 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
         gbuffer_incref(gbuf);
-        json_t *jn_msg = gbuf2json(gbuf, 2);
+        json_t *jn_msg = gbuf2json_from_peer(
+            gobj,
+            gbuf,
+            (hgobj)(uintptr_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0)
+        );
 
         if(jn_msg) {
             hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
@@ -943,7 +947,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             JSON_DECREF(jn_msg);
 
         } else {
-            ret = -1;
+            ret = -1;   // Error already logged, as a warning: the bytes are the peer's
         }
     } else {
         gobj_log_error(gobj, 0,

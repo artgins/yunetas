@@ -1191,6 +1191,51 @@ PUBLIC json_t *gbuf2json(
 }
 
 /***************************************************************************
+ *  Convert json in a gbuffer RECEIVED from a peer: a failure is the
+ *  peer's bad bytes, so a warning with a capped dump, never an error with
+ *  a stack (see the decoder-severity rule of the yunetas CLAUDE.md).
+ *  gbuf is decref
+ *  Return NULL if error
+ ***************************************************************************/
+#define PEER_JSON_DUMP_SIZE (256)   // Cap the data dump added to logs, for very large packets
+
+PUBLIC json_t *gbuf2json_from_peer(
+    hgobj gobj,
+    gbuffer_t *gbuf,        // owned
+    hgobj peer_gobj         // the channel it came through, NULL if unknown
+)
+{
+    size_t flags = JSON_DECODE_ANY|JSON_ALLOW_NUL;
+    json_error_t jn_error;
+    char *p = gbuffer_cur_rd_pointer(gbuf);
+    size_t len = gbuffer_leftbytes(gbuf);
+    json_t *jn_msg = json_loads(p, flags, &jn_error);
+
+    if(!jn_msg) {
+        const char *peername = "";
+        if(peer_gobj && gobj_has_bottom_attr(peer_gobj, "peername")) {
+            peername = gobj_read_str_attr(peer_gobj, "peername");
+        }
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "frame is not json",
+            "peername",     "%s", peername?peername:"",
+            "error",        "%s", jn_error.text,
+            "len",          "%d", (int)len,
+            NULL
+        );
+        gobj_trace_dump(gobj,
+            p,
+            len < PEER_JSON_DUMP_SIZE? len: PEER_JSON_DUMP_SIZE,
+            "frame is not json"
+        );
+    }
+    gbuffer_decref(gbuf);
+    return jn_msg;
+}
+
+/***************************************************************************
  *  Convert a json config with comments in gbuffer to json
  *  gbuf is decref
  *  Return NULL if error

@@ -5,7 +5,9 @@
  *          pointer accessors (gbuffer_cur_rd_pointer / _cur_wr_pointer /
  *          _head_pointer). A NULL gbuffer must return NULL, not crash
  *          (hardens the content64/base64 NULL-deref family at the source).
- *          Also asserts the valid path is unchanged.
+ *          Also asserts the valid path is unchanged, and that bytes from
+ *          a peer that are not json are a WARNING, not an error
+ *          (gbuf2json_from_peer).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -89,6 +91,52 @@ PRIVATE void test_valid_path(void)
 }
 
 /***************************************************************************
+ *  Bytes from a peer: json comes back as json, and bytes that are not json
+ *  are the peer's doing -- a WARNING, never an error (the decoder-severity
+ *  rule). gbuf2json(gbuf, 2) logs the same bytes as an ERROR with a stack.
+ *
+ *  What is emitted is read from a log handler of the test's own, not from
+ *  the priority counters: with no yuno registered, trace_vjson() fails to
+ *  read the yuno's node_uuid and those internal logs are counted without
+ *  being emitted.
+ ***************************************************************************/
+PRIVATE int captured_warnings = 0;
+PRIVATE int captured_errors = 0;
+
+PRIVATE int capture_write(void *h, int priority, const char *bf, size_t len)
+{
+    if(priority == LOG_WARNING) {
+        captured_warnings++;
+    } else if(priority <= LOG_ERR) {
+        captured_errors++;
+    }
+    return 0;
+}
+
+PRIVATE void test_json_from_peer(void)
+{
+    gbuffer_t *gbuf = gbuffer_create(64, 64);
+    gbuffer_append_string(gbuf, "{\"a\": 1}");
+    json_t *jn = gbuf2json_from_peer(0, gbuf, 0);
+    ok_or_fail(json_is_object(jn) && json_integer_value(json_object_get(jn, "a")) == 1,
+        "gbuf2json_from_peer: json comes back");
+    JSON_DECREF(jn);
+
+    gobj_log_register_handler("capture", 0, capture_write, 0);
+    gobj_log_add_handler("capture", "capture", LOG_OPT_ALL, 0);
+
+    gbuf = gbuffer_create(64, 64);
+    gbuffer_append_string(gbuf, "\x16\x03\x01 not json at all");
+    jn = gbuf2json_from_peer(0, gbuf, 0);
+    ok_or_fail(jn == NULL, "gbuf2json_from_peer: bad bytes give NULL");
+    ok_or_fail(captured_warnings == 1, "gbuf2json_from_peer: one warning");
+    ok_or_fail(captured_errors == 0, "gbuf2json_from_peer: no error");
+    JSON_DECREF(jn);
+
+    gobj_log_del_handler("capture");
+}
+
+/***************************************************************************
  *      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -127,6 +175,7 @@ int main(int argc, char *argv[])
     test_sink_graceful();
     test_wrap_guard();
     test_valid_path();
+    test_json_from_peer();
 
     gobj_end();
 

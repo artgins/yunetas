@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### gobj-c: `gbuf2json_from_peer()` -- a frame from a peer that is not json is a warning
+
+- New `gbuf2json_from_peer(gobj, gbuf, peer_gobj)`: parses json RECEIVED
+  from a peer and, when it is not json, logs one WARNING (`MSGSET_PROTOCOL`,
+  *"frame is not json"*, the `peername` of the transport under `peer_gobj`,
+  the parser's error, the length) with a dump capped at 256 bytes and no
+  stack -- the decoder-severity rule. `gbuf2json(gbuf, 2)`, which callers
+  used for that, logs an ERROR with a stack and the whole buffer, and names
+  no peer: an internet scanner on a yunovatios gate left exactly that.
+- Switched: `c_qiogate` (the ack of the remote gate -- which also went on
+  with a NULL ack and logged more errors; it returns now), `logcenter` (a
+  truncated UDP datagram is a warning, not an error with a stack) and
+  `dba_postgres`. `c_node` keeps `gbuf2json()`: it reads its own store.
+- Test: `gbuffer/test_gbuffer_guards` (json back; bad bytes give one
+  warning and no error, read from a log handler of the test).
+
 ### C_TREEDB: `saved-schema` on a treedb with nothing saved no longer logs an error
 
 - The console asks `saved-schema` of every treedb it shows, and most have no
