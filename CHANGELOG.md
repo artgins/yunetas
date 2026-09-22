@@ -1,5 +1,16 @@
 # **Changelog**
 
+## Unreleased
+
+### yunos-js gui_treedb 0.17.56
+
+- `yunos/js` -> gui_treedb 0.17.56: discovery re-runs only for a connection
+  whose `C_NODE` services lack `master` (0.17.55 counted `C_TRANGER` too,
+  which never has one, so every session re-ran the whole discovery), and a
+  finished scan no longer logs `C_TIMER^scan_timer_N: GObj NOT RUNNING` (a
+  `gobj_stop()` after `clear_timeout()`, which already stops it). Deployed to
+  `artgins.ytreedb.com`.
+
 ## v7.25.3 (2026-09-23)
 
 ### gobj-js 7.25.0
