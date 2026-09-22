@@ -128,8 +128,10 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
-    /*  Test 4: a literal behind the projection, then one ahead  */
-    "TreeDB schema from C is behind the schema in use, not applied",
+    /*  Test 4: a literal newer than the FILE takes over a save never
+     *  applied (projected over it, said), then one ahead  */
+    "Schema from C takes over the file in use while __system__ holds a draft saved over it: the draft is replaced by the schema from C",
+    "Updating TreeDB schema in __system__",
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
@@ -214,8 +216,10 @@ PRIVATE const char *expected_log_msgs[] = {
     "TreeDB schema from C is behind the schema in use, not applied",
     "Imposing TreeDB schema from C over a newer one",
     "Re-Creating TreeDB schema file",
-    /*  Test 13b: save-schema (twice), apply refused while imposed, applied, the file decides  */
+    /*  Test 13b: save-schema (twice, then once over a dict file), apply
+     *  refused while imposed, applied, the file decides  */
     "TreeDB schema from C is behind the schema in use, not applied",
+    "Schema saved",
     "Schema saved",
     "Schema saved",
     "impose_c_schema forced by the code of the yuno, over the attribute",
@@ -226,6 +230,23 @@ PRIVATE const char *expected_log_msgs[] = {
     "TreeDB schema from C is behind the schema in use, not applied",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
+    /*  Test 13c: apply of all is all or none: A saved, B opened (+ its
+     *  three), B's saved schema does not parse, then A alone applied  */
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Schema saved",
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "wrong type for list",
+    "Data must be an {} or [{}]",
+    "wrong type for list",
+    "topic without cols",
+    "Schema applied",
+    /*  Test 13d: every command refuses `denied`, which logs nothing  */
+    /*  Test 14: the replica, and its C_TREEDB writes READ-ONLY  */
     "impose_c_schema forced by the code of the yuno, over the attribute",
     "Opening TreeDB with the schema from C, __system__ not read",
     /*  end  */

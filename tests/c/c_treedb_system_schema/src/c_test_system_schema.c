@@ -21,6 +21,7 @@
  ***********************************************************************/
 #include <string.h>
 #include <limits.h>
+#include <sys/stat.h>
 
 #include "c_test_system_schema.h"
 
@@ -29,6 +30,7 @@
  ***************************************************************************/
 #define TREEDB_NAME     "treedb_test1"
 #define DELETE_TREEDB_NAME "treedb_to_delete"
+#define B_TREEDB_NAME   "treedb_test_b"     /*  the second treedb of an apply-schema of all  */
 #define SYSTEM_TREEDB   "treedb_system_schema"
 
 /***************************************************************************
@@ -2740,6 +2742,54 @@ PRIVATE int check_replica_writes_nothing(hgobj gobj)
     }
     JSON_DECREF(cols)
 
+    /*
+     *  Every write of C_TREEDB answers READ-ONLY on a replica, and the
+     *  unnamed apply has nothing it could apply: 0 and no row
+     */
+    struct {
+        const char *command;
+        json_t *kw;
+    } writes[] = {
+        {"save-schema",   json_pack("{s:s}", "treedb_name", DELETE_TREEDB_NAME)},
+        {"apply-schema",  json_pack("{s:s}", "treedb_name", DELETE_TREEDB_NAME)},
+        {"create-topic",  json_pack("{s:s, s:s, s:{s:{s:s, s:s, s:[s]}}}",
+            "treedb_name", DELETE_TREEDB_NAME, "topic_name", "replica_topic",
+            "cols", "id", "header", "Id", "type", "string", "flag", "persistent")},
+        {"delete-topic",  json_pack("{s:s, s:s}", "treedb_name", DELETE_TREEDB_NAME, "topic_name", "alfa")},
+        {"delete-treedb", json_pack("{s:s, s:b}", "treedb_name", TREEDB_NAME, "force", 1)},
+    };
+    for(size_t i = 0; i < sizeof(writes)/sizeof(writes[0]); i++) {
+        json_t *jn_resp = gobj_command(priv->gobj_treedbs, writes[i].command, writes[i].kw, gobj);
+        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
+        if(kw_get_int(gobj, jn_resp, "result", 0, 0) != -1 || !strstr(comment, "READ-ONLY")) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a C_TREEDB write on a replica was not answered READ-ONLY",
+                "command",      "%s", writes[i].command,
+                "comment",      "%s", comment,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+    }
+    {
+        json_t *jn_resp = gobj_command(priv->gobj_treedbs, "apply-schema", json_object(), gobj);
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) != 0 ||
+                json_array_size(kw_get_list(gobj, jn_resp, "data", 0, 0)) != 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: an apply of all on a replica answered a row",
+                "answer",       "%j", jn_resp,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+    }
+
     close_treedb_to_delete(gobj);
 
     return result;
@@ -3150,6 +3200,21 @@ PRIVATE int check_save_and_apply(hgobj gobj)
     }
 
     /*
+     *  Before the save, saved-schema names the topic the DRAFT changes (the
+     *  mark the schema editor rebuilds after a reload, N13 of the 2026-09-22
+     *  review): `users` was edited above, `departments` not
+     */
+    jn_resp = treedbs_command(gobj, "saved-schema", json_object());
+    {
+        json_t *draft_changed = kw_get_dict(gobj, jn_resp, "data`draft_changed", 0, 0);
+        if(!draft_changed || !json_is_true(json_object_get(draft_changed, "users")) ||
+                json_object_get(draft_changed, "departments")) {
+            result += save_fail(gobj, "TEST FAIL: saved-schema did not say what the draft changes", jn_resp);
+        }
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
      *  Save: twice, the second changes nothing
      */
     for(int i = 0; i < 2; i++) {
@@ -3243,6 +3308,21 @@ PRIVATE int check_save_and_apply(hgobj gobj)
         }
         JSON_DECREF(jn_resp)
 
+        /*  ...and the VERSIONS read from it are the same: a real save over
+         *  the dict file publishes what it published over the list one --
+         *  `users` only, at the same numbers (counting rows alone would not
+         *  see a topic_version read as 0 from a dict).  */
+        jn_resp = treedbs_command(gobj, "save-schema", json_object());
+        json_t *topic_versions = kw_get_dict(gobj, jn_resp, "data`topic_versions", 0, 0);
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+                kw_get_int(gobj, jn_resp, "data`schema_version", 0, KW_WILD_NUMBER) != expected_v ||
+                json_integer_value(json_object_get(topic_versions, "users")) != expected_users_v ||
+                json_object_get(topic_versions, "departments") ||
+                system_topic_version(gobj, "departments") != departments_v) {
+            result += save_fail(gobj, "TEST FAIL: a save over a dict file in use published other versions", jn_resp);
+        }
+        JSON_DECREF(jn_resp)
+
         save_json_to_file(gobj, in_use_dir, TREEDB_NAME ".treedb_schema.json",
             02770, 0660, 0, TRUE, FALSE, as_list  // owned: the file as it was
         );
@@ -3258,15 +3338,48 @@ PRIVATE int check_save_and_apply(hgobj gobj)
             json_object_size(kw_get_dict(gobj, jn_resp, "data`diff`changed", 0, 0)) == 0) {
         result += save_fail(gobj, "TEST FAIL: saved-schema did not say what the save changes", jn_resp);
     }
-    /*  ...and which topics the DRAFT in __system__ changes against the file
-     *  in use: the mark the schema editor rebuilds after a reload (N13 of
-     *  the 2026-09-22 review). `users` was edited above; `departments` not.  */
+    /*  ...and, once saved, the draft is no longer "unsaved": it is diffed
+     *  against the SAVED schema, not the file in use. Diffed against the
+     *  file in use, `users` stayed "changed" after a successful save until
+     *  an Apply -- for ever on an imposed treedb (M1 of the 2026-09-23
+     *  review).  */
     {
         json_t *draft_changed = kw_get_dict(gobj, jn_resp, "data`draft_changed", 0, 0);
-        if(!draft_changed || !json_is_true(json_object_get(draft_changed, "users")) ||
-                json_object_get(draft_changed, "departments")) {
-            result += save_fail(gobj, "TEST FAIL: saved-schema did not say what the draft changes", jn_resp);
+        if(!draft_changed || json_object_size(draft_changed) != 0) {
+            result += save_fail(gobj, "TEST FAIL: a saved draft still reads as unsaved", jn_resp);
         }
+    }
+    /*  `default: {}` is the meta-schema's placeholder for "no default", not
+     *  something the literal says: it must not reach the saved file nor
+     *  read as a difference of the array columns (`departments`, `users`)  */
+    {
+        int idx_k;
+        const char *parts[] = {"added", "removed", "changed", NULL};
+        for(idx_k = 0; parts[idx_k]; idx_k++) {
+            json_t *part = kw_get_dict(gobj, jn_resp, "data`diff", 0, 0);
+            part = part? json_object_get(part, parts[idx_k]) : NULL;
+            const char *id_k; json_t *v_k;
+            json_object_foreach(part, id_k, v_k) {
+                size_t len = strlen(id_k);
+                json_t *v_def = json_object_get(v_k, "to")? json_object_get(v_k, "to") : v_k;
+                if(len >= 8 && strcmp(id_k + len - 8, "`default")==0 &&
+                        json_is_object(v_def) && json_object_size(v_def)==0) {
+                    result += save_fail(gobj, "TEST FAIL: saved-schema reads a placeholder default as a change", jn_resp);
+                }
+            }
+        }
+        json_t *saved_now = load_json_from_file(gobj, saved_dir, TREEDB_NAME ".treedb_schema.json", 0);
+        int idx_t; json_t *jn_topic;
+        json_array_foreach(json_object_get(saved_now, "topics"), idx_t, jn_topic) {
+            const char *col_name; json_t *col;
+            json_object_foreach(json_object_get(jn_topic, "cols"), col_name, col) {
+                json_t *def = json_object_get(col, "default");
+                if(json_is_object(def) && json_object_size(def)==0) {
+                    result += save_fail(gobj, "TEST FAIL: the saved schema carries a placeholder default", col);
+                }
+            }
+        }
+        JSON_DECREF(saved_now)
     }
     JSON_DECREF(jn_resp)
 
@@ -3295,7 +3408,8 @@ PRIVATE int check_save_and_apply(hgobj gobj)
         return result - 1;
     }
     jn_resp = treedbs_command(gobj, "apply-schema", json_object());
-    if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0) {
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 ||
+            kw_get_bool(gobj, jn_resp, "data`applied", 1, 0)) {
         result += save_fail(gobj, "TEST FAIL: apply-schema applied over an imposed schema", jn_resp);
     }
     JSON_DECREF(jn_resp)
@@ -3322,10 +3436,34 @@ PRIVATE int check_save_and_apply(hgobj gobj)
     JSON_DECREF(jn_resp)
 
     jn_resp = treedbs_command(gobj, "apply-schema", json_object());
-    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 || disk_schema_version(gobj) != expected_v) {
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 || disk_schema_version(gobj) != expected_v ||
+            !kw_get_bool(gobj, jn_resp, "data`applied", 0, 0)) {
         result += save_fail(gobj, "TEST FAIL: apply-schema did not put the saved schema in place", jn_resp);
     }
     JSON_DECREF(jn_resp)
+
+    /*
+     *  Put in place by a rename of a flushed temporary: none is left behind,
+     *  and the file keeps the mode the tranger gives it (0660, never 0440)
+     */
+    {
+        char in_use_dir[PATH_MAX];
+        build_path(in_use_dir, sizeof(in_use_dir), priv->path_database, TREEDB_NAME, NULL);
+        char in_use_file[PATH_MAX];
+        build_path(in_use_file, sizeof(in_use_file), in_use_dir, TREEDB_NAME ".treedb_schema.json", NULL);
+        struct stat st;
+        if(file_exists(in_use_dir, "." TREEDB_NAME ".treedb_schema.json.tmp") ||
+                stat(in_use_file, &st) < 0 || (st.st_mode & 0777) != 0660) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: apply-schema left a temporary or changed the mode",
+                "mode",         "%o", (unsigned)(st.st_mode & 0777),
+                NULL
+            );
+            result += -1;
+        }
+    }
 
     /*
      *  The file decides: the literal is older, the saved header runs
@@ -3344,6 +3482,231 @@ PRIVATE int check_save_and_apply(hgobj gobj)
             NULL
         );
         result += -1;
+    }
+
+    return result;
+}
+
+/***************************************************************************
+ *  A second treedb for the apply-schema of all of them
+ ***************************************************************************/
+PRIVATE char schema_test_b[] = "\
+{                                                                   \n\
+    'id': '"B_TREEDB_NAME"',                                        \n\
+    'schema_version': 1,                                            \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'things',                                         \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': 1,                                     \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'name': {                                           \n\
+                    'header': 'Name',                               \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent']                          \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
+PRIVATE json_int_t b_in_use_version(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, B_TREEDB_NAME, NULL);
+    json_t *jn = load_json_from_file(gobj, dir, B_TREEDB_NAME ".treedb_schema.json", 0);
+    json_int_t v = kw_get_int(gobj, jn, "schema_version", -1, KW_WILD_NUMBER);
+    JSON_DECREF(jn)
+    return v;
+}
+
+/***************************************************************************
+ *  apply-schema of every treedb is ALL OR NONE (M2 of the 2026-09-23
+ *  review). It applied them one by one: A replaced, B refused, answer -1,
+ *  and a console that read the -1 as "nothing applied" did not restart --
+ *  A went in use silently at some later start. And each row says whether
+ *  ITS file was replaced (`data.applied`), which is what a console restarts
+ *  a yuno for.
+ ***************************************************************************/
+PRIVATE int check_apply_all_or_none(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    json_t *jn_resp;
+
+    /*
+     *  A: the test treedb, impose off, with a saved schema newer than the
+     *  one in use
+     */
+    if(reopen_test_treedb(gobj, FALSE) < 0) {
+        return -1;  // Error already logged
+    }
+    json_t *ids = system_topic_cols(gobj, "users");
+    const char *username_id = json_string_value(json_object_get(ids, "username"));
+    json_t *edited = gobj_update_node(
+        gobj_find_service(SYSTEM_TREEDB, FALSE),
+        "cols",
+        json_pack("{s:s, s:s}", "id", username_id?username_id:"", "header", "All or none"),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    JSON_DECREF(edited)
+    JSON_DECREF(ids)
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    json_int_t a_saved = kw_get_int(gobj, jn_resp, "data`schema_version", 0, KW_WILD_NUMBER);
+    JSON_DECREF(jn_resp)
+    json_int_t a_in_use = disk_schema_version(gobj);
+    if(a_saved <= a_in_use) {
+        return save_fail(gobj, "TEST FAIL: no saved schema newer than the one in use to apply", NULL);
+    }
+
+    /*
+     *  B: another treedb, impose off, whose saved schema does not parse
+     */
+    helper_quote2doublequote(schema_test_b);
+    jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb",
+        json_pack("{s:s, s:i, s:s, s:o}",
+            "filename_mask", "%Y",
+            "exit_on_error", 0,
+            "treedb_name", B_TREEDB_NAME,
+            "treedb_schema", legalstring2json(schema_test_b, TRUE)
+        ),
+        gobj
+    );
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+        result += save_fail(gobj, "TEST FAIL: cannot open the second treedb", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    char saved_dir[PATH_MAX];
+    build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    save_json_to_file(gobj, saved_dir, B_TREEDB_NAME ".treedb_schema.json",
+        02770, 0660, 0, TRUE, FALSE,
+        json_pack("{s:s, s:i, s:[{s:s, s:s, s:s}]}",
+            "id", B_TREEDB_NAME,
+            "schema_version", 50,
+            "topics",
+                "id", "things",
+                "pkey", "id",
+                "cols", "not columns"
+        )
+    );
+
+    /*
+     *  B cannot be applied: NOTHING is written, A neither, and no row says
+     *  applied
+     */
+    jn_resp = gobj_command(priv->gobj_treedbs, "apply-schema", json_object(), gobj);
+    {
+        int rows_applied = 0;
+        int rows = 0;
+        int idx; json_t *row;
+        json_array_foreach(kw_get_list(gobj, jn_resp, "data", 0, 0), idx, row) {
+            rows++;
+            if(kw_get_bool(gobj, row, "data`applied", 1, 0)) {
+                rows_applied++;
+            }
+        }
+        if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 || rows != 2 || rows_applied != 0 ||
+                disk_schema_version(gobj) != a_in_use || b_in_use_version(gobj) != 1) {
+            result += save_fail(gobj, "TEST FAIL: an apply of all wrote something although one could not be applied", jn_resp);
+        }
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  B has nothing to apply: A is applied, and says so
+     */
+    file_remove(saved_dir, B_TREEDB_NAME ".treedb_schema.json");
+    jn_resp = gobj_command(priv->gobj_treedbs, "apply-schema", json_object(), gobj);
+    {
+        json_t *rows = kw_get_list(gobj, jn_resp, "data", 0, 0);
+        json_t *row = json_array_get(rows, 0);
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 || json_array_size(rows) != 1 ||
+                strcmp(kw_get_str(gobj, row, "treedb_name", "", 0), TREEDB_NAME)!=0 ||
+                !kw_get_bool(gobj, row, "data`applied", 0, 0) ||
+                disk_schema_version(gobj) != a_saved) {
+            result += save_fail(gobj, "TEST FAIL: an apply of all did not apply the one that could be", jn_resp);
+        }
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  Nothing left to apply: 0 and no row, so nobody restarts
+     */
+    jn_resp = gobj_command(priv->gobj_treedbs, "apply-schema", json_object(), gobj);
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            json_array_size(kw_get_list(gobj, jn_resp, "data", 0, 0)) != 0) {
+        result += save_fail(gobj, "TEST FAIL: an apply with nothing to apply answered a row", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", B_TREEDB_NAME, "force", 1), gobj);
+    JSON_DECREF(jn_resp)
+
+    return result;
+}
+
+/***************************************************************************
+ *  EVERY command of C_TREEDB refuses a user with no permission. Walked
+ *  from the table itself, like tests/c/c_node_authz does for C_NODE: a
+ *  hand-written list is what let save-schema and apply-schema ask the
+ *  wrong permission for a release (M41/M42 and F-2 of the reviews).
+ ***************************************************************************/
+PRIVATE int check_every_command_refuses_nobody(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    const char *asks_nothing[] = {
+        "help",     /*  the command list, and the parameters of each  */
+        "authzs",   /*  the permissions the service checks  */
+        NULL
+    };
+    const sdata_desc_t *cmds = gclass_command_desc(gclass_find_by_name(C_TREEDB), NULL, TRUE);
+    for(const sdata_desc_t *it = cmds; it && it->name; it++) {
+        BOOL exempt = FALSE;
+        for(int i = 0; asks_nothing[i]; i++) {
+            if(strcmp(it->name, asks_nothing[i])==0) {
+                exempt = TRUE;
+            }
+        }
+        if(exempt) {
+            continue;
+        }
+        json_t *jn_resp = gobj_command(priv->gobj_treedbs, it->name,
+            json_pack("{s:s, s:s, s:s, s:b, s:b, s:s}",
+                "__username__", "denied@test",
+                "treedb_name", TREEDB_NAME,
+                "topic_name", "users",
+                "force", 1,
+                "dry_run", 1,
+                "filename_mask", "%Y"
+            ),
+            gobj
+        );
+        int ret = (int)kw_get_int(gobj, jn_resp, "result", 0, 0);
+        if(ret != -403) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a C_TREEDB command served a user with no permission",
+                "command",      "%s", it->name,
+                "result",       "%d", ret,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
     }
 
     return result;
@@ -3677,11 +4040,17 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     /*-----------------------------------------------*
-     *  Test 4: an edit made here raises the published
-     *  version, and from then on the schema is changed
-     *  dynamically: a literal BEHIND it is not applied
-     *  (and says so), one AHEAD of it is, under its own
-     *  number. Nobody invents a version.
+     *  Test 4: __system__ is raised past the literal
+     *  (10, what a save does to a draft that is never
+     *  applied), while the file in use stays at 2. A
+     *  literal 3 is newer than the FILE, so the treedb
+     *  runs it -- and __system__ must say so: it is
+     *  projected, over the draft, and a warning says
+     *  the draft went. Judged by __system__'s 10 it was
+     *  "behind", never projected, and the next save put
+     *  the draft back over it (the second medium of M36,
+     *  2026-09-23 review). Then 11 lands as usual, under
+     *  its own number. Nobody invents a version.
      *-----------------------------------------------*/
     hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
     json_t *edited = gobj_update_node(
@@ -3696,7 +4065,7 @@ PRIVATE int run_tests(hgobj gobj)
     static const json_int_t literal_versions[] = {3, 11};
     for(int i=0; i<2; i++) {
         json_int_t literal_version = literal_versions[i];
-        BOOL must_land = literal_version > 10? TRUE: FALSE;
+        BOOL must_land = TRUE;
 
         /*
          *  jn_schema2 was consumed by the open above; parse the literal again
@@ -3919,6 +4288,18 @@ PRIVATE int run_tests(hgobj gobj)
      *  not impose the schema.
      *-----------------------------------------------*/
     result += check_save_and_apply(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13c: apply-schema of every treedb is all
+     *  or none, and each row says `applied`
+     *-----------------------------------------------*/
+    result += check_apply_all_or_none(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13d: every command of C_TREEDB refuses a
+     *  user with no permission
+     *-----------------------------------------------*/
+    result += check_every_command_refuses_nobody(gobj);
 
     result += check_replica_writes_nothing(gobj);
 

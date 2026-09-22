@@ -1503,6 +1503,30 @@ one in use, but its topic_version is not higher: not applied"*.
 `c_schema_version` only records which literal the projection came from, for
 `diff-schema`.
 
+**"Behind" is judged against the FILE in use too** (after 7.25.3), because
+`save-schema` writes the same number into `__system__` that a literal author
+writes into the literal. When `__system__` holds a save that was never applied
+(its `schema_version` is the file's + 1) and a literal arrives that is newer
+than the FILE, `treedb_open_db()` installs the literal -- it is what the treedb
+runs -- so it is projected too, over the draft, topic by topic where it
+differs, with a warning: *"Schema from C takes over the file in use while
+__system__ holds a draft saved over it: the draft is replaced by the schema
+from C"*. Judged by `__system__`'s number alone, that literal was "behind", was
+never projected, and the next `save-schema` published the old draft over it,
+reverting the literal's change with no word. And a literal that carries the
+SAME `schema_version` as a dynamic file in use but another content is two
+schemas under one number: the file wins, as ties always do, and the log says
+*"Schema from C has the schema_version of the dynamic schema in use but another
+content: NOT applied, raise its schema_version to publish it"* (with the flat
+diff), at every open until the literal moves on.
+
+| `__system__` | File in use | Literal | What happens at open (impose off) |
+|---|---|---|---|
+| 3, saved, not applied (from 2) | 2 | 3 | literal runs, projected over the draft, warning |
+| 3, saved and applied | 3 | 3, other content | file runs, `__system__` kept, warning |
+| 3, saved and applied | 3 | 3, the applied content | file runs, nothing said |
+| 3, saved and applied | 3 | 2 | file runs, *"behind the schema in use"* |
+
 Up to 7.19.0 the projector did otherwise, and both halves were wrong. It
 compared the literal with `c_schema_version`, so a new literal overwrote a
 dynamic schema. And it published under `max(stored, literal) + 1`, for every
@@ -1744,12 +1768,20 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    projection bookkeeping.
 2. **`saved-schema treedb_name=X`** answers what was saved, what it changes
    against the file in use (a `flat_diff` of the two: `added`, `removed`,
-   `changed`, one row per leaf), and `can_apply`.
-3. **`apply-schema treedb_name=X`** copies the saved schema over the file in
-   use — only on the master, only when C does not impose that treedb's schema
-   (the literal would overwrite it at the next open), and only when the saved
-   `schema_version` is higher. It takes effect at the next open of the treedb:
-   restart the yuno that owns it.
+   `changed`, one row per leaf), and `can_apply`. `draft_changed` names the
+   topics whose draft is NOT SAVED: diffed against the saved schema when there
+   is one newer than the file in use, against the file in use otherwise
+   (until 7.25.3 always against the file in use, so a topic saved a moment ago
+   still read as unsaved until an Apply -- for ever on an imposed treedb).
+3. **`apply-schema treedb_name=X`** puts the saved schema in place of the file
+   in use — only on the master, only when C does not impose that treedb's
+   schema (the literal would overwrite it at the next open), and only when the
+   saved `schema_version` is higher. It takes effect at the next open of the
+   treedb: restart the yuno that owns it. The file is written to a temporary
+   beside it, flushed, and renamed over it: the file in use is the old one or
+   the new one, never a truncated one (until 7.25.3 it was rewritten in place,
+   and a crash or a full disk left it empty -- read as version 0 and recreated
+   from the literal at the next open). The answer says `data.applied`.
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=treedbs command=save-schema treedb_name=treedb_x'
@@ -1759,9 +1791,34 @@ ycommand -c 'kill-yuno id=<id>'; ycommand -c 'run-yuno id=<id>'
 ```
 
 Without `treedb_name` each command acts on every treedb that `C_TREEDB` opened
-and lists the answers — `apply-schema` then applies only the treedbs whose
-saved schema can be applied. It is what gui_agent's Schemas tab sends: one
-request per `C_TREEDB` of the yuno.
+and lists the answers. It is what gui_agent's Schemas tab sends: one request
+per `C_TREEDB` of the yuno. `apply-schema` then takes only the treedbs whose
+saved schema can be applied (master, not imposed, a saved schema newer than
+the one in use), and it takes them **all or none** (after 7.25.3): each is
+checked first -- its saved schema loads and parses -- then each is written to
+its temporary, and only when every one got that far are they renamed in place.
+One that cannot be applied leaves every file in use as it was, and the answer
+is `-1` with every row `applied: false`. Before, A was applied, B refused,
+the answer was `-1`, and a console that read it as "nothing applied" did not
+restart the yuno. An apply with nothing applicable answers `0` and no row.
+
+```json
+{"result": -1,
+ "comment": "<role>^<name>: apply-schema refused, nothing was written: treedb_b cannot be applied",
+ "data": [
+   {"treedb_name": "treedb_a", "result": -1,
+    "comment": "<role>^<name>: 'treedb_a' not applied: treedb_b cannot be applied, nothing was written",
+    "data": {"treedb_name": "treedb_a", "applied": false,
+             "saved_schema_version": 4, "in_use_schema_version": 3}},
+   {"treedb_name": "treedb_b", "result": -1,
+    "comment": "<role>^<name>: the saved schema of 'treedb_b' does not parse (see the log)",
+    "data": {"treedb_name": "treedb_b", "applied": false,
+             "saved_schema_version": 50, "in_use_schema_version": 1}}
+ ]}
+```
+
+A console restarts the yuno when a row -- or the `data` of a named apply --
+says `applied: true`, and only then.
 
 Both numbers matter, and that is why the save raises them and nobody else
 does: `schema_version` is what makes the file win over the literal, and
