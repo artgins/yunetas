@@ -8,7 +8,7 @@ is absent — unlike `scripts/`, which is repo-only.
 It holds the CMake build infrastructure (`cmake/project.cmake`, included by
 every module to get a consistent compiler configuration, library definitions,
 and install paths driven by the Kconfig `.config` file) and operator-facing
-utilities meant to run against a live node (`agent/`, `sshd/`).
+utilities meant to run against a live node (`agent/`, `sshd/`, `fail2ban/`).
 
 ## Files
 
@@ -21,6 +21,9 @@ tools/
 │   ├── sync_binaries.py        # Compare built yunos vs the agent's installed set, push updates
 │   ├── sync_configs.py         # Compare a directory's configs vs the agent's installed set, push updates
 │   └── set_start_priorities.py # Assign each managed yuno's start_priority (launch tier) by role
+├── fail2ban/
+│   ├── install-probe-ban-escalation.sh # Make the bans of yuneta-nginx-probe grow for an address that returns
+│   └── make-fail2ban-log-readable.sh   # Let yuneta read fail2ban.log (root:adm 0640), as Debian ships it
 └── sshd/
     ├── audit-sshd.sh                  # Report failures and improvements in what sshd runs with (read-only)
     ├── install-sshd-flood-guard.sh    # Keep sshd reachable under a connection flood (drop-in)
@@ -452,3 +455,37 @@ cmake -DCMAKE_BUILD_TYPE=Debug ..
 # Release build
 cmake -DCMAKE_BUILD_TYPE=Release ..
 ```
+
+## fail2ban/
+
+The web jails (`yuneta-nginx-probe`, `nginx-botsearch`) ship in the packages,
+disabled. These scripts change the fail2ban **server** or the system log, which
+is the policy of whoever runs the node, so like `sshd/` they are run by hand:
+
+```bash
+T=/yuneta/development/yunetas/tools/fail2ban
+
+$T/install-probe-ban-escalation.sh          # bans of yuneta-nginx-probe: 1d, 2d, 4d, then 1w
+$T/install-probe-ban-escalation.sh --check
+$T/install-probe-ban-escalation.sh --remove
+
+$T/make-fail2ban-log-readable.sh            # root:adm 0640, yuneta in adm (a no-op on Debian)
+$T/make-fail2ban-log-readable.sh --check
+```
+
+**Why escalation and not the stock `recidive` jail.** The scanners return: on
+one node in September 2026 an address was banned on the 4th and again on the
+21st, another on the 19th and on the 21st. `recidive` reads `fail2ban.log`,
+which rotates weekly, so a return after a rotation is a first offence to it --
+and both of those returns cross one. `bantime.increment` counts earlier bans in
+fail2ban's database, which does not rotate, once `dbpurgeage` (stock: one day)
+is raised to 30 days; the script does both. The cap is a week because the jail
+catches us too: a hardening check run with `curl` asks for `/.env` like a
+scanner.
+
+**Why the log must be readable.** `webstats` reads `fail2ban.log` to say, next
+to each top offender of its mail, whether it was banned -- a jail that bans
+nobody looks as healthy as one that works. Debian ships the log `root:adm
+0640` with `yuneta` in `adm`; RHEL/Rocky ships it `root:root 0600`. After the
+script adds `yuneta` to `adm`, restart `yuneta_agent` and then the `webstats`
+yuno: a process keeps the groups it started with.

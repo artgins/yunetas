@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### webstats: each top client says whether fail2ban banned it
+
+- webstats reads `fail2ban_log_path` (`/var/log/fail2ban.log`) and its last
+  rotation (`.1`, or the newest dated one on RHEL) and puts on each row of
+  *Top clients* and *Top offenders* `"banned": {at, jails, ban_number,
+  ban_time}` or `false`. `Restore Ban` and `Unban` are not counted; `Increase
+  Ban` gives the ban number and length. Record `version` 3 (`banned` on the
+  rows, a `fail2ban` block with the bans by jail).
+- `false` only when the log was read: an unreadable log leaves the rows empty
+  and says so in *Needs attention*. *Needs attention* also warns when none of
+  the top offenders with 3+ probes was banned -- a jail watching nothing.
+
+### tools/fail2ban: escalating bans for the probe jail, and a readable fail2ban.log
+
+- `install-probe-ban-escalation.sh`: `bantime.increment` on
+  `yuneta-nginx-probe` (1d, 2d, 4d, capped at 1w) plus `dbpurgeage = 30d`, so
+  fail2ban remembers the earlier bans. Chosen over the stock `recidive` jail,
+  which reads the weekly-rotated `fail2ban.log` and misses a scanner that
+  returns after a rotation -- as both returns measured on a node did.
+  `fail2ban-client -t` before and after, the previous state restored on
+  failure. Opt-in: `dbpurgeage` is server-wide policy.
+- `make-fail2ban-log-readable.sh`: `root:adm 0640` and `yuneta` in `adm`, as
+  Debian ships it; RHEL ships the log `0600`.
+
 ### webstats: the top clients are named -- country and organisation, from RDAP
 
 - The first `whois_rows` (10) rows of *Top clients* and *Top offenders* now

@@ -30,7 +30,8 @@ The suite already ships every binary in `outputs/yunos/` in the `.deb` and the
 ## 2. What it does not do
 
 - It does not ban. `fail2ban` bans, with the `yuneta-nginx-probe` filter that
-  the packages install. This yuno counts probes and names the top clients.
+  the packages install. This yuno counts probes, names the top clients, and
+  says which of them fail2ban banned (§7.4).
 - It does not keep the raw log lines. The rotated `.gz` files are the archive
   for 30 days. Only the daily aggregates go to TimeRanger2.
 - It does not speak SMTP. `emailsender` does.
@@ -214,6 +215,7 @@ Attributes of `C_WEBSTATS`, all settable from the batch config.
 | `bot_agents` | list | the usual marks | a user agent that says it is a crawler |
 | `new_visitor_days` | int | 30 | days of history that decide whether a visitor is new |
 | `visitor_salt` | str | — | salt of the visitor fingerprint (§8.5) |
+| `fail2ban_log_path` | str | `/var/log/fail2ban.log` | fail2ban's log (§7.4); the yuno also reads its last rotation. Empty: not read |
 | `whois_enabled` | bool | true | look up the country and organisation of the top clients (§7.3) |
 | `rdap_url` | str | `https://rdap.db.ripe.net/ip/` | RDAP service; the address is appended. It must be `https` |
 | `whois_rows` | int | 10 | rows of each table of clients that are looked up |
@@ -399,6 +401,54 @@ network.
 `application/json` into json. The gbuffer belongs to the kw, so the parse
 takes its own reference.
 
+### 7.4 Who fail2ban banned
+
+The report says, on each row of *Top clients* and *Top offenders*, whether
+fail2ban banned that address on the day. Without it the mail counts probes and
+cannot say whether anything was done about them -- and a jail that bans nobody
+looks exactly as healthy as one that works: `fail2ban-client status` answers
+the same for both. That is how the probe jail sat blind on two SPA vhosts.
+
+It reads `fail2ban_log_path` and its last rotation, with the same rule as the
+web logs (§4): the day of a line is its own timestamp. Debian names the
+rotation `fail2ban.log.1`; RHEL rotates with a date (`fail2ban.log-20260906`),
+and then the newest uncompressed one is read.
+
+Only these lines count:
+
+```
+2026-09-21 05:46:26,740 fail2ban.actions  [837]: NOTICE  [yuneta-nginx-probe] Ban 35.205.254.119
+2026-09-21 05:46:26,801 fail2ban.observer [837]: NOTICE  [yuneta-nginx-probe] Increase Ban 35.205.254.119 (3 # 4d 00:00:00 -> 2026-09-25 05:46:26)
+```
+
+`Ban` is a ban. `Increase Ban` is written by `bantime.increment`
+(`tools/fail2ban/install-probe-ban-escalation.sh`) and says which ban of that
+address this is and how long it lasts -- the number that shows a scanner
+coming back. `Restore Ban` (a ban put back when fail2ban restarts) and
+`Unban` are not new bans and are not counted.
+
+A row gets `"banned": {"bans": 1, "at": "05:46", "jails": ["yuneta-nginx-probe"],
+"ban_number": 3, "ban_time": "4d 00:00:00"}`, or `"banned": false`. The mail
+prints `banned 05:46 #3 (4d 00:00:00)` or `not banned`.
+
+⚠️ **`"banned": false` is written only when the log WAS read.** When it could
+not be read, the rows carry nothing and the record says why
+(`"fail2ban": {"read": false, "error": "cannot open file"}`), with a line in
+**Needs attention**. "Not banned" and "could not look" must never print the
+same. RHEL ships the log `root:root 0600`:
+`tools/fail2ban/make-fail2ban-log-readable.sh` makes it `root:adm 0640` as
+Debian does.
+
+**Needs attention** also carries a line when the top offenders that probed
+three times or more (the jail's `maxretry`) include **none** that was banned:
+the jail is probably watching nothing.
+
+⚠️ **A ban lands at the end of a scan, not during it.** A scan is 200-300
+requests in two to five seconds, and fail2ban reads the log after nginx wrote
+it, so the scanner shows up in *Top offenders* with its whole count AND
+banned. The ban buys the time until it returns; that is what the escalation is
+for.
+
 ## 8. Persistence
 
 TimeRanger2, one topic.
@@ -452,7 +502,7 @@ history — a number with nothing to compare it to carries no information.
 A day with no history says `days_of_history: 0` instead of comparing against
 zero. Against zero, the first morning reads as *everything doubled*.
 
-### 8.1 Record shape (version 2)
+### 8.1 Record shape (version 3)
 
 ```json
 {
@@ -481,6 +531,8 @@ zero. Against zero, the first morning reads as *everything doubled*.
     "server_errors": [{"host": "", "client": "", "status": 500, "path": "", "hour": 0}],
     "probes": {"requests": 0, "clients": 0, "top_patterns": [], "top_clients": []},
     "whois": {"enabled": true, "cached": 0, "looked_up": 0, "failed": 0},
+    "fail2ban": {"enabled": true, "read": true, "bans": 0, "banned_clients": 0,
+                 "by_jail": {"yuneta-nginx-probe": 0}},
     "errors": {"total": 0, "distinct": 0, "by_signature": [
         {"signature": "", "count": 0, "first": "", "last": "", "sample": ""}
     ]},
@@ -490,8 +542,9 @@ zero. Against zero, the first morning reads as *everything doubled*.
 
 Every `top` row is `{"key": …, "count": …}`. The first `whois_rows` rows of
 `top.clients` and `probes.top_clients` also carry `whois` (§7.3), unless the
-address is private. Version 2 added `whois`; a version 1 record is the same
-without it. `latency` keeps the raw buckets
+address is private. Every row of those two tables carries `banned` when
+fail2ban's log was read (§7.4). Version 2 added `whois`, version 3 `banned` and
+`fail2ban`; an older record is the same without them. `latency` keeps the raw buckets
 so two days can be added. `latency_summary` is what a reader looks at.
 `sources[].lines` is what the file holds, `kept` is what fell inside the day,
 and `unparsed` is what the parser did not understand. A file that was not read
@@ -739,9 +792,6 @@ among yesterday's top signatures*.
 **Phase 2**
 
 - gzip, to rebuild any of the 30 days on disk. Needs zlib in `outputs_ext`.
-- Cross with fail2ban: probes seen against IPs banned, read from
-  `/var/log/fail2ban.log`. The lesson of that session was that a jail can be
-  healthy and ban nobody. This is where that becomes visible.
 - One mail for the five nodes, assembled in controlcenter, instead of five.
   Five daily mails is a fast route to nobody reading any of them.
 - Immediate alarm on a 5xx burst, instead of waiting for the daily mail.

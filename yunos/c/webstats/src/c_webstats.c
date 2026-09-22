@@ -34,6 +34,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <arpa/inet.h>  /* inet_pton() */
+#include <glob.h>
 
 #include "c_log_reader.h"
 #include "c_webstats.h"
@@ -47,6 +48,7 @@
 #define DEFAULT_ACCESS_LOG_2    "/yuneta/bin/openresty/nginx/logs/access.log"
 #define DEFAULT_ERROR_LOG_1     "/yuneta/bin/nginx/logs/error.log"
 #define DEFAULT_ERROR_LOG_2     "/yuneta/bin/openresty/nginx/logs/error.log"
+#define DEFAULT_FAIL2BAN_LOG    "/var/log/fail2ban.log"
 
 #define MAX_SERVER_ERRORS   500     // 5xx lines kept whole
 #define MAX_SAMPLE_LEN      512     // of an error line kept as the sample
@@ -126,6 +128,8 @@ PRIVATE json_t *build_file_list(hgobj gobj);
 PRIVATE json_t *check_log_rotation(hgobj gobj);
 PRIVATE BOOL access_line_is_of_day(const char *line, const char *date);
 PRIVATE BOOL error_line_is_of_day(const char *line, const char *date);
+PRIVATE int accumulate_fail2ban_line(hgobj gobj, const char *line);
+PRIVATE void apply_fail2ban(hgobj gobj);
 PRIVATE int accumulate_access_line(hgobj gobj, const char *line);
 PRIVATE int accumulate_error_line(hgobj gobj, const char *line);
 PRIVATE int send_report(hgobj gobj);
@@ -160,6 +164,7 @@ PRIVATE int open_whois_client(hgobj gobj);
 PRIVATE void whois_done(hgobj gobj, json_t *jn_whois);
 PRIVATE void whois_failed(hgobj gobj, const char *reason);
 PRIVATE void apply_whois(hgobj gobj);
+PRIVATE const char *str_or_empty(json_t *jn);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -250,6 +255,7 @@ SDATA (DTP_LIST,    "bot_agents",       SDF_RD,             "[]",       "User ag
 SDATA (DTP_INTEGER, "new_visitor_days", SDF_WR|SDF_PERSIST, "30",       "Days of history that decide whether a visitor is new"),
 SDATA (DTP_STRING,  "visitor_salt",     SDF_RD,             "",         "Salt of the visitor fingerprint. Empty: none, see README"),
 SDATA (DTP_INTEGER, "keep_days",        SDF_RD,             "400",      "Days of aggregates kept"),
+SDATA (DTP_STRING,  "fail2ban_log_path",SDF_RD,             DEFAULT_FAIL2BAN_LOG, "fail2ban's log, to say which clients were banned. The yuno also reads its last rotation. Empty: not read"),
 SDATA (DTP_BOOLEAN, "whois_enabled",    SDF_WR|SDF_PERSIST, "true",     "Look up the country and organisation of the top clients"),
 SDATA (DTP_STRING,  "rdap_url",         SDF_RD,             "https://rdap.db.ripe.net/ip/", "RDAP service the address is appended to. It redirects to the registry of the address"),
 SDATA (DTP_INTEGER, "whois_rows",       SDF_RD,             "10",       "Rows of each top table of clients that are looked up"),
@@ -340,6 +346,14 @@ typedef struct _PRIVATE_DATA {
     json_int_t whois_cached;
     json_int_t whois_looked_up;
     json_int_t whois_failed;
+
+    /*
+     *  What fail2ban did on the day, read from its own log.
+     */
+    json_t *jn_bans;                // client -> {bans, at, jails, ban_number, ban_time}
+    json_t *jn_jail_bans;           // jail -> bans of the day
+    json_t *jn_fail2ban_error;      // why the live fail2ban log was not read, or NULL
+    BOOL fail2ban_read;
 
     uint64_t cur_kept;              // lines of the target day in the file being read
     uint64_t cur_unparsed;          // lines of the file the parser did not understand
@@ -434,6 +448,9 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->jn_visitors)
     JSON_DECREF(priv->jn_whois)
     JSON_DECREF(priv->jn_whois_pending)
+    JSON_DECREF(priv->jn_bans)
+    JSON_DECREF(priv->jn_jail_bans)
+    JSON_DECREF(priv->jn_fail2ban_error)
 }
 
 /***************************************************************************
@@ -1084,6 +1101,48 @@ PRIVATE json_t *build_file_list(hgobj gobj)
             ));
         }
         JSON_DECREF(jn_use)
+    }
+
+    /*
+     *  fail2ban's log, and its last rotation. Debian names it `.1`; RHEL
+     *  rotates with a date (`fail2ban.log-20260906`), so there the newest
+     *  uncompressed one is taken. The pair is always emitted, the rotated
+     *  one under its `.1` name when there is none, so the pairs walked by
+     *  check_log_rotation() stay in step.
+     */
+    const char *f2b = gobj_read_str_attr(gobj, "fail2ban_log_path");
+    if(!empty_string(f2b)) {
+        char rotated[PATH_MAX];
+        snprintf(rotated, sizeof(rotated), "%s.1", f2b);
+
+        if(!is_regular_file(rotated)) {
+            char pattern[PATH_MAX];
+            snprintf(pattern, sizeof(pattern), "%s-[0-9]*", f2b);
+            glob_t gl;
+            memset(&gl, 0, sizeof(gl));
+            if(glob(pattern, 0, NULL, &gl) == 0) {
+                /*
+                 *  glob() sorts, and a date suffix sorts as it reads: the
+                 *  last uncompressed one is the newest.
+                 */
+                for(size_t g=0; g<gl.gl_pathc; g++) {
+                    const char *candidate = gl.gl_pathv[g];
+                    size_t ln = strlen(candidate);
+                    if(ln > 3 && strcmp(candidate + ln - 3, ".gz") == 0) {
+                        continue;
+                    }
+                    snprintf(rotated, sizeof(rotated), "%s", candidate);
+                }
+            }
+            globfree(&gl);
+        }
+
+        json_array_append_new(jn_files, json_pack("{s:s, s:s}",
+            "path", f2b, "kind", "fail2ban"
+        ));
+        json_array_append_new(jn_files, json_pack("{s:s, s:s}",
+            "path", rotated, "kind", "fail2ban"
+        ));
     }
 
     return jn_files;
@@ -2611,6 +2670,188 @@ PRIVATE void close_report(hgobj gobj)
 }
 
 /***************************************************************************
+ *  One line of fail2ban's log of the day. Only the bans count:
+ *
+ *    2026-09-21 05:46:26,740 fail2ban.actions  [837]: NOTICE  [yuneta-nginx-probe] Ban 35.205.254.119
+ *    2026-09-21 05:46:26,801 fail2ban.observer [837]: NOTICE  [yuneta-nginx-probe] Increase Ban
+ *        35.205.254.119 (3 # 4d 00:00:00 -> 2026-09-25 05:46:26)
+ *
+ *  `Restore Ban` is a ban put back when fail2ban restarts, not a new one,
+ *  and `Unban` is the end of one: neither counts. `Increase Ban` is written
+ *  by bantime.increment and says which ban of the address this is and how
+ *  long it lasts, which is the number that shows a scanner coming back.
+ ***************************************************************************/
+PRIVATE int accumulate_fail2ban_line(hgobj gobj, const char *line)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *p = strstr(line, " NOTICE ");
+    if(!p) {
+        return 0;       // INFO and DEBUG lines: what the filters found, not what was banned
+    }
+    p = strchr(p, '[');
+    const char *jail_end = p? strchr(p, ']') : NULL;
+    if(!p || !jail_end) {
+        return 0;       // a notice of the server, not of a jail
+    }
+
+    char jail[NAME_MAX];
+    snprintf(jail, sizeof(jail), "%.*s", (int)(jail_end - p - 1), p + 1);
+
+    const char *what = jail_end + 1;
+    while(*what == ' ') {
+        what++;
+    }
+
+    BOOL increase = FALSE;
+    if(strncmp(what, "Ban ", 4) == 0) {
+        what += 4;
+    } else if(strncmp(what, "Increase Ban ", 13) == 0) {
+        what += 13;
+        increase = TRUE;
+    } else {
+        return 0;       // Unban, Restore Ban, and the rest
+    }
+
+    char ip[INET6_ADDRSTRLEN + 1];
+    size_t ln = strcspn(what, " \t\r\n");
+    if(ln == 0 || ln >= sizeof(ip)) {
+        priv->cur_unparsed++;
+        if(gobj_trace_level(gobj) & TRACE_PARSE) {
+            gobj_trace_msg(gobj, "webstats: unparsed fail2ban line: %s", line);
+        }
+        return -1;
+    }
+    snprintf(ip, sizeof(ip), "%.*s", (int)ln, what);
+
+    json_t *jn_ban = json_object_get(priv->jn_bans, ip);
+    if(!jn_ban) {
+        if(json_object_size(priv->jn_bans) >= (size_t)priv->max_distinct_keys) {
+            note_truncated(gobj, "bans");
+            return 0;
+        }
+        char at[6];
+        snprintf(at, sizeof(at), "%.5s", strlen(line) > 16? line + 11 : "");
+        jn_ban = json_pack("{s:I, s:s, s:[]}",
+            "bans", (json_int_t)0,
+            "at", at,
+            "jails"
+        );
+        json_object_set_new(priv->jn_bans, ip, jn_ban);
+    }
+
+    if(increase) {
+        const char *open = strchr(what + ln, '(');
+        if(open) {
+            char *end = NULL;
+            long number = strtol(open + 1, &end, 10);
+            if(end && end != open + 1 && number > 0) {
+                json_object_set_new(jn_ban, "ban_number", json_integer(number));
+            }
+            const char *hash = strstr(open, "# ");
+            const char *arrow = hash? strstr(hash, " -> ") : NULL;
+            if(hash && arrow) {
+                json_object_set_new(jn_ban, "ban_time",
+                    json_stringn(hash + 2, (size_t)(arrow - hash - 2))
+                );
+            }
+        }
+        return 0;
+    }
+
+    json_object_set_new(jn_ban, "bans",
+        json_integer(json_integer_value(json_object_get(jn_ban, "bans")) + 1)
+    );
+
+    json_t *jn_jails = json_object_get(jn_ban, "jails");
+    BOOL listed = FALSE;
+    size_t idx;
+    json_t *jn_jail;
+    json_array_foreach(jn_jails, idx, jn_jail) {
+        if(strcmp(json_string_value(jn_jail), jail) == 0) {
+            listed = TRUE;
+            break;
+        }
+    }
+    if(!listed) {
+        json_array_append_new(jn_jails, json_string(jail));
+    }
+
+    json_object_set_new(priv->jn_jail_bans, jail,
+        json_integer(json_integer_value(json_object_get(priv->jn_jail_bans, jail)) + 1)
+    );
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Say on each row of clients whether fail2ban banned it that day, and in
+ *  the record what fail2ban did.
+ *
+ *  A row says `"banned": false` only when the log WAS read. When it was
+ *  not, the rows say nothing and the record says why: "not banned" and
+ *  "could not look" must not print the same.
+ ***************************************************************************/
+PRIVATE void apply_fail2ban(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->jn_report) {
+        return;
+    }
+
+    if(empty_string(gobj_read_str_attr(gobj, "fail2ban_log_path"))) {
+        json_object_set_new(priv->jn_report, "fail2ban", json_pack("{s:b}", "enabled", 0));
+        return;
+    }
+
+    BOOL read = priv->fail2ban_read && !priv->jn_fail2ban_error;
+
+    json_int_t total = 0;
+    const char *jail;
+    json_t *jn_count;
+    json_object_foreach(priv->jn_jail_bans, jail, jn_count) {
+        total += json_integer_value(jn_count);
+    }
+
+    json_t *jn_block = json_pack("{s:b, s:b, s:I, s:I, s:O}",
+        "enabled", 1,
+        "read", read,
+        "bans", total,
+        "banned_clients", (json_int_t)json_object_size(priv->jn_bans),
+        "by_jail", priv->jn_jail_bans
+    );
+    if(priv->jn_fail2ban_error) {
+        json_object_set(jn_block, "error", priv->jn_fail2ban_error);
+    }
+    json_object_set_new(priv->jn_report, "fail2ban", jn_block);
+
+    if(!read) {
+        return;
+    }
+
+    json_t *jn_tables[] = {
+        json_object_get(json_object_get(priv->jn_report, "top"), "clients"),
+        json_object_get(json_object_get(priv->jn_report, "probes"), "top_clients"),
+        0
+    };
+    for(int t=0; jn_tables[t]; t++) {
+        size_t idx;
+        json_t *jn_row;
+        json_array_foreach(jn_tables[t], idx, jn_row) {
+            json_t *jn_ban = json_object_get(priv->jn_bans,
+                str_or_empty(json_object_get(jn_row, "key"))
+            );
+            if(jn_ban) {
+                json_object_set(jn_row, "banned", jn_ban);
+            } else {
+                json_object_set_new(jn_row, "banned", json_false());
+            }
+        }
+    }
+}
+
+/***************************************************************************
  *  Is `ip` an address worth asking the registries about.
  *
  *  A private, loopback or link-local address belongs to no registry. This
@@ -3209,7 +3450,7 @@ PRIVATE int start_run(hgobj gobj, const char *date, BOOL send)
     JSON_DECREF(priv->jn_report)
     priv->jn_report = json_pack("{s:s, s:i, s:s, s:I, s:[], s:[], s:[], s:[], s:{}}",
         "date", date,
-        "version", 2,
+        "version", 3,
         "node", get_hostname(),
         "generated_at", (json_int_t)time(NULL),
         "sources",
@@ -3267,6 +3508,13 @@ PRIVATE int start_run(hgobj gobj, const char *date, BOOL send)
     JSON_DECREF(priv->jn_asset_list)
     JSON_DECREF(priv->jn_bot_list)
     JSON_DECREF(priv->jn_visitors)
+
+    JSON_DECREF(priv->jn_bans)
+    JSON_DECREF(priv->jn_jail_bans)
+    JSON_DECREF(priv->jn_fail2ban_error)
+    priv->jn_bans = json_object();
+    priv->jn_jail_bans = json_object();
+    priv->fail2ban_read = FALSE;
 
     priv->jn_visitors = json_object();
     priv->jn_clients = json_object();
@@ -3374,6 +3622,7 @@ PRIVATE int start_next_file(hgobj gobj)
 PRIVATE int finish_run(hgobj gobj)
 {
     close_report(gobj);
+    apply_fail2ban(gobj);
     count_new_visitors(gobj);
     compare_with_history(gobj);
 
@@ -3674,6 +3923,7 @@ PRIVATE void top_table(gbuffer_t *gbuf, const char *title, json_t *jn_top, int l
      *  the country and the organisation that holds the network.
      */
     BOOL with_whois = FALSE;
+    BOOL with_bans = FALSE;
     size_t idx;
     json_t *jn_row;
     json_array_foreach(jn_top, idx, jn_row) {
@@ -3682,7 +3932,9 @@ PRIVATE void top_table(gbuffer_t *gbuf, const char *title, json_t *jn_top, int l
         }
         if(json_object_get(jn_row, "whois")) {
             with_whois = TRUE;
-            break;
+        }
+        if(json_object_get(jn_row, "banned")) {
+            with_bans = TRUE;       // set only when fail2ban's log was read
         }
     }
 
@@ -3734,10 +3986,41 @@ PRIVATE void top_table(gbuffer_t *gbuf, const char *title, json_t *jn_top, int l
         }
 
         gbuffer_printf(gbuf,
-            "<td style=\"padding:2px 0;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
-            "</tr>",
+            "<td style=\"padding:2px 0;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>",
             (long long)json_integer_value(json_object_get(jn_row, "count"))
         );
+
+        if(with_bans) {
+            json_t *jn_ban = json_object_get(jn_row, "banned");
+            if(json_is_object(jn_ban)) {
+                char number[32] = "";
+                json_int_t ban_number = json_integer_value(json_object_get(jn_ban, "ban_number"));
+                if(ban_number > 0) {
+                    snprintf(number, sizeof(number), " #%lld", (long long)ban_number);
+                }
+                const char *ban_time = json_string_value(json_object_get(jn_ban, "ban_time"));
+                gbuffer_printf(gbuf,
+                    "<td style=\"padding:2px 0 2px 10px;border-bottom:1px solid #f0f0f0;"
+                    "font-family:sans-serif\">banned %s%s%s%s%s</td>",
+                    html_escape(json_string_value(json_object_get(jn_ban, "at")), bf, sizeof(bf)),
+                    number,
+                    ban_time? " <span style=\"color:#999\">(" : "",
+                    ban_time? html_escape(ban_time, bf2, sizeof(bf2)) : "",
+                    ban_time? ")</span>" : ""
+                );
+            } else if(jn_ban) {
+                gbuffer_printf(gbuf, "%s",
+                    "<td style=\"padding:2px 0 2px 10px;border-bottom:1px solid #f0f0f0;"
+                    "font-family:sans-serif;color:#999\">not banned</td>"
+                );
+            } else {
+                gbuffer_printf(gbuf, "%s",
+                    "<td style=\"border-bottom:1px solid #f0f0f0\"></td>"
+                );
+            }
+        }
+
+        gbuffer_printf(gbuf, "%s", "</tr>");
     }
 
     gbuffer_printf(gbuf, "%s", "</table>");
@@ -3857,6 +4140,44 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
                 (long long)(json_integer_value(json_object_get(jn_entry, "behind_seconds"))/3600),
                 html_escape(json_string_value(json_object_get(jn_entry, "live")), bf2, sizeof(bf2))
             );
+        }
+    }
+
+    /*
+     *  A jail that bans nobody looks exactly as healthy as one that works:
+     *  fail2ban-client answers the same for both. The daily mail is where
+     *  the difference shows, so it is said here.
+     */
+    json_t *jn_f2b = json_object_get(report, "fail2ban");
+    if(json_is_true(json_object_get(jn_f2b, "enabled"))) {
+        if(!json_is_true(json_object_get(jn_f2b, "read"))) {
+            gbuffer_printf(attention,
+                "<li>fail2ban's log could not be read (<code>%s</code>), so this report "
+                "cannot say who was banned. On a node that ships it 0600, run "
+                "<code>tools/fail2ban/make-fail2ban-log-readable.sh</code>.</li>",
+                html_escape(json_string_value(json_object_get(jn_f2b, "error")), bf, sizeof(bf))
+            );
+        } else {
+            size_t offenders = 0;
+            size_t banned = 0;
+            json_t *jn_row;
+            json_array_foreach(json_object_get(probes, "top_clients"), idx, jn_row) {
+                if(json_integer_value(json_object_get(jn_row, "count")) < 3) {
+                    continue;   // below the jail's maxretry, a ban is not owed
+                }
+                offenders++;
+                if(json_is_object(json_object_get(jn_row, "banned"))) {
+                    banned++;
+                }
+            }
+            if(offenders > 0 && banned == 0) {
+                gbuffer_printf(attention,
+                    "<li><b>fail2ban banned none of the %lld top offenders</b> that probed "
+                    "3 times or more. The jail may be watching nothing: check "
+                    "<code>fail2ban-client get yuneta-nginx-probe logpath</code>.</li>",
+                    (long long)offenders
+                );
+            }
         }
     }
 
@@ -4229,6 +4550,28 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
     gbuffer_printf(gbuf, "%s", "</table>");
 
     /*
+     *  What fail2ban did, from its own log.
+     */
+    if(json_is_true(json_object_get(jn_f2b, "read"))) {
+        gbuffer_printf(gbuf,
+            "<div style=\"font:11px monospace;color:#888;margin-top:4px\">"
+            "fail2ban: %lld bans of %lld clients",
+            (long long)json_integer_value(json_object_get(jn_f2b, "bans")),
+            (long long)json_integer_value(json_object_get(jn_f2b, "banned_clients"))
+        );
+        const char *jail;
+        json_t *jn_count;
+        const char *sep = " (";
+        json_object_foreach(json_object_get(jn_f2b, "by_jail"), jail, jn_count) {
+            gbuffer_printf(gbuf, "%s%s %lld",
+                sep, html_escape(jail, bf, sizeof(bf)), (long long)json_integer_value(jn_count)
+            );
+            sep = ", ";
+        }
+        gbuffer_printf(gbuf, "%s</div>", json_object_size(json_object_get(jn_f2b, "by_jail")) > 0? ")" : "");
+    }
+
+    /*
      *  How the clients were named, so a table with no names says why.
      */
     json_t *jn_whois = json_object_get(report, "whois");
@@ -4406,7 +4749,9 @@ PRIVATE int ac_log_lines(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *jn_file = json_array_get(priv->jn_files, 0);
-    BOOL is_access = strcmp(kw_get_str(gobj, jn_file, "kind", "", 0), "access")==0;
+    const char *kind = kw_get_str(gobj, jn_file, "kind", "", 0);
+    BOOL is_access = strcmp(kind, "access")==0;
+    BOOL is_fail2ban = strcmp(kind, "fail2ban")==0;
 
     json_t *jn_lines = kw_get_list(gobj, kw, "lines", 0, 0);
 
@@ -4421,6 +4766,11 @@ PRIVATE int ac_log_lines(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(access_line_is_of_day(line, priv->target_date)) {
                 priv->cur_kept++;
                 accumulate_access_line(gobj, line);      // counts its own failures
+            }
+        } else if(is_fail2ban) {
+            if(strncmp(line, priv->target_date, DATE_SIZE-1) == 0) {
+                priv->cur_kept++;
+                accumulate_fail2ban_line(gobj, line);
             }
         } else {
             if(error_line_is_of_day(line, priv->target_date)) {
@@ -4454,6 +4804,11 @@ PRIVATE int ac_log_eof(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "too_long", kw_get_int(gobj, kw, "too_long", 0, 0)
     ));
 
+    json_t *jn_file = json_array_get(priv->jn_files, 0);
+    if(strcmp(kw_get_str(gobj, jn_file, "kind", "", 0), "fail2ban")==0) {
+        priv->fail2ban_read = TRUE;
+    }
+
     gobj_post_event(gobj, EV_NEXT_FILE, 0, gobj);
 
     KW_DECREF(kw)
@@ -4476,6 +4831,19 @@ PRIVATE int ac_log_error(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "file", kw_get_str(gobj, kw, "path", "", 0),
         "error", kw_get_str(gobj, kw, "error", "", 0)
     ));
+
+    /*
+     *  The live fail2ban log is the one that must be there: its rotation
+     *  can be missing on a node that never rotated, the log itself cannot.
+     *  Unreadable is the usual reason, on a node that ships it 0600.
+     */
+    json_t *jn_file = json_array_get(priv->jn_files, 0);
+    if(strcmp(kw_get_str(gobj, jn_file, "kind", "", 0), "fail2ban")==0 &&
+            strcmp(kw_get_str(gobj, kw, "path", "", 0),
+                gobj_read_str_attr(gobj, "fail2ban_log_path"))==0) {
+        JSON_DECREF(priv->jn_fail2ban_error)
+        priv->jn_fail2ban_error = json_string(kw_get_str(gobj, kw, "error", "", 0));
+    }
 
     gobj_post_event(gobj, EV_NEXT_FILE, 0, gobj);
 

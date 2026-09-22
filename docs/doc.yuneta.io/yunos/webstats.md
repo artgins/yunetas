@@ -90,6 +90,7 @@ for `/%2eenv` is counted with the ones that ask for `/.env`.
 | `new_visitor_days` | 30 | History that decides whether a visitor is new |
 | `visitor_salt` | — | Salt of the visitor fingerprint |
 | `keep_days` | 400 | Days of aggregates kept |
+| `fail2ban_log_path` | `/var/log/fail2ban.log` | fail2ban's log, to say who was banned. Empty: not read |
 | `whois_enabled` | `true` | Look up who the top clients are |
 | `rdap_url` | `https://rdap.db.ripe.net/ip/` | RDAP service, the address is appended. Only `https` |
 | `whois_rows` | 10 | Rows of each table of clients that are looked up |
@@ -132,6 +133,32 @@ and the mail prints `51.38.52.119  FR  OVH SAS SD-1G-SBG3-S327B-326B  9`.
 - The record says how the names were obtained, and the mail prints it under
   *Sources*: `"whois": {"enabled": true, "cached": 7, "looked_up": 3, "failed": 0}`.
 - The node must reach the registries on port 443.
+
+(webstats-fail2ban)=
+## Who fail2ban banned
+
+Each row of *Top clients* and *Top offenders* also says whether fail2ban banned
+the address that day, read from `/var/log/fail2ban.log` and its last rotation:
+
+```json
+{"key": "45.148.10.1", "count": 6,
+ "banned": {"bans": 1, "at": "10:08", "jails": ["yuneta-nginx-probe"],
+            "ban_number": 3, "ban_time": "4d 00:00:00"}}
+```
+
+The mail prints `banned 10:08 #3 (4d 00:00:00)` or `not banned`. `ban_number`
+and `ban_time` appear when the escalating bans of
+`tools/fail2ban/install-probe-ban-escalation.sh` are installed.
+
+- `"banned": false` is written only when the log was read. When it could not
+  be (RHEL ships it `root:root 0600`), the rows say nothing and **Needs
+  attention** says why; `tools/fail2ban/make-fail2ban-log-readable.sh` fixes
+  the permissions.
+- **Needs attention** also warns when none of the top offenders that probed 3
+  times or more was banned: the jail is probably watching nothing.
+- A ban lands at the end of a scan (a scan is a few hundred requests in a few
+  seconds), so a scanner appears in *Top offenders* with its whole count and
+  banned at the same time.
 
 ## Installing it on a node
 
