@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### gobj-ui 7.25.4, yunos-js gui_treedb 0.17.55 / gui_agent 0.22.77
+
+- The JS half of the 2026-09-22 lows: `kernel/js/gobj-ui` -> 7.25.4 (a
+  delete whose rows or cards went while the question was open tells the
+  person; a string `time` column is written as ISO text; new consumer i18n
+  key), `yunos/js` -> gui_treedb 0.17.55 (pre-0.17.53 connections
+  re-scanned, whole-topic Rows card never persisted, placeholder follows the
+  language) and gui_agent 0.22.77 (late apply answers ignored, Save in
+  flight logged, backticks in change ids, Apply tooltip). Deployed to every
+  consumer. JS API index regenerated.
+
 ### The lows of the 2026-09-22 review, C side
 
 - timeranger2: a `topic_desc.json` that does not load answers NULL at once
