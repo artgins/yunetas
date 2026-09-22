@@ -161,7 +161,6 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
     /*  Test 9: impose_c_schema on: imposed over a newer file  */
-    "impose_c_schema changed",
     "Opening TreeDB with the schema from C, __system__ not read",
     "TreeDB schema from C is behind the schema in use, not applied",
     "Imposing TreeDB schema from C over a newer one",
@@ -169,15 +168,8 @@ PRIVATE const char *expected_log_msgs[] = {
     "Imposing topic_version from C over a newer one",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
-    /*  ... and off again  */
-    "impose_c_schema changed",
     /*  Test 9b: impose on, the treedb in dynamic_schema_treedbs opens from its file  */
-    "impose_c_schema changed",
-    "impose_c_schema changed",
     "TreeDB schema from C is behind the schema in use, not applied",
-    /*  ... out of the list, and the default off again  */
-    "impose_c_schema changed",
-    "impose_c_schema changed",
     /*  Test 10 opens it first  */
     "TreeDB schema from C is behind the schema in use, not applied",
     /*  Test 10: the disk taken ahead (save + apply), then the code imposes  */

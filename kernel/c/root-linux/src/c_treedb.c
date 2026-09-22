@@ -17,13 +17,6 @@
  *          "diff-schema"   -> what the __system__ projection says that the schema from C does not
  *          "treedbs"       -> the treedbs opened here, and for each one whether
  *                             it opens with its schema from C and who decided it
- *          "set-impose-c-schema" -> open every treedb (or one, treedb_name) with its
- *                             schema from C, over a newer schema file on disk; 0:
- *                             open from the schema FILE, the literal installed only
- *                             when it is newer. In memory only: the value a yuno
- *                             runs with is its configuration (main.c or config
- *                             file). The yuno's code can force it per treedb
- *                             (open-treedb impose_c_schema=1)
  *          "save-schema"   -> publish the draft edited in __system__: the versions of
  *                             what differs from the file in use + 1, written to
  *                             saved_schemas/ under the __system__ tranger
@@ -150,7 +143,6 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -232,12 +224,6 @@ PRIVATE sdata_desc_t pm_treedbs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_set_impose_c_schema[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "set",          0,              "",         "1: impose the schema from C; 0: open from the schema file (see apply-schema). Empty: show the current value"),
-SDATAPM (DTP_STRING,    "treedb_name",  0,              "",         "Only this treedb (it enters or leaves dynamic_schema_treedbs). Empty: the default of every treedb (impose_c_schema)"),
-SDATA_END()
-};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
@@ -254,7 +240,6 @@ SDATACM2 (DTP_SCHEMA,   "create-topic", SDF_AUTHZ_X,    0, pm_create_topic, cmd_
 SDATACM2 (DTP_SCHEMA,   "delete-topic", SDF_AUTHZ_X,    0, pm_delete_topic, cmd_delete_topic, "Delete topic"),
 SDATACM2 (DTP_SCHEMA,   "diff-schema",  SDF_AUTHZ_X,    0, pm_diff_schema,  cmd_diff_schema, "Differences between the stored schema and the schema compiled in C"),
 SDATACM2 (DTP_SCHEMA,   "treedbs",      SDF_AUTHZ_X,    0, pm_treedbs,      cmd_treedbs, "The treedbs opened here: whether each one opens with its schema from C, who decided it, and its schema versions"),
-SDATACM2 (DTP_SCHEMA,   "set-impose-c-schema",SDF_AUTHZ_X,0, pm_set_impose_c_schema, cmd_set_impose_c_schema, "Open every treedb (or one, treedb_name) with its schema from C, over a newer schema file on disk. 0: open from the schema file (see apply-schema). From the next open; in memory only, a restart takes the configured value back"),
 SDATACM2 (DTP_SCHEMA,   "save-schema",  SDF_AUTHZ_X,    0, pm_save_schema,  cmd_save_schema, "Publish the draft of a schema edited in __system__: raise the versions of what differs from the schema file in use, and write it to saved_schemas/, never over the file in use"),
 SDATACM2 (DTP_SCHEMA,   "saved-schema", SDF_AUTHZ_X,    0, pm_saved_schema, cmd_saved_schema, "The schema save-schema wrote, what it changes against the file in use, and whether it can be applied"),
 SDATACM2 (DTP_SCHEMA,   "apply-schema", SDF_AUTHZ_X,    0, pm_saved_schema, cmd_apply_schema, "Put the saved schema in place of the file in use (master, impose_c_schema off). It is read at the next open of the treedb"),
@@ -274,8 +259,8 @@ SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "02770",        
 SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "0660",         "Use in creation, default 0660"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
 SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
-SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD,     "1",            "Open every treedb with its schema from C, over a newer schema file on disk. 0: open from the schema FILE, which apply-schema replaces with what save-schema published from __system__; the literal is installed only when it is newer. Either way __system__ is not read at open, and the MASTER projects into it when it has no projection or a lower schema_version. NOT persistent: it is configuration, set in the yuno's main.c ('global': {'treedbs.impose_c_schema': false}) or its config file; set-impose-c-schema changes it until the next restart. It is the DEFAULT of every treedb: dynamic_schema_treedbs names the ones that open from their file, and the yuno's code can force it per treedb (open-treedb impose_c_schema=1)"),
-SDATA (DTP_LIST,        "dynamic_schema_treedbs",SDF_RD,"[]",           "Treedbs that open from their schema FILE whatever impose_c_schema says, so their schema can be changed dynamically (save-schema + apply-schema). Configuration, NOT persistent: the yuno's main.c ('global': {'treedbs.dynamic_schema_treedbs': ['treedb_x']}) or its config file. The yuno's code still wins (open-treedb impose_c_schema=1)"),
+SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD,     "1",            "Open every treedb with its schema from C, over a newer schema file on disk. 0: open from the schema FILE, which apply-schema replaces with what save-schema published from __system__; the literal is installed only when it is newer. Either way __system__ is not read at open, and the MASTER projects into it when it has no projection or a lower schema_version. NOT persistent and no command changes it: it is configuration, set in the yuno's main.c ('global': {'treedbs.impose_c_schema': false}) or its config file, read when a treedb opens. It is the DEFAULT of every treedb: dynamic_schema_treedbs names the ones that open from their file, and the yuno's code can force it per treedb (open-treedb impose_c_schema=1)"),
+SDATA (DTP_LIST,        "dynamic_schema_treedbs",SDF_RD,"[]",           "Treedbs that open from their schema FILE whatever impose_c_schema says, so their schema can be changed dynamically (save-schema + apply-schema). Configuration, NOT persistent, no command changes it: the yuno's main.c ('global': {'treedbs.dynamic_schema_treedbs': ['treedb_x']}) or its config file. The yuno's code still wins (open-treedb impose_c_schema=1)"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
@@ -318,10 +303,6 @@ PRIVATE sdata_desc_t pm_authz_read[] = {
 SDATAPM0 (DTP_STRING,       "treedb_name",      0,          "",             "Treedb name"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_authz_impose[] = {
-/*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATA_END()
-};
 
 PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name------------flag----alias---items---------------description--*/
@@ -329,7 +310,6 @@ SDATAAUTHZ (DTP_SCHEMA, "open-close",   0,      0,      pm_authz_open,      "Per
 SDATAAUTHZ (DTP_SCHEMA, "create-delete",0,      0,      pm_authz_create,    "Permission to create-delete topics"),
 SDATAAUTHZ (DTP_SCHEMA, "write",        0,      0,      pm_authz_write,     "Permission to write"),
 SDATAAUTHZ (DTP_SCHEMA, "read",         0,      0,      pm_authz_read,      "Permission to read"),
-SDATAAUTHZ (DTP_SCHEMA, "impose-c-schema",0,    0,      pm_authz_impose,    "Permission to impose the schema from C over the stored one"),
 SDATA_END()
 };
 
@@ -1472,112 +1452,6 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         0,
         0,
         jn_data,
-        kw  // owned
-    );
-}
-
-/***************************************************************************
- *  Whether the treedbs of this service open with their schema from C: the
- *  default of all of them (impose_c_schema), or with treedb_name one of
- *  them (it leaves or enters dynamic_schema_treedbs).
- *
- *  In memory only, and it acts at the next open: a treedb already open keeps
- *  the schema it opened with. NOT persistent, on purpose: the value a yuno
- *  runs with is its configuration -- its main.c ('global':
- *  {'treedbs.dynamic_schema_treedbs': ['treedb_x']}) or its config file -- where it can be
- *  read, versioned and deployed. A value saved by a command lived nowhere a
- *  deploy could see, and outranked the configuration. So this is for the
- *  occasional case (close-treedb + open-treedb in the same run); a restart
- *  takes the configured value back.
- *
- *  It does not reach a treedb whose yuno's code imposes the schema from C
- *  (open-treedb impose_c_schema=1): that one is the binary's decision. The
- *  answer lists them.
- ***************************************************************************/
-PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*----------------------------------------*
-     *  Check AUTHZS
-     *----------------------------------------*/
-    const char *permission = "impose-c-schema";
-    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        return msg_iev_build_response(
-            gobj,
-            -403,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    const char *set = kw_get_str(gobj, kw, "set", "", 0);
-    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
-    BOOL was = empty_string(treedb_name)?
-        gobj_read_bool_attr(gobj, "impose_c_schema"):
-        configured_to_impose(gobj, treedb_name);
-
-    if(!empty_string(set)) {
-        BOOL impose = kw_get_bool(gobj, kw, "set", 0, KW_WILD_NUMBER);
-        if(empty_string(treedb_name)) {
-            gobj_write_bool_attr(gobj, "impose_c_schema", impose);
-        } else {
-            json_t *dynamic = json_deep_copy(gobj_read_json_attr(gobj, "dynamic_schema_treedbs"));
-            if(!json_is_array(dynamic)) {
-                JSON_DECREF(dynamic)
-                dynamic = json_array();
-            }
-            int idx = json_list_str_index(dynamic, treedb_name, FALSE);
-            if(!impose && idx < 0) {
-                json_array_append_new(dynamic, json_string(treedb_name));
-            } else if(impose && idx >= 0) {
-                json_array_remove(dynamic, (size_t)idx);
-            }
-            gobj_write_new_json_attr(gobj, "dynamic_schema_treedbs", dynamic);
-        }
-        BOOL now = empty_string(treedb_name)?
-            gobj_read_bool_attr(gobj, "impose_c_schema"):
-            configured_to_impose(gobj, treedb_name);
-        if(now != was) {
-            gobj_log_info(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_INFO,
-                "msg",              "%s", "impose_c_schema changed",
-                "impose_c_schema",  "%d", (int)now,
-                "treedb_name",      "%s", treedb_name,
-                "username",         "%s", kw_get_str(gobj, kw, "__username__", "", 0),
-                NULL
-            );
-        }
-    }
-
-    BOOL impose_c_schema = gobj_read_bool_attr(gobj, "impose_c_schema");
-    json_t *jn_forced = json_array();
-    const char *forced_name; json_t *jn_v;
-    json_object_foreach(priv->jn_forced_treedbs, forced_name, jn_v) {
-        json_array_append_new(jn_forced, json_string(forced_name));
-    }
-    size_t forced = json_array_size(jn_forced);
-
-    return msg_iev_build_response(
-        gobj,
-        0,
-        json_sprintf("%s: impose_c_schema is %s%s%s%s",
-            gobj_yuno_role_plus_name(),
-            impose_c_schema? "on": "off",
-            json_array_size(gobj_read_json_attr(gobj, "dynamic_schema_treedbs"))?
-                " but off for the treedbs in dynamic_schema_treedbs": "",
-            empty_string(set)? "": ", from the next open of each treedb, until the yuno restarts",
-            forced? "; forced on by the yuno's code for the treedbs in forced_by_code": ""
-        ),
-        0,
-        json_pack("{s:b, s:O, s:o}",
-            "impose_c_schema", impose_c_schema,
-            "dynamic_schema_treedbs", gobj_read_json_attr(gobj, "dynamic_schema_treedbs"),
-            "forced_by_code", jn_forced
-        ),
         kw  // owned
     );
 }

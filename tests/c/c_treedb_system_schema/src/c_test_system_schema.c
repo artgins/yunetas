@@ -1852,30 +1852,23 @@ PRIVATE int check_schema_diff(hgobj gobj)
 }
 
 /***************************************************************************
- *  Drive C_TREEDB's impose_c_schema through its command.
+ *  Configure C_TREEDB the way a yuno does. Neither attribute is persistent
+ *  and no command changes them: they are configuration (the yuno's main.c
+ *  or its config file), read when a treedb opens. The test is that
+ *  configuration, between two opens.
  ***************************************************************************/
-PRIVATE int set_impose_c_schema(hgobj gobj, const char *set)
+PRIVATE void set_impose_c_schema(hgobj gobj, BOOL impose)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jn_resp = gobj_command(
-        priv->gobj_treedbs,
-        "set-impose-c-schema",
-        json_pack("{s:s}", "set", set),
-        gobj
-    );
-    int ret = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
-    JSON_DECREF(jn_resp)
-    if(ret < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "TEST FAIL: set-impose-c-schema failed",
-            "set",          "%s", set,
-            NULL
-        );
-    }
-    return ret;
+    gobj_write_bool_attr(priv->gobj_treedbs, "impose_c_schema", impose);
+}
+
+PRIVATE void set_dynamic_schema_treedbs(hgobj gobj, json_t *treedbs) // owned
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_write_new_json_attr(priv->gobj_treedbs, "dynamic_schema_treedbs", treedbs);
 }
 
 /***************************************************************************
@@ -1902,9 +1895,7 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
     json_int_t system_version0 = system_schema_version(gobj, "schema_version");
     json_int_t system_users0 = system_topic_version(gobj, "users");
 
-    if(set_impose_c_schema(gobj, "1") < 0) {
-        return -1;  // Error already logged
-    }
+    set_impose_c_schema(gobj, TRUE);
 
     json_t *jn_resp = gobj_command(
         priv->gobj_treedbs,
@@ -1917,7 +1908,7 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
     json_t *jn_literal = legalstring2json(schema_test2, TRUE);
     json_int_t literal_version = kw_get_int(gobj, jn_literal, "schema_version", 0, KW_WILD_NUMBER);
     if(open_test_treedb(gobj, jn_literal) < 0) {
-        set_impose_c_schema(gobj, "0");
+        set_impose_c_schema(gobj, FALSE);
         return -1;  // Error already logged
     }
 
@@ -1981,9 +1972,7 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
     /*
      *  Leave it off, as the tests after this one expect
      */
-    if(set_impose_c_schema(gobj, "0") < 0) {
-        result += -1;   // Error already logged
-    }
+    set_impose_c_schema(gobj, FALSE);
 
     return result;
 }
@@ -2019,14 +2008,10 @@ PRIVATE int check_dynamic_schema_treedbs(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = 0;
 
-    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "set-impose-c-schema",
-        json_pack("{s:s}", "set", "1"), gobj);
-    JSON_DECREF(jn_resp)
-    jn_resp = gobj_command(priv->gobj_treedbs, "set-impose-c-schema",
-        json_pack("{s:s, s:s}", "set", "0", "treedb_name", TREEDB_NAME), gobj);
-    JSON_DECREF(jn_resp)
+    set_impose_c_schema(gobj, TRUE);
+    set_dynamic_schema_treedbs(gobj, json_pack("[s]", TREEDB_NAME));
 
-    jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
         json_pack("{s:s, s:b}", "treedb_name", TREEDB_NAME, "force", 1), gobj);
     JSON_DECREF(jn_resp)
     if(open_test_treedb(gobj, legalstring2json(schema_test2, TRUE)) < 0) {
@@ -2049,9 +2034,7 @@ PRIVATE int check_dynamic_schema_treedbs(hgobj gobj)
         result += -1;
     }
 
-    jn_resp = gobj_command(priv->gobj_treedbs, "set-impose-c-schema",
-        json_pack("{s:s, s:s}", "set", "1", "treedb_name", TREEDB_NAME), gobj);
-    JSON_DECREF(jn_resp)
+    set_dynamic_schema_treedbs(gobj, json_array());
     found = treedbs_row(gobj, TREEDB_NAME, &impose, &decided_by);
     if(!found || !impose || strcmp(decided_by, "impose_c_schema")!=0) {
         gobj_log_error(gobj, 0,
@@ -2066,21 +2049,19 @@ PRIVATE int check_dynamic_schema_treedbs(hgobj gobj)
         result += -1;
     }
 
-    jn_resp = gobj_command(priv->gobj_treedbs, "set-impose-c-schema",
-        json_pack("{s:s}", "set", "0"), gobj);
-    JSON_DECREF(jn_resp)
+    set_impose_c_schema(gobj, FALSE);
 
     return result;
 }
 
 /***************************************************************************
  *  The yuno's code imposes: open-treedb impose_c_schema=1 wins over the
- *  attribute, which Test 9 left off with the command.
+ *  attribute, which Test 9 left off.
  *
  *  First the disk is taken ahead of the literal the legitimate way --
  *  save-schema + apply-schema of what __system__ holds, and an ordinary
- *  open; then the forced one brings it back, and the command says the
- *  treedb is forced.
+ *  open; then the forced one brings it back, and `treedbs` says the code
+ *  decided.
  ***************************************************************************/
 PRIVATE int check_impose_forced_by_code(hgobj gobj)
 {
@@ -2141,27 +2122,25 @@ PRIVATE int check_impose_forced_by_code(hgobj gobj)
     }
 
     /*
-     *  The attribute is still off, and the command says who overrides it
+     *  The attribute is still off, and `treedbs` says the code decided
      */
-    jn_resp = gobj_command(
-        priv->gobj_treedbs,
-        "set-impose-c-schema",
-        json_object(),
-        gobj
-    );
-    BOOL attr = kw_get_bool(gobj, jn_resp, "data`impose_c_schema", 1, 0);
-    json_t *jn_forced = kw_get_list(gobj, jn_resp, "data`forced_by_code", 0, 0);
-    if(attr || json_list_str_index(jn_forced, TREEDB_NAME, FALSE) < 0) {
+    BOOL impose = FALSE;
+    const char *decided_by = "";
+    BOOL found = treedbs_row(gobj, TREEDB_NAME, &impose, &decided_by);
+    if(gobj_read_bool_attr(priv->gobj_treedbs, "impose_c_schema") ||
+        !found || !impose || strcmp(decided_by, "code")!=0
+    ) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INTERNAL,
-            "msg",              "%s", "TEST FAIL: set-impose-c-schema does not say the treedb is forced",
-            "response",         "%j", jn_resp,
+            "msg",              "%s", "TEST FAIL: treedbs does not say the code imposes",
+            "found",            "%d", (int)found,
+            "impose",           "%d", (int)impose,
+            "decided_by",       "%s", decided_by,
             NULL
         );
         result += -1;
     }
-    JSON_DECREF(jn_resp)
 
     return result;
 }

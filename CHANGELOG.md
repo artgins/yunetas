@@ -5,22 +5,23 @@
 ### C_TREEDB: `impose_c_schema` is configuration, not a persisted attribute (BREAKING)
 
 - The attribute loses `SDF_PERSIST`. The value a yuno runs with is its
-  configuration: its `main.c` (`'global': {'C_TREEDB.impose_c_schema':
+  configuration: its `main.c` (`'global': {'treedbs.impose_c_schema':
   false}`) or its config file. A value saved by the command outranked the
   configuration, survived every new binary, and lived nowhere a deploy could
   see. A file saved by an older release is ignored (the loader reads only
   `SDF_PERSIST` attributes).
-- `set-impose-c-schema` stays, for the occasional case: it changes the value
-  in memory, for the next open of a treedb in the same run; a restart takes
-  the configured value back. It no longer saves anything.
+- **`set-impose-c-schema` is removed**, and the permission `impose-c-schema`
+  with it. Kept as an in-memory switch it could never act: the value is read
+  when a treedb opens, a treedb opens when its yuno starts (`close-treedb`
+  refuses while the yuno plays), and a restart reads the configuration again.
+  To change the value, change the `main.c` or the config file and deploy.
 - A yuno that relied on a persisted `set=0` opens imposing again (the
   default is `1`) until its configuration says `false`.
 - **Per treedb: `dynamic_schema_treedbs`** (list, configuration, not
   persistent) names the treedbs that open from their schema file whatever
   `impose_c_schema` says, which stays the default of every other one:
   `'global': {'treedbs.dynamic_schema_treedbs': ['treedb_wattyzer']}`. The
-  yuno's code still wins. `set-impose-c-schema treedb_name=<x>` moves one
-  treedb in or out of it, in memory.
+  yuno's code still wins.
 - **New command `treedbs`** in C_TREEDB: the treedbs the service opened
   (`treedb_system_schema` first), with `impose_c_schema` as it applies to
   each, `decided_by` (`code`, `dynamic_schema_treedbs`, `impose_c_schema`,

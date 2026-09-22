@@ -1584,21 +1584,22 @@ PRIVATE char variable_config[]= "\
 ";
 ```
 
-Until 7.25.0 the value persisted, and a `set=0` given by a command outranked
-the configuration, survived every new binary and lived nowhere a deploy could
-see. The command stays for the occasional case: `set-impose-c-schema`
-(permission `impose-c-schema`, logged as *"impose_c_schema changed"* with the
-user) changes the value in memory, for the next open of a treedb in the same
-run; a restart takes the configured value back. With `treedb_name` it acts on
-that treedb only (it leaves or enters `dynamic_schema_treedbs`). `treedbs`
-lists what the service opened and, for each treedb, whether it imposes and who
-decided it (`decided_by`: `code`, `dynamic_schema_treedbs`, `impose_c_schema`,
-or `system` for `treedb_system_schema`).
+**No command changes it.** Until 7.25.0 the value persisted and
+`set-impose-c-schema` saved it: a `set=0` outranked the configuration,
+survived every new binary and lived nowhere a deploy could see. The command
+is gone, and not kept as an in-memory switch either: the value is read only
+when a treedb opens, a treedb opens only when its yuno starts (`close-treedb`
+refuses while the yuno plays), and a restart reads the configuration again —
+so a value set at run time could never reach a treedb. To change it, change
+the `main.c` or the config file and deploy.
+
+`treedbs` lists what the service opened and, for each treedb, whether it
+imposes and who decided it (`decided_by`: `code`, `dynamic_schema_treedbs`,
+`impose_c_schema`, or `system` for `treedb_system_schema`), with the
+versions of the literal, of the schema file in use and of the saved one:
 
 ```bash
-ycommand -c 'command-yuno id=<id> service=treedbs command=treedbs'                    # who imposes, and why
-ycommand -c 'command-yuno id=<id> service=treedbs command=set-impose-c-schema'        # show
-ycommand -c 'command-yuno id=<id> service=treedbs command=set-impose-c-schema set=0 treedb_name=treedb_x'  # until the restart
+ycommand -c 'command-yuno id=<id> service=treedbs command=treedbs'
 ```
 
 **The yuno's code can force it, and then no command undoes it.** A binary
@@ -1624,14 +1625,13 @@ forces it; `db_history_wz` and `db_history_ce` name their treedb in
 `dynamic_schema_treedbs` in their `main.c`.
 
 The order, from the strongest: the yuno's code, then
-`dynamic_schema_treedbs`, then `impose_c_schema` (each as configured in
-`main.c` or the config file, or as `set-impose-c-schema` left it until the
-restart), then the default `1`. To impose
+`dynamic_schema_treedbs`, then `impose_c_schema` (both as configured in
+`main.c` or the config file), then the default `1`. To impose
 the law, deploy a binary that forces it. To give the permission back, deploy
 one that does not, and from then on the attribute decides again. When the
 code overrides a `0`, the log says *"impose_c_schema forced by the code of the
-yuno, over the attribute"*, and `set-impose-c-schema` lists the forced
-treedbs in `forced_by_code`, so nobody expects their `set=0` to reach them.
+yuno, over the attribute"*, and `treedbs` answers `decided_by: code` for
+those treedbs.
 
 This parameter takes the place of `use_internal_schema`, an option of
 `open-treedb` that was removed in 7.19.0. That one opened with the literal
