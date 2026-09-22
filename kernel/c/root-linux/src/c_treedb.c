@@ -120,6 +120,7 @@ PRIVATE json_t *diff_treedb_schema(
     json_t *rows        // not owned, where the differences are appended
 );
 PRIVATE json_t *schema_topics_as_list(hgobj gobj, json_t *jn_schema);
+PRIVATE json_t *draft_changed_from_rows(hgobj gobj, json_t *rows);
 PRIVATE int diff_node_attrs(
     hgobj gobj,
     json_t *rows,           // not owned
@@ -1596,15 +1597,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *rows = json_array();
     json_t *summary = diff_treedb_schema(gobj, treedb_name, in_use, rows);
     JSON_DECREF(summary)
-    json_t *changed = json_object();
-    int idx; json_t *row;
-    json_array_foreach(rows, idx, row) {
-        const char *kind = kw_get_str(gobj, row, "kind", "", 0);
-        const char *topic_name = kw_get_str(gobj, row, "topic", "", 0);
-        if(!empty_string(topic_name) && strcmp(kind, "version")!=0) {
-            json_object_set_new(changed, topic_name, json_true());
-        }
-    }
+    json_t *changed = draft_changed_from_rows(gobj, rows);
     if(json_object_size(changed) == 0) {
         JSON_DECREF(changed)
         JSON_DECREF(in_use)
@@ -1644,7 +1637,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_object_set_new(schema, "schema_version", json_integer(schema_version));
 
     json_t *versions = json_object();
-    json_t *topic;
+    int idx; json_t *topic;
     json_array_foreach(json_object_get(schema, "topics"), idx, topic) {
         const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
         if(!json_object_get(changed, topic_name)) {
@@ -1814,13 +1807,30 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         JSON_DECREF(flat_in_use)
         JSON_DECREF(flat_saved)
     }
+
+    /*
+     *  The topics whose DRAFT in __system__ differs from the file in use:
+     *  what the schema editor marks as unsaved. It kept that mark in the
+     *  memory of one session only, so a reload of the page lost it while
+     *  __system__ still differed from the file (N13 of the 2026-09-22
+     *  review); this is the data it is rebuilt from.
+     */
+    json_t *draft_changed = json_object();
+    if(in_use) {
+        json_t *rows = json_array();
+        json_t *summary = diff_treedb_schema(gobj, treedb_name, in_use, rows);
+        JSON_DECREF(summary)
+        JSON_DECREF(draft_changed)
+        draft_changed = draft_changed_from_rows(gobj, rows);
+        JSON_DECREF(rows)
+    }
     JSON_DECREF(in_use)
     JSON_DECREF(saved)
 
     return msg_iev_build_response(gobj, 0,
         0,
         0,
-        json_pack("{s:s, s:b, s:b, s:b, s:I, s:I, s:b, s:s, s:o}",
+        json_pack("{s:s, s:b, s:b, s:b, s:I, s:I, s:b, s:s, s:o, s:o}",
             "treedb_name", treedb_name,
             "impose_c_schema", imposed,
             "master", master,
@@ -1829,10 +1839,31 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             "saved_schema_version", saved_version,
             "can_apply", master && !imposed && saved_version > in_use_version,
             "path", saved_path,
-            "diff", diff
+            "diff", diff,
+            "draft_changed", draft_changed
         ),
         kw
     );
+}
+
+/***************************************************************************
+ *  The topics the rows of diff_treedb_schema() name as changed, as a dict
+ *  {topic: true}: a difference of a column or of the topic itself, not a
+ *  `version` row (a version behind is the projection that never landed,
+ *  not an edit). Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *draft_changed_from_rows(hgobj gobj, json_t *rows)
+{
+    json_t *changed = json_object();
+    int idx; json_t *row;
+    json_array_foreach(rows, idx, row) {
+        const char *kind = kw_get_str(gobj, row, "kind", "", 0);
+        const char *topic_name = kw_get_str(gobj, row, "topic", "", 0);
+        if(!empty_string(topic_name) && strcmp(kind, "version")!=0) {
+            json_object_set_new(changed, topic_name, json_true());
+        }
+    }
+    return changed;
 }
 
 /***************************************************************************

@@ -152,13 +152,15 @@ PRIVATE void mark_file_unordered(
     const char *file_id,
     json_t *cache_cell
 );
-PRIVATE int widen_cell_from_all_rows(
+PRIVATE int widen_cell_from_rows(
     hgobj gobj,
     const char *topic_directory,
     const char *key,
     const char *file_id,
-    json_t *cache_cell
+    json_t *cache_cell,
+    json_int_t from_row
 );
+PRIVATE void join_cell_ranges(json_t *cell, json_t *other);
 PRIVATE void merge_cache_cell(json_t *cur_cache_cell, json_t *new_cache_cell);
 PRIVATE void remove_iterator_from_index(json_t *topic, json_t *iterator);
 PRIVATE int close_fd_opened_files(
@@ -208,7 +210,8 @@ PRIVATE json_t *load_cache_cell_from_disk(
     hgobj gobj,
     const char *topic_directory,
     const char *key,
-    char *filename  // md2 filename with extension, WARNING modified, .md2 removed
+    char *filename, // md2 filename with extension, WARNING modified, .md2 removed
+    json_t *known_cell  // the cell this file already has in memory, or NULL
 );
 PRIVATE json_int_t load_first_and_last_record_md(
     hgobj gobj,
@@ -5675,28 +5678,38 @@ PRIVATE json_int_t update_new_records_from_disk(
 )
 {
     const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
-    json_t *new_cache_cell = load_cache_cell_from_disk( // A bit slow, open/read/close file
-        gobj,
-        topic_directory,
-        key,
-        filename  // warning .md2 removed
-    );
-    if(!new_cache_cell) {
-        // Error already logged
-        return -1;
+
+    /*
+     *  The cell this file already has, found BEFORE the load: a marked
+     *  file is then read from the row after the ones the cell counted.
+     */
+    char file_id_[NAME_MAX];
+    snprintf(file_id_, sizeof(file_id_), "%s", filename);
+    char *ext = strrchr(file_id_, '.');
+    if(ext) {
+        *ext = 0;
     }
-
-    char *file_id = filename; // Now it has not .md2
-
     json_int_t file_base = 0;
     int insert_idx = 0;
     json_t *cur_cache_cell = find_cache_cell(
         topic,
         key,
-        file_id,
+        file_id_,
         &file_base,
         &insert_idx
     );
+
+    json_t *new_cache_cell = load_cache_cell_from_disk( // A bit slow, open/read/close file
+        gobj,
+        topic_directory,
+        key,
+        filename,   // warning .md2 removed
+        cur_cache_cell
+    );
+    if(!new_cache_cell) {
+        // Error already logged
+        return -1;
+    }
 
     // Publish new data to iterator
     // TODO WARNING here publishing records without totals updated!!
@@ -6386,7 +6399,8 @@ PRIVATE json_t *load_key_cache_from_disk(
             gobj,
             topic_directory,
             key,
-            filename    // warning .md2 removed
+            filename,   // warning .md2 removed
+            NULL        // no cell yet: the cache is being built
         );
         if(!cache_cell) {
             // Error already logged
@@ -6504,7 +6518,8 @@ PRIVATE json_t *load_cache_cell_from_disk(
     hgobj gobj,
     const char *topic_directory,
     const char *key,
-    char *filename  // md2 filename with extension, WARNING modified, .md2 removed
+    char *filename, // md2 filename with extension, WARNING modified, .md2 removed
+    json_t *known_cell  // the cell this file already has in memory, or NULL
 )
 {
     /*----------------------------------*
@@ -6550,7 +6565,19 @@ PRIVATE json_t *load_cache_cell_from_disk(
     char key_directory[PATH_MAX];
     build_path(key_directory, sizeof(key_directory), topic_directory, "keys", key, NULL);
     if(file_exists(key_directory, marker)) {
-        if(widen_cell_from_all_rows(gobj, topic_directory, key, filename, file_cache) < 0) {
+        /*
+         *  The rows already read need no second reading: a follower wakes
+         *  up on every append of the master, and read the marked file WHOLE
+         *  each time (N12 of the 2026-09-22 review). The cell in memory
+         *  already holds the range of the rows it counted; only the rows
+         *  after them are read, and the two ranges are joined.
+         */
+        json_int_t from_row = 1;
+        if(known_cell && json_is_true(json_object_get(known_cell, "unordered"))) {
+            join_cell_ranges(file_cache, known_cell);
+            from_row = json_integer_value(json_object_get(known_cell, "rows")) + 1;
+        }
+        if(widen_cell_from_rows(gobj, topic_directory, key, filename, file_cache, from_row) < 0) {
             // Error already logged: the cell keeps the first/last range
         }
         json_object_set_new(file_cache, "unordered", json_true());
@@ -6560,15 +6587,40 @@ PRIVATE json_t *load_cache_cell_from_disk(
 }
 
 /***************************************************************************
- *  Read EVERY row of a md2 file and widen the cell's ranges (t and tm) to
- *  what the rows really hold. Only for a file the master marked unordered.
+ *  Widen `cell`'s ranges (t and tm) to hold `other`'s too.
  ***************************************************************************/
-PRIVATE int widen_cell_from_all_rows(
+PRIVATE void join_cell_ranges(json_t *cell, json_t *other)
+{
+    const char *lows[] = {"fr_t", "fr_tm", NULL};
+    const char *highs[] = {"to_t", "to_tm", NULL};
+    for(int i = 0; lows[i]; i++) {
+        json_int_t a = json_integer_value(json_object_get(cell, lows[i]));
+        json_int_t b = json_integer_value(json_object_get(other, lows[i]));
+        if(b < a) {
+            set_cache_int(cell, lows[i], b);
+        }
+    }
+    for(int i = 0; highs[i]; i++) {
+        json_int_t a = json_integer_value(json_object_get(cell, highs[i]));
+        json_int_t b = json_integer_value(json_object_get(other, highs[i]));
+        if(b > a) {
+            set_cache_int(cell, highs[i], b);
+        }
+    }
+}
+
+/***************************************************************************
+ *  Read the rows of a md2 file from `from_row` (1-based) on and widen the
+ *  cell's ranges (t and tm) to what they really hold. Only for a file the
+ *  master marked unordered; from row 1 it is the whole file.
+ ***************************************************************************/
+PRIVATE int widen_cell_from_rows(
     hgobj gobj,
     const char *topic_directory,
     const char *key,
     const char *file_id,
-    json_t *cache_cell
+    json_t *cache_cell,
+    json_int_t from_row
 )
 {
     char filename[NAME_MAX];
@@ -6588,6 +6640,23 @@ PRIVATE int widen_cell_from_all_rows(
             NULL
         );
         return -1;
+    }
+    if(from_row > 1) {
+        off_t offset = (off_t)(from_row - 1) * (off_t)sizeof(md2_record_t);
+        if(lseek(fd, offset, SEEK_SET) != offset) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot seek md2 file to widen its range",
+                "path",         "%s", full_path,
+                "from_row",     "%ld", (long)from_row,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            close(fd);
+            return -1;
+        }
     }
 
     uint64_t fr_t = (uint64_t)json_integer_value(json_object_get(cache_cell, "fr_t"));

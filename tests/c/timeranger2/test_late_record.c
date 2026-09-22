@@ -227,6 +227,25 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*-------------------------------------*
+     *  The marked file goes on growing: the
+     *  follower reads only the rows after
+     *  the ones its cell counted (N12), and
+     *  the range it keeps is the union.
+     *-------------------------------------*/
+    set_expected_results("late record: a marked file keeps growing", NULL, NULL, NULL, 1);
+    append_one(tm, DAY1 + 70000, "E4");
+    drain(30);
+    served_in(tf, DAY1 + 60000, DAY1 + 80000, bf, sizeof(bf));
+    result += expect("follower serves [+60000, +80000]", bf, "E4");
+    served_in(tf, DAY1 + 40000, DAY1 + 60000, bf, sizeof(bf));
+    result += expect("follower still serves [+40000, +60000]", bf, "E2");
+    /*  Not asserted: [+150, +250] -> E3. The late row is behind E2 in the
+     *  file and the forward scan stops at the first row past to_t
+     *  (tranger2_match_metadata), so a marked file serves a late row only
+     *  in a range that also reaches the rows before it. Open (TODO.md).  */
+    result += test_json(NULL);
+
+    /*-------------------------------------*
      *  M18: ONE batch touches two files
      *  of the key: a late day-1 record and
      *  a day-2 one. Both feeds get both.

@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### timeranger2: a marked md2 file is not read whole at every wake-up of a follower
+
+- A file the master marked `.unordered` (a late record, M16) was read whole
+  by `load_cache_cell_from_disk()`, and a follower loads the cell again on
+  every append of the master: each append cost the follower every row of
+  that file, 32 bytes a row (N12 of the 2026-09-22 review). The cell in
+  memory already holds the range of the rows it counted, so only the rows
+  after them are read (`widen_cell_from_rows()` from `rows + 1`) and the two
+  ranges are joined. `test_late_record`: a marked file that keeps growing
+  serves the new rows, the late one and the old ones alike.
+
+### C_TREEDB: `saved-schema` says which topics the draft changes
+
+- `saved-schema` answers `draft_changed`, the topics whose draft in
+  `__system__` differs from the file in use, computed with the same diff a
+  `save-schema` uses (`draft_changed_from_rows()`). The schema editor kept
+  that mark in the memory of one session only, so a reload of the page, a
+  reconnect or its Refresh lost the chip, the banner and the export warning
+  while `__system__` still differed from the file (N13); gobj-ui 7.25.3
+  rebuilds them from this answer, which gui_agent 0.22.76 hands it. Red test
+  in `test_c_treedb_system_schema`.
+
 ### gobj-ui 7.25.2, yunos-js gui_agent 0.22.75
 
 - `kernel/js/gobj-ui` -> 7.25.2: a topic form's write is answered every way

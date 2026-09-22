@@ -128,7 +128,12 @@ The second review (read at 7.24.1) shipped in 7.25.0 and in gobj-ui
 - **M16-M18:** the `tm` range of a cell is read from the first and last rows,
   and `tm` is out of order whenever a device uploads a buffered batch; only the
   `t` disorder marks a file (`<file>.unordered`). And a crash between the md2
-  write and the marker leaves an unmarked unordered file.
+  write and the marker leaves an unmarked unordered file. A marked file is
+  selected whole by its (widened) cell, but the forward scan of its rows still
+  stops at the first row past `to_t` / `to_tm` (`tranger2_match_metadata`),
+  so a late row behind a later one is served only by a range that also
+  reaches the rows before it (seen writing `test_late_record`'s growing-file
+  case, 2026-09-22).
 - **M36:** every in-tree yuno forces `impose_c_schema`, so gui_agent's Apply
   is off on all of them until one stops forcing it.
 

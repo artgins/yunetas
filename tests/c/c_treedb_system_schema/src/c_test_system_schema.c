@@ -3252,6 +3252,16 @@ PRIVATE int check_save_and_apply(hgobj gobj)
             json_object_size(kw_get_dict(gobj, jn_resp, "data`diff`changed", 0, 0)) == 0) {
         result += save_fail(gobj, "TEST FAIL: saved-schema did not say what the save changes", jn_resp);
     }
+    /*  ...and which topics the DRAFT in __system__ changes against the file
+     *  in use: the mark the schema editor rebuilds after a reload (N13 of
+     *  the 2026-09-22 review). `users` was edited above; `departments` not.  */
+    {
+        json_t *draft_changed = kw_get_dict(gobj, jn_resp, "data`draft_changed", 0, 0);
+        if(!draft_changed || !json_is_true(json_object_get(draft_changed, "users")) ||
+                json_object_get(draft_changed, "departments")) {
+            result += save_fail(gobj, "TEST FAIL: saved-schema did not say what the draft changes", jn_resp);
+        }
+    }
     JSON_DECREF(jn_resp)
 
     /*
