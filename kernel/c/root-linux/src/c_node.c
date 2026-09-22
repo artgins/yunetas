@@ -179,7 +179,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_delete_node[] = {
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATAPM (DTP_JSON,      "record",       0,              0,          "Node content in json"),
-SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: 'force' unlinks the children, 'ignore_snaps' deletes a node a snapshot holds"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: 'force' unlinks the children, 'ignore_snaps' deletes a node a snapshot holds (asks 'create' too)"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_link_nodes[] = {
@@ -458,7 +458,9 @@ typedef struct _PRIVATE_DATA {
     int32_t exit_on_error;
 
     /*  The last mt_update_node saved the record but refused some link:
-     *  cmd_update_node must not answer that as a plain success.  */
+     *  cmd_update_node must not answer that as a plain success. Written
+     *  once, when mt_update_node RETURNS, so an update nested inside it (a
+     *  subscriber of its events updating this service) cannot reset it.  */
     BOOL links_refused;
 
 } PRIVATE_DATA;
@@ -958,7 +960,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    priv->links_refused = FALSE;
+    BOOL links_refused = FALSE;
     if(!jn_options) {
         jn_options = json_object();
     }
@@ -1000,6 +1002,30 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    /*
+     *  Only a `volatil` update lives in memory alone; every other one ends
+     *  in an append, and a replica refuses the append. Refused BEFORE
+     *  anything moves: the autolink path moves the links in memory first
+     *  and saved last, and it answered the node although the save had been
+     *  refused (M4 of the 2026-09-23 review). Its real caller is C_AUTHZ
+     *  creating a user with a role from EV_IDP_USER_CREATED, an event that
+     *  no command-level guard sees.
+     */
+    if(!volatil && !kw_get_bool(gobj, priv->tranger, "master", 0, KW_REQUIRED)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot write a node on a READ-ONLY replica",
+            "treedb_name",  "%s", priv->treedb_name,
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", kw_get_str(gobj, kw, "id", "", 0),
             NULL
         );
         JSON_DECREF(jn_options)
@@ -1128,11 +1154,30 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
              */
             if(treedb_replace_links(priv->tranger, node, json_incref(kw), FALSE)<0) {
                 // Error already logged
-                priv->links_refused = TRUE;
+                links_refused = TRUE;
             }
-            treedb_save_node(priv->tranger, node);
+            /*
+             *  The save is the answer: ignored, a failed append answered the
+             *  node as written while only the memory had moved.
+             */
+            if(treedb_save_node(priv->tranger, node)<0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "Cannot save the node after its links (autolink)",
+                    "treedb_name",  "%s", priv->treedb_name,
+                    "topic_name",   "%s", topic_name,
+                    "id",           "%s", kw_get_str(gobj, node, "id", "", 0),
+                    NULL
+                );
+                JSON_DECREF(jn_options)
+                KW_DECREF(kw)
+                return 0;
+            }
         }
     }
+
+    priv->links_refused = links_refused;
 
     KW_DECREF(kw)
 
@@ -2806,9 +2851,19 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
+    if(!node) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: cannot update the node of topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     return msg_iev_build_response(gobj,
-        node?0:-1,
-        json_sprintf("%s", node?"Node update!":gobj_log_last_message()),
+        0,
+        json_sprintf("Node update!"),
         gobj_topic_desc(gobj, topic_name),
         node,
         kw  // owned
@@ -2869,6 +2924,17 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     /*
+     *  `ignore_snaps` erases records a snapshot froze: the rollback points
+     *  shoot-snap made. Taking them away asks what making them asks.
+     */
+    if(_jn_options && kw_get_bool(gobj, _jn_options, "ignore_snaps", 0, KW_WILD_NUMBER)) {
+        json_t *refused = refuse_without_authz(gobj, "create", kw, src);
+        if(refused) {
+            return refused;
+        }
+    }
+
+    /*
      *  Get a iter of matched resources.
      */
     json_t *node = gobj_get_node(
@@ -2901,7 +2967,8 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s", gobj_log_last_message()),
+            json_sprintf("%s: cannot delete the node of topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -4535,13 +4602,17 @@ PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgo
         kw_incref(kw),
         src
     );
-    const char *last_msg = gobj_log_last_message();
+    /*
+     *  The deactivation is a save of the active snap, and a failed one
+     *  leaves it ACTIVE on disk: answered "Snap deactivated", the next start
+     *  loaded the snap again.
+     */
     return msg_iev_build_response(gobj,
-        ret,
-        ret==0
-            ? json_sprintf("Snap deactivated")
-            : json_sprintf("Cannot deactivate snap: %s",
-                empty_string(last_msg)?"(see log)":last_msg),
+        ret<0? -1 : 0,
+        ret<0
+            ? json_sprintf("%s: cannot deactivate the snap of treedb '%s', it is still active (see the log)",
+                gobj_yuno_role_plus_name(), gobj_read_str_attr(gobj, "treedb_name"))
+            : json_sprintf("Snap deactivated"),
         0,
         0,
         kw  // owned
@@ -5804,6 +5875,13 @@ PRIVATE int export_treedb(
 
 /***************************************************************************
  *  HACK bypass authz control, only internal use
+ *
+ *  Internal means a gobj of THIS yuno, and the event is not public for that
+ *  reason. It was: and C_IEVENT_CLI hands an inter-event from the peer it is
+ *  connected to straight to the local service the event names, when that
+ *  service declares it public -- so the other end of any outbound session
+ *  could write this treedb with no permission asked. gobj_send_event() from
+ *  inside the yuno does not look at the flag.
  ***************************************************************************/
 PRIVATE int ac_treedb_update_node(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -5844,10 +5922,11 @@ PRIVATE int ac_treedb_update_node(hgobj gobj, gobj_event_t event, json_t *kw, hg
         gobj_trace_json(gobj, node, "⏪ treedb_update_node topic %s", topic_name);
     }
 
-    json_decref(node); // return something? de momento no, uso interno.
+    int ret = node? 0 : -1;   // Error already logged when -1
+    json_decref(node);
 
     KW_DECREF(kw)
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
@@ -5930,7 +6009,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_TREEDB_UPDATE_NODE,     EVF_PUBLIC_EVENT},
+        {EV_TREEDB_UPDATE_NODE,     0},     // internal only, see ac_treedb_update_node
         {EV_TREEDB_NODE_CREATED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_TREEDB_NODE_UPDATED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_TREEDB_NODE_DELETED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},

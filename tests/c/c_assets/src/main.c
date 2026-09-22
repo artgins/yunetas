@@ -115,7 +115,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -125,9 +125,8 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Assets service ready",
             "msg", "Playing yuno",
-            /*  the unknown topic of case 4bis: the write, and then the
-             *  desc the answer carries back  */
-            "msg", "Topic name not found in treedbs",
+            /*  the unknown topic of case 4bis: the write (a refused
+             *  update-node answers no desc of it since after 7.25.3)  */
             "msg", "Topic name not found in treedbs",
             "msg", "Cannot delete node: has down links",
             "msg", "import refused: source_dir carries '..'",

@@ -24,7 +24,14 @@
  *                from the table itself, so a new command is covered the
  *                day it is added (M41 of the 2026-09-21 review);
  *              - the same treedb opened as a REPLICA answers every write
- *                READ-ONLY and changes nothing (M42).
+ *                READ-ONLY and changes nothing (M42), and so does a
+ *                gobj_update_node() with autolink that no command guards
+ *                (M4 of the 2026-09-23 review);
+ *              - delete-node with ignore_snaps asks `create` besides
+ *                `delete`: it erases what shoot-snap made;
+ *              - an update nested in the events of another (a subscriber
+ *                updating the same service) does not reset the "links
+ *                refused" answer of the outer one.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -102,6 +109,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_node;
     hgobj timer;
     json_t *tranger;
+    BOOL nest_one_update;   /*  ac_node_written updates another node, once  */
 } PRIVATE_DATA;
 
 /***************************************************************************
@@ -309,6 +317,8 @@ PRIVATE int run_tests(hgobj gobj)
         json_pack("{s:s, s:s}", "id", "item00", "name", "Item 00"));
     treedb_create_node(priv->tranger, TREEDB_NAME, "items",
         json_pack("{s:s, s:s}", "id", "item01", "name", "Item 01"));
+    treedb_create_node(priv->tranger, TREEDB_NAME, "items",
+        json_pack("{s:s, s:s}", "id", "item-del", "name", "To delete"));
 
     /*-----------------------------------------------*
      *  Every read: nobody is refused, reader is served
@@ -528,6 +538,75 @@ PRIVATE int run_tests(hgobj gobj)
         result += -1;
     }
 
+    /*-----------------------------------------------*
+     *  delete-node with ignore_snaps erases records a
+     *  snapshot froze: it asks what shoot-snap asks
+     *  (`create`) besides `delete`
+     *-----------------------------------------------*/
+    result += expect(gobj, "deleter", "delete-node",
+        json_pack("{s:s, s:{s:s}, s:{s:b}}",
+            "topic_name", "items",
+            "record", "id", "item-del",
+            "options", "ignore_snaps", 1
+        ),
+        TRUE
+    );
+    if(!treedb_get_node(priv->tranger, TREEDB_NAME, "items", "item-del")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: ignore_snaps deleted under `delete` alone",
+            NULL
+        );
+        result += -1;
+    }
+    result += expect(gobj, "keeper", "delete-node",
+        json_pack("{s:s, s:{s:s}, s:{s:b}}",
+            "topic_name", "items",
+            "record", "id", "item-del",
+            "options", "ignore_snaps", 1
+        ),
+        FALSE
+    );
+    if(treedb_get_node(priv->tranger, TREEDB_NAME, "items", "item-del")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: ignore_snaps did not delete with `delete` and `create`",
+            NULL
+        );
+        result += -1;
+    }
+
+    /*-----------------------------------------------*
+     *  An update nested in the events of another one
+     *  (a subscriber of the treedb updating the same
+     *  service) must not reset what the outer one
+     *  answers: its link was refused, so -1
+     *-----------------------------------------------*/
+    priv->nest_one_update = TRUE;
+    {
+        int ret = ask(gobj, "editor", "update-node",
+            json_pack("{s:s, s:{s:s, s:s}, s:{s:b}}",
+                "topic_name", "items",
+                "record", "id", "item00", "parent_id", "items^no-such-item^children",
+                "options", "autolink", 1
+            )
+        );
+        if(ret != -1 || priv->nest_one_update) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a nested update reset the refused link of the outer one",
+                "result",       "%d", ret,
+                "nested",       "%d", (int)!priv->nest_one_update,
+                NULL
+            );
+            result += -1;
+        }
+    }
+    priv->nest_one_update = FALSE;
+
     result += run_replica_tests(gobj);
 
     if(result == 0) {
@@ -631,6 +710,35 @@ PRIVATE int run_replica_tests(hgobj gobj)
         JSON_DECREF(resp)
     }
 
+    /*
+     *  A write that no command guards: C_AUTHZ creates a user with a role
+     *  from an EVENT, through gobj_update_node() with autolink. It answered
+     *  the node, with the links moved in memory and nothing saved.
+     */
+    {
+        json_t *node = gobj_update_node(
+            priv->gobj_node,
+            "items",
+            json_pack("{s:s, s:s}", "id", "item01", "parent_id", "items^item00^children"),
+            json_pack("{s:b}", "autolink", 1),
+            gobj
+        );
+        json_t *item01 = treedb_get_node(priv->tranger, TREEDB_NAME, "items", "item01");
+        json_t *parent = item01? json_object_get(item01, "parent_id") : NULL;
+        if(node || (parent && !empty_json(parent))) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: an autolink update on a replica answered or moved something",
+                "answered",     "%d", node? 1 : 0,
+                "parent_id",    "%j", parent? parent : json_null(),
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(node)
+    }
+
     /*  ...and nothing moved  */
     json_t *item00 = treedb_get_node(priv->tranger, TREEDB_NAME, "items", "item00");
     if(!item00 || strcmp(kw_get_str(gobj, item00, "name", "", 0), "renamed on a replica")==0 ||
@@ -653,6 +761,20 @@ PRIVATE int run_replica_tests(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_node_written(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->nest_one_update && event == EV_TREEDB_NODE_UPDATED) {
+        priv->nest_one_update = FALSE;
+        json_t *node = gobj_update_node(
+            priv->gobj_node,
+            "items",
+            json_pack("{s:s, s:s}", "id", "item01", "name", "updated from an event"),
+            0,
+            gobj
+        );
+        JSON_DECREF(node)
+    }
+
     KW_DECREF(kw)
     return 0;
 }

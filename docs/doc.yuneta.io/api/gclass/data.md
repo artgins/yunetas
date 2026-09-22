@@ -175,7 +175,7 @@ tree nodes with linking, snapshots, and import/export.
 
 | Command | Description |
 |---------|-------------|
-| `create-node` / `update-node` / `delete-node` | CRUD operations on nodes. A record with `file` columns carries its bytes **beside** the record, in `__files__` — see below. `delete-node` takes two options that are NOT the same thing: `force` unlinks the children, and `ignore_snaps` deletes a node a snapshot still holds (and so breaks that snap's rollback). Since after 7.24.1 `force` no longer implies `ignore_snaps`. Example: `ycommand -c 'command-yuno id=<id> service=<treedb> command=delete-node topic_name=items record={"id":"item1"} options={"force":1}'`. |
+| `create-node` / `update-node` / `delete-node` | CRUD operations on nodes. A record with `file` columns carries its bytes **beside** the record, in `__files__` — see below. `delete-node` takes two options that are NOT the same thing: `force` unlinks the children, and `ignore_snaps` deletes a node a snapshot still holds (and so breaks that snap's rollback). Since after 7.24.1 `force` no longer implies `ignore_snaps`. `ignore_snaps` erases records a snapshot froze, so it asks `create` (what `shoot-snap` asks) besides `delete` (after 7.25.3). Example: `ycommand -c 'command-yuno id=<id> service=<treedb> command=delete-node topic_name=items record={"id":"item1"} options={"force":1}'`. |
 | `import-assets` | Turn a directory already on this node into N assets of `__assets__`: one command, no bytes on the wire. Confined to `import_root`. It creates index nodes, links nothing, and **answers the map `path -> id`** so the loader can link what it imported. `dry_run=1` says what it would take. The confinement is resolved, not only spelled: a `source_dir` with `..`, or one that resolves out of `import_root` through a symlink, is refused. |
 | `gc-assets` | Delete the assets that **no live node and no snapshot** links — row and bytes. Never automatic: `delete-node force=1` unlinks children rather than deleting them, so an unlinked asset is a normal intermediate state of a bulk operation. `dry_run=1` lists what it would take. |
 | `node` / `nodes` | Retrieve one node / list a topic's nodes (with filters). |
@@ -184,7 +184,7 @@ tree nodes with linking, snapshots, and import/export.
 | `parents` / `children` | Navigate the graph. |
 | `hooks` / `links` | Inspect hook and fkey relationships. |
 | `jtree` | Get a node's full subtree as JSON. |
-| `shoot-snap` / `activate-snap` / `deactivate-snap` | Snapshot management. |
+| `shoot-snap` / `activate-snap` / `deactivate-snap` | Snapshot management. `deactivate-snap` answers `-1` when the save of the active snap fails: the snap is still ACTIVE on disk and the next start loads it (after 7.25.3; it answered *"Snap deactivated"*). |
 | `snaps` / `snap-content` | Inspect snapshots. |
 | `import-db` / `export-db` | Bulk import/export. |
 | `treedbs` / `topics` | List the treedbs of the tranger / the topics of a treedb. |
@@ -205,6 +205,7 @@ matters only in a yuno with an authz checker (`C_AUTHZ`).
 | `update` | `update-node`, `link-nodes`, `unlink-nodes`, `set-link-events` (changed), `trace`, `activate-snap`, `deactivate-snap` |
 | `delete` | `delete-node`, `gc-assets` |
 | `create` and `update` | `import-db` |
+| `delete` and `create` | `delete-node` with `options.ignore_snaps=1` |
 
 Only `help` and `authzs` ask nothing. `system-schema`, `trace` and the
 `set-link-events` display answered anyone until after 7.24.1; the test walks
@@ -227,7 +228,28 @@ command-yuno id=<id> service=<treedb> command=update-node topic_name=users recor
 An `update-node` with `autolink` whose record names a link that cannot be
 made saves the record and answers **-1**: *"node 'x' saved, but its links were
 NOT changed"*. The fkey column keeps the links it had (see
-`treedb_replace_links()`); it used to answer *"Node update!"*.
+`treedb_replace_links()`); it used to answer *"Node update!"*. The answer is
+the update's own, even when a subscriber of its events updates the same service
+before it answers (until 7.25.3 the nested update reset it to a success).
+
+```
+ycommand -c 'command-yuno id=<id> service=<treedb> command=delete-node topic_name=items record={"id":"item1"} options={"ignore_snaps":1}'
+# -403 No permission to 'create' in service '<treedb>'   (a role with 'delete' only)
+```
+
+**A replica writes nothing, whoever asks.** The commands answer *"READ-ONLY"*
+before anything is read. `gobj_update_node()` from C -- the door C_AUTHZ uses
+for a user created from an event, which no command guards -- returns `NULL` on
+a replica for every update but a `volatil` one (memory only), before it moves
+anything; with `autolink` it used to move the links in memory, fail the save,
+and return the node. It also returns `NULL` when the save after an autolink
+fails.
+
+`EV_TREEDB_UPDATE_NODE` is an input event for gobjs of the SAME yuno
+(`gobj_send_event()`), with no permission asked. It is not a public event since
+after 7.25.3: `C_IEVENT_CLI` delivered a public event from its peer to the
+local service the event names, so the other end of an outbound session could
+write the treedb.
 
 Example: a user whose only role on `treedb_devices` has `"permission": "read"`
 gets `nodes` and `node`, and is refused `link-nodes`:

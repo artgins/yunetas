@@ -83,6 +83,8 @@ time_measure_t time_measure;
  *      reader      read
  *      editor      read, update
  *      creator     read, update, create
+ *      deleter     read, delete
+ *      keeper      read, delete, create
  ***************************************************************************/
 static BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj src)
 {
@@ -95,6 +97,11 @@ static BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj 
         allow = (strcmp(authz, "read")==0 || strcmp(authz, "update")==0)? TRUE: FALSE;
     } else if(strcmp(username, "creator")==0) {
         allow = (strcmp(authz, "read")==0 || strcmp(authz, "update")==0 ||
+            strcmp(authz, "create")==0)? TRUE: FALSE;
+    } else if(strcmp(username, "deleter")==0) {
+        allow = (strcmp(authz, "read")==0 || strcmp(authz, "delete")==0)? TRUE: FALSE;
+    } else if(strcmp(username, "keeper")==0) {
+        allow = (strcmp(authz, "read")==0 || strcmp(authz, "delete")==0 ||
             strcmp(authz, "create")==0)? TRUE: FALSE;
     }
 
@@ -125,8 +132,10 @@ static int register_yuno_and_more(void)
         /*  Strict FIFO: every gobj_log_info the run emits, in order. Four
          *  "Creating topic": the schema declares `items` and the treedb adds
          *  its own three (__snaps__, __graphs__, __assets__). A refusal logs
-         *  nothing: it is the -403 of the answer. */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+         *  nothing: it is the -403 of the answer. The two errors are asked
+         *  for: the link the nested-update check refuses, and the autolink
+         *  update refused on the replica. */
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -135,6 +144,8 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Playing yuno",
+            "msg", "fkey reference: parent node not found",
+            "msg", "Cannot write a node on a READ-ONLY replica",
             "msg", "All c_node authz tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",
