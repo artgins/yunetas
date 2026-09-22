@@ -420,6 +420,28 @@ PRIVATE int test_durable_delete_across_reopen(void)
             printf("%s  FAIL: v2 still present in memory after delete%s\n", On_Red BWhite, Color_Off);
             result += -1;
         }
+
+        /*
+         *  A pkey2 VALUE is data, not a file name: one with a '/' was the id
+         *  of the transient rt_disk feed of the delete, and logged two
+         *  errors per delete ("Invalid rt id", "Cannot open rt"). No log now,
+         *  and the rows are tombstoned all the same.
+         */
+        treedb_create_node(tranger, treedb_name, TOPIC_NAME,
+            json_pack("{s:s, s:s, s:s}", "id", "rel-1", "version", "v/4", "payload", "d"));
+        treedb_update_node(tranger,
+            treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v/4"),
+            json_pack("{s:s}", "payload", "d-updated"), TRUE);
+        treedb_create_node(tranger, treedb_name, TOPIC_NAME,
+            json_pack("{s:s, s:s, s:s}", "id", "rel-1", "version", "v5", "payload", "e"));
+        json_t *v4 = treedb_get_instance(
+            tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v/4");
+        if(!v4 || treedb_delete_instance(tranger, v4, PKEY2_NAME, NULL) != 0) {
+            printf("%s  FAIL: delete_instance of a pkey2 value with '/' failed%s\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+        }
+
         treedb_close_db(tranger, treedb_name);
         tranger2_shutdown(tranger);
         result += test_json(NULL);
@@ -444,6 +466,10 @@ PRIVATE int test_durable_delete_across_reopen(void)
         if(treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v2") != NULL) {
             printf("%s  FAIL: v2 RESURRECTED after reopen (multi-row delete not durable)%s\n",
                 On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v/4") != NULL) {
+            printf("%s  FAIL: v/4 RESURRECTED after reopen%s\n", On_Red BWhite, Color_Off);
             result += -1;
         }
         if(treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v1") == NULL ||

@@ -7115,7 +7115,7 @@ PRIVATE int collect_instance_md_cb(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *list,       // the transient rt, carries our extra
+    json_t *list,       // the one-shot iterator, carries our extra
     json_int_t rowid,   // global rowid of key (unused)
     md2_record_ex_t *md_record,
     json_t *jn_record   // must be owned
@@ -7152,7 +7152,7 @@ PRIVATE int collect_instance_md_cb(
     span several rows (create + update + link re-saves all append a row with
     the same id/pkey2; the index keeps only the latest). Tombstoning only the
     latest would let the loader fall back to an earlier row on reopen, so we
-    enumerate the key's rows via a transient disk list and tombstone each.
+    enumerate the key's rows with a one-shot iterator and tombstone each.
 
     The primary index is NOT touched: callers (`c_node.c::mt_delete_node`)
     only route a NON-primary instance here; on reopen the loader skips the
@@ -7298,28 +7298,50 @@ PUBLIC int treedb_delete_instance(
      *  row of (id, pkey2_value).
      *-------------------------------*/
     {
+        /*
+         *  A one-shot load of the key's history: an ITERATOR, closed right
+         *  after. It used to be a list with an rt_disk feed named after the
+         *  pkey2 VALUE -- a directory that value could not name (a '/' in it
+         *  logged two errors per delete, and a long one was cut in silence)
+         *  and a feed nobody wanted.
+         */
         json_t *hits = json_array();
-        json_t *match_cond = json_pack("{s:s, s:b, s:I}",
-            "key", id,
-            "backward", 1,
-            "load_record_callback", (json_int_t)(uintptr_t)collect_instance_md_cb
-        );
         json_t *jn_extra = json_pack("{s:s, s:s, s:O}",
             "__del_pkey2_name__", pkey2_name,
             "__del_pkey2_value__", pkey2_value,
             "__del_hits__", hits
         );
-        char rt_id[NAME_MAX];
-        snprintf(rt_id, sizeof(rt_id), "delinst`%s`%s`%s", topic_name, id, pkey2_value);
-        json_t *rt = tranger2_open_list(
+        json_t *it = tranger2_open_iterator(
             tranger,
             topic_name,
-            match_cond, // owned
-            jn_extra,   // owned
-            rt_id,
-            TRUE,       // rt_by_disk: one-shot historical load, no realtime-by-mem
-            "treedb_delete_instance"
+            id,
+            json_pack("{s:b}", "backward", 1),  // owned
+            collect_instance_md_cb,
+            "",         // iterator id: the key
+            "treedb_delete_instance",
+            NULL,       // data
+            jn_extra    // owned
         );
+        if(!it) {
+            /*
+             *  The cause is logged by the iterator. Nothing is tombstoned,
+             *  so nothing is dropped either: a reload would bring back an
+             *  instance this delete answered gone.
+             */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Cannot delete instance, cannot read its rows",
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", id,
+                "key2",         "%s", pkey2_value,
+                NULL
+            );
+            JSON_DECREF(hits)
+            JSON_DECREF(node)   // the maintain ref
+            JSON_DECREF(jn_options)
+            return -1;
+        }
         size_t i; json_t *hit;
         json_array_foreach(hits, i, hit) {
             if(tranger2_delete_instance(
@@ -7341,8 +7363,8 @@ PUBLIC int treedb_delete_instance(
                 );
             }
         }
-        if(rt) {
-            tranger2_close_list(tranger, rt);
+        if(it) {
+            tranger2_close_iterator(tranger, it);
         }
         JSON_DECREF(hits)
     }
