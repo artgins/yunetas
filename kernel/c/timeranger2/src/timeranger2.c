@@ -308,11 +308,13 @@ PRIVATE json_int_t next_segment_row(
     json_int_t cur_segment,
     json_int_t *rowid
 );
+PRIVATE BOOL segment_t_ordered(json_t *segment);
 PRIVATE BOOL tranger2_match_metadata(
     json_t *match_cond,
     json_int_t total_rows,
     json_int_t rowid,
     md2_record_ex_t *md_record_ex,
+    BOOL t_ordered,
     BOOL *end
 );
 PRIVATE fs_event_t *monitor_disks_directory_by_master(
@@ -7389,7 +7391,10 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 }
                 continue;
             }
-            if(tranger2_match_metadata(match_cond, total_rows, rowid, &md_record_ex, &end)) {
+            if(tranger2_match_metadata(
+                match_cond, total_rows, rowid, &md_record_ex,
+                segment_t_ordered(segment), &end
+            )) {
                 const char *file_id = json_string_value(json_object_get(segment, "id"));
                 json_t *record = NULL;
 
@@ -7696,7 +7701,10 @@ PRIVATE json_t *build_iterator_index(
             if(is_deleted_instance(&md_record_ex)) {
                 continue;
             }
-            if(tranger2_match_metadata(forward_cond, total_rows, rowid, &md_record_ex, &end)) {
+            if(tranger2_match_metadata(
+                forward_cond, total_rows, rowid, &md_record_ex,
+                segment_t_ordered(segment), &end
+            )) {
                 json_array_append_new(index, json_integer(rowid));
             }
             if(end) {
@@ -7962,7 +7970,10 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
             continue;
         }
 
-        if(tranger2_match_metadata(match_cond, total_rows, rowid, &md_record_ex, &end)) {
+        if(tranger2_match_metadata(
+            match_cond, total_rows, rowid, &md_record_ex,
+            segment_t_ordered(segment), &end
+        )) {
             const char *file_id = json_string_value(json_object_get(segment, "id"));
             json_t *record = read_record_content(
                 tranger,
@@ -8316,11 +8327,13 @@ PRIVATE json_t *get_segments(
                 break;
             }
 
+            /*
+             *  No early break on tm: the files are cut by __t__, and the tm
+             *  written by a producer need not grow with it. A file out of
+             *  the tm range is skipped by the test below, not the end.
+             */
             json_int_t rangeTM_start = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
             json_int_t rangeTM_end = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
-            if(rangeTM_start > to_tm) {
-                break;
-            }
 
             // Print only the valid ranges
             if (rangeStart <= to_rowid && rangeEnd >= from_rowid &&
@@ -8355,11 +8368,9 @@ PRIVATE json_t *get_segments(
                 break;
             }
 
+            /*  No early break on tm: see the forward loop  */
             json_int_t rangeTM_start = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
             json_int_t rangeTM_end = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
-            if (rangeTM_end < from_tm) {
-                break;
-            }
 
             // Print only the valid ranges
             if (rangeStart <= to_rowid && rangeEnd >= from_rowid &&
@@ -8381,15 +8392,40 @@ PRIVATE json_t *get_segments(
 }
 
 /***************************************************************************
+ *  Are the rows of a segment in __t__ order? Not when the master marked
+ *  its md2 file `unordered` (a late record); the flag travels in the
+ *  segment, a deep copy of the cache cell.
+ ***************************************************************************/
+PRIVATE BOOL segment_t_ordered(json_t *segment)
+{
+    return json_is_true(json_object_get(segment, "unordered"))? FALSE: TRUE;
+}
+
+/***************************************************************************
  *  Used by tranger2_iterator_get_page() where rowid/limit is set
  *      as from_rowid/to_rowid in a self create match_cond
  *  and by tranger2_open_iterator()
+ *
+ *  `end` tells the scan that no later row (in the scan's direction) can
+ *  match, so it may stop. That is only true of a field whose rows are in
+ *  order:
+ *      - rowid: always.
+ *      - __t__: only in a segment whose md2 file is not marked `unordered`
+ *        (`t_ordered`). A late record sits AFTER rows with a higher t, and
+ *        a scan that stopped at the first row past the range lost it, in
+ *        both directions.
+ *      - __tm__: never. It is the time the record was CREATED, written by
+ *        the producer: a device that sends what it buffered writes it out of
+ *        order, and nothing marks it. A tm condition skips a row, it never
+ *        ends the scan; what bounds the cost is the per-file tm range that
+ *        get_segments() already applies.
  ***************************************************************************/
 PRIVATE BOOL tranger2_match_metadata(
     json_t *match_cond,
     json_int_t total_rows,
     json_int_t rowid,
     md2_record_ex_t *md_record_ex,
+    BOOL t_ordered,
     BOOL *end
 )
 {
@@ -8467,7 +8503,7 @@ PRIVATE BOOL tranger2_match_metadata(
 
     if(from_t != 0) {
         if(md_record_ex->__t__ < from_t) {
-            if(backward) {
+            if(backward && t_ordered) {
                 *end = TRUE;
             }
             return FALSE;
@@ -8476,7 +8512,7 @@ PRIVATE BOOL tranger2_match_metadata(
 
     if(to_t != 0) {
         if(md_record_ex->__t__ > to_t) {
-            if(!backward) {
+            if(!backward && t_ordered) {
                 *end = TRUE;
             }
             return FALSE;
@@ -8491,18 +8527,12 @@ PRIVATE BOOL tranger2_match_metadata(
 
     if(from_tm != 0) {
         if(md_record_ex->__tm__ < from_tm) {
-            if(backward) {
-                *end = TRUE;
-            }
             return FALSE;
         }
     }
 
     if(to_tm != 0) {
         if(md_record_ex->__tm__ > to_tm) {
-            if(!backward) {
-                *end = TRUE;
-            }
             return FALSE;
         }
     }

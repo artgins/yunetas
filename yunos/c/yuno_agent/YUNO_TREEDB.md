@@ -144,6 +144,10 @@ an empty marker beside the md2, `<file>.unordered`, and a load reads a marked
 file WHOLE to get its real range. Without it, a time-range query skipped the
 file after a reload (since 7.25.0). A follower that reads a cell
 again from disk keeps the union of the ranges it knew and the ones it read.
+Inside a marked file a time-range scan no longer stops at the first row past
+the range: it reads the rows of the file, forward and backward, and a paged
+iterator's index does the same (after 7.25.3). A `tm` condition never ends a
+scan: `tm` is the producer's time and nothing orders it.
 
 ### 2.3 `g_rowid` vs `i_rowid` — the rule
 

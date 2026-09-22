@@ -1087,6 +1087,37 @@ user_flag / not_user_flag / user_flag_mask_set / user_flag_mask_notset
 are expressed in the **topic's** own unit: seconds, or milliseconds when the
 topic sets `sf_t_ms` / `sf_tm_ms`.
 
+The two axes are not ordered the same way, and the scan knows it:
+
+- **Rows are in `t` order**, except in a file that holds a late record (a
+  `__t__` below the times the file already had). The master marks that file
+  `<file>.unordered`, and inside a marked file the scan reads every row of the
+  selected files instead of stopping at the first row past the `t` range.
+- **Rows are never assumed in `tm` order.** `tm` is written by the producer (a
+  device that sends what it buffered writes it out of order), so a `tm`
+  condition skips a row but never ends the scan. What bounds the cost is the
+  per-file `tm` range: a file whose `[fr_tm, to_tm]` does not meet the
+  condition is not read.
+
+Both hold in both directions, and for a paged iterator too. With the rows
+`t=100 E1`, `t=50000 E2`, `t=200 E3` (late) in one file:
+
+```C
+json_t *data = json_array();
+json_t *it = tranger2_open_iterator(
+    tranger, "readings", "0000000000000000001",
+    json_pack("{s:I, s:I, s:b}",
+        "from_t", (json_int_t)150,
+        "to_t", (json_int_t)250,
+        "backward", 0
+    ),
+    NULL, "range", "", data, NULL
+);
+// data holds E3 (up to 7.25.3: nothing, the scan stopped at E2)
+tranger2_close_iterator(tranger, it);
+JSON_DECREF(data)
+```
+
 Every condition is honored **per record**, in both modes of the iterator:
 
 - **LOADING** (a `load_record_callback` or both `data`): each record is matched as

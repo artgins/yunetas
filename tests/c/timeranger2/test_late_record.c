@@ -14,12 +14,23 @@
  *        the second feed's mark on the second file before it had read the
  *        first, and that feed lost the records of BOTH files for ever.
  *
+ *  And the scan of a file that holds one (M7 of the 2026-09-23 review):
+ *  tranger2_match_metadata() ended a forward scan at the first row past
+ *  to_t and a backward one at the first row below from_t, so the rows
+ *  after a late row were lost in BOTH directions, and every paged iterator
+ *  with a t filter lost them too (its index is built walking forward).
+ *  `tm` is never marked and needs no late record to be out of order: a tm
+ *  condition skips a row, it never ends a scan, neither inside a file nor
+ *  across the files (they are cut by t, not by tm).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
 #include <signal.h>
 #include <limits.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -35,6 +46,8 @@
 #define KEY         "0000000000000000001"
 #define DAY1        946684800   // 2000-01-01
 #define DAY2        (DAY1 + 86400)
+#define KEY_TM      "0000000000000000002"   // t in order, tm not
+#define KEY_TM2     "0000000000000000003"   // two files, the later one with the lower tm
 
 /***************************************************************
  *              Data
@@ -42,6 +55,11 @@
 PRIVATE yev_loop_h yev_loop;
 PRIVATE char got_a[256] = "";
 PRIVATE char got_b[256] = "";
+
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
+PRIVATE int expect(const char *what, const char *got, const char *expected);
 
 /***************************************************************
  *              Helpers
@@ -97,6 +115,17 @@ PRIVATE int append_one(json_t *tranger, uint64_t t, const char *content)
     return tranger2_append_record(tranger, TOPIC_NAME, t, 0, &md, record);
 }
 
+PRIVATE int append_tm(json_t *tranger, json_int_t id, uint64_t t, uint64_t tm, const char *content)
+{
+    json_t *record = json_pack("{s:I, s:I, s:s}",
+        "id", id,
+        "tm", (json_int_t)tm,
+        "content", content
+    );
+    md2_record_ex_t md = {0};
+    return tranger2_append_record(tranger, TOPIC_NAME, t, 0, &md, record);
+}
+
 PRIVATE void drain(int turns)
 {
     for(int i = 0; i < turns; i++) {
@@ -129,6 +158,82 @@ PRIVATE void served_in(json_t *tranger, uint64_t from_t, uint64_t to_t, char *bf
         tranger2_close_iterator(tranger, it);
     }
     JSON_DECREF(data)
+}
+
+/*
+ *  What an iterator of `key` serves with `cond` (owned), as "<content> ...".
+ *  `paged`: opened with no data and no callback, read with one page, the
+ *  way a client pages it (the index path).
+ */
+PRIVATE void served_cond(
+    json_t *tranger,
+    const char *key,
+    json_t *cond,
+    BOOL paged,
+    char *bf,
+    size_t bfsize
+)
+{
+    bf[0] = 0;
+    BOOL backward = json_is_true(json_object_get(cond, "backward"));
+    json_t *data = paged? NULL: json_array();
+    json_t *it = tranger2_open_iterator(
+        tranger, TOPIC_NAME, key, cond, NULL, "cond", "", data, NULL
+    );
+    json_t *page = NULL;
+    if(paged && it) {
+        page = tranger2_iterator_get_page(tranger, it, 1, 100, backward);
+        data = json_incref(json_object_get(page, "data"));
+    }
+    int idx; json_t *record;
+    json_array_foreach(data, idx, record) {
+        char item[64];
+        snprintf(item, sizeof(item), "%s%s",
+            bf[0]? " ": "",
+            kw_get_str(0, record, "content", "?", 0)
+        );
+        strncat(bf, item, bfsize - strlen(bf) - 1);
+    }
+    if(it) {
+        tranger2_close_iterator(tranger, it);
+    }
+    JSON_DECREF(page)
+    JSON_DECREF(data)
+}
+
+/*
+ *  The iterator and the paged iterator, both directions, of a t range
+ */
+PRIVATE int expect_t_range(
+    json_t *tranger,
+    const char *who,
+    uint64_t from_t,
+    uint64_t to_t,
+    const char *forward,
+    const char *backward
+)
+{
+    int result = 0;
+    char bf[256];
+    char what[128];
+    for(int paged = 0; paged < 2; paged++) {
+        for(int bwd = 0; bwd < 2; bwd++) {
+            served_cond(tranger, KEY,
+                json_pack("{s:I, s:I, s:b}",
+                    "from_t", (json_int_t)from_t,
+                    "to_t", (json_int_t)to_t,
+                    "backward", bwd
+                ),
+                paged, bf, sizeof(bf)
+            );
+            snprintf(what, sizeof(what), "%s %s%s [+%ld, +%ld]",
+                who, paged? "paged ": "", bwd? "backward": "forward",
+                (long)(from_t - DAY1), (long)(to_t - DAY1)
+            );
+            result += expect(what, bf, bwd? backward: forward);
+        }
+    }
+    return result;
 }
 
 PRIVATE int expect(const char *what, const char *got, const char *expected)
@@ -227,22 +332,74 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*-------------------------------------*
+     *  M7: the scan of the marked file,
+     *  both directions, iterator and pages
+     *-------------------------------------*/
+    set_expected_results("late record: the scan of a marked file", NULL, NULL, NULL, 1);
+    result += expect_t_range(tm, "master", DAY1 + 150, DAY1 + 250, "E3", "E3");
+    result += expect_t_range(tm, "master", DAY1 + 50, DAY1 + 300, "E1 E3", "E3 E1");
+    result += expect_t_range(tf, "follower", DAY1 + 150, DAY1 + 250, "E3", "E3");
+    result += test_json(NULL);
+
+    /*-------------------------------------*
      *  The marked file goes on growing: the
      *  follower reads only the rows after
      *  the ones its cell counted (N12), and
      *  the range it keeps is the union.
      *-------------------------------------*/
     set_expected_results("late record: a marked file keeps growing", NULL, NULL, NULL, 1);
+    /*
+     *  To SEE that the rows already counted are not read again, the tm of
+     *  a MIDDLE row (E2, row 2: a load always reads the first and the last
+     *  row) is lowered on disk behind the follower's back: a follower that
+     *  reads the file whole takes it into its cell's fr_tm, one that reads
+     *  only the new rows does not.
+     */
+    off_t tm_offset = (off_t)(32 + sizeof(uint64_t));   // row 2, its __tm__
+    char path_md2[PATH_MAX];
+    build_path(path_md2, sizeof(path_md2),
+        path_database, TOPIC_NAME, "keys", KEY, "2000-01-01.md2", NULL);
+    uint64_t be_tm;
+    int fd = open(path_md2, O_RDWR|O_CLOEXEC);
+    if(fd < 0 || pread(fd, &be_tm, sizeof(be_tm), tm_offset) != sizeof(be_tm)) {
+        printf("%sERROR%s --> cannot read %s\n", On_Red BWhite, Color_Off, path_md2);
+        result += -1;
+    } else {
+        uint64_t raw = ntohll(be_tm);
+        raw = (raw & ~0x00000FFFFFFFFFFFULL) | (uint64_t)(DAY1 + 1);
+        be_tm = htonll(raw);
+        if(pwrite(fd, &be_tm, sizeof(be_tm), tm_offset) != sizeof(be_tm)) {
+            printf("%sERROR%s --> cannot write %s\n", On_Red BWhite, Color_Off, path_md2);
+            result += -1;
+        }
+    }
+    if(fd >= 0) {
+        close(fd);
+    }
+    drain(10);
+
     append_one(tm, DAY1 + 70000, "E4");
     drain(30);
     served_in(tf, DAY1 + 60000, DAY1 + 80000, bf, sizeof(bf));
     result += expect("follower serves [+60000, +80000]", bf, "E4");
     served_in(tf, DAY1 + 40000, DAY1 + 60000, bf, sizeof(bf));
     result += expect("follower still serves [+40000, +60000]", bf, "E2");
-    /*  Not asserted: [+150, +250] -> E3. The late row is behind E2 in the
-     *  file and the forward scan stops at the first row past to_t
-     *  (tranger2_match_metadata), so a marked file serves a late row only
-     *  in a range that also reaches the rows before it. Open (TODO.md).  */
+    result += expect_t_range(tf, "follower", DAY1 + 40000, DAY1 + 80000, "E2 E4", "E4 E2");
+    result += expect_t_range(tf, "follower", DAY1 + 150, DAY1 + 250, "E3", "E3");
+
+    json_int_t cell_fr_tm = -1;
+    json_t *cells = kw_get_list(0, tf, "topics`" TOPIC_NAME "`cache`" KEY "`files", 0, 0);
+    int idx_cell; json_t *cell;
+    json_array_foreach(cells, idx_cell, cell) {
+        if(strcmp(kw_get_str(0, cell, "id", "", 0), "2000-01-01")==0) {
+            cell_fr_tm = kw_get_int(0, cell, "fr_tm", -1, 0);
+        }
+    }
+    if(cell_fr_tm != DAY1 + 100) {
+        printf("%sERROR%s --> the follower read the rows it had counted again: fr_tm %ld, expected %ld\n",
+            On_Red BWhite, Color_Off, (long)cell_fr_tm, (long)(DAY1 + 100));
+        result += -1;
+    }
     result += test_json(NULL);
 
     /*-------------------------------------*
@@ -281,6 +438,68 @@ PRIVATE int do_test(void)
     }
     served_in(tm, DAY1 + 40000, DAY1 + 60000, bf, sizeof(bf));
     result += expect("reloaded master serves [+40000, +60000]", bf, "E2");
+    {
+        /*  The whole read of a reload DOES see the lowered tm: the check of
+         *  the follower's partial read above can tell the two apart.  */
+        json_int_t fr_tm = -1;
+        json_t *cells2 = kw_get_list(0, tm, "topics`" TOPIC_NAME "`cache`" KEY "`files", 0, 0);
+        int idx2; json_t *cell2;
+        json_array_foreach(cells2, idx2, cell2) {
+            if(strcmp(kw_get_str(0, cell2, "id", "", 0), "2000-01-01")==0) {
+                fr_tm = kw_get_int(0, cell2, "fr_tm", -1, 0);
+            }
+        }
+        if(fr_tm != DAY1 + 1) {
+            printf("%sERROR%s --> a reload did not read the marked file whole: fr_tm %ld\n",
+                On_Red BWhite, Color_Off, (long)fr_tm);
+            result += -1;
+        }
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  M7: tm is not ordered, and no tm
+     *  condition ends a scan
+     *-------------------------------------*/
+    set_expected_results("late record: tm out of order", NULL, NULL, NULL, 1);
+    append_tm(tm, 2, DAY1 + 1000, 500, "T1");
+    append_tm(tm, 2, DAY1 + 1001, 100, "T2");
+    append_tm(tm, 2, DAY1 + 1002, 300, "T3");
+    append_tm(tm, 3, DAY1 + 1000, 1500, "U1");
+    append_tm(tm, 3, DAY2 + 1000, 150, "U2");
+    struct {
+        const char *key;
+        json_int_t from_tm;
+        json_int_t to_tm;
+        const char *forward;
+        const char *backward;
+    } tm_cases[] = {
+        {KEY_TM,    250,    600,    "T1 T3",    "T3 T1"},
+        {KEY_TM,    0,      400,    "T2 T3",    "T3 T2"},
+        {KEY_TM2,   0,      300,    "U2",       "U2"},
+        {KEY_TM2,   1000,   0,      "U1",       "U1"},
+        {0}
+    };
+    for(int i = 0; tm_cases[i].key; i++) {
+        for(int paged = 0; paged < 2; paged++) {
+            for(int bwd = 0; bwd < 2; bwd++) {
+                json_t *cond = json_pack("{s:b}", "backward", bwd);
+                if(tm_cases[i].from_tm) {
+                    json_object_set_new(cond, "from_tm", json_integer(tm_cases[i].from_tm));
+                }
+                if(tm_cases[i].to_tm) {
+                    json_object_set_new(cond, "to_tm", json_integer(tm_cases[i].to_tm));
+                }
+                served_cond(tm, tm_cases[i].key, cond, paged, bf, sizeof(bf));
+                char what[128];
+                snprintf(what, sizeof(what), "key %s %s%s tm [%ld, %ld]",
+                    tm_cases[i].key + 18, paged? "paged ": "", bwd? "backward": "forward",
+                    (long)tm_cases[i].from_tm, (long)tm_cases[i].to_tm
+                );
+                result += expect(what, bf, bwd? tm_cases[i].backward: tm_cases[i].forward);
+            }
+        }
+    }
     result += test_json(NULL);
 
     set_expected_results("late record: shutdown", NULL, NULL, NULL, 1);
