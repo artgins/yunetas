@@ -1953,6 +1953,24 @@ the new hook if they are to keep their parent. Until after 7.24.1 that unlink
 failed on the missing hook, and the child could be neither relinked, cleaned
 nor deleted, even with `force`.
 
+**Re-pointing a hook** to ANOTHER column of the child (the hook keeps its name,
+its map names a new fkey column) leaves the same kind of residue: the refs in
+the OLD column name a hook that exists and hooks this topic, but not through
+that column. They are stale too, and a relink, clean or forced delete removes
+them with *"Parent ref names a hook that fills another column"*, then
+*"Removing wrong fkey ref"* (after 7.25.3; before, the unlink looked in the new
+column, refused, and a forced delete of the child failed for ever). The old
+column, if no hook fills it any more, is an fkey column with no hook: every
+open logs *"Child node without fkey field"* once per node of that topic, until
+the column goes from the schema.
+
+```C
+// v1: the hook fills `f1`       'kids': {'flag': ['hook'], 'hook': {'children': 'f1'}}
+// v2: the same hook fills `f2`  'kids': {'flag': ['hook'], 'hook': {'children': 'f2'}}
+// A child linked under v1 keeps "parents^p1^kids" in `f1`:
+treedb_delete_node(tranger, c1, json_pack("{s:b}", "force", 1));   // 0: ref removed, warning
+```
+
 ### 4.11 No raw `malloc` / `free` for treedb-allocated [`json_t`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_t)
 
 CLAUDE.md hard rule. `gbmem_*` everywhere. Jansson is routed through

@@ -8755,6 +8755,48 @@ PRIVATE int unlink_child_from_parent_ref(
     }
 
     /*
+     *  The hook exists and hooks this topic, but through ANOTHER column of
+     *  the child: a schema re-pointed it (M10 of the 2026-09-23 review).
+     *  The ref left in the old column is just as stale -- the unlink reads
+     *  the column the hook fills now, does not find it there and refuses,
+     *  and a forced delete failed for ever.
+     */
+    const char *child_field = json_string_value(json_object_get(hook_links, topic_name));
+    json_t *child_field_data = child_field? json_object_get(node, child_field): NULL;
+    json_t *field_refs = child_field_data? get_fkey_refs(child_field_data): json_array();
+    BOOL in_its_column = FALSE;
+    int idx_ref; json_t *jn_ref;
+    json_array_foreach(field_refs, idx_ref, jn_ref) {
+        if(strcmp(json_string_value(jn_ref), ref)==0) {
+            in_its_column = TRUE;
+            break;
+        }
+    }
+    JSON_DECREF(field_refs)
+    if(!in_its_column) {
+        gobj_log_warning(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_TREEDB,
+            "msg",                  "%s", "Parent ref names a hook that fills another column",
+            "topic_name",           "%s", topic_name,
+            "id",                   "%s", child_id,
+            "parent_topic_name",    "%s", parent_topic_name,
+            "hook_name",            "%s", hook_name,
+            "hook_column",          "%s", child_field? child_field: "",
+            "ref",                  "%s", ref,
+            NULL
+        );
+        search_and_remove_wrong_up_ref(
+            gobj,
+            tranger,
+            node,
+            topic_name,
+            ref
+        );
+        return 0;
+    }
+
+    /*
      *  The fkey ref carries only parent_id, not the pkey2/version,
      *  so a child hooked on a non-primary parent-version must be
      *  located across all instances; unlinking the primary alone

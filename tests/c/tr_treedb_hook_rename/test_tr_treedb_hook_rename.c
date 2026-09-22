@@ -23,6 +23,12 @@
  *      3. the files the rename writes carry no mark
  *      4. M3: a ref that names the OLD hook is removed, with a warning,
  *         when the node is cleaned or force-deleted -- it failed both
+ *      5. M10 of the 2026-09-23 review: the hook KEEPS its name but fills
+ *         ANOTHER column of the child. The ref left in the old column
+ *         names a hook that exists and hooks this topic, so it did not look
+ *         stale, and the unlink checked the new column and refused: the
+ *         node could never be force-deleted. The ref is stale when the
+ *         column holding it is not the one the hook fills.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -137,6 +143,61 @@ static char schema_v2[]= "\
 }                                                                   \n\
 ";
 
+/*
+ *  The third schema keeps the hook `members` and makes it fill ANOTHER
+ *  column of the child: `sections` instead of `departments`.
+ */
+static char schema_v3[]= "\
+{                                                                   \n\
+    'id': 'treedb_hook_rename',                                     \n\
+    'schema_version': '3',                                          \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'departments',                                    \n\
+            'topic_version': '3',                                   \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                },                                                  \n\
+                'members': {                                        \n\
+                    'header': 'Members',                            \n\
+                    'type': 'dict',                                 \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {'users': 'sections'}                   \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'id': 'users',                                          \n\
+            'topic_version': '2',                                   \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                },                                                  \n\
+                'departments': {                                    \n\
+                    'header': 'Departments',                        \n\
+                    'type': 'array',                                \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'sections': {                                       \n\
+                    'header': 'Sections',                           \n\
+                    'type': 'array',                                \n\
+                    'flag': ['fkey']                                \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
 /***************************************************************
  *              Helpers
  ***************************************************************/
@@ -237,6 +298,7 @@ PRIVATE int do_test(void)
 
     helper_quote2doublequote(schema_v1);
     helper_quote2doublequote(schema_v2);
+    helper_quote2doublequote(schema_v3);
 
     /*
      *  1. The first schema, and the mark of an old store
@@ -377,6 +439,49 @@ PRIVATE int do_test(void)
     json_t *u3 = treedb_get_node(tranger, TREEDB_NAME, "users", "u3");
     if(!u3 || treedb_delete_node(tranger, u3, json_pack("{s:b}", "force", 1)) < 0) {
         printf("%sERROR%s --> a node with a ref to a vanished hook could not be deleted\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  5. M10: u1 hangs from d1 through `members`, its ref in `departments`.
+     *     The hook now fills `sections`: that ref is stale, and a forced
+     *     delete removes it with a warning instead of failing for ever.
+     */
+    treedb_close_db(tranger, TREEDB_NAME);
+    set_expected_results(
+        "a ref left in the column a hook no longer fills",
+        /*  `departments` is an fkey column no hook fills any more: the
+         *  loader says so for each node of `users` (u1 and u2)  */
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+            "msg", "Re-Creating TreeDB schema file",
+            "msg", "Re-Creating topic_var.json",
+            "msg", "Re-Creating topic_cols.json",
+            "msg", "Re-Creating topic_var.json",
+            "msg", "Re-Creating topic_cols.json",
+            "msg", "Child node without fkey field",
+            "msg", "Child node without fkey field"
+        ),
+        NULL, NULL, 1
+    );
+    if(open_with(tranger, schema_v3) < 0) {
+        return -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results(
+        "a ref left in the column a hook no longer fills",
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "Parent ref names a hook that fills another column",
+            "msg", "Removing wrong fkey ref"
+        ),
+        NULL, NULL, 1
+    );
+    u1 = treedb_get_node(tranger, TREEDB_NAME, "users", "u1");
+    if(!u1 || treedb_delete_node(tranger, u1, json_pack("{s:b}", "force", 1)) < 0 ||
+            treedb_get_node(tranger, TREEDB_NAME, "users", "u1")) {
+        printf("%sERROR%s --> a node with a ref in the column its hook left could not be deleted\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
