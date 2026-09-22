@@ -54,7 +54,11 @@ SDK pertenece.
 **`gobj-ui` is back in line since SDK 7.23.0.** From 7.16.2 to 7.22.0 it was
 ahead of C (its 7.23.x line was already published, and a lower number would
 not have become `latest` on npm). SDK 7.23.0 reached its line, so the rule
-holds again for `gobj-ui` too.
+holds again for `gobj-ui` too. **And it follows the SDK up, not only down:**
+gobj-ui stayed on 7.23.x through SDK 7.24 and 7.25, a number that again said
+nothing about its SDK, until it jumped to **7.25.0** (2026-09-22, no code
+change over 7.23.197). When the SDK's minor moves, the next gobj-ui release
+takes it.
 
 Clone yunetas with `--recurse-submodules` (or run `git submodule update --init`).
 **Every SPA consumes `@yuneta/gobj-js` / `@yuneta/gobj-ui` from the npm
@@ -67,7 +71,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.23.16`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.25.1`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -1423,18 +1427,20 @@ from the schema source of truth, never hand-draw them.
   does (`EXCLUSIVE`). It used to be accepted, and its fkey side was never
   written to disk. A node that is both a child and a parent carries two
   columns: the hook, and the fkey.
-- **The schema literal lives alone in `treedb_schema_<db>.c`**, where `<db>`
-  is the treedb id without its `treedb_` prefix (`treedb_wattyzer` →
-  `treedb_schema_wattyzer.c`). The file holds ONLY the array
-  `static char treedb_schema_<db>[]= "...";` — no function, no comment, no
-  second literal (a msg2db schema gets its own `msg2db_schema_<name>.c`).
-  That is exactly what the schema editor exports (`schema_to_c()` in
-  gobj-ui), so an edit made in the GUI goes back into the source by replacing
-  the file whole. The yuno `#include`s it and parses it; diagrams and design
-  notes go in the file that includes it. Name it this way so the literal is
-  found by name. (Rule stated 2026-09-21. The exception is the meta-schema,
-  `kernel/c/timeranger2/src/treedb_system_schema.c`: an `extern` array with
-  its own header, compiled on its own, and not something the editor exports.)
+- **A `treedb_schema_<db>.c` holds what the schema editor exports, and
+  nothing else**: the GRAPH of the schema as a comment, then the literal.
+  `<db>` is the treedb id without its `treedb_` prefix (`treedb_wattyzer` →
+  `treedb_schema_wattyzer.c`, array `static char treedb_schema_wattyzer[]`).
+  No function, no hand-written note, no second literal (a msg2db schema gets
+  its own `msg2db_schema_<name>.c`). The export is `schema_to_c()` in gobj-ui,
+  and the graph is `schema_to_diagram()`, DERIVED from the literal, never
+  drawn by hand — so an edit made in the GUI goes back into the source by
+  replacing the file whole, picture included. The yuno `#include`s the file;
+  design notes go in the file that includes it. For a file edited by hand,
+  regenerate its comment with `node scripts/schema_diagram.mjs <file>` (the
+  literal is left as it is); `--check` exits 1 when a comment is stale.
+  Exception: the meta-schema `kernel/c/timeranger2/src/treedb_system_schema.c`
+  (an `extern` array with its own header, not something the editor exports).
 
 ### Persistence Rules (CRITICAL)
 

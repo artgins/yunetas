@@ -1,3 +1,123 @@
+/*
+    Generated from the literal below by schema_to_diagram() (gobj-ui).
+    This file holds this comment and the literal, nothing else: replace
+    it whole with an export of the schema editor.
+
+    treedb_mqtt_broker  (schema_version 26)
+
+    {}  dict hook   (N unique children)
+    []  list hook   (n not-unique children)
+    ()  string hook (1 unique child)
+    (↖) 1 fkey      (1 parent)
+    [↖] n fkeys     (n parents)
+    {↖} N fkeys     (N parents)
+
+    (2) pkey2 - secondary key
+    (t) tkey  - time key
+    *   field required
+    =   field inherited
+
+
+                    client_groups
+            ┌───────────────────────────┐
+            │* id                       │
+            │          client_groups {} │ ◀─┐
+            │          group_parent (↖) │ ──┘
+            │               managers {} │ ◀─────┐
+            │                clients {} │ ◀─┐   │
+            │  description              │   │   │
+            │  publish_acl              │   │   │
+            │  subscribe_acl            │   │   │
+            │  icon                     │   │   │
+            │  enabled                  │   │   │
+            │  time                     │   │   │
+            │* language                 │   │   │
+            │  cluster                  │   │   │
+            │  properties               │   │   │
+            │  coordinates              │   │   │
+            │  _geometry                │   │   │
+            └───────────────────────────┘   │   │
+                                            │   │
+                       clients              │   │
+            ┌───────────────────────────┐   │   │
+            │* id                       │   │   │
+            │         client_groups [↖] │ ──┘   │
+            │           client_type [↖] │ ──┐   │
+            │  name                     │   │   │
+            │  assigned_id              │   │   │
+            │  auto_created             │   │   │
+            │  description              │   │   │
+            │  enabled                  │   │   │
+            │  time                     │   │   │
+            │  properties               │   │   │
+            │  coordinates              │   │   │
+            │  settings                 │   │   │
+            │  yuno                     │   │   │
+            │  _geometry                │   │   │
+            └───────────────────────────┘   │   │
+                                            │   │
+                    client_types            │   │
+            ┌───────────────────────────┐   │   │
+            │* id                       │   │   │
+            │                clients {} │ ◀─┘   │
+            │  name                     │       │
+            │  description              │       │
+            │  icon                     │       │
+            │  properties               │       │
+            │  time                     │       │
+            │  template_settings        │       │
+            │  _geometry                │       │
+            └───────────────────────────┘       │
+                                                │
+                      sessions                  │
+            ┌───────────────────────────┐       │
+            │* id                       │       │
+            │  username                 │       │
+            │  protocol_version         │       │
+            │  clean_start              │       │
+            │  keep_alive               │       │
+            │  session_expiry_interval  │       │
+            │  in_session               │       │
+            │  _gobj_channel            │       │
+            │  peername                 │       │
+            │  time                     │       │
+            │  subscriptions            │       │
+            │  last_mid                 │       │
+            │  will_topic               │       │
+            │  will_payload             │       │
+            │  will_qos                 │       │
+            │  will_retain              │       │
+            │  will_delay_interval      │       │
+            │  will_properties          │       │
+            │  will_delay_time          │       │
+            │  _geometry                │       │
+            └───────────────────────────┘       │
+                                                │
+                    retained_msgs               │
+            ┌───────────────────────────┐       │
+            │* id                       │       │
+            │  client_id                │       │
+            │  tm (t)                   │       │
+            │  qos                      │       │
+            │  expiry_interval          │       │
+            │  properties               │       │
+            │  payload                  │       │
+            │  _geometry                │       │
+            └───────────────────────────┘       │
+                                                │
+                        users                   │
+            ┌───────────────────────────┐       │
+            │* id                       │       │
+            │           user_groups [↖] │ ──────┘
+            │  enabled                  │
+            │* language                 │
+            │  persistent_attrs         │
+            │  properties               │
+            │  time                     │
+            │  _geometry                │
+            └───────────────────────────┘
+*/
+
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\

@@ -28,19 +28,23 @@
   `system`), and the literal, in-use and saved schema versions. Test 9b of
   `c_treedb_system_schema` covers both.
 
-### Schema literals live alone in `treedb_schema_<db>.c`
+### A `treedb_schema_<db>.c` is what the schema editor exports: the graph, then the literal
 
 - `treedb_schema_authzs.c`, `treedb_schema_mqtt_broker.c`,
   `treedb_schema_controlcenter.c`, `treedb_schema_yuneta_agent.c` (and the
-  docs-only `treedb_schema_mqtt_subscriptions.c`) hold the array and nothing
-  else: no `#pragma once`, no diagram. That is exactly what the schema editor
-  exports (`schema_to_c()` in gobj-ui), so an edit made in the GUI goes back
-  into the source by replacing the file whole. The diagrams move to the file
-  that includes each literal (`c_authz.c`, `c_mqtt_broker.c`,
-  `c_controlcenter.c`, `c_agent.c`; `treedb_schema_mqtt_subscriptions.md` for
-  the docs one), and the broker's alarm msg2db schema to its own
+  docs-only `treedb_schema_mqtt_subscriptions.c`) hold the graph of the schema
+  as a comment and the literal, nothing else: exactly what gobj-ui 7.25.1's
+  `schema_to_c()` exports, so an edit made in the GUI goes back into the
+  source by replacing the file whole. The graph is derived
+  (`schema_to_diagram()`), and replaces the hand-drawn ones; the notes those
+  carried outside the schema are gone, except controlcenter's planned
+  `lists` / `viewer_engines` topics, kept in `c_controlcenter.c` beside their
+  drafts. The broker's alarm msg2db schema moves to its own
   `modules/c/mqtt/src/msg2db_schema_alarms.c`. No schema changed.
-  `treedb_system_schema.c`, the meta-schema, keeps its form.
+- New `scripts/schema_diagram.mjs <file>...`: rewrites the comment from the
+  literal with the editor's own code, after checking that the exporter
+  reproduces that literal; `--check` exits 1 when a comment is stale.
+- `treedb_system_schema.c`, the meta-schema, keeps its form.
 
 ## v7.25.0 (2026-09-21)
 

@@ -1,3 +1,78 @@
+/*
+    Generated from the literal below by schema_to_diagram() (gobj-ui).
+    This file holds this comment and the literal, nothing else: replace
+    it whole with an export of the schema editor.
+
+    treedb_mqtt_subscriptions  (schema_version 2)
+
+    {}  dict hook   (N unique children)
+    []  list hook   (n not-unique children)
+    ()  string hook (1 unique child)
+    (↖) 1 fkey      (1 parent)
+    [↖] n fkeys     (n parents)
+    {↖} N fkeys     (N parents)
+
+    (2) pkey2 - secondary key
+    (t) tkey  - time key
+    *   field required
+    =   field inherited
+
+
+                       clients
+            ┌────────────────────────────┐
+            │* id                        │
+            │           subscriptions {} │ ◀─┐
+            │  protocol_version          │   │
+            │  clean_start               │   │
+            │  username                  │   │
+            │  keep_alive                │   │
+            │  session_expiry_interval   │   │
+            │  connected                 │   │
+            │  will_topic                │   │
+            │  will_payload              │   │
+            │  will_qos                  │   │
+            │  will_retain               │   │
+            │  will_delay_interval       │   │
+            │  _geometry                 │   │
+            └────────────────────────────┘   │
+                                             │
+                    subscriptions            │
+            ┌────────────────────────────┐   │
+            │* id                        │   │
+            │              client_id (↖) │ ──┘
+            │* qos                       │
+            │  no_local                  │
+            │  retain_as_published       │
+            │  retain_handling           │
+            │  identifier                │
+            │           shared_group [↖] │ ──┐
+            │  _geometry                 │   │
+            └────────────────────────────┘   │
+                                             │
+                    shared_groups            │
+            ┌────────────────────────────┐   │
+            │* id                        │   │
+            │           subscriptions {} │ ◀─┘
+            │* topic_filter              │
+            │  _geometry                 │
+            └────────────────────────────┘
+
+                    retained_msgs
+            ┌────────────────────────────┐
+            │* id                        │
+            │  payload                   │
+            │  qos                       │
+            │  time                      │
+            │  message_expiry_interval   │
+            │  payload_format_indicator  │
+            │  content_type              │
+            │  response_topic            │
+            │  correlation_data          │
+            │  user_properties           │
+            │  _geometry                 │
+            └────────────────────────────┘
+*/
+
 static char treedb_schema_mqtt_subscriptions[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_subscriptions',                              \n\

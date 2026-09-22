@@ -27,8 +27,8 @@ and the gclasses below are registered.
 Helpers in the same directory: `mqtt_util.c` (parsing helpers),
 `tr2q_mqtt.c` (timeranger2-backed queues for inflight + queued messages),
 `treedb_schema_mqtt_broker.c` (the treedb schema for clients / topics /
-sessions / subscriptions; the file holds the literal only, so a schema-editor
-export replaces it whole) and `msg2db_schema_alarms.c` (the alarm log).
+sessions / subscriptions; the file holds its graph and the literal, exactly
+what a schema-editor export writes, so an export replaces it whole) and `msg2db_schema_alarms.c` (the alarm log).
 
 ## Broker command surface (`C_MQTT_BROKER`)
 

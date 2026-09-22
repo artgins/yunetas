@@ -1,3 +1,64 @@
+/*
+    Generated from the literal below by schema_to_diagram() (gobj-ui).
+    This file holds this comment and the literal, nothing else: replace
+    it whole with an export of the schema editor.
+
+    treedb_authzs  (schema_version 19)
+
+    {}  dict hook   (N unique children)
+    []  list hook   (n not-unique children)
+    ()  string hook (1 unique child)
+    (↖) 1 fkey      (1 parent)
+    [↖] n fkeys     (n parents)
+    {↖} N fkeys     (N parents)
+
+    (2) pkey2 - secondary key
+    (t) tkey  - time key
+    *   field required
+    =   field inherited
+
+
+                        roles
+            ┌───────────────────────────┐
+            │* id                       │
+            │                  roles {} │ ◀─┐
+            │        parent_role_id (↖) │ ──┘
+            │                  users {} │ ◀─┐
+            │* description              │   │
+            │  disabled                 │   │
+            │* realm_id                 │   │
+            │* service                  │   │
+            │  permission               │   │
+            │  permissions              │   │
+            │  deny                     │   │
+            │  parameters               │   │
+            │  _geometry                │   │
+            └───────────────────────────┘   │
+                                            │
+                        users               │
+            ┌───────────────────────────┐   │
+            │* id                       │   │
+            │                 roles [↖] │ ──┘
+            │  disabled                 │
+            │  max_sessions             │
+            │  time                     │
+            │  credentials              │
+            │  properties               │
+            │  __sessions               │
+            │  _geometry                │
+            └───────────────────────────┘
+
+                   users_accesses
+            ┌───────────────────────────┐
+            │* id                       │
+            │* ev                       │
+            │  tm (t)                   │
+            │  ip                       │
+            │  jwt_payload              │
+            │  _geometry                │
+            └───────────────────────────┘
+*/
+
 static char treedb_schema_authzs[]= "\
 {                                                                   \n\
     'id': 'treedb_authzs',                                          \n\

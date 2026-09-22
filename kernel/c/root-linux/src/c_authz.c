@@ -55,66 +55,6 @@
 #include "c_node.h"
 #include "c_authz.h"
 
-/*
- *
-    {}  dict hook   (N unique children)
-    []  list hook   (n not-unique children)
-    (↖) 1 fkey      (1 parent)
-    [↖] n fkeys     (n parents)
-    {↖} N fkeys     (N parents) ???
-
-    (2) pkey2 - secondary key
-    (t) tkey  - time key (none: the time a record was appended)
-    * field required
-    = field inherited
-
-                        roles
-            ┌───────────────────────────┐
-            │* id                       │
-            │                           │
-            │                  roles {} │ ◀─┐N
-            │                           │   │
-            │        parent_role_id (↖) │ ──┘ 1
-            │                           │
-            │                  users {} │ ◀─┐N
-            │                           │   │
-            │* description              │   │
-            │  disabled                 │   │
-            │* realm_id                 │   │
-            │* service                  │   │
-            │  permission               │   │
-            │  permissions              │   │
-            │  deny                     │   │
-            │  parameters               │   │
-            │                           │   │
-            │  _geometry                │   │
-            └───────────────────────────┘   │
-                                            │
-                                            │
-                        users               │
-            ┌───────────────────────────┐   │
-            │* id                       │   │
-            │                           │   │
-            │                 roles [↖] │ ──┘n
-            │                           │
-            │  disabled                 │
-            │  max_sessions             │
-            │  time                     │
-            │  credentials              │
-            │  properties               │
-            │                           │
-            │  __sessions               │
-            │  _geometry                │
-            └───────────────────────────┘
-
-
-
-
-    The literal lives alone in `treedb_schema_authzs.c`: that file holds the array and
-    nothing else, so its whole content can be replaced with what the schema
-    editor exports (`schema_to_c()` in gobj-ui). Keep this diagram in step
-    with it by hand.
-*/
 #include "treedb_schema_authzs.c"
 
 /***************************************************************************

@@ -1,3 +1,119 @@
+/*
+    Generated from the literal below by schema_to_diagram() (gobj-ui).
+    This file holds this comment and the literal, nothing else: replace
+    it whole with an export of the schema editor.
+
+    treedb_yuneta_agent  (schema_version 24)
+
+    {}  dict hook   (N unique children)
+    []  list hook   (n not-unique children)
+    ()  string hook (1 unique child)
+    (↖) 1 fkey      (1 parent)
+    [↖] n fkeys     (n parents)
+    {↖} N fkeys     (N parents)
+
+    (2) pkey2 - secondary key
+    (t) tkey  - time key
+    *   field required
+    =   field inherited
+
+
+                realms  (main_topic)
+            ┌───────────────────────────┐
+            │* id                       │
+            │                 realms {} │ ◀─┐
+            │       parent_realm_id (↖) │ ──┘
+            │* realm_owner              │
+            │* realm_role               │
+            │* realm_name               │
+            │* realm_env                │
+            │= realm_disabled           │
+            │  range_ports              │
+            │* bind_ip                  │
+            │  last_port                │
+            │                  yunos {} │ ◀─┐
+            │  _geometry                │   │
+            └───────────────────────────┘   │
+                                            │
+                        yunos               │
+            ┌───────────────────────────┐   │
+            │* id                       │   │
+            │              realm_id (↖) │ ──┘
+            │* yuno_role                │
+            │* yuno_name                │
+            │* yuno_release (2)         │
+            │  yuno_tag                 │
+            │  yuno_running             │
+            │  yuno_playing             │
+            │  yuno_pid                 │
+            │  watcher_pid              │
+            │= yuno_disabled            │
+            │= must_play                │
+            │  start_priority           │
+            │  sched_priority           │
+            │  cpu_core                 │
+            │* role_version             │
+            │* name_version             │
+            │= traced                   │
+            │= yuno_multiple            │
+            │  global                   │
+            │* date                     │
+            │  yuno_startdate           │
+            │  _channel_gobj            │
+            │  _requester               │
+            │  _requester_md_iev        │
+            │  launch_id                │
+            │         configurations {} │ ◀─────┐
+            │                 binary {} │ ◀─┐   │
+            │  _geometry                │   │   │
+            └───────────────────────────┘   │   │
+                                            │   │
+                      binaries              │   │
+            ┌───────────────────────────┐   │   │
+            │* id                       │   │   │
+            │* version (2)              │   │   │
+            │  size                     │   │   │
+            │* date                     │   │   │
+            │  description              │   │   │
+            │  tags                     │   │   │
+            │  required_services        │   │   │
+            │  public_services          │   │   │
+            │  service_descriptor       │   │   │
+            │* binary                   │   │   │
+            │                 yunos [↖] │ ──┘   │
+            │  _geometry                │       │
+            └───────────────────────────┘       │
+                                                │
+                   configurations               │
+            ┌───────────────────────────┐       │
+            │* id                       │       │
+            │* version (2)              │       │
+            │* date                     │       │
+            │  description              │       │
+            │                 yunos [↖] │ ──────┘
+            │* zcontent                 │
+            │  _geometry                │
+            └───────────────────────────┘
+
+                   public_services
+            ┌───────────────────────────┐
+            │* id                       │
+            │* service                  │
+            │* realm_id                 │
+            │  description              │
+            │* yuno_role                │
+            │* yuno_name                │
+            │  yuno_id                  │
+            │  ip                       │
+            │  port                     │
+            │* schema                   │
+            │  url                      │
+            │  version (2)              │
+            │  connector                │
+            │  _geometry                │
+            └───────────────────────────┘
+*/
+
 static char treedb_schema_yuneta_agent[]= "\
 {                                                                   \n\
     'id': 'treedb_yuneta_agent',                                    \n\

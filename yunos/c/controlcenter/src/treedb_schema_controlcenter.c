@@ -1,3 +1,75 @@
+/*
+    Generated from the literal below by schema_to_diagram() (gobj-ui).
+    This file holds this comment and the literal, nothing else: replace
+    it whole with an export of the schema editor.
+
+    treedb_controlcenter  (schema_version 2)
+
+    {}  dict hook   (N unique children)
+    []  list hook   (n not-unique children)
+    ()  string hook (1 unique child)
+    (↖) 1 fkey      (1 parent)
+    [↖] n fkeys     (n parents)
+    {↖} N fkeys     (N parents)
+
+    (2) pkey2 - secondary key
+    (t) tkey  - time key
+    *   field required
+    =   field inherited
+
+
+                       systems
+            ┌───────────────────────────┐
+            │* id                       │
+            │                systems {} │ ◀─┐
+            │             system_id (↖) │ ──┘
+            │  description              │
+            │  properties               │
+            │                  nodes {} │ ◀─────┐
+            │                  users {} │ ◀─┐   │
+            │  _geometry                │   │   │
+            └───────────────────────────┘   │   │
+                                            │   │
+                        users               │   │
+            ┌───────────────────────────┐   │   │
+            │* id                       │   │   │
+            │               systems [↖] │ ──┘   │
+            │  enabled                  │       │
+            │  persistent_attrs         │       │
+            │  properties               │       │
+            │  time                     │       │
+            │  __sessions               │       │
+            │  _geometry                │       │
+            └───────────────────────────┘       │
+                                                │
+                        nodes                   │
+            ┌───────────────────────────┐       │
+            │* id                       │       │
+            │               systems [↖] │ ──────┘
+            │  description              │
+            │  provider                 │
+            │  provider_url             │
+            │  properties               │
+            │* ip                       │
+            │               services {} │ ◀─┐
+            │  _geometry                │   │
+            └───────────────────────────┘   │
+                                            │
+                      services              │
+            ┌───────────────────────────┐   │
+            │  id                       │   │
+            │  value (2)                │   │
+            │                 nodes [↖] │ ──┘
+            │  description              │
+            │* url                      │
+            │* dst_role                 │
+            │* dst_service              │
+            │  dst_yuno                 │
+            │* viewer_engine            │
+            │  _geometry                │
+            └───────────────────────────┘
+*/
+
 static char treedb_schema_controlcenter[]= "\
 {                                                                   \n\
     'id': 'treedb_controlcenter',                                   \n\

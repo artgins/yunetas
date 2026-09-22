@@ -17,89 +17,11 @@
 
 #include "c_controlcenter.h"
 /*
+    TODO -- planned, NOT in the literal: the topics `lists` and
+    `viewer_engines`, whose draft columns are in the comment after the
+    #include below. The graph of the schema in use heads
+    treedb_schema_controlcenter.c.
 
-    {}  dict hook   (N unique childs)
-    []  list hook   (n not-unique childs)
-    (↖) 1 fkey      (1 parent)
-    [↖] n fkeys     (n parents)
-    {↖} N fkeys     (N parents) ???
-
-    (2) pkey2 - secondary key
-    (t) tkey  - time key (none: the time a record was appended)
-    * field required
-    = field inherited
-
-                        systems
-            ┌───────────────────────────┐
-            │* id                       │
-            │                           │
-            │                systems {} │ ◀─┐N
-            │                           │   │
-            │             system_id (↖) │ ──┘ 1
-            │                           │
-            │  description              │
-            │  properties               │
-            │                           │
-            │                  nodes {} │ ◀─────────┐N
-            │                           │           │
-            │                  users {} │ ◀─┐N      │
-            │                           │   │       │
-            │  _geometry                │   │       │
-            └───────────────────────────┘   │       │
-                                            │       │
-                                            │       │
-                        users               │       │
-            ┌───────────────────────────┐   │       │
-            │* id                       │   │       │
-            │                           │   │       │
-            │               systems [↖] │ ──┘n      │
-            │                           │           │
-            │  enabled                  │           │
-            │  persistent_attrs         │
-            │  properties               │           │
-            │  time                     │           │
-            │  __sessions               │           │
-            │  _geometry                │           │
-            └───────────────────────────┘           │
-                                                    │
-                                                    │
-                        nodes                       │
-            ┌───────────────────────────┐           │
-            │* id                       │           │
-            │                           │           │
-            │               systems [↖] │ ──────────┘n
-            │                           │
-            │  description              │
-            │  provider                 │
-            │  provider_url             │
-            │  properties               │
-            │* ip                       │
-            │                           │
-            │               services {} │ ◀─────────┐N
-            │                           │           │
-            │  _geometry                │           │
-            └───────────────────────────┘           │
-                                                    │
-                                                    │
-                        services                    │
-            ┌───────────────────────────┐           │
-            │  id (rowid)               │           │
-            │  value (2)                │           │
-            │                           │           │
-            │               nodes [↖]   │ ──────────┘n
-            │                           │
-            │  description              │
-            │* url                      │
-            │* dst_role                 │
-            │* dst_service              │
-            │  dst_yuno                 │
-            │* viewer_engine            │
-            │                           │
-            │  _geometry                │
-            └───────────────────────────┘
-
-
-TODO
             │                  lists {} │ ◀─┐ N
             │                           │   │
             │                           │   │
@@ -147,15 +69,6 @@ TODO
             │                           │
             │  _geometry                │
             └───────────────────────────┘
-
-
-
-
-
-    The literal lives alone in `treedb_schema_controlcenter.c`: that file holds the array and
-    nothing else, so its whole content can be replaced with what the schema
-    editor exports (`schema_to_c()` in gobj-ui). Keep this diagram in step
-    with it by hand.
 */
 #include "treedb_schema_controlcenter.c"
 /*
