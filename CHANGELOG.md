@@ -25,7 +25,16 @@
   cell used to recompute it from the masked time). +4.6% appends/s in
   `test_topic_pkey_integer`.
 - `mark_file_unordered()` logs an error instead of silently truncating a
-  `<file_id>.unordered` marker name that does not fit.
+  `<file_id>.unordered` marker name that does not fit, and still flags the
+  cell as unordered in memory: a marker that cannot be written is not a file
+  that is ordered, and without the flag every later late record logged the
+  same error again.
+- The three writers that name a record's file (the append, the write of a
+  user flag, the payload wipe of `tranger2_delete_instance()`) refuse when
+  `get_file_id()` fails (`gmtime()` rejected the `__t__`), instead of going
+  on with an empty file id: the record landed in `keys/<key>/.json` +
+  `.md2`, hidden from every load, with a cache cell whose id was `""`, and
+  the append answered 0.
 
 ### timeranger2: an append reuses the integers of the cache it updates
 
@@ -34,6 +43,8 @@
   new `json_integer()` each time -- 10 allocations and 10 frees per append.
   Now the integer already there is set in place (`set_cache_int()`); nothing
   holds a reference to them (readers copy the value or deep-copy the cell).
+  Every writer of those fields goes through it, the range widening of a cell
+  and the key totals included, so the invariant has one implementation.
   +4.8% appends/s in `test_topic_pkey_integer` (179.8k -> 188.3k without a
   realtime list, 158.3k -> 165.8k with one).
 

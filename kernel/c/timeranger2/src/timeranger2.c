@@ -2885,13 +2885,18 @@ PUBLIC int tranger2_append_record(
      *  the data and md2 files and the cache cell share it
      *------------------------------------------------------*/
     char file_id[NAME_MAX];
-    get_file_id(
+    if(!get_file_id(
         file_id,
         sizeof(file_id),
         tranger,
         topic,
         (system_flag & sf_t_ms)? __t__/1000:__t__
-    );
+    )) {
+        // Error already logged
+        gobj_trace_json(gobj, record, "Cannot append record, cannot name its file");
+        JSON_DECREF(record)
+        return -1;
+    }
 
     /*------------------------------------------------------*
      *  Save content, to file
@@ -3518,13 +3523,16 @@ PRIVATE int get_md_record_for_wr(
     }
 
     char file_id[NAME_MAX];
-    get_file_id(
+    if(!get_file_id(
         file_id,
         sizeof(file_id),
         tranger,
         topic,
         (system_flag & sf_t_ms)? __t__/1000:__t__
-    );
+    )) {
+        // Error already logged
+        return -1;
+    }
     int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key, FALSE, file_id);
     if(md2_fd < 0) {
         // Error already logged
@@ -4044,13 +4052,16 @@ PUBLIC int tranger2_delete_instance(
      *----------------------------------------*/
     if(zero_payload && payload_size > 0) {
         char file_id[NAME_MAX];
-        get_file_id(
+        if(!get_file_id(
             file_id,
             sizeof(file_id),
             tranger,
             topic,
             (topic_flag & sf_t_ms)? __t__/1000:__t__
-        );
+        )) {
+            // Error already logged
+            return -1;
+        }
         int data_fd = get_topic_wr_fd(gobj, tranger, topic, key, TRUE, file_id);
         if(data_fd < 0) {
             // Error already logged
@@ -6589,10 +6600,10 @@ PRIVATE int widen_cell_from_all_rows(
     }
     close(fd);
 
-    json_object_set_new(cache_cell, "fr_t", json_integer((json_int_t)fr_t));
-    json_object_set_new(cache_cell, "to_t", json_integer((json_int_t)to_t));
-    json_object_set_new(cache_cell, "fr_tm", json_integer((json_int_t)fr_tm));
-    json_object_set_new(cache_cell, "to_tm", json_integer((json_int_t)to_tm));
+    set_cache_int(cache_cell, "fr_t", (json_int_t)fr_t);
+    set_cache_int(cache_cell, "to_t", (json_int_t)to_t);
+    set_cache_int(cache_cell, "fr_tm", (json_int_t)fr_tm);
+    set_cache_int(cache_cell, "to_tm", (json_int_t)to_tm);
     return ret;
 }
 
@@ -6624,6 +6635,7 @@ PRIVATE void mark_file_unordered(
             "file_id",      "%s", file_id,
             NULL
         );
+        json_object_set_new(cache_cell, "unordered", json_true());
         return;
     }
     char path[PATH_MAX];
@@ -6841,7 +6853,7 @@ PRIVATE json_int_t update_new_record_from_mem(
 
     /*
      *  The cell of the record's file, wherever it is: a __t__ of an earlier
-     *  file writes into that file (get_topic_wr_fd opens it by __t__).
+     *  file writes into that file (the caller opened it by this file_id).
      *  Create the key cache if not exist.
      */
     json_int_t file_base = 0;
@@ -6971,11 +6983,11 @@ PRIVATE json_int_t update_totals_of_key_cache(
         "total"
     );
 
-    json_object_set_new(total_range, "fr_t", json_integer((json_int_t)global_from_t));
-    json_object_set_new(total_range, "to_t", json_integer((json_int_t)global_to_t));
-    json_object_set_new(total_range, "fr_tm", json_integer((json_int_t)global_from_tm));
-    json_object_set_new(total_range, "to_tm", json_integer((json_int_t)global_to_tm));
-    json_object_set_new(total_range, "rows", json_integer((json_int_t)total_rows));
+    set_cache_int(total_range, "fr_t", (json_int_t)global_from_t);
+    set_cache_int(total_range, "to_t", (json_int_t)global_to_t);
+    set_cache_int(total_range, "fr_tm", (json_int_t)global_from_tm);
+    set_cache_int(total_range, "to_tm", (json_int_t)global_to_tm);
+    set_cache_int(total_range, "rows", (json_int_t)total_rows);
 
     return total_rows;
 }
