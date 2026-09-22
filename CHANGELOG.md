@@ -1,5 +1,18 @@
 # **Changelog**
 
+## Unreleased
+
+### C_TREEDB: `saved-schema` on a treedb with nothing saved no longer logs an error
+
+- The console asks `saved-schema` of every treedb it shows, and most have no
+  saved schema: the missing file reached `kw_get_int()` as NULL and logged
+  *"kw must be list or dict"* (`path: schema_version`) on each call -- seen in
+  the agent of wattyzer after 7.25.1. `apply-schema`, `save-schema` and
+  `treedbs` read the same files the same way; all five sites go through
+  `schema_version_of()`, 0 for a file that is not there. Test:
+  `c_treedb_system_schema` asks `saved-schema` and `treedbs` before any save
+  (red against 7.25.1 on that log).
+
 ## v7.25.1 (2026-09-22)
 
 ### C_TREEDB: `impose_c_schema` is configuration, not a persisted attribute (BREAKING)

@@ -1239,6 +1239,20 @@ PRIVATE const char *impose_decided_by(hgobj gobj, const char *treedb_name)
 }
 
 /***************************************************************************
+ *  The schema_version of a schema file, 0 when there is none. The file is
+ *  often absent -- no saved schema yet, the normal case -- and asking the
+ *  kw_* readers about a NULL json logs "kw must be list or dict" on every
+ *  saved-schema call of the console.
+ ***************************************************************************/
+PRIVATE json_int_t schema_version_of(hgobj gobj, json_t *jn_schema)
+{
+    if(!json_is_object(jn_schema)) {
+        return 0;
+    }
+    return kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER);
+}
+
+/***************************************************************************
  *  The directory of the schema file IN USE by a treedb opened here: the
  *  directory of its tranger, where treedb_open_db() writes it.
  ***************************************************************************/
@@ -1426,13 +1440,13 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         char in_use_dir[PATH_MAX];
         if(in_use_schema_dir(gobj, name, in_use_dir, sizeof(in_use_dir)) == 0) {
             json_t *in_use = load_json_from_file(gobj, in_use_dir, filename, 0);
-            in_use_version = kw_get_int(gobj, in_use, "schema_version", 0, KW_WILD_NUMBER);
+            in_use_version = schema_version_of(gobj, in_use);
             JSON_DECREF(in_use)
         }
         json_int_t saved_version = 0;
         if(file_exists(saved_dir, filename)) {
             json_t *saved = load_json_from_file(gobj, saved_dir, filename, 0);
-            saved_version = kw_get_int(gobj, saved, "schema_version", 0, KW_WILD_NUMBER);
+            saved_version = schema_version_of(gobj, saved);
             JSON_DECREF(saved)
         }
 
@@ -1617,7 +1631,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  The versions: the one in use + 1, or the draft's when it is already
      *  ahead of that
      */
-    json_int_t in_use_version = kw_get_int(gobj, in_use, "schema_version", 0, KW_WILD_NUMBER);
+    json_int_t in_use_version = schema_version_of(gobj, in_use);
     json_int_t schema_version = kw_get_int(gobj, schema, "schema_version", 0, KW_WILD_NUMBER);
     if(schema_version < in_use_version + 1) {
         schema_version = in_use_version + 1;
@@ -1781,8 +1795,8 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_t *saved = file_exists(saved_dir, filename)?
         load_json_from_file(gobj, saved_dir, filename, 0): NULL;
 
-    json_int_t in_use_version = kw_get_int(gobj, in_use, "schema_version", 0, KW_WILD_NUMBER);
-    json_int_t saved_version = kw_get_int(gobj, saved, "schema_version", 0, KW_WILD_NUMBER);
+    json_int_t in_use_version = schema_version_of(gobj, in_use);
+    json_int_t saved_version = schema_version_of(gobj, saved);
     BOOL imposed = treedb_schema_imposed(gobj, treedb_name);
     BOOL master = gobj_read_bool_attr(gobj, "master");
 
@@ -1872,8 +1886,8 @@ PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     }
     json_t *saved = load_json_from_file(gobj, saved_dir, filename, 0);
     json_t *in_use = load_json_from_file(gobj, in_use_dir, filename, 0);
-    json_int_t saved_version = kw_get_int(gobj, saved, "schema_version", 0, KW_WILD_NUMBER);
-    json_int_t in_use_version = kw_get_int(gobj, in_use, "schema_version", 0, KW_WILD_NUMBER);
+    json_int_t saved_version = schema_version_of(gobj, saved);
+    json_int_t in_use_version = schema_version_of(gobj, in_use);
     JSON_DECREF(in_use)
     if(!saved || saved_version <= in_use_version) {
         JSON_DECREF(saved)

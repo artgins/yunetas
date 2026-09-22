@@ -1978,9 +1978,8 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
 }
 
 /***************************************************************************
- *  dynamic_schema_treedbs: with impose_c_schema ON, the treedb it names
- *  opens from its schema FILE, and `treedbs` says so and says who decided.
- *  Removing it from the list puts the default back.
+ *  The row `treedbs` answers for one treedb: whether it imposes, and who
+ *  decided it.
  ***************************************************************************/
 PRIVATE BOOL treedbs_row(hgobj gobj, const char *treedb_name, BOOL *impose, const char **decided_by)
 {
@@ -2003,6 +2002,54 @@ PRIVATE BOOL treedbs_row(hgobj gobj, const char *treedb_name, BOOL *impose, cons
     return found;
 }
 
+/***************************************************************************
+ *  saved-schema and `treedbs` on a treedb with NO saved schema -- the normal
+ *  state of every treedb nobody has edited -- answer version 0 and log
+ *  nothing: the console asks it of every treedb it shows, and a missing file
+ *  used to reach the kw_* readers as NULL and log "kw must be list or dict"
+ *  on each call. The strict list of expected logs is the check.
+ ***************************************************************************/
+PRIVATE int check_no_saved_schema(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "saved-schema",
+        json_pack("{s:s}", "treedb_name", TREEDB_NAME), gobj);
+    int ret = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
+    BOOL saved = kw_get_bool(gobj, jn_resp, "data`saved", 1, 0);
+    json_int_t version = kw_get_int(gobj, jn_resp, "data`saved_schema_version", -1, 0);
+    if(ret < 0 || saved || version != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: saved-schema with nothing saved",
+            "response",     "%j", jn_resp,
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(jn_resp)
+
+    BOOL impose = FALSE;
+    const char *decided_by = "";
+    if(!treedbs_row(gobj, TREEDB_NAME, &impose, &decided_by)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: treedbs does not list the open treedb",
+            NULL
+        );
+        result += -1;
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  dynamic_schema_treedbs: with impose_c_schema ON, the treedb it names
+ *  opens from its schema FILE, and `treedbs` says so and says who decided.
+ *  Removing it from the list puts the default back.
+ ***************************************************************************/
 PRIVATE int check_dynamic_schema_treedbs(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -3234,6 +3281,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += check_main_topic_desc(gobj);
     result += check_node_tree_copy_not_pure(gobj);
     result += check_schema_order(gobj, jn_schema);
+    result += check_no_saved_schema(gobj);
 
     /*-----------------------------------------------*
      *  Test 1b: close-treedb, create-topic and
