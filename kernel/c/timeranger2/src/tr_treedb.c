@@ -6589,14 +6589,40 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
         }
     }
 
+    /*-------------------------------*
+     *  A save on a replica is refused by the append, and the node in
+     *  memory took the update all the same while the answer was the node:
+     *  a write that "worked" until the next reload (pattern 1 of the
+     *  2026-09-21 review). Refused BEFORE the memory moves. A memory-only
+     *  update (save FALSE) is a replica's business, and goes on.
+     *-------------------------------*/
+    if(save && !kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot update node, NO master",
+            "treedb_name",  "%s", kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0),
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        JSON_DECREF(updates)
+        JSON_DECREF(kw)
+        return 0;
+    }
+
     json_object_update(node, updates);
     JSON_DECREF(updates)
 
     /*-------------------------------*
-     *  Write to tranger
+     *  Write to tranger. A refused append is a refused update: the
+     *  answer used to be the node, whatever the save said.
      *-------------------------------*/
     if(save) {
-        treedb_save_node(tranger, node);
+        if(treedb_save_node(tranger, node)<0) {
+            // Error already logged
+            JSON_DECREF(kw)
+            return 0;
+        }
     }
 
     JSON_DECREF(kw)

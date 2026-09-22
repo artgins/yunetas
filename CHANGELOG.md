@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### C_NODE: `activate-snap` answers result 0; C_AUTHZ: `enable-user` answers the refusal
+
+- `activate-snap` passed the return of `treedb_activate_snap()` through as
+  the command's result: the id of the activated snap since the 7.25.0 side
+  fix that made the library return it (0 before, unless switching snaps).
+  `ycommand` takes its exit code from `result`, and a client testing for 0
+  read a success as a failure. The result is 0 on success (N6 of the
+  2026-09-22 review; the agent, which tests `>= 0`, never noticed).
+- `enable-user` handed the return of `gobj_update_node()` to the response
+  as it was: a refused update (a replica, any refusal of the treedb)
+  answered result 0, *"User enabled"*, with no record. It answers -1, as
+  `disable-user` does since 7.25.0 (N7). Red tests in `test_c_node_authz`
+  and `test_command_delete_user`.
+- And underneath, in the library: `treedb_update_node()` answered the node
+  whatever `treedb_save_node()` said, and moved the node in memory before
+  the save. On a replica the append is refused (*"NO master"*) and the
+  update "worked" until the next reload -- pattern 1 of the 2026-09-21
+  review, which the command-level guards of 7.25.0 covered for C_NODE's
+  commands and not for `gobj_update_node()` (C_AUTHZ, the agent). A saved
+  update on a replica is refused BEFORE the memory moves, with *"Cannot
+  update node, NO master"*; a memory-only update (`save` FALSE) goes on;
+  and a failed save answers NULL.
+
 ### C_TRANGER: a dead id is free again, a backward page counts from the live end, a key born again is a deleted key
 
 - The three registries (iterators, realtime feeds, stateful lists) drop an

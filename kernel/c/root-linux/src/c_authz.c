@@ -1975,6 +1975,18 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         0,
         src
     );
+    if(!user) {
+        // Error already logged
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot enable user '%s' (see the log)",
+                gobj_yuno_role_plus_name(), username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     return msg_iev_build_response(
         gobj,

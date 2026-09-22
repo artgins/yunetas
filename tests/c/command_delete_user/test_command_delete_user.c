@@ -10,6 +10,7 @@
  *            3. role-holding user, force=1       -> deleted (roles unlinked)
  *            4. immutable seed user, even force  -> refused (result -1), kept
  *            5. disable-user                     -> disables it, logs no error
+ *            7. enable-user on a replica         -> -1, not "User enabled"
  *                                                   (A7 of the 2026-09-21 review)
  *            6. a role that cannot be linked     -> create/update-user refused,
  *                                                   the user keeps its role (M15)
@@ -321,6 +322,33 @@ PRIVATE void run_checks(hgobj gobj)
             json_pack("{s:s, s:s}", "username", "local_norole", "role", "roles^nosuchrole^users")),
         -1);
     check_int("local_norole was not created", user_exists("local_norole"), 0);
+
+    /*
+     *  Case 7: enable-user (N7 of the 2026-09-22 review, the sibling of
+     *  case 5). It handed the return of gobj_update_node() to the response
+     *  as it was: a refused update answered result 0, "User enabled", with
+     *  no record. A replica refuses every write, which makes the refusal
+     *  reproducible here: the tranger's master flag is turned off around
+     *  the command.
+     */
+    {
+        hgobj treedb = gobj_find_service("treedb_authzs", FALSE);
+        json_t *tranger = treedb? gobj_read_pointer_attr(treedb, "tranger") : NULL;
+        if(!tranger) {
+            printf("FAIL %-44s\n", "treedb_authzs tranger not found");
+            s_result += -1;
+        } else {
+            json_object_set_new(tranger, "master", json_false());
+            check_int("enable-user on a replica is refused",
+                cmd_result(authz, "enable-user", json_pack("{s:s}", "username", "local_to_disable")),
+                -1);
+            json_object_set_new(tranger, "master", json_true());
+            check_int("enable local_to_disable",
+                cmd_result(authz, "enable-user", json_pack("{s:s}", "username", "local_to_disable")),
+                0);
+            check_int("local_to_disable is enabled", user_disabled("local_to_disable"), 0);
+        }
+    }
 }
 
 /***************************************************************

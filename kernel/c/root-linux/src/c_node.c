@@ -4488,9 +4488,14 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
         kw_incref(kw),
         src
     );
+    /*
+     *  The library answers the id of the activated snap (>0): a result, not
+     *  the RESULT of the command, which is 0 on success -- ycommand takes
+     *  its exit code from it, and a client testing for 0 read a failure.
+     */
     const char *last_msg = gobj_log_last_message();
     return msg_iev_build_response(gobj,
-        ret,
+        ret>=0? 0 : ret,
         ret>=0
             ? json_sprintf("Snap activated: '%s'", name)
             : json_sprintf("Cannot activate snap '%s': %s",

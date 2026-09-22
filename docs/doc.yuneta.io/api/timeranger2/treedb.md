@@ -2263,6 +2263,19 @@ json_t *treedb_update_node(
 Returns a pointer to the updated node. The returned node is not owned by the caller.
 Returns `NULL` if the update is refused. A refused update does not change the node and does not save it.
 
+A saved update (`save` TRUE) on a **replica** is refused before the node moves,
+with *"Cannot update node, NO master"*: the append would be refused anyway,
+and the node in memory used to take the update all the same, answered as if
+written, until the next reload. A memory-only update (`save` FALSE) is a
+replica's business and goes on. And a save that fails on a master answers
+`NULL` too, where the node was answered whatever the save said.
+
+```C
+/*  tranger opened with "master": false  */
+json_t *n = treedb_update_node(tranger, node, json_pack("{s:s}", "name", "x"), TRUE);
+/*  n == NULL, one error logged, node unchanged  */
+```
+
 **Notes**
 
 Foreign keys (`fkeys`) and hook fields are not updated by [`treedb_update_node()`](<#treedb_update_node>).

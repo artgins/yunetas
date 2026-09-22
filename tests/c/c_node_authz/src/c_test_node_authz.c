@@ -417,7 +417,23 @@ PRIVATE int run_tests(hgobj gobj)
     result += expect(gobj, "nobody", "snap-content", json_pack("{s:s}", "name", "s1"), TRUE);
     result += expect(gobj, "reader", "snap-content", json_pack("{s:s}", "name", "s1"), FALSE);
     result += expect(gobj, "reader", "activate-snap", json_pack("{s:s}", "name", "s1"), TRUE);
-    result += expect(gobj, "editor", "activate-snap", json_pack("{s:s}", "name", "s1"), FALSE);
+    /*  A success is result 0, not the id of the snap: activate-snap passed
+     *  the return of treedb_activate_snap() (the activated id since the M4
+     *  side fix) through as the RESULT (N6 of the 2026-09-22 review), and
+     *  ycommand takes its exit code from it.  */
+    {
+        int ret = ask(gobj, "editor", "activate-snap", json_pack("{s:s}", "name", "s1"));
+        if(ret != 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: activate-snap did not answer result 0",
+                "result",       "%d", ret,
+                NULL
+            );
+            result += -1;
+        }
+    }
     result += expect(gobj, "reader", "deactivate-snap", json_object(), TRUE);
     result += expect(gobj, "editor", "deactivate-snap", json_object(), FALSE);
 
