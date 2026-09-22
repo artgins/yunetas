@@ -31,7 +31,9 @@
  *                `delete`: it erases what shoot-snap made;
  *              - an update nested in the events of another (a subscriber
  *                updating the same service) does not reset the "links
- *                refused" answer of the outer one.
+ *                refused" answer of the outer one;
+ *              - EV_TREEDB_UPDATE_NODE, which asks no permission, is not a
+ *                public event (a peer cannot route it in).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -606,6 +608,23 @@ PRIVATE int run_tests(hgobj gobj)
         }
     }
     priv->nest_one_update = FALSE;
+
+    /*-----------------------------------------------*
+     *  EV_TREEDB_UPDATE_NODE writes with no permission
+     *  asked, so it is for gobjs of this yuno only: a
+     *  PUBLIC event is delivered by C_IEVENT_CLI from
+     *  the peer of an outbound session to the service
+     *  it names
+     *-----------------------------------------------*/
+    if(gobj_has_event(priv->gobj_node, EV_TREEDB_UPDATE_NODE, EVF_PUBLIC_EVENT)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: EV_TREEDB_UPDATE_NODE is a public event of C_NODE",
+            NULL
+        );
+        result += -1;
+    }
 
     result += run_replica_tests(gobj);
 
