@@ -431,13 +431,22 @@ of [`tranger2_open_rt_disk()`](<#tranger2_open_rt_disk>) (the `rt_id` of a
 follower's `open-rt` / `open-list`) becomes the directory
 `<topic>/disks/<id>/`, and the follower removes that directory before creating
 it. An empty id, `.`, `..`, or an id holding `/` is refused with *"Invalid rt
-id (path metacharacters not allowed)"*; a backtick is accepted, since an rt id
-is not a segment of any kw path (treedb names its own feeds
-`` <treedb>`<topic>`<id> ``).
+id (path metacharacters not allowed)"*, and an id longer than `NAME_MAX` with
+*"Invalid rt id (longer than NAME_MAX)"* (its directory cannot exist). A
+backtick is accepted, since an rt id is not a segment of any kw path (treedb
+names its own feeds `` <treedb>`<topic>`<id> ``). The id may come from a peer,
+so a refused id is logged as a **warning**, without a stack.
+
+**One id, one feed.** The directory is keyed by the id alone, so an id already
+in use by a live feed of the topic is refused whatever the `creator`: *"rt disk
+id already in use by another creator, refused"* (a warning), or *"Disk already
+exists"* (an error) when the same creator opens it twice. A second feed used
+to take the first one's directory over, and its close removed it.
 
 ```C
-tranger2_open_rt_disk(tranger, "users", "", 0, cb, "gui-42", "", 0);          // OK
+tranger2_open_rt_disk(tranger, "users", "", 0, cb, "gui-42", "gui", 0);       // OK
 tranger2_open_rt_disk(tranger, "users", "", 0, cb, "../../etc", "", 0);       // refused
+tranger2_open_rt_disk(tranger, "users", "", 0, cb, "gui-42", "other", 0);     // refused: in use
 ```
 
 ```C

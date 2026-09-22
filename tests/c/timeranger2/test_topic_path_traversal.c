@@ -22,6 +22,12 @@
  *        follower's open-rt / open-list) is a directory component too,
  *        `<topic>/disks/<id>/`, that the follower rmrdir()s before creating
  *        it: the same rule refuses it, and "../../<dir>" removes nothing.
+ *        The follower runs WITH a loop (without one it never touches the
+ *        directory) and the victim is where "../../" lands, the database
+ *        directory: against the unguarded library the victim is removed.
+ *        An id longer than NAME_MAX is refused too (the mkdir failed and
+ *        the feed answered "opened"). A refused id is a peer's input: a
+ *        WARNING, no stack.
  *
  *  The negative assertions FAIL against the unguarded library: the traversal
  *  name deletes the other database's topic, "." / ".." / the non-topic dir
@@ -56,6 +62,7 @@
 
 #define INVALID_TOPIC_MSG   "Invalid topic name (path metacharacters not allowed)"
 #define INVALID_RT_ID_MSG   "Invalid rt id (path metacharacters not allowed)"
+#define LONG_RT_ID_MSG      "Invalid rt id (longer than NAME_MAX)"
 #define VICTIM_DIR          "victim_of_rt_id"
 #define ESCAPE_RT_ID        "../../" VICTIM_DIR
 
@@ -94,6 +101,31 @@ PRIVATE json_t *startup_tranger(const char *path_root, const char *database, BOO
         "yev_loop", (json_int_t)0
     );
     return tranger2_startup(0, jn_tranger, 0);
+}
+
+/*
+ *  A follower that watches the disk: only one with a loop creates (and
+ *  first removes) the directory of a disk feed.
+ */
+PRIVATE json_t *startup_follower_with_loop(const char *path_root, const char *database)
+{
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i}",
+        "path", path_root,
+        "database", database,
+        "master", 0,
+        "on_critical_error", LOG_OPT_TRACE_STACK,
+        "filename_mask", "%Y",
+        "xpermission" , 02770,
+        "rpermission", 0600
+    );
+    return tranger2_startup(0, jn_tranger, yev_loop);
+}
+
+PRIVATE void drain(int turns)
+{
+    for(int i = 0; i < turns; i++) {
+        yev_loop_run_once(yev_loop);
+    }
 }
 
 PRIVATE json_t *create_topic(json_t *tranger, const char *topic_name)
@@ -394,39 +426,63 @@ PRIVATE int do_test(void)
      *-------------------------------------*/
     set_expected_results(
         "negative: a follower's rt id cannot escape the topic",
-        json_pack("[{s:s}]",
-            "msg", INVALID_RT_ID_MSG
+        json_pack("[{s:s},{s:s}]",
+            "msg", INVALID_RT_ID_MSG,
+            "msg", LONG_RT_ID_MSG
         ),
         NULL, NULL, 1
     );
+    /*
+     *  "../../" from <database>/<topic>/disks/ is <database>/: the victim
+     *  is put where the traversal lands.
+     */
     char path_victim[PATH_MAX], path_victim_file[PATH_MAX];
-    build_path(path_victim, sizeof(path_victim), path_root, VICTIM_DIR, NULL);
+    build_path(path_victim, sizeof(path_victim), path_database, VICTIM_DIR, NULL);
     build_path(path_victim_file, sizeof(path_victim_file), path_victim, "keep.txt", NULL);
     rmrdir(path_victim);
     mkrdir(path_victim, 02770);
     save_json_to_file(0, path_victim, "keep.txt", 0660, 0, 0, TRUE, TRUE, json_object());
-    json_t *follower = startup_tranger(path_root, DATABASE, FALSE);
+    char long_rt_id[NAME_MAX + 2];
+    memset(long_rt_id, 'x', sizeof(long_rt_id) - 1);
+    long_rt_id[sizeof(long_rt_id) - 1] = 0;
+
+    json_t *follower = startup_follower_with_loop(path_root, DATABASE);
     if(!follower) {
         printf("%sERROR%s --> cannot start the follower\n", On_Red BWhite, Color_Off);
         result += -1;
     } else {
-        json_t *rt = tranger2_open_rt_disk(
-            follower,
-            TOPIC_NAME,
-            "",
-            NULL,
-            rt_disk_callback,
-            ESCAPE_RT_ID,
-            "",
-            NULL
-        );
-        if(rt) {
-            printf("%sERROR%s --> a follower opened a disk feed with rt id '%s'\n",
-                On_Red BWhite, Color_Off, ESCAPE_RT_ID);
-            tranger2_close_rt_disk(follower, rt);
+        const char *bad_ids[] = {ESCAPE_RT_ID, long_rt_id, NULL};
+        gobj_log_clear_counters();
+        for(int i = 0; bad_ids[i]; i++) {
+            json_t *rt = tranger2_open_rt_disk(
+                follower,
+                TOPIC_NAME,
+                "",
+                NULL,
+                rt_disk_callback,
+                bad_ids[i],
+                "",
+                NULL
+            );
+            drain(10);
+            if(rt) {
+                printf("%sERROR%s --> a follower opened a disk feed with rt id '%.40s...'\n",
+                    On_Red BWhite, Color_Off, bad_ids[i]);
+                tranger2_close_rt_disk(follower, rt);
+                drain(10);
+                result += -1;
+            }
+        }
+        json_t *counters = gobj_get_log_data();
+        if(kw_get_int(0, counters, "warning", 0, 0) != 2 ||
+                kw_get_int(0, counters, "error", 0, 0) != 0) {
+            printf("%sERROR%s --> a refused rt id must be ONE warning each, no error: %s\n",
+                On_Red BWhite, Color_Off, json_dumps(counters, JSON_COMPACT));
             result += -1;
         }
+        JSON_DECREF(counters)
         tranger2_shutdown(follower);
+        drain(10);
     }
     if(!is_regular_file(path_victim_file)) {
         printf("%sERROR%s --> the rt id escaped the topic and removed: %s\n",

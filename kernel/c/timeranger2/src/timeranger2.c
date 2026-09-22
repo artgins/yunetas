@@ -808,8 +808,13 @@ PRIVATE BOOL topic_name_is_confined(
  *  The id of a disk feed is a directory too, `<topic>/disks/<id>/`, and
  *  the follower rmrdir()s it before creating it: the directory half of the
  *  topic-name rule, or an id from the wire removes whatever it points at.
+ *  And one component: longer than NAME_MAX, the mkdir fails and the feed
+ *  answered "opened" while it could never receive anything.
  *  A backtick is fine here: an rt id is not a segment of any kw path, and
  *  treedb names its own feeds `<treedb>`<topic>`<id>`.
+ *
+ *  The id may come from a peer (open-rt / open-list of C_TRANGER): a
+ *  refusal is a WARNING, with no stack -- nothing of ours is broken.
  ***************************************************************************/
 PRIVATE BOOL rt_id_is_confined(
     hgobj gobj,
@@ -819,7 +824,7 @@ PRIVATE BOOL rt_id_is_confined(
 )
 {
     if(name_escapes_its_directory(id)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", caller,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Invalid rt id (path metacharacters not allowed)",
@@ -827,6 +832,20 @@ PRIVATE BOOL rt_id_is_confined(
             "id",           "%s", id?id:"",
             NULL
         );
+        gobj_log_set_last_message("Invalid rt id '%s'", id?id:"");
+        return FALSE;
+    }
+    if(strlen(id) > NAME_MAX) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", caller,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Invalid rt id (longer than NAME_MAX)",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "length",       "%d", (int)strlen(id),
+            "max",          "%d", NAME_MAX,
+            NULL
+        );
+        gobj_log_set_last_message("Invalid rt id: longer than %d", NAME_MAX);
         return FALSE;
     }
     return TRUE;
@@ -4630,6 +4649,36 @@ PUBLIC json_t *tranger2_open_rt_disk(
         JSON_DECREF(disk)
         JSON_DECREF(extra)
         return NULL;
+    }
+
+    /*
+     *  The directory `disks/<id>/` is keyed by the id ALONE, and an open
+     *  rmrdir()s it before creating it: a second feed with the id of a live
+     *  one, under another creator, took its directory over, and its close
+     *  removed it -- the first feed (a treedb's, on a replica) stopped
+     *  receiving for good, without a log. One id, one feed, whoever opens it.
+     */
+    json_t *disks_ = kw_get_list(gobj, topic, "disks", 0, KW_REQUIRED);
+    int idx_; json_t *disk_;
+    json_array_foreach(disks_, idx_, disk_) {
+        if(strcmp(kw_get_str(gobj, disk_, "id", "", 0), id)==0) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "rt disk id already in use by another creator, refused",
+                "topic_name",   "%s", tranger2_topic_name(topic),
+                "key",          "%s", key,
+                "id",           "%s", id,
+                "creator",      "%s", creator,
+                "owner",        "%s", kw_get_str(gobj, disk_, "creator", "", 0),
+                NULL
+            );
+            gobj_log_set_last_message("rt disk id '%s' already in use", id);
+            JSON_DECREF(match_cond)
+            JSON_DECREF(disk)
+            JSON_DECREF(extra)
+            return NULL;
+        }
     }
 
     json_object_update_new(disk, json_pack("{s:s, s:s, s:s, s:s, s:o, s:I}",
@@ -9770,13 +9819,10 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         }
 
         if(!rt) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "Cannot open rt",
-                "topic_name",   "%s", topic_name,
-                NULL
-            );
+            /*
+             *  Error already logged, with its cause: an error with a stack
+             *  here said "internal" of what is often a peer's bad rt id.
+             */
             JSON_DECREF(match_cond)
             JSON_DECREF(extra)
             return NULL;

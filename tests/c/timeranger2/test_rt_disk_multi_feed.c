@@ -37,6 +37,9 @@
  *        only_md like the historical iterator; before the fix it always read
  *        and delivered the content (an extra disk read per record on rt_disk).
  *
+ *      - one id, one feed: an rt_disk open with the id of a live feed is
+ *        refused whatever its creator (M9 of the 2026-09-23 review).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -45,6 +48,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -440,6 +444,55 @@ PRIVATE int do_test(void)
     if(full_body_missing != 0) {
         printf("%sERROR%s --> a non-only_md feed received a NULL body (%d), must get the body\n",
             On_Red BWhite, Color_Off, full_body_missing);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  The directory of a feed is `disks/<id>/`, keyed by the id ALONE. A
+     *  second open of a live id under ANOTHER creator took the directory
+     *  over (rmrdir + mkdir) and its close removed it: the first feed -- a
+     *  treedb's, on a replica, whose id anyone can read -- received nothing
+     *  more, and nothing said so. It is refused now, and the first feed
+     *  goes on.
+     */
+    set_expected_results("multi_feed: an id in use is refused to another creator",
+        json_pack("[{s:s}]",
+            "msg", "rt disk id already in use by another creator, refused"
+        ),
+        NULL, NULL, 1
+    );
+    char disk_dir[PATH_MAX];
+    build_path(disk_dir, sizeof(disk_dir), path_database, TOPIC_NAME, "disks", "rtA", NULL);
+    struct stat st_before = {0}, st_after = {0};
+    stat(disk_dir, &st_before);
+    json_t *rt_thief = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, KEY_A, NULL, my_record_callback, "rtA", "thief", NULL
+    );
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(rt_thief) {
+        printf("%sERROR%s --> a feed opened with the id of a live one\n", On_Red BWhite, Color_Off);
+        result += -1;
+        tranger2_close_rt_disk(tf, rt_thief);
+        for(int i = 0; i < 10; i++) {
+            yev_loop_run_once(yev_loop);
+        }
+    }
+    if(stat(disk_dir, &st_after) < 0 || st_after.st_ino != st_before.st_ino) {
+        printf("%sERROR%s --> the directory of the live feed was taken over or removed\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    reset_counts();
+    if(append_one(tm, 1, BASE_T + 86403)<0) {
+        result += -1;
+    }
+    drain(1, 0, 1);
+    if(count_keyed_a != 1) {
+        printf("%sERROR%s --> the live feed got %d records after the refused open, expected 1\n",
+            On_Red BWhite, Color_Off, count_keyed_a);
         result += -1;
     }
     result += test_json(NULL);

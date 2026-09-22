@@ -269,9 +269,8 @@ static int test(json_t *tranger, int caso, int cnt)
             const char *test_name = "case 2";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
-                json_pack("[{s:s},{s:s},{s:s}]", // error's list
+                json_pack("[{s:s},{s:s}]", // error's list
                     "msg", "what id?",
-                    "msg", "Cannot open rt",
                     "msg", "tranger2_open_list() failed"
                 ),
                 NULL,   // expected, NULL: we want to check only the logs
