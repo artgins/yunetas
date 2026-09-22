@@ -527,7 +527,11 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
     The record is stored WITHOUT a `__md_tranger__` (one it carries from an
     earlier append or a load is dropped: it is metadata, not content), and the
     function adds one only to the record it hands to the realtime lists that
-    take it, never for the caller: read the out-param instead.
+    take it (a list on the key that is not `only_md`). It is not added FOR the
+    caller: read the out-param. The function owns the record and changes it IN
+    PLACE, so a caller that keeps a reference of its own (json_incref before
+    the call) sees both: the carried `__md_tranger__` gone, and a fresh one
+    when a list took the record (plus `__rowid__` on an sf_rowid_key topic).
     Return: 0 on success, -1 on error (record NULL, not master, topic not found,
     missing/oversized pkey, or an unsafe key that would escape keys/).
 */

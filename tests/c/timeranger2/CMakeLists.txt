@@ -70,6 +70,7 @@ set(SRCS
     test_iterator_index
     test_late_record
     test_stop_reopen
+    test_append_md_contract
     test_str2system_flag
     test_testing
 )

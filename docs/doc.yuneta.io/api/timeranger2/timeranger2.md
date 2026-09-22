@@ -123,10 +123,24 @@ The function does not add a `__md_tranger__` to the record for the caller.
 It adds one (`g_rowid`, `i_rowid`, `t`, `tm`, `offset`, `size`,
 `system_flag`, `user_flag`, the same dict a load attaches) only to the record
 it hands to a realtime list that takes it: one that wants the key and is not
-an `only_md` feed. A list open on another key does not make the append build
-it. Nor is a `__md_tranger__` ever stored: one the record carries in, from an
-earlier append or from a load, is the metadata of THAT record and is dropped
-before the content is written.
+an `only_md` feed (an `only_md` feed is handed `NULL`). A list open on another
+key does not make the append build it. Nor is a `__md_tranger__` ever stored:
+one the record carries in, from an earlier append or from a load, is the
+metadata of THAT record and is dropped before the content is written.
+
+The record is **owned** by the function, and these changes are made to the
+object itself, not to a copy: a list hands it on without copying it, on the
+hot path of every append. So a caller that keeps a reference of its own sees
+them, and reads the metadata from `md2_record_ex` anyway:
+
+```C
+json_incref(record);                    // the caller keeps one
+tranger2_append_record(tranger, "topic", 0, 0, &md, record);
+// No list takes the key:   record has no __md_tranger__ (a carried one is gone)
+// A list takes the record: record HAS the list's fresh __md_tranger__
+// On an sf_rowid_key topic: record also has "__rowid__"
+json_decref(record);
+```
 
 **A `__t__` that belongs to an earlier file.** The record goes to the file that
 its `__t__` selects (through the topic's `filename_mask`), even if that file is
