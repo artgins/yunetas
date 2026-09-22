@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.1 (2026-09-22)
 
 ### C_TREEDB: `impose_c_schema` is configuration, not a persisted attribute (BREAKING)
 
