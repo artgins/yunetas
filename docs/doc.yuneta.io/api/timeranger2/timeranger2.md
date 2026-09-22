@@ -62,13 +62,13 @@ on-disk changes. See the **fs_watcher** page in the sidebar.
 
 ## Source code
 
-- [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.h)
-- [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c)
+- [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.h)
+- [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c)
 
 ## Function reference
 
 (tranger2_append_record)=
-## [`tranger2_append_record()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L2694)
+## [`tranger2_append_record()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L2739)
 
 Appends a new record to a topic in the TimeRanger database. **Master-only.** If
 `__t__` is zero a timestamp is assigned (milliseconds when the topic is `sf_t_ms`,
@@ -151,7 +151,7 @@ the whole file.
 ---
 
 (tranger2_backup_topic)=
-## [`tranger2_backup_topic()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1705)
+## [`tranger2_backup_topic()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1760)
 
 Creates a backup of a topic in the TimeRanger database. If `backup_path` is empty, the topic path is used. If `backup_name` is empty, the backup file is named `topic_name.bak`. If `overwrite_backup` is true and the backup exists, it is overwritten unless `tranger_backup_deleting_callback` returns true.
 
@@ -190,7 +190,7 @@ Only a master can back up a topic (the backup moves its directory): on a replica
 ---
 
 (tranger2_close_all_lists)=
-## [`tranger2_close_all_lists()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L9580)
+## [`tranger2_close_all_lists()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L9767)
 
 Closes the iterators, `rt_mem` and `rt_disk` lists of a topic that belong to a
 given `creator`. An empty `creator` closes **all** of them. A non-empty `creator`
@@ -235,7 +235,7 @@ topic is closed regardless of `rt_id`.
 ---
 
 (tranger2_close_iterator)=
-## [`tranger2_close_iterator()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L7317)
+## [`tranger2_close_iterator()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L7480)
 
 Closes an iterator in the TimeRanger 2 database, releasing associated resources.
 
@@ -264,7 +264,7 @@ Closing an iterator makes sure that any allocated memory or resources are proper
 ---
 
 (tranger2_close_list)=
-## [`tranger2_close_list()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L9552)
+## [`tranger2_close_list()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L9739)
 
 The function `tranger2_close_list()` closes a previously opened list, which can be a real-time memory list (`rt_mem`), a real-time disk list (`rt_disk`), or a non-real-time list.
 
@@ -293,7 +293,7 @@ This function makes sure that resources associated with the list are properly re
 ---
 
 (tranger2_close_rt_disk)=
-## [`tranger2_close_rt_disk()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L4573)
+## [`tranger2_close_rt_disk()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L4666)
 
 The `tranger2_close_rt_disk()` function closes a previously opened real-time disk stream in the TimeRanger database, releasing associated resources.
 
@@ -322,7 +322,7 @@ This function must be called when a real-time disk stream is no longer needed to
 ---
 
 (tranger2_close_rt_mem)=
-## [`tranger2_close_rt_mem()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L4292)
+## [`tranger2_close_rt_mem()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L4379)
 
 The `tranger2_close_rt_mem()` function closes a real-time memory stream associated with a given TimeRanger instance.
 
@@ -351,7 +351,7 @@ Closing a real-time memory stream using [`tranger2_close_rt_mem()`](#tranger2_cl
 ---
 
 (tranger2_close_topic)=
-## [`tranger2_close_topic()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1558)
+## [`tranger2_close_topic()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1613)
 
 The `tranger2_close_topic()` function closes an open topic in the TimeRanger database, releasing associated resources.
 
@@ -380,7 +380,7 @@ Closing a topic does not delete its data. It only releases resources associated 
 ---
 
 (tranger2_create_topic)=
-## [`tranger2_create_topic()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L750)
+## [`tranger2_create_topic()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L789)
 
 The `tranger2_create_topic()` function creates a new topic in the TimeRanger database if it does not already exist. If the topic exists, it returns the existing topic metadata. The function makes sure that the topic is properly initialized with the specified primary key, time key, system flags, and additional metadata.
 
@@ -450,7 +450,7 @@ tranger2_create_topic(tranger, "users/keys", "id", "tm", 0, 0, 0, 0);          /
 ---
 
 (tranger2_delete_key)=
-## [`tranger2_delete_key()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L3326)
+## [`tranger2_delete_key()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L3398)
 
 The `tranger2_delete_key()` function deletes a whole record (= a
 primary key, with every instance stored under it) from the specified
@@ -510,7 +510,7 @@ so existing callers keep compiling unchanged. New code must use
 ---
 
 (tranger2_delete_instance)=
-## [`tranger2_delete_instance()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L3895)
+## [`tranger2_delete_instance()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L3971)
 
 The `tranger2_delete_instance()` function deletes a single instance
 (one row of a key's `.md2` index) without touching the surrounding
@@ -572,7 +572,7 @@ Side effects to be aware of:
 ---
 
 (tranger2_set_rt_key_deleted_callback)=
-## [`tranger2_set_rt_key_deleted_callback()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L4739)
+## [`tranger2_set_rt_key_deleted_callback()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L4832)
 
 Registers a key-delete callback on a handle returned by
 `tranger2_open_rt_mem()`, `tranger2_open_rt_disk()` or
@@ -659,7 +659,7 @@ path, like an rt_mem.
 ---
 
 (tranger2_delete_topic)=
-## [`tranger2_delete_topic()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1614)
+## [`tranger2_delete_topic()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1669)
 
 The `tranger2_delete_topic()` function deletes a topic from the TimeRanger database, effectively removing all associated records and metadata.
 
@@ -690,7 +690,7 @@ Only a master can delete: on a replica (`master=0`) it returns `-1` with *"Only 
 ---
 
 (tranger2_dict_topic_desc_cols)=
-## [`tranger2_dict_topic_desc_cols()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L2144)
+## [`tranger2_dict_topic_desc_cols()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L2199)
 
 `tranger2_dict_topic_desc_cols()` retrieves the column descriptions of a specified topic in dictionary format.
 
@@ -719,7 +719,7 @@ This function is similar to [`tranger2_list_topic_desc_cols()`](<#tranger2_list_
 ---
 
 (tranger2_get_iterator_by_id)=
-## [`tranger2_get_iterator_by_id()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L7380)
+## [`tranger2_get_iterator_by_id()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L7543)
 
 Retrieve an iterator by its identifier. If the iterator exists, it is returned. Otherwise, NULL is returned.
 
@@ -770,7 +770,7 @@ json_t *it = tranger2_topic_is_open(tranger, "frames")?
 ---
 
 (tranger2_get_rt_disk_by_id)=
-## [`tranger2_get_rt_disk_by_id()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L4685)
+## [`tranger2_get_rt_disk_by_id()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L4778)
 
 Retrieve a real-time disk instance by its identifier. If the specified real-time disk exists, it returns the corresponding JSON object. Otherwise, it returns NULL.
 
@@ -805,7 +805,7 @@ The `creator` filters the match: pass the same creator used at open. An empty
 ---
 
 (tranger2_get_rt_mem_by_id)=
-## [`tranger2_get_rt_mem_by_id()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L4361)
+## [`tranger2_get_rt_mem_by_id()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L4448)
 
 Retrieve a real-time memory instance by its identifier. If the specified real-time memory instance exists, it is returned. Otherwise, NULL is returned.
 
@@ -840,7 +840,7 @@ The `creator` filters the match: pass the same creator used at open. An empty
 ---
 
 (tranger2_iterator_get_page)=
-## [`tranger2_iterator_get_page()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L7564)
+## [`tranger2_iterator_get_page()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L7727)
 
 Retrieves a page of records from an iterator in the TimeRanger database. The function returns a JSON object containing the total number of rows, the number of pages based on the specified limit, and the list of retrieved records.
 
@@ -893,7 +893,7 @@ json_t *page = tranger2_iterator_get_page(tranger, it, 1, 100, FALSE);
 ---
 
 (tranger2_iterator_size)=
-## [`tranger2_iterator_size()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L7532)
+## [`tranger2_iterator_size()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L7695)
 
 `tranger2_iterator_size()` returns the number of records in the specified iterator.
 
@@ -929,7 +929,7 @@ row, so its count and its pages agree.
 ---
 
 (tranger2_list_keys)=
-## [`tranger2_list_keys()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1437)
+## [`tranger2_list_keys()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1492)
 
 Returns a JSON array with the key names of a topic, read from its in-memory
 `cache`.
@@ -961,7 +961,7 @@ thousands of keys (allocates one string per key).
 ---
 
 (tranger2_list_topic_desc_cols)=
-## [`tranger2_list_topic_desc_cols()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L2126)
+## [`tranger2_list_topic_desc_cols()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L2181)
 
 Returns a JSON array containing the column descriptions of a topic in the TimeRanger database. The returned JSON object must be decremented after use.
 
@@ -990,7 +990,7 @@ This function was previously known as `tranger_list_topic_desc()`.
 ---
 
 (tranger2_list_topics)=
-## [`tranger2_list_topics()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1375)
+## [`tranger2_list_topics()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1430)
 
 Returns a JSON array with the names of the topics currently **opened in memory**
 (the `tranger["topics"]` registry) — not a disk scan.
@@ -1022,7 +1022,7 @@ disk — including ones not yet opened — use
 ---
 
 (tranger2_open_iterator)=
-## [`tranger2_open_iterator()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L7023)
+## [`tranger2_open_iterator()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L7191)
 
 Opens an iterator for traversing records in a topic within the TimeRanger database. The iterator allows filtering records based on specified conditions and supports real-time data loading.
 
@@ -1116,7 +1116,7 @@ memory once it is not.
 ---
 
 (tranger2_open_list)=
-## [`tranger2_open_list()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L9341)
+## [`tranger2_open_list()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L9528)
 
 `tranger2_open_list()` opens a list of records in memory, optionally enabling real-time updates via memory or disk.
 
@@ -1155,7 +1155,7 @@ Loading all records can introduce delays in application startup. Use filtering c
 ---
 
 (tranger2_open_rt_disk)=
-## [`tranger2_open_rt_disk()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L4416)
+## [`tranger2_open_rt_disk()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L4503)
 
 Opens a real-time disk-based iterator for monitoring changes in a topic. The function allows tracking new records appended to the topic by monitoring disk events.
 
@@ -1209,7 +1209,7 @@ dies with its key, so a key re-created later does not inherit it.
 ---
 
 (tranger2_open_rt_mem)=
-## [`tranger2_open_rt_mem()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L4168)
+## [`tranger2_open_rt_mem()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L4255)
 
 Opens a real-time memory stream for a given topic in `tranger`. This function enables real-time message processing for the specified `key` and applies filtering conditions from `match_cond`. The callback [`tranger2_load_record_callback_t`](#tranger2_load_record_callback_t) is invoked when new records are appended.
 
@@ -1250,7 +1250,7 @@ This function is valid when the Yuno instance is the master writing real-time me
 ---
 
 (tranger2_open_topic)=
-## [`tranger2_open_topic()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1152)
+## [`tranger2_open_topic()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1191)
 
 The `tranger2_open_topic()` function opens a topic in the TimeRanger database. If the topic is already open, it returns the existing topic JSON object.
 
@@ -1283,7 +1283,7 @@ It returns `NULL`, never a critical, when the name is refused by the [topic name
 ---
 
 (tranger2_print_md0_record)=
-## [`tranger2_print_md0_record()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L9720)
+## [`tranger2_print_md0_record()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L9907)
 
 Prints metadata of a record, including row ID, time, message time, and key, into a buffer.
 
@@ -1319,7 +1319,7 @@ The function formats the metadata into the provided buffer. This makes sure of i
 ---
 
 (tranger2_print_md1_record)=
-## [`tranger2_print_md1_record()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L9784)
+## [`tranger2_print_md1_record()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L9971)
 
 Prints metadata information of a record, including row ID, user flag, system flag, timestamps, and key, into a buffer.
 
@@ -1355,7 +1355,7 @@ The function formats and writes metadata details into the provided buffer. This 
 ---
 
 (tranger2_print_md2_record)=
-## [`tranger2_print_md2_record()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L9852)
+## [`tranger2_print_md2_record()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L10039)
 
 Prints detailed metadata of a record, including row ID, offset, size, timestamp, and file path, into the provided buffer.
 
@@ -1395,7 +1395,7 @@ The function formats metadata details into the provided buffer. This makes sure 
 ---
 
 (tranger2_print_record_filename)=
-## [`tranger2_print_record_filename()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L9901)
+## [`tranger2_print_record_filename()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L10088)
 
 Formats and stores the filename of a record in a buffer, using metadata from [`tranger2_print_record_filename()`](#tranger2_print_record_filename).
 
@@ -1432,7 +1432,7 @@ The buffer `bf` must be large enough to store the formatted filename. The functi
 ---
 
 (tranger2_read_record_content)=
-## [`tranger2_read_record_content()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L9051)
+## [`tranger2_read_record_content()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L9236)
 
 Reads the content of a record from a given topic in the TimeRanger database. The function retrieves the record's data based on its metadata.
 
@@ -1465,7 +1465,7 @@ This function is useful when only metadata was loaded and the full record conten
 ---
 
 (tranger2_read_user_flag)=
-## [`tranger2_read_user_flag()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L4117)
+## [`tranger2_read_user_flag()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L4204)
 
 The `tranger2_read_user_flag()` function retrieves the user flag associated with a specific record in a given topic.
 
@@ -1498,7 +1498,7 @@ The function is used in writing mode to check the user flag of a record before m
 ---
 
 (tranger2_set_trace_level)=
-## [`tranger2_set_trace_level()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L9926)
+## [`tranger2_set_trace_level()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L10113)
 
 Sets the trace level of the `tranger` instance, controlling the verbosity of logging and debugging output.
 
@@ -1527,7 +1527,7 @@ Higher trace levels typically enable more detailed logging, which can be useful 
 ---
 
 (tranger2_set_system_flag)=
-## [`tranger2_set_system_flag()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L3794)
+## [`tranger2_set_system_flag()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L3870)
 
 Sets or clears specific bits in the **system** flag of a record — the metadata
 band reserved for the framework (for example the immutable-record bit), distinct from
@@ -1570,7 +1570,7 @@ bits directly.
 ---
 
 (tranger2_set_user_flag)=
-## [`tranger2_set_user_flag()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L3709)
+## [`tranger2_set_user_flag()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L3785)
 
 Sets or clears specific bits in the user flag of a record in a topic within the TimeRanger database.
 
@@ -1607,7 +1607,7 @@ This function modifies only the bits specified in `mask`. This leaves other bits
 ---
 
 (tranger2_shutdown)=
-## [`tranger2_shutdown()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L617)
+## [`tranger2_shutdown()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L621)
 
 The `tranger2_shutdown()` function stops the TimeRanger database, releasing all allocated memory.
 
@@ -1634,7 +1634,7 @@ This function must be called when the database is no longer needed to free resou
 ---
 
 (tranger2_startup)=
-## [`tranger2_startup()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L377)
+## [`tranger2_startup()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L381)
 
 Initializes the TimeRanger 2 database, setting up its internal structures and preparing it for use. The function requires a `hgobj` instance and a JSON configuration object that defines database parameters.
 
@@ -1665,7 +1665,7 @@ The returned JSON object must be properly managed and eventually passed to [`tra
 ---
 
 (tranger2_stop)=
-## [`tranger2_stop()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L590)
+## [`tranger2_stop()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L594)
 
 The `tranger2_stop()` function closes the TimeRanger database. This makes sure that all topics and file descriptors are properly closed.
 
@@ -1692,7 +1692,7 @@ This function must be called before shutting down the database using [`tranger2_
 ---
 
 (tranger2_str2system_flag)=
-## [`tranger2_str2system_flag()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L632)
+## [`tranger2_str2system_flag()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L636)
 
 Converts a formatted string containing system flag representations into a `system_flag2_t` integer. The input string can use delimiters such as '|', ' ', or ','.
 
@@ -1719,7 +1719,7 @@ This function is useful for converting human-readable flag representations into 
 ---
 
 (tranger2_topic)=
-## [`tranger2_topic()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1326)
+## [`tranger2_topic()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1375)
 
 Retrieve a topic by its name from the TimeRanger database. If the topic is not already opened, [`tranger2_open_topic()`](<#tranger2_open_topic>) is called to open it.
 
@@ -1748,7 +1748,7 @@ If the topic exists on disk but has not been opened yet, [`tranger2_open_topic()
 ---
 
 (tranger2_topic_desc)=
-## [`tranger2_topic_desc()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L2074)
+## [`tranger2_topic_desc()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L2129)
 
 `tranger2_topic_desc()` retrieves the description of a specified topic from the TimeRanger database.
 
@@ -1802,7 +1802,7 @@ The returned JSON object must be properly decremented using `json_decref()` to a
 ---
 
 (tranger2_topic_key_size)=
-## [`tranger2_topic_key_size()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1487)
+## [`tranger2_topic_key_size()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1542)
 
 Retrieves the number of records associated with a specific key in a given topic
 within the TimeRanger database. If `key` is empty, the **whole-topic** size is
@@ -1837,7 +1837,7 @@ empty the call delegates to [`tranger2_topic_size()`](#tranger2_topic_size).
 ---
 
 (tranger2_topic_key_range)=
-## [`tranger2_topic_key_range()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1510)
+## [`tranger2_topic_key_range()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1565)
 
 Returns the **time span** of one key of a topic, on both axes, read from the
 in-memory cache totals (maintained on load and on every append) — so a client can
@@ -1880,7 +1880,7 @@ from the topic desc).
 ---
 
 (tranger2_topic_is_open)=
-## [`tranger2_topic_is_open()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1532)
+## [`tranger2_topic_is_open()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1587)
 
 `TRUE` if the topic is currently open in this tranger. Silent — a closed topic is
 a legitimate answer, not an error.
@@ -1916,7 +1916,7 @@ is gone, and dereferencing it is a use-after-free.
 ---
 
 (tranger2_topic_name)=
-## [`tranger2_topic_name()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1548)
+## [`tranger2_topic_name()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1603)
 
 Retrieves the topic name from the given `json_t *` topic object.
 
@@ -1943,7 +1943,7 @@ If the `topic` parameter is `NULL` or invalid, the behavior is undefined.
 ---
 
 (tranger2_topic_size)=
-## [`tranger2_topic_size()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1462)
+## [`tranger2_topic_size()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1517)
 
 `tranger2_topic_size()` retrieves the total number of records present in a specified topic within the TimeRanger database.
 
@@ -1972,7 +1972,7 @@ If the topic does not exist, the function can return `0`.
 ---
 
 (tranger2_write_topic_cols)=
-## [`tranger2_write_topic_cols()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1995)
+## [`tranger2_write_topic_cols()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L2050)
 
 The `tranger2_write_topic_cols()` function updates the column definitions of a specified topic in the TimeRanger database.
 
@@ -2013,7 +2013,7 @@ unannounced, and an order announces nothing new.
 ---
 
 (tranger2_write_topic_var)=
-## [`tranger2_write_topic_var()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1908)
+## [`tranger2_write_topic_var()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1963)
 
 The `tranger2_write_topic_var()` function updates the variable metadata of a specified topic in the TimeRanger database.
 
@@ -2046,7 +2046,7 @@ immutable descriptor fields.
 ---
 
 (tranger2_write_user_flag)=
-## [`tranger2_write_user_flag()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L3641)
+## [`tranger2_write_user_flag()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L3717)
 
 The `tranger2_write_user_flag()` function updates the user flag of a specific record identified by `rowid` in the given `topic_name` within the TimeRanger database.
 
@@ -2081,7 +2081,7 @@ This function modifies the user flag of an existing record but does not alter ot
 ---
 
 (tranger2_list_topic_names)=
-## [`tranger2_list_topic_names()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1396)
+## [`tranger2_list_topic_names()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1451)
 
 `tranger2_list_topic_names()` returns a JSON array of topic names by scanning the tranger database directory on disk. Unlike [`tranger2_list_topics()`](#tranger2_list_topics), which reads from the in-memory topic registry, this function reads subdirectory names from the filesystem.
 
@@ -2108,7 +2108,7 @@ This function operates on disk, not in memory. It can return topic names that ar
 ---
 
 (tranger2_topic_path)=
-## [`tranger2_topic_path()`](https://github.com/artgins/yunetas/blob/7.25.2/kernel/c/timeranger2/src/timeranger2.c#L1352)
+## [`tranger2_topic_path()`](https://github.com/artgins/yunetas/blob/7.25.3/kernel/c/timeranger2/src/timeranger2.c#L1407)
 
 `tranger2_topic_path()` writes the filesystem path of a topic into the provided buffer. The path is constructed by appending the topic name to the tranger database directory.
 
