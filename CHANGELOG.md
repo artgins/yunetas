@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### timeranger2: an append reuses the integers of the cache it updates
+
+- `tranger2_append_record()` updates the key's cache on every append (the
+  file's cell and the key's totals: 10 integers). They were replaced with a
+  new `json_integer()` each time -- 10 allocations and 10 frees per append.
+  Now the integer already there is set in place (`set_cache_int()`); nothing
+  holds a reference to them (readers copy the value or deep-copy the cell).
+  +4.8% appends/s in `test_topic_pkey_integer` (179.8k -> 188.3k without a
+  realtime list, 158.3k -> 165.8k with one).
+
 ### webstats: each top client says whether fail2ban banned it
 
 - webstats reads `fail2ban_log_path` (`/var/log/fail2ban.log`) and its last

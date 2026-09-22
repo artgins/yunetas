@@ -191,6 +191,7 @@ PRIVATE json_t *get_key_cache(
     const char *key
 );
 PRIVATE json_t *create_cache_key(void);
+PRIVATE void set_cache_int(json_t *dict, const char *key, json_int_t value);
 PRIVATE json_t *find_cache_cell(
     json_t *topic,
     const char *key,
@@ -6331,6 +6332,24 @@ PRIVATE json_t *load_key_cache_from_disk(
 }
 
 /***************************************************************************
+ *  Write an integer field of a cache cell or of a key's totals.
+ *  The cache is rewritten on every append: reuse the integer already there
+ *  instead of allocating a new one and freeing the old (10 of each per
+ *  append). Safe because nothing holds a reference to these integers:
+ *  every reader copies the value, or deep-copies the cell (get_segments,
+ *  tranger2_topic_key_range).
+ ***************************************************************************/
+PRIVATE void set_cache_int(json_t *dict, const char *key, json_int_t value)
+{
+    json_t *jn_value = json_object_get(dict, key);
+    if(json_is_integer(jn_value)) {
+        json_integer_set(jn_value, value);
+    } else {
+        json_object_set_new(dict, key, json_integer(value));
+    }
+}
+
+/***************************************************************************
  *  Update a cache cell with a new record metadata
  *  HACK tranger is only append. No update, no insert.
  *  The record can be deleted (it's unrecoverable).
@@ -6400,11 +6419,11 @@ PRIVATE json_t *update_cache_cell(
         file_to_tm = record_tm;
     }
 
-    json_object_set_new(file_cache, "fr_t", json_integer((json_int_t)file_from_t));
-    json_object_set_new(file_cache, "to_t", json_integer((json_int_t)file_to_t));
-    json_object_set_new(file_cache, "fr_tm", json_integer((json_int_t)file_from_tm));
-    json_object_set_new(file_cache, "to_tm", json_integer((json_int_t)file_to_tm));
-    json_object_set_new(file_cache, "rows", json_integer((json_int_t)rows));
+    set_cache_int(file_cache, "fr_t", (json_int_t)file_from_t);
+    set_cache_int(file_cache, "to_t", (json_int_t)file_to_t);
+    set_cache_int(file_cache, "fr_tm", (json_int_t)file_from_tm);
+    set_cache_int(file_cache, "to_tm", (json_int_t)file_to_tm);
+    set_cache_int(file_cache, "rows", (json_int_t)rows);
 
     return file_cache;
 }
@@ -7008,11 +7027,11 @@ PRIVATE json_int_t update_totals_of_key_cache2(
 
     total_rows += rows_added;
 
-    json_object_set_new(total_range, "fr_t", json_integer((json_int_t)global_from_t));
-    json_object_set_new(total_range, "to_t", json_integer((json_int_t)global_to_t));
-    json_object_set_new(total_range, "fr_tm", json_integer((json_int_t)global_from_tm));
-    json_object_set_new(total_range, "to_tm", json_integer((json_int_t)global_to_tm));
-    json_object_set_new(total_range, "rows", json_integer((json_int_t)total_rows));
+    set_cache_int(total_range, "fr_t", (json_int_t)global_from_t);
+    set_cache_int(total_range, "to_t", (json_int_t)global_to_t);
+    set_cache_int(total_range, "fr_tm", (json_int_t)global_from_tm);
+    set_cache_int(total_range, "to_tm", (json_int_t)global_to_tm);
+    set_cache_int(total_range, "rows", (json_int_t)total_rows);
 
     return total_rows;
 }
