@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### C_TREEDB: apply-schema asks `create-delete`, save-schema `write`
+
+- **BREAKING (authz).** 7.25.3 meant to make `apply-schema` ask
+  `create-delete` (it replaces the schema of a treedb whole, like
+  `create-topic` / `delete-topic`) and put the permission on `save-schema`
+  instead: an operator with only `write` could Apply but no longer Save,
+  not even a `dry_run`. Now `save-schema` asks `write` and `apply-schema`
+  asks `create-delete`, as 7.25.3's notes said. `test_c_treedb_system_schema`
+  checks both with a user granted everything but `create-delete`.
+
 ### yunos-js gui_treedb 0.17.56
 
 - `yunos/js` -> gui_treedb 0.17.56: discovery re-runs only for a connection

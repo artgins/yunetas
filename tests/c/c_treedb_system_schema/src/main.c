@@ -83,11 +83,15 @@ time_measure_t time_measure;
  *  refusal of `mt_treedbs` is asked about.
  ***************************************************************************/
 #define DENIED_USER     "denied@test"
+#define WRITER_USER     "writer@test"   /*  everything but create-delete  */
 
 PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj src)
 {
     const char *username = kw_get_str(gobj, kw, "__username__", "", 0);
     BOOL allowed = (strcmp(username, DENIED_USER) != 0)? TRUE: FALSE;
+    if(strcmp(username, WRITER_USER)==0 && strcmp(authz, "create-delete")==0) {
+        allowed = FALSE;
+    }
     KW_DECREF(kw)
     return allowed;
 }

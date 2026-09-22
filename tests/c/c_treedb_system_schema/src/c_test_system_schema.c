@@ -3303,6 +3303,24 @@ PRIVATE int check_save_and_apply(hgobj gobj)
     if(reopen_test_treedb(gobj, FALSE) < 0) {
         return result - 1;
     }
+
+    /*
+     *  Saving asks `write`; applying replaces the schema in use whole and
+     *  asks `create-delete` (7.25.3 had the two the other way round)
+     */
+    jn_resp = treedbs_command(gobj, "save-schema",
+        json_pack("{s:b, s:s}", "dry_run", 1, "__username__", "writer@test"));
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) == -403) {
+        result += save_fail(gobj, "TEST FAIL: save-schema refused a user with `write`", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+    jn_resp = treedbs_command(gobj, "apply-schema",
+        json_pack("{s:s}", "__username__", "writer@test"));
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) != -403 || disk_schema_version(gobj) == expected_v) {
+        result += save_fail(gobj, "TEST FAIL: apply-schema served a user without `create-delete`", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
     jn_resp = treedbs_command(gobj, "apply-schema", json_object());
     if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 || disk_schema_version(gobj) != expected_v) {
         result += save_fail(gobj, "TEST FAIL: apply-schema did not put the saved schema in place", jn_resp);

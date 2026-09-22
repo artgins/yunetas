@@ -1601,7 +1601,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *permission = "create-delete";
+    const char *permission = "write";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         return msg_iev_build_response(
             gobj,
@@ -1923,7 +1923,7 @@ PRIVATE json_t *draft_changed_from_rows(hgobj gobj, json_t *rows)
  ***************************************************************************/
 PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *permission = "write";
+    const char *permission = "create-delete";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         return msg_iev_build_response(
             gobj,
