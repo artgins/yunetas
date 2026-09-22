@@ -152,6 +152,23 @@ PRIVATE int mt_subscription_deleted(hgobj gobj, json_t *subs);
 PRIVATE void reap_handles_of(hgobj gobj, hgobj owner, BOOL with_iterators);
 PRIVATE BOOL iterator_is_live(hgobj gobj, const char *iterator_id);
 PRIVATE int close_registered_iterator(hgobj gobj, const char *iterator_id);
+PRIVATE void drop_handles_of_topic(hgobj gobj, const char *topic_name);
+PRIVATE int ignore_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record_ex,
+    json_t *jn_record
+);
+PRIVATE int mark_deleted_key_of_keys_watch(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *iterator,
+    void *user_data
+);
 PRIVATE json_t *get_single_key_page(
     hgobj gobj,
     json_t *iterator,
@@ -733,8 +750,17 @@ PRIVATE int close_registered_iterator(hgobj gobj, const char *iterator_id)
     int result = 0;
     json_t *parts = json_object_get(entry, "parts");
     if(parts) {
-        /*  Nothing to close: a multi-key iterator holds no tranger2
-         *  iterator between pages.  */
+        /*  A multi-key iterator holds no tranger2 iterator between pages,
+         *  only the rt_mem that watches its keys for a delete.  */
+        json_t *watch = find_handle_by_identity(gobj,
+            kw_get_str(gobj, entry, "topic_name", "", 0),
+            "rt_mem",
+            kw_get_str(gobj, entry, "keys_watch", "", 0),
+            NULL
+        );
+        if(watch) {
+            result = tranger2_close_rt_mem(priv->tranger, watch);
+        }
     } else {
         json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
         if(iterator) {
@@ -771,6 +797,46 @@ PRIVATE int mark_iterator_of_deleted_key(
 }
 
 /***************************************************************************
+ *  The keys watch of a multi-key iterator: an rt_mem over every key of the
+ *  topic, opened only_md and fed to nobody, kept for its key_deleted
+ *  callback. A multi-key iterator holds no tranger2 iterator between pages
+ *  (M22), so no callback of the library reaches it -- and judged by the
+ *  key's PRESENCE in the topic's cache, a key deleted and created again
+ *  between two pages read as intact and was paged with the row count of
+ *  the dead one (N5 of the 2026-09-22 review).
+ ***************************************************************************/
+PRIVATE int ignore_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record_ex,
+    json_t *jn_record
+)
+{
+    JSON_DECREF(jn_record)
+    return 0;
+}
+
+PRIVATE int mark_deleted_key_of_keys_watch(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *iterator,
+    void *user_data
+)
+{
+    json_t *deleted_keys = json_object_get(iterator, "deleted_keys");
+    if(!deleted_keys) {
+        deleted_keys = json_array();
+        json_object_set_new(iterator, "deleted_keys", deleted_keys);
+    }
+    json_array_append_new(deleted_keys, json_string(key));
+    return 0;
+}
+
+/***************************************************************************
  *  The key deleted under the iterator registered as `id` (any part of a
  *  multi-key one), or NULL while all its keys are there.
  ***************************************************************************/
@@ -784,13 +850,23 @@ PRIVATE const char *deleted_key_of_iterator(hgobj gobj, const char *iterator_id)
     json_t *entry = json_object_get(priv->iterators, iterator_id);
     json_t *parts = json_object_get(entry, "parts");
     if(parts) {
-        /*  No iterator of its own to be marked: ask whether each key is
-         *  still in the topic.  */
+        /*  No iterator of its own to be marked: its keys watch was, and a
+         *  key gone from the topic since the open counts as deleted too.  */
         const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
+        json_t *watch = find_handle_by_identity(gobj, topic_name, "rt_mem",
+            kw_get_str(gobj, entry, "keys_watch", "", 0), NULL
+        );
+        json_t *deleted_keys = watch? json_object_get(watch, "deleted_keys") : NULL;
         json_t *cache = json_object_get(tranger2_topic(priv->tranger, topic_name), "cache");
         int idx; json_t *part;
         json_array_foreach(parts, idx, part) {
             const char *key = kw_get_str(gobj, part, "key", "", 0);
+            int i; json_t *jn_deleted;
+            json_array_foreach(deleted_keys, i, jn_deleted) {
+                if(strcmp(json_string_value(jn_deleted), key)==0) {
+                    return key;
+                }
+            }
             if(!json_object_get(cache, key)) {
                 return key;
             }
@@ -934,7 +1010,21 @@ PRIVATE json_t *get_single_key_page(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_int_t total_rows = (json_int_t)tranger2_iterator_size(iterator);
+    /*
+     *  The LIVE count, the one the library's own totals carry: an unfiltered
+     *  key grows under its iterator, and a window cut with the count frozen
+     *  at the open skipped the newest rows and left the last pages empty
+     *  (N4 of the 2026-09-22 review). A filtered iterator pages its index,
+     *  which does not grow.
+     */
+    json_t *index = json_object_get(iterator, "index");
+    json_int_t total_rows = index?
+        (json_int_t)json_array_size(index) :
+        (json_int_t)tranger2_topic_key_size(
+            priv->tranger,
+            kw_get_str(gobj, iterator, "topic_name", "", 0),
+            kw_get_str(gobj, iterator, "key", "", 0)
+        );
     if(!backward || from_rowid < 1 || from_rowid > total_rows || limit <= 0) {
         /*  Forward, or out of range: the library answers the totals  */
         return tranger2_iterator_get_page(
@@ -1029,8 +1119,45 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  The stop frees every handle with its topic; an entry kept past it
+     *  blocks its own id at the next start ("already open", N3 of the
+     *  2026-09-22 review). Close what is still live, drop them all.
+     */
+    drop_handles_of_topic(gobj, "");
     tranger2_stop(priv->tranger);
     return 0;
+}
+
+/***************************************************************************
+ *  Drop the entries of `topic_name` (all of them when empty) from the three
+ *  registries, closing the handle when the tranger still has it. An entry
+ *  whose topic is gone or opened again names nothing: kept, it answered
+ *  "already open" to its own id for ever.
+ ***************************************************************************/
+PRIVATE void drop_handles_of_topic(hgobj gobj, const char *topic_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *registries[] = {priv->lists, priv->rts, priv->iterators, NULL};
+    for(int i = 0; registries[i]; i++) {
+        const char *id; json_t *entry; void *tmp;
+        json_object_foreach_safe(registries[i], tmp, id, entry) {
+            const char *entry_topic = kw_get_str(gobj, entry, "topic_name", "", 0);
+            if(!empty_string(topic_name) && strcmp(entry_topic, topic_name)!=0) {
+                continue;
+            }
+            if(registries[i] == priv->iterators) {
+                close_registered_iterator(gobj, id);    // Errors already logged
+            } else {
+                json_t *handle = live_handle(gobj, registries[i], id);
+                if(handle) {
+                    tranger2_close_list(priv->tranger, handle);
+                }
+                json_object_del(registries[i], id);
+            }
+        }
+    }
 }
 
 /***************************************************************************
@@ -1350,6 +1477,9 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     }
 
     int ret = tranger2_delete_topic(priv->tranger, topic_name);
+    if(ret >= 0) {
+        drop_handles_of_topic(gobj, topic_name);
+    }
 
     return msg_iev_build_response(gobj,
         ret,
@@ -1651,6 +1781,9 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
+    if(kw_has_key(priv->lists, list_id) && !live_handle(gobj, priv->lists, list_id)) {
+        json_object_del(priv->lists, list_id);  // went with its topic: the id is free
+    }
     if(kw_has_key(priv->lists, list_id)) {
         return msg_iev_build_response(
             gobj,
@@ -2576,13 +2709,46 @@ PRIVATE json_t *open_multi_key_iterator(
     }
     JSON_DECREF(jn_keys)
 
-    json_object_set_new(priv->iterators, iterator_id, json_pack("{s:s, s:I, s:I, s:o, s:o, s:b}",
+    /*
+     *  The keys watch (see mark_deleted_key_of_keys_watch): fed to nobody,
+     *  it is the handle the library tells of a deleted key.
+     */
+    json_t *jn_watch_id = json_sprintf("%s^__keys__", iterator_id);
+    json_t *watch = tranger2_open_rt_mem(
+        priv->tranger,
+        topic_name,
+        "",                 // every key
+        json_pack("{s:b}", "only_md", 1),   // match_cond, owned
+        ignore_record_callback,
+        json_string_value(jn_watch_id),
+        gobj_name(gobj),    // creator
+        json_pack("{s:I}",  // extra, owned
+            "src_gobj", (json_int_t)(uintptr_t)src
+        )
+    );
+    if(!watch) {
+        JSON_DECREF(jn_watch_id)
+        JSON_DECREF(parts)
+        JSON_DECREF(match_cond)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_string(gobj_log_last_message()),   // Error already logged
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    tranger2_set_rt_key_deleted_callback(watch, mark_deleted_key_of_keys_watch, gobj);
+
+    json_object_set_new(priv->iterators, iterator_id, json_pack("{s:s, s:I, s:I, s:o, s:o, s:b, s:o}",
         "topic_name", topic_name,
         "src_gobj", (json_int_t)(uintptr_t)src,
         "epoch", topic_epoch(gobj, topic_name),
         "parts", parts,
         "match_cond", match_cond,   // owned
-        "backward", kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER)
+        "backward", kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER),
+        "keys_watch", jn_watch_id   // owned
     ));
     watch_owner(gobj, src);
 
@@ -2676,6 +2842,9 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
     }
     if(empty_string(iterator_id)) {
         iterator_id = empty_string(key)? rkey : key;
+    }
+    if(kw_has_key(priv->iterators, iterator_id) && !iterator_is_live(gobj, iterator_id)) {
+        close_registered_iterator(gobj, iterator_id);   // went with its topic: the id is free
     }
     if(kw_has_key(priv->iterators, iterator_id)) {
         return msg_iev_build_response(
@@ -2816,6 +2985,7 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
     if(!iterator_is_live(gobj, iterator_id)) {
+        close_registered_iterator(gobj, iterator_id);   // the id is free again
         return msg_iev_build_response(
             gobj,
             -1,
@@ -3027,6 +3197,9 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             0,
             kw  // owned
         );
+    }
+    if(kw_has_key(priv->rts, rt_id) && !live_handle(gobj, priv->rts, rt_id)) {
+        json_object_del(priv->rts, rt_id);  // went with its topic: the id is free
     }
     if(kw_has_key(priv->rts, rt_id)) {
         return msg_iev_build_response(

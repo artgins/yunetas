@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### C_TRANGER: a dead id is free again, a backward page counts from the live end, a key born again is a deleted key
+
+- The three registries (iterators, realtime feeds, stateful lists) drop an
+  entry whose handle went with its topic: at `mt_stop`, after `delete-topic`,
+  when `get-page` answers *"closed with its topic"*, and when `open-iterator`
+  / `open-rt` / `open-list` meet the id again. A stale entry answered
+  *"already open"* (result 0, no data) to its own id after a close and reopen
+  of the topic, a `delete-topic` + `create-topic` or a stop/start of the
+  service, and every `get-page` after it -1, until a `close-iterator` by
+  hand (N3 of the 2026-09-22 review; the identity resolution of 7.25.0
+  closed the use-after-free and kept the entries).
+- `get_single_key_page()` cuts a backward window with the LIVE row count of
+  the key, the one the page's `total_rows` carries, where it used the count
+  frozen at the open: once the key grew, *"newest first"* skipped the newest
+  rows and a page past the old count came back empty (N4). A filtered
+  iterator pages its index, which does not grow.
+- A multi-key iterator (`rkey`) keeps ONE rt_mem over the topic, `only_md`
+  and fed to nobody, for its `key_deleted` callback: a key deleted and
+  created again between two pages was judged intact by its presence in the
+  topic's cache and paged with the row count of the dead one, result 0 and
+  no log; it answers -1 *"was deleted"* now, like a one-key iterator (N5).
+- Tests: `test_c_tranger` opens the same ids again after a topic reopen,
+  pages a growing key backward, and deletes and re-creates a key under an
+  `rkey` iterator (red before).
+
+### timeranger2: an unfiltered iterator pages the key as it is
+
+- `tranger2_iterator_get_page()` takes an unfiltered iterator's segments
+  from the cache again before every page. They were taken at the open only,
+  while `total_rows` was the live count: the rows appended since the open
+  were in no segment, so a page past the count of the open came back empty
+  and the `pages` it announced could not be read. A filtered iterator keeps
+  its index and its segments, as before.
+
 ### timeranger2: the id of a disk feed stays inside its topic
 
 - `tranger2_open_rt_disk()` refuses an `id` that is empty, `.`, `..` or holds

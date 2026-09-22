@@ -878,6 +878,18 @@ records that MATCH — and `from_rowid` is a position among those, not a global
 rowid. An **unfiltered** iterator has no index, and its positions are the global
 rowids. See [`tranger2_open_iterator()`](#tranger2_open_iterator).
 
+An **unfiltered** iterator pages the key **as it is**: its segments are taken
+from the cache again before every page, so the rows appended since the open
+are readable and `total_rows` / `pages` (the live count) can be paged to the
+end. A **filtered** iterator keeps the index and the segments of its open.
+
+```C
+json_t *it = tranger2_open_iterator(tranger, "topic", "key", NULL, NULL, "it1", "", NULL, NULL);
+/*  ... 3 records appended to "key" since ...  */
+json_t *page = tranger2_iterator_get_page(tranger, it, 1, 100, FALSE);
+/*  page["data"] holds the 3 new rows too; page["total_rows"] counts them  */
+```
+
 ---
 
 (tranger2_iterator_size)=

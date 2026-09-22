@@ -7725,6 +7725,28 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         );
     }
 
+    /*
+     *  An unfiltered iterator pages the key as it IS. Its segments were
+     *  taken at the open and the appends since then are in none of them,
+     *  while total_rows below is the live count: a page past the count of
+     *  the open came back empty, and a client reading newest first missed
+     *  the newest rows (N4 of the 2026-09-22 review). Taken again from the
+     *  cache, which every append keeps current, before each page.
+     */
+    BOOL realtime;
+    json_t *fresh_segments = get_segments(
+        gobj,
+        tranger,
+        topic,
+        key,
+        json_object_get(iterator, "match_cond"),
+        &realtime
+    );
+    if(fresh_segments) {
+        json_object_set_new(iterator, "segments", fresh_segments);
+        segments = fresh_segments;
+    }
+
     json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
 
     /*

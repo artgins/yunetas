@@ -56,6 +56,11 @@
 #define KEY_D       "D"
 #define KEY_D_ROWS  6
 
+/*  key "E" is paged BACKWARD while it grows; key "F" is deleted and born
+ *  again under a multi-key iterator (N4 and N5 of the 2026-09-22 review).  */
+#define KEY_E       "E"
+#define KEY_F       "F"
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -1486,6 +1491,50 @@ PRIVATE int do_test(void)
         ), yuno);
     check_int("get-page rkey on a topic opened again", kw_get_int(0, r, "result", -999, 0), -1);
     JSON_DECREF(r)
+
+    /*  An id whose handle went with its topic is FREE again (N3 of the
+     *  2026-09-22 review): the registries kept the dead entry, so the same
+     *  id answered "already open" (result 0, no data) and every get-page
+     *  after it -1, until a close by hand. A real open carries data.  */
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itABA",
+            "topic_name", TOPIC_NAME2,
+            "key", KEY_A
+        ), yuno);
+    check_int("open-iterator itABA again result", kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("open-iterator itABA again is a real open",
+        kw_get_int(0, kw_get_dict(0, r, "data", 0, 0), "total_rows", -1, 0), KEY_A_ROWS);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itABAAll",
+            "topic_name", TOPIC_NAME2,
+            "rkey", ".*"
+        ), yuno);
+    check_int("open-iterator itABAAll again result", kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("open-iterator itABAAll again is a real open",
+        kw_get_int(0, kw_get_dict(0, r, "data", 0, 0), "total_rows", -1, 0), KEY_A_ROWS);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s, s:s, s:s}",
+            "rt_id", "rtABA",
+            "topic_name", TOPIC_NAME2,
+            "key", KEY_A
+        ), yuno);
+    check_int("open-rt rtABA again result", kw_get_int(0, r, "result", -999, 0), 0);
+    check_bool("open-rt rtABA again is a real open",
+        strstr(kw_get_str(0, r, "comment", "", 0), "already open") == NULL, TRUE);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itABA",
+            "from_rowid", 1,
+            "limit", 10
+        ), yuno);
+    check_int("get-page itABA opened again", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
     r = gobj_command(yuno, "close-iterator",
         json_pack("{s:s}", "iterator_id", "itABA"), yuno);
     check_int("close-iterator on a topic opened again", kw_get_int(0, r, "result", -999, 0), 0);
@@ -1497,6 +1546,138 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
     global_result += test_json(NULL);
     /*  rtABA stays registered, like rtDead: mt_destroy sweeps both.  */
+
+    /*-------------------------------------------------*
+     *      A backward page counts from the LIVE end of the key (N4 of the
+     *      2026-09-22 review): the window was cut with the row count
+     *      frozen at the open, so once the key grew "newest first" skipped
+     *      the newest rows, and a page past the old count came back empty.
+     *-------------------------------------------------*/
+    set_expected_results("a backward page counts from the live end", NULL, NULL, NULL, 1);
+    for(int j = 0; j < 10; j++) {
+        if(append_one(tranger, KEY_E, BASE_T + j) < 0) {
+            printf("%s: FAIL (append E)\n", APP);
+            return -1;
+        }
+    }
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:b}",
+            "iterator_id", "itE",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_E,
+            "backward", 1
+        ), yuno);
+    check_int("open-iterator E backward result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    for(int j = 10; j < 13; j++) {
+        if(append_one(tranger, KEY_E, BASE_T + j) < 0) {
+            printf("%s: FAIL (append E again)\n", APP);
+            return -1;
+        }
+    }
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itE",
+            "from_rowid", 1,
+            "limit", 2
+        ), yuno);
+    {
+        json_t *page = kw_get_dict(0, r, "data", 0, 0);
+        json_t *rows = kw_get_list(0, page, "data", 0, 0);
+        check_int("backward page 1 after appends: total_rows",
+            kw_get_int(0, page, "total_rows", -1, 0), 13);
+        check_int("backward page 1 after appends: len", json_array_size(rows), 2);
+        check_int("backward page 1 after appends: newest",
+            record_rowid(json_array_get(rows, 0)), 13);
+        check_int("backward page 1 after appends: next",
+            record_rowid(json_array_get(rows, 1)), 12);
+    }
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itE",
+            "from_rowid", 11,
+            "limit", 5
+        ), yuno);
+    {
+        json_t *rows = kw_get_list(0, kw_get_dict(0, r, "data", 0, 0), "data", 0, 0);
+        check_int("backward last page after appends: len", json_array_size(rows), 3);
+        check_int("backward last page after appends: first",
+            record_rowid(json_array_get(rows, 0)), 3);
+        check_int("backward last page after appends: last",
+            record_rowid(json_array_get(rows, 2)), 1);
+    }
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itE"), yuno);
+    JSON_DECREF(r)
+    global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
+     *      A key deleted and BORN AGAIN under a multi-key iterator is a
+     *      deleted key still (N5 of the 2026-09-22 review): judged by its
+     *      presence in the topic's cache, the reborn key was paged with the
+     *      row count of the dead one -- result 0, stale total_rows, no log.
+     *-------------------------------------------------*/
+    set_expected_results("a key born again under an rkey iterator was deleted", NULL, NULL, NULL, 1);
+    for(int j = 0; j < 6; j++) {
+        if(append_one(tranger, KEY_F, BASE_T + j) < 0) {
+            printf("%s: FAIL (append F)\n", APP);
+            return -1;
+        }
+    }
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itF",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^F$"
+        ), yuno);
+    check_int("open-iterator F multi result", kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("open-iterator F multi total_rows",
+        kw_get_int(0, kw_get_dict(0, r, "data", 0, 0), "total_rows", -1, 0), 6);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "delete-key",
+        json_pack("{s:s, s:s, s:b}",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_F,
+            "force", 1
+        ), yuno);
+    check_int("delete-key F result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    for(int j = 10; j < 12; j++) {
+        if(append_one(tranger, KEY_F, BASE_T + j) < 0) {
+            printf("%s: FAIL (append F again)\n", APP);
+            return -1;
+        }
+    }
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itF",
+            "from_rowid", 1,
+            "limit", 10
+        ), yuno);
+    check_int("get-page F born again result", kw_get_int(0, r, "result", -999, 0), -1);
+    check_bool("get-page F born again says why",
+        strstr(kw_get_str(0, r, "comment", "", 0), "was deleted") != NULL, TRUE);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s}", "iterator_id", "itF"), yuno);
+    check_bool("get-page F born again: closed",
+        strstr(kw_get_str(0, r, "comment", "", 0), "Iterator not found") != NULL, TRUE);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itF",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^F$"
+        ), yuno);
+    check_int("open-iterator F born again total_rows",
+        kw_get_int(0, kw_get_dict(0, r, "data", 0, 0), "total_rows", -1, 0), 2);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itF"), yuno);
+    JSON_DECREF(r)
+    global_result += test_json(NULL);
 
     /*-------------------------------------------------*
      *      A SESSION that only PAGES. Its handles are stamped with it as

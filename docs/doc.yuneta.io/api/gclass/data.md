@@ -59,6 +59,20 @@ command-yuno id=<id> service=<tranger> command=close-iterator iterator_id=all1
 
 The answer of `open-iterator` also gives `keys`, the number of keys it found.
 
+**A key deleted under it is a deleted key, born again or not.** A multi-key
+iterator holds no tranger2 iterator between pages, so it keeps one realtime
+feed over the topic (`only_md`, fed to nobody) for its `key_deleted` callback:
+the next `get-page` after a `delete-key` of one of its keys answers -1 *"was
+deleted"* and closes the iterator, like a one-key iterator does, even when the
+key was created again in between. Open it again to page the reborn key.
+
+**An id is free again the moment its handle is gone.** A handle goes with its
+topic (a close and reopen, `delete-topic` + `create-topic`, a stop/start of the
+service): the entry is dropped at the stop, after the `delete-topic`, when a
+`get-page` answers *"closed with its topic"*, or when `open-iterator` /
+`open-rt` / `open-list` meet the id again — so the same id opens a new handle,
+with data, instead of *"already open"* and no data.
+
 **What it costs.** The open counts the rows of each key once (for a filtered
 iterator that is building and dropping each key's index) and keeps only a
 number per key; a `get-page` opens the keys its page touches, reads, and closes
