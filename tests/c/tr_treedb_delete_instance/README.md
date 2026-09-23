@@ -31,6 +31,10 @@ is not implemented yet (see repo `TODO.md`).
    `treedb_delete_node(item-2, force=true)` and verify the primary
    `id` index entry is gone, while siblings remain.
 
+3. `a snapshot guard that cannot read refuses the delete`
+   The md2 of the key is cut, so the snapshot guard cannot read the key.
+   The delete is refused (it fails closed).
+
 ## Run
 
 ```bash

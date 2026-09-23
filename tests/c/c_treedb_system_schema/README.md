@@ -67,7 +67,7 @@ The test drives `C_TREEDB` through its own commands and checks:
    the file, `__system__` is projected from it whole, and what that withdraws
    of the operator's work is said in the API: `withdrawn_at_open` of
    `saved-schema` and `treedbs`, per topic `applied` (an apply that never
-   ran), `saved` or `unsaved`, and nothing for a save taken back. A literal
+   ran), `in_use` (an apply that ran), `saved` or `unsaved`, and nothing for a save taken back. A literal
    that changes a topic without raising its `topic_version` leaves the store
    running its own columns, and a warning says so. A saved file that cannot
    be read is `broken`, and the apply of every treedb leaves it out. The

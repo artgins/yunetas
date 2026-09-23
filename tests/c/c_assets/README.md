@@ -24,6 +24,8 @@ What it checks:
   what the service must not serve, records the `source_path` a loader links
   by, and a second run creates nothing.
 - `gc-assets` removes exactly the orphans, and `dry_run` removes none.
+- A refused `gc-assets` (a snap is active) leaves the asset rows alone, but
+  still sweeps the blobs that no row names, and reports them.
 - The authz gate answers `-403`. The test yuno installs its own checker that
   refuses one principal, so the gate is exercised rather than stepped around.
 

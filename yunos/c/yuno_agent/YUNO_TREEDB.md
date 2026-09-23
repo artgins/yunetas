@@ -1716,13 +1716,11 @@ The record lives while that file is in use:
    the literal says otherwise, as `"applied"` or `"in_use"`, and removes the
    record.
 
-Steps 2 and 3 happen only once the open has OPENED. Before, an open that
-failed used the record up. A record of another file than the one in use is
-dropped, with an INFO. A record written as a list of topics (before
-`"in_use"`) reads as all `"applied"`. Until after 7.25.4 an apply was
-inferred from the file's `topic_version` being above the store's
-`topic_var.json`, and a topic whose store directory was gone read as
-`"applied"`. An apply that ran was not reported at all.
+Steps 2 and 3 happen only once the open has OPENED: an open that fails
+leaves the record as it was. A record of another file than the one in use is
+dropped, with an INFO. An apply is never inferred from the store: a topic
+whose store directory is gone (with its `topic_var.json`) is no apply.
+7.25.4 kept no record and reported no apply at all.
 
 **What runs of each topic is decided by tranger2.** A literal installed over
 the file hands every topic to tranger2, and tranger2 replaces
@@ -2130,8 +2128,8 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    and a comment *"the saved schema of 'treedb_x' cannot be read (see the
    log): it is left out of apply-schema, save again to replace it"*. Its
    version is unknown, so nothing says it is a pending save; the next
-   `save-schema` writes over it. Until 7.25.4 it read as `stale` here while
-   the apply of every treedb refused them all for it.
+   `save-schema` writes over it. Until 7.25.4 it answered `saved: false`
+   with nothing to say why.
 3. **`apply-schema treedb_name=X`** puts the saved schema in place of the file
    in use — only on the master, only when C does not impose that treedb's
    schema (the literal would overwrite it at the next open), and only when the
