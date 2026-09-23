@@ -132,6 +132,25 @@ listed under "No red test" in `TODO.md`.
   likewise logs *"... short write"*. A read error or short read of an md2's
   first or last row at the cache build flags the file (it went on with a zeroed
   row).
+- **A treedb write whose save fails is taken back in memory.** In 7.25.4
+  `treedb_update_node()`, `treedb_link_nodes()`, `treedb_unlink_nodes()`,
+  `treedb_autolink()`, `treedb_clean_node()`, `treedb_replace_links()` and the
+  child unlinks of a forced delete changed the node (fields, fkeys, parent
+  hooks) before the save and kept the change when the save failed: a read then
+  answered a value the disk never had, and a retry of the same write found
+  nothing to write. Now the node goes back to what the disk has, and the call
+  answers `NULL` or -1. Link and unlink events, and the parent's
+  `EV_TREEDB_NODE_UPDATED` in the compatible mode, are told only after the
+  child is saved (same order as before); a write taken back tells no event.
+  `treedb_autolink()`, `treedb_clean_node()` and `treedb_replace_links()`
+  answer -1 when the save fails (7.25.4 ignored it); a link or unlink that
+  fails part way is taken back whole. A forced `treedb_delete_node()` whose
+  child cannot be saved unlinked keeps the child linked and refuses the delete
+  ("Cannot delete node: still has down links"); in 7.25.4 the parent was
+  deleted and the child on disk still named it. When memory cannot be taken
+  back whole, an ERROR says so: *"A write that did not reach the disk could not
+  be taken back whole in memory: the links in memory differ from the disk
+  until the treedb is opened again"*.
 - **Lost lock.** A master that lost its lock while stopped (another process took
   the store) writes nothing: every write path, including the three md2 flag
   rewriters (`tranger2_write_user_flag`, `tranger2_set_user_flag`,
@@ -212,8 +231,22 @@ listed under "No red test" in `TODO.md`.
   A topic the operator added and did not save is `unsaved`, also when a save of
   another topic is pending. An EDIT of a leftover is operator work too: the
   record keeps `leftover_nodes` (what the projection left at each leftover), a
-  leftover that differs from it is a draft (`draft_changed`), and the open that
-  replaces it reports it; an unedited leftover is not reported.
+  leftover that differs from it (edited, unlinked or deleted) is a draft
+  (`draft_changed`), and the open that replaces it reports it; an unedited
+  leftover is not reported. The record keeps only the attributes a projection
+  writes, and `system_schema_version`: an id whose write failed (`not_written`)
+  is taken as left, and a record kept under another meta-schema takes every
+  leftover as left, with a WARNING (*"Leftovers of an unfinished projection were
+  kept under another meta-schema: every leftover is taken as left, an edit of
+  one made meanwhile is not told apart"*).
+- A topic or column that the treedb's tree no longer reaches (an operator's
+  unlink, or a projection link that failed) no longer blocks a projection with
+  "Node already exists": a schema that declares it takes it over, otherwise it
+  is removed (INFO *"Node of the treedb that its tree does not reach: removed
+  from __system__"*); when it is operator work its topic is reported `unsaved`.
+  The topic rewrite runs before the columns are compared, so an attribute the
+  literal no longer declares (e.g. `pkey2s`) is cleared also when columns
+  change.
 - `save-schema` refuses a draft with no topics and `apply-schema` a saved schema
   with no topics (WARNING, -1, the file in use unchanged): a treedb without
   topics does not open. `saved-schema` answers `can_apply: false`, with the
