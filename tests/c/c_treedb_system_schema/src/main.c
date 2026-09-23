@@ -234,9 +234,22 @@ PRIVATE const char *expected_log_msgs[] = {
     "TreeDB schema from C is behind the schema in use, not applied",
     "Schema saved",
     "Saved schema withdrawn, the draft is the schema in use",
-    /*  Test 13b2b: the same schema with its cols listed is not "another
-     *  content" (only the ordinary "behind" of __system__)  */
+    /*  Test 13b2b: two required draft columns saved, applied and opened;
+     *  the one with no default refuses a record without it; then removed,
+     *  saved and applied again  */
+    "Schema saved",
+    "Schema applied",
     "TreeDB schema from C is behind the schema in use, not applied",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Field required: 'required_list'",
+    "Schema saved",
+    "Schema applied",
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    /*  Test 13b2b: the same schema with its cols listed is not "another
+     *  content": nothing is said  */
     /*  Test 13b3a: an operator save of `users`, then a literal newer than
      *  __system__ raising `users` past the file: projected over the draft  */
     "TreeDB schema from C is behind the schema in use, not applied",

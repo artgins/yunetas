@@ -1870,9 +1870,30 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    and writes nothing (the GUI's *export as C literal* uses it). The saved
    schema reads like a literal: no empty attributes, no `_geometry`, no
    projection bookkeeping, and no `default: {}` -- the meta-schema's
-   placeholder for "no default" -- except on a `required` column, where `{}`
-   is what fills a record created without the field (after 7.25.4; dropped,
-   that create was refused *"Field required"*).
+   placeholder for "no default" -- on any column, `required` ones included.
+
+   **The trade-off of a `required` container column.** The meta-schema stores
+   `{}` for a column that declares no default, and it cannot tell that `{}`
+   from a `default: {}` the author wrote. A default fills the field, so
+   keeping `{}` would turn `required` off; dropping it loses a `default: {}`
+   that was really declared. The second is the lesser harm, and it is what
+   happens: a column declared in the literal as
+
+   ```c
+   'meta': {                                                   \n\
+       'header': 'Meta',                                       \n\
+       'type': 'dict',                                         \n\
+       'flag': ['persistent','required'],                      \n\
+       'default': {}                                           \n\
+   },                                                          \n\
+   ```
+
+   comes out of `save-schema` + `apply-schema` without its `default`, and a
+   record created without `meta` is then refused (*"Field required: 'meta'"*)
+   instead of getting `{}`. Send the field, or drop `required`. (Between
+   b6f66cdf8 and the review of the second fix round, 2026-09-23, `{}` was kept
+   on every `required` column, and every required dict/list/array/blob column
+   declared with NO default accepted a record without the field.)
 
    **A draft taken back is withdrawn by the next save** (after 7.25.4). When
    the draft is the file in use again -- an edit saved, then undone in the

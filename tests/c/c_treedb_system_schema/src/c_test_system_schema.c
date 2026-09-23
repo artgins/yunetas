@@ -3638,56 +3638,151 @@ PRIVATE int check_reverted_draft_withdraws_the_save(hgobj gobj)
 }
 
 /***************************************************************************
- *  A `required` column keeps its `default: {}` in a saved schema (L-2 of
- *  the 2026-09-23 independent review). `{}` is also what the meta-schema
- *  stores for "no default", and it is pruned for that reason; but on a
- *  required column it is what lets a record be created without the field
- *  (the default fills it), and dropped the create is refused.
+ *  A `required` container column declared WITHOUT a default stays required
+ *  through save + apply (review of the second fix round, 2026-09-23: revert
+ *  of L-2, b6f66cdf8).
+ *
+ *  The meta-schema stores `{}` for a column that declares no default (the
+ *  attribute is a blob), and it cannot tell that `{}` from a `default: {}`
+ *  the author wrote. b6f66cdf8 kept `{}` on every required column, so a
+ *  required dict/list/array/blob column with NO default came out of save +
+ *  apply with `default: {}` -- and a default fills the field, so `required`
+ *  never refused a record again. The placeholder is dropped again, on every
+ *  column. The trade-off, pinned here too: a required column that really
+ *  declared `default: {}` loses it through save + apply.
  ***************************************************************************/
-PRIVATE int check_required_keeps_empty_default(hgobj gobj)
+PRIVATE json_t *create_draft_col(hgobj gobj, json_t *kw_col) // owned
 {
-    int result = 0;
-    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
     char users_topic_id[NAME_MAX];
     system_topic_id(gobj, "users", users_topic_id, sizeof(users_topic_id));
     char users_fkey[NAME_MAX + sizeof("topics^^cols")];
     snprintf(users_fkey, sizeof(users_fkey), "topics^%s^cols", users_topic_id);
+    json_object_set_new(kw_col, "topics", json_string(users_fkey));
 
-    json_t *created = gobj_update_node(
-        gobj_node_system,
+    return gobj_update_node(
+        gobj_find_service(SYSTEM_TREEDB, FALSE),
         "cols",
-        json_pack("{s:s, s:s, s:s, s:[s,s], s:{}, s:s}",
-            "value", "required_dict", "header", "Required dict", "type", "dict",
-            "flag", "persistent", "required", "default", "topics", users_fkey),
+        kw_col,
         json_pack("{s:b, s:b, s:b}", "create", 1, "autolink", 1, "refs", 1),
         gobj
     );
-    if(!created) {
-        return save_fail(gobj, "TEST FAIL: the required draft column was refused", NULL);
-    }
-    char col_id[NAME_MAX];
-    snprintf(col_id, sizeof(col_id), "%s", kw_get_str(gobj, created, "id", "", 0));
-    JSON_DECREF(created)
+}
 
-    json_t *jn_resp = treedbs_command(gobj, "save-schema", json_pack("{s:b}", "dry_run", 1));
+PRIVATE json_t *saved_users_col(hgobj gobj, json_t *jn_resp, const char *col_name)
+{
     json_t *col = NULL;
     int idx; json_t *topic;
     json_array_foreach(kw_get_list(gobj, jn_resp, "data`schema`topics", 0, 0), idx, topic) {
         if(strcmp(kw_get_str(gobj, topic, "id", "", 0), "users")==0) {
-            col = json_object_get(json_object_get(topic, "cols"), "required_dict");
+            col = json_object_get(json_object_get(topic, "cols"), col_name);
         }
     }
-    json_t *def = json_object_get(col, "default");
-    if(!json_is_object(def) || json_object_size(def) != 0) {
-        result += save_fail(gobj, "TEST FAIL: a required column lost its default {} in the saved schema",
-            col? col : jn_resp);
+    return col;
+}
+
+PRIVATE int check_required_default_placeholder_dropped(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    json_t *jn_resp;
+
+    char saved_dir[PATH_MAX];
+    build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    file_remove(saved_dir, TREEDB_NAME ".treedb_schema.json");
+
+    /*
+     *  Two draft columns of `users`: one declares NO default, the other
+     *  declares `default: {}` -- stored the same way in __system__
+     */
+    json_t *no_default = create_draft_col(gobj, json_pack("{s:s, s:s, s:s, s:[s,s]}",
+        "value", "required_list", "header", "Required list", "type", "list",
+        "flag", "persistent", "required"));
+    json_t *empty_default = create_draft_col(gobj, json_pack("{s:s, s:s, s:s, s:[s,s], s:{}}",
+        "value", "required_dict", "header", "Required dict", "type", "dict",
+        "flag", "persistent", "required", "default"));
+    if(!no_default || !empty_default) {
+        JSON_DECREF(no_default)
+        JSON_DECREF(empty_default)
+        return save_fail(gobj, "TEST FAIL: the required draft columns were refused", NULL);
+    }
+    char no_default_id[NAME_MAX];
+    char empty_default_id[NAME_MAX];
+    snprintf(no_default_id, sizeof(no_default_id), "%s", kw_get_str(gobj, no_default, "id", "", 0));
+    snprintf(empty_default_id, sizeof(empty_default_id), "%s", kw_get_str(gobj, empty_default, "id", "", 0));
+    JSON_DECREF(no_default)
+    JSON_DECREF(empty_default)
+
+    /*
+     *  Neither carries a default in the schema a save writes
+     */
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    json_t *col_list = saved_users_col(gobj, jn_resp, "required_list");
+    json_t *col_dict = saved_users_col(gobj, jn_resp, "required_dict");
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 || !col_list || !col_dict ||
+            json_object_get(col_list, "default") || json_object_get(col_dict, "default")) {
+        result += save_fail(gobj, "TEST FAIL: a required column carries the placeholder default in the saved schema",
+            jn_resp);
     }
     JSON_DECREF(jn_resp)
 
-    if(gobj_delete_node(
-            gobj_node_system, "cols", json_pack("{s:s}", "id", col_id),
-            json_pack("{s:b}", "force", 1), gobj) < 0) {
-        result += save_fail(gobj, "TEST FAIL: the required draft column could not be removed", NULL);
+    /*
+     *  ...nor reads as "default added" in what the save changes
+     */
+    jn_resp = treedbs_command(gobj, "saved-schema", json_object());
+    {
+        const char *id_k; json_t *v_k;
+        json_object_foreach(kw_get_dict(gobj, jn_resp, "data`diff`added", 0, 0), id_k, v_k) {
+            size_t len = strlen(id_k);
+            if(len >= 8 && strcmp(id_k + len - 8, "`default")==0) {
+                result += save_fail(gobj, "TEST FAIL: saved-schema reads a placeholder default as added", jn_resp);
+                break;
+            }
+        }
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  Applied and opened, the column with no default is REQUIRED: a
+     *  record without it is refused
+     */
+    jn_resp = treedbs_command(gobj, "apply-schema", json_object());
+    if(!kw_get_bool(gobj, jn_resp, "data`applied", 0, 0)) {
+        result += save_fail(gobj, "TEST FAIL: the required columns were not applied", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+    if(reopen_test_treedb(gobj, FALSE) < 0) {
+        return result - 1;
+    }
+    json_t *node = gobj_create_node(
+        gobj_find_service(TREEDB_NAME, FALSE),
+        "users",
+        json_pack("{s:s, s:s, s:{}}", "id", "no_required_list", "username", "nobody", "required_dict"),
+        0,
+        gobj
+    );
+    if(node) {
+        result += save_fail(gobj, "TEST FAIL: a required column with no default accepted a record without it", node);
+    }
+    JSON_DECREF(node)
+
+    /*
+     *  Back to the schema of the other checks: the draft columns go, and
+     *  that is published and applied
+     */
+    const char *ids[] = {no_default_id, empty_default_id, NULL};
+    for(int i = 0; ids[i]; i++) {
+        if(gobj_delete_node(
+                gobj_find_service(SYSTEM_TREEDB, FALSE), "cols", json_pack("{s:s}", "id", ids[i]),
+                json_pack("{s:b}", "force", 1), gobj) < 0) {
+            result += save_fail(gobj, "TEST FAIL: a required draft column could not be removed", NULL);
+        }
+    }
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    JSON_DECREF(jn_resp)
+    jn_resp = treedbs_command(gobj, "apply-schema", json_object());
+    JSON_DECREF(jn_resp)
+    if(reopen_test_treedb(gobj, FALSE) < 0) {
+        return result - 1;
     }
     return result;
 }
@@ -4884,11 +4979,11 @@ PRIVATE int run_tests(hgobj gobj)
     result += check_reverted_draft_withdraws_the_save(gobj);
 
     /*-----------------------------------------------*
-     *  Test 13b2b: a required column keeps its
-     *  default {}; the same schema in another form is
-     *  not "another content"
+     *  Test 13b2b: a required column with no default
+     *  stays required through save + apply; the same
+     *  schema in another form is not "another content"
      *-----------------------------------------------*/
-    result += check_required_keeps_empty_default(gobj);
+    result += check_required_default_placeholder_dropped(gobj);
     result += check_same_schema_other_form_is_quiet(gobj);
 
     /*-----------------------------------------------*

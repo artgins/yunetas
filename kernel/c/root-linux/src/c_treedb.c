@@ -1338,15 +1338,16 @@ PRIVATE void prune_schema_node(json_t *jn) // not owned, MUTATED
              *  `{}` when there is no default at all (set_field_value() in
              *  tr_treedb.c). Kept, every list column of a saved schema read
              *  as "default added" against the file in use.
-             *  But NOT on a `required` column: there `{}` is what fills a
-             *  record created without the field, and dropped, that create
-             *  is refused ("Field required"). The meta-schema cannot tell
-             *  that `{}` from "no default", so the one that keeps the
-             *  column working is kept (L-2 of the 2026-09-23 independent
-             *  review).  */
+             *  On a `required` column too. The meta-schema cannot tell that
+             *  `{}` from a `default: {}` the author wrote, and a default
+             *  fills the field, so kept (b6f66cdf8) it turned `required` off
+             *  for every required dict/list/array/blob column declared with
+             *  NO default. The trade-off, the lesser one: a required column
+             *  that really declared `default: {}` loses it through save +
+             *  apply, and a record created without the field is refused
+             *  (review of the second fix round, 2026-09-23).  */
             if(strcmp(key, "default")==0) {
-                if(json_is_object(value) && json_object_size(value)==0 &&
-                        !kw_has_word(0, json_object_get(jn, "flag"), "required", 0)) {
+                if(json_is_object(value) && json_object_size(value)==0) {
                     json_object_del(jn, key);
                 }
                 continue;
