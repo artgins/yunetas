@@ -3,12 +3,12 @@
  *
  *  A master gives its single-master lock back at tranger2_stop(). While it
  *  is stopped another master may take the store, and then the first one is
- *  not the master any more. It noticed that only at its next
- *  tranger2_open_topic(): tranger2_create_topic() (the restart path of
- *  C_TRANGER and C_TREEDB) read the stale `master` and wrote the topic
+ *  not the master any more. (7.25.4 noticed that only at its next
+ *  tranger2_open_topic(): tranger2_create_topic(), the restart path of
+ *  C_TRANGER and C_TREEDB, read the stale `master` and wrote the topic
  *  directories, topic_cols.json and topic_var.json into the other master's
  *  store first, and tranger2_write_topic_var() / _cols() wrote with no
- *  check at all (M3 of the 2026-09-23 independent review of 7.25.4).
+ *  check at all.)
  *
  *  Now every write path takes the lock again FIRST. One that cannot take
  *  it writes nothing: the tranger goes on as a replica, and says so in its

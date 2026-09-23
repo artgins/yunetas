@@ -58,7 +58,7 @@
 #define KEY_D_ROWS  6
 
 /*  key "E" is paged BACKWARD while it grows; key "F" is deleted and born
- *  again under a multi-key iterator (N4 and N5 of the 2026-09-22 review).  */
+ *  again under a multi-key iterator.  */
 #define KEY_E       "E"
 #define KEY_F       "F"
 
@@ -667,9 +667,9 @@ PRIVATE int do_test(void)
         json_pack("{s:s}", "iterator_id", "itC_both"), yuno);
     JSON_DECREF(r)
 
-    /*  The direction given at the OPEN is the pages' default (M20 of the
-     *  2026-09-21 review): `open-iterator backward=1` did nothing, and a
-     *  get-page that does not say read the key oldest first.  */
+    /*  The direction given at the OPEN is the pages' default: without it,
+     *  `open-iterator backward=1` does nothing, and a get-page that does
+     *  not say reads the key oldest first.  */
     r = gobj_command(yuno, "open-iterator",
         json_pack("{s:s, s:s, s:s, s:b}",
             "iterator_id", "itC_back",
@@ -729,11 +729,10 @@ PRIVATE int do_test(void)
      *      order (5 + 3 + 4 = 12). A page that straddles two keys comes
      *      back in that order, each record naming its key.
      *-------------------------------------------------*/
-    /*  M22 of the 2026-09-21 review: the parts are not held. A multi-key
-     *  iterator kept one full tranger2 iterator per key for its whole life
-     *  (1000 keys x 60 daily files, +147 MB for one whole-topic card); it
-     *  keeps a row count per key now, and opens a part only while a page
-     *  reads it.  */
+    /*  The parts are not held: a multi-key iterator keeps a row count per
+     *  key, and opens a part only while a page reads it. One full tranger2
+     *  iterator per key for its whole life cost 1000 keys x 60 daily files,
+     *  +147 MB for one whole-topic card.  */
     size_t iterators_before = json_array_size(
         kw_get_list(0, tranger2_topic(tranger, TOPIC_NAME), "iterators", 0, 0));
     r = gobj_command(yuno, "open-iterator",
@@ -1454,7 +1453,7 @@ PRIVATE int do_test(void)
 
     /*-------------------------------------------------*
      *      ABA: the topic is closed AND OPENED AGAIN under its handles
-     *      (A4 of the 2026-09-21 review). delete-topic + create-topic, a
+     *      delete-topic + create-topic, a
      *      stop/start of the service, a backup: the name is back, the
      *      handles are not. Judged by the topic's NAME, the stale pointers
      *      looked alive again and were dereferenced after being freed (a
@@ -1521,10 +1520,10 @@ PRIVATE int do_test(void)
     check_int("get-page rkey on a topic opened again", kw_get_int(0, r, "result", -999, 0), -1);
     JSON_DECREF(r)
 
-    /*  An id whose handle went with its topic is FREE again (N3 of the
-     *  2026-09-22 review): the registries kept the dead entry, so the same
-     *  id answered "already open" (result 0, no data) and every get-page
-     *  after it -1, until a close by hand. A real open carries data.  */
+    /*  An id whose handle went with its topic is FREE again. With the dead
+     *  entry kept in the registries, the same id answers "already open"
+     *  (result 0, no data) and every get-page after it -1, until a close by
+     *  hand. A real open carries data.  */
     r = gobj_command(yuno, "open-iterator",
         json_pack("{s:s, s:s, s:s}",
             "iterator_id", "itABA",
@@ -1577,10 +1576,10 @@ PRIVATE int do_test(void)
     /*  rtABA stays registered, like rtDead: mt_destroy sweeps both.  */
 
     /*-------------------------------------------------*
-     *      A backward page counts from the LIVE end of the key (N4 of the
-     *      2026-09-22 review): the window was cut with the row count
-     *      frozen at the open, so once the key grew "newest first" skipped
-     *      the newest rows, and a page past the old count came back empty.
+     *      A backward page counts from the LIVE end of the key. A window
+     *      cut with the row count frozen at the open skips the newest rows
+     *      once the key grew ("newest first"), and a page past the old
+     *      count comes back empty.
      *-------------------------------------------------*/
     set_expected_results("a backward page counts from the live end", NULL, NULL, NULL, 1);
     for(int j = 0; j < 10; j++) {
@@ -1644,9 +1643,9 @@ PRIVATE int do_test(void)
 
     /*-------------------------------------------------*
      *      A key deleted and BORN AGAIN under a multi-key iterator is a
-     *      deleted key still (N5 of the 2026-09-22 review): judged by its
-     *      presence in the topic's cache, the reborn key was paged with the
-     *      row count of the dead one -- result 0, stale total_rows, no log.
+     *      deleted key still: judged by its presence in the topic's cache,
+     *      the reborn key would be paged with the row count of the dead one
+     *      -- result 0, stale total_rows, no log.
      *-------------------------------------------------*/
     set_expected_results("a key born again under an rkey iterator was deleted", NULL, NULL, NULL, 1);
     for(int j = 0; j < 6; j++) {
@@ -1795,8 +1794,7 @@ PRIVATE int do_test(void)
 
     /*-------------------------------------------------*
      *      What a multi-key iterator does NOT promise, pinned so the
-     *      docs say it exactly (C_TRANGER lows of the 2026-09-23
-     *      independent review):
+     *      docs say it exactly:
      *      - a FILTERED key keeps the row count of the open: a row
      *        appended after it is not paged, although each page opens
      *        (and indexes) the key again;
@@ -2026,9 +2024,8 @@ PRIVATE int do_test(void)
     /*-------------------------------------------------*
      *      A one-key iterator named like a PART of a multi-key one
      *      ("<id>^<key>") is another identity: the parts are opened
-     *      under their own creator (a low of the 2026-09-22 review;
-     *      before, "Iterator already exists" and every page over that
-     *      key answered -1).
+     *      under their own creator (under one creator, "Iterator already
+     *      exists" and every page over that key answers -1).
      *-------------------------------------------------*/
     set_expected_results("a part id is not a client's iterator id", NULL, NULL, NULL, 1);
     r = gobj_command(yuno, "open-iterator",
@@ -2118,9 +2115,9 @@ PRIVATE int do_test(void)
         JSON_DECREF(subs)
     }
 
-    /*  A stateful list is a handle of the session too (M21 of the
-     *  2026-09-21 review): it was stamped with no owner and reaped by
-     *  nobody, collecting every append in memory after its client died.  */
+    /*  A stateful list is a handle of the session too: stamped with no
+     *  owner, it is reaped by nobody, and collects every append in memory
+     *  after its client died.  */
     r = gobj_command(yuno, "open-list",
         json_pack("{s:s, s:s, s:s}",
             "list_id", "lstSession",
@@ -2137,9 +2134,9 @@ PRIVATE int do_test(void)
     global_result += test_json(NULL);
 
     /*  The session closes its LAST Live card -- its last subscription to
-     *  this service -- and stays alive: its Rows cards still page (M19 of
-     *  the 2026-09-21 review). Reaping on that unsubscribe took the paging
-     *  iterators too, and they answered "Iterator not found" from then on.
+     *  this service -- and stays alive: its Rows cards still page. Reaping
+     *  on that unsubscribe would take the paging iterators too, and they
+     *  would answer "Iterator not found" from then on.
      *  A session's iterators are reaped by its EV_ON_CLOSE, below.  */
     set_expected_results(
         "a session that closes its last Live card keeps its iterators",
@@ -2381,11 +2378,10 @@ PRIVATE int do_test(void)
     /*-------------------------------------------------*
      *      A master that LOST its lock (another process took the store
      *      while it was stopped) goes on as a replica: its tranger says
-     *      `master` false. The `master` attribute of C_TRANGER went on
-     *      saying TRUE, and the service went on opening its feeds as a
-     *      master's (rt_mem, which only a local append fires) -- M3 of
-     *      the 2026-09-23 independent review. LAST: the service stays a
-     *      replica.
+     *      `master` false. (7.25.4: the `master` attribute of C_TRANGER
+     *      went on saying TRUE, and the service went on opening its feeds
+     *      as a master's -- rt_mem, which only a local append fires.)
+     *      LAST: the service stays a replica.
      *-------------------------------------------------*/
     set_expected_results(
         "a master that lost its lock reads as a replica",

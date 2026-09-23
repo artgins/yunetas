@@ -38,7 +38,8 @@
  *        and delivered the content (an extra disk read per record on rt_disk).
  *
  *      - one id, one feed: an rt_disk open with the id of a live feed is
- *        refused whatever its creator (M9 of the 2026-09-23 review).
+ *        refused whatever its creator (7.25.4 refused it only under the
+ *        same creator).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

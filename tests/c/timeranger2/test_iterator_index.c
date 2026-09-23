@@ -1,7 +1,7 @@
 /****************************************************************************
  *          test_iterator_index.c
  *
- *  The id index of a topic's iterators (M22 of the 2026-09-21 review).
+ *  The id index of a topic's iterators.
  *
  *  tranger2_get_iterator_by_id() walked the topic's "iterators" array, and
  *  tranger2_open_iterator() calls it to refuse a duplicate: a multi-key
@@ -17,8 +17,8 @@
  *      - closing every iterator leaves the index empty (no reference kept).
  *
  *  And the pages of an unfiltered iterator: its segments are taken again
- *  when the key's cache moved (N4 of the 2026-09-22 review: an append must
- *  be in the next page), and ONLY then -- they used to be deep-copied from
+ *  when the key's cache moved (an append must be in the next page), and
+ *  ONLY then -- they used to be deep-copied from
  *  the cache on every page of an idle key.
  *
  *  It also PRINTS the time of the two halves of the opens: with a linear

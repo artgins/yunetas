@@ -15,7 +15,7 @@
  *         is marked.
  *
  *  Its cost (linear in the files of a key, where it was quadratic) is
- *  measured outside the suite: the review's repro r_perf.
+ *  measured outside the suite, not asserted here: a timing is not a test.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

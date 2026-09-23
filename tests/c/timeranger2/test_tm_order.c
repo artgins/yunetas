@@ -3,19 +3,19 @@
  *
  *  The __tm__ of a record is written by its producer, and nothing makes it
  *  grow with __t__, the time the md2 files are cut by. Four things went
- *  wrong with it (the 2026-09-23 independent review of 7.25.4):
+ *  wrong with it in 7.25.4:
  *
- *      - M1: a file whose tm range does not meet the condition is left out
+ *      - a file whose tm range does not meet the condition is left out
  *        of the segments, so the segments of a key can have HOLES. The scan
  *        stepped from one segment to the next only when their rowids were
  *        consecutive: it logged "next rowids not consecutive" (a false
  *        internal error) and ended, and every row after the hole was lost.
  *        A `from_rowid` / `to_rowid` that falls in the hole was read in a
  *        segment it does not belong to.
- *      - M2: a reload (and a replica) took a file's tm range from its first
+ *      - a reload (and a replica) took a file's tm range from its first
  *        and last rows only: with the tm out of order inside the file, a tm
  *        query skipped a file holding matching rows.
- *      - L4: no tm condition ended a scan, not even in a file whose rows are
+ *      - no tm condition ended a scan, not even in a file whose rows are
  *        in tm order: a query for the first seconds of a big file read it
  *        whole.
  *      - A topic written before files were marked cannot tell which of its
@@ -261,12 +261,12 @@ PRIVATE int expect_the_answers(json_t *tranger, const char *who)
 {
     int result = 0;
 
-    /*  M1: the middle file is out of the tm range  */
+    /*  A hole: the middle file is out of the tm range  */
     result += expect_cond(tranger, who, "gap",
         json_pack("{s:I}", "to_tm", (json_int_t)300),
         "D1 D3", "D3 D1"
     );
-    /*  M1: a rowid bound that falls in the hole  */
+    /*  A rowid bound that falls in the hole  */
     result += expect_cond(tranger, who, "gap",
         json_pack("{s:I, s:I}", "to_tm", (json_int_t)300, "from_rowid", (json_int_t)2),
         "D3", "D3"
@@ -275,7 +275,7 @@ PRIVATE int expect_the_answers(json_t *tranger, const char *who)
         json_pack("{s:I, s:I}", "to_tm", (json_int_t)300, "to_rowid", (json_int_t)2),
         "D1", "D1"
     );
-    /*  M2: tm out of order inside one file  */
+    /*  tm out of order inside one file  */
     result += expect_cond(tranger, who, "infile",
         json_pack("{s:I, s:I}", "from_tm", (json_int_t)50, "to_tm", (json_int_t)200),
         "T2", "T2"
@@ -501,7 +501,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*-------------------------------------*
-     *  L4: a file in tm order ends a tm
+     *  A file in tm order ends a tm
      *  scan. To SEE it, the md2 is cut
      *  behind the master's back after the
      *  rows the query needs: a scan that

@@ -2,19 +2,19 @@
  *          test_late_record.c
  *
  *  A LATE record: one whose __t__ is below the times already in its md2
- *  file. Two things went wrong with it (block 7 of the 2026-09-21 review):
+ *  file. Two things went wrong with it before 7.25.4:
  *
- *      - M16: a cell's time range was rebuilt from the FIRST and LAST md2
+ *      - a cell's time range was rebuilt from the FIRST and LAST md2
  *        rows only, and the late record is the last row with a lower `t`.
  *        The follower (at once) and the master (after a reload) put the
  *        cell's `to_t` below its real maximum, and a time-range query
  *        skipped the file: records inside the range were not served.
- *      - M18: a follower with TWO disk feeds on one key kept ONE watermark
+ *      - a follower with TWO disk feeds on one key kept ONE watermark
  *        per (feed, key). A batch that touched two files of the key reseeded
  *        the second feed's mark on the second file before it had read the
  *        first, and that feed lost the records of BOTH files for ever.
  *
- *  And the scan of a file that holds one (M7 of the 2026-09-23 review):
+ *  And the scan of a file that holds one. In 7.25.4,
  *  tranger2_match_metadata() ended a forward scan at the first row past
  *  to_t and a backward one at the first row below from_t, so the rows
  *  after a late row were lost in BOTH directions, and every paged iterator
@@ -314,8 +314,8 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*-------------------------------------*
-     *  M16: day 1 gets +100 and +50000,
-     *  then a LATE +200
+     *  The time range: day 1 gets +100
+     *  and +50000, then a LATE +200
      *-------------------------------------*/
     set_expected_results("late record: the time range of its file", NULL, NULL, NULL, 1);
     append_one(tm, DAY1 + 100, "E1");
@@ -332,7 +332,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*-------------------------------------*
-     *  M7: the scan of the marked file,
+     *  The scan of the marked file,
      *  both directions, iterator and pages
      *-------------------------------------*/
     set_expected_results("late record: the scan of a marked file", NULL, NULL, NULL, 1);
@@ -403,9 +403,10 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*-------------------------------------*
-     *  M18: ONE batch touches two files
-     *  of the key: a late day-1 record and
-     *  a day-2 one. Both feeds get both.
+     *  Two feeds: ONE batch touches two
+     *  files of the key, a late day-1
+     *  record and a day-2 one. Both feeds
+     *  get both.
      *-------------------------------------*/
     set_expected_results("late record: two files in one batch, two feeds", NULL, NULL, NULL, 1);
     got_a[0] = 0;
@@ -418,7 +419,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*-------------------------------------*
-     *  A reload says the same (M16)
+     *  A reload says the same
      *-------------------------------------*/
     set_expected_results("late record: a reload says the same", NULL, NULL, NULL, 1);
     tranger2_close_rt_disk(tf, rt_a);
@@ -458,7 +459,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*-------------------------------------*
-     *  M7: tm is not ordered, and no tm
+     *  tm is not ordered, and no tm
      *  condition ends a scan
      *-------------------------------------*/
     set_expected_results("late record: tm out of order", NULL, NULL, NULL, 1);

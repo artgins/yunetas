@@ -3,11 +3,10 @@
  *
  *  topic_var.json holds the topic_version and the `last_rowid_id` counter
  *  treedb takes a rowid id from, and tranger2_write_topic_var() runs on
- *  every create of a rowid-key node. It rewrote the file IN PLACE (O_TRUNC
- *  then write): a process that died between the two left it empty, and the
- *  counter and the version were lost (M4 of the 2026-09-23 independent
- *  review of 7.25.4). Only the version change went through a temporary
- *  file and a rename().
+ *  every create of a rowid-key node. 7.25.4 rewrote the file IN PLACE
+ *  (O_TRUNC then write): a process that died between the two left it
+ *  empty, and the counter and the version were lost. Only the version
+ *  change went through a temporary file and a rename().
  *
  *  Now every write of topic_var.json writes `topic_var.json.new` and
  *  renames it over the old one: the file is the old one or the new one,
@@ -266,12 +265,12 @@ PRIVATE int do_test(void)
     /*-------------------------------------*
      *  A topic_version that goes up and a
      *  topic_cols.json that cannot be
-     *  written: the version change removed
+     *  written: 7.25.4 removed
      *  topic_cols.json first, ignored the
      *  failed write, logged "Re-Creating"
-     *  and saved the new version (third
-     *  independent review). Nothing moves
-     *  now, and the topic is not opened.
+     *  and saved the new version. Nothing
+     *  moves now, and the topic is not
+     *  opened.
      *-------------------------------------*/
     set_expected_results(
         "topic_cols: a version change whose cols cannot be written",

@@ -7,9 +7,9 @@
  *  again only when the key's cache moved: a stamp of three numbers, {rows,
  *  files, last_file}. A key deleted and written again with the SAME three
  *  numbers but its rows spread another way over its files kept the stamp,
- *  and the page read the new files with the old segments: "Cannot read
- *  record metadata" (a CRITICAL) and a page with one record of three (L1 of
- *  the 2026-09-23 independent review of 7.25.4, a regression of a9a922498).
+ *  and the page read the new files with the old segments (7.25.4: "Cannot
+ *  read record metadata", a CRITICAL, and a page with one record of
+ *  three).
  *
  *  The delete of a key now forgets the segments of every iterator of that
  *  key, and a filtered iterator's index with them: the rows it indexed are
