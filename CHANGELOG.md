@@ -151,13 +151,31 @@ listed under "No red test" in `TODO.md`.
   child is saved (same order as before); a write taken back tells no event.
   `treedb_autolink()`, `treedb_clean_node()` and `treedb_replace_links()`
   answer -1 when the save fails (7.25.4 ignored it); a link or unlink that
-  fails part way is taken back whole. A forced `treedb_delete_node()` whose
-  child cannot be saved unlinked keeps the child linked and refuses the delete
-  ("Cannot delete node: still has down links"); in 7.25.4 the parent was
-  deleted and the child on disk still named it. When memory cannot be taken
+  fails part way is taken back whole. A forced `treedb_delete_node()` that is refused changes
+  nothing: a child that cannot be saved unlinked stays linked ("Cannot delete
+  node: still has down links"), a key that cannot be deleted refuses it too,
+  and the children already unlinked are put back and saved again while the
+  node keeps its parents; in 7.25.4 the parent was deleted while a child on
+  disk still named it, and a delete refused by its key left the node unlinked
+  in memory. A stale fkey ref a write removed (its hook gone, or re-pointed to
+  another column) goes back into its field alone when the write is taken back,
+  never linked. When memory cannot be taken
   back whole, an ERROR says so: *"A write that did not reach the disk could not
   be taken back whole in memory: the links in memory differ from the disk
   until the treedb is opened again"*.
+- **C_NODE `update-node` with `autolink` is ONE write** (new
+  `treedb_update_node_and_links()`): fields, links and save; a failed save takes
+  all of it back and tells nothing. In 7.25.4 it was three calls, and a failed
+  save left memory with the fields and links, with `EV_TREEDB_NODE_LINKED`
+  told. It is also what C_AUTHZ does when it creates a user with a role.
+- The repair of several active snaps at open keeps a snap active in memory
+  when its deactivation cannot be saved (7.25.4 made it inactive in memory
+  only), and a replica does not try it.
+- **treedb writes are faster than 7.25.4** (100k ops, track-memory build):
+  memory-only update 3.96 -> 2.88 us/op, saved update 12.15 -> 10.95,
+  link+unlink 11.81 -> 11.37. An update deep-copied the node, with every child
+  its hooks hold, for the system schema's check on every treedb; now only on
+  the system schema.
 - **Lost lock.** A master that lost its lock while stopped (another process took
   the store) writes nothing: every write path, including the three md2 flag
   rewriters (`tranger2_write_user_flag`, `tranger2_set_user_flag`,
@@ -440,6 +458,15 @@ listed under "No red test" in `TODO.md`.
   write: the file size limit or the disk is full"* (with `written` / `expected`)
   instead of *"... write FAILED"* -- match on them if you alert on them. A
   replica's rt_disk update makes no cache cell for an md2 with no whole row yet.
+- tr_treedb: a write whose save fails is taken back in memory and tells no
+  event; `treedb_autolink()`, `treedb_clean_node()` and
+  `treedb_replace_links()` return -1 when the save fails (7.25.4: 0); a forced
+  `treedb_delete_node()` that cannot unlink a child, or delete its key, is
+  refused and changes nothing (7.25.4 deleted the parent); the events of a
+  link, unlink or update are told after the child's save (7.25.4 told link
+  events before it); new `treedb_update_node_and_links()`. New ERRORs: *"A
+  write that did not reach the disk could not be taken back whole in memory:
+  ..."*, *"A refused delete cannot put back a child it had unlinked: ..."*.
 - C_TREEDB answers carry new fields (`withdrawn`, `stale`, `broken`,
   `withdrawn_at_open`, `unfinished_projection`, `stopped`, and `master` and
   `opened` in `treedbs` rows) and `saved` changed meaning; C_NODE `gc-assets`
