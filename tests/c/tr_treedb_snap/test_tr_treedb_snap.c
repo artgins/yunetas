@@ -573,6 +573,126 @@ PRIVATE int phase_snap_freezes_the_layout(json_t *tranger, const char *treedb_na
     return result;
 }
 
+/***************************************************************************
+ *  11. An activation whose save of the NEW snap fails leaves the OLD one
+ *      active, in memory and on disk.
+ *
+ *  An activation deactivates the active snap (saved) and then activates
+ *  the new one (saved). When the second save failed, the old snap stayed
+ *  deactivated: the treedb was left with no active snap, and the next
+ *  load went to the latest instances instead of the snap the operator had
+ *  (L1 of the 2026-09-23 independent review of 7.25.4).
+ *
+ *  Self-contained (own database): the md2 of the new snap is made
+ *  read-only behind treedb's back, so its save cannot open it.
+ ***************************************************************************/
+PRIVATE BOOL snap_is_active(json_t *tranger, const char *treedb_name, const char *name)
+{
+    json_t *snaps = treedb_list_snaps(tranger, treedb_name, json_pack("{s:s}", "name", name));
+    BOOL active = json_is_true(json_object_get(json_array_get(snaps, 0), "active"));
+    JSON_DECREF(snaps)
+    return active;
+}
+
+PRIVATE void chmod_tree(const char *dir, mode_t file_mode, mode_t dir_mode)
+{
+    dir_array_t da;
+    get_ordered_filename_array(0, dir, ".*", WD_MATCH_REGULAR_FILE, &da);
+    for(int i = 0; i < da.count; i++) {
+        chmod(da.items[i], file_mode);
+    }
+    dir_array_free(&da);
+    chmod(dir, dir_mode);
+}
+
+PRIVATE int phase_activation_that_cannot_save(const char *path_root)
+{
+    int result = 0;
+    const char *test = "11. an activation that cannot save the new snap keeps the old one";
+    const char *DB = "tr_snap_activate_fails";
+    const char *treedb_name = "treedb_snap_fails";
+    char path_db[PATH_MAX];
+    build_path(path_db, sizeof(path_db), path_root, DB, NULL);
+    rmrdir(path_db);
+
+    set_expected_results(test, NULL, NULL, NULL, 0);
+    json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root, "database", DB, "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK), 0);
+    helper_quote2doublequote(schema_sample);
+    treedb_open_db(tranger, treedb_name, legalstring2json(schema_sample, TRUE), 0);
+    test_json(NULL);    // the setup logs are the other phases'
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    if(treedb_shoot_snap(tranger, treedb_name, "snap_old", "") < 0 ||
+       treedb_shoot_snap(tranger, treedb_name, "snap_new", "") < 0 ||
+       treedb_activate_snap(tranger, treedb_name, "snap_old") < 0) {
+        printf("%s  FAIL: cannot set up the two snaps%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *snaps = treedb_list_snaps(tranger, treedb_name, json_pack("{s:s}", "name", "snap_new"));
+    char new_id[64];
+    snprintf(new_id, sizeof(new_id), "%s", kw_get_str(0, json_array_get(snaps, 0), "id", "", 0));
+    JSON_DECREF(snaps)
+    treedb_close_db(tranger, treedb_name);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    /*  The files of snap_new cannot be written any more  */
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_db, "__snaps__", "keys", new_id, NULL);
+    chmod_tree(key_dir, 0400, 0500);
+
+    set_expected_results_unordered(test,
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "loading snap_tag 1",
+            "msg", "Cannot create json file",
+            "msg", "Cannot open file to write",
+            "msg", "Cannot activate snap, the one active before is active again"
+        ),
+        NULL, NULL, 1
+    );
+    tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root, "database", DB, "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK), 0);
+    treedb_open_db(tranger, treedb_name, legalstring2json(schema_sample, TRUE), 0);
+    if(treedb_activate_snap(tranger, treedb_name, "snap_new") >= 0) {
+        printf("%s  FAIL: the activation answered success with a snap it could not save%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!snap_is_active(tranger, treedb_name, "snap_old")) {
+        printf("%s  FAIL: the failed activation left snap_old inactive in memory%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(snap_is_active(tranger, treedb_name, "snap_new")) {
+        printf("%s  FAIL: snap_new is active in memory%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    treedb_close_db(tranger, treedb_name);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    /*  And on disk  */
+    chmod_tree(key_dir, 0600, 02700);
+    set_expected_results(test, json_pack("[{s:s}]", "msg", "loading snap_tag 1"), NULL, NULL, 1);
+    tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root, "database", DB, "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK), 0);
+    treedb_open_db(tranger, treedb_name, legalstring2json(schema_sample, TRUE), 0);
+    if(!snap_is_active(tranger, treedb_name, "snap_old")) {
+        printf("%s  FAIL: after a reload no snap is active, snap_old was%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    treedb_close_db(tranger, treedb_name);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
 PRIVATE int do_test(void)
 {
     int result = 0;
@@ -661,6 +781,8 @@ PRIVATE int do_test(void)
         tranger2_shutdown(tranger);
         result += test_json(NULL);
     }
+
+    result += phase_activation_that_cannot_save(path_root);
 
     return result;
 }

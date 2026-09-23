@@ -14746,7 +14746,34 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
 
     int ret = treedb_save_node(tranger, snap);
     if(ret < 0) {
+        /*
+         *  The old snap was already saved inactive: left so, the treedb had
+         *  no active snap, and its next load went to the latest instances
+         *  instead of the snap the operator had (L1 of the 2026-09-23
+         *  independent review). It is made the active one again.
+         */
         json_object_set_new(snap, "active", json_false());  // Error already logged
+        BOOL restored = TRUE;
+        if(old_snap) {
+            json_object_set_new(old_snap, "active", json_true());
+            if(treedb_save_node(tranger, old_snap)<0) {
+                json_object_set_new(old_snap, "active", json_false());  // as on disk
+                restored = FALSE;   // Error already logged
+            }
+        }
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", !old_snap?
+                "Cannot activate snap" :
+                restored?
+                    "Cannot activate snap, the one active before is active again" :
+                    "Cannot activate snap, NOR re-activate the one active before: no snap is active on disk",
+            "snap",         "%s", snap_name,
+            "old_snap",     "%s", old_snap? kw_get_str(gobj, old_snap, "name", "", 0): "",
+            NULL
+        );
+        gobj_log_set_last_message("Cannot activate snap '%s'", snap_name);
         return ret;
     }
 
