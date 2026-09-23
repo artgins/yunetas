@@ -329,86 +329,34 @@ PUBLIC int file_remove(const char *directory, const char *filename)
 }
 
 /***************************************************************************
- *  Function to create directories recursively like "mkdir -p path"
- *  A symbolic link to a directory counts as a directory, as in mkdir -p.
- *  A component that exists and is not a directory is an error (up to
- *  7.25.4 the check could never be true, and it answered 0).
+ *  Make sure `path` is a directory: create it if it does not exist.
+ *  A symbolic link to a directory counts as a directory (stat() follows it).
  ***************************************************************************/
-PUBLIC int mkrdir(const char *path, int xpermission)
+PRIVATE int ensure_one_directory(const char *path, int xpermission)
 {
     struct stat st;
-    char tmp[PATH_MAX];
-    char *p = NULL;
-    size_t len;
 
-    // Copy the path to a temporary buffer
-    snprintf(tmp, sizeof(tmp),"%s", path);
-    len = strlen(tmp);
-
-    if(tmp[len - 1] == '/') {
-        tmp[len - 1] = 0;
-    }
-
-    // Iterate over the path and create directories as needed
-    for(p = tmp + 1; *p; p++) {
-        if(*p == '/') {
-            *p = 0;
-            // Check if the directory exists
-            if(access(tmp, F_OK) != 0) {
-                // If the directory doesn't exist, create it
-                if(newdir(tmp, xpermission)<0) {
-                    if(errno != EEXIST) {
-                        gobj_log_error(0, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_SYSTEM,
-                            "msg",          "%s", "newdir() FAILED",
-                            "path",         "%s", tmp,
-                            "errno",        "%d", errno,
-                            "serrno",       "%s", strerror(errno),
-                            NULL
-                        );
-                        return -1;
-                    }
-                }
-            } else if(stat(tmp, &st) != 0 || !S_ISDIR(st.st_mode)) {
-                // If it's not a directory, return an error
-                gobj_log_error(0, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM,
-                    "msg",          "%s", "Not a directory",
-                    "path",         "%s", tmp,
-                    "errno",        "%d", errno,
-                    "serrno",       "%s", strerror(errno),
-                    NULL
-                );
-                return -1;
-            }
-            *p = '/';
+    if(stat(path, &st) == 0) {
+        if(S_ISDIR(st.st_mode)) {
+            return 0;
         }
-    }
-
-    // Create the final directory component
-    if(access(tmp, F_OK) != 0) {
-        if(newdir(tmp, xpermission)<0) {
-            if(errno != EEXIST) {
-                gobj_log_error(0, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM,
-                    "msg",          "%s", "newdir() FAILED",
-                    "path",         "%s", tmp,
-                    "errno",        "%d", errno,
-                    "serrno",       "%s", strerror(errno),
-                    NULL
-                );
-                return -1;
-            }
-        }
-    } else if(stat(tmp, &st) != 0 || !S_ISDIR(st.st_mode)) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Not a directory",
-            "path",         "%s", tmp,
+            "msg",          "%s", "Not a directory: the path exists and is not a directory",
+            "path",         "%s", path,
+            "errno",        "%d", ENOTDIR,
+            "serrno",       "%s", strerror(ENOTDIR),
+            NULL
+        );
+        return -1;
+    }
+    if(errno != ENOENT) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "stat() FAILED",
+            "path",         "%s", path,
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
             NULL
@@ -416,7 +364,64 @@ PUBLIC int mkrdir(const char *path, int xpermission)
         return -1;
     }
 
+    if(newdir(path, xpermission) < 0) {
+        int err = errno;
+        if(err == EEXIST && is_directory(path)) {
+            return 0;   // Created by someone else in between
+        }
+        // EEXIST without a directory: a dangling symbolic link, for example
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "newdir() FAILED",
+            "path",         "%s", path,
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
+            NULL
+        );
+        return -1;
+    }
     return 0;
+}
+
+/***************************************************************************
+ *  Function to create directories recursively like "mkdir -p path"
+ *  A symbolic link to a directory counts as a directory, as in mkdir -p.
+ *  A component that exists and is not a directory is an error, logged with
+ *  ENOTDIR; so is a dangling symbolic link. Up to 7.25.4 the first check
+ *  could never be true and the second was taken as "exists": both answered 0
+ *  with no directory there.
+ ***************************************************************************/
+PUBLIC int mkrdir(const char *path, int xpermission)
+{
+    char tmp[PATH_MAX];
+
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    size_t len = strlen(tmp);
+    if(len == 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "path EMPTY",
+            NULL
+        );
+        return -1;
+    }
+    if(len > 1 && tmp[len - 1] == '/') {
+        tmp[len - 1] = 0;
+    }
+
+    for(char *p = tmp + 1; *p; p++) {
+        if(*p == '/') {
+            *p = 0;
+            if(ensure_one_directory(tmp, xpermission) < 0) {
+                return -1;  // Error already logged
+            }
+            *p = '/';
+        }
+    }
+
+    return ensure_one_directory(tmp, xpermission);
 }
 
 /****************************************************************************
@@ -3351,6 +3356,11 @@ PUBLIC int find_files_with_suffix_array(
             continue;
         }
 
+        /*
+         *  Regular files only, a symbolic link is never listed: the d_type
+         *  path and the lstat() path must agree (up to 7.25.4 the DT_UNKNOWN
+         *  path used stat() and listed a link to a file).
+         */
         int is_file = 0;
 
         #ifdef DT_REG
@@ -3361,7 +3371,7 @@ PUBLIC int find_files_with_suffix_array(
             char path[PATH_MAX];
 
             build_path(path, sizeof(path), directory, entry->d_name, NULL);
-            if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+            if(stat_no_follow(path, &st) == 0 && S_ISREG(st.st_mode)) {
                 is_file = 1;
             }
         }
@@ -3371,7 +3381,7 @@ PUBLIC int find_files_with_suffix_array(
             char path[PATH_MAX];
 
             build_path(path, sizeof(path), directory, entry->d_name, NULL);
-            if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+            if(stat_no_follow(path, &st) == 0 && S_ISREG(st.st_mode)) {
                 is_file = 1;
             }
         }

@@ -15,6 +15,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include <signal.h>
+#include <errno.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <yunetas.h>
@@ -249,8 +250,11 @@ PRIVATE void test_version_cmp(void)
  ***************************************************************************/
 PRIVATE int s_errors = 0;
 
+PRIVATE char s_last_error[4096];
+
 PRIVATE int count_errors(void *h, int priority, const char *bf, size_t len)
 {
+    snprintf(s_last_error, sizeof(s_last_error), "%.*s", (int)len, bf);
     s_errors++;
     return 0;
 }
@@ -434,6 +438,43 @@ PRIVATE void test_mkrdir_not_a_directory(void)
         global_result += -1;
     }
 
+    /*  the log names the real cause: ENOTDIR, not a stale errno  */
+    char enotdir[64];
+    snprintf(enotdir, sizeof(enotdir), "\"errno\": %d,", ENOTDIR);
+    if(strstr(s_last_error, enotdir)) {
+        printf("ok   %-40s\n", "mkrdir: the log says ENOTDIR");
+    } else {
+        printf("FAIL %-40s %s\n", "mkrdir: the log says ENOTDIR", s_last_error);
+        global_result += -1;
+    }
+
+    /*  ...also for a file in the MIDDLE of the path  */
+    errno = ENOENT;
+    errors_before = s_errors;
+    ret = mkrdir(RMR_BASE "/a_file/sub", 02775);
+    if(ret == -1 && s_errors - errors_before == 1 && strstr(s_last_error, enotdir)) {
+        printf("ok   %-40s\n", "mkrdir: a file in the middle, ENOTDIR");
+    } else {
+        printf("FAIL %-40s ret=%d errors=%d %s\n", "mkrdir: a file in the middle, ENOTDIR",
+            ret, s_errors - errors_before, s_last_error);
+        global_result += -1;
+    }
+
+    /*  a dangling link where the directory goes: -1 and logged, never 0  */
+    if(symlink(RMR_BASE "/no/such/target", RMR_BASE "/dangling") != 0) {
+        printf("FAIL %-40s cannot create the link\n", "mkrdir: a dangling link");
+        global_result += -1;
+    }
+    errors_before = s_errors;
+    ret = mkrdir(RMR_BASE "/dangling", 02775);
+    if(ret == -1 && s_errors - errors_before == 1) {
+        printf("ok   %-40s\n", "mkrdir: a dangling link is an error");
+    } else {
+        printf("FAIL %-40s ret=%d errors=%d\n", "mkrdir: a dangling link is an error",
+            ret, s_errors - errors_before);
+        global_result += -1;
+    }
+
     /*  a link to a directory is a directory for mkdir -p  */
     if(symlink(RMR_BASE, RMR_BASE "/link_to_base") != 0) {
         printf("FAIL %-40s cannot create the link\n", "mkrdir: through a link to a dir");
@@ -450,11 +491,40 @@ PRIVATE void test_mkrdir_not_a_directory(void)
     rmrdir(RMR_BASE);
 }
 
+/***************************************************************************
+ *  find_files_with_suffix_array() lists regular files only: never a
+ *  symbolic link, never a directory. Up to 7.25.4 the DT_UNKNOWN path
+ *  (filesystems that give no d_type) used stat() and listed a link to a
+ *  file, while the d_type path did not. On this test's filesystem the
+ *  d_type path runs; the test guards the contract both paths now share.
+ ***************************************************************************/
+PRIVATE void test_find_files_with_suffix(void)
+{
+    rmrdir(RMR_BASE);
+    mkrdir(RMR_BASE "/dir.md2", 02775);
+    write_small_file(RMR_BASE "/a.md2");
+    write_small_file(RMR_BASE "/b.json");
+    int ret = symlink(RMR_BASE "/a.md2", RMR_BASE "/link.md2");
+    ret += symlink(RMR_BASE "/none", RMR_BASE "/dangling.md2");
+
+    dir_array_t da;
+    find_files_with_suffix_array(0, RMR_BASE, ".md2", &da);
+    if(ret == 0 && da.count == 1 && strcmp(da.items[0], "a.md2") == 0) {
+        printf("ok   %-40s\n", "find_files_with_suffix: regular only");
+    } else {
+        printf("FAIL %-40s count=%d\n", "find_files_with_suffix: regular only", (int)da.count);
+        global_result += -1;
+    }
+    dir_array_free(&da);
+    rmrdir(RMR_BASE);
+}
+
 PRIVATE int do_test(void)
 {
     test_save_json_to_file();
     test_rmrdir_symlinks();
     test_mkrdir_not_a_directory();
+    test_find_files_with_suffix();
     test_split_basic();
     test_split_empties_excluded();
     test_split_null_size_arg();

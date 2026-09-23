@@ -267,7 +267,12 @@ Returns `0` on success, or `-1` if an error occurs.
 
 If a directory in the path already exists, it is not modified. The function makes sure that all parent directories are created as needed.
 
-A symbolic link to a directory counts as a directory, as in `mkdir -p`. A path component that exists and is not a directory is an error: the function logs *"Not a directory"* and returns `-1`. Up to 7.25.4 this check was never true, and the function returned `0` with no directory there.
+A symbolic link to a directory counts as a directory, as in `mkdir -p`. These are errors, logged, and the function returns `-1`:
+
+- A path component exists and is not a directory. The log is *"Not a directory: the path exists and is not a directory"*, with `errno` `ENOTDIR`.
+- A path component is a dangling symbolic link. The log is *"newdir() FAILED"*, with `errno` `EEXIST`.
+
+Up to 7.25.4 the function returned `0` in both cases, with no directory there, and the log of a component in the middle of the path showed an old `errno`.
 
 **Example**
 

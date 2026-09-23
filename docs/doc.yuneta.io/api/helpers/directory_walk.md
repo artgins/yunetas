@@ -152,6 +152,23 @@ int find_files_with_suffix_array(
 
 Returns `0` on success, or `-1` on error.
 
+**Notes**
+
+The array holds the file NAMES, not full paths, in the order of the directory (not sorted: call `dir_array_sort()`). Only regular files are listed. A symbolic link is never listed, even a link to a regular file, and a directory is never listed. On a filesystem that gives no entry type (`DT_UNKNOWN`), the function uses `lstat()` so that the result is the same as with the entry type. Up to 7.25.4 that path used `stat()` and listed a link to a file.
+
+**Example**
+
+```C
+dir_array_t da;
+if(find_files_with_suffix_array(gobj, key_directory, ".md2", &da) == 0) {
+    dir_array_sort(&da);
+    for(size_t i = 0; i < da.count; i++) {
+        printf("%s\n", da.items[i]);    // "2026-09-23.md2", ...
+    }
+}
+dir_array_free(&da);
+```
+
 ---
 
 (walk_dir_array)=
