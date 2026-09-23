@@ -126,6 +126,7 @@ PRIVATE json_t *diff_treedb_schema(
 PRIVATE json_t *schema_topics_as_list(hgobj gobj, json_t *jn_schema);
 PRIVATE json_t *apply_every_saved_schema(hgobj gobj, const char *cmd, json_t *kw);
 PRIVATE BOOL treedb_is_written_here(hgobj gobj, const char *treedb_name);
+PRIVATE BOOL system_is_written_here(hgobj gobj);
 PRIVATE json_t *draft_changed_from_rows(hgobj gobj, json_t *rows);
 PRIVATE int diff_node_attrs(
     hgobj gobj,
@@ -1031,7 +1032,12 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    if(!gobj_read_bool_attr(gobj, "master")) {
+    /*
+     *  What __system__'s tranger IS, not the attribute: a master that lost
+     *  its lock goes on as a replica (M3 of the 2026-09-23 independent
+     *  review), and this deletes nodes of __system__.
+     */
+    if(!system_is_written_here(gobj)) {
         return build_readonly_response(gobj, gobj_name(priv->gobj_node_system), kw);
     }
 
@@ -1546,14 +1552,19 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
 
+    /*
+     *  `master` is what each tranger IS: a master that lost its lock goes
+     *  on as a replica, and the `master` attribute says what was configured.
+     */
     json_t *jn_data = json_array();
-    json_array_append_new(jn_data, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I}",
+    json_array_append_new(jn_data, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I, s:b}",
         "treedb_name", TREEDB_SYSTEM_SCHEMA_NAME,
         "impose_c_schema", 1,
         "decided_by", "system",
         "c_schema_version", priv->system_schema_version,
         "in_use_schema_version", priv->system_schema_version,
-        "saved_schema_version", (json_int_t)0
+        "saved_schema_version", (json_int_t)0,
+        "master", system_is_written_here(gobj)
     ));
 
     char saved_dir[PATH_MAX];
@@ -1578,13 +1589,14 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             JSON_DECREF(saved)
         }
 
-        json_array_append_new(jn_data, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I}",
+        json_array_append_new(jn_data, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I, s:b}",
             "treedb_name", name,
             "impose_c_schema", treedb_schema_imposed(gobj, name),
             "decided_by", impose_decided_by(gobj, name),
             "c_schema_version", kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER),
             "in_use_schema_version", in_use_version,
-            "saved_schema_version", saved_version
+            "saved_schema_version", saved_version,
+            "master", treedb_is_written_here(gobj, name)
         ));
     }
 

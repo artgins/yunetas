@@ -2242,6 +2242,55 @@ PRIVATE int do_test(void)
     check_int("close-rt keyless result", kw_get_int(0, r, "result", -999, 0), 0);
     JSON_DECREF(r)
 
+    /*-------------------------------------------------*
+     *      A master that LOST its lock (another process took the store
+     *      while it was stopped) goes on as a replica: its tranger says
+     *      `master` false. The `master` attribute of C_TRANGER went on
+     *      saying TRUE, and the service went on opening its feeds as a
+     *      master's (rt_mem, which only a local append fires) -- M3 of
+     *      the 2026-09-23 independent review. LAST: the service stays a
+     *      replica.
+     *-------------------------------------------------*/
+    set_expected_results(
+        "a master that lost its lock reads as a replica",
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "Master lock NOT retaken after a stop: another process holds it, go on as not master",
+            "msg", "Cannot append record, NO master"
+        ),
+        NULL, NULL, 1
+    );
+    tranger2_stop(tranger);
+    json_t *other_master = tranger2_startup(
+        0,
+        json_pack("{s:s, s:s, s:b, s:i}",
+            "path", path_root,
+            "database", DATABASE,
+            "master", 1,
+            "on_critical_error", LOG_OPT_TRACE_STACK
+        ),
+        0
+    );
+    append_one(tranger, KEY_A, BASE_T + 2000);  /*  the write that finds the lock taken  */
+    check_bool("the tranger says it is not the master",
+        kw_get_bool(0, tranger, "master", 0, 0), FALSE);
+    check_bool("C_TRANGER says it is not the master",
+        gobj_read_bool_attr(yuno, "master"), FALSE);
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s, s:s, s:s}",
+            "rt_id", "rtLOST",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_A
+        ), yuno);
+    check_int("open-rt after the lock was lost", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    check_bool("its feed follows the disk, as a replica's",
+        tranger2_get_rt_disk_by_id(tranger, TOPIC_NAME, "rtLOST", gobj_name(yuno)) != NULL, TRUE);
+    r = gobj_command(yuno, "close-rt",
+        json_pack("{s:s}", "rt_id", "rtLOST"), yuno);
+    JSON_DECREF(r)
+    tranger2_shutdown(other_master);
+    global_result += test_json(NULL);
+
     return global_result;
 }
 

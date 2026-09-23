@@ -421,7 +421,7 @@ SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d",    "
 SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "02770",        "Use in creation, default 02770"),
 SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "0660",         "Use in creation, default 0660"),
 SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             "2",            "exit on error (Zero to avoid restart)"),
-SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",            "the master is the only that can write"),
+SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",            "the master is the only that can write. Read, it answers what the tranger IS: false after a lost lock"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
@@ -1158,6 +1158,30 @@ PRIVATE json_t *get_single_key_page(
     }
     json_object_set_new(page, "data", reversed);
     return page;
+}
+
+/***************************************************************************
+ *      Framework Method reading
+ *
+ *  `master` is what the service IS, not what it was configured to be. A
+ *  master that lost its lock while stopped (another process took the
+ *  store) goes on as a replica, and its tranger says so (`master` false,
+ *  `master_lost` true); the attribute went on answering the configuration,
+ *  and the feeds went on being opened as a master's -- rt_mem, which only a
+ *  LOCAL append fires (M3 of the 2026-09-23 independent review). Before the
+ *  tranger exists (mt_create reads the configuration) the stored value is
+ *  answered.
+ ***************************************************************************/
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    SData_Value_t v = {0,{0}};
+    if(strcmp(name, "master")==0 && priv->tranger) {
+        v.found = 1;
+        v.v.b = kw_get_bool(gobj, priv->tranger, "master", 0, KW_REQUIRED);
+    }
+    return v;
 }
 
 /***************************************************************************
@@ -3999,6 +4023,7 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, gobj_event_t event, json_t *kw, hg
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
+    .mt_reading = mt_reading,
     .mt_topic_size = mt_topic_size,
     .mt_destroy = mt_destroy,
     .mt_start = mt_start,
