@@ -387,7 +387,7 @@ side and run alternated (medians; ext4, laptop NVMe).
 - `save_json_to_file()` checks `close()` -- a failed close is a CRITICAL at
   `on_critical_error` -- and logs a missing directory when it may not create it.
 
-### JS: gobj-ui 7.25.6 - 7.25.12, gui_agent 0.22.79 - 0.22.86, gui_treedb 0.17.58 - 0.17.59
+### JS: gobj-ui 7.25.6 - 7.25.14, gui_agent 0.22.79 - 0.22.88, gui_treedb 0.17.58 - 0.17.61
 
 - Deployed to artgins.yunetacontrol.com and .ovh (gui_agent) and
   artgins.ytreedb.com (gui_treedb); every deploy console-checked (login,
@@ -412,8 +412,22 @@ side and run alternated (medians; ext4, laptop NVMe).
   export C/JSON switch is two buttons (`aria-pressed`), switched through the FSM
   (`EV_EXPORT_VIEW`); its confirmations pass the keys `delete` / `cancel` (they
   rendered in English in every locale).
-- gui_treedb 0.17.58 / 0.17.59: only the gobj-ui range (^7.25.11, then
-  ^7.25.12).
+- gobj-ui 7.25.13 / 7.25.14: in `C_YUI_TREEDB_TOPICS`, a write cut by the drop
+  no longer asks for its topic out of session (the adapter logged "cannot
+  route 'nodes' -- not in session"). A drop marks the view, and the first edge
+  that finds the transport in session reads every open topic table again,
+  once: a node another writer created, changed or deleted during the drop
+  shows. An "up" before the transport is in session, or with no drop before
+  it, reads nothing. A form already answered by the edge is not answered a
+  second time.
+- gui_agent 0.22.87: an `apply` timeout decides with the answers that came.
+  One treedb applied means restart, so kill / run / play goes on without the
+  silent owners, and the toast names them and says their state is unknown
+  (7.25.4's tab stopped and left the applied schema for the next unrelated
+  restart). With nothing applied there is no restart, and the toast names the
+  silent owners. New locale keys (en, es). 0.22.88: only the gobj-ui range
+  (^7.25.14).
+- gui_treedb 0.17.58 - 0.17.61: only the gobj-ui range (^7.25.11 ... ^7.25.14).
 - gui_agent: the link answers every pending request on a close; request ids are
   unique per page (two treedb views crossed answers and could fake a delete);
   the deadline counts from the dispatch ack and is scaled for uploads; late
