@@ -1203,7 +1203,7 @@ it by hand, run the script.
 
 6. [**`udpc_fwrite`**](logging/log_udp_handler.md#udpc_fwrite) — `PUBLIC int udpc_fwrite(udpc_t udpc, int priority, const char *format, ...)`
 
-### `rotatory.h` — 10 functions
+### `rotatory.h` — 11 functions
 
 **Source:** `kernel/c/gobj-c/src/rotatory.h`
 
@@ -1226,6 +1226,8 @@ it by hand, run the script.
 9. [**`rotatory_flush`**](logging/rotatory.md#rotatory_flush) — `PUBLIC void rotatory_flush(hrotatory_h hr)`
 
 10. [**`rotatory_path`**](logging/rotatory.md#rotatory_path) — `PUBLIC const char *rotatory_path(hrotatory_h hr)`
+
+11. [**`rotatory_remove_old_files`**](logging/rotatory.md#rotatory_remove_old_files) — `PUBLIC int rotatory_remove_old_files( hrotatory_h hr, unsigned keep_days, json_t *jn_removed, uint64_t *removed_bytes )`
 
 ### `stats_parser.h` — 3 functions
 
@@ -1261,7 +1263,7 @@ it by hand, run the script.
 
 10. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 597 functions**
+**Total: 598 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2318,7 +2320,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1003 functions** sorted alphabetically with their source header.
+All **1004 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -3032,6 +3034,7 @@ All **1003 functions** sorted alphabetically with their source header.
 | [**`rotatory_fwrite`**](logging/rotatory.md#rotatory_fwrite) | `rotatory.h` | gobj-c (Core Framework) |
 | [**`rotatory_open`**](logging/rotatory.md#rotatory_open) | `rotatory.h` | gobj-c (Core Framework) |
 | [**`rotatory_path`**](logging/rotatory.md#rotatory_path) | `rotatory.h` | gobj-c (Core Framework) |
+| [**`rotatory_remove_old_files`**](logging/rotatory.md#rotatory_remove_old_files) | `rotatory.h` | gobj-c (Core Framework) |
 | [**`rotatory_start_up`**](logging/rotatory.md#rotatory_start_up) | `rotatory.h` | gobj-c (Core Framework) |
 | [**`rotatory_subscribe2newfile`**](logging/rotatory.md#rotatory_subscribe2newfile) | `rotatory.h` | gobj-c (Core Framework) |
 | [**`rotatory_truncate`**](logging/rotatory.md#rotatory_truncate) | `rotatory.h` | gobj-c (Core Framework) |

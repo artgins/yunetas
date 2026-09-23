@@ -2,6 +2,7 @@
  *              ROTATORY.H
  *              Log by week's days or or month's days or year's days
  *              Copyright (c) 2013 Niyamaka.
+ *              Copyright (c) 2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -78,6 +79,27 @@ PUBLIC void rotatory_truncate(hrotatory_h hr);
 PUBLIC void rotatory_flush(hrotatory_h hr);
 
 PUBLIC const char *rotatory_path(hrotatory_h hr);
+
+/*
+ *  Retention: remove the files of this rotatory older than keep_days.
+ *
+ *  Only the files of THIS rotatory are candidates: regular files of its
+ *  directory whose name has the shape of its mask (each mask letter of
+ *  "DD/MM/CCYY-W-ZZZ" a digit, the rest literal), and their ".OLD" copy.
+ *  Never the current file or its ".OLD", never a symbolic link, never a
+ *  directory. The age is the file's mtime.
+ *
+ *  Nothing is done on the write path: call it when the rotatory is opened
+ *  and from the callback of rotatory_subscribe2newfile().
+ *
+ *  Return the number of files removed, -1 on error (logged).
+ */
+PUBLIC int rotatory_remove_old_files(
+    hrotatory_h hr,
+    unsigned keep_days,         // 0 = remove nothing
+    json_t *jn_removed,         // not owned, optional: the removed names are appended
+    uint64_t *removed_bytes     // optional: the size of the removed files
+);
 
 #ifdef __cplusplus
 }

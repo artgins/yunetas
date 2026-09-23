@@ -1,11 +1,34 @@
 # Rotatory
 
-Rotating file-based log handler with size and age limits. Creates the output directory if needed and rotates files atomically.
+Rotating file-based log handler with a size limit, a file name made from the date, and an optional retention. Creates the output directory if needed.
 
 Source code:
 
 - [`rotatory.h`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/rotatory.h)
 - [`rotatory.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/rotatory.c)
+
+## File names and rotation
+
+The last segment of the `path` given to [`rotatory_open()`](#rotatory_open) is a **mask**. Before each write, the rotatory makes the file name from the mask and the current local date. These letters of the mask get digits; all other characters stay as they are:
+
+| Letters | Replaced by | Example (Wednesday 23 September 2026) |
+|---|---|---|
+| `DD` | day of the month, `01`-`31` | `23` |
+| `MM` | month, `01`-`12` | `09` |
+| `CCYY` | year | `2026` |
+| `W` | day of the week, `1` (Sunday) - `7` | `4` |
+| `ZZZ` | day of the year, `001`-`366` | `266` |
+
+So the file changes when the date changes. Two masks are in use:
+
+| Mask | File of that day | What it keeps |
+|---|---|---|
+| `mqtt_broker-W.log` (the yuno logs) | `mqtt_broker-4.log` | 7 files. When a new day starts, the file of the same week day is opened with `"w"`, so the file of last week is emptied. The name is the retention. |
+| `ZZZ-DD_MM_CCYY.log` (the agent audit) | `266-23_09_2026.log` | One new file each day, never used again. Nothing is removed unless the user calls [`rotatory_remove_old_files()`](#rotatory_remove_old_files). |
+
+When the current file becomes larger than `max_megas_rotatoryfile_size`, the rotatory renames it to `<name>.OLD` (a previous `.OLD` is removed) and starts the file again. So one day keeps at most two files of that size.
+
+A new file (a new day, or the size limit) calls the callback of [`rotatory_subscribe2newfile()`](#rotatory_subscribe2newfile). Nothing else happens on the write path.
 
 (rotatory_close)=
 ## [`rotatory_close()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/rotatory.c#L280)
@@ -185,6 +208,86 @@ Returns a pointer to the file path string associated with the given rotatory log
 **Notes**
 
 The returned pointer is managed internally and must not be modified or freed by the caller.
+
+---
+
+(rotatory_remove_old_files)=
+## [`rotatory_remove_old_files()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/rotatory.c#L711)
+
+`rotatory_remove_old_files()` removes the files of this rotatory that are older than `keep_days`. It is the retention of a mask that makes a new name every day, such as `ZZZ-DD_MM_CCYY.log`.
+
+```C
+int rotatory_remove_old_files(
+    hrotatory_h hr,
+    unsigned    keep_days,
+    json_t     *jn_removed,
+    uint64_t   *removed_bytes
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `hr` | `hrotatory_h` | Handle to the rotatory log instance. |
+| `keep_days` | `unsigned` | Files with an `mtime` older than this number of days are removed. `0` removes nothing. |
+| `jn_removed` | `json_t *` | Optional, not owned. A list: the name of each removed file is appended to it. |
+| `removed_bytes` | `uint64_t *` | Optional. Receives the total size of the removed files. |
+
+**Returns**
+
+Returns the number of files removed, or `-1` on error (logged).
+
+**Notes**
+
+Only the files of **this** rotatory are candidates. A file is removed only if all of these are true:
+
+- It is in the directory of the rotatory.
+- Its name has the shape of the mask: a digit in each position that the date fills, the other characters equal to the mask. A `.OLD` at the end is accepted.
+- It is a regular file. A symbolic link, a directory or any other type stays. A link is never followed.
+- It is not the current file or its `.OLD`.
+- Its `mtime` is older than `keep_days` days.
+
+A mask with no date letters matches only the current file, so the function removes nothing.
+
+The function is not called on the write path. Call it after [`rotatory_open()`](#rotatory_open) and from the callback of [`rotatory_subscribe2newfile()`](#rotatory_subscribe2newfile). An unlink that fails is logged, and the sweep continues with the next file.
+
+**Example**
+
+Keep 7 days of a daily audit file (this is what `yuneta_agent` does with `audit_keep_days`):
+
+```C
+PRIVATE int remove_old_audit_files(hrotatory_h hr)
+{
+    json_t *jn_removed = json_array();
+    uint64_t removed_bytes = 0;
+    int removed = rotatory_remove_old_files(hr, 7, jn_removed, &removed_bytes);
+    if(removed > 0) {
+        gobj_log_info(0, 0,
+            "msgset",   "%s", MSGSET_INFO,
+            "msg",      "%s", "Old audit files removed",
+            "removed",  "%d", removed,
+            "files",    "%j", jn_removed,
+            NULL
+        );
+    }
+    JSON_DECREF(jn_removed);
+    return removed;
+}
+
+PRIVATE int on_new_audit_file(void *user_data, const char *old_filename, const char *new_filename)
+{
+    remove_old_audit_files(user_data);
+    return 0;
+}
+
+hrotatory_h hr = rotatory_open(
+    "/yuneta/realms/agent/agent/audit/ZZZ-DD_MM_CCYY.log",
+    0, 500, 20, 02775, 0660, TRUE
+);
+rotatory_subscribe2newfile(hr, on_new_audit_file, hr);
+remove_old_audit_files(hr);     // at start: sweep what is already there
+```
 
 ---
 

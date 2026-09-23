@@ -127,6 +127,8 @@ PRIVATE int authzs_to_yuno(
     hgobj gobj, json_t *yuno, json_t* kw, hgobj src
 );
 PRIVATE int audit_command_cb(const char *command, json_t *kw, void *user_data);
+PRIVATE int audit_newfile_cb(void *user_data, const char *old_filename, const char *new_filename);
+PRIVATE int remove_old_audit_files(hgobj gobj);
 
 PRIVATE json_t *find_binary_version(
     hgobj gobj,
@@ -939,6 +941,7 @@ SDATA (DTP_INTEGER,     "timeout_expiration",SDF_WR,            "30000",        
 SDATA (DTP_BOOLEAN,     "use_audit_command_file",SDF_WR,        "1",            "Use audit file commands"),
 SDATA (DTP_INTEGER,     "max_megas_audit_file",SDF_WR,          "500",          "max megas rotatory file size"),
 SDATA (DTP_INTEGER,     "min_free_disk_percentage",SDF_WR,      "20",           "min free disk percentage using audit file"),
+SDATA (DTP_INTEGER,     "audit_keep_days",  SDF_WR,             "7",            "Days of audit files kept. Older audit files are removed at start and when a new audit file begins. 0 = keep all"),
 
 /*  Certificate auto-sync: self-healing path independent of the certbot
  *  deploy hook. On every tick the agent runs the copy-certs script (as
@@ -1159,6 +1162,8 @@ PRIVATE void mt_create(hgobj gobj)
             TRUE
         );
         if(priv->audit_file) {
+            rotatory_subscribe2newfile(priv->audit_file, audit_newfile_cb, gobj);
+            remove_old_audit_files(gobj);
             gobj_audit_commands(audit_command_cb, gobj);
         }
     }
@@ -9250,6 +9255,67 @@ PRIVATE int audit_command_cb(const char *command, json_t *kw, void *user_data)
         }
     }
     return 0;
+}
+
+/***************************************************************************
+ *  A new audit file has begun (new day, or the size limit was reached):
+ *  the moment to apply the retention. Never on the write path.
+ ***************************************************************************/
+PRIVATE int audit_newfile_cb(void *user_data, const char *old_filename, const char *new_filename)
+{
+    hgobj gobj = user_data;
+    remove_old_audit_files(gobj);
+    return 0;
+}
+
+/***************************************************************************
+ *  Retention of the audit directory: remove the audit files older than
+ *  audit_keep_days. Only the files named by the audit mask are candidates
+ *  (see rotatory_remove_old_files()), never a link or anything else.
+ ***************************************************************************/
+PRIVATE int remove_old_audit_files(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t keep_days = gobj_read_integer_attr(gobj, "audit_keep_days");
+    if(keep_days == 0) {
+        return 0;
+    }
+    if(keep_days < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "audit_keep_days negative, no audit file removed",
+            "audit_keep_days", "%d", (int)keep_days,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *jn_removed = json_array();
+    uint64_t removed_bytes = 0;
+    int removed = rotatory_remove_old_files(
+        priv->audit_file,
+        (unsigned)keep_days,
+        jn_removed,
+        &removed_bytes
+    );
+    if(removed > 0) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Old audit files removed",
+            "audit_keep_days", "%d", (int)keep_days,
+            "removed",      "%d", removed,
+            "megas",        "%lu", (unsigned long)(removed_bytes/(1024*1024)),
+            "current_file", "%s", rotatory_path(priv->audit_file),
+            "files",        "%j", jn_removed,
+            NULL
+        );
+    }
+    JSON_DECREF(jn_removed);
+
+    return removed; // on -1 error already logged
 }
 
 /***************************************************************************

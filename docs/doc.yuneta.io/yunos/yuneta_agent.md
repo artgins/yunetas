@@ -28,6 +28,28 @@ that is, `tcps://<machine>.<node_owner>.<output_url>`, where `__output_url__`
 defaults to `yunetacontrol.com:1994`. With an empty/`none` owner the agent does
 not dial out. See [`controlcenter`](controlcenter.md) for the operator side.
 
+## Audit files
+
+The agent writes every command that it runs to a daily audit file in
+`/yuneta/realms/agent/agent/audit/` (`use_audit_command_file`, on by default).
+The attribute `audit_keep_days` (default `7`, `0` = keep all) is the retention:
+at start, and when a new audit file begins, the agent removes the audit files
+older than that and logs one INFO line with their names. Only files with the
+name shape of the audit mask are removed. For example, to keep 30 days, put
+this in `/yuneta/agent/yuneta_agent.json` and restart the agent:
+
+```json
+{
+    "global": {
+        "agent.audit_keep_days": 30
+    }
+}
+```
+
+An old `audit/` directory from 7.25.4 or earlier needs no manual cleaning: the
+first start removes what is older than `audit_keep_days`. Details in
+[the agent's audit files](#agent-audit-files).
+
 ## Redundancy
 
 Every node also runs [`yuneta_agent22`](yuneta_agent22.md), a minimal second

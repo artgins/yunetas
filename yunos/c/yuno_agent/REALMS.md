@@ -263,8 +263,10 @@ realm. The `binaries` topic does not have a realm fkey.
 
 ### 7.5 Audit log
 
-`use_audit_command_file` + `max_megas_audit_file` are agent-level
-attributes — one audit file per host, not per realm.
+`use_audit_command_file`, `max_megas_audit_file` and `audit_keep_days`
+are agent-level attributes — one audit directory per host, not per realm.
+`audit_keep_days` (default `7`) is its retention; see
+[the agent's audit files](#agent-audit-files).
 
 ---
 

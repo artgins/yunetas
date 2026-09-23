@@ -337,7 +337,8 @@ Per-yuno log file, built by [`yuneta_log_file()`](#yuneta_log_file) at
 
 The mask is the value that you set in
 `daemon_log_handlers.<handler>.filename_mask` (see §5.4). By convention it is
-`<role>-W.log`, where a rotation counter replaces the `W`.
+`<role>-W.log`, where the day of the week (`1` = Sunday … `7`) replaces the
+`W`: on a Wednesday the yuno writes `<role>-4.log`.
 
 Active log discovery:
 
@@ -377,11 +378,19 @@ grep -a '"msg":"Event NOT DEFINED in state"' …               # the canonical F
 
 ### 5.3 Rotation
 
-The `rotatory` library rotates the file when it crosses a size threshold
-(default 8 MB, configurable via `max_megas_rotatoryfile_size`,
-[`entry_point.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/entry_point.c)). The library renames the old files, and the active filename never moves.
-There is no rotation by time. There is no cron. The rotation happens on the
-next write that crosses the threshold.
+The [`rotatory`](#rotatory_open) library makes the file name from the mask and
+the date before each write, so the file changes at midnight. With the `W` mask,
+the first write of a new day opens the file of the same week day with `"w"`,
+which empties last week's file. So a yuno keeps **7 days** of log, and the mask
+is the retention.
+
+The library also rotates the file when it crosses a size threshold (default
+8 MB, configurable via `max_megas_rotatoryfile_size`,
+[`entry_point.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/entry_point.c)):
+it renames the file to `<name>.OLD` (a previous `.OLD` is removed) and starts
+the file again. There is no cron. Both rotations happen on the next write.
+
+With the defaults, one yuno uses at most 7 × 2 × 8 MB = 112 MB of log.
 
 ### 5.4 Where to configure handlers
 
@@ -412,6 +421,75 @@ bits, the handler drops DEBUG, INFO, AUDIT and the other severities.
 
 To add or remove handlers at run time, use the `add-log-handler` and
 `del-log-handler` commands of [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_yuno.c).
+
+(agent-audit-files)=
+### 5.5 The agent's audit files
+
+`yuneta_agent` writes every command that it runs to an audit file, one JSON
+record for each command (`use_audit_command_file`, on by default). The files
+are in the `audit/` directory of the agent realm:
+
+```
+/yuneta/realms/agent/agent/audit/266-23_09_2026.log      # ZZZ-DD_MM_CCYY.log
+/yuneta/realms/agent/agent/audit/266-23_09_2026.log.OLD  # the first part of a big day
+```
+
+The mask `ZZZ-DD_MM_CCYY.log` makes a new name every day, so the name gives no
+retention. The attribute **`audit_keep_days`** (default `7`) is the retention.
+The agent removes the audit files older than that number of days:
+
+- when it starts, and
+- when a new audit file begins (a new day, or the size limit).
+
+It never removes files on the write path of a command. It removes only regular
+files with the name shape of the mask (and their `.OLD`), never the current
+file, never a symbolic link, never another file in the directory
+([`rotatory_remove_old_files()`](#rotatory_remove_old_files)). Each sweep that
+removes something writes one INFO line to the agent log:
+
+```json
+{"msg": "Old audit files removed", "audit_keep_days": 7, "removed": 2, "megas": 961,
+ "current_file": "/yuneta/realms/agent/agent/audit/266-23_09_2026.log",
+ "files": ["258-15_09_2026.log", "258-15_09_2026.log.OLD"]}
+```
+
+| Attribute | Default | Meaning |
+|---|---|---|
+| `use_audit_command_file` | `1` | Write the audit files. |
+| `max_megas_audit_file` | `500` | Size of one audit file, in MB. A bigger day keeps the first part in `.OLD`. |
+| `audit_keep_days` | `7` | Days of audit files kept. `0` keeps all (the behaviour up to 7.25.4). |
+| `min_free_disk_percentage` | `20` | Stop writing the audit when the disk has less free space. |
+
+The directory is bounded: at most (`audit_keep_days` + 1) days × 2 ×
+`max_megas_audit_file`. With the defaults that is 8 GB, and less on a node
+that writes less (0.6–1 GB each day was measured on a busy node, so about
+5–8 GB).
+
+To keep 30 days, set the attribute in the agent config
+(`/yuneta/agent/yuneta_agent.json`) and restart the agent:
+
+```json
+{
+    "global": {
+        "agent.audit_keep_days": 30
+    }
+}
+```
+
+To change it on a running agent (it applies at the next new audit file, and
+is lost at restart):
+
+```bash
+ycommand -S __yuno__ -c 'write-attr gobj=agent attribute=audit_keep_days value=30'
+ycommand -S __yuno__ -c 'view-attrs gobj=agent attribute=audit_keep_days'
+```
+
+**An existing large `audit/` directory** (up to 7.25.4 nothing was removed,
+and 19 GB and 90 GB were seen) needs no manual action. The first start of an
+agent with this version removes every audit file older than 7 days, logs one
+INFO line with the list, and keeps the last 7 days and today. On a slow disk
+this first sweep can take some seconds, once. To keep more, set
+`audit_keep_days` before that start.
 
 ---
 

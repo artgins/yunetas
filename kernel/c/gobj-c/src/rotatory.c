@@ -2,6 +2,7 @@
  *              ROTATORY.C
  *              Log by week's days or or month's days or year's days
  *              Copyright (c) 1996-2014 Niyamaka.
+ *              Copyright (c) 2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #ifndef _GNU_SOURCE
@@ -19,6 +20,9 @@
 #endif
 #include <unistd.h>
 #include <limits.h>
+#include <ctype.h>
+#include <time.h>
+#include <sys/stat.h>
 
 #include "helpers.h"
 #include "rotatory.h"
@@ -28,6 +32,9 @@
  *****************************************************************/
 #define MAX_COUNTER_STATVFS     100
 #define DEFAULT_BUFFER_SIZE     (64*1024)
+#define DATE_MASK               "DD/MM/CCYY-W-ZZZ"  // the mask of formatdate()
+#define DIGIT_MARK              '\001'
+#define OLD_SUFFIX              ".OLD"
 
 /*****************************************************************
  *          Structures
@@ -653,4 +660,158 @@ PUBLIC const char *rotatory_path(hrotatory_h hr_)
 {
     rotatory_log_t *hr = hr_;
     return hr->path;
+}
+
+/*****************************************************************
+ *  TRUE if `name` has the shape of the files of this rotatory:
+ *  where formatdate() writes a digit there must be a digit, the rest
+ *  of the mask literal, and an optional ".OLD" at the end.
+ *****************************************************************/
+PRIVATE BOOL name_has_the_shape_of_the_mask(rotatory_log_t *hr, const char *name)
+{
+    char shape[NAME_MAX+1];
+
+    /*
+     *  Same call as formatdate(), with a mark in place of every digit
+     */
+    translate_string(
+        shape,
+        sizeof(shape),
+        "\001\001/\001\001/\001\001\001\001-\001-\001\001\001",
+        hr->filenamemask,
+        DATE_MASK
+    );
+
+    size_t shape_len = strlen(shape);
+    size_t name_len = strlen(name);
+    if(name_len == shape_len + strlen(OLD_SUFFIX)) {
+        if(strcmp(name + shape_len, OLD_SUFFIX) != 0) {
+            return FALSE;
+        }
+    } else if(name_len != shape_len) {
+        return FALSE;
+    }
+
+    for(size_t i=0; i<shape_len; i++) {
+        if(shape[i] == DIGIT_MARK) {
+            if(!isdigit((unsigned char)name[i])) {
+                return FALSE;
+            }
+        } else if(shape[i] != name[i]) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/*****************************************************************
+ *  Retention: remove the files of this rotatory older than keep_days.
+ *  See rotatory.h. Nothing of this runs on the write path.
+ *****************************************************************/
+PUBLIC int rotatory_remove_old_files(
+    hrotatory_h hr_,
+    unsigned keep_days,
+    json_t *jn_removed,
+    uint64_t *removed_bytes
+)
+{
+    rotatory_log_t *hr = hr_;
+
+    if(removed_bytes) {
+        *removed_bytes = 0;
+    }
+    if(!hr) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "hr NULL",
+            NULL
+        );
+        return -1;
+    }
+    if(keep_days == 0) {
+        return 0;
+    }
+
+    DIR *dir = opendir(hr->log_directory);
+    if(!dir) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot open directory",
+            "path",         "%s", hr->log_directory,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    char current_old[NAME_MAX+sizeof(OLD_SUFFIX)];
+    snprintf(current_old, sizeof(current_old), "%s%s", hr->filename, OLD_SUFFIX);
+
+    time_t limit = time(NULL) - (time_t)keep_days * 24 * 60 * 60;
+    int removed = 0;
+    struct dirent *de;
+    while((de = readdir(dir)) != NULL) {
+        const char *name = de->d_name;
+        if(strcmp(name, hr->filename) == 0 || strcmp(name, current_old) == 0) {
+            continue;
+        }
+        if(!name_has_the_shape_of_the_mask(hr, name)) {
+            continue;
+        }
+
+        char path[PATH_MAX];
+        build_path(path, sizeof(path), hr->log_directory, name, NULL);
+
+        struct stat st;
+#ifdef __linux__
+        if(lstat(path, &st) != 0) {
+#else
+        if(stat(path, &st) != 0) {
+#endif
+            if(errno != ENOENT) {
+                gobj_log_error(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "lstat() FAILED",
+                    "path",         "%s", path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+            }
+            continue;
+        }
+        if(!S_ISREG(st.st_mode)) {
+            continue;   // never a symbolic link, a directory, ...
+        }
+        if(st.st_mtime >= limit) {
+            continue;
+        }
+
+        if(unlink(path) != 0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "unlink() FAILED",
+                "path",         "%s", path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            continue;
+        }
+        removed++;
+        if(removed_bytes) {
+            *removed_bytes += (uint64_t)st.st_size;
+        }
+        if(jn_removed) {
+            json_array_append_new(jn_removed, json_string(name));
+        }
+    }
+    closedir(dir);
+
+    return removed;
 }
