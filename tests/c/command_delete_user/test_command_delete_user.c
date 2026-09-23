@@ -19,6 +19,8 @@
  *                                                   written, -1 (M5 of 2026-09-23)
  *            9. EV_ADD_USER / EV_IDP_USER_CREATED on a replica -> -1, nothing
  *                                                   created, nothing moved (M4)
+ *           10. disable-user / enable-user / set-max-sessions -> the local
+ *                                                   password survives them
  *
  *          A real C_AUTHZ service is instantiated over a temp tranger store;
  *          a role and an immutable user are seeded via initial_load, and the
@@ -230,6 +232,63 @@ PRIVATE BOOL user_has_role(const char *username, const char *role)
     }
     JSON_DECREF(node)
     return has;
+}
+
+/*
+ *  The number of credentials of a user, read WITH the hidden columns: a
+ *  plain read masks `credentials` as null.
+ */
+PRIVATE int user_credentials(const char *username)
+{
+    hgobj treedb = gobj_find_service("treedb_authzs", FALSE);
+    if(!treedb) {
+        return -1;
+    }
+    json_t *node = gobj_get_node(
+        treedb,
+        "users",
+        json_pack("{s:s}", "id", username),
+        json_pack("{s:b}", "show_hidden", 1),
+        treedb
+    );
+    int n = (int)json_array_size(kw_get_list(0, node, "credentials", 0, 0));
+    JSON_DECREF(node)
+    return n;
+}
+
+PRIVATE int user_max_sessions(const char *username)
+{
+    hgobj treedb = gobj_find_service("treedb_authzs", FALSE);
+    if(!treedb) {
+        return -1;
+    }
+    json_t *node = gobj_get_node(
+        treedb,
+        "users",
+        json_pack("{s:s}", "id", username),
+        0,
+        treedb
+    );
+    int n = (int)kw_get_int(0, node, "max_sessions", -1, 0);
+    JSON_DECREF(node)
+    return n;
+}
+
+/*
+ *  check-user-pwd answers result 0 either way; the verdict is its comment.
+ */
+PRIVATE int password_matches(hgobj authz, const char *username, const char *password)
+{
+    json_t *r = gobj_command(
+        authz,
+        "check-user-pwd",
+        json_pack("{s:s, s:s}", "username", username, "password", password),
+        authz
+    );
+    const char *comment = kw_get_str(0, r, "comment", "", 0);
+    int yes = (strstr(comment, "Yes") != NULL)? 1 : 0;
+    JSON_DECREF(r)
+    return yes;
 }
 
 /***************************************************************************
@@ -457,6 +516,38 @@ PRIVATE void run_checks(hgobj gobj)
         check_int("replica_user was not created", user_exists("replica_user"), 0);
         check_int("idp_replica_user was not created", user_exists("idp_replica_user"), 0);
         check_int("local_session got no role on a replica", user_has_role("local_session", "testrole"), 0);
+    }
+
+    /*
+     *  Case 10: disable-user, enable-user and set-max-sessions keep the
+     *  local password (HIGH of the 2026-09-23 independent review). They
+     *  read the user WITHOUT show_hidden, so `credentials` came back as the
+     *  view's null mask, and they wrote the whole view back: the password
+     *  was erased by a command about something else.
+     */
+    {
+        const char *commands[] = {"disable-user", "enable-user", "set-max-sessions", 0};
+        for(int i=0; commands[i]; i++) {
+            char username[NAME_MAX];
+            snprintf(username, sizeof(username), "local_passw_%d", i);
+            check_int("create a user with a password",
+                cmd_result(authz, "create-user",
+                    json_pack("{s:s, s:s}", "username", username, "password", "S3cret-pass")),
+                0);
+            check_int("it has one credential", user_credentials(username), 1);
+
+            json_t *kw_cmd = json_pack("{s:s}", "username", username);
+            if(strcmp(commands[i], "set-max-sessions")==0) {
+                json_object_set_new(kw_cmd, "max_sessions", json_integer(3));
+            }
+            printf("     %s %s\n", commands[i], username);
+            check_int("the command succeeds", cmd_result(authz, commands[i], kw_cmd), 0);
+            check_int("the credential survives it", user_credentials(username), 1);
+            check_int("the password still matches",
+                password_matches(authz, username, "S3cret-pass"), 1);
+        }
+        check_int("disable-user wrote disabled", user_disabled("local_passw_0"), 1);
+        check_int("set-max-sessions wrote max_sessions", user_max_sessions("local_passw_2"), 3);
     }
 }
 

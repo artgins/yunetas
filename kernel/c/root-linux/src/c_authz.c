@@ -2027,12 +2027,17 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    json_object_set_new(user, "disabled", json_false());
+    JSON_DECREF(user)
 
+    /*
+     *  Only the column this command changes. The node read above is a VIEW:
+     *  its hidden `credentials` come as a null mask, and writing that view
+     *  back erased the local password (HIGH of the 2026-09-23 review).
+     */
     user = gobj_update_node(
         priv->gobj_treedb,
         "users",
-        user,
+        json_pack("{s:s, s:b}", "id", username, "disabled", 0),
         0,
         src
     );
@@ -2102,12 +2107,17 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    json_object_set_new(user, "disabled", json_true());
+    JSON_DECREF(user)
 
+    /*
+     *  Only the column this command changes. The node read above is a VIEW:
+     *  its hidden `credentials` come as a null mask, and writing that view
+     *  back erased the local password (HIGH of the 2026-09-23 review).
+     */
     user = gobj_update_node(
         priv->gobj_treedb,
         "users",
-        user,
+        json_pack("{s:s, s:b}", "id", username, "disabled", 1),
         0,
         src
     );
@@ -2707,15 +2717,18 @@ PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hg
             );
         }
 
-        json_object_set_new(user, "max_sessions", json_integer(max_sessions));
+        JSON_DECREF(user)
 
+        /*
+         *  Only the column this command changes: the view read above masks
+         *  the hidden `credentials` as null, and writing it back erased the
+         *  local password (HIGH of the 2026-09-23 review).
+         */
         json_t *updated = gobj_update_node(
             priv->gobj_treedb,
             "users",
-            user,
-            json_pack("{s:b}",
-                "with_metadata", 1
-            ),
+            json_pack("{s:s, s:i}", "id", username, "max_sessions", max_sessions),
+            0,
             src
         );
         if(!updated) {
