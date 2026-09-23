@@ -186,6 +186,7 @@ PRIVATE void mark_file_before_append(
     json_t *topic,
     const char *key,
     const char *file_id,
+    json_t *cell,
     md2_record_t *md_record
 );
 PRIVATE int widen_cell_from_rows(
@@ -303,6 +304,9 @@ PRIVATE json_int_t update_new_record_from_mem(
     json_t *topic,
     const char *key,
     const char *file_id,    // the file the record was written to
+    json_t *cell,           // the file's cell (find_cache_cell), or NULL
+    json_int_t file_base,   // from the same find_cache_cell()
+    int insert_idx,         // from the same find_cache_cell()
     md2_record_t *md_record
 );
 PRIVATE json_int_t update_totals_of_key_cache(
@@ -3730,10 +3734,20 @@ PUBLIC int tranger2_append_record(
         i_rowid = (json_int_t)(offset/sizeof(md2_record_t)) + 1;
 
         /*--------------------------------------------*
+         *  The cell of the record's file, found once:
+         *  the marker and the cache update both use it,
+         *  and between them only the marker flags on
+         *  this same cell change.
+         *--------------------------------------------*/
+        json_int_t file_base = 0;
+        int insert_idx = 0;
+        json_t *file_cell = find_cache_cell(topic, key_value, file_id, &file_base, &insert_idx);
+
+        /*--------------------------------------------*
          *  The marker of an out-of-order record goes
          *  down BEFORE its row (see the function)
          *--------------------------------------------*/
-        mark_file_before_append(gobj, topic, key_value, file_id, &md_record);
+        mark_file_before_append(gobj, topic, key_value, file_id, file_cell, &md_record);
 
         /*--------------------------------------------*
          *  write md2 in big endian
@@ -3793,7 +3807,9 @@ PUBLIC int tranger2_append_record(
         /*
          *  Update cache
          */
-        g_rowid = update_new_record_from_mem(gobj, topic, key_value, file_id, &md_record);
+        g_rowid = update_new_record_from_mem(
+            gobj, topic, key_value, file_id, file_cell, file_base, insert_idx, &md_record
+        );
         if(system_flag_key_type & sf_rowid_key) {
             if(g_rowid != i_rowid) {
                 gobj_log_error(gobj, 0,
@@ -7130,15 +7146,38 @@ PRIVATE json_t *get_key_cache(
 
 /***************************************************************************
  *  Order of two file ids, as the load orders the md2 files: by their NAME
- *  (dir_array_sort), suffix included.
+ *  (dir_array_sort), suffix included. The suffix changes the order when
+ *  one id is the start of the other: "a-b" < "a" by name ("a-b.md2" <
+ *  "a.md2", '-' < '.'), while strcmp() of the ids says the opposite.
+ *
+ *  The result is strcmp("<a>.md2", "<b>.md2"), compared in place: each
+ *  cursor goes on into ".md2" where its id ends. Building the two names
+ *  with snprintf() was most of the cost of a find_cache_cell(), which runs on
+ *  every append. test_cmp_file_ids checks it against the names.
  ***************************************************************************/
 PRIVATE int cmp_file_ids(const char *a, const char *b)
 {
-    char a_[NAME_MAX];
-    char b_[NAME_MAX];
-    snprintf(a_, sizeof(a_), "%s.md2", a);
-    snprintf(b_, sizeof(b_), "%s.md2", b);
-    return strcmp(a_, b_);
+    static const char suffix[] = ".md2";
+    const unsigned char *x = (const unsigned char *)a;
+    const unsigned char *y = (const unsigned char *)b;
+    BOOL x_in_suffix = FALSE;
+    BOOL y_in_suffix = FALSE;
+
+    while(TRUE) {
+        if(!*x && !x_in_suffix) {
+            x = (const unsigned char *)suffix;
+            x_in_suffix = TRUE;
+        }
+        if(!*y && !y_in_suffix) {
+            y = (const unsigned char *)suffix;
+            y_in_suffix = TRUE;
+        }
+        if(*x != *y || !*x) {
+            return (int)*x - (int)*y;
+        }
+        x++;
+        y++;
+    }
 }
 
 /***************************************************************************
@@ -8007,12 +8046,10 @@ PRIVATE void mark_file_before_append(
     json_t *topic,
     const char *key,
     const char *file_id,
+    json_t *cell,           // the file's cell (find_cache_cell), or NULL
     md2_record_t *md_record
 )
 {
-    json_int_t file_base = 0;
-    int insert_idx = 0;
-    json_t *cell = find_cache_cell(topic, key, file_id, &file_base, &insert_idx);
     if(!cell) {
         return;     // The first row of the file: nothing to be out of order with
     }
@@ -8792,6 +8829,9 @@ PRIVATE json_int_t update_new_record_from_mem(
     json_t *topic,
     const char *key,
     const char *file_id,    // the file the record was written to
+    json_t *cell,           // the file's cell (find_cache_cell), or NULL
+    json_int_t file_base,   // from the same find_cache_cell()
+    int insert_idx,         // from the same find_cache_cell()
     md2_record_t *md_record
 )
 {
@@ -8811,17 +8851,10 @@ PRIVATE json_int_t update_new_record_from_mem(
     /*
      *  The cell of the record's file, wherever it is: a __t__ of an earlier
      *  file writes into that file (the caller opened it by this file_id).
-     *  Create the key cache if not exist.
+     *  The caller found it with find_cache_cell() BEFORE the row was
+     *  written, for the marker too: one search per append, not two.
      */
-    json_int_t file_base = 0;
-    int insert_idx = 0;
-    json_t *cur_cache_cell = find_cache_cell(
-        topic,
-        key,
-        file_id,
-        &file_base,
-        &insert_idx
-    );
+    json_t *cur_cache_cell = cell;
 
     /*
      *  UPDATE CACHE from mem

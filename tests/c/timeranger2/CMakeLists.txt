@@ -86,6 +86,7 @@ set(SRCS
     test_nul_escape_record
     test_torn_tail_check_fails
     test_testing
+    test_cmp_file_ids
 )
 
 ##############################################
@@ -119,6 +120,12 @@ foreach(test ${SRCS})
         # The test writes a md2 row short and fails its cut back, in its own
         # __wrap_write() and __wrap_ftruncate()
         target_link_options(${binary} PRIVATE "-Wl,--wrap=write,--wrap=ftruncate")
+    endif()
+    if(test STREQUAL "test_cmp_file_ids")
+        # A unit test: it #includes timeranger2.c to reach a PRIVATE function
+        target_include_directories(${binary} PRIVATE
+            ${YUNETAS_BASE}/kernel/c/timeranger2/src
+        )
     endif()
     if(test STREQUAL "test_torn_tail_check_fails")
         # The test fails the open of a content file in its own __wrap_open()
