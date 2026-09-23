@@ -853,10 +853,9 @@ PRIVATE int run_tests(hgobj gobj)
     /*-----------------------------------------------*
      *  EVERY comment of C_NODE starts with its yuno, walked from the
      *  command table (with nothing to act on, each answers its first
-     *  refusal), and the commands that failed with the process-global last
-     *  message say their own cause (review of the second fix round,
-     *  2026-09-23: create-node, link-nodes, unlink-nodes, shoot-snap,
-     *  snap-content and the reads still did).
+     *  refusal), and the commands that fail say their own cause, never the
+     *  process-global last message (create-node, link-nodes, unlink-nodes,
+     *  shoot-snap, snap-content and the reads included).
      *-----------------------------------------------*/
     result += check_comments_name_their_yuno(gobj);
 
@@ -1059,12 +1058,11 @@ PRIVATE int run_replica_tests(hgobj gobj)
 
     /*
      *  A link that is ALREADY there is refused too: -1, and the log says
-     *  why. Before e2b49b06b the treedb found the pair linked, wrote nothing
-     *  and answered 0. Decided, not an accident: on a replica EVERY write is
-     *  refused, one that would change nothing included -- whether it would
-     *  is read from the replica's memory, which lags the master's disk, so
-     *  an answer that depends on it says 0 today and -1 tomorrow for the
-     *  same call (review of the second fix round, 2026-09-23).
+     *  why. Decided, not an accident: on a replica EVERY write is refused,
+     *  one that would change nothing included -- whether it would is read
+     *  from the replica's memory, which lags the master's disk, so an
+     *  answer that depends on it would say 0 today and -1 tomorrow for the
+     *  same call.
      */
     {
         int r_again = gobj_link_nodes(

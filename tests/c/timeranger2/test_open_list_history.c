@@ -8,15 +8,13 @@
  *        iterator with its `load_failed` unread: a key whose history could
  *        not be loaded gave the caller a list, and the caller took what it
  *        got for the whole topic. treedb's snapshot guard of the assets
- *        read "held by nothing" from such a list (M2 of the 2026-09-23
- *        independent review of 7.25.4).
- *      - Refusing that list (6d5760377) was worse: the first unreadable
- *        key stopped the load, the keys after it were not loaded and no
- *        realtime feed was opened, so a treedb topic came up with 1 node
- *        of 6 and a replica stopped following it (independent review of
- *        the second fix round). The list is handed over again, with every
- *        readable key loaded and the feed open, and it SAYS what it lacks:
- *        `"load_failed": true` and `"load_failed_keys": [...]`.
+ *        read "held by nothing" from such a list (7.25.4).
+ *      - The list is not refused: a refusal would stop the load at the
+ *        first unreadable key, the keys after it would not be loaded and
+ *        no realtime feed would be opened (a treedb topic with 1 node of
+ *        6, a replica that stops following it). It is handed over with
+ *        every readable key loaded and the feed open, and it SAYS what it
+ *        lacks: `"load_failed": true` and `"load_failed_keys": [...]`.
  *      - The one-shot iterators took the caller's default identity (the
  *        key as the id, creator ""): an iterator the caller kept open on
  *        the key made the load's one "already exist", and the list of that

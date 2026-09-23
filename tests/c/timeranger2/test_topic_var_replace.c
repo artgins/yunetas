@@ -15,11 +15,11 @@
  *  after the write, and a reader that had the old one open still reads it
  *  whole.
  *
- *  The temporary file was opened with O_TRUNC (independent review of the
- *  second fix round, repro r_var): a `.new` left behind by a process that
- *  died kept its mode and owner, and a `.new` that is a symlink was
- *  followed, so the write went to whatever it points at. It is unlinked
- *  first and created O_EXCL|O_NOFOLLOW, with the tranger's rpermission.
+ *  The temporary file is unlinked first and created O_EXCL|O_NOFOLLOW,
+ *  with the tranger's rpermission. Opened with O_TRUNC, a `.new` left
+ *  behind by a process that died would keep its mode and owner, and a
+ *  `.new` that is a symlink would be followed, so the write would go to
+ *  whatever it points at.
  *
  *  tranger2_write_topic_cols() wrote topic_cols.json in place, put the
  *  new cols in memory BEFORE the write, ignored the result and returned 0.

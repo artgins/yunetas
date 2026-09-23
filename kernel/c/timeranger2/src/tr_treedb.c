@@ -240,9 +240,8 @@ PRIVATE json_t *keys_not_loaded(json_t *tranger, const char *treedb_name, const 
      *  A key deleted since (tranger2_delete_key(), the documented recovery)
      *  has no records on disk any more: nothing is shadowed by a create of
      *  its id, and nothing it held is unknown. It is forgotten here, the
-     *  first time anybody asks -- the refusal said "has records on disk
-     *  that could not be loaded" of a key that had none (independent review
-     *  of the third fix round).
+     *  first time anybody asks: a refusal must not say "has records on disk
+     *  that could not be loaded" of a key that has none.
      */
     const char *key; json_t *jn_value; void *tmp;
     json_object_foreach_safe(per_topic, tmp, key, jn_value) {
@@ -5950,8 +5949,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  An id whose records are on disk and did not
      *  load is not in memory: the create would go on
      *  as for a new node and its record would become
-     *  the newest of the key, over records nobody read
-     *  (independent review of the second fix round).
+     *  the newest of the key, over records nobody read.
      *-----------------------------------------------*/
     if(json_object_get(keys_not_loaded(tranger, treedb_name, topic_name), id)) {
         gobj_log_error(gobj, 0,
@@ -14561,9 +14559,8 @@ PRIVATE json_t *gc_asset_rows(
  *  the ids taken (or, dry_run, the ids it would take). Return is YOURS.
  *
  *  A refusal answers NULL and takes NOTHING, not even the bytes no row
- *  names: it swept them while the caller could only say "refused"
- *  (independent review of the third fix round). treedb_gc_files2() sweeps
- *  them on a refusal too, and says which.
+ *  names: a caller that can only say "refused" cannot say what was swept.
+ *  treedb_gc_files2() sweeps them on a refusal too, and says which.
  ***************************************************************************/
 PUBLIC json_t *treedb_gc_files(
     json_t *tranger,

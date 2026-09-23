@@ -1968,11 +1968,10 @@ PRIVATE int test_gc_guard_that_cannot_read_refuses(const char *path_root)
  *  22. The snapshot guard of the assets reads a walk that did not load
  *
  *  The walk of assets_held_by_snaps() is a keyless tranger2_open_list().
- *  6d5760377 made that list REFUSE a key it could not load, and the guard
- *  failed closed on the NULL. The list is handed over again (every readable
- *  key loaded, see tranger2_open_list), so the guard must read what the list
- *  says it lacks (`load_failed`): a tagged instance in the key that did not
- *  load may be the one a snapshot needs.
+ *  The list is handed over with every readable key loaded (see
+ *  tranger2_open_list), so the guard must read what the list says it lacks
+ *  (`load_failed`): a tagged instance in the key that did not load may be
+ *  the one a snapshot needs.
  *
  *  Self-contained (own database): the md2 of the device a snap froze is
  *  cut behind treedb's back.
@@ -2338,10 +2337,9 @@ PRIVATE int test_sweep_with_a_row_that_did_not_load(const char *path_root)
 /***************************************************************************
  *  25, 26. The same two, with the key damaged while the tranger is DOWN
  *
- *  The cache build dropped a md2 it could not count: the key read as
- *  empty, nothing failed, and the gc took the asset of a node that exists
- *  on disk (independent review of the third fix round, repro
- *  indep3_B/gc restart).
+ *  The cache build of 7.25.4 dropped a md2 it could not count: the key read
+ *  as empty, nothing failed, and the gc took the asset of a node that
+ *  exists on disk.
  ***************************************************************************/
 PRIVATE int test_gc_after_a_restart(const char *path_root)
 {
@@ -2447,8 +2445,7 @@ PRIVATE int test_gc_after_a_restart(const char *path_root)
  *  With a snap active the nodes in memory are the snap's photo: a node
  *  written after the snap is not there, and the asset it links read as
  *  linked by nobody. The gc took it -- the row and the bytes of a live
- *  node on disk (independent review of the third fix round, repro
- *  indep3_B/gc snap; there since f1654c73e, 7.18.1).
+ *  node on disk (7.18.1 to 7.25.4).
  ***************************************************************************/
 PRIVATE int test_gc_refuses_with_a_snap_active(const char *path_root)
 {

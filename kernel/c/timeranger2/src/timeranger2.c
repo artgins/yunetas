@@ -8385,10 +8385,8 @@ PRIVATE int check_torn_md2_rows(
  *  Why 1 fails for every file 7.25.4 left. E is the last row 7.25.4 wrote
  *  and acknowledged. Its content was written before it, with the same
  *  bytes as now (json text and a NUL): it is whole, wherever the content
- *  file ends. Content that no row names after it does not change that
- *  (the first form of this rule asked for the end of E's content to be
- *  the end of the content file, and missed such a file). Only a content
- *  damaged since (its bytes changed) lets such a file reach rule 2.
+ *  file ends. Content that no row names after it does not change that.
+ *  Only a content damaged since (its bytes changed) lets such a file reach rule 2.
  *
  *  Why 1 holds for a torn row. With k torn bytes, E is the last 32-k bytes
  *  of the last whole row, then the first k bytes of the torn row. Its
@@ -8407,9 +8405,9 @@ PRIVATE int check_torn_md2_rows(
  *  row: each must name one record to the byte, and the two in the order
  *  of the content. With tm 0 (no tkey, as in treedb topics) and every
  *  __offset__ a multiple of 256^k, a moved row names a span INSIDE the
- *  content file (the real one divided by 256^k), and that passed the
- *  first form of rule 2 (only the range was checked). It is not whole: it
- *  starts where no record starts.
+ *  content file (the real one divided by 256^k), and a check of the range
+ *  alone takes it for a good row. It is not whole: it starts where no
+ *  record starts.
  *
  *  Why 2 holds for a torn row. L and P are rows that appends wrote, in
  *  order: their content is whole, and P's is before L's (the content file
@@ -8505,7 +8503,7 @@ PRIVATE int check_torn_md2_tail(
  *  wrote the next rows at the end of the file, on no row boundary, and
  *  those rows were acknowledged. Cutting such a file removes the end of
  *  its last acknowledged row. So the tail is cut only when it is a torn
- *  row after a valid last row (check_torn_md2_tail); if not, a CRITICAL
+ *  row after good rows (check_torn_md2_tail); if not, a CRITICAL
  *  names the shape, the file is not cut, and the caller flags it. The
  *  content file is left as it is: its bytes after the last row belong to
  *  no row, and the next append writes at its end. Up to 7.25.4 the cache

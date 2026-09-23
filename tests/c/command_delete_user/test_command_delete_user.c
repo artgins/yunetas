@@ -24,8 +24,7 @@
  *           11. every comment starts with the yuno, walked from the
  *                                                   command table, and the causes are
  *                                                   the command's own, never the global
- *                                                   last message (review of the second
- *                                                   fix round, 2026-09-23)
+ *                                                   last message
  *
  *          A real C_AUTHZ service is instantiated over a temp tranger store;
  *          a role and an immutable user are seeded via initial_load, and the

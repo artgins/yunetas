@@ -4,14 +4,13 @@
  *  msg2db keeps, per id and pkey2, the LAST message it loaded: it loads its
  *  topic forward, oldest first, and each message replaces the one before.
  *  A forward load that stops half way leaves the last message it read, an
- *  OLD one, in the place of the current (independent review of the fourth
- *  fix round, repro indep4_A/r_msg2db_stale):
+ *  OLD one, in the place of the current:
  *
  *      1. A file of dev1 whose only append was never acknowledged (a md2
  *         of 0 rows, its content not empty) between the file of its old
- *         message and the file of its new one. It was taken for damage,
- *         the load stopped there, and the old message was served. It is
- *         ignored with a warning: the new message is served.
+ *         message and the file of its new one. It is ignored with a
+ *         warning: the new message is served. Taken for damage, it would
+ *         stop the load there, and the old message would be served.
  *      2. The file of dev1's new message really damaged (a md2 that cannot
  *         be read, mode 000): the load of dev1 stops before it.
  *         What it read is not served as current: msg2db reloads dev1
@@ -25,10 +24,10 @@
  *         X (old in the first file, new in the last) and Y (old in the
  *         first file, newer in the damaged one). X's newest message is
  *         readable, and it is served; Y's newest message is not, and Y is
- *         absent -- its old message is not served as current. The whole
- *         key was dropped before the fix of the fifth fix round: X, whose
- *         current state was on disk and readable, was absent too, and the
- *         alarms of the projects (db_history) announced it again as new.
+ *         absent -- its old message is not served as current. The key is
+ *         not dropped whole: X, whose current state is on disk and
+ *         readable, would be absent too, and the alarms of the projects
+ *         (db_history) would announce it again as new.
  *      4. The store of 3 with a record of dev1 whose pkey2 is empty in its
  *         first file (read by the forward load) and another in its last
  *         file (read only by the backward reload). Both are dropped, and

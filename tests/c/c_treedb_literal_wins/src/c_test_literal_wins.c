@@ -999,9 +999,9 @@ PRIVATE int scenario_imposed_removed_topic(hgobj gobj)
 
 /***************************************************************************
  *  L-2: a topic whose store directory is gone (its topic_var.json with it)
- *  is no APPLIED topic: nobody applied anything. It read as "applied" when
- *  the kind was inferred from the file's topic_version being above the
- *  store's -- 0 for a topic with no topic_var.json. The literal changes it:
+ *  is no APPLIED topic: nobody applied anything. Inferred from the file's
+ *  topic_version being above the store's -- 0 for a topic with no
+ *  topic_var.json -- it would read as "applied". The literal changes it:
  *  nothing of the operator's is withdrawn, and nothing is said.
  ***************************************************************************/
 PRIVATE int scenario_missing_topic_dir_is_no_apply(hgobj gobj)
@@ -1359,7 +1359,7 @@ PRIVATE int scenario_client_store_locked(hgobj gobj)
 /***************************************************************************
  *  REC: the record of an apply cannot be written. The apply is REFUSED and
  *  the file in use is not replaced: an apply nobody can report as withdrawn
- *  is not made (it answered applied, and the record was lost in silence).
+ *  is not made.
  ***************************************************************************/
 PRIVATE int scenario_apply_record_unwritable(hgobj gobj)
 {
@@ -1523,8 +1523,7 @@ PRIVATE int write_schema_file(hgobj gobj, const char *treedb_name, json_t *jn_sc
  *  draft: saved-schema does not name it in `draft_changed`, and nothing
  *  withdraws it. The column the operator ADDS to users meanwhile is a
  *  draft: the retry of the projection replaces it, and SAYS so
- *  ("unsaved"). It was deleted in silence: every row that __system__ had
- *  and the file did not was taken for a leftover. A column the operator
+ *  ("unsaved"). A column the operator
  *  adds to the leftover topic itself makes that topic a draft too.
  ***************************************************************************/
 PRIVATE int scenario_draft_while_unfinished(hgobj gobj)
@@ -1653,8 +1652,7 @@ PRIVATE int scenario_leftovers_on_every_path(hgobj gobj)
  *  a dynamic file (not because anything was left unfinished), then the
  *  developer takes that file into C, same schema_version. Nothing is
  *  installed, nothing is projected: the operator's drafts stay, nothing is
- *  said. It read as "left unfinished by an earlier open": the header draft
- *  was overwritten and reported, the added column deleted in silence.
+ *  said.
  ***************************************************************************/
 PRIVATE int scenario_seed_is_not_unfinished(hgobj gobj)
 {
@@ -1932,10 +1930,9 @@ PRIVATE json_t *unfinished_record(hgobj gobj, const char *treedb_name)
 /***************************************************************************
  *  M1b: a column the operator adds to the LEFTOVER topic stays a draft
  *  through every retry that cannot finish, and is reported by the open
- *  that removes it. A retry while the snapshot still held the topic took
- *  the column into the record's leftovers: saved-schema stopped showing
- *  it, and the open that completed the projection deleted it in silence
- *  (eighth independent review, R7).
+ *  that removes it. A retry while the snapshot still holds the topic does
+ *  not take the column into the record's leftovers: saved-schema goes on
+ *  showing it.
  ***************************************************************************/
 PRIVATE int scenario_draft_on_leftover_across_retries(hgobj gobj)
 {
@@ -2003,11 +2000,10 @@ PRIVATE int scenario_draft_on_leftover_across_retries(hgobj gobj)
  *  replace it, and it is reported ONCE, by the open that replaces it.
  *
  *      tw_m2r  a draft on a topic the literal removes (a column added and
- *              a header edited), and the delete is refused: it was never
- *              reported (eighth independent review, R8);
+ *              a header edited), and the delete is refused;
  *      tw_m2c  a column the operator added to a topic the literal keeps,
- *              and its delete is refused: it was reported at once, while
- *              it was still there, and deleted in silence later.
+ *              and its delete is refused: it is not reported while it is
+ *              still there.
  ***************************************************************************/
 PRIVATE int scenario_draft_where_the_projection_fails(hgobj gobj)
 {
@@ -2057,8 +2053,6 @@ PRIVATE int scenario_draft_where_the_projection_fails(hgobj gobj)
  *  L1b: a record of an unfinished projection that cannot be read (torn)
  *  still says the projection is unfinished: saved-schema answers it,
  *  save-schema refuses, and the next open retries and writes it again.
- *  It read as "no leftovers" and save-schema published the leftover
- *  (eighth independent review, R12).
  ***************************************************************************/
 PRIVATE int scenario_unreadable_unfinished_record(hgobj gobj)
 {
@@ -2143,11 +2137,10 @@ PRIVATE int scenario_unreadable_unfinished_record(hgobj gobj)
 /***************************************************************************
  *  L2b: the node of a treedb in __system__ is created WITHOUT its numbers
  *  (schema_version and c_schema_version 0), and stamped last, when the
- *  whole projection is written. It was created with them: a crash before
- *  the topics were written left a projection that said it was of the
- *  literal, and the next open took it as done -- __system__ with no
- *  topics, and save-schema published an empty schema (eighth independent
- *  review, R11). The first record of the node, on disk, is what says it.
+ *  whole projection is written. 7.25.4 created it with them: a crash
+ *  before the topics were written left a projection that said it was of
+ *  the literal, and the next open took it as done -- __system__ with no
+ *  topics. The first record of the node, on disk, is what says it.
  ***************************************************************************/
 PRIVATE int scenario_first_projection_stamped_last(hgobj gobj)
 {
@@ -2341,7 +2334,7 @@ PRIVATE int delete_system_topic(hgobj gobj, const char *treedb_name, const char 
  *  newer literal declares it: the projection re-creates it, and that
  *  replaces the draft, so it is reported -- "unsaved" (tw_n7u), or
  *  "saved" when a save published the deletion (tw_n7s, with the withdrawn
- *  saved schema). It was reported as nothing: no topic, no warning.
+ *  saved schema).
  ***************************************************************************/
 PRIVATE int scenario_deleted_topic_draft(hgobj gobj)
 {
@@ -2384,9 +2377,10 @@ PRIVATE int scenario_deleted_topic_draft(hgobj gobj)
  *  N1: a seed that died before its end (after delete-treedb, the node of
  *  the treedb is created with 0 / 0 and nothing else; emulated by hand)
  *  is completed by the next open, although the file runs and there is no
- *  record: nothing is reported, and __system__ is the file again. It was
- *  never retried: every topic read as a draft, and save-schema published
- *  a schema with no topics, which left a treedb that could not open.
+ *  record: nothing is reported, and __system__ is the file again. Not
+ *  retried, every topic would read as a draft, and save-schema would
+ *  publish a schema with no topics, which leaves a treedb that cannot
+ *  open.
  *
  *  And a schema with NO topics is refused by save-schema and by
  *  apply-schema: a treedb without topics does not open.
@@ -2878,8 +2872,7 @@ PRIVATE int chmod_system_col_key(hgobj gobj, const char *treedb_name, const char
  *  `not_written`. After a RESTART (the disk again) and with the files
  *  writable, the open that completes the projection reports nothing: the
  *  record cannot say what is on disk at an id it failed to write, and a
- *  difference there is nobody's work. It was reported as an "unsaved"
- *  draft of `users`.
+ *  difference there is nobody's work, not an "unsaved" draft of `users`.
  ***************************************************************************/
 PRIVATE json_t *users_v1b(const char *db)
 {
@@ -2941,10 +2934,10 @@ PRIVATE int scenario_failed_write_then_restart(hgobj gobj)
  *  FWS: the same failed write, retried by the SAME process (no restart in
  *  between). The failed update was taken back in memory, so the retry
  *  finds the column to write and writes it: after a restart the disk says
- *  what the literal says, and nothing is a draft. The update stayed in
- *  memory: the retry found nothing to write, took the projection as done,
- *  and after a restart the disk still said "User" -- a draft of `users`
- *  that nobody made.
+ *  what the literal says, and nothing is a draft. An update that stayed in
+ *  memory would leave the retry nothing to write: the projection taken as
+ *  done, and after a restart the disk still saying "User" -- a draft of
+ *  `users` that nobody made.
  ***************************************************************************/
 PRIVATE int scenario_failed_write_retried_in_process(hgobj gobj)
 {
@@ -2998,9 +2991,8 @@ PRIVATE int scenario_failed_write_retried_in_process(hgobj gobj)
  *  saved-schema shows `departments` in `draft_changed`, and the open that
  *  completes the projection removes the column with its topic and reports
  *  `departments` as "unsaved". A later literal that declares the column
- *  again creates it. The unlink was not seen, the column stayed in
- *  __system__ for ever, and that literal failed on it at every open
- *  ("Node already exists").
+ *  again creates it: a column left in __system__ would make that literal
+ *  fail on it at every open ("Node already exists").
  ***************************************************************************/
 PRIVATE int scenario_unlinked_leftover_col(hgobj gobj)
 {
@@ -3163,8 +3155,8 @@ PRIVATE int scenario_orphan_topic_adopted(hgobj gobj)
  *  `cols`: every node loaded from disk now carries it with its default,
  *  and the kept nodes do not (emulated: `description` is taken out of
  *  them). What the projection left cannot be told from an edit of it any
- *  more: every leftover is taken as left, and that is said. It was every
- *  leftover reported as the operator's work.
+ *  more: every leftover is taken as left, and that is said, never
+ *  reported as the operator's work.
  ***************************************************************************/
 PRIVATE int scenario_leftovers_under_older_meta_schema(hgobj gobj)
 {

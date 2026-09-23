@@ -6,8 +6,7 @@
  *  in every load of it, exactly as it does when the damage happens behind
  *  a running tranger's back (test_open_list_history.c).
  *
- *  It did not (independent review of the third fix round, repro
- *  indep3_B/restart): the cache build dropped an unreadable md2 with a
+ *  In 7.25.4 it did not: the cache build dropped an unreadable md2 with a
  *  `continue` after a critical. The key read as a shorter key, nothing
  *  failed, `load_failed` and `load_failed_keys` stayed empty, and treedb's
  *  guards never fired after a restart. And a record whose CONTENT cannot be

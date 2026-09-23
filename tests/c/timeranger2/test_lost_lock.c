@@ -19,10 +19,10 @@
  *
  *  The three writes of a record's md2 row in place --
  *  tranger2_write_user_flag(), tranger2_set_user_flag() and
- *  tranger2_set_system_flag() -- asked nothing (M-B of the independent
- *  review of the second fix round): on a demoted master, and on any
- *  replica, they reached the write of a read-only fd, logged a CRITICAL,
- *  and with the default on_critical_error the process exited(0).
+ *  tranger2_set_system_flag() -- ask it too: on a demoted master, and on
+ *  any replica, they refuse. Otherwise they would reach the write of a
+ *  read-only fd, log a CRITICAL, and with the default on_critical_error
+ *  the process would exit(0).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -209,8 +209,7 @@ PRIVATE int test_revive_conflict(void)
  *  are the same case). Nobody else owns the store, so it is not the
  *  startup's single-master conflict: an ERROR, the tranger goes on as a
  *  replica, and the process does NOT exit -- with a yuno's default
- *  (LOG_OPT_EXIT_ZERO) it exited(0) and was not relaunched (independent
- *  review of the third fix round).
+ *  (LOG_OPT_EXIT_ZERO) an exit(0) there is not relaunched.
  ***************************************************************************/
 PRIVATE int test_revive_other_failure(void)
 {

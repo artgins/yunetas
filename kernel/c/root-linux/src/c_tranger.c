@@ -1888,10 +1888,10 @@ PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj
         /*
          *  A directory of the store is a topic only when it has its
          *  topic_desc.json. C_TREEDB keeps `saved_schemas/` in the store
-         *  of __system__: listed as a topic it failed, and the upgrade step
-         *  answered -1 on every node that ran save-schema (M-2 of the
-         *  fourth independent review, 2026-09-23). Skipped, and SAID: a
-         *  topic whose topic_desc.json was lost is skipped the same way.
+         *  of __system__: listed as a topic it would fail, and the upgrade
+         *  step would answer -1 on every node that ran save-schema. Skipped,
+         *  and SAID: a topic whose topic_desc.json was lost is skipped the
+         *  same way.
          */
         char topic_dir[PATH_MAX];
         build_path(topic_dir, sizeof(topic_dir),

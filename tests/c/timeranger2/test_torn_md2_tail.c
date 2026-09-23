@@ -71,8 +71,8 @@
  *         append killed between its two writes; 7.25.4 did not cut it
  *         back). With __tm__ 0 and every __offset__ a multiple of 256, a
  *         row moved by 1 byte names a range INSIDE the content file, and
- *         a check of the range only cut such a file by 1 byte. A master
- *         does not cut it: the last 32 bytes are a row whose content is a
+ *         a check of the range alone would cut such a file by 1 byte. A
+ *         master does not cut it: the last 32 bytes are a row whose content is a
  *         whole record.
  *     15. the same shape, with content after the last row, at the append
  *         of a running master: refused, not cut, and the file flagged in

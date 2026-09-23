@@ -2,18 +2,17 @@
  *          test_mark_tm_order.c
  *
  *  tranger2_mark_tm_order(), the migration of a topic written before the
- *  markers, where it does not go all the way (independent review of the
- *  third fix round):
+ *  markers, where it does not go all the way:
  *
  *      1. A failure half way (a md2 file that cannot be read). The topic is
  *         not marked, the markers written stay, and the cells the call had
  *         already widened in memory keep their whole ranges -- which are
- *         true of the disk. The key's TOTALS were left behind: the key said
- *         a narrower range than its own cells. They follow the cells now.
- *      2. A file whose name leaves no room for a marker. The migration
- *         aborted the WHOLE topic on it; the file cannot have a marker, and
- *         every load reads it whole already (e784e9fe6). It is skipped and
- *         logged, and the topic is marked.
+ *         true of the disk. The key's TOTALS follow the cells: the key
+ *         never says a narrower range than its own cells.
+ *      2. A file whose name leaves no room for a marker. It does not abort
+ *         the WHOLE topic: the file cannot have a marker, and every load
+ *         reads it whole already. It is skipped and logged, and the topic
+ *         is marked.
  *
  *  Its cost (linear in the files of a key, where it was quadratic) is
  *  measured outside the suite: the review's repro r_perf.

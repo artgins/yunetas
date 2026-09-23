@@ -3,13 +3,12 @@
  *
  *  A treedb topic whose keys cannot all be read.
  *
- *  treedb loads every topic with keyless tranger2_open_list()s. When one of
- *  them refused the whole list at the first key it could not load
- *  (6d5760377), the topic came up with the keys before it only, no realtime
- *  feed was opened, a master accepted a create that shadowed a stored
- *  record, and an active snap was ignored (independent review of the second
- *  fix round, repro indep2_B/blast). The list loads every readable key again
- *  and names the others; treedb remembers them:
+ *  treedb loads every topic with keyless tranger2_open_list()s. A list is
+ *  not refused at the first key it cannot load (the topic would come up
+ *  with the keys before it only, with no realtime feed, a master would
+ *  accept a create that shadows a stored record, and an active snap would
+ *  be ignored): it loads every readable key and names the others; treedb
+ *  remembers them:
  *
  *      1. the topic loads every key it can read, and its feed is open.
  *      2. a create of an id that did not load is refused; others are not.
@@ -17,11 +16,10 @@
  *         the delete of a node refuse (which snap is active, or holds the
  *         node, is unknown).
  *
- *  The same after a RESTART (independent review of the third fix round,
- *  repro indep3_B/restart): the damage is done with the tranger shut down,
+ *  The same after a RESTART: the damage is done with the tranger shut down,
  *  and the topic's cache is built from the damaged store. The cache build
- *  dropped an unreadable md2, so nothing failed, the registry stayed empty
- *  and every guard was open:
+ *  of 7.25.4 dropped an unreadable md2, so nothing failed, the registry
+ *  stayed empty and every guard was open:
  *      5. the md2 of k2 cannot be read (mode 000),
  *      6. the CONTENT of k2 cut to 0 bytes (it made a node with id ""):
  *         k2 is not in memory, and a create of it is refused.
@@ -32,10 +30,9 @@
  *
  *  But a md2 of 0 rows whose content file is not empty is what an append
  *  that was never acknowledged leaves (the content is written first, the
- *  md2 row after), not damage. Flagging it (200a1791e) made a node with a
- *  good older version DISAPPEAR after a restart and refused its create, or
- *  loaded an old version of it (independent review of the fourth fix round,
- *  repro indep4_A/r_treedb_orphan). The file is ignored with a warning:
+ *  md2 row after), not damage. Flagged, it would make a node with a good
+ *  older version DISAPPEAR after a restart and refuse its create, or load
+ *  an old version of it. The file is ignored with a warning:
  *      4a. k2's newest file is such a file: k2 is in memory with its
  *          previous version, nothing is flagged.
  *      4b. such a file between two good versions of k2: k2 is in memory

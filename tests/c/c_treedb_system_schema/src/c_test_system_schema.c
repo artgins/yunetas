@@ -2296,9 +2296,8 @@ PRIVATE int check_delete_treedb(hgobj gobj)
 
         /*
          *  A saved schema of the treedb goes with its schema: left in
-         *  saved_schemas/, a treedb created again under the name found a
-         *  save of the one deleted (review of the second fix round,
-         *  2026-09-23)
+         *  saved_schemas/, a treedb created again under the name would
+         *  find a save of the one deleted
          */
         char saved_dir[PATH_MAX];
         build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
@@ -3460,9 +3459,8 @@ PRIVATE int check_save_and_apply(hgobj gobj)
 
     /*
      *  Applied, the saved schema IS the file in use: it goes from
-     *  saved_schemas/. Kept, saved-schema went on answering `saved: true`
-     *  with a diff for a schema that was already in use (review of the
-     *  second fix round, 2026-09-23).
+     *  saved_schemas/. Kept, saved-schema would go on answering `saved:
+     *  true` with a diff for a schema that is already in use.
      */
     jn_resp = treedbs_command(gobj, "saved-schema", json_object());
     if(file_exists(saved_file, 0) ||
@@ -3499,9 +3497,9 @@ PRIVATE int check_save_and_apply(hgobj gobj)
 
     /*
      *  The file in use carries no derived `fkey` mark: parse_schema() adds
-     *  one to every column a hook points at, apply-schema parsed the saved
-     *  schema to validate it and wrote the parsed copy (L-3 of the
-     *  2026-09-23 independent review); treedb_open_db() never writes them.
+     *  one to every column a hook points at; apply-schema parses the saved
+     *  schema to validate it and does not write the parsed copy, and
+     *  treedb_open_db() never writes them.
      */
     {
         char in_use_dir[PATH_MAX];
@@ -3566,7 +3564,7 @@ PRIVATE int check_save_and_apply(hgobj gobj)
 
 /***************************************************************************
  *  A saved draft that is REVERTED in the editor is withdrawn by the next
- *  save (M-A of the 2026-09-23 independent review).
+ *  save.
  *
  *  saved-schema diffs the draft against the SAVED schema (it is the newer
  *  one), save-schema against the file IN USE. So after "edit, save, edit
@@ -3692,9 +3690,8 @@ PRIVATE int check_reverted_draft_withdraws_the_save(hgobj gobj)
     /*
      *  The withdraw leaves __system__ at the number of the save (it never
      *  goes down). A literal that IS the file in use (its version, its
-     *  content) must not be told "behind the schema in use" at every open
-     *  (review of the second fix round, 2026-09-23). The expected log list
-     *  pins that nothing is said.
+     *  content) must not be told "behind the schema in use" at every open.
+     *  The expected log list pins that nothing is said.
      */
     {
         char in_use_dir[PATH_MAX];
@@ -3711,11 +3708,10 @@ PRIVATE int check_reverted_draft_withdraws_the_save(hgobj gobj)
 }
 
 /***************************************************************************
- *  A column MOVED in the draft reads as a change in saved-schema's diff
- *  (review of the second fix round, 2026-09-23). The order of the columns
- *  is part of a schema -- the order a table paints them in -- and the diff
- *  keyed them by name: a save that only moved a column showed the versions
- *  raised and nothing else.
+ *  A column MOVED in the draft reads as a change in saved-schema's diff.
+ *  The order of the columns is part of a schema -- the order a table
+ *  paints them in -- and a diff keyed by name alone would show a save that
+ *  only moved a column as the versions raised and nothing else.
  ***************************************************************************/
 PRIVATE int set_draft_col_order(hgobj gobj, const char *col_name, json_t *order) // owned
 {
@@ -3803,15 +3799,14 @@ PRIVATE int check_reorder_reads_as_a_change(hgobj gobj)
 
 /***************************************************************************
  *  A `required` container column declared WITHOUT a default stays required
- *  through save + apply (review of the second fix round, 2026-09-23: revert
- *  of L-2, b6f66cdf8).
+ *  through save + apply.
  *
  *  The meta-schema stores `{}` for a column that declares no default (the
  *  attribute is a blob), and it cannot tell that `{}` from a `default: {}`
- *  the author wrote. b6f66cdf8 kept `{}` on every required column, so a
- *  required dict/list/array/blob column with NO default came out of save +
+ *  the author wrote. Kept on a required column, that `{}` would make a
+ *  required dict/list/array/blob column with NO default come out of save +
  *  apply with `default: {}` -- and a default fills the field, so `required`
- *  never refused a record again. The placeholder is dropped again, on every
+ *  would never refuse a record again. The placeholder is dropped, on every
  *  column. The trade-off, pinned here too: a required column that really
  *  declared `default: {}` loses it through save + apply.
  ***************************************************************************/
@@ -3905,9 +3900,8 @@ PRIVATE int check_required_default_placeholder_dropped(hgobj gobj)
     }
     /*
      *  Two columns ADDED, none moved: the order of the columns that were
-     *  already there did not change, and there is no order row (L4 of the
-     *  third independent review, 2026-09-23: every added or removed column
-     *  read as a moved one too)
+     *  already there did not change, and there is no order row: an added
+     *  or removed column is not a moved one
      */
     if(json_object_get(kw_get_dict(gobj, jn_resp, "data`diff`changed", 0, 0),
                 "topics`users`__cols_order__") ||
@@ -3965,10 +3959,9 @@ PRIVATE int check_required_default_placeholder_dropped(hgobj gobj)
 
 /***************************************************************************
  *  A literal with the version of the file in use and the SAME schema,
- *  written with its cols as a LIST, is not "another content" (L-6 of the
- *  2026-09-23 independent review). The file apply-schema wrote keys them
- *  by name; compared as they were written, every open of such a literal
- *  said "another content: NOT applied".
+ *  written with its cols as a LIST, is not "another content". The file
+ *  apply-schema writes keys them by name; compared as they are written,
+ *  every open of such a literal would say "another content: NOT applied".
  ***************************************************************************/
 PRIVATE int check_same_schema_other_form_is_quiet(hgobj gobj)
 {
@@ -4216,8 +4209,8 @@ PRIVATE int check_takeover_is_whole(hgobj gobj)
 
     /*
      *  The literal (in_use_v + 1) is older than the save (saved_v): taking
-     *  the missing file over, it wrote ITS number into __system__, which
-     *  never goes down (review of the second fix round, 2026-09-23)
+     *  the missing file over, it writes ITS number into __system__, which
+     *  never goes down
      */
     /*  ...and the save, newer than the literal, was made against the file
      *  that is gone: withdrawn, never applicable over the literal  */
@@ -4325,7 +4318,7 @@ PRIVATE int check_ordinary_literal_follows_the_file(hgobj gobj)
      *  The file the operator's save was published against is gone: the save
      *  is withdrawn. The drafts of the topics the literal did not raise are
      *  still in __system__, and the next save publishes them against the new
-     *  file (review of the second fix round, 2026-09-23)
+     *  file
      */
     if(file_exists(saved_dir, TREEDB_NAME ".treedb_schema.json")) {
         result += save_fail(gobj, "TEST FAIL: a literal installed over the file left the save made against it", NULL);
@@ -4333,8 +4326,7 @@ PRIVATE int check_ordinary_literal_follows_the_file(hgobj gobj)
 
     /*
      *  ...and the API says so, not only the log: the saved schema it
-     *  withdrew and the topic whose saved draft it replaced (L1 of the third
-     *  independent review, 2026-09-23)
+     *  withdrew and the topic whose saved draft it replaced
      */
     {
         json_t *jn_saved = treedbs_command(gobj, "saved-schema", json_object());
@@ -4369,8 +4361,7 @@ PRIVATE int check_ordinary_literal_follows_the_file(hgobj gobj)
 }
 
 /***************************************************************************
- *  Helpers of the third independent review (2026-09-23): an edit of one
- *  column of the draft, a literal that raises one topic, and what the FILE
+ *  Helpers: an edit of one column of the draft, a literal that raises one topic, and what the FILE
  *  in use says of a column.
  ***************************************************************************/
 PRIVATE int set_draft_col_header(hgobj gobj, const char *topic_name, const char *col_name,
@@ -4512,8 +4503,8 @@ PRIVATE int check_col_agrees(hgobj gobj, const char *label, const char *topic_na
  *       runs: `users` goes on running what it ran BEFORE the apply, and the
  *       file and __system__ say that too.
  *
- *  For three fix rounds the file kept the applied topic in these cases
- *  (a per-topic merge), which built schemas nobody wrote.
+ *  The file does not keep the applied topic in these cases: a per-topic
+ *  merge would build schemas nobody wrote.
  ***************************************************************************/
 PRIVATE int check_unopened_apply_withdrawn_by_a_literal(hgobj gobj)
 {
@@ -4650,13 +4641,11 @@ PRIVATE json_t *treedbs_row_withdrawn_at_open(hgobj gobj)
 
 /***************************************************************************
  *  A draft a literal replaces at open is SAID, and through the API, not
- *  only in the log (L1-L3 of the third independent review, 2026-09-23):
+ *  only in the log:
  *
- *    unsaved   an edit never saved, of a topic the literal raises: it was
- *              dropped with no word at all;
+ *    unsaved   an edit never saved, of a topic the literal raises;
  *    withdrawn a save taken back (the draft is the file again): nothing is
- *              replaced, and nothing is said -- it was told "replaces its
- *              saved draft";
+ *              replaced, and nothing is said;
  *    applied   an apply not opened yet, of a topic the literal raises past
  *              it: the literal runs, and the apply is said to be replaced.
  *
@@ -4784,9 +4773,8 @@ PRIVATE int check_replaced_drafts_are_said(hgobj gobj)
  *  __system__'s tranger LOST its lock (another process took its store
  *  while it was stopped): timeranger2 leaves it a replica, `master` false
  *  in its json. C_TREEDB must use and report THAT, not its `master`
- *  attribute (M3 of the 2026-09-23 independent review): delete-treedb
- *  asked the attribute and went on writing __system__. The json state a
- *  lost lock leaves is set here by hand.
+ *  attribute: a delete-treedb that asks the attribute goes on writing
+ *  __system__. The json state a lost lock leaves is set here by hand.
  ***************************************************************************/
 PRIVATE int check_lost_system_lock(hgobj gobj)
 {
@@ -4840,10 +4828,10 @@ PRIVATE int check_lost_system_lock(hgobj gobj)
  *  Between a STOP of C_TREEDB and its next start, the __system__ tranger is
  *  stopped: tranger2_stop() gave its lock back, and its `master` still says
  *  what it was until something revives it (the first write or topic open,
- *  which is the start). The prechecks read that stale TRUE (review of the
- *  second fix round, 2026-09-23): save-schema and delete-treedb went on to
- *  a __system__ whose treedb is closed, and `treedbs` reported it master.
- *  What they read now is what the tranger holds: nothing, it is stopped.
+ *  which is the start). The prechecks do not read that stale TRUE: with it,
+ *  save-schema and delete-treedb would go on to a __system__ whose treedb
+ *  is closed, and `treedbs` would report it master. What they read is what
+ *  the tranger holds: nothing, it is stopped.
  ***************************************************************************/
 PRIVATE int check_stopped_system_is_not_master(hgobj gobj)
 {

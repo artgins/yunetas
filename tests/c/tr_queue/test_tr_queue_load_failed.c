@@ -8,20 +8,19 @@
  *  and SAVE it to topic_var.json: the next load starts there. When the
  *  load failed, no message was loaded, first_rowid stayed 0, was set to
  *  the size of the topic and saved: the pending messages were skipped for
- *  ever, even after the store was repaired (independent review of the
- *  third fix round, pre-existing).
+ *  ever, even after the store was repaired (so in 7.25.4).
  *
  *  The md2 of the queue's key is cut behind the running tranger's back,
  *  the queue is loaded (the load fails), the md2 is put back, and the
  *  queue is loaded again after a restart: every pending message must be
  *  there.
  *
- *  Nor must the periodic backup undo that (independent review of the
- *  fourth fix round): after the failed load the queue holds no message,
- *  and c_qiogate / c_prot_mqtt2 call trq_check_backup() / tr2q_check_backup()
- *  exactly then. The backup re-created the topic EMPTY and reset
- *  first_rowid: the pending messages were gone from the queue for good. A
- *  queue whose last load failed refuses its backup, and says so once.
+ *  Nor must the periodic backup undo that: after the failed load the queue
+ *  holds no message, and c_qiogate / c_prot_mqtt2 call trq_check_backup() /
+ *  tr2q_check_backup() exactly then. A backup would re-create the topic
+ *  EMPTY and reset first_rowid: the pending messages would be gone from
+ *  the queue for good. A queue whose last load failed refuses its backup,
+ *  and says so once.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

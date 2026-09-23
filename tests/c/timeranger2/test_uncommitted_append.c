@@ -6,11 +6,10 @@
  *  process is killed, the power goes), the append was never acknowledged,
  *  and the file keeps a content that no row names.
  *
- *  The cache build of 200a1791e took "a md2 of 0 rows with a content file
- *  that is not empty" for a damaged key and flagged it (independent review
- *  of the fourth fix round, repros indep4_A/r_orphan): a forward load
- *  stopped there and hid the acknowledged rows of the later files, a treedb
- *  node with good older rows disappeared, and the flag was never cleared.
+ *  "A md2 of 0 rows with a content file that is not empty" is not a
+ *  damaged key. Flagged, a forward load would stop there and hide the
+ *  acknowledged rows of the later files, a treedb node with good older
+ *  rows would disappear, and the flag would never be cleared.
  *
  *  Key A has rows in four daily files (days 0..3), key B one.
  *
@@ -504,9 +503,8 @@ PRIVATE int test_flag_cleared(void)
  *
  *  C_TRANGER and C_TREEDB run their tranger with on_critical_error=2
  *  (LOG_OPT_EXIT_ZERO): gobj_log_critical() exits inside the log call. The
- *  rollback came after that call, so with the default it never ran and the
- *  content of the refused append stayed on disk (independent review of the
- *  fifth fix round, repro indep5_A/r_exit_rollback). It runs before now.
+ *  rollback runs BEFORE that call: after it, with the default, it would
+ *  never run, and the content of the refused append would stay on disk.
  ***************************************************************************/
 PRIVATE int test_rollback_before_exit(void)
 {

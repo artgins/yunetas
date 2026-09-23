@@ -15,8 +15,7 @@
  *        cache loses the key, and a feed may close itself from the callback.
  *      - do_test_cache_cleared:       topic.cache rollup loses the entry.
  *      - do_test_rmrdir_fails:        a key whose directory cannot be removed
- *        is NOT announced deleted: the notices went out before the rmrdir
- *        (independent review of the second fix round).
+ *        is NOT announced deleted: the notices go out after the rmrdir.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

@@ -4031,7 +4031,7 @@ PRIVATE void add_unfinished_topic(
  *      - a topic or column the tree of the treedb no longer reaches (an
  *        unlink, see orphan_nodes) is TAKEN when `kw` declares it --
  *        written as `kw` says and linked again -- and deleted when it
- *        does not. Created anew, it failed at every open.
+ *        does not. Created anew, it would fail at every open.
  *
  *  That is the rule the user decided on 2026-09-23 for a literal that wins
  *  (see reconcile_treedb_schema): it replaces the schema file whole, and
@@ -4137,7 +4137,7 @@ PRIVATE int upsert_treedb_schema(
      *  The nodes of the treedb its tree does not reach (orphan_nodes): one
      *  the schema declares is TAKEN, written as the schema says and linked
      *  again, and the rest go below, as anything else the schema does not
-     *  declare. Created anew, the node failed at every open ("Node already
+     *  declare. Created anew, it would fail at every open ("Node already
      *  exists"). One that is the operator's work (`draft_ids`) is said, as
      *  "unsaved": no save carries a node that is in no topic.
      */
@@ -4256,8 +4256,8 @@ PRIVATE int upsert_treedb_schema(
             /*
              *  The rewrite is asked FIRST: it is what clears in `kw_topic`
              *  an attribute the topic has and the schema does not declare,
-             *  and asked after the columns it was skipped whenever they
-             *  changed
+             *  and asked after the columns it would be skipped whenever
+             *  they change
              */
             BOOL topic_rewrites = projection_rewrites_node(
                 gobj, kw_topic, current_topic, schema_topic_skip, NULL
