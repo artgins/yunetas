@@ -108,6 +108,18 @@ typedef struct { // Size: 32 bytes — fields are big-endian on disk
 #define TORN_TAIL_NOT_CUT       (-1)    // the check found a tail that must not be cut
 #define TORN_TAIL_NOT_CHECKED   (-2)    // the check could not run: a file or memory failure
 
+/*
+ *  What md2_row_content_is_whole() returns (-1 when the check cannot run)
+ */
+#define CONTENT_NOT_WHOLE       0
+#define CONTENT_WHOLE           1
+#define CONTENT_TOO_LARGE       2   // it can be whole, it is too large to parse here
+
+/*
+ *  The part of a content read at a time when it is too large to read whole
+ */
+#define CONTENT_SCAN_PART       (64*1024)
+
 static inline uint16_t get_user_flag(const md2_record_t *md_record) {
     return (uint16_t )((md_record->__t__ & USER_FLAG_MASK) >> 44);
 }
@@ -805,10 +817,9 @@ PRIVATE void revive_stopped_tranger(hgobj gobj, json_t *tranger)
 /***************************************************************************
  *  May this tranger write? Asked by every write path BEFORE it writes: a
  *  stopped master takes its lock again first (revive_stopped_tranger), and
- *  the answer is what it holds NOW. It was read from the `master` of the
- *  stop, and tranger2_create_topic() wrote the topic files into the store
- *  of the process that had taken it meanwhile (M3 of the 2026-09-23
- *  independent review).
+ *  the answer is what it holds NOW. (7.25.4: it was read from the
+ *  `master` of the stop, and tranger2_create_topic() wrote the topic files
+ *  into the store of the process that had taken it meanwhile.)
  ***************************************************************************/
 PRIVATE BOOL tranger_is_master(hgobj gobj, json_t *tranger)
 {
@@ -2501,8 +2512,8 @@ PUBLIC int tranger2_write_topic_var(
     /*
      *  Through a temporary file and a rename, never in place: this runs on
      *  every create of a rowid-key node (treedb's `last_rowid_id`), and a
-     *  process that died between the truncate and the write left the file
-     *  empty (M4 of the 2026-09-23 independent review). Not fsync'ed: see
+     *  process that dies between a truncate and a write leaves the file
+     *  empty (7.25.4 wrote it in place). Not fsync'ed: see
      *  replace_topic_var.
      */
     return replace_topic_var(gobj, tranger, directory, topic_name, topic_var, FALSE);
@@ -3632,9 +3643,11 @@ PUBLIC int tranger2_append_record(
          *  as the open flags it (flag_file_unreadable_at_append). If the
          *  check cannot run (a file or memory failure), the append is
          *  refused and the file is NOT flagged: the check found nothing,
-         *  and the next append checks again. If the cut fails, the append
-         *  is refused; the whole rows stay readable, and the next append
-         *  tries the cut again.
+         *  and the next append checks again (with the exit bit of
+         *  on_critical_error, the default, the refusal ends the yuno, and
+         *  the next start checks the file at its open). If the cut fails,
+         *  the append is refused; the whole rows stay readable, and the
+         *  next append tries the cut again.
          */
         off_t torn = offset % (off_t)sizeof(md2_record_t);
         if(torn != 0) {
@@ -6675,9 +6688,9 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
      *  a batch that touched two files of a key -- a late record and a
      *  current one, or a plain rotation while the follower was busy --
      *  reseeded a feed's mark on the second file before that feed had read
-     *  the first: it lost the records of BOTH (M18 of the 2026-09-21
-     *  review). Only a MISSING mark is seeded, and never over another
-     *  file's. Presence is what says "seeded" -- a rowid of 0 is legit (a
+     *  the first: it lost the records of BOTH. Only a MISSING mark is
+     *  seeded, and never over another file's. Presence is what says
+     *  "seeded" -- a rowid of 0 is legit (a
      *  batch starting at rowid 1: a brand-new key, or a fresh file). The
      *  marks of a key are no more than its cells, and go with the key.
      */
@@ -7157,8 +7170,7 @@ PRIVATE json_t *find_cache_cell(
      *  current file) or after which it goes (a new one). Its base is the
      *  key's total minus its own rows, so neither case walks the cells.
      *  The walk below, from the first cell, cost O(files of the key) on
-     *  every append -- 3.7 us at one file, 318 us at 3650 (M17 of the
-     *  2026-09-21 review).
+     *  every append -- 3.7 us at one file, 318 us at 3650.
      */
     size_t n_cells = json_array_size(cache_files);
     if(n_cells > 0) {
@@ -7708,11 +7720,10 @@ PRIVATE json_t *load_cache_cell_from_disk(
     /*
      *  The first and the last row give the file's range only while its rows
      *  are in time order. A late record (a __t__ below the file's to_t) is
-     *  the LAST row with a lower time, and the range read from it hid the
-     *  file from time-range queries (M16 of the 2026-09-21 review); a __tm__
-     *  that goes back hid it from tm queries (M2 of the 2026-09-23
-     *  independent review). The master marks such a file
-     *  (mark_file_unordered); a marked one is read whole -- 32 bytes a row,
+     *  the LAST row with a lower time, and the range read from it hides the
+     *  file from time-range queries; a __tm__ that goes back hides it from
+     *  tm queries (7.25.4 did not mark that one). The master marks such a
+     *  file (mark_file_unordered); a marked one is read whole -- 32 bytes a row,
      *  sequentially -- and only that one.
      */
     char marker[NAME_MAX];
@@ -7747,9 +7758,9 @@ PRIVATE json_t *load_cache_cell_from_disk(
         /*
          *  The rows already read need no second reading: a follower wakes
          *  up on every append of the master, and read the marked file WHOLE
-         *  each time (N12 of the 2026-09-22 review). A cell flagged in memory
-         *  holds the range of every row it counted (it was read whole); only
-         *  the rows after them are read, and the two ranges are joined.
+         *  each time. A cell flagged in memory holds the range of every row
+         *  it counted (it was read whole); only the rows after them are
+         *  read, and the two ranges are joined.
          */
         json_int_t from_row = 1;
         if(known_cell && (json_is_true(json_object_get(known_cell, "unordered")) ||
@@ -8099,14 +8110,89 @@ PRIVATE int read_md2_row(
 }
 
 /***************************************************************************
+ *  Read `size` bytes of the content at `offset` in parts, with no block of
+ *  their size. Set `*pnul` when one of them is a NUL, `*pnonzero` when one
+ *  is not. The read stops when a NUL is found and, with `zeros` (the
+ *  question is whether every byte is 0), a byte that is not 0 too.
+ *
+ *  Return 0, or -1 (a CRITICAL logged) when the content file cannot be
+ *  read, or no memory.
+ ***************************************************************************/
+PRIVATE int scan_content_in_parts(
+    hgobj gobj,
+    int content_fd,
+    const char *content_path,
+    uint64_t offset,
+    uint64_t size,
+    BOOL zeros,
+    BOOL *pnul,
+    BOOL *pnonzero
+)
+{
+    *pnul = FALSE;
+    *pnonzero = FALSE;
+
+    size_t part = CONTENT_SCAN_PART;
+    if(part > gbmem_get_maximum_block()) {
+        part = gbmem_get_maximum_block();
+    }
+    if(part > size) {
+        part = (size_t)size;
+    }
+    char *p = gbmem_malloc(part);
+    if(!p) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "Cannot check the torn tail of a md2 file, no memory to read a content: not cut",
+            "path",         "%s", content_path,
+            "size",         "%lu", (unsigned long)part,
+            NULL
+        );
+        return -1;
+    }
+
+    uint64_t done = 0;
+    while(done < size) {
+        size_t want = (size - done < part)? (size_t)(size - done): part;
+        ssize_t ln = pread(content_fd, p, want, (off_t)(offset + done));
+        if(ln != (ssize_t)want) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot check the torn tail of a md2 file, its content file cannot be read: not cut",
+                "path",         "%s", content_path,
+                "offset",       "%lu", (unsigned long)(offset + done),
+                "read",         "%ld", (long)ln,
+                "errno",        "%d", ln < 0? errno: 0,
+                "serrno",       "%s", ln < 0? strerror(errno): "short read",
+                NULL
+            );
+            gbmem_free(p);
+            return -1;
+        }
+        for(size_t i = 0; i < want; i++) {
+            if(p[i] == 0) {
+                *pnul = TRUE;
+            } else {
+                *pnonzero = TRUE;
+            }
+        }
+        done += want;
+        if(*pnul && (!zeros || *pnonzero)) {
+            break;
+        }
+    }
+    gbmem_free(p);
+    return 0;
+}
+
+/***************************************************************************
  *  Is the content that `row` names WHOLE: what an append wrote for it?
  *  An append writes the text of a json value and one NUL after it (see
  *  tranger2_append_record: json_dumps() and __size__ = its length + 1), so
  *  the content is whole when:
  *    - it is inside the content file (up to `content_size`), and
- *    - it is not larger than the largest memory block: json_dumps() makes
- *      the text of a record in one block, so no append of this process
- *      wrote a larger one, and no read of it could read one, and
  *    - its last byte is the NUL, no other byte is a NUL, and the bytes
  *      before the NUL are one json value, read with the flags of a read
  *      of a record (RECORD_LOAD_FLAGS), or
@@ -8116,8 +8202,18 @@ PRIVATE int read_md2_row(
  *  writes no other content. If they are implemented, this check must know
  *  their content too.
  *
- *  Return 1 when whole, 0 when not, -1 (a CRITICAL logged) when the check
- *  cannot run: the content file cannot be read, or no memory.
+ *  A content larger than the largest memory block of this process cannot
+ *  be parsed here. MEM_MAX_BLOCK is set per yuno, and the yuno that wrote
+ *  the content can have a larger one, so the size alone does not say that
+ *  it is not a record. Its bytes are read in parts: a NUL before its last
+ *  byte says that it is not whole (and, for a deleted instance, a byte
+ *  that is not 0), with no block of its size. When its only NUL is the
+ *  last byte, the check cannot tell: CONTENT_TOO_LARGE, and the caller
+ *  does not cut on it.
+ *
+ *  Return CONTENT_WHOLE, CONTENT_NOT_WHOLE, CONTENT_TOO_LARGE, or -1 (a
+ *  CRITICAL logged) when the check cannot run: the content file cannot be
+ *  read, or no memory.
  ***************************************************************************/
 PRIVATE int md2_row_content_is_whole(
     hgobj gobj,
@@ -8130,9 +8226,8 @@ PRIVATE int md2_row_content_is_whole(
 {
     if(row->__size__ < 2 ||
             row->__offset__ > content_size ||
-            row->__size__ > content_size - row->__offset__ ||
-            row->__size__ > gbmem_get_maximum_block()) {
-        return 0;
+            row->__size__ > content_size - row->__offset__) {
+        return CONTENT_NOT_WHOLE;
     }
 
     /*
@@ -8157,7 +8252,25 @@ PRIVATE int md2_row_content_is_whole(
         return -1;
     }
     if(last != 0) {
-        return 0;
+        return CONTENT_NOT_WHOLE;
+    }
+
+    if(row->__size__ > gbmem_get_maximum_block()) {
+        BOOL deleted = (system_flag & sf_deleted_instance)? TRUE: FALSE;
+        BOOL nul;
+        BOOL nonzero;
+        if(scan_content_in_parts(
+                gobj, content_fd, content_path, row->__offset__, row->__size__ - 1,
+                deleted, &nul, &nonzero) < 0) {
+            return -1;  // Error already logged
+        }
+        if(!nul) {
+            return CONTENT_TOO_LARGE;
+        }
+        if(deleted && !nonzero) {
+            return CONTENT_WHOLE;
+        }
+        return CONTENT_NOT_WHOLE;
     }
 
     char *p = gbmem_malloc(row->__size__);
@@ -8189,19 +8302,19 @@ PRIVATE int md2_row_content_is_whole(
         return -1;
     }
 
-    int whole = 0;
+    int whole = CONTENT_NOT_WHOLE;
     if(!memchr(p, 0, row->__size__ - 1)) {
         json_error_t error;
         json_t *jn = json_loadb(p, row->__size__ - 1, RECORD_LOAD_FLAGS, &error);
         if(jn) {
-            whole = 1;
+            whole = CONTENT_WHOLE;
             JSON_DECREF(jn)
         }
     } else if(system_flag & sf_deleted_instance) {
-        whole = 1;
+        whole = CONTENT_WHOLE;
         for(uint64_t i = 0; i < row->__size__; i++) {
             if(p[i] != 0) {
-                whole = 0;
+                whole = CONTENT_NOT_WHOLE;
                 break;
             }
         }
@@ -8252,8 +8365,10 @@ PRIVATE int check_torn_md2_rows(
         if(whole < 0) {
             return TORN_TAIL_NOT_CHECKED;  // Error already logged
         }
-        if(whole) {
+        if(whole == CONTENT_WHOLE) {
             end_cause = "its content is a whole record of the content file";
+        } else if(whole == CONTENT_TOO_LARGE) {
+            end_cause = "its content has no NUL but the one at its end, and is larger than the largest memory block of this process: it can be a record written by a yuno with a larger block";
         }
     }
     if(end_cause) {
@@ -8295,7 +8410,9 @@ PRIVATE int check_torn_md2_rows(
     if(whole < 0) {
         return TORN_TAIL_NOT_CHECKED;  // Error already logged
     }
-    if(!whole) {
+    if(whole == CONTENT_TOO_LARGE) {
+        cause = "its content is larger than the largest memory block of this process: it cannot be checked";
+    } else if(whole == CONTENT_NOT_WHOLE) {
         if(last_row.__size__ == 0 ||
                 last_row.__offset__ > content_size ||
                 last_row.__size__ > content_size - last_row.__offset__) {
@@ -8315,7 +8432,11 @@ PRIVATE int check_torn_md2_rows(
         if(whole < 0) {
             return TORN_TAIL_NOT_CHECKED;  // Error already logged
         }
-        if(!whole) {
+        if(whole == CONTENT_TOO_LARGE) {
+            cause = "the content of the whole row before it is larger than the largest memory block of this process: it cannot be checked";
+            bad_at = last_at - row_size;
+            bad_row = &prev_row;
+        } else if(whole == CONTENT_NOT_WHOLE) {
             cause = "the whole row before it is not a good row";
             bad_at = last_at - row_size;
             bad_row = &prev_row;
@@ -8386,7 +8507,11 @@ PRIVATE int check_torn_md2_rows(
  *  and acknowledged. Its content was written before it, with the same
  *  bytes as now (json text and a NUL): it is whole, wherever the content
  *  file ends. Content that no row names after it does not change that.
- *  Only a content damaged since (its bytes changed) lets such a file reach rule 2.
+ *  When E's content is larger than the largest memory block of the
+ *  process that checks (MEM_MAX_BLOCK is set per yuno, and the writer's
+ *  can be larger), it cannot be parsed; its only NUL is its last byte,
+ *  and that is enough to not cut: rule 1 fails for it too. Only a content
+ *  damaged since (its bytes changed) lets such a file reach rule 2.
  *
  *  Why 1 holds for a torn row. With k torn bytes, E is the last 32-k bytes
  *  of the last whole row, then the first k bytes of the torn row. Its
@@ -8396,9 +8521,11 @@ PRIVATE int check_torn_md2_rows(
  *  with its flags) are in one of them. For E's content to be whole, those
  *  moved bytes must name, to the byte, one record of the content file: its
  *  first byte, its NUL, and no other NUL between them. A span that starts
- *  inside a record, or crosses the NUL of one, is not whole. So a torn row
- *  is taken for the 7.25.4 shape only by a coincidence of 64-bit values,
- *  and then the file is flagged, not cut: the safe side.
+ *  inside a record, or crosses the NUL of one, is not whole. A span
+ *  larger than the largest memory block is read in parts to find such a
+ *  NUL, with no block of its size. So a torn row is taken for the 7.25.4
+ *  shape only by a coincidence of 64-bit values, and then the file is
+ *  flagged, not cut: the safe side.
  *
  *  Why 2 does not pass for a file 7.25.4 left (when its E was damaged).
  *  L and P are then rows moved by k bytes too, the same as E of a torn
@@ -8414,6 +8541,9 @@ PRIVATE int check_torn_md2_rows(
  *  only grows, and an append writes its content at its end). A row whose
  *  content was damaged fails rule 2, and the file is flagged: its rows
  *  would fail to read too, and it is repaired by hand.
+ *
+ *  A row whose content is too large to parse here (L, P) is not taken for
+ *  a good row: the file is flagged, not cut.
  *
  *  The content is read only here, on a md2 that is not a whole number of
  *  rows: at most three records.
@@ -10008,7 +10138,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
      *  taken at the open and the appends since then are in none of them,
      *  while total_rows below is the live count: a page past the count of
      *  the open came back empty, and a client reading newest first missed
-     *  the newest rows (N4 of the 2026-09-22 review). Taken again from the
+     *  the newest rows. Taken again from the
      *  cache, which every append keeps current -- but only when the key's
      *  cache moved since they were taken: get_segments() deep-copies every
      *  cell of the key, and a client paging an idle key paid it per page.
@@ -10188,8 +10318,8 @@ PRIVATE json_t *key_cache_stamp(json_t *topic, const char *key)
  *  The key was deleted: what its iterators took from its cache names rows
  *  that are gone. The stamp above does not see it when the key is written
  *  again with the same numbers and its rows spread another way over its
- *  files, and a page read the new files with the old segments (L1 of the
- *  2026-09-23 independent review). So an unfiltered iterator loses its
+ *  files, and a page then reads the new files with the old segments
+ *  (7.25.4 did). So an unfiltered iterator loses its
  *  segments and its stamp, and takes them again at its next page; a
  *  filtered one loses its index -- the rows it indexed do not exist any
  *  more, and an index is built only at the open.

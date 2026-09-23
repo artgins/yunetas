@@ -865,6 +865,9 @@ Returns 0 on success, or a negative error code if the deletion fails.
 
 If the node has existing links and 'force' is not enabled, [`treedb_delete_node()`](<#treedb_delete_node>) will fail.
 
+With `force`, a child whose unlink cannot be saved stays linked, and the
+delete is refused (see [`treedb_link_nodes()`](<#treedb_link_nodes>)).
+
 A node that a snapshot holds a record of is refused (*"cannot delete node, a
 snapshot still holds it"*) unless `ignore_snaps` is given. **`force` does not
 override that** (since 7.25.0): `force` means "unlink the
@@ -1372,6 +1375,21 @@ treedb_link_nodes(tranger, "departments", sales, admin);    // -1
  *  direction still hooks it, sales does not, no event was told            */
 ```
 
+A forced delete whose child cannot be saved unlinked is refused. The child
+stays linked, in memory and on disk, and the delete logs *"Cannot delete node:
+still has down links"*:
+
+```C
+/*  the files of the key of `admin` are read-only; admin hangs from direction  */
+treedb_delete_node(tranger, direction, json_pack("{s:b}", "force", 1));    // -1
+/*  direction is not deleted, admin still hangs from it                    */
+```
+
+When memory cannot be taken back whole (a parent hook cannot be restored),
+an ERROR says so: *"A write that did not reach the disk could not be taken
+back whole in memory: the links in memory differ from the disk until the
+treedb is opened again"*.
+
 ---
 
 (treedb_list_instances)=
@@ -1782,7 +1800,12 @@ file do not change, and the key fails (a replica makes the same check):
   ```
 
   With content after that row, the `cause` is *"its content is a whole record
-  of the content file"*.
+  of the content file"*. When the record is larger than the largest memory
+  block of the yuno that checks (`MEM_MAX_BLOCK` is set for each yuno, and
+  the writer's can be larger), it cannot be parsed, and the `cause` is *"its
+  content has no NUL but the one at its end, and is larger than the largest
+  memory block of this process: it can be a record written by a yuno with a
+  larger block"*: not cut either.
 
 - a `.md2` whose last whole row, or the whole row before it, is not good:
 
@@ -1795,14 +1818,27 @@ file do not change, and the key fails (a replica makes the same check):
   ```
 
   The `cause` is one of *"its content is not inside the content file"*, *"its
-  content is not a record"*, *"the whole row before it is not a good row"*
-  (then `row_at` is that row) and *"its content starts before the end of the
+  content is not a record"*, *"its content is larger than the largest memory
+  block of this process: it cannot be checked"*, *"the whole row before it is
+  not a good row"*, *"the content of the whole row before it is larger than
+  the largest memory block of this process: it cannot be checked"* (for these
+  two, `row_at` is that row) and *"its content starts before the end of the
   content of the row before it"*.
 
-When the check itself cannot run (the `.json` cannot be opened or read), the
-CRITICAL is *"Cannot check the torn tail of a md2 file, its content file
-cannot be read: not cut"*, with the `path` of the `.json`: the file is not
-cut, and the open flags it until an append can check it.
+When the check itself cannot run, the file is not cut, and the CRITICAL is
+one of three:
+
+- *"Cannot check the torn tail of a md2 file, its content file cannot be
+  read: not cut"*: the `.json` cannot be opened or read (its `path`);
+- *"Cannot check the torn tail of a md2 file, no memory to read a content:
+  not cut"* (the `path` of the `.json`, the `size`);
+- *"Cannot read a record of md2 file, read FAILED"* or *"Cannot read a record
+  of md2 file, short read"*: a row of the `.md2` cannot be read (its `path`,
+  the `row`, its `offset`).
+
+The open flags the file. On a master, the next append into the file counts
+it again, and the check runs then. On a replica, the file is counted again
+at the next notification of it from the master.
 
 A `.md2` of 0 bytes whose `.json` is NOT empty does not fail the key. It is
 the shape an append that was never acknowledged leaves: the content is
@@ -1903,13 +1939,19 @@ a tagged record):
      and the first one is not always the torn row. The `.json` can have
      content after the last row (an append killed between its two writes):
      the script accepts it. It writes the result only when exactly one
-     boundary passes. Keep a copy, and write the result back into the same
-     file (`cat >` keeps its owner and mode):
+     boundary passes. It checks each row twice at most, whatever the number
+     of boundaries (a file of 86 400 rows takes less than one second). Keep
+     a copy, and write the result back into the same file (`cat >` keeps its
+     owner and mode). The block runs in a subshell with `set -e`: when a
+     command fails, the copy first of all, the block stops there and the
+     `.md2` does not change:
 
      ```bash
+     (
+     set -e                                    # stop at the first command that fails
      cd <store>/items/keys/k2                  # topic, key and file: from the log
      f=2026-09-23.md2
-     cp -p $f ~/$f.orig                        # keep the original: STOP if this fails
+     cp -p $f ~/$f.orig                        # keep the original
      rm -f $f.new                              # no .new of an earlier try
      python3 - $f <<'EOF'
      import os, struct, sys
@@ -1917,6 +1959,7 @@ a tagged record):
      c = open(md2[:-4] + '.json', 'rb').read()
      b = open(md2, 'rb').read()
      k = len(b) % 32                           # the bytes of the torn row
+     rows = len(b) // 32                       # the whole rows, with the torn bytes removed
      def whole(tm, offset, size):              # the content an append wrote
          if size < 2 or offset + size > len(c):
              return False
@@ -1925,14 +1968,20 @@ a tagged record):
              return False
          zeros = seg.count(0)                  # a NUL at the end, no other
          return zeros == 1 or (zeros == size and ((tm >> 44) & 0x400) != 0)
-     def good(rows):
-         end = 0                               # where the content of the row before ends
-         for at in range(0, len(rows), 32):
-             t, tm, offset, size = struct.unpack('>QQQQ', rows[at:at+32])
-             if offset < end or not whole(tm, offset, size):
-                 return False
-             end = offset + size
-         return True
+     def row(at):                              # its offset, its size, is its content whole
+         t, tm, offset, size = struct.unpack('>QQQQ', b[at:at + 32])
+         return offset, size, whole(tm, offset, size)
+     left = [row(32 * j) for j in range(rows)]  # rows before the torn row: on a boundary
+     right = [row(k + 32 * j) for j in range(rows)]  # rows after it: moved by k bytes
+     head = [True]                             # head[m]: left[:m] are good, in order
+     ends = [0]                                # ends[m]: where the content of left[m-1] ends
+     for offset, size, ok in left:
+         head.append(head[-1] and ok and offset >= ends[-1])
+         ends.append(offset + size)
+     tail = [True] * (rows + 1)                # tail[m]: right[m:] are good, in order
+     for m in range(rows - 1, -1, -1):
+         offset, size, ok = right[m]
+         tail[m] = tail[m + 1] and ok and (m + 1 == rows or right[m + 1][0] >= offset + size)
      def fits(at):                             # the removed bytes start the torn row
          r = b[at:at + k]
          if k < 17 or r.count(0) == k:         # no byte of its __offset__, or only zeros
@@ -1946,14 +1995,18 @@ a tagged record):
              end = offset + size
          t, tm, after, size = struct.unpack('>QQQQ', b[at + k:at + k + 32])
          return lo <= after and hi >= end      # its content between the two rows
-     found = [at for at in range(0, len(b) - k, 32)
-              if good(b[:at] + b[at + k:]) and fits(at)]
+     found = [32 * m for m in range(rows)      # the torn row at 32*m: left[:m], right[m:]
+              if head[m] and tail[m] and right[m][0] >= ends[m] and fits(32 * m)]
      print('torn row at', found, 'of', k, 'bytes')
      if len(found) == 1:
-         open(md2 + '.new', 'wb').write(b[:found[0]] + b[found[0]+k:])
+         open(md2 + '.new', 'wb').write(b[:found[0]] + b[found[0] + k:])
      EOF
-     [ -f $f.new ] && cat $f.new > $f && rm $f.new   # 'torn row at [96] of 13 bytes'
+     if [ -f $f.new ]; then                    # 'torn row at [96] of 13 bytes'
+         cat $f.new > $f
+         rm $f.new
+     fi
      stat -c %s $f                             # 160: 5 whole rows
+     )
      ```
 
      The torn row is gone (its append was never acknowledged); its content

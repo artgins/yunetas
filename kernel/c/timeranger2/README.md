@@ -291,18 +291,24 @@ row after good rows. A row is good when its content is WHOLE: inside the
 `.json`, one json value and one NUL byte after it, as an append writes it (or
 only zero bytes, for an instance deleted with its content zeroed). A NUL inside
 a string is written as the escape `\u0000`: it is part of the value, not a NUL
-byte. The content is not larger than the largest memory block
-(`gbmem_get_maximum_block()`): `json_dumps()` makes the text of a record in one
-block, so no append wrote a larger one. The rules:
+byte. A content larger than the largest memory block of the process that
+checks it (`gbmem_get_maximum_block()`, set by `MEM_MAX_BLOCK` for each yuno)
+cannot be parsed there, and the yuno that wrote it can have a larger block.
+Its bytes are read in parts: a NUL before its last byte says that it is not
+whole, with no block of its size. When its only NUL is its last byte, the
+check cannot tell, and the tail is not cut on it. The rules:
 
 1. the last 32 bytes, read as a row, are NOT a row of their own: their content
    does not end exactly at the end of the `.json`, and it is not whole;
 2. the last whole row is good, and so is the whole row before it, whose content
    ends at or before the start of the content of the last one.
 
-Rule 1 finds every file 7.25.4 left, also with content after the last row in
-the `.json` (an append killed between its two writes, which 7.25.4 did not cut
-back). The last 32 bytes of a torn row are bytes moved out of their fields,
+Rule 1 stops the cut of every file 7.25.4 left, also with content after the
+last row in the `.json` (an append killed between its two writes, which 7.25.4
+did not cut back): the last row is a real row, and its content is whole. When
+that content is larger than the largest memory block of the process that
+checks, it cannot be parsed, but its only NUL is its last byte, and that is
+enough to not cut. The last 32 bytes of a torn row are bytes moved out of their fields,
 and name a whole record to the byte only by a coincidence of 64-bit values: the
 file is then flagged, not cut. The content is read only for a `.md2` that is
 not a whole number of rows, at most three records.
@@ -328,10 +334,16 @@ CRITICAL: {"function": "check_torn_md2_rows", "msgset": "Tranger",
     "content_size": 242, "row_at": 141, "__offset__": 160, "__size__": 32}
 ```
 
-The other shape is *"md2 file of the key ends in a part of a row after a last
-whole row that is not valid: not cut, repair it by hand"*, with the `cause`
-*"its content is not inside the content file"*, *"its content is not a
-record"*, *"the whole row before it is not a good row"* or *"its content
+The other `cause`s of this shape are *"its content ends the content file"*
+and *"its content has no NUL but the one at its end, and is larger than the
+largest memory block of this process: it can be a record written by a yuno
+with a larger block"*. The other shape is *"md2 file of the key ends in a part
+of a row after a last whole row that is not valid: not cut, repair it by
+hand"*, with the `cause` *"its content is not inside the content file"*, *"its
+content is not a record"*, *"its content is larger than the largest memory
+block of this process: it cannot be checked"*, *"the whole row before it is
+not a good row"*, *"the content of the whole row before it is larger than the
+largest memory block of this process: it cannot be checked"* or *"its content
 starts before the end of the content of the row before it"*. A REPLICA never
 writes: it reads the whole rows and logs nothing for a torn row, because it
 also sees a torn row while a live master writes it. It makes the same check,
@@ -342,17 +354,22 @@ replica it is a md2 of 0 rows, and with its content not empty it gets the
 of the key, on a master and on a replica.
 `tests/c/timeranger2/test_torn_md2_tail.c`.
 
-When the check cannot RUN -- the `.json` cannot be opened (`EMFILE`, `ENFILE`)
-or read, or there is no memory -- it logs *"Cannot check the torn tail of a md2
-file, its content file cannot be read: not cut"*, with the `path` of the
-`.json`, and the file is not cut. At an open the file is flagged too: without
+When the check cannot RUN, it logs one of three CRITICALs, and the file is not
+cut: *"Cannot check the torn tail of a md2 file, its content file cannot be
+read: not cut"* (the `.json` cannot be opened, `EMFILE`, `ENFILE`, or read;
+with its `path`), *"Cannot check the torn tail of a md2 file, no memory to
+read a content: not cut"* (with the `path` of the `.json` and the `size`), or
+*"Cannot read a record of md2 file, read FAILED"* / *"..., short read"* (a row
+of the `.md2` cannot be read; with its `path`, the `row` and its `offset`). At an open the file is flagged too: without
 the check, the whole rows can be the moved rows of the shape 7.25.4 left; a
 master's next append into the file counts it again, and the check runs then.
 At an append it found nothing wrong: the append is refused with -1, its
 content is cut back, the file is NOT flagged, and the next append checks again
 (*"Cannot append record, the torn tail of its md2 file cannot be checked now:
 the append is refused, the file is not flagged"*, with `topic`, `key`,
-`file_id`, `md2_size`). `tests/c/timeranger2/test_torn_tail_check_fails.c`.
+`file_id`, `md2_size`). With the default `on_critical_error` the refusal's
+CRITICAL exits the yuno, and the next start checks the file at its open (and
+flags it when the check still cannot run). `tests/c/timeranger2/test_torn_tail_check_fails.c`.
 
 A string of a record can hold NUL characters: `json_dumps()` writes each one as
 `\u0000`, and a read hands it back. A consumer that reads it with

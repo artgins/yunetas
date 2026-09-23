@@ -268,8 +268,11 @@ When the check cannot RUN (the `.json` cannot be opened, for example with
 `EMFILE` or `ENFILE`, or cannot be read, or there is no memory), it found
 nothing wrong with the file. The append is refused with `-1` and its content is
 cut back, but the file is NOT flagged: the whole rows stay readable, and the
-next append checks again. The CRITICAL of the check comes first, then the
-refusal:
+next append checks again. With the default `on_critical_error` the refusal's
+CRITICAL exits the yuno, and the next start checks the file at its open (and
+flags it when the check still cannot run). The CRITICAL of the check comes
+first (one of the three listed in
+[`tranger2_open_iterator()`](#tranger2_open_iterator)), then the refusal:
 
 ```text
 CRITICAL check_torn_md2_tail: Cannot check the torn tail of a md2 file, its content file
@@ -1531,9 +1534,12 @@ inside the `.json`, one json value and one NUL byte after it, as an append
 writes it (or only zero bytes, for an instance deleted with its content
 zeroed, see [`tranger2_delete_instance()`](#tranger2_delete_instance)). A NUL
 inside a string is written as the escape `\u0000`, so it is part of the value
-and is not a NUL byte. The content is not larger than the largest memory block
-(`gbmem_get_maximum_block()`): `json_dumps()` makes the text of a record in one
-block, so no append wrote a larger one. The rules:
+and is not a NUL byte. A content larger than the largest memory block of the
+process that checks it (`gbmem_get_maximum_block()`, set by `MEM_MAX_BLOCK`
+for each yuno) cannot be parsed there, and the yuno that wrote it can have a
+larger block. Its bytes are read in parts: a NUL before its last byte says
+that it is not whole, with no block of its size. When its only NUL is its
+last byte, the check cannot tell, and the tail is not cut on it. The rules:
 
 1. the last 32 bytes of the `.md2`, read as a row, are NOT a row of their own:
    their content does not end exactly at the end of the `.json`
@@ -1544,7 +1550,9 @@ block, so no append wrote a larger one. The rules:
 Rule 1 finds every file that 7.25.4 left, also when the `.json` has content
 after the last row (an append killed between its content and its md2 row;
 7.25.4 did not cut that content back): the last row is a real row, and its
-content is whole wherever the `.json` ends. For a torn row, the last 32 bytes
+content is whole wherever the `.json` ends. When that content is larger than
+the largest memory block of the process that checks, it cannot be parsed, but
+its only NUL is its last byte, and that is enough to not cut. For a torn row, the last 32 bytes
 are the end of the last whole row and the start of the torn one: read as a
 row, their `__offset__` and `__size__` are bytes moved out of their fields.
 They name a whole record of the `.json`, to the byte, only by a coincidence
@@ -1575,16 +1583,44 @@ CRITICAL: md2 file of the key ends in a part of a row after a last whole row
           topic=devices key=A file_id=2000-01-02 ... row_at=64
 ```
 
-The `cause` of the first is *"its content ends the content file"* or *"its
-content is a whole record of the content file"*. The `cause` of the second is
-one of *"its content is not inside the content file"*, *"its content is not a
-record"*, *"the whole row before it is not a good row"* (then `row_at` is that
-row) and *"its content starts before the end of the content of the row before
-it"*.
+The `cause` of the first is *"its content ends the content file"*, *"its
+content is a whole record of the content file"* or *"its content has no NUL
+but the one at its end, and is larger than the largest memory block of this
+process: it can be a record written by a yuno with a larger block"*. The
+`cause` of the second is one of *"its content is not inside the content
+file"*, *"its content is not a record"*, *"its content is larger than the
+largest memory block of this process: it cannot be checked"*, *"the whole row
+before it is not a good row"* or *"the content of the whole row before it is
+larger than the largest memory block of this process: it cannot be checked"*
+(for these two, `row_at` is that row), and *"its content starts before the
+end of the content of the row before it"*.
 
-When the check cannot RUN (the `.json` cannot be opened or read, or there is
-no memory), a CRITICAL says so, with the `path` of the `.json`, and the file is
-not cut:
+Example: a master with a block of 64 KiB opens a file that 7.25.4 left, whose
+last row names a record of 100 KiB, written by a yuno with a larger block.
+The file is flagged, and no row is lost:
+
+```text
+CRITICAL: md2 file of the key ends in a whole row that is not on a row boundary:
+          written by 7.25.4 after a torn row; not cut, repair it by hand
+          cause="its content has no NUL but the one at its end, and is larger than
+          the largest memory block of this process: it can be a record written
+          by a yuno with a larger block"
+          topic=devices key=A file_id=2000-01-01 md2_size=159 row_at=127
+          __offset__=1024 __size__=102400
+```
+
+When the check cannot RUN, a CRITICAL says so, and the file is not cut. It
+is one of three:
+
+- *"Cannot check the torn tail of a md2 file, its content file cannot be read:
+  not cut"*: the `.json` cannot be opened (`EMFILE`, `ENFILE`, `EACCES`) or
+  read. With the `path` of the `.json`.
+- *"Cannot check the torn tail of a md2 file, no memory to read a content: not
+  cut"*: with the `path` of the `.json` and the `size` asked for.
+- *"Cannot read a record of md2 file, read FAILED"* or *"Cannot read a record
+  of md2 file, short read"*: a row of the `.md2` cannot be read. With the
+  `path` of the `.md2`, the `row` (`end`, `last` or `before last`) and its
+  `offset`.
 
 ```text
 CRITICAL: Cannot check the torn tail of a md2 file, its content file cannot be

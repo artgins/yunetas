@@ -20,12 +20,25 @@
  *         next append into the file counts it again, and the check runs
  *         then: cut back, unflagged, and the row goes in.
  *      3. a torn md2 whose last 32 bytes name a range of the content file
- *         larger than the largest memory block, with a NUL at its end: no
- *         append wrote such a record (json_dumps() allocates its text in
- *         one block), so the range is not a record. The tail is a torn row
- *         after good rows, and the master cuts it back with no memory
- *         error. Before, the check asked for the block, and the file was
- *         flagged.
+ *         larger than the largest memory block, with a NUL at its end.
+ *         The range crosses the NUL of the first record, so it is not a
+ *         record: the check reads it in parts and finds that NUL, with no
+ *         block of its size. The tail is a torn row after good rows, and
+ *         the master cuts it back with no memory error.
+ *      4. a master whose largest memory block (MEM_MAX_BLOCK, set per
+ *         yuno) is smaller than the writer's:
+ *         a. opens the shape 7.25.4 left: whole rows, 31 bytes of a torn
+ *            row, then an acknowledged row whose content is larger than
+ *            the master's block, and bytes after it that no row names.
+ *            The row before the end reads as a good row (the torn row's
+ *            content is 256 bytes), so only rule 1 stops the cut. The
+ *            content cannot be parsed, and its only NUL is its last byte:
+ *            the file is flagged, not cut. Before, a content larger than
+ *            the block was taken for no record, and the cut removed the
+ *            acknowledged row and gave back the torn one.
+ *         b. opens a torn row after a last whole row whose content is
+ *            larger than its block: the row cannot be checked, the file
+ *            is flagged, not cut.
  *
  *  No file mode makes an open fail with EMFILE, so the test links with
  *  `-Wl,--wrap=open` (see CMakeLists.txt): __wrap_open() fails the next
@@ -65,6 +78,10 @@
 #define MSG_FLAG            "md2 file of the key unreadable when its cache was built: every load of the key says load_failed"
 #define MSG_UNFLAG          "md2 file of the key readable again: it is counted, and the key is not flagged for it"
 #define MSG_ITER            "The history of the key is not whole: a md2 file of it could not be read when its cache was built"
+#define MSG_SHAPE           "md2 file of the key ends in a whole row that is not on a row boundary: written by 7.25.4 after a torn row; not cut, repair it by hand"
+#define MSG_TAIL_BAD        "md2 file of the key ends in a part of a row after a last whole row that is not valid: not cut, repair it by hand"
+#define CAUSE_E_TOO_LARGE   "its content has no NUL but the one at its end, and is larger than the largest memory block of this process: it can be a record written by a yuno with a larger block"
+#define CAUSE_L_TOO_LARGE   "its content is larger than the largest memory block of this process: it cannot be checked"
 #define MSG_LIST            "Cannot load the whole history of a key of the list: the records read before the failure were handed, the list goes on with the next key"
 
 /***************************************************************
@@ -469,6 +486,199 @@ PRIVATE int test_candidate_larger_than_max_block(void)
 }
 
 /***************************************************************************
+ *  4. A last row larger than the largest memory block of the reader
+ ***************************************************************************/
+/*
+ *  A record of `size` bytes in the content file (its text and the NUL):
+ *  the "pad" string fills it
+ */
+PRIVATE json_t *padded_record(int v, size_t size)
+{
+    json_t *record = json_pack("{s:s, s:I, s:i, s:s}",
+        "id", "A", "tm", (json_int_t)(DAY1 + v), "v", v, "pad", ""
+    );
+    char *text = json_dumps(record, JSON_COMPACT|JSON_ENCODE_ANY);
+    size_t base = text? strlen(text) + 1: 0;
+    GBMEM_FREE(text)
+    if(base == 0 || size < base) {
+        JSON_DECREF(record)
+        return NULL;
+    }
+    char *pad = gbmem_malloc(size - base + 1);
+    if(!pad) {
+        JSON_DECREF(record)
+        return NULL;
+    }
+    memset(pad, 'x', size - base);
+    pad[size - base] = 0;
+    json_object_set_new(record, "pad", json_string(pad));
+    gbmem_free(pad);
+    return record;
+}
+
+/*
+ *  A's file: rows of 256 bytes, then row 5 of `big` bytes when `big` is
+ *  not 0. The rows are written by a process with the default memory block.
+ */
+PRIVATE int build_padded_store(int rows, size_t big)
+{
+    rmrdir(path_database);
+    set_expected_results("check fails: padded setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup();
+    if(!tranger || !tranger2_create_topic(
+            tranger, TOPIC_NAME, "id", "tm", NULL, sf_string_key,
+            json_pack("{s:s, s:I, s:I, s:s}",
+                "id", "", "tm", (json_int_t)0, "v", (json_int_t)0, "pad", ""),
+            0)) {
+        printf("%sERROR%s --> cannot create the padded store\n", On_Red BWhite, Color_Off);
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        test_json(NULL);
+        return -1;
+    }
+    int result = 0;
+    for(int v = 1; v <= rows + (big? 1: 0); v++) {
+        json_t *record = padded_record(v, v <= rows? 256: big);
+        md2_record_ex_t md = {0};
+        if(!record || tranger2_append_record(
+                tranger, TOPIC_NAME, (uint64_t)(DAY1 + v), 0, &md, record) < 0) {
+            printf("%sERROR%s --> cannot append row %d\n", On_Red BWhite, Color_Off, v);
+            result = -1;
+            break;
+        }
+    }
+    tranger2_shutdown(tranger);
+    test_json(NULL);    // the setup logs are not what is tested
+    return result;
+}
+
+PRIVATE int append_to_a(const char *ext, const char *bytes, size_t size)
+{
+    char path[PATH_MAX];
+    file_of_a(path, sizeof(path), ext);
+    int fd = open(path, O_WRONLY|O_APPEND|O_CLOEXEC, 0);
+    if(fd < 0) {
+        printf("%sERROR%s --> cannot open %s\n", On_Red BWhite, Color_Off, path);
+        return -1;
+    }
+    ssize_t ln = write(fd, bytes, size);
+    close(fd);
+    if(ln != (ssize_t)size) {
+        printf("%sERROR%s --> cannot write %s\n", On_Red BWhite, Color_Off, path);
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ *  Open the store as a master whose largest memory block is `max_block`
+ *  (MEM_MAX_BLOCK is set per yuno), and expect the file flagged, not cut
+ */
+PRIVATE int open_small_block_master(const char *what, size_t max_block, off_t md2_size, json_t *expected)
+{
+    int result = 0;
+    size_t default_block = gbmem_get_maximum_block();
+    set_expected_results(what, expected, NULL, NULL, 1);
+    gbmem_setup(max_block, 0, 0, 0, 0);
+    size_t tracking = max_block - gbmem_get_maximum_block();    // what memory tracking adds to a block
+    json_t *tranger = startup();
+    json_t *topic = tranger? tranger2_open_topic(tranger, TOPIC_NAME, FALSE): NULL;
+    if(!topic) {
+        printf("%sERROR%s --> %s: cannot open the store\n", On_Red BWhite, Color_Off, what);
+        result += -1;
+    }
+    if(tranger) {
+        tranger2_shutdown(tranger);
+    }
+    gbmem_setup(default_block + tracking, 0, 0, 0, 0);
+    result += test_json(NULL);
+    result += expect_size(what, "md2", md2_size);
+    return result;
+}
+
+PRIVATE int test_row_larger_than_max_block(void)
+{
+    int result = 0;
+    size_t max_block = 64*1024;
+    size_t big = 100*1024;
+
+    /*
+     *  a. The shape 7.25.4 left: rows 1, 2, 3, the first 31 bytes of row 4
+     *  (never acknowledged), then row 5 (acknowledged), and 50 bytes after
+     *  row 5's content that no row names. Row 4's content is 256 bytes, so
+     *  its last byte (0) is the first byte of row 5, and the whole row
+     *  before the end reads as row 4: rule 2 holds. Only rule 1 stops the
+     *  cut, and row 5's content is larger than the reader's memory block.
+     */
+    if(build_padded_store(4, big) < 0) {
+        return -1;
+    }
+    char rows[5*ROW];
+    char path[PATH_MAX];
+    file_of_a(path, sizeof(path), "md2");
+    int fd = open(path, O_RDONLY|O_CLOEXEC, 0);
+    ssize_t ln = fd < 0? -1: pread(fd, rows, sizeof(rows), 0);
+    if(fd >= 0) {
+        close(fd);
+    }
+    char junk[50];
+    memset(junk, 'j', sizeof(junk));
+    if(ln != (ssize_t)sizeof(rows) ||
+            resize_a("md2", 3*ROW) < 0 ||
+            append_to_a("md2", rows + 3*ROW, 31) < 0 ||
+            append_to_a("md2", rows + 4*ROW, ROW) < 0 ||
+            append_to_a("json", junk, sizeof(junk)) < 0) {
+        printf("%sERROR%s --> 4a: cannot make the shape\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    result += open_small_block_master(
+        "4a. a last acknowledged row larger than the block: flagged, not cut",
+        max_block,
+        3*ROW + 31 + ROW,
+        json_pack("[{s:s, s:s, s:s, s:i},{s:s, s:s, s:s}]",
+            "msg", MSG_SHAPE,
+            "cause", CAUSE_E_TOO_LARGE,
+            "key", "A",
+            "__size__", (int)big,
+            "msg", MSG_FLAG,
+            "key", "A",
+            "file_id", "2000-01-01"
+        )
+    );
+
+    /*
+     *  b. A torn row after a last whole row larger than the reader's
+     *  memory block: its content cannot be checked, so the tail is not cut
+     */
+    if(build_padded_store(3, big) < 0) {
+        return -1;
+    }
+    char torn[TORN];
+    memset(torn, 0, sizeof(torn));
+    if(append_to_a("md2", torn, sizeof(torn)) < 0) {
+        return -1;
+    }
+    result += open_small_block_master(
+        "4b. a last whole row larger than the block: flagged, not cut",
+        max_block,
+        4*ROW + TORN,
+        json_pack("[{s:s, s:s, s:s, s:i},{s:s, s:s, s:s}]",
+            "msg", MSG_TAIL_BAD,
+            "cause", CAUSE_L_TOO_LARGE,
+            "key", "A",
+            "__size__", (int)big,
+            "msg", MSG_FLAG,
+            "key", "A",
+            "file_id", "2000-01-01"
+        )
+    );
+
+    rmrdir(path_database);
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -481,6 +691,7 @@ PRIVATE int do_test(void)
     result += test_append_check_cannot_run();
     result += test_open_check_cannot_run();
     result += test_candidate_larger_than_max_block();
+    result += test_row_larger_than_max_block();
 
     return result;
 }
