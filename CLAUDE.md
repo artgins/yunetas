@@ -1856,7 +1856,13 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   deciding whether to adopt it — honest numbers, including any loss with its
   reason — not as an internal log. Keep the raw figures of each release
   (so the next report can chart the trend), and publish the page with the
-  release.
+  release. **It must be easy to reach on GitHub**: commit the page as
+  `performance/reports/<version>.html` beside its raw figures
+  (`performance/reports/<version>.json`) and a `performance/reports/README.md`
+  that lists every report, newest first; attach the `.html` to the GitHub
+  release as an asset; and link it from the release body and from the
+  repository `README.md` ("Performance"). GitHub shows an `.html` in the tree
+  as source, so every link names both the file and a rendered view of it.
 - **A submodule bump of `kernel/js/gobj-js` or `kernel/js/gobj-ui` means
   running `python3 scripts/verify_js_api_coverage.py --repin`, then `--write`.**
   Those two packages carry their own tags, so `check_doc_line_refs.py --repin`
