@@ -1575,6 +1575,136 @@ PRIVATE json_t *schema_to_flat(json_t *jn_schema) // not owned
 }
 
 /***************************************************************************
+ *  The names of a list of {id} or of a dict, in their order. Return YOURS.
+ ***************************************************************************/
+PRIVATE json_t *names_list(json_t *nodes) // not owned
+{
+    json_t *names = json_array();
+    if(json_is_array(nodes)) {
+        int idx; json_t *node;
+        json_array_foreach(nodes, idx, node) {
+            json_t *name = json_object_get(node, "id");
+            if(!json_is_string(name)) {
+                name = json_object_get(node, "topic_name");
+            }
+            if(json_is_string(name)) {
+                json_array_append(names, name);
+            }
+        }
+    } else if(json_is_object(nodes)) {
+        const char *name; json_t *node;
+        json_object_foreach(nodes, name, node) {
+            json_array_append_new(names, json_string(name));
+        }
+    }
+    return names;
+}
+
+/***************************************************************************
+ *  Do the names that `a` and `b` share come in the same order in both?
+ ***************************************************************************/
+PRIVATE BOOL same_order_of_common_names(json_t *a, json_t *b) // not owned, lists of names
+{
+    json_t *common_a = json_array();
+    json_t *common_b = json_array();
+    int idx; json_t *name;
+    json_array_foreach(a, idx, name) {
+        if(json_list_str_index(b, json_string_value(name), FALSE) >= 0) {
+            json_array_append(common_a, name);
+        }
+    }
+    json_array_foreach(b, idx, name) {
+        if(json_list_str_index(a, json_string_value(name), FALSE) >= 0) {
+            json_array_append(common_b, name);
+        }
+    }
+    BOOL same = json_equal(common_a, common_b)? TRUE : FALSE;
+    JSON_DECREF(common_a)
+    JSON_DECREF(common_b)
+    return same;
+}
+
+/***************************************************************************
+ *  The topic `topic_name` of a schema whose topics are a list or a dict.
+ ***************************************************************************/
+PRIVATE json_t *schema_topic(json_t *jn_schema, const char *topic_name) // not owned, return not owned
+{
+    json_t *topics = json_object_get(jn_schema, "topics");
+    if(json_is_object(topics)) {
+        return json_object_get(topics, topic_name);
+    }
+    int idx; json_t *topic;
+    json_array_foreach(topics, idx, topic) {
+        json_t *name = json_object_get(topic, "id");
+        if(!json_is_string(name)) {
+            name = json_object_get(topic, "topic_name");
+        }
+        if(json_is_string(name) && strcmp(json_string_value(name), topic_name)==0) {
+            return topic;
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  What changes from one schema to another, as a table: flat_diff() of the
+ *  two schema_to_flat(), with ONE rule about the order leaves
+ *  (`__topics_order__`, `topics`<topic>`__cols_order__`): an order leaf is a
+ *  difference only when the names BOTH sides declare come in another order.
+ *  Compared as strings, every column added or removed read as a moved one
+ *  too (L4 of the third independent review, 2026-09-23). When it is a
+ *  difference, the row carries the whole of both orders, added and removed
+ *  names included. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *schema_diff(json_t *from_schema, json_t *to_schema) // not owned
+{
+    json_t *flat_from = schema_to_flat(from_schema);
+    json_t *flat_to = schema_to_flat(to_schema);
+
+    json_t *topics_from = names_list(json_object_get(from_schema, "topics"));
+    json_t *topics_to = names_list(json_object_get(to_schema, "topics"));
+    if(same_order_of_common_names(topics_from, topics_to)) {
+        json_object_del(flat_from, "__topics_order__");
+        json_object_del(flat_to, "__topics_order__");
+    }
+
+    int idx; json_t *jn_name;
+    json_array_foreach(topics_from, idx, jn_name) {
+        const char *topic_name = json_string_value(jn_name);
+        json_t *topic_to = schema_topic(to_schema, topic_name);
+        if(!topic_to) {
+            continue;
+        }
+        json_t *cols_from = names_list(json_object_get(schema_topic(from_schema, topic_name), "cols"));
+        json_t *cols_to = names_list(json_object_get(topic_to, "cols"));
+        if(same_order_of_common_names(cols_from, cols_to)) {
+            /*
+             *  The id of the leaf, escaped as json2flat() escapes it: asked
+             *  of json2flat() itself
+             */
+            json_t *probe = json_pack("{s:{s:{s:s}}}", "topics", topic_name, "__cols_order__", "");
+            json_t *flat_probe = json2flat(probe);
+            const char *leaf_id; json_t *v;
+            json_object_foreach(flat_probe, leaf_id, v) {
+                json_object_del(flat_from, leaf_id);
+                json_object_del(flat_to, leaf_id);
+            }
+            JSON_DECREF(flat_probe)
+            JSON_DECREF(probe)
+        }
+        JSON_DECREF(cols_from)
+        JSON_DECREF(cols_to)
+    }
+    JSON_DECREF(topics_from)
+    JSON_DECREF(topics_to)
+
+    json_t *diff = flat_diff(flat_from, flat_to);
+    JSON_DECREF(flat_from)
+    JSON_DECREF(flat_to)
+    return diff;
+}
+
+/***************************************************************************
  *  The topic_version a schema file gives a topic, 0 when it has none.
  ***************************************************************************/
 PRIVATE json_int_t schema_topic_version(hgobj gobj, json_t *jn_schema, const char *topic_name)
@@ -2176,12 +2306,8 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     json_t *diff = json_object();
     if(in_use && pending) {
-        json_t *flat_in_use = schema_to_flat(in_use);
-        json_t *flat_saved = schema_to_flat(saved);
         JSON_DECREF(diff)
-        diff = flat_diff(flat_in_use, flat_saved);
-        JSON_DECREF(flat_in_use)
-        JSON_DECREF(flat_saved)
+        diff = schema_diff(in_use, saved);
     }
 
     /*
@@ -3973,14 +4099,10 @@ PRIVATE literal_verdict_t literal_against_file_in_use(
         );
 
     } else if(new_version == in_use_version && stored_c_version != new_version && in_use) {
-        json_t *flat_literal = schema_to_flat(jn_schema);
-        json_t *flat_in_use = schema_to_flat(in_use);
-        json_t *diff = flat_diff(flat_in_use, flat_literal);
+        json_t *diff = schema_diff(in_use, jn_schema);
         BOOL differs = json_object_size(json_object_get(diff, "added")) > 0 ||
             json_object_size(json_object_get(diff, "removed")) > 0 ||
             json_object_size(json_object_get(diff, "changed")) > 0;
-        JSON_DECREF(flat_literal)
-        JSON_DECREF(flat_in_use)
         if(differs) {
             verdict = LITERAL_SAME_VERSION_OTHER_SCHEMA;
             gobj_log_warning(gobj, 0,

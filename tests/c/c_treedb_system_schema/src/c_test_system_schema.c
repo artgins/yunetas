@@ -3912,6 +3912,18 @@ PRIVATE int check_required_default_placeholder_dropped(hgobj gobj)
             }
         }
     }
+    /*
+     *  Two columns ADDED, none moved: the order of the columns that were
+     *  already there did not change, and there is no order row (L4 of the
+     *  third independent review, 2026-09-23: every added or removed column
+     *  read as a moved one too)
+     */
+    if(json_object_get(kw_get_dict(gobj, jn_resp, "data`diff`changed", 0, 0),
+                "topics`users`__cols_order__") ||
+            !json_object_get(kw_get_dict(gobj, jn_resp, "data`diff`added", 0, 0),
+                "topics`users`cols`required_list`type")) {
+        result += save_fail(gobj, "TEST FAIL: saved-schema reads an added column as a moved one", jn_resp);
+    }
     JSON_DECREF(jn_resp)
 
     /*

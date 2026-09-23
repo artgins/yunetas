@@ -1980,6 +1980,14 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    }
    ```
 
+   An order leaf is a difference only when the names BOTH sides declare come
+   in another order. A column added or removed is an `added` or `removed`
+   leaf, not a moved one: a save that adds `phone` at the end answers
+   `"added": {"topics`users`cols`phone`type": "string", ...}` and no
+   `__cols_order__` row (after 7.25.4; until then every added or removed
+   column read as a moved one too). When the order does change, the row
+   carries both whole orders, added and removed names included.
+
    The same comparison decides whether a literal with the `schema_version` of
    the file in use is *"another content"*, so a literal that only reorders
    columns under the same number is told so too. `draft_changed` names the
