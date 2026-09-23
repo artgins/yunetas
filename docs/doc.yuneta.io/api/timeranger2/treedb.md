@@ -475,7 +475,9 @@ Returns `0` on success, or a negative error code on failure.
 **Notes**
 
 The function uses the foreign key fields in `kw` to establish links between nodes.
-If `save` is `TRUE`, the changes are persisted in the database.
+If `save` is `TRUE`, the changes are persisted in the database. When that save
+fails, or a link fails, every link of the call is taken back in memory and no
+event is told (see [`treedb_link_nodes()`](<#treedb_link_nodes>)).
 The `node` parameter must be a valid pure node object.
 
 It only ADDS links, and it stops at the first ref it cannot link. To make the links of a node equal to the ones a record names, use [`treedb_replace_links()`](<#treedb_replace_links>): it does not touch the links that do not change, and a bad ref does not stop the others. `C_NODE`'s `update-node` with `autolink` uses `treedb_replace_links()`, not `treedb_clean_node()` + `treedb_autolink()`.
@@ -550,7 +552,7 @@ Returns `0` on success, or a negative error code on failure.
 
 **Notes**
 
-This function only removes foreign key links. It does not delete the node itself. If `save` is `TRUE`, the changes are persisted in the database.
+This function only removes foreign key links. It does not delete the node itself. If `save` is `TRUE`, the changes are persisted in the database. When that save fails, or an unlink fails, every unlink of the call is taken back in memory and no event is told (see [`treedb_link_nodes()`](<#treedb_link_nodes>)).
 
 ---
 
@@ -1352,6 +1354,24 @@ treedb_link_nodes(tranger, "departments", direction, administration);   // 0
 treedb_link_nodes(tranger, "departments", administration, direction);   // -1
 ```
 
+**A save that fails takes the link back.** The link moves the child's fkey
+and the parents' hooks in memory first, then saves the child. When the save
+fails, the link is undone in memory (a single-valued fkey goes back to its old
+parent), the call answers `-1`, and no event is told: the events of a link
+are told only once the child is on disk, `EV_TREEDB_NODE_UPDATED` of the
+child last. The same holds for [`treedb_unlink_nodes()`](<#treedb_unlink_nodes>),
+[`treedb_autolink()`](<#treedb_autolink>), [`treedb_clean_node()`](<#treedb_clean_node>),
+[`treedb_replace_links()`](<#treedb_replace_links>) and the unlinks of a forced
+[`treedb_delete_node()`](<#treedb_delete_node>) (a child that cannot be saved
+unlinked stays linked, and the delete is refused):
+
+```C
+/*  the files of the key of `admin` are read-only; admin hangs from direction  */
+treedb_link_nodes(tranger, "departments", sales, admin);    // -1
+/*  admin["department_id"] is still "departments^direction^departments",
+ *  direction still hooks it, sales does not, no event was told            */
+```
+
 ---
 
 (treedb_list_instances)=
@@ -1740,26 +1760,49 @@ does not cut: it reads the whole rows, and the master cuts the file when it
 opens the store. (Up to 7.25.4 the cache build left such a file out of the
 key with a CRITICAL, and nothing failed.)
 
-The master cuts only a tail that is a torn row after a valid last row. Two
+The master cuts only a tail that is a torn row after good rows: a row is good
+when its content is one whole record of the `.json` (the rules are in
+[`tranger2_open_iterator()`](<timeranger2.md#tranger2_open_iterator>)). Two
 other shapes also end on no row boundary. They are NOT cut, the bytes of the
 file do not change, and the key fails (a replica makes the same check):
 
 - a `.md2` that 7.25.4 wrote after a torn row. 7.25.4 did not cut a torn row
   back: the next appends wrote their rows after the torn bytes, on no row
   boundary, and those rows were acknowledged. The last 32 bytes of the file
-  are a whole row whose content ends exactly at the end of the `.json`. A cut
-  would remove the end of that row:
+  are a whole row whose content is a whole record of the `.json`, at its end
+  or followed by content no row names. A cut would remove the end of that
+  row:
 
   ```text
-  CRITICAL check_torn_md2_tail: md2 file of the key ends in a whole row that is not on a row
+  CRITICAL check_torn_md2_rows: md2 file of the key ends in a whole row that is not on a row
         boundary: written by 7.25.4 after a torn row; not cut, repair it by hand
+        cause="its content ends the content file"
         topic=items key=k2 file_id=2026-09-23 path=<store>/items/keys/k2/2026-09-23.md2
         md2_size=173 content_size=192 row_at=141 __offset__=160 __size__=32
   ```
 
-- a `.md2` whose last whole row is not a valid row (its content goes past
-  the end of the `.json`): *"md2 file of the key ends in a part of a row
-  after a last whole row that is not valid: not cut, repair it by hand"*.
+  With content after that row, the `cause` is *"its content is a whole record
+  of the content file"*.
+
+- a `.md2` whose last whole row, or the whole row before it, is not good:
+
+  ```text
+  CRITICAL check_torn_md2_rows: md2 file of the key ends in a part of a row after a last whole
+        row that is not valid: not cut, repair it by hand
+        cause="its content is not a record"
+        topic=items key=k2 file_id=2026-09-23 path=<store>/items/keys/k2/2026-09-23.md2
+        md2_size=109 content_size=96 row_at=64 __offset__=65 __size__=31
+  ```
+
+  The `cause` is one of *"its content is not inside the content file"*, *"its
+  content is not a record"*, *"the whole row before it is not a good row"*
+  (then `row_at` is that row) and *"its content starts before the end of the
+  content of the row before it"*.
+
+When the check itself cannot run (the `.json` cannot be opened or read), the
+CRITICAL is *"Cannot check the torn tail of a md2 file, its content file
+cannot be read: not cut"*, with the `path` of the `.json`: the file is not
+cut, and the open flags it until an append can check it.
 
 A `.md2` of 0 bytes whose `.json` is NOT empty does not fail the key. It is
 the shape an append that was never acknowledged leaves: the content is
@@ -1851,11 +1894,17 @@ a tagged record):
      row boundary, and keeps the one where, with those bytes removed, the
      content of every row is whole (inside the `.json`, its last byte a NUL
      and no other NUL; only zero bytes for an instance deleted with its
-     content zeroed), and each row's content comes after the content of the
-     row before. The `.json` can have content after the last row (an append
-     killed between its two writes): the script accepts it. It writes the
-     result only when exactly one boundary passes. Keep a copy, and write
-     the result back into the same file (`cat >` keeps its owner and mode):
+     content zeroed), each row's content comes after the content of the row
+     before, and the removed bytes can be the start of the torn row: when
+     they hold its `__offset__` (17 bytes or more, not all zero), that offset
+     is between the end of the content of the row before and the
+     `__offset__` of the row after. Without this last test, two boundaries
+     can pass (a torn row of 31 bytes whose `__size__` is a multiple of 256),
+     and the first one is not always the torn row. The `.json` can have
+     content after the last row (an append killed between its two writes):
+     the script accepts it. It writes the result only when exactly one
+     boundary passes. Keep a copy, and write the result back into the same
+     file (`cat >` keeps its owner and mode):
 
      ```bash
      cd <store>/items/keys/k2                  # topic, key and file: from the log
@@ -1884,7 +1933,21 @@ a tagged record):
                  return False
              end = offset + size
          return True
-     found = [at for at in range(0, len(b) - k, 32) if good(b[:at] + b[at+k:])]
+     def fits(at):                             # the removed bytes start the torn row
+         r = b[at:at + k]
+         if k < 17 or r.count(0) == k:         # no byte of its __offset__, or only zeros
+             return True
+         n = min(k, 24) - 16                   # the bytes of its __offset__ they hold
+         lo = int.from_bytes(r[16:16 + n], 'big') << (8 * (8 - n))
+         hi = lo + (1 << (8 * (8 - n))) - 1
+         end = 0                               # where the content of the row before ends
+         if at >= 32:
+             t, tm, offset, size = struct.unpack('>QQQQ', b[at - 32:at])
+             end = offset + size
+         t, tm, after, size = struct.unpack('>QQQQ', b[at + k:at + k + 32])
+         return lo <= after and hi >= end      # its content between the two rows
+     found = [at for at in range(0, len(b) - k, 32)
+              if good(b[:at] + b[at + k:]) and fits(at)]
      print('torn row at', found, 'of', k, 'bytes')
      if len(found) == 1:
          open(md2 + '.new', 'wb').write(b[:found[0]] + b[found[0]+k:])
@@ -1896,8 +1959,9 @@ a tagged record):
      The torn row is gone (its append was never acknowledged); its content
      stays in the `.json`, and no row names it. Every row that 7.25.4
      acknowledged is read again. When the script prints no boundary, or more
-     than one, it writes no `.new` file and the `.md2` does not change: put
-     the key's directory back from a backup copy.
+     than one, it writes no `.new` file and the `.md2` does not change. When
+     more than one boundary passes, do not choose one by hand: put the key's
+     directory back from a backup copy.
 
    - anything else (a last whole row that is not valid, too): put the key's
      directory back from a backup copy of the store.
@@ -1995,6 +2059,7 @@ int treedb_replace_links(
 **Returns**
 
 Returns `0` when every column was replaced, or `-1` when at least one column was refused. Every refusal is logged, and the other columns are processed.
+A save that fails answers `-1` too: every link of the call is taken back in memory and no event is told (see [`treedb_link_nodes()`](<#treedb_link_nodes>)).
 
 **Behavior**
 
@@ -2554,6 +2619,9 @@ treedb_unlink_nodes(tranger, "departments", p2, ch);   // 0, UNLINKED published,
 
 The function does not take ownership of `parent_node` or `child_node`. This means the caller is responsible for managing their memory. Make sure that the specified `hook` exists before calling [`treedb_unlink_nodes()`](<#treedb_unlink_nodes>).
 
+A save of the child that fails takes the unlink back in memory, answers `-1`,
+and tells no event (see [`treedb_link_nodes()`](<#treedb_link_nodes>)).
+
 ---
 
 (treedb_update_node)=
@@ -2590,6 +2658,20 @@ and the node in memory used to take the update all the same, answered as if
 written, until the next reload. A memory-only update (`save` FALSE) is a
 replica's business and goes on. And a save that fails on a master answers
 `NULL` too, where the node was answered whatever the save said.
+
+**A save that fails takes the update back.** The update changes the node in
+memory first and saves it after. When the save fails (the files of the key
+cannot be written), the node in memory goes back to what the disk has: the
+fields the update replaced, and the links of its `file` columns. No event is
+told, `EV_TREEDB_NODE_UPDATED` included. In 7.25.4 the node kept the update: a
+read answered a value the disk never held, and a retry of the same update
+found nothing to write.
+
+```C
+/*  the files of the key of `node` are read-only  */
+json_t *n = treedb_update_node(tranger, node, json_pack("{s:s}", "name", "x"), TRUE);
+/*  n == NULL, the CRITICALs of the write logged, node["name"] as before, no event  */
+```
 
 ```C
 /*  tranger opened with "master": false  */

@@ -289,7 +289,11 @@ such a file removes the end of its last acknowledged row. So every cut (open,
 flagged count, delete-key read, append) first checks that the tail is a torn
 row after good rows. A row is good when its content is WHOLE: inside the
 `.json`, one json value and one NUL byte after it, as an append writes it (or
-only zero bytes, for an instance deleted with its content zeroed). The rules:
+only zero bytes, for an instance deleted with its content zeroed). A NUL inside
+a string is written as the escape `\u0000`: it is part of the value, not a NUL
+byte. The content is not larger than the largest memory block
+(`gbmem_get_maximum_block()`): `json_dumps()` makes the text of a record in one
+block, so no append wrote a larger one. The rules:
 
 1. the last 32 bytes, read as a row, are NOT a row of their own: their content
    does not end exactly at the end of the `.json`, and it is not whole;
@@ -307,8 +311,12 @@ If a rule fails, the file is not cut and its bytes do not change: a CRITICAL
 names the shape and its `cause`, the file is flagged (every load of the key
 says `load_failed`), and an append into it is refused. An append that finds
 such a tail flags the file in memory the same way (*"md2 file of the key
-flagged unreadable at an append: every load of the key says load_failed"*).
-The file is repaired by hand (the repair is in the treedb docs, *A topic that
+flagged unreadable at an append: every load of the key says load_failed"*),
+before the CRITICAL of its refusal. With the exit bit of `on_critical_error`
+(the default) the process ends in that CRITICAL and the next open flags the
+file again, so the flag in memory matters only when `on_critical_error` does
+not exit. A check that cannot run refuses the append and does not flag the
+file. The file is repaired by hand (the repair is in the treedb docs, *A topic that
 did not load whole*):
 
 ```text
@@ -333,6 +341,24 @@ replica it is a md2 of 0 rows, and with its content not empty it gets the
 (*"Cannot read last record, md2 file corrupted"*) and left the whole file out
 of the key, on a master and on a replica.
 `tests/c/timeranger2/test_torn_md2_tail.c`.
+
+When the check cannot RUN -- the `.json` cannot be opened (`EMFILE`, `ENFILE`)
+or read, or there is no memory -- it logs *"Cannot check the torn tail of a md2
+file, its content file cannot be read: not cut"*, with the `path` of the
+`.json`, and the file is not cut. At an open the file is flagged too: without
+the check, the whole rows can be the moved rows of the shape 7.25.4 left; a
+master's next append into the file counts it again, and the check runs then.
+At an append it found nothing wrong: the append is refused with -1, its
+content is cut back, the file is NOT flagged, and the next append checks again
+(*"Cannot append record, the torn tail of its md2 file cannot be checked now:
+the append is refused, the file is not flagged"*, with `topic`, `key`,
+`file_id`, `md2_size`). `tests/c/timeranger2/test_torn_tail_check_fails.c`.
+
+A string of a record can hold NUL characters: `json_dumps()` writes each one as
+`\u0000`, and a read hands it back. A consumer that reads it with
+`kw_get_str()` gets the C string up to the first NUL. A content that is not
+json when it is read logs *"Bad data, the content of the record is not json"*,
+with the jansson `error` and `position`. `tests/c/timeranger2/test_nul_escape_record.c`.
 
 `tranger2_open_list()` of ONE key answers `NULL` when the history of the key
 did not load whole. A KEYLESS list loads every key it can read, opens its

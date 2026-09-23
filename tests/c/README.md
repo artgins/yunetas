@@ -30,6 +30,7 @@ ctest -R test_c_timer --output-on-failure --test-dir build
 | `c_auth_bff` | BFF HTTP auth flow (mock Keycloak + signed JWTs) |
 | `c_node_link_events` | TreeDB `EV_TREEDB_NODE_LINKED/UNLINKED` |
 | `tr_treedb`, `tr_treedb_link_events` | TreeDB core and link-event subscriptions |
+| `tr_treedb_failed_save` | A treedb write whose save fails is taken back in memory, with no event |
 | `tr_msg`, `tr_queue` | timeranger2 message wrapper and queue (msg2db) |
 | `timeranger2` | timeranger2 append / read / iterator tests |
 | `kw` | `kw_*` helpers from `gobj-c/kwid.c` |

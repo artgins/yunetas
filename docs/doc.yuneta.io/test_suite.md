@@ -176,9 +176,11 @@ crash or leak cannot mask neighbours.
 | **`test_c_node_link_events`** | `EV_TREEDB_NODE_LINKED` / `UNLINKED` events at the [`C_NODE`](#gclass-c-node) GClass level, and an `update-node` with `autolink`: the links it repeats publish nothing, a moved link is one unlink and one link, and a ref that cannot be linked (missing parent, or a hook that links into another column) is logged while the record is still saved; and `set-link-events` switching a live treedb from the parent's `UPDATED` to `LINKED`/`UNLINKED` and back. |
 | **`test_c_node_initial_load`** | The `initial_load` seed of [`C_NODE`](#gclass-c-node): records first and links second whatever the topic order, every seed immutable, a declared link refused to `unlink-nodes`, to an autolink update that omits it and to a `force` delete of its parent, and a second start that creates nothing. |
 | **`test_tr_treedb_link_events`** | Low-level link/unlink callback mechanism in `tr_treedb`. |
+| **`test_tr_treedb_failed_save`** | A write whose save fails is taken back in memory: with the files of a key read-only, a failed update, link, replace of a single fkey, `treedb_replace_links()`, `treedb_autolink()` and unlink each answer a refusal, leave the nodes and hooks as the disk says, and tell no event. With the files writable the same writes work, and a reload says what memory said. |
 
 **Source:** `tests/c/c_subscriptions/`, `tests/c/c_node_link_events/`,
-`tests/c/c_node_initial_load/`, `tests/c/tr_treedb_link_events/`
+`tests/c/c_node_initial_load/`, `tests/c/tr_treedb_link_events/`,
+`tests/c/tr_treedb_failed_save/`
 
 ## Timeranger2 persistence
 

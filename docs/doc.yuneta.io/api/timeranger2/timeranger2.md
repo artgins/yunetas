@@ -119,6 +119,23 @@ if(tranger2_append_record(tranger, "topic", 0, 0, &md, record) == 0) {
 }
 ```
 
+**A string of a record can hold NUL characters.** `json_dumps()` writes each
+one as the escape `\u0000`, and a read hands it back (the content is loaded
+with `JSON_ALLOW_NUL`). A consumer that reads the string with `kw_get_str()`
+gets the C string up to its first NUL; `json_string_length()` gives the whole
+length:
+
+```C
+json_t *rec = json_pack("{s:s, s:s#}", "id", "A", "blob", "a\0b", 3);
+tranger2_append_record(tranger, "topic", 0, 0, &md, rec);
+/*  a load hands {"id": "A", "blob": "a\u0000b"}: json_string_length() is 3  */
+```
+
+A content that is not json when it is read logs *"Bad data, the content of the
+record is not json"* (a CRITICAL, with `topic`, `__t__`, `__offset__`,
+`__size__`, the jansson `error` and its `position`), and the record is not
+handed.
+
 The function does not add a `__md_tranger__` to the record for the caller.
 It adds one (`g_rowid`, `i_rowid`, `t`, `tm`, `offset`, `size`,
 `system_flag`, `user_flag`, the same dict a load attaches) only to the record
@@ -239,6 +256,27 @@ ERROR    flag_file_unreadable_at_append: md2 file of the key flagged unreadable 
          topic=items key=A file_id=2000-01-02
 CRITICAL tranger2_append_record: Cannot append record, its md2 file ends in a part
          of a row that must not be cut back: the append is refused
+         topic=items key=A file_id=2000-01-02 md2_size=161
+```
+
+The file is flagged BEFORE that CRITICAL. With the exit bit of
+`on_critical_error` (the default, see above) the yuno ends inside the log call,
+and the next start reads the file again and flags it at its open. So the flag
+in memory matters only when `on_critical_error` does not exit.
+
+When the check cannot RUN (the `.json` cannot be opened, for example with
+`EMFILE` or `ENFILE`, or cannot be read, or there is no memory), it found
+nothing wrong with the file. The append is refused with `-1` and its content is
+cut back, but the file is NOT flagged: the whole rows stay readable, and the
+next append checks again. The CRITICAL of the check comes first, then the
+refusal:
+
+```text
+CRITICAL check_torn_md2_tail: Cannot check the torn tail of a md2 file, its content file
+         cannot be read: not cut  topic=items key=A file_id=2000-01-02
+         path=<store>/items/keys/A/2000-01-02.json errno=24 serrno="Too many open files"
+CRITICAL tranger2_append_record: Cannot append record, the torn tail of its md2 file
+         cannot be checked now: the append is refused, the file is not flagged
          topic=items key=A file_id=2000-01-02 md2_size=161
 ```
 
@@ -1491,8 +1529,11 @@ are a whole row, and a cut removes the end of it. So the tail is cut only when
 it is a torn row after good rows. A row is good when its content is WHOLE:
 inside the `.json`, one json value and one NUL byte after it, as an append
 writes it (or only zero bytes, for an instance deleted with its content
-zeroed, see [`tranger2_delete_instance()`](#tranger2_delete_instance)). The
-rules:
+zeroed, see [`tranger2_delete_instance()`](#tranger2_delete_instance)). A NUL
+inside a string is written as the escape `\u0000`, so it is part of the value
+and is not a NUL byte. The content is not larger than the largest memory block
+(`gbmem_get_maximum_block()`): `json_dumps()` makes the text of a record in one
+block, so no append wrote a larger one. The rules:
 
 1. the last 32 bytes of the `.md2`, read as a row, are NOT a row of their own:
    their content does not end exactly at the end of the `.json`
@@ -1540,6 +1581,22 @@ one of *"its content is not inside the content file"*, *"its content is not a
 record"*, *"the whole row before it is not a good row"* (then `row_at` is that
 row) and *"its content starts before the end of the content of the row before
 it"*.
+
+When the check cannot RUN (the `.json` cannot be opened or read, or there is
+no memory), a CRITICAL says so, with the `path` of the `.json`, and the file is
+not cut:
+
+```text
+CRITICAL: Cannot check the torn tail of a md2 file, its content file cannot be
+          read: not cut
+          topic=devices key=A file_id=2000-01-02
+          path=<store>/devices/keys/A/2000-01-02.json errno=13 serrno="Permission denied"
+```
+
+At an open the file is flagged too: without the check, the whole rows can be
+the moved rows of the shape 7.25.4 left. A master's next append into the file
+counts it again, and the check runs then. At an append the file is not
+flagged (see [`tranger2_append_record()`](#tranger2_append_record)).
 
 A replica makes the same check, and flags the file the same way: it does not
 read rows that are not on a row boundary.

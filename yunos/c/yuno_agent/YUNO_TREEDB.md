@@ -1662,9 +1662,17 @@ it unfinished in the same way.
   the two lists, plus the columns of a topic that it could not remove or
   write, but NOT an id that carries an operator's draft (see below).
   `leftover_nodes` keeps what the projection left at each of these ids:
-  the node without its metadata, its editor geometry and (for a topic) its
-  columns, or `null` where it left nothing. A projection that succeeds
-  removes the record. The record is written
+  only the attributes that a projection writes, or `null` where it left
+  nothing. For a topic these are `value`, `order`, `pkey`, `pkey2s`,
+  `system_flag`, `tkey`, `topic_version`, `system_topic` and `main_topic`;
+  for a column, `value`, `order` and every attribute of the column
+  descriptor (`header`, `type`, `flag`, `enum`, `default`, ...). The links
+  (`topics`, `cols`, `treedbs`), the editor geometry and the metadata are not
+  kept. No node is kept for an id in `not_written`: the write updated the
+  node in memory before its save failed, so the record cannot say what the
+  disk has there, and the id is taken as left. `system_schema_version` is
+  the version of the meta-schema that says what those nodes hold. A
+  projection that succeeds removes the record. The record is written
   whole: to `<treedb>.unfinished.json.new` (created `O_EXCL|O_NOFOLLOW`,
   flushed) and renamed over the old one, so the file is the old record or
   the new one, never half of one.
@@ -1677,10 +1685,10 @@ it unfinished in the same way.
                "treedb_x.departments.id", "treedb_x.departments.name"],
  "draft_kinds": {},
  "leftover_nodes": {
-   "treedb_x.departments.name": {"id": "treedb_x.departments.name", "value": "name",
-                                 "topics": ["topics^treedb_x.departments^cols"],
-                                 "header": "Name", "type": "string", ...},
-   ...}}
+   "treedb_x.departments.name": {"value": "name", "order": 1, "header": "Name",
+                                 "type": "string", "flag": ["persistent"], ...},
+   ...},
+ "system_schema_version": 18}
 ```
 
 `draft_kinds` holds the kind (`"saved"` or `"unsaved"`) of each operator's
@@ -1719,9 +1727,10 @@ While the record is there:
 - A column that the operator adds to a leftover topic makes that topic a
   draft too.
 - An EDIT of a leftover IS a draft. When the node at a
-  leftover id is not what `leftover_nodes` kept (the operator changed it,
-  deleted it, or created a node where the projection left nothing), the
-  edit is the operator's work, like any other draft: `saved-schema` shows
+  leftover id is not what `leftover_nodes` kept (the operator changed one of
+  the attributes a projection writes, unlinked a column from its topic,
+  deleted the node, or created a node where the projection left nothing),
+  the edit is the operator's work, like any other draft: `saved-schema` shows
   it in `draft_changed`, a retry that cannot finish keeps it a draft (it
   is not a leftover in the new record, and `draft_kinds` keeps its kind),
   and the open that replaces it reports it in the WARNING and in
@@ -1733,8 +1742,33 @@ While the record is there:
   open that removes `departments` answers
   `withdrawn_at_open: {"topics": {"departments": "unsaved"}, ...}`. The same
   holds for an attribute of the topic itself, for example `main_topic` of
-  `treedb_x.departments`. A record without `leftover_nodes` takes every
-  leftover as left.
+  `treedb_x.departments`, and for an unlink: the operator unlinks
+  `treedb_x.departments.name` from `departments` (the column is still a
+  node of `__system__`, in no topic), `saved-schema` answers
+  `draft_changed: {"departments": true}`, and the open that removes the topic
+  removes the column too and reports `departments` as `"unsaved"`. What is
+  NOT an edit: a change of a link that keeps the node in its topic, of the
+  editor geometry (`_geometry`) or of the metadata. A record without
+  `leftover_nodes` takes every leftover as left, and so does a record whose
+  `system_schema_version` is not the running meta-schema: a newer
+  meta-schema gives every node loaded from disk the fields it added, and
+  every leftover would read as edited. That is said in a WARNING
+  (*"Leftovers of an unfinished projection were kept under another
+  meta-schema: every leftover is taken as left, an edit of one made
+  meanwhile is not told apart"*).
+- A topic or column of the treedb that its tree no longer reaches (the
+  operator unlinked it, or a link of a projection failed) is still a node
+  of `__system__`. A projection whose schema declares its id TAKES it:
+  writes it as the schema says and links it again. A projection whose
+  schema does not declare it removes it (INFO *"Node of the treedb that its
+  tree does not reach: removed from __system__"*). When it is the
+  operator's work (not left by a projection), the open reports its topic
+  as `"unsaved"`: no save carries a node that is in no topic. Such a node
+  changes no schema, so `saved-schema` does not show it in
+  `draft_changed`. For example, the operator creates the column
+  `treedb_x.users.email` and links it to nothing; a newer literal that
+  declares `users.email` takes that node for the column and answers
+  `withdrawn_at_open: {"topics": {"users": "unsaved"}, ...}`.
 - `treedbs` and `saved-schema` answer `unfinished_projection`: the ids of
   `not_removed` and `not_written` (`[]` when the projection is complete).
 - `save-schema` refuses: `-1` *"<role^name>: the projection of 'treedb_x'
