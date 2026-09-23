@@ -4296,6 +4296,63 @@ PRIVATE int check_lost_system_lock(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Between a STOP of C_TREEDB and its next start, the __system__ tranger is
+ *  stopped: tranger2_stop() gave its lock back, and its `master` still says
+ *  what it was until something revives it (the first write or topic open,
+ *  which is the start). The prechecks read that stale TRUE (review of the
+ *  second fix round, 2026-09-23): save-schema and delete-treedb went on to
+ *  a __system__ whose treedb is closed, and `treedbs` reported it master.
+ *  What they read now is what the tranger holds: nothing, it is stopped.
+ ***************************************************************************/
+PRIVATE int check_stopped_system_is_not_master(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    gobj_stop(priv->gobj_treedbs);
+
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "treedbs", json_object(), gobj);
+    BOOL system_seen = FALSE;
+    int idx; json_t *row;
+    json_array_foreach(kw_get_list(gobj, jn_resp, "data", 0, 0), idx, row) {
+        if(strcmp(kw_get_str(gobj, row, "treedb_name", "", 0), "treedb_system_schema")==0) {
+            system_seen = json_is_false(json_object_get(row, "master")) &&
+                json_is_true(json_object_get(row, "stopped"));
+        }
+    }
+    if(!system_seen) {
+        result += save_fail(gobj, "TEST FAIL: treedbs reports a stopped __system__ as master", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) != -1 ||
+            !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "STOPPED")) {
+        result += save_fail(gobj, "TEST FAIL: save-schema went on with __system__ stopped", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    jn_resp = gobj_command(priv->gobj_treedbs, "delete-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", "treedb_never_opened", "force", 1), gobj);
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) != -1 ||
+            !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "STOPPED")) {
+        result += save_fail(gobj, "TEST FAIL: delete-treedb went on with __system__ stopped", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    gobj_start(priv->gobj_treedbs);
+
+    /*
+     *  Started again, it is the master again
+     */
+    hgobj gobj_tranger_system = gobj_find_service("tranger_system_schema", FALSE);
+    if(!gobj_read_bool_attr(gobj_tranger_system, "master")) {
+        result += save_fail(gobj, "TEST FAIL: __system__ is not the master after its restart", NULL);
+    }
+    return result;
+}
+
+/***************************************************************************
  *  A second treedb for the apply-schema of all of them
  ***************************************************************************/
 PRIVATE char schema_test_b[] = "\
@@ -5141,6 +5198,12 @@ PRIVATE int run_tests(hgobj gobj)
      *  uses and reports what the tranger IS
      *-----------------------------------------------*/
     result += check_lost_system_lock(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13f: between a stop and the next start,
+     *  __system__ is not the master
+     *-----------------------------------------------*/
+    result += check_stopped_system_is_not_master(gobj);
 
     result += check_replica_writes_nothing(gobj);
 

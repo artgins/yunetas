@@ -115,8 +115,11 @@ PRIVATE BOOL is_treedb_opened_here(
 PRIVATE json_t *build_readonly_response(
     hgobj gobj,
     const char *treedb_name,
-    json_t *kw  // owned
+    json_t *tranger,    // not owned, the tranger that refuses, may be NULL
+    json_t *kw          // owned
 );
+PRIVATE BOOL tranger_is_stopped(json_t *tranger);
+PRIVATE BOOL tranger_writes_now(hgobj gobj, json_t *tranger);
 PRIVATE json_t *diff_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
@@ -1039,7 +1042,7 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  review), and this deletes nodes of __system__.
      */
     if(!system_is_written_here(gobj)) {
-        return build_readonly_response(gobj, gobj_name(priv->gobj_node_system), kw);
+        return build_readonly_response(gobj, gobj_name(priv->gobj_node_system), priv->tranger_system_, kw);
     }
 
     int ret = delete_client_treedb_schema(gobj, treedb_name);
@@ -1131,8 +1134,8 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     }
 
     json_t *tranger = gobj_read_pointer_attr(gobj_client_node, "tranger");
-    if(!kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED)) {
-        return build_readonly_response(gobj, treedb_name, kw);
+    if(!tranger_writes_now(gobj, tranger)) {
+        return build_readonly_response(gobj, treedb_name, tranger, kw);
     }
 
     json_t *topic = treedb_create_topic( // WARNING Return is NOT YOURS
@@ -1206,8 +1209,8 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     }
 
     json_t *tranger = gobj_read_pointer_attr(gobj_client_node, "tranger");
-    if(!kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED)) {
-        return build_readonly_response(gobj, treedb_name, kw);
+    if(!tranger_writes_now(gobj, tranger)) {
+        return build_readonly_response(gobj, treedb_name, tranger, kw);
     }
 
     int ret = treedb_delete_topic(
@@ -1569,14 +1572,15 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *  on as a replica, and the `master` attribute says what was configured.
      */
     json_t *jn_data = json_array();
-    json_array_append_new(jn_data, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I, s:b}",
+    json_array_append_new(jn_data, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I, s:b, s:b}",
         "treedb_name", TREEDB_SYSTEM_SCHEMA_NAME,
         "impose_c_schema", 1,
         "decided_by", "system",
         "c_schema_version", priv->system_schema_version,
         "in_use_schema_version", priv->system_schema_version,
         "saved_schema_version", (json_int_t)0,
-        "master", system_is_written_here(gobj)
+        "master", system_is_written_here(gobj),
+        "stopped", tranger_is_stopped(priv->tranger_system_)
     ));
 
     char saved_dir[PATH_MAX];
@@ -1601,14 +1605,18 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             JSON_DECREF(saved)
         }
 
-        json_array_append_new(jn_data, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I, s:b}",
+        hgobj gobj_node = gobj_find_service(name, FALSE);
+        json_t *tranger = is_treedb_opened_here(gobj, gobj_node)?
+            gobj_read_pointer_attr(gobj_node, "tranger") : NULL;
+        json_array_append_new(jn_data, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I, s:b, s:b}",
             "treedb_name", name,
             "impose_c_schema", treedb_schema_imposed(gobj, name),
             "decided_by", impose_decided_by(gobj, name),
             "c_schema_version", kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER),
             "in_use_schema_version", in_use_version,
             "saved_schema_version", saved_version,
-            "master", treedb_is_written_here(gobj, name)
+            "master", treedb_is_written_here(gobj, name),
+            "stopped", tranger_is_stopped(tranger)
         ));
     }
 
@@ -1711,9 +1719,35 @@ PRIVATE BOOL treedb_is_written_here(hgobj gobj, const char *treedb_name)
     json_t *tranger = is_treedb_opened_here(gobj, gobj_node)?
         gobj_read_pointer_attr(gobj_node, "tranger") : NULL;
     if(tranger) {
-        return kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
+        return tranger_writes_now(gobj, tranger);
     }
     return gobj_read_bool_attr(gobj, "master");
+}
+
+/***************************************************************************
+ *  Is `tranger` STOPPED? tranger2_stop() marks it `__closed__` and gives
+ *  its lock back; the first write or topic open after it revives the
+ *  handle and takes the lock again (the next start of its service).
+ ***************************************************************************/
+PRIVATE BOOL tranger_is_stopped(json_t *tranger)
+{
+    return json_is_true(json_object_get(tranger, "__closed__"))? TRUE: FALSE;
+}
+
+/***************************************************************************
+ *  May `tranger` write NOW? Its `master` flag -- except while it is
+ *  STOPPED: it holds no lock then, and its `master` still says what it
+ *  was before the stop, TRUE even when another process takes the store
+ *  meanwhile (review of the second fix round, 2026-09-23: the prechecks of
+ *  treedbs, save-schema and delete-treedb read that stale TRUE, and went on
+ *  to a __system__ whose treedb was closed).
+ ***************************************************************************/
+PRIVATE BOOL tranger_writes_now(hgobj gobj, json_t *tranger)
+{
+    if(!tranger || tranger_is_stopped(tranger)) {
+        return FALSE;
+    }
+    return kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -1725,7 +1759,7 @@ PRIVATE BOOL system_is_written_here(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    return kw_get_bool(gobj, priv->tranger_system_, "master", 0, KW_REQUIRED);
+    return tranger_writes_now(gobj, priv->tranger_system_);
 }
 
 /***************************************************************************
@@ -1766,7 +1800,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return for_every_treedb(gobj, cmd, kw, src, cmd_save_schema);
     }
     if(!dry_run && !system_is_written_here(gobj)) {
-        return build_readonly_response(gobj, gobj_name(priv->gobj_node_system), kw);
+        return build_readonly_response(gobj, gobj_name(priv->gobj_node_system), priv->tranger_system_, kw);
     }
 
     char in_use_dir[PATH_MAX];
@@ -2304,8 +2338,8 @@ PRIVATE json_t *check_saved_schema_to_apply(
     *p_applicable = FALSE;
 
     if(!treedb_is_written_here(gobj, treedb_name)) {
-        return json_sprintf("%s: treedb '%s' is READ-ONLY, this yuno is not the master of its tranger",
-            gobj_yuno_role_plus_name(), treedb_name);
+        return json_sprintf("%s: treedb '%s' is READ-ONLY, this yuno is not the master of its "
+            "tranger, or the tranger is stopped", gobj_yuno_role_plus_name(), treedb_name);
     }
     if(treedb_schema_imposed(gobj, treedb_name)) {
         return json_sprintf("%s: the schema of '%s' is imposed by the binary (impose_c_schema)",
@@ -3985,7 +4019,7 @@ PRIVATE int reconcile_treedb_schema(
      *  take the store in exclusive opens as a replica (timeranger2.c), and
      *  what decides whether a write lands is what it ended up being.
      */
-    if(!kw_get_bool(gobj, priv->tranger_system_, "master", 0, KW_REQUIRED)) {
+    if(!tranger_writes_now(gobj, priv->tranger_system_)) {
         return 0;
     }
 
@@ -4316,9 +4350,24 @@ PRIVATE BOOL is_treedb_opened_here(
 PRIVATE json_t *build_readonly_response(
     hgobj gobj,
     const char *treedb_name,
-    json_t *kw  // owned
+    json_t *tranger,    // not owned, the tranger that refuses, may be NULL
+    json_t *kw          // owned
 )
 {
+    if(tranger_is_stopped(tranger)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: treedb '%s' is STOPPED: its tranger holds no lock until its "
+                "service starts again",
+                gobj_yuno_role_plus_name(),
+                treedb_name
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     return msg_iev_build_response(
         gobj,
         -1,
