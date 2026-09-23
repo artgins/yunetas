@@ -398,7 +398,19 @@ side and run alternated (medians; ext4, laptop NVMe).
   deleted (outside the tree); a dangling link made the removal fail. A link is
   removed as a link; their failures name the path, and `rmrcontentdir()` no
   longer fails silently. `mkrdir()` over a path that exists and is not a
-  directory logs and returns -1 (it returned 0).
+  directory, or a dangling link, logs the real cause (`ENOTDIR`) and returns -1
+  (it returned 0, and logged a leftover errno).
+- `find_files_with_suffix_array()` never lists a symbolic link (on filesystems
+  without `d_type` it used `stat()` and listed a link to a file).
+- rotatory (the log files): a record is checked once and written whole. Up to
+  7.25.4 each piece of a record rebuilt the file name (`localtime()`) and ran
+  `access()` + `fstat()`: an agent audit record cost 7.2 us, now 0.59 us. A
+  record is no longer split between two files at a size rotation. A log file
+  RENAMED by another program is no longer noticed (a removed one still is); the
+  free-disk check runs every 100 records instead of every 100 pieces.
+- The entry point closes the log files last: up to 7.25.4 they were closed
+  before the final cleaning and the memory leak report, so *"system memory not
+  free"* never reached the yuno's log file.
 
 ### C_NODE, C_AUTHZ, C_TRANGER, gobj-c
 
