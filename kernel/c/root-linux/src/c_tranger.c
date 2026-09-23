@@ -138,6 +138,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_open_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -269,6 +270,11 @@ SDATAPM (DTP_STRING,    "key",          0,              0,          "Key (primar
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete: required when the key holds records"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_mark_tm_order[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic to migrate to tm marking"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_add_record[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
@@ -391,6 +397,7 @@ SDATACM2 (DTP_SCHEMA,   "create-topic",     SDF_AUTHZ_X,    0,      pm_create_to
 SDATACM2 (DTP_SCHEMA,   "open-topic",       SDF_AUTHZ_X,    0,      pm_open_topic,    cmd_open_topic,   "Open topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic",     SDF_AUTHZ_X,    0,      pm_delete_topic,    cmd_delete_topic,   "Delete topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-key",       SDF_AUTHZ_X,    0,      pm_delete_key,      cmd_delete_key,     "Delete a whole key (primary key) and every record it holds. Irrecoverable, master-only; force=1 when the key is not empty"),
+SDATACM2 (DTP_SCHEMA,   "mark-tm-order",    SDF_AUTHZ_X,    0,      pm_mark_tm_order,   cmd_mark_tm_order,  "Migrate a topic written before the tm markers (7.25.4 or earlier): mark its md2 files whose __tm__ or __t__ goes back and make it a topic that marks, so a tm query reads only the files its range meets. Master-only, synchronous, idempotent; permission 'write'"),
 
 SDATACM2 (DTP_SCHEMA,   "open-list",        SDF_AUTHZ_X,    0,      pm_open_list,       cmd_open_list,      "Open list. With return_data=1 loads and returns the matching records, auto-closing (one-shot read); else the list stays open collecting appends until close-list"),
 SDATACM2 (DTP_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_list,      cmd_close_list,     "Close list"),
@@ -1740,6 +1747,105 @@ PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
                 gobj_yuno_role_plus_name(), key, topic_name),
         0,
         0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  The migration of a topic written before the tm markers: see
+ *  tranger2_mark_tm_order(). A topic created by 7.25.4 or earlier trusts no
+ *  tm range of its files, so a tm query reads every md2 row of the key;
+ *  marked, it reads only the files its range meets.
+ *
+ *  Permission `write`: it rewrites what the store says about the topic's
+ *  files (markers, topic_desc.json), and adds or deletes no record.
+ *  MASTER-ONLY, asked before the library: what the tranger IS (the
+ *  `master` attribute answers it, see mt_reading).
+ ***************************************************************************/
+PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "write";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(!gobj_read_bool_attr(gobj, "master")) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: tranger '%s' is READ-ONLY, this yuno is not its master: "
+                "mark-tm-order runs on the master",
+                gobj_yuno_role_plus_name(), gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(!tranger2_topic(priv->tranger, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%s'", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *report = tranger2_mark_tm_order(priv->tranger, topic_name);
+    if(!report) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot mark the tm order of topic '%s', it is left as it "
+                "was (see the log)", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *comment = json_sprintf(
+        "%s: topic '%s' %s: %d key(s), %d file(s), %d tm and %d t marker(s) written",
+        gobj_yuno_role_plus_name(),
+        topic_name,
+        kw_get_bool(gobj, report, "was_marking", 0, 0)? "re-marked" : "marks tm order now",
+        (int)kw_get_int(gobj, report, "keys", 0, 0),
+        (int)kw_get_int(gobj, report, "files", 0, 0),
+        (int)kw_get_int(gobj, report, "tm_unordered_marked", 0, 0),
+        (int)kw_get_int(gobj, report, "t_unordered_marked", 0, 0)
+    );
+    return msg_iev_build_response(
+        gobj,
+        0,
+        comment,
+        0,
+        report,
         kw  // owned
     );
 }

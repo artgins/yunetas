@@ -2243,6 +2243,62 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
 
     /*-------------------------------------------------*
+     *      mark-tm-order: the migration of a topic written before the
+     *      tm markers (a "legacy" topic: no `marks_tm_unordered` in its
+     *      topic_desc.json), exposed as a command of the service. Made
+     *      legacy by hand, on disk and in memory, then migrated.
+     *-------------------------------------------------*/
+    {
+        char topic_dir[PATH_MAX];
+        build_path(topic_dir, sizeof(topic_dir), path_database, TOPIC_NAME, NULL);
+        json_t *desc = load_json_from_file(0, topic_dir, "topic_desc.json", 0);
+        json_object_del(desc, "marks_tm_unordered");
+        char desc_path[PATH_MAX];
+        build_path(desc_path, sizeof(desc_path), topic_dir, "topic_desc.json", NULL);
+        chmod(desc_path, 0660);     /*  written read-only by the tranger  */
+        check_int("the topic made legacy on disk",
+            save_json_to_file(0, topic_dir, "topic_desc.json", 02770, 0660, 0, TRUE, FALSE, desc), 0);
+        json_object_del(tranger2_topic(tranger, TOPIC_NAME), "marks_tm_unordered");
+
+        r = gobj_command(yuno, "mark-tm-order", json_object(), yuno);
+        check_int("mark-tm-order without topic_name", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "mark-tm-order",
+            json_pack("{s:s}", "topic_name", "no_such_topic"), yuno);
+        check_int("mark-tm-order of a topic that is not there", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+
+        r = gobj_command(yuno, "mark-tm-order",
+            json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
+        check_int("mark-tm-order result", kw_get_int(0, r, "result", -999, 0), 0);
+        check_bool("mark-tm-order: the topic did not mark",
+            kw_get_bool(0, r, "data`was_marking", 1, 0), FALSE);
+        check_bool("mark-tm-order: the topic marks now",
+            kw_get_bool(0, r, "data`marks_tm_unordered", 0, 0), TRUE);
+        json_t *keys = tranger2_list_keys(tranger, TOPIC_NAME);
+        check_int("mark-tm-order: every key of the topic",
+            kw_get_int(0, r, "data`keys", 0, 0), (json_int_t)json_array_size(keys));
+        JSON_DECREF(keys)
+        check_bool("mark-tm-order: the comment names the topic",
+            strstr(kw_get_str(0, r, "comment", "", 0), TOPIC_NAME) != NULL, TRUE);
+        JSON_DECREF(r)
+        check_bool("the topic in memory marks",
+            kw_get_bool(0, tranger2_topic(tranger, TOPIC_NAME), "marks_tm_unordered", 0, 0), TRUE);
+        desc = load_json_from_file(0, topic_dir, "topic_desc.json", 0);
+        check_bool("topic_desc.json marks",
+            kw_get_bool(0, desc, "marks_tm_unordered", 0, 0), TRUE);
+        JSON_DECREF(desc)
+
+        /*  Again: idempotent, and says the topic marked already  */
+        r = gobj_command(yuno, "mark-tm-order",
+            json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
+        check_int("mark-tm-order again", kw_get_int(0, r, "result", -999, 0), 0);
+        check_bool("mark-tm-order again: it marked already",
+            kw_get_bool(0, r, "data`was_marking", 0, 0), TRUE);
+        JSON_DECREF(r)
+    }
+
+    /*-------------------------------------------------*
      *      A master that LOST its lock (another process took the store
      *      while it was stopped) goes on as a replica: its tranger says
      *      `master` false. The `master` attribute of C_TRANGER went on
@@ -2287,6 +2343,13 @@ PRIVATE int do_test(void)
         tranger2_get_rt_disk_by_id(tranger, TOPIC_NAME, "rtLOST", gobj_name(yuno)) != NULL, TRUE);
     r = gobj_command(yuno, "close-rt",
         json_pack("{s:s}", "rt_id", "rtLOST"), yuno);
+    JSON_DECREF(r)
+    /*  A replica does not migrate: master only, refused before the library  */
+    r = gobj_command(yuno, "mark-tm-order",
+        json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
+    check_int("mark-tm-order on a replica", kw_get_int(0, r, "result", -999, 0), -1);
+    check_bool("mark-tm-order on a replica says READ-ONLY",
+        strstr(kw_get_str(0, r, "comment", "", 0), "READ-ONLY") != NULL, TRUE);
     JSON_DECREF(r)
     tranger2_shutdown(other_master);
     global_result += test_json(NULL);
