@@ -208,6 +208,22 @@ Fixed whole on 2026-09-23 (`CHANGELOG.md`, Unreleased). Left:
   child fkey, skipping duplicate"* twice per yuno, which contradicts "linking a
   pair already linked writes nothing and says nothing".
 
+## TreeDB / timeranger2: what the second independent review left open
+
+- `rmrdir()` (gobj-c helpers) uses `stat()`, which follows symlinks: a dangling
+  symlink makes it fail, and a symlink to a directory makes it walk into the
+  target and delete what is there. Use `lstat()` and never descend a link.
+- treedb deletes of a parent do not see links from children that did not load
+  (a topic with `load_failed` keys).
+- A draft column whose `order` is not its position (e.g. 99) reads as unsaved
+  right after a save.
+- A demoted master never takes its lock back while the process lives; it needs
+  a restart (documented).
+- The crash window between a marker and its md2 row is not covered by a test.
+- A test binary is not relinked by `cmake --build build` after `make install`
+  of a library it links by name: a per-module test run can execute the old
+  library. `yunetas clean && yunetas build && yunetas test` is not affected.
+
 ## Agent: the spare agent is only refreshed on the package path
 
 `install.sh` restarts `yuneta_agent22` after an upgrade, once the main agent is

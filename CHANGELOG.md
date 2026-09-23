@@ -2,6 +2,74 @@
 
 ## Unreleased
 
+### The second independent review, fixed
+
+A second independent review (five reviewers) of the fixes above found two
+regressions of this same round, one of them deployed, and a few mediums. All
+fixed with a test that fails before the fix.
+
+- **Regression, keyless `tranger2_open_list()`**: making it stop at the first
+  unreadable key (for the asset guard) made treedb load a topic only up to that
+  key, open no realtime feed, and let a master accept a create that shadowed a
+  stored record. A keyless list loads every readable key again, opens its feed,
+  and returns flagged `load_failed` with `load_failed_keys` (a list of ONE key
+  still returns NULL). treedb remembers the keys that did not load and refuses
+  what memory would answer wrong: a create of such an id; shoot/activate and the
+  snapshot-guarded deletes when `__snaps__` is partial; `gc-assets` when a topic
+  with a `file` column or `__assets__` is partial. The orphan-blob sweep still
+  runs when the asset rows are refused. Recovery procedure in treedb.md.
+- **Regression, tm marker**: a `.tm_unordered` marker that could not be written
+  left the file trusted as tm-ordered, and the early end hid rows 7.25.4 served.
+  The markers are written BEFORE the md2 row, the in-memory flag is always set,
+  and a failed marker is retried at the next append.
+- `tranger2_write_user_flag()`, `tranger2_set_user_flag()` and
+  `tranger2_set_system_flag()` refuse on a non-master ("Only master can write").
+  On a demoted master or a replica they logged a CRITICAL and, with the default
+  `on_critical_error`, EXITED the process.
+- **Legacy topics can be migrated**: `tranger2_mark_tm_order(tranger, topic)`
+  and the C_TRANGER command `mark-tm-order topic_name=<t>` (master only,
+  permission `write`) read every file of the topic once, write the missing
+  markers and set `marks_tm_unordered`. Topics created by 7.25.4 or earlier do
+  tm queries much slower than 7.25.4 until migrated (30 files x 20 000 rows:
+  7.25.4 ~13 ms, unmigrated ~400 ms, migrated ~0.1 ms; the migration took
+  ~16 ms). Running it again re-marks a topic after a rollback.
+- C_TREEDB: a literal that raises a topic past the file in use replaces the
+  operator's saved draft of that topic in `__system__` on BOTH paths (it was so
+  only on the take-over path), with a warning, so `__system__` shows what the
+  treedb runs; a topic the literal does not raise keeps its draft.
+  `default: {}` is dropped again on every column, `required` included (keeping
+  it turned `required` off for every required container column).
+- C_TREEDB lows: no false "behind" log after a withdraw; a take-over never
+  lowers `schema_version`; an applied, withdrawn or superseded saved schema is
+  removed (`saved-schema` answers `saved` only for a save waiting to be applied,
+  and `stale` for an old file); prechecks answer "STOPPED" while a tranger is
+  stopped; the diff shows a column reorder.
+- Every C_NODE and C_AUTHZ command comment starts with the yuno and none reads
+  `gobj_log_last_message()` (import-db still keys its error stats on it).
+- timeranger2 lows: `topic_var.json` and `topic_cols.json` are replaced through
+  a `.new` created `O_EXCL|O_NOFOLLOW` (a leftover or a symlink is not reused);
+  `tranger2_write_topic_cols()` returns -1 on failure and updates memory after
+  the write; `delete_key` removes the directory before announcing the delete; a
+  marker name that does not fit is logged and the file read whole.
+- gobj-ui 7.25.7, gui_agent 0.22.81 (deployed, console checked): **a regression
+  of gobj-ui 7.25.6 that was live** -- navigating in the schema editor during a
+  reload dropped the reload and the next write emptied the model; the editor now
+  stays loading until the load ends. The link's request ids are unique per page
+  (two treedb views crossed answers and could fake a delete); a late upload is
+  not kept in memory; the editor reloads after a late successful write; one
+  toast per message; a withdrawn saved schema is said as such.
+
+**BREAKING (second review)**
+
+- A C_TRANGER stopped and started while another process took its store now
+  logs a CRITICAL at `on_critical_error` (exit with the default), as at startup.
+- A keyless `tranger2_open_list()` returns a flagged list instead of NULL.
+- The treedb refusals above; `tranger2_write_topic_cols()` can return -1; the
+  three flag writers return -1 on a non-master.
+- C_TREEDB `saved-schema`: `saved` means "waiting to be applied" (new `stale`);
+  applied/withdrawn saved files are removed. C_NODE `instances` answers -1 on
+  failure. Command comment texts of C_NODE and C_AUTHZ changed.
+
 ### The independent review of 7.25.4, fixed
 
 An independent six-reviewer pass over the 7.25.4 fixes (none of them written
