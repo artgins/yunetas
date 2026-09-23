@@ -1136,7 +1136,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
     const char *topic_name,
     json_t *match_cond, // owned
     json_t *extra,      // owned; added to the returned rt, or IS the returned handle when no_rt
-    const char *rt_id,
+    const char *rt_id,  // rt_by_disk: REQUIRED (disks/<rt_id>/, empty is refused); rt_mem: optional
     BOOL rt_by_disk,    // TRUE: realtime by disk; FALSE: realtime by memory (master only)
     const char *creator
 );
