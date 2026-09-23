@@ -363,12 +363,35 @@ PUBLIC int treedb_set_node_immutable(
     HACK fkeys and hook fields are not updated!
     A pkey2 value names an instance: a kw that changes it is refused
     (return 0, nothing touched). A new instance is a treedb_create_node().
+    A save that fails takes the update back in memory, and tells no event
+    (return 0).
 **rst**/
 PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
     json_t *tranger,
     json_t *node,   // NOT owned, pure node.
     json_t *kw,     // owned
     BOOL save
+);
+
+/**rst**
+    Write the record `kw` over `node` as ONE write, and save it: its fields
+    (as treedb_update_node(); not with `with_fields` FALSE, for a node just
+    created from kw), and its links replaced by the ones its fkey columns
+    name (as treedb_replace_links()). It is the update-node with
+    `autolink` of C_NODE.
+
+    A link that cannot be made is logged and skipped, `*links_refused` says
+    so, and the record is saved all the same. A save that fails takes the
+    whole write back in memory, fields and links, and tells none of its
+    events. Return the node (NOT yours), or NULL when the update is refused
+    or the save fails (every failure logged).
+**rst**/
+PUBLIC json_t *treedb_update_node_and_links( // WARNING Return is NOT YOURS, pure node
+    json_t *tranger,
+    json_t *node,       // NOT owned, pure node
+    json_t *kw,         // owned
+    BOOL with_fields,   // FALSE: the links alone
+    BOOL *links_refused // optional
 );
 
 /**rst**
@@ -393,6 +416,11 @@ PUBLIC int set_volatil_values(
     `node` is the pure node as the index holds it: borrowed, never the
     caller's own reference. On success the index's reference is released
     with the key; on a refusal the node is left as it was, still indexed.
+
+    A forced delete that is refused changes nothing: when a child cannot be
+    saved unlinked, the node cannot be unlinked from its parents, or the
+    key cannot be deleted, the children already unlinked are put back and
+    saved again, the node keeps its links, and no event is told.
 
     A node of `__assets__` is refused while a snapshot links it, and also
     when that cannot be told (a tagged record of an existing snap cannot be
@@ -445,7 +473,8 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
  *  new is linked, a link in both is left alone (no event, no write). A
  *  column kw does not carry is an empty one. A link that cannot be made or
  *  undone is logged and skipped, and the rest go on.
- *  Return 0, or -1 if some link failed (every failure logged).
+ *  Return 0, or -1 if some link failed or the save failed (every failure
+ *  logged); a failed save takes every link of the call back in memory.
  */
 PUBLIC int treedb_replace_links(
     json_t *tranger,

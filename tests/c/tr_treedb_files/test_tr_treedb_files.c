@@ -34,6 +34,7 @@
  *           25, 26. the same after a restart, with the store damaged while down
  *           27. the gc refuses while a snap is active
  *           28. treedb_gc_files2() reports what a refused gc still swept
+ *           29. a failed autolink still tells the asset write it caused
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -78,6 +79,7 @@
 #define PNG_H   "\x89PNG\r\n\x1a\n" "IHDR fixture H, an asset that gets renamed"
 #define PNG_I   "\x89PNG\r\n\x1a\n" "IHDR fixture I, the foto of the replica case"
 #define PNG_J   "\x89PNG\r\n\x1a\n" "IHDR fixture J, handed to a replica"
+#define PNG_K   "\x89PNG\r\n\x1a\n" "IHDR fixture K, renamed by an autolink that fails"
 #define SVG_A   "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
 
 /*  One CONTAINER, two legal names for it: isobmff is 'video/mp4' by its
@@ -1585,6 +1587,81 @@ PRIVATE int test_gc_takes_orphan_blobs(json_t *tranger)
  *
  ***************************************************************************/
 /***************************************************************************
+ *  29. A failed autolink still tells the asset write it caused
+ *
+ *  The bytes of a `file` column are stored before the write of the node
+ *  opens. A NEW name of an asset is an update of the asset node, on disk
+ *  whatever the write of the node does after: its event is told. Stored
+ *  inside the write, the event waited for it, and was dropped with an
+ *  autolink that failed.
+ ***************************************************************************/
+PRIVATE int asset_updates = 0;
+
+PRIVATE int count_asset_updates(
+    void *user_data,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *operation,
+    json_t *node    // owned
+)
+{
+    if(strcmp(topic_name, TREEDB_ASSETS_TOPIC)==0 && operation == EV_TREEDB_NODE_UPDATED) {
+        asset_updates++;
+    }
+    json_decref(node);
+    return 0;
+}
+
+PRIVATE int test_failed_autolink_tells_the_asset_write(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "29. a failed autolink still tells the asset write it caused";
+    set_expected_results(test, json_pack("[{s:s}]",
+        "msg", "Wrong fkey reference: must be \"topic_name^id^hook_name\""
+    ), NULL, NULL, 1);
+
+    json_t *node = create_device_with_foto(tranger, "dev-29", PNG_K, sizeof(PNG_K)-1, "image/png", 0);
+    if(!node) {
+        printf("%s  FAIL: the device was not created%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    treedb_set_callback(tranger, TREEDB_NAME, count_asset_updates, NULL, TREEDB_CALLBACK_LINK_EVENTS);
+    asset_updates = 0;
+
+    /*  the same bytes under a new name, and a qr that is not a ref  */
+    json_t *kw = json_pack("{s:s, s:s, s:[s], s:{s:{s:o, s:s, s:s}}}",
+        "id", "dev-29",
+        "foto", "",
+        "qr", "not a ref",
+        "__files__",
+            "foto",
+                "content64", b64(PNG_K, sizeof(PNG_K)-1),
+                "original_name", "renamed.png",
+                "content_type", "image/png"
+    );
+    if(treedb_autolink(tranger, node, kw, TRUE) >= 0) {
+        printf("%s  FAIL: the autolink answered success%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, sha(PNG_K, sizeof(PNG_K)-1));
+    if(strcmp(kw_get_str(0, asset, "original_name", "", 0), "renamed.png")!=0) {
+        printf("%s  FAIL: the new name was not stored%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(asset_updates != 1) {
+        printf("%s  FAIL: the asset write was told %d times, not once%s\n",
+            On_Red BWhite, asset_updates, Color_Off);
+        result += -1;
+    }
+
+    treedb_set_callback(tranger, TREEDB_NAME, NULL, NULL, 0);
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  19. `now` is stamped by every write, `writable` or not
  *
  *  The flag says the CLOCK writes the column, and only the create wrote
@@ -2049,9 +2126,9 @@ PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
 
     /*
      *  And bytes no row names. treedb_gc_files() answers a refusal with
-     *  NULL, and a NULL takes NOTHING: it swept them while the command
-     *  answered only "refused" (independent review of the third fix
-     *  round). treedb_gc_files2() sweeps them and says so (case 28).
+     *  NULL, and a NULL takes NOTHING: a caller that can only say "refused"
+     *  cannot say what was swept. treedb_gc_files2() sweeps them and says
+     *  so (case 28).
      */
     const char *ghost = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     char ghost_path[PATH_MAX];
@@ -2619,6 +2696,7 @@ PRIVATE int do_test(void)
     result += test_refused_create_stores_nothing(tranger);
     result += test_gc_takes_orphan_blobs(tranger);
     result += test_now_is_stamped_on_update(tranger);
+    result += test_failed_autolink_tells_the_asset_write(tranger);
 
     {
         const char *test = "close and shutdown";

@@ -1149,52 +1149,61 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             TRUE
         );
 
-    } else {
-        if(!create) {
-            /*
-             *  A refused update used to be answered as a success: the
-             *  return was dropped, and the caller got the collapsed view of
-             *  a node that had not changed.
-             */
-            if(!treedb_update_node( // Return is NOT YOURS
-                priv->tranger,
-                node,
-                json_incref(kw), // Don't use kw_incref for tranger
-                autolink?FALSE:TRUE
-            )) {
-                // Error already logged
-                JSON_DECREF(jn_options)
-                KW_DECREF(kw)
-                return 0;
-            }
-        }
-        if(autolink) {
-            /*
-             *  A link that cannot be made does not cost the record its
-             *  save: a link can be repaired later, a lost record cannot.
-             */
-            if(treedb_replace_links(priv->tranger, node, json_incref(kw), FALSE)<0) {
-                // Error already logged
-                links_refused = TRUE;
-            }
-            /*
-             *  The save is the answer: ignored, a failed append answered the
-             *  node as written while only the memory had moved.
-             */
-            if(treedb_save_node(priv->tranger, node)<0) {
+    } else if(autolink) {
+        /*
+         *  The fields (not for a node just created from kw), the links kw
+         *  names and the save are ONE write: a save that fails takes all of
+         *  it back and tells none of its events (7.25.4 made it three calls,
+         *  each closed before the save: a failed save left memory with the
+         *  fields and the links, and the LINKED told).
+         *
+         *  A link that cannot be made does not cost the record its save: a
+         *  link can be repaired later, a lost record cannot.
+         */
+        if(!treedb_update_node_and_links( // Return is NOT YOURS
+            priv->tranger,
+            node,
+            json_incref(kw), // Don't use kw_incref for tranger
+            create? FALSE: TRUE,
+            &links_refused
+        )) {
+            // Error already logged
+            if(create) {
+                /*
+                 *  The create itself is on disk: said, because the answer
+                 *  is a failure all the same.
+                 */
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
-                    "msg",          "%s", "Cannot save the node after its links (autolink)",
+                    "msg",          "%s", "Node created, but its links cannot be saved (autolink): the node stays without them",
                     "treedb_name",  "%s", priv->treedb_name,
                     "topic_name",   "%s", topic_name,
                     "id",           "%s", kw_get_str(gobj, node, "id", "", 0),
                     NULL
                 );
-                JSON_DECREF(jn_options)
-                KW_DECREF(kw)
-                return 0;
             }
+            JSON_DECREF(jn_options)
+            KW_DECREF(kw)
+            return 0;
+        }
+
+    } else if(!create) {
+        /*
+         *  A refused update used to be answered as a success: the
+         *  return was dropped, and the caller got the collapsed view of
+         *  a node that had not changed.
+         */
+        if(!treedb_update_node( // Return is NOT YOURS
+            priv->tranger,
+            node,
+            json_incref(kw), // Don't use kw_incref for tranger
+            TRUE
+        )) {
+            // Error already logged
+            JSON_DECREF(jn_options)
+            KW_DECREF(kw)
+            return 0;
         }
     }
 
