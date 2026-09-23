@@ -44,11 +44,18 @@ places of the schema agree: what the store RUNS (the open topics, their
 | L3 | `tw_l3` | The process died between the record of an apply and its rename (the record is written by hand). The next apply keeps the topics of the apply that ran, from the record's `previous`: a newer literal reports `users` as `in_use` and `departments` as `applied`. |
 | L4 | `tw_l4` | A projection seeded from the file fails (a column flag that the meta-schema refuses). It is recorded, retried at every open, its partial projection is no draft, and `save-schema` refuses. When the file is fixed, the next open completes it. |
 | L6 | `tw_l6` | An open that fails answers `-1` and names the yuno: a literal that C_TREEDB refuses, and a schema file that `treedb_open_db()` refuses (no topics). The second answer tells to `close-treedb` first. |
+| M1b | `tw_m1b` | A column the operator adds to the leftover topic stays a draft through a retry that cannot finish (the snapshot still holds the topic): `saved-schema` shows it, the record does not name it as a leftover, nothing is reported. The open that removes it reports `departments` as `unsaved`. |
+| M2b | `tw_m2r`, `tw_m2c` | A draft that the projection cannot replace (its delete is refused) stays a draft and is reported once, by the open that replaces it: a column and a header edit on a topic the literal removes (`tw_m2r`), and a column added to a topic the literal keeps (`tw_m2c`). |
+| L1b | `tw_l1b` | The record of an unfinished projection is torn. It still says "unfinished": `saved-schema` answers `unfinished_projection`, `save-schema` refuses, a WARNING is logged at every read. The next open retries and writes the record again. What the torn record left is unknown, so it is taken for a draft and reported when the projection completes. |
+| L2b | `tw_l2b` | The node of a new treedb in `__system__` is created with `schema_version` and `c_schema_version` 0 (its first record on disk), and stamped last. |
+| L3b, L4b | `tw_l3b` | After an open that failed, a second open says that the treedb did not open and tells to `close-treedb`; the `treedbs` row has `opened: false`. Every answer of `open-treedb` and `close-treedb` starts with the yuno. |
 
 An unfinished projection is RECORDED in
 `saved_schemas/<treedb>.unfinished.json` under the `__system__` tranger. The
 record says which ids of `__system__` the projection left. Only these are
-not drafts, on every path.
+not drafts, on every path. An operator's draft that the projection cannot
+replace is not a leftover: it stays a draft, and the open that replaces it
+reports it.
 
 The expected log list in `src/main.c` is strict FIFO: every line from INFO
 up, in order.

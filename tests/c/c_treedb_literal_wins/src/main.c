@@ -101,6 +101,7 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
 #define M_BEHIND        "TreeDB schema from C is behind the schema in use, not applied"
 #define M_ENUM          "Value not in enum"
 #define M_REPLICA       "The store of the treedb is not written here: it opens as a replica and runs its schema file, __system__ is not reconciled"
+#define M_UNREADABLE    "Record of an unfinished projection cannot be read: the projection is unfinished, what it left is unknown; every open retries it, save-schema refuses, and what __system__ holds over the file is taken for drafts"
 
 /*
  *  Every log line from INFO up, in order: one per emission (strict FIFO).
@@ -502,6 +503,130 @@ PRIVATE const char *expected_log_msgs[] = {
     "Input Schema fails",
     "A column cannot be both 'hook' and 'fkey'",
     "Schema fails",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "No topics found",
+    "TreeDB not found",
+    "TreeDB not found",
+    "TreeDB not found",
+
+    /*  M1b: a snapshot holds departments, v2 leaves it (unfinished), the
+     *  operator adds departments.budget; a retry that cannot finish keeps
+     *  it a draft and says nothing; the open that removes it says it  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    M_COMPLETING,
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    M_COMPLETING,
+    M_REMOVED,
+    M_WITHDREW,
+
+    /*  M2b on a removed topic (tw_m2r): the draft on departments stays a
+     *  draft through two refused deletes, and is said once, by the open
+     *  that removes it  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    M_COMPLETING,
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    M_COMPLETING,
+    M_REMOVED,
+    M_WITHDREW,
+
+    /*  M2b on a kept topic (tw_m2c): users.budget and departments are
+     *  both refused; users is said once, by the open that removes it  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_SNAP_HOLDS,
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    M_COMPLETING,
+    M_SNAP_HOLDS,
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    M_COMPLETING,
+    M_REMOVED,
+    M_WITHDREW,
+
+    /*  L1b: the record is torn: every read of it says so (saved-schema
+     *  reads it twice, save-schema and the next open once); the retry
+     *  writes it again; with no leftovers known, the open that completes
+     *  it reports departments  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Cannot load json file, bad json",
+    M_UNREADABLE,
+    "Cannot load json file, bad json",
+    M_UNREADABLE,
+    "Cannot load json file, bad json",
+    M_UNREADABLE,
+    "Cannot load json file, bad json",
+    M_UNREADABLE,
+    M_COMPLETING,
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    M_COMPLETING,
+    M_REMOVED,
+    M_WITHDREW,
+
+    /*  L2b: first open, projected whole  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+
+    /*  L3b + L4b: a schema file with no topics: the open fails, the
+     *  second one is refused up front, close-treedb  */
+    "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
     "Creating topic",
