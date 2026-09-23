@@ -7,7 +7,7 @@ description: >-
 
 # Dialogs and notifications
 
-**Source code:** [`src/shell_modals.js`](https://github.com/artgins/gobj-ui.js/blob/7.25.7/src/shell_modals.js)
+**Source code:** [`src/shell_modals.js`](https://github.com/artgins/gobj-ui.js/blob/7.25.8/src/shell_modals.js)
 
 Every function takes the shell as its first parameter.
 
@@ -21,27 +21,32 @@ until somebody closes it. Each one gives `{close}` back.
 
 Only one notification shows a given text at a time (since 7.25.7). When a
 string message of the same kind is already on screen, the call does not add a
-second one: the time of the one on screen starts again, and the call gives
-back the `{close}` of that one. A message made of elements is always added.
+second one. But each call keeps its own `{close}` and its own time (since
+7.25.8): the notification stays until every call has closed its `{close}` or
+timed out. The close button of the notification removes it for every call. A
+message made of elements is always added.
 
 ```js
-yui_shell_show_error(shell, "the connection dropped");
-let again = yui_shell_show_error(shell, "the connection dropped");
-// one notification on screen; again.close() removes it
+let first = yui_shell_show_error(shell, "the connection dropped");       // 5 s
+let again = yui_shell_show_error(shell, "the connection dropped",
+                                 {timeout: 0});                          // no time limit
+// one notification on screen
+first.close();      // it stays: `again` holds it
+again.close();      // it goes
 ```
 
 (js_yui_shell_show_info)=
-### [`yui_shell_show_info(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.7/src/shell_modals.js#L197)
+### [`yui_shell_show_info(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.8/src/shell_modals.js#L218)
 
 Shows a message of information.
 
 (js_yui_shell_show_warning)=
-### [`yui_shell_show_warning(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.7/src/shell_modals.js#L201)
+### [`yui_shell_show_warning(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.8/src/shell_modals.js#L222)
 
 Shows a warning.
 
 (js_yui_shell_show_error)=
-### [`yui_shell_show_error(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.7/src/shell_modals.js#L205)
+### [`yui_shell_show_error(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.8/src/shell_modals.js#L226)
 
 Shows an error.
 
@@ -50,7 +55,7 @@ Shows an error.
 ## Modal
 
 (js_yui_shell_show_modal)=
-## [`yui_shell_show_modal(shell, content, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.7/src/shell_modals.js#L220)
+## [`yui_shell_show_modal(shell, content, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.8/src/shell_modals.js#L241)
 
 Puts an overlay in the layer of the modals. `content` accepts a string, which
 the function draws inside a box, or an element, which it draws as it is.
@@ -71,19 +76,19 @@ Each one gives a promise back. The buttons carry a label that the caller can
 change.
 
 (js_yui_shell_confirm_ok)=
-### [`yui_shell_confirm_ok(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.7/src/shell_modals.js#L584)
+### [`yui_shell_confirm_ok(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.8/src/shell_modals.js#L605)
 
 Shows a message with one button. The promise gives `undefined` back.
 `opts.ok_label` changes the label.
 
 (js_yui_shell_confirm_yesno)=
-### [`yui_shell_confirm_yesno(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.7/src/shell_modals.js#L595)
+### [`yui_shell_confirm_yesno(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.8/src/shell_modals.js#L616)
 
 Asks a question with two answers. The promise gives `true` for yes.
 `opts.yes_label` and `opts.no_label` change the labels.
 
 (js_yui_shell_confirm_yesnocancel)=
-### [`yui_shell_confirm_yesnocancel(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.7/src/shell_modals.js#L632)
+### [`yui_shell_confirm_yesnocancel(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.8/src/shell_modals.js#L653)
 
 Asks a question with three answers. The promise gives `"yes"`, `"no"` or
 `"cancel"`.
@@ -92,7 +97,7 @@ Use it when the third answer is a real one. A question such as *"play all"* has
 three answers and not two: add, replace, or cancel.
 
 (js_yui_shell_confirm_danger)=
-### [`yui_shell_confirm_danger(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.7/src/shell_modals.js#L619)
+### [`yui_shell_confirm_danger(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.25.8/src/shell_modals.js#L640)
 
 Asks a **destructive** question. The promise gives `true` only when the user
 presses the red button. `opts.confirm_label` and `opts.cancel_label` change the
