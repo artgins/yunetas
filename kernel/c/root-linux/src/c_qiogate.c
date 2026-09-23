@@ -1099,7 +1099,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(priv->timeout_backup > 0 && test_sectimer(priv->t_backup)) {
         if(trq_size(priv->trq_msgs)==0 && priv->pending_acks==0) {
-            // Check and do backup only when no message
+            // Check and do backup only when no message. After a trq_load() that could not
+            // read every pending message the queue is empty too: tr_queue refuses that backup
             trq_check_backup(priv->trq_msgs);
         }
         priv->t_backup = start_sectimer(priv->timeout_backup);
