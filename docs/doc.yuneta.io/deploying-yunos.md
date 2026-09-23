@@ -296,9 +296,15 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=services'
 ycommand -c 'command-yuno id=<id> service=tranger_treedb_x command=mark-tm-order all=1'
 ycommand -c 'command-yuno id=<id> service=tranger_system_schema command=mark-tm-order all=1'
 
-# The agent's own treedb
+# The agent's own treedb, and its __system__
 ycommand -c 'command-agent service=tranger_treedb_yuneta_agent command=mark-tm-order all=1'
+ycommand -c 'command-agent service=tranger_system_schema command=mark-tm-order all=1'
 ```
+
+Other trangers of the in-tree yunos have other names (`tranger_authz`,
+`tranger_queues` in the MQTT broker, `gobj_tranger_<name>` in emailsender and
+the queue gates, `tranger_<name>` in webstats): take them from the `services`
+answer above.
 
 The answer has one row per topic on disk, `{topic_name, result, comment,
 data}`, and says the totals: `0: <role^name>: mark-tm-order of every topic: 5

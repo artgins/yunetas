@@ -127,10 +127,6 @@ The second review (read at 7.24.1) shipped in 7.25.0 and in gobj-ui
 - **A1-A3:** C_NODE's `snap-content` does not ask
   `treedb_is_treedbs_topic()` -- it can no longer leave the database, but it
   can read a topic of the tranger that is not a topic of that treedb.
-- **M16-M18:** closed after 7.25.4: `tm` disorder is marked
-  (`.tm_unordered`, written before the row) in topics created or migrated
-  (`mark-tm-order`) from then on. Legacy topics trust no tm range until
-  migrated.
 - **M36:** every in-tree yuno forces `impose_c_schema`, so gui_agent's Apply
   is off on all of them until one stops forcing it.
 
@@ -192,9 +188,11 @@ Three independent reviews of the 7.25.4 fixes and four fix rounds
   ends with no restart.
 - The agent's `audit/` directory grows ~0.6-1 GB a day with no retention
   (19 GB on wattyzer, 90 GB on the dev machine).
-- Every agent upgrade (`find-new-yunos create=1`) logs *"Parent ref already in
-  child fkey, skipping duplicate"* twice per yuno, which contradicts "linking a
-  pair already linked writes nothing and says nothing".
+- A crash between the content and the md2 row of the FIRST record of a new
+  file (e.g. the SIGKILL of `deactivate-snap`) leaves a 0-row md2 with a
+  non-empty `.json`, which the cache build flags as damage: a create of that id
+  is refused and a forward load stops there until `delete-key` or a restore.
+  Tell "first row never committed" apart from a truncated md2.
 - **No red test** for: `deactivate-snap` -1 on a failed save, the fs_watcher
   root, `save_json_to_file()`'s `close()` failure, the crash window between a
   marker and its md2 row. Not exercised live: a form Save through a real
