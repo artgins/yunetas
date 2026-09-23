@@ -33,8 +33,6 @@ project:
     - ../../outputs_ext/**
 
   toc:
-    - file: index.md
-
     - title: Get Started
       file: get_started.md
       children:

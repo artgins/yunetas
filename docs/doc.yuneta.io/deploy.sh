@@ -4,11 +4,12 @@ set -euo pipefail
 cd "$(dirname "$0")"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-# Stamp current version from YUNETA_VERSION into index.md
+# Stamp current version from YUNETA_VERSION into get_started.md, the root page
+# of the site (the first entry of the toc; the logo links to it)
 VERSION=$(sed 's/YUNETA_VERSION=//' "$REPO_ROOT/YUNETA_VERSION")
 TODAY=$(date +%Y-%m-%d)
-sed -i "s|\*\*Current version: \[.*\](.*)\*\*|\*\*Current version: [${VERSION}](https://github.com/artgins/yunetas/tree/${VERSION})\*\*|" index.md
-sed -i "s|\*Documentation updated: .*\*|\*Documentation updated: ${TODAY}\*|" index.md
+sed -i "s|\*\*Current version: \[.*\](.*)\*\*|\*\*Current version: [${VERSION}](https://github.com/artgins/yunetas/tree/${VERSION})\*\*|" get_started.md
+sed -i "s|\*Documentation updated: .*\*|\*Documentation updated: ${TODAY}\*|" get_started.md
 
 # Stamp the yunetas CLI (PyPI) version into installation.md from its single
 # source of truth (the package's __version__.py). Pattern matches the whole
@@ -193,7 +194,7 @@ PYEOF
 # so it is left pristine, and before the --delete rsync, so the mirror keeps it.
 mkdir -p "${ORIGIN}landing"
 # The version lives in the source as __YUNETA_VERSION__ and is stamped
-# here, the same way index.md is above: written by hand in four places it
+# here, the same way get_started.md is above: written by hand in four places it
 # went stale at every release, and this page is the front door served at
 # yuneta.io.
 sed "s|__YUNETA_VERSION__|${VERSION}|g" landing/index.html > "${ORIGIN}landing/index.html"
