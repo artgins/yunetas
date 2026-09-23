@@ -2,6 +2,135 @@
 
 ## Unreleased
 
+### The 2026-09-23 review of the 2026-09-22 treedb/timeranger work
+
+A third, read-only review of the fixes of 2026-09-16 and 2026-09-22 (six
+reviewers, repros against `outputs/lib`) found 12 mediums and ~35 lows that
+no test caught. All of them are fixed below, each with a test that was red
+before where one could be written.
+
+**BREAKING**
+
+- treedb on a replica: `treedb_create_node()` is refused up front, and
+  `treedb_store_files()` refuses bytes (*"Cannot store a file, NO master"*).
+  `gobj_update_node()` on a C_NODE replica answers NULL for any non-volatil
+  update, before anything moves.
+- `tranger2_open_rt_disk()` answers NULL for an id that a live feed of the
+  topic already uses (any creator) and for an id longer than `NAME_MAX`. A
+  refused id from a peer is a WARNING without a stack, and *"Cannot open rt"*
+  is no longer logged on top of it.
+- `tranger2_open_list()` of one key answers NULL when its history load
+  fails. Iterators carry two new fields, `segments_stamp` and `load_failed`.
+- Scans: a `t` condition does not end a scan inside a file marked
+  `.unordered`, and a `tm` condition never ends a scan early. Rows that used
+  to be lost are returned now.
+- After `tranger2_stop()`, opening a topic again takes the master lock
+  again, or turns the tranger into a non-master if another process holds it.
+- Snapshot guards and `treedb_delete_instance()` refuse (-1) when they cannot
+  read. `treedb_activate_snap()` answers -1 when a save fails, `__clear__`
+  included, and C_NODE `deactivate-snap` passes the -1 on.
+- C_NODE: `delete-node` with `options.ignore_snaps` asks `create` as well
+  as `delete`. `EV_TREEDB_UPDATE_NODE` is no longer a PUBLIC event: a peer
+  could inject it through `C_IEVENT_CLI` and write with no permission. A
+  refused `update-node` no longer carries the topic desc.
+- C_AUTHZ: `EV_ADD_USER`, the `disabled` write of `EV_REJECT_USER` and
+  `EV_IDP_USER_CREATED` refuse on a replica (-1, logged).
+- C_TREEDB: `apply-schema` answers `data` (named: `{treedb_name, applied,
+  saved_schema_version, in_use_schema_version}`; unnamed: a list of rows
+  `{treedb_name, result, comment, data}`), and an unnamed apply writes
+  nothing if any applicable treedb fails. A C literal newer than the file in
+  use takes over a saved-but-not-applied draft in `__system__`, with a
+  warning.
+- C_TRANGER: `open-rt` refuses an rt_id longer than `NAME_MAX`.
+  Open/close failures answer an explicit comment instead of
+  `gobj_log_last_message()`.
+
+**Security and integrity**
+
+- C_AUTHZ `ac_reject_user`: a rejected user whose `disabled` write fails
+  (replica, failed save) kept its live sessions. The sessions are dropped
+  from the node read before the write, whatever the write answers.
+- rt_disk feeds: `disks/<id>` is keyed by id alone, so a client with `read`
+  could open a second feed with the id of the treedb's own feed on a replica
+  and remove its directory by closing its own feed. That replica then
+  stopped following the topic, and nothing was logged. One id, one feed.
+- treedb on a replica: an update with a `file` column wrote a blob into the
+  master's store and moved links in memory before refusing. The refusal
+  comes first now. The autolink path of `mt_update_node` checks its save.
+- `tranger2_stop()` left the fds it closed in `fd_opened_files`, and any
+  `tranger2_topic()` afterwards cleared `__closed__`, so the shutdown closed
+  the same fd numbers again, which could belong to someone else by then.
+  The stop marks them -1; only a real reopen revives the tranger.
+- `apply-schema` writes the file in use through a temporary file, fsync and
+  rename (it truncated it in place). `save_json_to_file()` closes the fd when
+  the write fails.
+
+**Correctness**
+
+- C_TREEDB: `draft_changed` diffs the draft against the SAVED file when one
+  newer than the file in use exists: after a Save, the editor said "unsaved
+  changes" until Apply, or for ever on an imposed treedb. An unnamed
+  `apply-schema` is all-or-none. `prune_schema` drops the meta-schema
+  placeholder `default: {}`. `save-schema` guards the `__system__` master.
+  Explicit failure messages.
+- timeranger2: late rows in a marked md2 file are found in both directions,
+  by the iterator index too. `tranger2_iterator_get_page()` re-reads an
+  unfiltered iterator's segments only when the key's cache changed.
+  `treedb_delete_instance()` reads its rows with an iterator (a pkey2 value
+  holding `/` logged two errors per delete). `topic_var.json` is replaced
+  through a temporary file, so the rowid counter is never missing on disk.
+  NULL file ids are refused in the three remaining sites. A replica's page
+  that cannot read a deleted key's rows says so. fs_watcher: a missing ROOT
+  stays an error.
+- tr_treedb: a ref in a column its hook no longer fills is stale and is
+  removed with a warning. Such a node could not be deleted, not even with
+  `force`.
+- C_TRANGER: a `no_rt` list is freed after its topic closes (it leaked). The
+  keys watch has its own creator (`<gobj>^keys`), so a client feed named
+  `<it>^__keys__` can no longer be closed by `get-page`. It records only the
+  keys the iterator pages. A multi-key iterator counts its unfiltered parts
+  live at every page, so newest-first sees rows appended after the open.
+- C_NODE: `links_refused` is local to `mt_update_node`, so a nested update
+  cannot reset it.
+- The `__md_tranger__` contract of the append is stated exactly: the record
+  is changed in place (a carried dict is dropped before the dump; the dict
+  is attached when a realtime list takes the record). New test
+  `test_append_md_contract`.
+
+**New tests:** `test_stop_reopen`, `test_append_md_contract`,
+`test_rt_disk_multi_feed` (feed hijack), `tr_treedb_files` 20, `tr_treedb_hook_rename` 5,
+a walk of C_TREEDB's command table refusing a denied user plus replica
+refusals, N11 with a real save over a dict-shaped file,
+`test_command_delete_user` 8-9, `test_late_record` in both directions,
+and the N1 traversal test given a real loop and a reachable victim.
+
+### gobj-ui 7.25.5, yunos-js gui_treedb 0.17.57 / gui_agent 0.22.78
+
+- `kernel/js/gobj-ui` -> 7.25.5:
+  - `EV_DRAFTS` replaces the host's draft marks instead of adding to them.
+  - A form write no longer hangs after a websocket drop in ANY host:
+    `yui_shell_set_connection_state()` publishes `EV_CONNECTION_STATE`, and
+    `C_YUI_TREEDB_TOPICS` listens to it on its shell. wattyzer and
+    yunovatios did not forward `EV_TRANSPORT_STATE`.
+  - Pending writes are keyed by topic and serial.
+  - The pkey2 of an update is sent as the record had it, not through a
+    `datetime-local` widget, which loses the seconds.
+  - The DST limit of `form_time_value.js` is written down.
+  - Wiring tests on a document double.
+- `yunos/js` -> gui_agent 0.22.78:
+  - Apply is counted per TREEDB (`data.applied`, or the row result on a
+    7.25.3 node) and restarts the yuno only if something was applied.
+  - Drafts are gathered fresh per saved-schema round.
+  - A 60 s deadline on each two-hop request, and routing errors of
+    `mt_command_parser` count as failures.
+  - Toasts stay re-translatable.
+- `yunos/js` -> gui_treedb 0.17.57: placeholders and titles of the Rows
+  options, and the "records were gone" text says what happened.
+- Deployed to every consumer; hidraulia (v1) untouched. Every deployed SPA
+  was loaded with a real login, a websocket session and one forced
+  reconnect. Zero errors, after a pre-existing `C_IEVENT_CLI` trace-level
+  lookup in yunomusica was fixed.
+
 ### C_TREEDB: apply-schema asks `create-delete`, save-schema `write`
 
 - **BREAKING (authz).** 7.25.3 meant to make `apply-schema` ask

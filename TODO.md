@@ -110,11 +110,13 @@ What is still open of the first review (the rest is in `CHANGELOG.md`).
 
 **Tests nobody has** (in order of damage): `delete_instance` with links.
 C_NODE commands with no ctest: `node`, `instances`, `pkey2s`, `jtree`,
-`parents`, `children`, `hooks`, `links`, `treedb-info`, the snap commands,
-`import-db` / `export-db`, `print-tranger`, and the refusals on a replica. In
-gobj-ui, no gclass of the treedb views has a test: the save kw as it leaves
-`publish_treedb_write` would have caught A8 (its column rule is unit-tested
-since 7.23.170, the kw itself is not).
+`parents`, `children`, `hooks`, `links`, `treedb-info`, the snap commands
+(their permissions are tested, their behaviour is not), `import-db` /
+`export-db` and `print-tranger`. The refusals on a replica are tested since
+7.25.0 (`test_c_node_authz`) and, for C_TREEDB, since the 2026-09-23 round.
+In gobj-ui, the treedb views got their first wiring tests on 2026-09-23
+(`test/dom_double.js`); the save kw as it leaves `publish_treedb_write` is
+still untested.
 
 ## TreeDB / timeranger2: open findings of the 2026-09-21 review
 
@@ -128,12 +130,11 @@ The second review (read at 7.24.1) shipped in 7.25.0 and in gobj-ui
 - **M16-M18:** the `tm` range of a cell is read from the first and last rows,
   and `tm` is out of order whenever a device uploads a buffered batch; only the
   `t` disorder marks a file (`<file>.unordered`). And a crash between the md2
-  write and the marker leaves an unmarked unordered file. A marked file is
-  selected whole by its (widened) cell, but the forward scan of its rows still
-  stops at the first row past `to_t` / `to_tm` (`tranger2_match_metadata`),
-  so a late row behind a later one is served only by a range that also
-  reaches the rows before it (seen writing `test_late_record`'s growing-file
-  case, 2026-09-22).
+  write and the marker leaves an unmarked unordered file. (The scan of a
+  marked file no longer ends at the first row past the range, in either
+  direction, and a `tm` condition never ends a scan: fixed 2026-09-23. The
+  per-file `tm` range that decides which files are read is still taken from
+  the first and last rows.)
 - **M36:** every in-tree yuno forces `impose_c_schema`, so gui_agent's Apply
   is off on all of them until one stops forcing it.
 
@@ -149,9 +150,33 @@ id, so two children of different topics with one id collide; an id holding `^`
 is accepted and makes every ref to the node undecodable; JS `kw_get_str()`
 stringifies its default (`0` becomes the truthy `"0"`); `cmd_treedbs` /
 `cmd_links` / `cmd_hooks` still pair `json_incref(kw)` with the wrong decref;
-`treedb_activate_snap()` returns the PREVIOUS snap's tag; the warning *"Parent
+the warning *"Parent
 ref already in child fkey"* still fires in the legitimate case of 4e4dcdc00,
 once per `create-yuno`.
+
+## TreeDB / timeranger2: what the 2026-09-23 round left open
+
+The third review (of the 2026-09-16 and 2026-09-22 work) was fixed whole on
+2026-09-23 (`CHANGELOG.md`, Unreleased). What it left:
+
+- **No red test** for `deactivate-snap` answering -1 when its save fails (no
+  way was found to make a save fail on a master), nor for the fs_watcher root
+  (reachable only by a race). The N1 traversal test is red for the long id and
+  the log level; its path guard is checked by path arithmetic only.
+- **A C literal against an operator's saved draft** of the same treedb: the
+  literal wins and a warning says so. The two changes are not merged.
+- **A multi-key (`rkey`) iterator** does not see keys created after it opened
+  (documented: reopen it). The `key_deleted` mark reaches only the process
+  that deleted the key; a replica's page now names the likely cause. Both are
+  single-node conveniences by design: treedb scales by spreading KEYS over
+  nodes (philosophy.md, "the key").
+- **`gobj_log_last_message()`** is still read by C_NODE's reads, link/unlink
+  and `import-db` answers.
+- ***"Child node without fkey field"*** is logged as an ERROR at every open,
+  once per node, when an fkey column is filled by no hook any more.
+- **Not exercised live:** a form Save through a real websocket drop (the
+  wiring tests cover it; a live run would write production data), and
+  gui_agent's Schemas tab, which the Playwright harness cannot open.
 
 ## Agent: the spare agent is only refreshed on the package path
 
