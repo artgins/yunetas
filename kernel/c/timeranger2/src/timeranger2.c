@@ -94,6 +94,14 @@ typedef struct { // Size: 32 bytes — fields are big-endian on disk
 #define TIME_FLAG_MASK  0x00000FFFFFFFFFFFULL  /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
 #define USER_FLAG_MASK  0x0FFFF00000000000ULL
 
+/*
+ *  The flags of every read of a record's content. json_dumps() writes a
+ *  NUL of a string as the escape "\u0000", and jansson reads it back only
+ *  with JSON_ALLOW_NUL: without it, an append takes a record that no read
+ *  can read.
+ */
+#define RECORD_LOAD_FLAGS   (JSON_DECODE_ANY|JSON_ALLOW_NUL)
+
 static inline uint16_t get_user_flag(const md2_record_t *md_record) {
     return (uint16_t )((md_record->__t__ & USER_FLAG_MASK) >> 44);
 }
@@ -8071,7 +8079,8 @@ PRIVATE int read_md2_row(
  *  the content is whole when:
  *    - it is inside the content file (up to `content_size`), and
  *    - its last byte is the NUL, no other byte is a NUL, and the bytes
- *      before the NUL are one json value (json_loadb), or
+ *      before the NUL are one json value, read with the flags of a read
+ *      of a record (RECORD_LOAD_FLAGS), or
  *    - the row is a deleted instance (sf_deleted_instance) and every byte
  *      is 0: tranger2_delete_instance() zeroes it.
  *  sf_zip_record and sf_cipher_record are not implemented: an append
@@ -8153,7 +8162,7 @@ PRIVATE int md2_row_content_is_whole(
     int whole = 0;
     if(!memchr(p, 0, row->__size__ - 1)) {
         json_error_t error;
-        json_t *jn = json_loadb(p, row->__size__ - 1, JSON_DECODE_ANY, &error);
+        json_t *jn = json_loadb(p, row->__size__ - 1, RECORD_LOAD_FLAGS, &error);
         if(jn) {
             whole = 1;
             JSON_DECREF(jn)
@@ -11848,12 +11857,13 @@ PRIVATE json_t *read_record_content(
 
 
     json_t *record;
+    json_error_t error = {0};
     if(empty_string(p)) {
         record = json_object();
     } else {
         // strnlen, not strlen: p is exactly __size__ bytes and a forged/corrupt
         // record need not be NUL-terminated, so bound the scan to the buffer.
-        record = anystring2json(p, strnlen(p, md_record_ex->__size__), FALSE);
+        record = json_loadb(p, strnlen(p, md_record_ex->__size__), RECORD_LOAD_FLAGS, &error);
     }
 
     gbmem_free(p);
@@ -11862,11 +11872,13 @@ PRIVATE json_t *read_record_content(
         gobj_log_critical(gobj, 0, // Let continue, will be a message lost
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Bad data, anystring2json() FAILED.",
+            "msg",          "%s", "Bad data, the content of the record is not json",
             "topic",        "%s", tranger2_topic_name(topic),
             "__t__",        "%lu", (unsigned long)md_record_ex->__t__,
             "__size__",     "%lu", (unsigned long)md_record_ex->__size__,
             "__offset__",   "%lu", (unsigned long)md_record_ex->__offset__,
+            "error",        "%s", error.text,
+            "position",     "%d", error.position,
             NULL
         );
         return NULL;

@@ -83,6 +83,7 @@ set(SRCS
     test_torn_md2_tail
     test_md2_read_error
     test_md2_short_write
+    test_nul_escape_record
     test_testing
 )
 
