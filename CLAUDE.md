@@ -1862,7 +1862,13 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   that lists every report, newest first; attach the `.html` to the GitHub
   release as an asset; and link it from the release body and from the
   repository `README.md` ("Performance"). GitHub shows an `.html` in the tree
-  as source, so every link names both the file and a rendered view of it.
+  as source, so every link names both the file and a rendered view of it. **And it is
+  part of the documented history**: doc.yuneta.io carries a performance page
+  (`docs/doc.yuneta.io/performance.md`, in the toc next to the CHANGELOG) that
+  grows with every release — the figures of each version as a row of its
+  trend charts, the report of each release linked from it — so the site tells
+  how Yuneta's speed evolved, release after release, not only what the last
+  one measured.
 - **A submodule bump of `kernel/js/gobj-js` or `kernel/js/gobj-ui` means
   running `python3 scripts/verify_js_api_coverage.py --repin`, then `--write`.**
   Those two packages carry their own tags, so `check_doc_line_refs.py --repin`
