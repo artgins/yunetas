@@ -62,6 +62,14 @@ The test drives `C_TREEDB` through its own commands and checks:
    the projector would never write it again, and moving it is the only way it
    survives its parent changing address.
 
+8. **What an open does to the operator's work** — an applied schema not
+   opened yet survives a newer literal at the next open (the literal takes
+   the file over only for the topics it raises past the ones in use), and
+   what, the take-over replaces is said in the API: `withdrawn_at_open` of
+   `saved-schema` and `treedbs`, per topic `applied`, `saved` or `unsaved`,
+   and nothing for a save taken back. A saved file that cannot be read is
+   `broken`, and the apply of every treedb leaves it out.
+
 Steps 2 and 3 are the ones that matter for schema editing: they are the path an
 edited schema takes to reach a running treedb. Step 4 is what stands between an
 editor and a treedb that no longer opens.
