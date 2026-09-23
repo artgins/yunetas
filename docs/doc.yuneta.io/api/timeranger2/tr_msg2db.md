@@ -150,7 +150,7 @@ matters.
 ---
 
 (msg2db_id_incomplete)=
-## `msg2db_id_incomplete()`
+## [`msg2db_id_incomplete()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/timeranger2/src/tr_msg2db.c#L1502)
 
 `msg2db_id_incomplete()` tells whether the history of `id` loaded whole when
 the msg2db was opened. When it did not, the messages served of it are current,
@@ -320,9 +320,31 @@ msg2db_get_message(tranger, "msg2db_alarms", "alarms", "dev2", "X");   // served
 msg2db_id_incomplete(tranger, "msg2db_alarms", "alarms", "dev2");      // FALSE
 ```
 
-The next message of an absent `pkey2` is served as it arrives, and it is
-current. The id stays incomplete: the damaged file is still on disk, and other
-`pkey2` of it may still be unknown.
+**The next message of the id** goes to the file of the current period:
+[`msg2db_append_message()`](<#msg2db_append_message>) appends it with the time
+of now. What happens to it depends on which file is damaged:
+
+- the damaged file is an OLDER file: the next message of a `pkey2` is stored,
+  and it is served as it arrives. It is current.
+- the damaged file IS the file of the current period: tranger refuses every
+  append into a file it could not read
+  (*"Cannot append record, its file is flagged unreadable: its row would follow rows no cell counts"*),
+  and `msg2db_append_message()` returns `NULL`. So NO new message of the id is
+  stored or served, for every `pkey2` of it, the absent ones and the served
+  ones. This continues until the file is repaired, or until the period
+  changes (the first message of the next period goes to a new file, and it
+  is stored and served).
+
+In the second case msg2db logs a second ERROR at the open:
+
+```text
+ERROR: {..., "function": "msg2db_open_db", "msgset": "Msg2Db",
+    "msg": "msg2db: the damaged file of the key is the file of the current period: every new message of the key is REFUSED until the file is repaired or the period changes",
+    "msg2db_name": "msg2db_alarms", "topic_name": "alarms", "key": "dev1", "file_id": "2026"}
+```
+
+The id stays incomplete in both cases: the damaged file is still on disk, and
+other `pkey2` of it may still be unknown.
 
 **What it means for the alarms of `db_history`** (the msg2db consumers in the
 projects compare the triggers of a new measure with the `triggers` of
@@ -338,11 +360,20 @@ was read, nothing changes. For an absent one, until its next message:
 - the alarm is not in [`msg2db_list_messages()`](<#msg2db_list_messages>), so
   the lists of alarms do not show it.
 
+**When the damaged file is the file of the current period**, all of the above
+is worse: every new alarm message of that device is REFUSED, whatever the
+alarm. No new alarm message of the device is recorded, and no alarm of it is
+announced as new or as ended. The msg2db of the alarms uses the tranger of the
+project's treedb, whose `filename_mask` is `"%Y"`: one file per device and
+YEAR. So the damaged file is usually the current one, and the refusal
+continues until the file is repaired or the year changes. Repair it at once:
+with the yuno stopped, cut the torn `.md2` back to whole rows
+([what the operator does](<treedb.md#treedb-topic-not-loaded-whole>)), then
+start the yuno.
+
 Up to 7.25.4 the forward load served the OLD message as current, with nothing
 logged: a cleared alarm could come back active, or an active one be taken as
-cleared. The first fix after it (3b938baa9) dropped the WHOLE id, and every
-alarm of the device was absent, also the ones whose current message was
-readable. Now only the alarms whose state is really unknown are absent.
+cleared. Now only the alarms whose state is really unknown are absent.
 Repair the key as the treedb page says
 ([what the operator does](<treedb.md#treedb-topic-not-loaded-whole>)); after
 the repair and a restart, the id is whole and not marked.

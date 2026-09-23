@@ -71,8 +71,21 @@ extern "C"{
     older one may be read, and it is not served as current). The id is
     marked incomplete (msg2db_id_incomplete()) and an ERROR names it
     ("msg2db: a key whose history did not load whole: only the messages
-    newer than the damage are served..."); the next message of a pkey2 is
-    served as it arrives.
+    newer than the damage are served...").
+
+    The next message of the id goes to the file of the current period (it
+    is appended with the time of now). When the damaged file is an OLDER
+    file, the next message of a pkey2 is stored and served as it arrives.
+    When the damaged file IS the file of the current period, tranger
+    refuses every append into it ("Cannot append record, its file is
+    flagged unreadable"): NO new message of the id, of any pkey2, is
+    stored or served until the file is repaired or the period changes. A
+    second ERROR says so at the open ("msg2db: the damaged file of the key
+    is the file of the current period..."). The alarms of db_history in the
+    projects use a "%Y" tranger, one file per key and YEAR: every new alarm
+    message of that device is refused until the file is repaired or the
+    year changes. The repair: cut the torn md2 back to whole rows with the
+    yuno stopped (treedb.md, "A topic that did not load whole").
 **rst**/
 
 PUBLIC json_t *msg2db_open_db(
