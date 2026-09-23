@@ -663,12 +663,14 @@ PRIVATE int test_delete_that_cannot_read_refuses(void)
     result += test_json(NULL);
 
     /*------------------------------------*
-     *  The content of rel-2 cannot be read
+     *  The content of rel-2 cannot be read:
+     *  it ends the walk, as a row whose
+     *  metadata cannot be read does
      *------------------------------------*/
     set_expected_results(test,
         json_pack("[{s:s},{s:s}]",
             "msg", "Bad on-disk record: __offset__/__size__ out of range",
-            "msg", "Cannot delete instance, a row of its key cannot be read"),
+            "msg", "Cannot delete instance, cannot read every row of its key"),
         NULL, NULL, 1);
     if(cut_files_of_key(DB, "rel-2", ".*\\.json", 0) != 1) {
         printf("%s  FAIL: cannot cut the content of rel-2%s\n", On_Red BWhite, Color_Off);

@@ -195,7 +195,8 @@ PRIVATE int do_test(void)
         "open_list history: a keyless list with a key that cannot be loaded",
         json_pack("[{s:s},{s:s}]",
             "msg", "Cannot read record metadata, read FAILED",
-            "msg", "Cannot load the history of a key of the list, the list goes on without it"
+            "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
+                   "were handed, the list goes on with the next key"
         ),
         NULL, NULL, 1
     );
@@ -221,7 +222,8 @@ PRIVATE int do_test(void)
         "open_list history: a keyless realtime list with a key that cannot be loaded",
         json_pack("[{s:s},{s:s}]",
             "msg", "Cannot read record metadata, read FAILED",
-            "msg", "Cannot load the history of a key of the list, the list goes on without it"
+            "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
+                   "were handed, the list goes on with the next key"
         ),
         NULL, NULL, 1
     );

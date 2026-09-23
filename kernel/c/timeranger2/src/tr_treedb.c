@@ -212,13 +212,18 @@ PUBLIC int current_snap_tag(json_t *tranger, const char *treedb_name)
 /***************************************************************************
  *  The keys of a treedb topic whose records could not be loaded.
  *
- *  A topic is loaded with keyless tranger2_open_list()s, which load every
- *  key they can read and name the others in `load_failed_keys`. The nodes
- *  of those keys are not in memory, and memory is all treedb looks at: a
- *  create of such an id would write a new record over one it never read,
- *  a guard that asks "is anything linking this?" would answer from half of
- *  the topic. So the keys are remembered here, per treedb and topic, until
- *  the topic is closed, and asked by:
+ *  A topic is loaded with keyless, BACKWARD tranger2_open_list()s, which
+ *  load every key they can and name the keys whose history failed half way
+ *  in `load_failed_keys` -- after a restart too: a md2 file the cache build
+ *  could not count fails its key the same way (load_key_cache_from_disk).
+ *  The rows of a failed key read before the failure were handed over, and
+ *  backward they are its NEWEST: the node is in memory when its newest row
+ *  was readable, and absent when the damage is there. Either way memory is
+ *  all treedb looks at: a create of an absent id would write a new record
+ *  over one it never read, a guard that asks "is anything linking this?"
+ *  would answer from half of the topic. So the keys are remembered here,
+ *  per treedb and topic, until the topic is closed or the key is deleted
+ *  (keys_not_loaded() forgets a deleted one), and asked by:
  *      - treedb_create_node(): refuses an id that is one of them.
  *      - treedb_shoot_snap(), treedb_activate_snap(): refuse when __snaps__
  *        has any (which snap is active, or exists, is unknown).
@@ -229,7 +234,35 @@ PUBLIC int current_snap_tag(json_t *tranger, const char *treedb_name)
 PRIVATE json_t *keys_not_loaded(json_t *tranger, const char *treedb_name, const char *topic_name)
 {
     json_t *registry = json_object_get(tranger, "treedbs_load_failed");
-    return json_object_get(json_object_get(registry, treedb_name), topic_name);
+    json_t *per_topic = json_object_get(json_object_get(registry, treedb_name), topic_name);
+
+    /*
+     *  A key deleted since (tranger2_delete_key(), the documented recovery)
+     *  has no records on disk any more: nothing is shadowed by a create of
+     *  its id, and nothing it held is unknown. It is forgotten here, the
+     *  first time anybody asks -- the refusal said "has records on disk
+     *  that could not be loaded" of a key that had none (independent review
+     *  of the third fix round).
+     */
+    const char *key; json_t *jn_value; void *tmp;
+    json_object_foreach_safe(per_topic, tmp, key, jn_value) {
+        json_t *range = tranger2_topic_key_range(tranger, topic_name, key);
+        if(!range) {
+            hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "A key that did not load has been deleted since: it is not a key that did not load any more",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "key",          "%s", key,
+                NULL
+            );
+            json_object_del(per_topic, key);
+        }
+        JSON_DECREF(range)
+    }
+    return per_topic;
 }
 
 PRIVATE BOOL topic_loaded_whole(json_t *tranger, const char *treedb_name, const char *topic_name)
@@ -286,8 +319,8 @@ PRIVATE void note_keys_not_loaded(
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_TREEDB,
-        "msg",          "%s", "treedb topic loaded WITHOUT the records of keys that cannot be read: "
-                              "their nodes are not in memory and a create of those ids is refused",
+        "msg",          "%s", "treedb topic loaded WITHOUT the whole history of keys that cannot be read: "
+                              "their node is in memory only if its newest record was read, and a create of those ids is refused",
         "treedb_name",  "%s", treedb_name,
         "topic_name",   "%s", topic_name,
         "keys",         "%s", s? s: "",
@@ -7256,9 +7289,11 @@ PRIVATE int delete_node(
  *  matching row's (__t__, i_rowid) into the `__del_hits__` array carried
  *  in the transient list's `extra`.
  *
- *  A row whose content cannot be read (the load hands it as NULL) cannot
- *  say whose instance it is: it is not "another instance". The walk stops
- *  and says so in `__del_state__`, and the delete refuses.
+ *  A row whose content is not an object cannot say whose instance it is:
+ *  it is not "another instance". The walk stops and says so in
+ *  `__del_state__`, and the delete refuses. (A content that cannot be read
+ *  at all never gets here: it ends the load, and the iterator says
+ *  `load_failed`, which refuses the delete the same way.)
  ***************************************************************************/
 PRIVATE int collect_instance_md_cb(
     json_t *tranger,
@@ -7275,11 +7310,20 @@ PRIVATE int collect_instance_md_cb(
     json_t *hits = kw_get_dict_value(0, list, "__del_hits__", 0, 0);
 
     if(!json_is_object(jn_record)) {
+        hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "A row of the key is not an object: whose instance it is is unknown",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
         json_object_set_new(
             json_object_get(list, "__del_state__"), "unreadable", json_true()
         );
         JSON_DECREF(jn_record)
-        return -1;  // Error already logged by the read; the delete refuses
+        return -1;  // the delete refuses
     }
 
     const char *v = kw_get_str(0, jn_record, pkey2_name, "", 0);
@@ -13246,9 +13290,11 @@ PRIVATE int derive_file_hooks(
  *  (tag, topic, key, col) wins, and a tag that names no row of __snaps__
  *  any more holds nothing: deleting the snap is what frees the asset.
  *
- *  A tagged record of an existing snap whose content cannot be read holds
- *  what nobody can tell: the walk stops and says so in `walk_state`, and
- *  the guard fails closed (see assets_held_by_snaps).
+ *  A tagged record of an existing snap whose content is not an object
+ *  holds what nobody can tell: the walk stops and says so in `walk_state`,
+ *  and the guard fails closed (see assets_held_by_snaps). A content that
+ *  cannot be read at all never gets here: it ends the load, and the list
+ *  says `load_failed`, which fails the guard closed the same way.
  ***************************************************************************/
 PRIVATE int gc_scan_callback(
     json_t *tranger,

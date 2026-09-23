@@ -888,12 +888,27 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     unfiltered iterator recounts the key on every call and keeps growing.
     Reopen the iterator (or pair it with a realtime feed) to see new appends.
 
-    A LOADING that meets a row whose metadata cannot be read stops there, logs
-    it, and leaves `"load_failed": true` in the returned iterator: the history
-    the callback saw is incomplete. (A record whose CONTENT cannot be read is
-    handed to the callback as NULL.) tranger2_open_list() answers NULL for such
-    a load of its one key; a keyless list goes on with the other keys and
-    names the failed ones in the handle it returns (see tranger2_open_list).
+    A LOADING that meets a row whose metadata or whose CONTENT cannot be read
+    stops there, logs it, and leaves `"load_failed": true` in the returned
+    iterator: the history the callback saw is incomplete. The rows before it,
+    in the load's direction, WERE handed to the callback: forward the oldest
+    ones, backward the newest. (Up to 7.25.4 a content that could not be read
+    was handed as NULL and the load went on; an `only_md` load reads no
+    content, and no content fails it.)
+    The same holds after a RESTART: a md2 file the topic's cache could not
+    count when it was built from disk -- one that cannot be opened or read,
+    whose size is not a whole number of rows, or of 0 rows with a content
+    file that is not empty -- flags its key. Every iterator of that key says
+    `"load_failed": true` (paging ones too, and logs it), and a loading stops
+    where the first flagged file is in its direction. E.g. key A with files
+    d1 d2 d3 and d2 cut to 0 bytes while the yuno was down:
+        forward load  -> the rows of d1, then load_failed
+        backward load -> the rows of d3, then load_failed
+    A md2 of 0 rows with an EMPTY content file loses nothing and flags
+    nothing. tranger2_delete_key() of the key clears the flag with the key.
+    tranger2_open_list() answers NULL for such a load of its one key; a
+    keyless list goes on with the other keys and names the failed ones in the
+    handle it returns (see tranger2_open_list).
 
     `tm` is written by the producer and the md2 files are cut by `t`, so the
     segments of a tm condition can leave out a file in the middle: the scan
@@ -1116,8 +1131,9 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
     A key whose history cannot be loaded whole (see `load_failed` of
     tranger2_open_iterator()):
         - a list of ONE key (`key` set) is refused: NULL, error logged.
-        - a KEYLESS list logs the key ("Cannot load the history of a key of
-          the list, the list goes on without it"), loads every other key,
+        - a KEYLESS list logs the key ("Cannot load the whole history of a
+          key of the list: the records read before the failure were handed,
+          the list goes on with the next key"), loads every other key,
           opens its realtime feed, and says what it lacks in the handle:
               "load_failed": true,
               "load_failed_keys": ["B", ...]
@@ -1126,7 +1142,9 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
               if(json_is_true(json_object_get(list, "load_failed"))) {
                   // do not take "not found in the list" as "not on disk"
               }
-    The records already handed to the callback stay handed in both cases.
+    The records already handed to the callback stay handed in both cases: of
+    a failed key, the ones read before the failure (forward: its oldest,
+    backward: its newest).
 
     Return: the realtime handle (rt_mem / rt_disk) or the no_rt `extra`, NULL on error.
     Both `match_cond` and `extra` are owned (consumed) by this call.

@@ -17,6 +17,18 @@
  *         the delete of a node refuse (which snap is active, or holds the
  *         node, is unknown).
  *
+ *  The same after a RESTART (independent review of the third fix round,
+ *  repro indep3_B/restart): the damage is done with the tranger shut down,
+ *  and the topic's cache is built from the damaged store. The cache build
+ *  dropped an unreadable md2 and counted a md2 cut to 0 bytes as 0 rows, so
+ *  nothing failed, the registry stayed empty and every guard was open:
+ *      4. md2 of k2 cut to 0 bytes, 5. 5 bytes of garbage appended to it,
+ *      6. the CONTENT of k2 cut to 0 bytes (it made a node with id ""):
+ *         k2 is not in memory, and a create of it is refused.
+ *      7. a __snaps__ md2 cut to 0 bytes: shoot, activate and delete refuse.
+ *      8. the recovery: the key deleted, a create of its id is accepted
+ *         without reopening the treedb.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -136,9 +148,10 @@ PRIVATE int test_topic_with_an_unreadable_key(const char *path_root)
     set_expected_results_unordered(test,
         json_pack("[{s:s},{s:s},{s:s}]",
             "msg", "Cannot read record metadata, read FAILED",
-            "msg", "Cannot load the history of a key of the list, the list goes on without it",
-            "msg", "treedb topic loaded WITHOUT the records of keys that cannot be read: "
-                   "their nodes are not in memory and a create of those ids is refused"
+            "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
+                   "were handed, the list goes on with the next key",
+            "msg", "treedb topic loaded WITHOUT the whole history of keys that cannot be read: "
+                   "their node is in memory only if its newest record was read, and a create of those ids is refused"
         ),
         NULL, NULL, 1
     );
@@ -220,9 +233,10 @@ PRIVATE int test_snaps_that_did_not_load(const char *path_root)
     set_expected_results_unordered(test,
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Cannot read record metadata, read FAILED",
-            "msg", "Cannot load the history of a key of the list, the list goes on without it",
-            "msg", "treedb topic loaded WITHOUT the records of keys that cannot be read: "
-                   "their nodes are not in memory and a create of those ids is refused",
+            "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
+                   "were handed, the list goes on with the next key",
+            "msg", "treedb topic loaded WITHOUT the whole history of keys that cannot be read: "
+                   "their node is in memory only if its newest record was read, and a create of those ids is refused",
             "msg", "__snaps__ loaded without some snaps: the active snap is unknown, "
                    "shoot-snap, activate-snap and gc-files refuse",
             "msg", "Cannot shoot a snap: __snaps__ did not load whole, the active snap is unknown",
@@ -261,6 +275,219 @@ PRIVATE int test_snaps_that_did_not_load(const char *path_root)
     return result;
 }
 
+/*
+ *  Damage the files `ext` of a key, with no tranger running
+ */
+PRIVATE int damage_key(const char *path_database, const char *topic_name, const char *key,
+    const char *ext, BOOL garbage)
+{
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_database, topic_name, "keys", key, NULL);
+    char pattern[32];
+    snprintf(pattern, sizeof(pattern), ".*\\.%s", ext);
+    dir_array_t da;
+    get_ordered_filename_array(0, key_dir, pattern, WD_MATCH_REGULAR_FILE, &da);
+    int done = 0;
+    for(int i = 0; i < da.count; i++) {
+        if(garbage) {
+            FILE *f = fopen(da.items[i], "a");
+            if(f) {
+                if(fwrite("XXXXX", 1, 5, f) == 5) {
+                    done++;
+                }
+                fclose(f);
+            }
+        } else if(truncate(da.items[i], 0) == 0) {
+            done++;
+        }
+    }
+    dir_array_free(&da);
+    if(done == 0) {
+        printf("%sERROR%s --> cannot damage the %s of %s/%s\n",
+            On_Red BWhite, Color_Off, ext, topic_name, key);
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  4, 5, 6: a key damaged with the tranger down, found at the restart
+ ***************************************************************************/
+PRIVATE int test_damaged_at_restart(const char *path_root, const char *case_name,
+    const char *ext, BOOL garbage)
+{
+    int result = 0;
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
+    rmrdir(path_database);
+
+    set_expected_results("load failed at restart: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = open_tranger(path_root, DATABASE);
+    open_treedb(tranger);
+    const char *ids[] = {"k1", "k2", "k3", NULL};
+    for(int i = 0; ids[i]; i++) {
+        create_item(tranger, ids[i], "a");
+    }
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    result += damage_key(path_database, TOPIC_NAME, "k2", ext, garbage);
+
+    /*
+     *  What each damage logs, then what treedb says of it
+     */
+    json_t *expected = json_array();
+    if(strcmp(ext, "json") == 0) {
+        json_array_append_new(expected, json_pack("{s:s}",
+            "msg", "Bad on-disk record: __offset__/__size__ out of range"));
+    } else {
+        if(garbage) {
+            json_array_append_new(expected, json_pack("{s:s}",
+                "msg", "Cannot read last record, md2 file corrupted"));
+        }
+        json_array_append_new(expected, json_pack("{s:s}",
+            "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed"));
+        json_array_append_new(expected, json_pack("{s:s}",
+            "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built"));
+    }
+    json_array_append_new(expected, json_pack("{s:s}",
+        "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
+               "were handed, the list goes on with the next key"));
+    json_array_append_new(expected, json_pack("{s:s}",
+        "msg", "treedb topic loaded WITHOUT the whole history of keys that cannot be read: "
+               "their node is in memory only if its newest record was read, and a create of those ids is refused"));
+    json_array_append_new(expected, json_pack("{s:s}",
+        "msg", "Cannot create node, its id has records on disk that could not be loaded"));
+    set_expected_results_unordered(case_name, expected, NULL, NULL, 1);
+
+    tranger = open_tranger(path_root, DATABASE);
+    open_treedb(tranger);
+
+    char bf[256];
+    ids_in_memory(tranger, bf, sizeof(bf));
+    if(strcmp(bf, "k1 k3") != 0) {
+        printf("%sERROR%s --> %s: nodes in memory: [%s], expected [k1 k3]\n",
+            On_Red BWhite, Color_Off, case_name, bf);
+        result += -1;
+    }
+    if(!json_object_get(
+            json_object_get(json_object_get(json_object_get(tranger, "treedbs_load_failed"),
+                TREEDB_NAME), TOPIC_NAME), "k2")) {
+        printf("%sERROR%s --> %s: k2 is not in the registry of the keys that did not load\n",
+            On_Red BWhite, Color_Off, case_name);
+        result += -1;
+    }
+    if(create_item(tranger, "k2", "OVERWRITTEN")) {
+        printf("%sERROR%s --> %s: create of k2 ACCEPTED: its records on disk did not load\n",
+            On_Red BWhite, Color_Off, case_name);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  8. The recovery: the key deleted,
+     *  its id is free, no reopen needed
+     *-------------------------------------*/
+    if(!garbage && strcmp(ext, "md2") == 0) {
+        set_expected_results("8. the key deleted: a create of its id is accepted",
+            json_pack("[{s:s}]",
+                "msg", "A key that did not load has been deleted since: it is not a key that did not load any more"
+            ),
+            NULL, NULL, 1
+        );
+        if(tranger2_delete_key(tranger, TOPIC_NAME, "k2") < 0) {
+            printf("%sERROR%s --> cannot delete the key k2\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(!create_item(tranger, "k2", "NEW")) {
+            printf("%sERROR%s --> create of k2 refused after its key was deleted\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        result += test_json(NULL);
+    }
+
+    set_expected_results("load failed at restart: close", NULL, NULL, NULL, 1);
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  7: a __snaps__ damaged with the tranger down
+ ***************************************************************************/
+PRIVATE int test_snaps_damaged_at_restart(const char *path_root)
+{
+    int result = 0;
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database), path_root, DATABASE2, NULL);
+    rmrdir(path_database);
+
+    set_expected_results("load failed snaps at restart: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = open_tranger(path_root, DATABASE2);
+    open_treedb(tranger);
+    create_item(tranger, "k1", "a");
+    int ret = treedb_shoot_snap(tranger, TREEDB_NAME, "s1", "first");
+    ret += treedb_activate_snap(tranger, TREEDB_NAME, "s1") > 0? 0: -1;
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+    test_json(NULL);    // the setup logs are not what is tested
+    if(ret < 0) {
+        printf("%sERROR%s --> cannot shoot and activate s1\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += damage_key(path_database, "__snaps__", "1", "md2", FALSE);
+
+    const char *test = "7. a __snaps__ damaged at restart: shoot, activate and delete refuse";
+    set_expected_results_unordered(test,
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
+            "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
+            "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
+                   "were handed, the list goes on with the next key",
+            "msg", "treedb topic loaded WITHOUT the whole history of keys that cannot be read: "
+                   "their node is in memory only if its newest record was read, and a create of those ids is refused",
+            "msg", "__snaps__ loaded without some snaps: the active snap is unknown, "
+                   "shoot-snap, activate-snap and gc-files refuse",
+            "msg", "Cannot shoot a snap: __snaps__ did not load whole, the active snap is unknown",
+            "msg", "Cannot activate a snap: __snaps__ did not load whole, the active snap is unknown",
+            "msg", "cannot tell which snaps exist: __snaps__ did not load whole",
+            "msg", "cannot delete node, cannot tell whether a snapshot holds it (see the log)"
+        ),
+        NULL, NULL, 1
+    );
+    tranger = open_tranger(path_root, DATABASE2);
+    open_treedb(tranger);
+
+    if(treedb_shoot_snap(tranger, TREEDB_NAME, "s2", "second") == 0) {
+        printf("%sERROR%s --> shoot-snap ACCEPTED with the active snap unknown\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_activate_snap(tranger, TREEDB_NAME, "s1") >= 0) {
+        printf("%sERROR%s --> activate-snap ACCEPTED with the active snap unknown\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *k1 = treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, "k1");
+    if(!k1 || treedb_delete_node(tranger, k1, 0) == 0) {
+        printf("%sERROR%s --> delete of k1 %s with the snaps unknown\n",
+            On_Red BWhite, Color_Off, k1? "ACCEPTED": "not tried (k1 not in memory)");
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("load failed snaps at restart: close", NULL, NULL, NULL, 1);
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
 /***************************************************************************
  *  do_test
  ***************************************************************************/
@@ -274,6 +501,10 @@ PRIVATE int do_test(void)
 
     result += test_topic_with_an_unreadable_key(path_root);
     result += test_snaps_that_did_not_load(path_root);
+    result += test_damaged_at_restart(path_root, "4. md2 of k2 cut to 0 bytes, at restart", "md2", FALSE);
+    result += test_damaged_at_restart(path_root, "5. garbage after the md2 of k2, at restart", "md2", TRUE);
+    result += test_damaged_at_restart(path_root, "6. content of k2 cut to 0 bytes, at restart", "json", FALSE);
+    result += test_snaps_damaged_at_restart(path_root);
 
     return result;
 }

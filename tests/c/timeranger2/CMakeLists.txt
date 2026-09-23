@@ -77,6 +77,7 @@ set(SRCS
     test_topic_var_replace
     test_key_reborn_pages
     test_open_list_history
+    test_unreadable_at_open
     test_testing
 )
 

@@ -3825,7 +3825,8 @@ PUBLIC int tranger2_delete_key(
              *  segments again from it. Nothing is announced.
              */
             json_t *key_cache = load_key_cache_from_disk(gobj, topic_dir, key);
-            if(json_array_size(json_object_get(key_cache, "files")) > 0) {
+            if(json_array_size(json_object_get(key_cache, "files")) > 0 ||
+                    json_array_size(json_object_get(key_cache, "unreadable")) > 0) {
                 json_object_set_new(topic_cache, key, key_cache);
                 update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
             } else {
@@ -6822,7 +6823,54 @@ PRIVATE json_t *find_cache_cell(
 }
 
 /***************************************************************************
+ *  A md2 file of the key that the cache build cannot count: the key is
+ *  flagged, `"unreadable": [file_id, ...]` in its cache, sorted like the
+ *  cells. Its rows are in no cell, and every load of the key says
+ *  `load_failed` (tranger2_open_iterator) and stops where the file is.
+ ***************************************************************************/
+PRIVATE void flag_key_unreadable(
+    hgobj gobj,
+    json_t *key_cache,
+    const char *topic_directory,
+    const char *key,
+    const char *file_id,
+    const char *cause
+)
+{
+    gobj_log_error(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_TRANGER,
+        "msg",              "%s", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
+        "cause",            "%s", cause,
+        "topic_directory",  "%s", topic_directory,
+        "key",              "%s", key,
+        "file_id",          "%s", file_id,
+        NULL
+    );
+    json_t *unreadable = json_object_get(key_cache, "unreadable");
+    if(!unreadable) {
+        unreadable = json_array();
+        json_object_set_new(key_cache, "unreadable", unreadable);
+    }
+    json_array_append_new(unreadable, json_string(file_id));
+}
+
+/***************************************************************************
  *  Get range time of a key
+ *
+ *  A md2 file that cannot be counted is not a file of 0 rows: its rows
+ *  exist, and a key read without them is a SHORTER key that nothing
+ *  flagged -- a treedb came up after a restart with the node absent, and
+ *  a create of its id wrote over the records nobody read (independent
+ *  review of the third fix round). The key is flagged instead
+ *  (flag_key_unreadable), for:
+ *      - a md2 that cannot be opened or read, or whose size is not a
+ *        whole number of rows;
+ *      - a md2 of 0 rows whose content file is NOT empty: the rows of that
+ *        content are gone. (It is also what a first append whose md2
+ *        write failed leaves; the flag is on the safe side there.)
+ *  A md2 of 0 rows with an empty content file loses nothing: it gets no
+ *  cell (a cell of 0 rows has the range of a zeroed row, 1970).
  ***************************************************************************/
 PRIVATE json_t *load_key_cache_from_disk(
     hgobj gobj,
@@ -6849,6 +6897,13 @@ PRIVATE json_t *load_key_cache_from_disk(
 
     for(int i=0; i<da.count; i++) {
         char *filename = da.items[i];
+        char file_id[NAME_MAX];
+        snprintf(file_id, sizeof(file_id), "%s", filename);
+        char *dot = strrchr(file_id, '.');
+        if(dot) {
+            *dot = 0;
+        }
+
         json_t *cache_cell = load_cache_cell_from_disk(
             gobj,
             topic_directory,
@@ -6857,7 +6912,26 @@ PRIVATE json_t *load_key_cache_from_disk(
             NULL        // no cell yet: the cache is being built
         );
         if(!cache_cell) {
-            // Error already logged
+            // Error already logged, the cause
+            flag_key_unreadable(gobj, key_cache, topic_directory, key, file_id,
+                "the md2 file cannot be read (see the log before)"
+            );
+            continue;
+        }
+        if(json_integer_value(json_object_get(cache_cell, "rows")) == 0) {
+            JSON_DECREF(cache_cell)
+            char content_name[NAME_MAX + 8];
+            char content_path[PATH_MAX];
+            snprintf(content_name, sizeof(content_name), "%s.json", file_id);
+            if(!build_path(content_path, sizeof(content_path), full_path, content_name, NULL)) {
+                // Error already logged: a name no file can have, no content lost
+                continue;
+            }
+            if(filesize(content_path) > 0) {
+                flag_key_unreadable(gobj, key_cache, topic_directory, key, file_id,
+                    "the md2 file has no rows and its content file is not empty"
+                );
+            }
             continue;
         }
         json_array_append_new(cache_files, cache_cell);
@@ -8154,6 +8228,31 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     );
     json_object_update_missing_new(iterator, extra);
 
+    /*
+     *  A key with md2 files the cache build could not count (see
+     *  load_key_cache_from_disk) has rows in no cell: its history is not
+     *  whole, whatever the load finds, and the iterator says so. A load
+     *  stops where the first of those files is in its direction -- where a
+     *  running tranger stops when the damage happens behind its back.
+     */
+    json_t *unreadable = json_object_get(
+        json_object_get(json_object_get(topic, "cache"), key), "unreadable"
+    );
+    if(json_array_size(unreadable) > 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            "files",        "%j", unreadable,
+            NULL
+        );
+        json_object_set_new(iterator, "load_failed", json_true());
+    } else {
+        unreadable = NULL;
+    }
+
     /*-------------------------------------------------------------------------*
      *  WITH HISTORY:
      *      If there is "load_record_callback" then
@@ -8192,16 +8291,33 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
 
         /*
-         *  A row whose metadata cannot be read ends the load, and the
-         *  iterator says so in `load_failed` (the cause is logged where it
-         *  failed): a caller that ASKS the history a question -- is any
-         *  record of the key frozen by a snapshot? -- must not read "no" in
-         *  a load that stopped half way. A content that cannot be read is
-         *  handed to the callback as NULL, as it always was.
+         *  A row whose metadata or whose content cannot be read ends the
+         *  load, and the iterator says so in `load_failed` (the cause is
+         *  logged where it failed): a caller that ASKS the history a
+         *  question -- is any record of the key frozen by a snapshot? --
+         *  must not read "no" in a load that stopped half way. The rows
+         *  before it, in the load's direction, were handed to the callback.
+         *
+         *  A content that cannot be read was handed to the callback as
+         *  NULL and the load went on: treedb made a node of it, with id ""
+         *  (independent review of the third fix round). An only_md load
+         *  reads no content, and no content fails it.
          */
+        const char *first_unreadable = json_string_value(json_array_get(unreadable, 0));
+        const char *last_unreadable = json_string_value(
+            json_array_get(unreadable, json_array_size(unreadable) - 1)
+        );
         BOOL end = FALSE;
         while(!end && cur_segment >= 0) {
             json_t *segment = json_array_get(segments, cur_segment);
+            if(unreadable) {
+                const char *seg_file_id = json_string_value(json_object_get(segment, "id"));
+                if(!seg_file_id ||
+                        (!backward && cmp_file_ids(seg_file_id, first_unreadable) > 0) ||
+                        (backward && cmp_file_ids(seg_file_id, last_unreadable) < 0)) {
+                    break;  // Error already logged, load_failed already set
+                }
+            }
             /*
              *  Get the metadata
              */
@@ -8249,9 +8365,11 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                         file_id,
                         &md_record_ex
                     );
-                    if(record) {
-                        json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
+                    if(!record) {
+                        json_object_set_new(iterator, "load_failed", json_true());
+                        break;  // Error already logged
                     }
+                    json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
                 }
 
                 // Inform to the user list, historic
@@ -10619,7 +10737,12 @@ PRIVATE json_t *read_record_content(
     A key whose history cannot be loaded whole: the list of ONE key is
     refused (NULL). A keyless list logs the key, goes on with the others and
     opens its feed; the handle it returns says `"load_failed": true` and
-    names the keys in `"load_failed_keys"`.
+    names the keys in `"load_failed_keys"`. The records of a failed key
+    read BEFORE the failure WERE handed to the callback: in a forward load
+    its oldest rows, in a backward one its newest. A key fails when a row's
+    metadata or content cannot be read, and when the cache build flagged
+    it (a md2 file it could not count, see load_key_cache_from_disk) --
+    the same after a restart as behind a running tranger's back.
 
     Return: realtime handle (rt_mem / rt_disk) or the no_rt `extra`, NULL on error.
     Both match_cond and extra are owned (consumed).
@@ -10811,7 +10934,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_TRANGER,
-                        "msg",          "%s", "Cannot load the history of a key of the list, the list goes on without it",
+                        "msg",          "%s", "Cannot load the whole history of a key of the list: the records read before the failure were handed, the list goes on with the next key",
                         "topic_name",   "%s", topic_name,
                         "key",          "%s", key_,
                         NULL

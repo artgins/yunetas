@@ -28,8 +28,10 @@
  *           16. the gc takes the bytes that no row names
  *           17. a second arrival under the SAME name appends nothing
  *           18. a create of an existing id stores no file
-           19. `now` is stamped by every write, `writable` or not
+ *           19. `now` is stamped by every write, `writable` or not
  *           20. a replica writes no file and moves no link
+ *           21-24. the guards of the gc fail closed on what did not load
+ *           25, 26. the same after a restart, with the store cut while down
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -1891,11 +1893,17 @@ PRIVATE int test_gc_guard_that_cannot_read_refuses(const char *path_root)
     JSON_DECREF(would)
     result += test_json(NULL);
 
-    /*  The records of dev-21 cannot be read any more  */
+    /*
+     *  The records of dev-21 cannot be read any more: the walk of the
+     *  instances of `devices` fails at the first (a content that cannot be
+     *  read ends a load, it is not handed to the callback as NULL)
+     */
     set_expected_results_unordered(test,
-        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Bad on-disk record: __offset__/__size__ out of range",
-            "msg", "cannot read a tagged record: the assets a snapshot holds are unknown",
+            "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
+                   "were handed, the list goes on with the next key",
+            "msg", "cannot read every instance of a topic: the assets a snapshot holds are unknown",
             "msg", "gc refused: cannot tell which assets a snapshot links (see the log)",
             "msg", "cannot delete asset, cannot tell whether a snapshot links it (see the log)"
         ),
@@ -2010,7 +2018,8 @@ PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
     set_expected_results_unordered(test,
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Cannot read record metadata, read FAILED",
-            "msg", "Cannot load the history of a key of the list, the list goes on without it",
+            "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
+                   "were handed, the list goes on with the next key",
             "msg", "cannot read every instance of a topic: the assets a snapshot holds are unknown",
             "msg", "gc refused: cannot tell which assets a snapshot links (see the log)",
             "msg", "cannot delete asset, cannot tell whether a snapshot links it (see the log)",
@@ -2103,15 +2112,18 @@ PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
 /***************************************************************************
  *  A self-contained treedb of this file's schema, with dev-<n> linking
  *  the bytes `png`, closed, a key cut behind its back, and opened again.
+ *  With `restart`, the tranger is shut down before the cut and started
+ *  again after it: the cache of the topic is built from the cut store.
  ***************************************************************************/
-PRIVATE json_t *reopen_with_a_key_cut(
+PRIVATE json_t *reopen_with_a_key_cut2(
     const char *path_root,
     const char *db,
     const char *device,
     const char *png,
     size_t png_len,
     const char *cut_topic,
-    const char *cut_key
+    const char *cut_key,
+    BOOL restart
 )
 {
     char path_db[PATH_MAX];
@@ -2127,6 +2139,9 @@ PRIVATE json_t *reopen_with_a_key_cut(
         printf("%s  FAIL: cannot create %s%s\n", On_Red BWhite, device, Color_Off);
     }
     treedb_close_db(tranger, TREEDB_NAME);
+    if(restart) {
+        tranger2_shutdown(tranger);
+    }
 
     char key_dir[PATH_MAX];
     build_path(key_dir, sizeof(key_dir), path_db, cut_topic, "keys", cut_key, NULL);
@@ -2142,8 +2157,26 @@ PRIVATE json_t *reopen_with_a_key_cut(
     }
     dir_array_free(&da);
 
+    if(restart) {
+        tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+            "path", path_root, "database", db, "master", 1,
+            "on_critical_error", LOG_OPT_TRACE_STACK), 0);
+    }
     treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
     return tranger;
+}
+
+PRIVATE json_t *reopen_with_a_key_cut(
+    const char *path_root,
+    const char *db,
+    const char *device,
+    const char *png,
+    size_t png_len,
+    const char *cut_topic,
+    const char *cut_key
+)
+{
+    return reopen_with_a_key_cut2(path_root, db, device, png, png_len, cut_topic, cut_key, FALSE);
 }
 
 /***************************************************************************
@@ -2232,6 +2265,101 @@ PRIVATE int test_sweep_with_a_row_that_did_not_load(const char *path_root)
         NULL, NULL, 1
     );
     json_t *taken = treedb_gc_files(tranger, TREEDB_NAME, FALSE);
+    if(taken) {
+        printf("%s  FAIL: the gc answered a list (%s C) with a row that did not load%s\n",
+            On_Red BWhite, json_str_in_list(0, taken, id_c, 0)? "WITH": "without", Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(taken)
+    if(!blob_exists(tranger, id_c, "image/png")) {
+        printf("%s  FAIL: the bytes of C are gone: their row did not load%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 0);
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+    test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  25, 26. The same two, with the key cut while the tranger is DOWN
+ *
+ *  The cache build counted a md2 cut to 0 bytes as 0 rows: the key read as
+ *  empty, nothing failed, and the gc took the asset of a node that exists
+ *  on disk (independent review of the third fix round, repro
+ *  indep3_B/gc restart).
+ ***************************************************************************/
+PRIVATE int test_gc_after_a_restart(const char *path_root)
+{
+    int result = 0;
+    const char *test = "25. after a restart: the gc does not take an asset linked by a node that did not load";
+
+    char id_b[SHA256_HEX_LEN + 1];
+    snprintf(id_b, sizeof(id_b), "%s", sha(PNG_B, sizeof(PNG_B)-1));
+
+    set_expected_results(test, NULL, NULL, NULL, 0);
+    json_t *tranger = reopen_with_a_key_cut2(
+        path_root, "tr_files_gc_restart_node", "dev-25", PNG_B, sizeof(PNG_B)-1,
+        "devices", "dev-25", TRUE
+    );
+    test_json(NULL);    // the load of dev-25 is case 4 of tr_treedb_load_failed
+
+    set_expected_results_unordered(test,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "a topic that links assets did not load whole",
+            "msg", "gc refused: a topic that links assets did not load whole, the live links are unknown (see the log)"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
+    if(would) {
+        printf("%s  FAIL: the gc answered a list (%s B) with a node that did not load%s\n",
+            On_Red BWhite, json_str_in_list(0, would, id_b, 0)? "WITH": "without", Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(would)
+    json_t *taken = treedb_gc_files(tranger, TREEDB_NAME, FALSE);
+    if(taken) {
+        printf("%s  FAIL: the gc took something with a node that did not load%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(taken)
+    if(!treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_b) ||
+            !blob_exists(tranger, id_b, "image/png")) {
+        printf("%s  FAIL: the asset B of dev-25 is gone%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 0);
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+    test_json(NULL);
+
+    test = "26. after a restart: the sweep does not take the bytes of an asset row that did not load";
+    char id_c[SHA256_HEX_LEN + 1];
+    snprintf(id_c, sizeof(id_c), "%s", sha(PNG_C, sizeof(PNG_C)-1));
+
+    set_expected_results(test, NULL, NULL, NULL, 0);
+    tranger = reopen_with_a_key_cut2(
+        path_root, "tr_files_gc_restart_row", "dev-26", PNG_C, sizeof(PNG_C)-1,
+        TREEDB_ASSETS_TOPIC, id_c, TRUE
+    );
+    test_json(NULL);
+
+    set_expected_results_unordered(test,
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "a topic that links assets did not load whole",
+            "msg", "gc refused: a topic that links assets did not load whole, the live links are unknown (see the log)",
+            "msg", "gc: the blobs are not swept, __assets__ did not load whole"
+        ),
+        NULL, NULL, 1
+    );
+    taken = treedb_gc_files(tranger, TREEDB_NAME, FALSE);
     if(taken) {
         printf("%s  FAIL: the gc answered a list (%s C) with a row that did not load%s\n",
             On_Red BWhite, json_str_in_list(0, taken, id_c, 0)? "WITH": "without", Color_Off);
@@ -2345,6 +2473,7 @@ PRIVATE int do_test(void)
     result += test_gc_guard_reads_a_partial_walk(path_root);
     result += test_gc_with_a_node_that_did_not_load(path_root);
     result += test_sweep_with_a_row_that_did_not_load(path_root);
+    result += test_gc_after_a_restart(path_root);
 
     return result;
 }
