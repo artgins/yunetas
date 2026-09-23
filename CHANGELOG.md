@@ -125,18 +125,28 @@ listed under "No red test" in `TODO.md`.
   `unsaved` (drafts). A topic whose columns the literal changes without raising
   its `topic_version` keeps running its old columns in the store (tranger2
   swaps columns only on a version raise): the open warns.
-- **A projection says when it is unfinished.** A removal that is refused (a
-  snapshot of `__system__` holds the node) leaves the projection unfinished: it
-  gets `c_schema_version` 0, one WARNING with `not_removed` and how to finish
-  it (delete the `__snaps__` row), a retry at every open, and a new
-  `unfinished_projection` field in `treedbs` and `saved-schema`; `save-schema`
-  refuses meanwhile (it would publish the removed topic again).
+- **A projection says when it is unfinished, and records it.** A removal that
+  is refused (a snapshot of `__system__` holds the node), or a create, update
+  or link that fails, leaves the projection unfinished: one WARNING with
+  `not_removed` / `not_written` and how to finish it (for a removal, delete the
+  `__snaps__` row), and a record, `saved_schemas/<treedb>.unfinished.json`
+  (`schema_version`, `not_removed`, `not_written`, `leftovers`). While the
+  record exists every open retries the projection (INFO "Completing the
+  projection into __system__, left unfinished by an earlier open", or the
+  imposed "Updating TreeDB schema in __system__"), the leftovers it names are
+  never taken for an operator's draft nor reported as withdrawn work, a new
+  `unfinished_projection` field says it in `treedbs` and `saved-schema`, and
+  `save-schema` refuses (it would publish the removed topic again). A
+  projection that completes removes the record; so does `delete-treedb`.
 - **A second `open-treedb` of an open treedb is refused first** ("already open
   here: close-treedb first, nothing was changed"); 7.25.4 reconciled
   `__system__` first and then failed with "Internal error, tranger client
   NULL", and with this release's whole projection that reconcile would delete
   topics and withdraw the saved schema. A failed open destroys the tranger it
-  created.
+  created. When the treedb's schema is refused (`treedb_open_db()` fails) the
+  answer is -1 ("did not open, its schema was refused (see the log):
+  close-treedb it before opening it again"); 7.25.4 answered 0 "Treedb
+  opened!". Every `open-treedb` answer starts with the yuno.
 - **The client store decides.** If another process holds the client store's
   lock, the treedb opens as a replica and nothing is reconciled (INFO).
 - `apply-schema` records what it put in use in a new file,
@@ -229,7 +239,11 @@ listed under "No red test" in `TODO.md`.
   from the file, with `c_schema_version` 0 unless the file is the literal.
 - `apply-schema` writes a new record, `saved_schemas/<treedb>.applied.json`,
   and refuses when it cannot write it; `save-schema`
-  refuses while a projection is unfinished; a second `open-treedb` is refused;
+  refuses while a projection is unfinished (new record
+  `saved_schemas/<treedb>.unfinished.json`); a failed create, update or link of
+  the projection leaves it unfinished and retried; a second `open-treedb` is
+  refused, and one whose schema is refused answers -1 (7.25.4: 0 "Treedb
+  opened!"), with new answer texts;
   a client store locked by another process is not reconciled. The log order at
   open changed (the client tranger's logs come first).
 - msg2db: the pkey2s of an id that did not load whole whose newest message is
