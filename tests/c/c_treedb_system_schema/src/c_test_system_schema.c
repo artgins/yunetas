@@ -4308,6 +4308,21 @@ PRIVATE int check_ordinary_literal_follows_the_file(hgobj gobj)
         result += save_fail(gobj, "TEST FAIL: a literal installed over the file left the save made against it", NULL);
     }
 
+    /*
+     *  ...and the API says so, not only the log: the saved schema it
+     *  withdrew and the topic whose saved draft it replaced (L1 of the third
+     *  independent review, 2026-09-23)
+     */
+    {
+        json_t *jn_saved = treedbs_command(gobj, "saved-schema", json_object());
+        json_t *w = kw_get_dict(gobj, jn_saved, "data`withdrawn_at_open", 0, 0);
+        if(kw_get_int(gobj, w, "saved_schema_version", 0, 0) <= in_use_v ||
+                strcmp(kw_get_str(gobj, w, "topics`users", "", 0), "saved")!=0) {
+            result += save_fail(gobj, "TEST FAIL: saved-schema does not say what the open withdrew", jn_saved);
+        }
+        JSON_DECREF(jn_saved)
+    }
+
     char running[NAME_MAX];
     client_col_header(gobj, "users", "email", running, sizeof(running));
     json_t *users = system_topic_cols(gobj, "users");
@@ -4549,6 +4564,168 @@ PRIVATE int check_unopened_apply_survives_a_literal(hgobj gobj)
     result += check_col_agrees(gobj,
         "TEST FAIL: the topic the literal raised does not run from the literal",
         "departments", "name", "Name from C");
+
+    return result;
+}
+
+/***************************************************************************
+ *  What an open withdrew, as the API says it: `withdrawn_at_open` of
+ *  saved-schema (and of the `treedbs` row). Return is YOURS, {} when the
+ *  answer carries none.
+ ***************************************************************************/
+PRIVATE json_t *withdrawn_at_open(hgobj gobj)
+{
+    json_t *jn_resp = treedbs_command(gobj, "saved-schema", json_object());
+    json_t *w = kw_get_dict(gobj, jn_resp, "data`withdrawn_at_open", 0, 0);
+    json_t *ret = w? json_incref(w) : json_object();
+    JSON_DECREF(jn_resp)
+    return ret;
+}
+
+PRIVATE json_t *treedbs_row_withdrawn_at_open(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "treedbs", json_object(), gobj);
+    json_t *ret = NULL;
+    int idx; json_t *row;
+    json_array_foreach(kw_get_list(gobj, jn_resp, "data", 0, 0), idx, row) {
+        if(strcmp(kw_get_str(gobj, row, "treedb_name", "", 0), TREEDB_NAME)==0) {
+            json_t *w = json_object_get(row, "withdrawn_at_open");
+            ret = w? json_incref(w) : NULL;
+        }
+    }
+    JSON_DECREF(jn_resp)
+    return ret? ret : json_object();
+}
+
+/***************************************************************************
+ *  A draft a literal replaces at open is SAID, and through the API, not
+ *  only in the log (L1-L3 of the third independent review, 2026-09-23):
+ *
+ *    unsaved   an edit never saved, of a topic the literal raises: it was
+ *              dropped with no word at all;
+ *    withdrawn a save taken back (the draft is the file again): nothing is
+ *              replaced, and nothing is said -- it was told "replaces its
+ *              saved draft";
+ *    applied   an apply not opened yet, of a topic the literal raises past
+ *              it: the literal runs, and the apply is said to be replaced.
+ *
+ *  `withdrawn_at_open` of saved-schema and of the `treedbs` row carries
+ *  `topics: {<topic>: "unsaved" | "saved" | "applied"}` and the
+ *  `saved_schema_version` the open withdrew (0 when none).
+ ***************************************************************************/
+PRIVATE int check_replaced_drafts_are_said(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    json_t *jn_resp;
+
+    if(reopen_test_treedb(gobj, FALSE) < 0) {
+        return -1;  // Error already logged
+    }
+    char saved_dir[PATH_MAX];
+    build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    file_remove(saved_dir, TREEDB_NAME ".treedb_schema.json");
+
+    /*
+     *  Unsaved: an edit of `users`, and a literal newer than everything
+     *  that raises `users`
+     */
+    json_int_t sv = system_schema_version(gobj, "schema_version");
+    if(disk_schema_version(gobj) > sv) {
+        sv = disk_schema_version(gobj);
+    }
+    json_int_t users_tv = disk_topic_version(gobj, "users");
+    if(set_draft_col_header(gobj, "users", "username", "Unsaved login") < 0) {
+        return save_fail(gobj, "TEST FAIL: the operator edit was refused", NULL);
+    }
+    jn_resp = treedbs_command(gobj, "close-treedb", json_pack("{s:b}", "force", 1));
+    JSON_DECREF(jn_resp)
+    if(open_test_treedb(gobj,
+            literal_raising(gobj, sv + 1, "users", users_tv + 1, "email", "Mail A")) < 0) {
+        return result - 1;
+    }
+    {
+        json_t *w = withdrawn_at_open(gobj);
+        json_t *row = treedbs_row_withdrawn_at_open(gobj);
+        if(strcmp(kw_get_str(gobj, w, "topics`users", "", 0), "unsaved")!=0 ||
+                kw_get_int(gobj, w, "saved_schema_version", -1, 0) != 0 ||
+                !json_equal(w, row)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: an unsaved draft the literal replaced is not said",
+                "saved_schema", "%j", w,
+                "treedbs",      "%j", row,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(w)
+        JSON_DECREF(row)
+    }
+
+    /*
+     *  Withdrawn: saved, taken back, saved again (withdrawn); a literal that
+     *  takes over the file raising `users`. Nothing is replaced.
+     */
+    char original[NAME_MAX];
+    client_col_header(gobj, "users", "email", original, sizeof(original));
+    set_draft_col_header(gobj, "users", "email", "Taken back");
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    JSON_DECREF(jn_resp)
+    set_draft_col_header(gobj, "users", "email", original);
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    if(!kw_get_bool(gobj, jn_resp, "data`withdrawn", 0, 0)) {
+        result += save_fail(gobj, "TEST FAIL: the save taken back was not withdrawn", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+    users_tv = disk_topic_version(gobj, "users");
+    json_int_t file_v = disk_schema_version(gobj);
+    jn_resp = treedbs_command(gobj, "close-treedb", json_pack("{s:b}", "force", 1));
+    JSON_DECREF(jn_resp)
+    if(open_test_treedb(gobj,
+            literal_raising(gobj, file_v + 1, "users", users_tv + 1, "email", "Mail B")) < 0) {
+        return result - 1;
+    }
+    {
+        json_t *w = withdrawn_at_open(gobj);
+        if(json_object_size(kw_get_dict(gobj, w, "topics", 0, 0)) != 0 ||
+                kw_get_int(gobj, w, "saved_schema_version", 0, 0) != 0) {
+            result += save_fail(gobj, "TEST FAIL: a draft withdrawn by a save reads as replaced at open", w);
+        }
+        JSON_DECREF(w)
+    }
+
+    /*
+     *  Applied, never opened, and the literal raises `users` past the apply
+     */
+    set_draft_col_header(gobj, "users", "email", "Applied, never ran");
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    JSON_DECREF(jn_resp)
+    jn_resp = treedbs_command(gobj, "apply-schema", json_object());
+    if(!kw_get_bool(gobj, jn_resp, "data`applied", 0, 0)) {
+        result += save_fail(gobj, "TEST FAIL: the edit was not applied", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+    json_int_t applied_tv = in_use_topic_version(gobj, "users");
+    json_int_t applied_v = disk_schema_version(gobj);
+    jn_resp = treedbs_command(gobj, "close-treedb", json_pack("{s:b}", "force", 1));
+    JSON_DECREF(jn_resp)
+    if(open_test_treedb(gobj,
+            literal_raising(gobj, applied_v + 1, "users", applied_tv + 1, "email", "Mail C")) < 0) {
+        return result - 1;
+    }
+    result += check_col_agrees(gobj,
+        "TEST FAIL: the literal raised past an apply does not run",
+        "users", "email", "Mail C");
+    {
+        json_t *w = withdrawn_at_open(gobj);
+        if(strcmp(kw_get_str(gobj, w, "topics`users", "", 0), "applied")!=0) {
+            result += save_fail(gobj, "TEST FAIL: an applied topic the literal replaced before it ran is not said", w);
+        }
+        JSON_DECREF(w)
+    }
 
     return result;
 }
@@ -5503,6 +5680,7 @@ PRIVATE int run_tests(hgobj gobj)
      *  draft an open replaces is said, in the API
      *-----------------------------------------------*/
     result += check_unopened_apply_survives_a_literal(gobj);
+    result += check_replaced_drafts_are_said(gobj);
 
     /*-----------------------------------------------*
      *  Test 13c: apply-schema of every treedb is all

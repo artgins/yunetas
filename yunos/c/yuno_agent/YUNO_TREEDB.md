@@ -2025,6 +2025,32 @@ change. Nothing is lost: the drafts of the topics the literal did not raise stay
 in `__system__`, and the next `save-schema` publishes them against the new file.
 `delete-treedb` removes the saved schema of the treedb too.
 
+**What an open withdrew is answered by the API, not only logged** (after
+7.25.4). An open that replaces the operator's work says it with one warning
+per topic, and `treedbs` (each row) and `saved-schema` answer it as
+`withdrawn_at_open` until the next open of that treedb:
+
+| `topics` value | The literal replaced | Warning |
+|---|---|---|
+| `"applied"` | an applied topic that never ran | *"Topic from C raised past an applied schema that never ran: it replaces the applied topic, in the file and in __system__"* |
+| `"saved"` | the draft of a pending save | *"Topic from C raised past the file in use replaces its saved draft in __system__"* |
+| `"unsaved"` | a draft never saved | *"Topic from C replaces an unsaved draft of the topic in __system__"* |
+
+A draft is a topic of `__system__` that differs from the file in use. A save
+taken back (the draft is the file again, see *A draft taken back is withdrawn
+by the next save*) replaces nothing and says nothing; it used to be told
+"replaces its saved draft". Until 7.25.4 an unsaved draft was dropped with no
+word, and a withdrawn saved schema was in the log only.
+
+```bash
+ycommand -c 'command-yuno id=<id> service=treedbs command=saved-schema treedb_name=treedb_x'
+# data: {..., "withdrawn_at_open": {"schema_version": 22, "saved_schema_version": 21,
+#                                   "topics": {"users": "saved"}}}
+```
+
+`schema_version` is the literal that did it, `saved_schema_version` the saved
+schema it withdrew (`0`: none). Nothing withdrawn answers `{}`.
+
 ```bash
 ycommand -c 'command-yuno id=<id> service=treedbs command=save-schema treedb_name=treedb_x'
 ycommand -c 'command-yuno id=<id> service=treedbs command=saved-schema treedb_name=treedb_x'

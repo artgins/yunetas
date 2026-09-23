@@ -342,6 +342,7 @@ typedef struct _PRIVATE_DATA {
     json_t *tranger_system_;
     json_t *jn_c_schemas;               // schema from C by treedb_name, see diff-schema
     json_t *jn_forced_treedbs;          // treedbs whose yuno's code imposes the schema from C
+    json_t *jn_withdrawn_at_open;       // what the last open of each treedb withdrew, see reconcile
     json_int_t system_schema_version;   // of treedb_system_schema, see reconcile
     int32_t exit_on_error;
 } PRIVATE_DATA;
@@ -377,6 +378,7 @@ PRIVATE void mt_create(hgobj gobj)
      */
     priv->jn_c_schemas = json_object();
     priv->jn_forced_treedbs = json_object();
+    priv->jn_withdrawn_at_open = json_object();
 
     /*-----------------------------------*
      *      Create System Timeranger
@@ -498,6 +500,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     JSON_DECREF(priv->jn_c_schemas)
     JSON_DECREF(priv->jn_forced_treedbs)
+    JSON_DECREF(priv->jn_withdrawn_at_open)
 }
 
 /***************************************************************************
@@ -1594,6 +1597,22 @@ PRIVATE json_int_t schema_topic_version(hgobj gobj, json_t *jn_schema, const cha
 }
 
 /***************************************************************************
+ *  What the last open of `treedb_name` withdrew (see reconcile), as the API
+ *  answers it: {} when nothing. Return is YOURS.
+ *
+ *      {"schema_version": 22,          // the literal that did it
+ *       "saved_schema_version": 21,    // the saved schema it withdrew, 0: none
+ *       "topics": {"users": "saved"}}  // "applied" | "saved" | "unsaved"
+ ***************************************************************************/
+PRIVATE json_t *withdrawn_at_open(hgobj gobj, const char *treedb_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *w = json_object_get(priv->jn_withdrawn_at_open, treedb_name);
+    return w? json_deep_copy(w) : json_object();
+}
+
+/***************************************************************************
  *  The treedbs this service opened, one row each: whether it opens with
  *  its schema from C and who decided it (the yuno's code, the configuration
  *  dynamic_schema_treedbs, or the default impose_c_schema), the version of
@@ -1622,7 +1641,7 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *  on as a replica, and the `master` attribute says what was configured.
      */
     json_t *jn_data = json_array();
-    json_array_append_new(jn_data, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I, s:b, s:b}",
+    json_array_append_new(jn_data, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I, s:b, s:b, s:{}}",
         "treedb_name", TREEDB_SYSTEM_SCHEMA_NAME,
         "impose_c_schema", 1,
         "decided_by", "system",
@@ -1630,7 +1649,8 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         "in_use_schema_version", priv->system_schema_version,
         "saved_schema_version", (json_int_t)0,
         "master", system_is_written_here(gobj),
-        "stopped", tranger_is_stopped(priv->tranger_system_)
+        "stopped", tranger_is_stopped(priv->tranger_system_),
+        "withdrawn_at_open"
     ));
 
     char saved_dir[PATH_MAX];
@@ -1658,7 +1678,7 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         hgobj gobj_node = gobj_find_service(name, FALSE);
         json_t *tranger = is_treedb_opened_here(gobj, gobj_node)?
             gobj_read_pointer_attr(gobj_node, "tranger") : NULL;
-        json_array_append_new(jn_data, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I, s:b, s:b}",
+        json_array_append_new(jn_data, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I, s:b, s:b, s:o}",
             "treedb_name", name,
             "impose_c_schema", treedb_schema_imposed(gobj, name),
             "decided_by", impose_decided_by(gobj, name),
@@ -1666,7 +1686,8 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             "in_use_schema_version", in_use_version,
             "saved_schema_version", saved_version,
             "master", treedb_is_written_here(gobj, name),
-            "stopped", tranger_is_stopped(tranger)
+            "stopped", tranger_is_stopped(tranger),
+            "withdrawn_at_open", withdrawn_at_open(gobj, name)
         ));
     }
 
@@ -2193,7 +2214,7 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     return msg_iev_build_response(gobj, 0,
         0,
         0,
-        json_pack("{s:s, s:b, s:b, s:b, s:b, s:I, s:I, s:b, s:s, s:o, s:o}",
+        json_pack("{s:s, s:b, s:b, s:b, s:b, s:I, s:I, s:b, s:s, s:o, s:o, s:o}",
             "treedb_name", treedb_name,
             "impose_c_schema", imposed,
             "master", master,
@@ -2204,7 +2225,8 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             "can_apply", master && !imposed && saved_version > in_use_version,
             "path", saved_path,
             "diff", diff,
-            "draft_changed", draft_changed
+            "draft_changed", draft_changed,
+            "withdrawn_at_open", withdrawn_at_open(gobj, treedb_name)
         ),
         kw
     );
@@ -3342,7 +3364,10 @@ PRIVATE int upsert_treedb_schema(
     json_t *kw,     // not owned
     json_t *current,// not owned, the projection already stored, or NULL
     BOOL imposing,  // every topic that differs is projected (impose, or no file in use)
-    json_t *file_in_use // not owned, the schema file the literal is installed over, or NULL
+    json_t *file_in_use, // not owned, the schema file the literal is installed over, or NULL
+    json_t *drafts, // not owned, {topic: true} whose draft differs from the file, or NULL
+    BOOL saved_pending, // a saved schema newer than the file in use exists
+    json_t *replaced // not owned, {topic: kind} the literal replaced is added here, or NULL
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -3509,14 +3534,15 @@ PRIVATE int upsert_treedb_schema(
                 continue;
             }
 
+            json_int_t file_topic_version = json_integer_value(
+                json_object_get(json_object_get(in_use, "file"), topic_name)
+            );
+            json_int_t running_version = json_integer_value(
+                json_object_get(json_object_get(in_use, "running"), topic_name)
+            );
+            json_int_t in_use_version = topic_version_in_use(in_use, topic_name);
+
             if(!imposing) {
-                json_int_t file_topic_version = json_integer_value(
-                    json_object_get(json_object_get(in_use, "file"), topic_name)
-                );
-                json_int_t running_version = json_integer_value(
-                    json_object_get(json_object_get(in_use, "running"), topic_name)
-                );
-                json_int_t in_use_version = topic_version_in_use(in_use, topic_name);
                 if(topic_version <= in_use_version) {
                     if(topic_changes) {
                         gobj_log_info(gobj, 0,
@@ -3541,31 +3567,50 @@ PRIVATE int upsert_treedb_schema(
                     json_decref(kw_topic);
                     continue;   /*  raised, and __system__ already says it  */
                 }
-                if(topic_changes && file_topic_version > running_version) {
-                    gobj_log_warning(gobj, 0,
-                        "function",         "%s", __FUNCTION__,
-                        "msgset",           "%s", MSGSET_TREEDB,
-                        "msg",              "%s", "Topic from C raised past an applied schema that never ran: it replaces the applied topic, in the file and in __system__",
-                        "treedb_name",      "%s", treedb_name,
-                        "topic_name",       "%s", topic_name,
-                        "topic_version",    "%d", (int)topic_version,
-                        "file_version",     "%d", (int)file_topic_version,
-                        "running_version",  "%d", (int)running_version,
-                        "stored_version",   "%d", (int)stored_topic_version,
-                        NULL
-                    );
-                } else if(topic_changes && stored_topic_version > in_use_version) {
-                    gobj_log_warning(gobj, 0,
-                        "function",         "%s", __FUNCTION__,
-                        "msgset",           "%s", MSGSET_TREEDB,
-                        "msg",              "%s", "Topic from C raised past the file in use replaces its saved draft in __system__",
-                        "treedb_name",      "%s", treedb_name,
-                        "topic_name",       "%s", topic_name,
-                        "topic_version",    "%d", (int)topic_version,
-                        "file_version",     "%d", (int)file_topic_version,
-                        "stored_version",   "%d", (int)stored_topic_version,
-                        NULL
-                    );
+            }
+
+            /*
+             *  What the literal replaces, said -- in the log and, through
+             *  `replaced`, in the API (withdrawn_at_open): an APPLIED topic
+             *  that never ran, a SAVED draft, or a draft never saved. A draft
+             *  is a topic of __system__ that differs from the file in use
+             *  (`drafts`), so a save taken back replaces nothing and says
+             *  nothing: judged by its version alone, it was told "replaces
+             *  its saved draft" (L1-L3 of the third independent review,
+             *  2026-09-23).
+             */
+            const char *kind = NULL;
+            if(topic_changes) {
+                if(!imposing && file_topic_version > running_version) {
+                    kind = "applied";
+                } else if(json_object_get(drafts, topic_name)) {
+                    kind = (saved_pending && stored_topic_version > in_use_version)?
+                        "saved" : "unsaved";
+                }
+            }
+            if(kind) {
+                const char *msg;
+                if(strcmp(kind, "applied")==0) {
+                    msg = "Topic from C raised past an applied schema that never ran: it replaces the applied topic, in the file and in __system__";
+                } else if(strcmp(kind, "saved")==0) {
+                    msg = "Topic from C raised past the file in use replaces its saved draft in __system__";
+                } else {
+                    msg = "Topic from C replaces an unsaved draft of the topic in __system__";
+                }
+                gobj_log_warning(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_TREEDB,
+                    "msg",              "%s", msg,
+                    "treedb_name",      "%s", treedb_name,
+                    "topic_name",       "%s", topic_name,
+                    "topic_version",    "%d", (int)topic_version,
+                    "file_version",     "%d", (int)file_topic_version,
+                    "running_version",  "%d", (int)running_version,
+                    "stored_version",   "%d", (int)stored_topic_version,
+                    NULL
+                );
+                if(replaced) {
+                    json_object_set_new(replaced, topic_name, json_string(kind));
                 }
             }
         }
@@ -3984,7 +4029,8 @@ PRIVATE int project_literal_into_system(
     hgobj gobj,
     const char *treedb_name,
     json_t *jn_schema,  // not owned
-    BOOL imposing       // the treedb is being opened with the schema from C
+    BOOL imposing,      // the treedb is being opened with the schema from C
+    json_t *replaced    // not owned, {topic: kind} of the drafts the literal replaced
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -4002,7 +4048,8 @@ PRIVATE int project_literal_into_system(
     );
     if(json_array_size(stored) == 0) {
         JSON_DECREF(stored)
-        return upsert_treedb_schema(gobj, treedb_name, jn_schema, NULL, imposing, NULL);
+        return upsert_treedb_schema(gobj, treedb_name, jn_schema, NULL, imposing, NULL,
+            NULL, FALSE, replaced);
     }
 
     json_t *stored_treedb = json_array_get(stored, 0);
@@ -4169,6 +4216,33 @@ PRIVATE int project_literal_into_system(
     );
 
     /*
+     *  The drafts: the topics of __system__ that differ from the schema file
+     *  on disk, which the literal may replace (said, see upsert), and whether
+     *  a save of them is pending
+     */
+    json_t *file_on_disk = imposing? load_schema_file_in_use(gobj, treedb_name) : json_incref(file_in_use);
+    json_t *drafts = NULL;
+    BOOL saved_pending = FALSE;
+    if(file_on_disk) {
+        json_t *rows = json_array();
+        json_t *summary = diff_treedb_schema(gobj, treedb_name, file_on_disk, rows);
+        JSON_DECREF(summary)
+        drafts = draft_changed_from_rows(gobj, rows);
+        JSON_DECREF(rows)
+
+        char saved_dir[PATH_MAX];
+        saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+        char filename[NAME_MAX];
+        snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
+        if(file_exists(saved_dir, filename)) {
+            json_t *saved = load_json_from_file(gobj, saved_dir, filename, 0);
+            saved_pending = (schema_version_of(gobj, saved) > schema_version_of(gobj, file_on_disk))?
+                TRUE : FALSE;
+            JSON_DECREF(saved)
+        }
+    }
+
+    /*
      *  With NO file in use, every topic opens from the literal, and every
      *  one is projected: the rule of `imposing`. With one, the topics the
      *  literal raises past it (see upsert_treedb_schema).
@@ -4176,8 +4250,13 @@ PRIVATE int project_literal_into_system(
     int ret = upsert_treedb_schema(
         gobj, treedb_name, jn_schema, current,
         imposing || !file_in_use,
-        file_in_use
+        file_in_use,
+        drafts,
+        saved_pending,
+        replaced
     );
+    JSON_DECREF(drafts)
+    JSON_DECREF(file_on_disk)
     JSON_DECREF(file_in_use)
     JSON_DECREF(current)
 
@@ -4236,6 +4315,11 @@ PRIVATE int remove_saved_schema(hgobj gobj, const char *treedb_name, json_int_t 
  *  the next save publishes them against the new file (review of the second
  *  fix round, 2026-09-23).
  *
+ *  What the open withdrew -- that saved schema, and the drafts of the
+ *  topics the literal replaced ({topic: "applied" | "saved" | "unsaved"}) --
+ *  is kept in `jn_withdrawn_at_open` for the API: `treedbs` and
+ *  `saved-schema` answer it as `withdrawn_at_open` until the next open.
+ *
  *  ONLY THE MASTER writes __system__ and saved_schemas/.
  ***************************************************************************/
 PRIVATE int reconcile_treedb_schema(
@@ -4252,6 +4336,7 @@ PRIVATE int reconcile_treedb_schema(
      *  take the store in exclusive opens as a replica (timeranger2.c), and
      *  what decides whether a write lands is what it ended up being.
      */
+    json_object_del(priv->jn_withdrawn_at_open, treedb_name);
     if(!tranger_writes_now(gobj, priv->tranger_system_)) {
         return 0;
     }
@@ -4263,10 +4348,11 @@ PRIVATE int reconcile_treedb_schema(
         (imposing && new_version < in_use_version))? TRUE: FALSE;
     JSON_DECREF(file_in_use)
 
-    int ret = project_literal_into_system(gobj, treedb_name, jn_schema, imposing);
+    json_t *replaced = json_object();
+    int ret = project_literal_into_system(gobj, treedb_name, jn_schema, imposing, replaced);
 
+    json_int_t saved_version = 0;
     if(literal_replaces_file) {
-        json_int_t saved_version;
         if(remove_saved_schema(gobj, treedb_name, &saved_version) == 0 && saved_version > 0) {
             gobj_log_warning(gobj, 0,
                 "function",         "%s", __FUNCTION__,
@@ -4278,8 +4364,24 @@ PRIVATE int reconcile_treedb_schema(
                 "in_use_version",   "%d", (int)in_use_version,
                 NULL
             );
+        } else {
+            saved_version = 0;  // none, or it could not be removed (logged): not withdrawn
         }
     }
+
+    /*
+     *  What this open withdrew, for the API and not only the log: the
+     *  treedbs row and saved-schema answer it as `withdrawn_at_open` until
+     *  the next open of the treedb
+     */
+    if(saved_version > 0 || json_object_size(replaced) > 0) {
+        json_object_set_new(priv->jn_withdrawn_at_open, treedb_name, json_pack("{s:I, s:I, s:O}",
+            "schema_version", new_version,
+            "saved_schema_version", saved_version,
+            "topics", replaced
+        ));
+    }
+    JSON_DECREF(replaced)
     return ret;
 }
 

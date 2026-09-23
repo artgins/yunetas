@@ -299,6 +299,32 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating topic_cols.json",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
+    /*  ...and what an open replaces is said: an unsaved draft of `users`
+     *  (`departments` is kept from the file); a save taken back replaces
+     *  nothing and says nothing; an apply that never ran, replaced  */
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Updating TreeDB schema in __system__",
+    "Topic from C replaces an unsaved draft of the topic in __system__",
+    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Schema saved",
+    "Saved schema withdrawn, the draft is the schema in use",
+    "Schema from C is newer than the file in use but not than __system__: it takes over the file, and replaces in __system__ the drafts of the topics it raises past the file",
+    "Updating TreeDB schema in __system__",
+    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Schema saved",
+    "Schema applied",
+    "Updating TreeDB schema in __system__",
+    "Topic from C raised past an applied schema that never ran: it replaces the applied topic, in the file and in __system__",
+    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
     /*  Test 13c: apply of all is all or none: A saved, B opened (+ its
      *  three), B's saved schema does not parse, then A alone applied  */
     "TreeDB schema from C is behind the schema in use, not applied",
