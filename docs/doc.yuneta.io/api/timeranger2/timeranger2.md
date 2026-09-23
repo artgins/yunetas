@@ -171,15 +171,13 @@ cut back the content of an append whose md2 row was not written: the content
 file keeps a record no row names"*. A kill or a power cut between the two
 writes still leaves that shape; the next open ignores it with a warning (see
 *After a restart too*, under [`tranger2_open_iterator()`](#tranger2_open_iterator)).
-Until the fourth fix round after 7.25.4 the content was left behind.
+Up to 7.25.4 the content was left behind.
 
 The cut comes BEFORE the critical that reports the failure. That matters with
 the exit bit of the tranger's `on_critical_error` (`LOG_OPT_EXIT_ZERO`, `2`,
 the default of `C_TRANGER`, and what `C_TREEDB` passes with its
 `exit_on_error`): `gobj_log_critical()` then ends the process inside the log
-call, and nothing after it runs. The first rollback (fourth fix round) cut
-after the critical, so with the production default it never ran and the
-content stayed on disk. When the md2 cannot be opened or created, the cause is
+call, and nothing after it runs. When the md2 cannot be opened or created, the cause is
 logged without leaving, the content is cut back, and then one more critical
 exits:
 
@@ -218,8 +216,7 @@ FILTERED one (a paging iterator with an index, see
 segments and its index again at once, as its open would build them now. So
 its index gains the rows of the file, with their new rowids. Like every append
 after the open of a filtered iterator, the append that caused the count is not
-in its index. Until the fifth fix round the index was emptied, and every page
-of the iterator answered `total_rows` 0 for its whole life:
+in its index. For example:
 
 ```C
 /*  key A: v1 (day 1), v2 (day 2, flagged), v3 (day 3), v4 (day 4)          */
@@ -228,7 +225,7 @@ it = tranger2_open_iterator(tranger, "topic", "A",
 /*  its page:  total_rows 3, v1 v3 v4                                         */
 chmod(path_md2_day2, 0660);
 tranger2_append_record(tranger, "topic", t_day2, 0, &md, rec_v9); // counts day 2
-/*  its page:  total_rows 4, v1 v2 v3 v4       (was: total_rows 0)           */
+/*  its page:  total_rows 4, v1 v2 v3 v4                                     */
 ```
 
 ---
@@ -1187,7 +1184,7 @@ disk — including ones not yet opened — use
 ---
 
 (tranger2_mark_tm_order)=
-## `tranger2_mark_tm_order()`
+## [`tranger2_mark_tm_order()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/timeranger2/src/timeranger2.c#L8348)
 
 Marks the md2 files of a topic whose `__t__` or `__tm__` goes back, and makes
 the topic one that marks (`"marks_tm_unordered": true`). The migration of a
@@ -1269,8 +1266,7 @@ warm page cache:
 | 4 keys, 365 daily files of one row each | 21-32 ms |
 | 4 keys, 3650 daily files of one row each (14600 files) | 72-88 ms |
 
-(Its first version, never released, found each file's cell by walking the
-cells from the first: 2.5 s for those 14600 files.) Run it on a quiet node.
+Run it on a quiet node.
 
 Run it again on a topic that marks to re-mark it after a rollback to a binary
 that appends without markers (every release up to 7.25.4), or after a crash
@@ -1404,9 +1400,7 @@ WARNING: md2 file of the key with no rows and a content file that is not empty:
 forward load   -> the rows of days 1 and 3, load_failed false
 ```
 
-The first fix after 7.25.4 (200a1791e) flagged that shape: a forward load
-stopped there and hid the acknowledged rows of the later files, a treedb node
-with good older rows disappeared, and the flag was never cleared. The next
+The next
 append into that day's file names its content with a row of its own, and the
 warning goes. A `.md2` cut to 0 bytes behind the yuno's back has the same
 shape, and loses the rows of its file the same way it did until 7.25.4: a
@@ -1649,10 +1643,7 @@ What the callers in the SDK do with it:
 | `tr_queue` / `tr2q_mqtt` (`trq_load()`, `tr2q_load()`) | the pending messages read are in memory; those of a row that cannot be read are not, and are not delivered. The load returns -1 and does NOT move nor save the queue's `first_rowid`, so the next load, once the store is repaired, finds them (up to 7.25.4 it saved the size of the topic, and they were skipped for ever). |
 | msg2db | nothing more than the library's log: the messages of that key are not in the index. |
 
-Until 7.25.4 such a list was handed over silently, with the key missing; the
-first fix (6d5760377) refused the whole list at the first bad key, so the keys
-after it were not loaded and no feed was opened -- a treedb topic came up with
-1 node of 6 and a replica stopped following it.
+Until 7.25.4 such a list was handed over silently, with the key missing.
 
 **Notes**
 
@@ -2097,8 +2088,7 @@ bits directly.
 
 Master only: on a replica, or on a master that lost its lock (see
 [`tranger2_stop()`](<#tranger2_stop>)), it writes nothing, logs *"Only master
-can write"* and returns `-1`. Until the independent review of the second fix
-round after 7.25.4 it asked nothing: the write of the read-only md2 fd failed,
+can write"* and returns `-1`. Up to 7.25.4 it asked nothing: the write of the read-only md2 fd failed,
 which is a CRITICAL, and with the default `on_critical_error` the process
 exited(0).
 
@@ -2148,8 +2138,7 @@ if(tranger2_set_user_flag(tranger, "messages", "dev-1", 1731601280, 3, 0x0001, T
 
 Master only: on a replica, or on a master that lost its lock (see
 [`tranger2_stop()`](<#tranger2_stop>)), it writes nothing, logs *"Only master
-can write"* and returns `-1`. Until the independent review of the second fix
-round after 7.25.4 it asked nothing: the write of the read-only md2 fd failed,
+can write"* and returns `-1`. Up to 7.25.4 it asked nothing: the write of the read-only md2 fd failed,
 which is a CRITICAL, and with the default `on_critical_error` the process
 exited(0).
 
@@ -2640,12 +2629,12 @@ The file is replaced, never written in place: `topic_cols.json.new` is removed
 if a process left it, created `O_EXCL|O_NOFOLLOW` with the tranger's
 `rpermission`, written, fsync'ed, renamed over the old file, and the directory
 fsync'ed: it survives a power cut too (it is written when a topic is created,
-re-versioned or re-ordered, never per record; until the fourth fix round after
-7.25.4 it was not fsync'ed, and a `topic_version` change could leave the new
+re-versioned or re-ordered, never per record; up to 7.25.4 it was not
+fsync'ed, and a `topic_version` change could leave the new
 version on disk over cols lost with the power). The memory takes the new
 columns only when the file did; otherwise the call logs (*"Cannot replace
 topic_cols.json, ..."*) and returns `-1` with the old file and the old columns in
-place. Until the review of the second fix round after 7.25.4 it wrote in place,
+place. Up to 7.25.4 it wrote in place,
 put the columns in memory before writing, and returned `0` whatever happened.
 `tranger2_write_topic_var()` replaces `topic_var.json` the same way.
 
@@ -2745,8 +2734,7 @@ This function modifies the user flag of an existing record but does not alter ot
 
 Master only: on a replica, or on a master that lost its lock (see
 [`tranger2_stop()`](<#tranger2_stop>)), it writes nothing, logs *"Only master
-can write"* and returns `-1`. Until the independent review of the second fix
-round after 7.25.4 it asked nothing: the write of the read-only md2 fd failed,
+can write"* and returns `-1`. Up to 7.25.4 it asked nothing: the write of the read-only md2 fd failed,
 which is a CRITICAL, and with the default `on_critical_error` the process
 exited(0).
 

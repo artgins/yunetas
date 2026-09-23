@@ -7258,7 +7258,8 @@ PRIVATE void cut_back_content(
  *  acknowledged row of the files after it from a forward load, made a
  *  treedb node with good older rows disappear, and was never cleared
  *  (independent review of the fourth fix round). It is said with a
- *  warning naming the file, and the file is ignored, as until 7.25.4.
+ *  warning naming the file, and the file is ignored. 7.25.4 ignored its
+ *  rows too, without a warning.
  ***************************************************************************/
 PRIVATE json_t *load_key_cache_from_disk(
     hgobj gobj,

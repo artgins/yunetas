@@ -73,7 +73,7 @@ ERROR trq_check_backup: Queue backup refused: its last load did not read every p
       topic_name=emails topic_size=1000000 backup_queue_size=1000000
 ```
 
-Up to 7.25.4 (and after bed7baad8 until this fix) the periodic backup of a
+Up to 7.25.4 the periodic backup of a
 queue whose load had failed re-created the topic empty. `tr2q_check_backup()`
 of the mqtt queues behaves the same after a failed `tr2q_load()`.
 

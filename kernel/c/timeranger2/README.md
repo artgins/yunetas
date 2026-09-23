@@ -246,14 +246,14 @@ A `.md2` of 0 rows gets no cell and flags nothing. With a `.json` that is not
 empty it is what an append never acknowledged leaves -- the content is written
 first and the md2 row after -- and it is ignored with a warning naming the file
 (*"md2 file of the key with no rows and a content file that is not empty: an
-append that was never acknowledged, the file is ignored"*), as until 7.25.4.
-Flagging it (200a1791e) hid the later files from a forward load and made a
-treedb node with good older rows disappear. An append whose md2 fails does not
-leave it: it answers -1 and cuts its content back, and the cut comes BEFORE the
-critical that reports the failure. With the exit bit of `on_critical_error`
-(`2`, the default of `C_TRANGER` and of `C_TREEDB`'s `exit_on_error`) that
-critical ends the process inside the log call; the first rollback cut after it
-and, with the default, never ran. A kill or a power cut between the two writes
+append that was never acknowledged, the file is ignored"*). 7.25.4 ignored its
+rows too, without a warning. An append whose md2 fails does not leave it: it
+answers -1 and cuts its content back, and the cut comes BEFORE the critical
+that reports the failure. With the exit bit of `on_critical_error` (`2`, the
+default of `C_TRANGER` and of `C_TREEDB`'s `exit_on_error`) that critical ends
+the process inside the log call; 7.25.4 did not cut it back at all. A write that
+stops part way (the file size limit, a full disk) is logged as a short write,
+with the bytes written and expected. A kill or a power cut between the two writes
 still leaves the shape, and the next open ignores it with the warning above.
 An append into a file still flagged unreadable is refused; one into a flagged
 file readable again counts it first, and a FILTERED iterator of the key takes

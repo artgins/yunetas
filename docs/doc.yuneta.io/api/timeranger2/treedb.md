@@ -980,7 +980,7 @@ The list of asset ids taken (or that would be taken), **yours** to decref. `NULL
 - when what the snapshots hold cannot be read whole: a tagged record of an existing snap whose content is not an object, a key of a topic with a `file` column whose records do not load (*"cannot read every instance of a topic: the assets a snapshot holds are unknown"*), or a `__snaps__` that did not load whole. The log says which, and *"gc refused: cannot tell which assets a snapshot links"*. Such a record may name any blob, so no asset is taken; until 7.25.4 the gc took the ones it could not see held. [`treedb_delete_node()`](<#treedb_delete_node>) of an `__assets__` node refuses in the same case: *"cannot delete asset, cannot tell whether a snapshot links it"*.
 - when a topic that links assets, or `__assets__`, in any treedb of the tranger, did not load whole (see [A topic that did not load whole](<#treedb-topic-not-loaded-whole>)): a node that did not load links its asset all the same, so the live links are unknown (*"gc refused: a topic that links assets did not load whole, the live links are unknown"*). This holds after a restart too: a key whose files were damaged while the yuno was down fails its load the same way.
 
-Up to 7.25.4 a refusal still swept the blobs no row names, for real, while the answer was only `NULL`: a caller could not say what was deleted. [`treedb_gc_files2()`](<#treedb_gc_files2>) does that sweep on a refusal and says which blobs it took. What to do after a refusal: see *What the operator does* under [`treedb_open_db()`](<#treedb_open_db>).
+A refusal takes nothing, not even the blobs no row names. [`treedb_gc_files2()`](<#treedb_gc_files2>) sweeps those blobs on a refusal too, and says which blobs it took. What to do after a refusal: see *What the operator does* under [`treedb_open_db()`](<#treedb_open_db>).
 
 **Example**
 
@@ -1736,14 +1736,11 @@ WARNING load_key_cache_from_disk: md2 file of the key with no rows and a content
       topic_directory=<store>/items key=k2 file_id=2099-01-01 content_size=41
 ```
 
-(The first fix after 7.25.4, 200a1791e, flagged it: after a restart a node
-with good older rows disappeared, its create was refused, and a forward
-load hid the rows of the later files.) An append whose md2 fails does not
-leave that shape: it answers -1 and its content is cut back, BEFORE the
-critical that reports the failure. With `exit_on_error` `2` (the default,
-`LOG_OPT_EXIT_ZERO`) that critical ends the yuno inside the log call, so a cut
-placed after it never ran: until the fifth fix round after 7.25.4 the yuno
-exited and left the shape on disk. A kill or a power cut between the two
+An append whose md2 fails does not leave that shape: it answers -1 and its
+content is cut back, BEFORE the critical that reports the failure. With
+`exit_on_error` `2` (the default, `LOG_OPT_EXIT_ZERO`) that critical ends the
+yuno inside the log call, so the cut comes first. 7.25.4 did not cut the
+content back at all. A kill or a power cut between the two
 writes still leaves it, and the next open ignores it with the warning above.
 
 The rows read BEFORE the failure are handed over, and backward they are the
@@ -1775,10 +1772,7 @@ step 3 below) has no records on disk any more: treedb forgets it the next
 time a guard asks (*"A key that did not load has been deleted since: it is not
 a key that did not load any more"*), with no reopen.
 
-Until 7.25.4 such a topic loaded without the key and nothing said so; the
-first fix after it (6d5760377) refused the whole list, so a topic came up
-with the keys BEFORE the bad one only, its feed was not opened, a create
-shadowed stored records, and an active snap was ignored.
+Until 7.25.4 such a topic loaded without the key and nothing said so.
 
 **What the operator does** when a guard fails closed (this refusal, or the
 snapshot guard of [`treedb_gc_files()`](<#treedb_gc_files>) that cannot read
