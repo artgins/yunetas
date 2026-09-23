@@ -913,18 +913,143 @@ PRIVATE BOOL rt_id_is_confined(
 }
 
 /***************************************************************************
- *  Replace a topic's topic_var.json WHOLE (no merge with what it held),
- *  through a temporary file and a rename(): at every instant the file on
- *  disk is the old one or the new one, never a truncated one -- so a
- *  process that dies half way loses neither the topic_version nor the
- *  `last_rowid_id` counter treedb keeps there.
+ *  Replace a json file of a topic WHOLE, through a temporary file and a
+ *  rename(): at every instant the file on disk is the old one or the new
+ *  one, never a truncated one.
+ *
+ *  The temporary `<filename>.new` is unlinked first and created
+ *  O_EXCL|O_NOFOLLOW with the tranger's rpermission (0440 when
+ *  `only_read`): a `.new` left behind by a process that died is not
+ *  reused, so it lends the file neither its mode nor its owner, and one
+ *  that is a symlink is not followed (independent review of the second
+ *  fix round, repro r_var: O_TRUNC did both).
  *
  *  `durable` also fsyncs the temporary file before the rename and the
  *  directory after it, so the new file survives a power cut too. It costs
- *  two disk flushes: it is asked where the file changes rarely (a
- *  topic_version change), not on the hot path of the counter (every
- *  create of a rowid-key node), which is safe against the death of the
- *  process and not against a power cut.
+ *  two disk flushes: it is asked where the file changes rarely, not on the
+ *  hot path of treedb's rowid counter (every create of a rowid-key node),
+ *  which is safe against the death of the process and not against a power
+ *  cut.
+ *
+ *  Return 0, or -1 (logged) with the old file untouched.
+ ***************************************************************************/
+PRIVATE int replace_json_file(
+    hgobj gobj,
+    json_t *tranger,
+    const char *directory,
+    const char *filename,
+    json_t *jn,             // NOT owned
+    BOOL durable,
+    BOOL only_read
+)
+{
+    char name_new[NAME_MAX];
+    if(snprintf(name_new, sizeof(name_new), "%s.new", filename) >= (int)sizeof(name_new)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot replace a topic file, its name is too long",
+            "directory",    "%s", directory,
+            "filename",     "%s", filename,
+            NULL
+        );
+        return -1;
+    }
+    char path_new[PATH_MAX];
+    char path[PATH_MAX];
+    if(!build_path(path_new, sizeof(path_new), directory, name_new, NULL) ||
+            !build_path(path, sizeof(path), directory, filename, NULL)) {
+        return -1;  // Error already logged
+    }
+
+    char msg[NAME_MAX + 64];
+    if(unlink(path_new) < 0 && errno != ENOENT) {
+        snprintf(msg, sizeof(msg), "Cannot replace %s, cannot remove a temporary file left behind", filename);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", msg,
+            "path",         "%s", path_new,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    int mode = only_read? 0440 : (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED);
+    int fd = open(path_new, O_CREAT|O_EXCL|O_RDWR|O_NOFOLLOW|O_CLOEXEC, mode);
+    if(fd < 0) {
+        snprintf(msg, sizeof(msg), "Cannot replace %s, cannot create the temporary file", filename);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", msg,
+            "path",         "%s", path_new,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    const char *failed = NULL;
+    if(fchmod(fd, (mode_t)mode) < 0) {
+        failed = "fchmod() FAILED";     // the umask of the process took bits off
+    } else if(json_dumpfd(jn, fd, JSON_INDENT(4)) < 0) {
+        failed = "write FAILED";
+    } else if(durable && fsync(fd) < 0) {
+        failed = "fsync() FAILED";
+    }
+    int err = errno;
+    if(close(fd) < 0 && !failed) {
+        failed = "close() FAILED";
+        err = errno;
+    }
+    if(!failed && rename(path_new, path) < 0) {
+        failed = "rename() FAILED";
+        err = errno;
+    }
+    if(failed) {
+        snprintf(msg, sizeof(msg), "Cannot replace %s, %s", filename, failed);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", msg,
+            "path",         "%s", path,
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
+            NULL
+        );
+        unlink(path_new);
+        return -1;
+    }
+
+    if(durable) {
+        int dir_fd = open(directory, O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+        if(dir_fd < 0 || fsync(dir_fd) < 0) {
+            snprintf(msg, sizeof(msg), "%s replaced, but its directory cannot be fsync'ed", filename);
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", msg,
+                "path",         "%s", directory,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
+        if(dir_fd >= 0) {
+            close(dir_fd);
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Replace a topic's topic_var.json WHOLE (no merge with what it held),
+ *  see replace_json_file(): a process that dies half way loses neither the
+ *  topic_version nor the `last_rowid_id` counter treedb keeps there.
  *
  *  The topic in memory takes the new values only when the file did.
  ***************************************************************************/
@@ -937,71 +1062,9 @@ PRIVATE int replace_topic_var(
     BOOL durable
 )
 {
-    char path_new[PATH_MAX];
-    char path_var[PATH_MAX];
-    build_path(path_new, sizeof(path_new), directory, "topic_var.json.new", NULL);
-    build_path(path_var, sizeof(path_var), directory, "topic_var.json", NULL);
-
-    int fd = newfile(path_new, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), TRUE);
-    if(fd < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot replace topic_var.json, cannot create the temporary file",
-            "path",         "%s", path_new,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
+    if(replace_json_file(gobj, tranger, directory, "topic_var.json", jn_topic_var, durable, FALSE) < 0) {
         JSON_DECREF(jn_topic_var)
-        return -1;
-    }
-    const char *failed = NULL;
-    if(json_dumpfd(jn_topic_var, fd, JSON_INDENT(4)) < 0) {
-        failed = "Cannot replace topic_var.json, write FAILED";
-    } else if(durable && fsync(fd) < 0) {
-        failed = "Cannot replace topic_var.json, fsync() FAILED";
-    }
-    int err = errno;
-    if(close(fd) < 0 && !failed) {
-        failed = "Cannot replace topic_var.json, close() FAILED";
-        err = errno;
-    }
-    if(!failed && rename(path_new, path_var) < 0) {
-        failed = "Cannot replace topic_var.json, rename() FAILED";
-        err = errno;
-    }
-    if(failed) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", failed,
-            "path",         "%s", path_var,
-            "errno",        "%d", err,
-            "serrno",       "%s", strerror(err),
-            NULL
-        );
-        unlink(path_new);
-        JSON_DECREF(jn_topic_var)
-        return -1;
-    }
-
-    if(durable) {
-        int dir_fd = open(directory, O_RDONLY|O_DIRECTORY|O_CLOEXEC);
-        if(dir_fd < 0 || fsync(dir_fd) < 0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "topic_var.json replaced, but its directory cannot be fsync'ed",
-                "path",         "%s", directory,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
-        }
-        if(dir_fd >= 0) {
-            close(dir_fd);
-        }
+        return -1;  // Error already logged
     }
 
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
@@ -2330,35 +2393,28 @@ PUBLIC int tranger2_write_topic_cols(
         return -1;
     }
     char directory[PATH_MAX];
-    snprintf(
-        directory,
-        sizeof(directory),
-        "%s/%s",
-        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
-        topic_name
-    );
+    if(!build_path(directory, sizeof(directory),
+            kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED), topic_name, NULL)) {
+        JSON_DECREF(jn_topic_cols)
+        return -1;  // Error already logged
+    }
+
+    /*
+     *  Replaced, never written in place, and the memory takes the new cols
+     *  only when the file did: it took them BEFORE the write, whose result
+     *  was ignored, and answered 0 (independent review of the second fix
+     *  round). Not fsync'ed: see replace_json_file().
+     */
+    if(replace_json_file(gobj, tranger, directory, "topic_cols.json", jn_topic_cols, FALSE, FALSE) < 0) {
+        JSON_DECREF(jn_topic_cols)
+        return -1;  // Error already logged
+    }
 
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
     if(topic) {
-        json_object_set(
-            topic,
-            "cols",
-            jn_topic_cols
-        );
+        json_object_set(topic, "cols", jn_topic_cols);
     }
-
-    save_json_to_file(
-        gobj,
-        directory,
-        "topic_cols.json",
-        (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
-        (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
-        0,
-        master? TRUE:FALSE, //create
-        FALSE,  //only_read
-        jn_topic_cols  // owned
-    );
-
+    JSON_DECREF(jn_topic_cols)
     return 0;
 }
 

@@ -15,6 +15,17 @@
  *  after the write, and a reader that had the old one open still reads it
  *  whole.
  *
+ *  The temporary file was opened with O_TRUNC (independent review of the
+ *  second fix round, repro r_var): a `.new` left behind by a process that
+ *  died kept its mode and owner, and a `.new` that is a symlink was
+ *  followed, so the write went to whatever it points at. It is unlinked
+ *  first and created O_EXCL|O_NOFOLLOW, with the tranger's rpermission.
+ *
+ *  tranger2_write_topic_cols() wrote topic_cols.json in place, put the
+ *  new cols in memory BEFORE the write, ignored the result and returned 0.
+ *  It is replaced the same way now, and the memory takes the new cols only
+ *  when the file did.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -152,6 +163,104 @@ PRIVATE int do_test(void)
     }
     result += expect("the topic in memory has the counter",
         kw_get_int(0, topic, "last_rowid_id", 0, 0) == 3? "3": "other", "3");
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A `.new` left behind: a file with
+     *  another mode, then a symlink
+     *-------------------------------------*/
+    set_expected_results("topic_var: a .new left behind", NULL, NULL, NULL, 1);
+    int fd = open(path_new, O_CREAT|O_WRONLY|O_TRUNC, 0666);
+    if(fd >= 0) {
+        fchmod(fd, 0666);
+        if(write(fd, "garbage{{{ a long leftover .............................", 57) < 0) {
+            printf("%sERROR%s --> cannot write the leftover\n", On_Red BWhite, Color_Off);
+        }
+        close(fd);
+    }
+    tranger2_write_topic_var(tranger, TOPIC_NAME, json_pack("{s:I}", "last_rowid_id", (json_int_t)4));
+    struct stat st;
+    char mode[16] = "";
+    if(stat(path_var, &st) == 0) {
+        snprintf(mode, sizeof(mode), "%o", (unsigned)(st.st_mode & 07777));
+    }
+    result += expect("topic_var.json takes the tranger's mode, not the leftover's", mode, "660");
+    json_t *now = json_load_file(path_var, 0, 0);
+    result += expect("topic_var.json is whole after a leftover",
+        kw_get_int(0, now, "last_rowid_id", 0, 0) == 4? "4": "other", "4");
+    JSON_DECREF(now)
+
+    char path_victim[PATH_MAX];
+    build_path(path_victim, sizeof(path_victim), path_database, "victim.txt", NULL);
+    FILE *f = fopen(path_victim, "w");
+    if(f) {
+        fputs("not yours", f);
+        fclose(f);
+    }
+    unlink(path_new);
+    if(symlink(path_victim, path_new) < 0) {
+        printf("%sERROR%s --> cannot plant the symlink\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    tranger2_write_topic_var(tranger, TOPIC_NAME, json_pack("{s:I}", "last_rowid_id", (json_int_t)5));
+    char victim[64] = "";
+    f = fopen(path_victim, "r");
+    if(f) {
+        if(!fgets(victim, sizeof(victim), f)) {
+            victim[0] = 0;
+        }
+        fclose(f);
+    }
+    result += expect("a .new that is a symlink is not followed", victim, "not yours");
+    now = json_load_file(path_var, 0, 0);
+    result += expect("topic_var.json is written after a symlinked .new",
+        kw_get_int(0, now, "last_rowid_id", 0, 0) == 5? "5": "other", "5");
+    JSON_DECREF(now)
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  topic_cols.json: replaced too, and
+     *  a write that fails changes nothing
+     *-------------------------------------*/
+    set_expected_results("topic_cols: a write replaces the file", NULL, NULL, NULL, 1);
+    char path_cols[PATH_MAX];
+    build_path(path_cols, sizeof(path_cols), path_database, TOPIC_NAME, "topic_cols.json", NULL);
+    struct stat st_before;
+    stat(path_cols, &st_before);
+    int ret = tranger2_write_topic_cols(tranger, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "", "content", "", "extra", "")
+    );
+    struct stat st_after;
+    stat(path_cols, &st_after);
+    result += expect("write_topic_cols answers 0", ret == 0? "0": "-1", "0");
+    result += expect("topic_cols.json is a new inode",
+        st_after.st_ino != st_before.st_ino? "new": "same", "new");
+    now = json_load_file(path_cols, 0, 0);
+    result += expect("topic_cols.json has the new column",
+        json_object_get(now, "extra")? "extra": "none", "extra");
+    JSON_DECREF(now)
+    result += test_json(NULL);
+
+    set_expected_results(
+        "topic_cols: a write that fails changes nothing",
+        json_pack("[{s:s}]",
+            "msg", "Cannot replace topic_cols.json, rename() FAILED"
+        ),
+        NULL, NULL, 1
+    );
+    unlink(path_cols);
+    mkdir(path_cols, 0700);     // a rename() over a directory fails
+    ret = tranger2_write_topic_cols(tranger, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "", "content", "", "other", "")
+    );
+    result += expect("write_topic_cols answers -1 when the file is not written",
+        ret < 0? "-1": "0", "-1");
+    json_t *cols_in_memory = json_object_get(topic, "cols");
+    result += expect("the cols in memory are the ones on disk",
+        json_object_get(cols_in_memory, "other")? "the refused ones":
+            json_object_get(cols_in_memory, "extra")? "the written ones": "other",
+        "the written ones");
+    rmdir(path_cols);
     result += test_json(NULL);
 
     set_expected_results("topic_var: shutdown", NULL, NULL, NULL, 1);
