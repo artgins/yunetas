@@ -194,10 +194,27 @@
 #   version 1.21
 #       upgrade to mbedtls-4.2.0
 
-VERSION="1.21"
+#   version 1.22
+#       jansson v2.15.1 + patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch
+#       (first patch of this directory: every patch under patches/<lib>/ is
+#       applied after the checkout of <lib>, see apply_patches). The lexer
+#       ignored a failed save of a token byte (the allocator refuses a block
+#       larger than MEM_MAX_BLOCK), and lex_scan_string() then read and wrote
+#       past its buffers: a heap overflow from json text alone, a string
+#       longer than about half of the largest block. Upstream has not fixed
+#       it (v2.15.1 and master, 2026-09-23). Now the lexer stops with
+#       json_error_out_of_memory, and every allocation failure of the parser
+#       sets that error. No API/ABI change, no symbol added or removed, no
+#       header change: no consumer, header or CMakeLists change rides along.
+#       libjansson.a is linked statically into every yuno, so every yuno must
+#       be rebuilt + relinked to pick it up. Verify: `strings` of the
+#       installed libjansson.a has "not enough memory" (load.o had none).
+
+VERSION="1.22"
 
 
 source ./repos2clone.sh
+PATCHES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/patches"
 export CFLAGS="-Wno-error=char-subscripts -O3 -g -DNDEBUG" # let each library to be, or not
 export CC=cc
 export MAKEFLAGS="-j$(nproc)"
@@ -255,12 +272,35 @@ mkdir -p "$YUNETA_INSTALL_PREFIX"
 export PKG_CONFIG_PATH="$YUNETA_INSTALL_PREFIX/lib/pkgconfig"
 
 #------------------------------------------
+#   Patches
+#------------------------------------------
+# Apply every patches/<lib>/*.patch to the checkout of <lib> (run from its
+# directory). A patch already applied (a second run of this script over the
+# same checkout) is skipped; a patch that does not apply stops the script.
+apply_patches() {
+    local lib="$1"
+    local p
+    for p in "$PATCHES_DIR/$lib/"*.patch; do
+        if [ ! -f "$p" ]; then
+            continue
+        fi
+        if git apply --reverse --check "$p" 2>/dev/null; then
+            echo "patch already applied: $p"
+        else
+            echo "apply patch: $p"
+            git apply "$p"
+        fi
+    done
+}
+
+#------------------------------------------
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
 cd build/jansson
 
 git checkout "$TAG_JANSSON"
+apply_patches jansson
 
 mkdir -p build
 cd build

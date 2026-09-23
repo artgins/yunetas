@@ -1,0 +1,371 @@
+jansson v2.15.1: stop the lexer when a save of the token text fails
+
+Applied by configure-libs.sh after `git checkout "$TAG_JANSSON"`.
+Upstream (v2.15.1 and master, 2026-09-23) still has the defect.
+
+The lexer saves every byte of a token in a strbuffer (lex_save), and
+ignored the result of strbuffer_append_byte(). When the buffer cannot
+grow (the allocator refuses a block: Yuneta routes jansson through
+gbmem_*, whose largest block is MEM_MAX_BLOCK), the byte is lost. For a
+string token, the saved text then has no closing quote, and
+lex_scan_string() decodes it until it finds one: it reads past the end
+of the saved text and writes past the end of the decoded string. A heap
+overflow, from json text alone: a string longer than about half of the
+largest block is enough.
+
+The fix: a failed save puts the stream in the error state (every later
+read returns STREAM_STATE_ERROR) and sets the error json_error_out_of_memory.
+The other allocation failures of the parser (the decoded string, an
+object, an array, a member, an element, a scalar, the lexer buffer) set
+json_error_out_of_memory too: before, they returned NULL with no error
+text, and a caller could not tell "no memory" from "not json".
+
+diff --git a/src/load.c b/src/load.c
+index 8ae7abd..c50cc95 100644
+--- a/src/load.c
++++ b/src/load.c
+@@ -224,18 +224,32 @@ static void stream_unget(stream_t *stream, int c) {
+ }
+ 
+ static int lex_get(lex_t *lex, json_error_t *error) {
+     return stream_get(&lex->stream, error);
+ }
+ 
+-static void lex_save(lex_t *lex, int c) { strbuffer_append_byte(&lex->saved_text, c); }
++/* A failed save stops the lexer: the stream is put in the error state, so
++   every later read returns STREAM_STATE_ERROR, and the error is out of
++   memory. Before, the failure was ignored: the saved text lost a byte, and
++   lex_scan_string() decoded past the end of its buffer, a heap overflow
++   (a string token longer than the largest block the allocator gives). */
++static int lex_save(lex_t *lex, int c, json_error_t *error) {
++    if (strbuffer_append_byte(&lex->saved_text, c)) {
++        lex->stream.state = STREAM_STATE_ERROR;
++        error_set(error, lex, json_error_out_of_memory, "not enough memory");
++        return -1;
++    }
++    return 0;
++}
+ 
+ static int lex_get_save(lex_t *lex, json_error_t *error) {
+     int c = stream_get(&lex->stream, error);
+-    if (c != STREAM_STATE_EOF && c != STREAM_STATE_ERROR)
+-        lex_save(lex, c);
++    if (c != STREAM_STATE_EOF && c != STREAM_STATE_ERROR) {
++        if (lex_save(lex, c, error))
++            return STREAM_STATE_ERROR;
++    }
+     return c;
+ }
+ 
+ static void lex_unget(lex_t *lex, int c) { stream_unget(&lex->stream, c); }
+ 
+ static void lex_unget_unsave(lex_t *lex, int c) {
+@@ -253,15 +267,16 @@ static void lex_unget_unsave(lex_t *lex, int c) {
+ #endif
+             strbuffer_pop(&lex->saved_text);
+         assert(c == d);
+     }
+ }
+ 
+-static void lex_save_cached(lex_t *lex) {
++static void lex_save_cached(lex_t *lex, json_error_t *error) {
+     while (lex->stream.buffer[lex->stream.buffer_pos] != '\0') {
+-        lex_save(lex, lex->stream.buffer[lex->stream.buffer_pos]);
++        if (lex_save(lex, lex->stream.buffer[lex->stream.buffer_pos], error))
++            break;
+         lex->stream.buffer_pos++;
+         lex->stream.position++;
+     }
+ }
+ 
+ static void lex_free_string(lex_t *lex) {
+@@ -355,12 +370,13 @@ static void lex_scan_string(lex_t *lex, json_error_t *error) {
+          - two \uXXXX escapes (length 12) forming an UTF-16 surrogate pair
+            are converted to 4 bytes
+     */
+     t = jsonp_malloc(lex->saved_text.length + 1);
+     if (!t) {
+         /* this is not very nice, since TOKEN_INVALID is returned */
++        error_set(error, lex, json_error_out_of_memory, "not enough memory");
+         goto out;
+     }
+     lex->value.string.val = t;
+ 
+     /* + 1 to skip the " */
+     p = strbuffer_value(&lex->saved_text) + 1;
+@@ -490,12 +506,15 @@ static int lex_scan_number(lex_t *lex, int c, json_error_t *error) {
+         while (l_isdigit(c));
+     } else {
+         lex_unget_unsave(lex, c);
+         goto out;
+     }
+ 
++    if (c == STREAM_STATE_ERROR)
++        goto out;
++
+     if (!(lex->flags & JSON_DECODE_INT_AS_REAL) && c != '.' && c != 'E' && c != 'e') {
+         json_int_t intval;
+ 
+         lex_unget_unsave(lex, c);
+ 
+         saved_text = strbuffer_value(&lex->saved_text);
+@@ -521,13 +540,14 @@ static int lex_scan_number(lex_t *lex, int c, json_error_t *error) {
+     if (c == '.') {
+         c = lex_get(lex, error);
+         if (!l_isdigit(c)) {
+             lex_unget(lex, c);
+             goto out;
+         }
+-        lex_save(lex, c);
++        if (lex_save(lex, c, error))
++            goto out;
+ 
+         do
+             c = lex_get_save(lex, error);
+         while (l_isdigit(c));
+     }
+ 
+@@ -543,12 +563,15 @@ static int lex_scan_number(lex_t *lex, int c, json_error_t *error) {
+ 
+         do
+             c = lex_get_save(lex, error);
+         while (l_isdigit(c));
+     }
+ 
++    if (c == STREAM_STATE_ERROR)
++        goto out;
++
+     lex_unget_unsave(lex, c);
+ 
+     if (jsonp_strtod(&lex->saved_text, &doubleval)) {
+         error_set(error, lex, json_error_numeric_overflow, "real number overflow");
+         goto out;
+     }
+@@ -580,13 +603,16 @@ static int lex_scan(lex_t *lex, json_error_t *error) {
+ 
+     if (c == STREAM_STATE_ERROR) {
+         lex->token = TOKEN_INVALID;
+         goto out;
+     }
+ 
+-    lex_save(lex, c);
++    if (lex_save(lex, c, error)) {
++        lex->token = TOKEN_INVALID;
++        goto out;
++    }
+ 
+     if (c == '{' || c == '}' || c == '[' || c == ']' || c == ':' || c == ',')
+         lex->token = c;
+ 
+     else if (c == '"')
+         lex_scan_string(lex, error);
+@@ -600,12 +626,16 @@ static int lex_scan(lex_t *lex, json_error_t *error) {
+         /* eat up the whole identifier for clearer error messages */
+         const char *saved_text;
+ 
+         do
+             c = lex_get_save(lex, error);
+         while (l_isalpha(c));
++        if (c == STREAM_STATE_ERROR) {
++            lex->token = TOKEN_INVALID;
++            goto out;
++        }
+         lex_unget_unsave(lex, c);
+ 
+         saved_text = strbuffer_value(&lex->saved_text);
+ 
+         if (strcmp(saved_text, "true") == 0)
+             lex->token = TOKEN_TRUE;
+@@ -617,13 +647,13 @@ static int lex_scan(lex_t *lex, json_error_t *error) {
+             lex->token = TOKEN_INVALID;
+     }
+ 
+     else {
+         /* save the rest of the input UTF-8 sequence to get an error
+            message of valid UTF-8 */
+-        lex_save_cached(lex);
++        lex_save_cached(lex, error);
+         lex->token = TOKEN_INVALID;
+     }
+ 
+ out:
+     return lex->token;
+ }
+@@ -636,16 +666,19 @@ static char *lex_steal_string(lex_t *lex, size_t *out_len) {
+         lex->value.string.val = NULL;
+         lex->value.string.len = 0;
+     }
+     return result;
+ }
+ 
+-static int lex_init(lex_t *lex, get_func get, size_t flags, void *data) {
++static int lex_init(lex_t *lex, get_func get, size_t flags, void *data,
++                    json_error_t *error) {
+     stream_init(&lex->stream, get, data);
+-    if (strbuffer_init(&lex->saved_text))
++    if (strbuffer_init(&lex->saved_text)) {
++        error_set(error, NULL, json_error_out_of_memory, "not enough memory");
+         return -1;
++    }
+ 
+     lex->flags = flags;
+     lex->token = TOKEN_INVALID;
+     return 0;
+ }
+ 
+@@ -658,14 +691,16 @@ static void lex_close(lex_t *lex) {
+ /*** parser ***/
+ 
+ static json_t *parse_value(lex_t *lex, size_t flags, json_error_t *error);
+ 
+ static json_t *parse_object(lex_t *lex, size_t flags, json_error_t *error) {
+     json_t *object = json_object();
+-    if (!object)
++    if (!object) {
++        error_set(error, lex, json_error_out_of_memory, "not enough memory");
+         return NULL;
++    }
+ 
+     lex_scan(lex, error);
+     if (lex->token == '}')
+         return object;
+ 
+     while (1) {
+@@ -709,12 +744,13 @@ static json_t *parse_object(lex_t *lex, size_t flags, json_error_t *error) {
+             jsonp_free(key);
+             goto error;
+         }
+ 
+         if (json_object_setn_new_nocheck(object, key, len, value)) {
+             jsonp_free(key);
++            error_set(error, lex, json_error_out_of_memory, "not enough memory");
+             goto error;
+         }
+ 
+         jsonp_free(key);
+ 
+         lex_scan(lex, error);
+@@ -735,25 +771,28 @@ error:
+     json_decref(object);
+     return NULL;
+ }
+ 
+ static json_t *parse_array(lex_t *lex, size_t flags, json_error_t *error) {
+     json_t *array = json_array();
+-    if (!array)
++    if (!array) {
++        error_set(error, lex, json_error_out_of_memory, "not enough memory");
+         return NULL;
++    }
+ 
+     lex_scan(lex, error);
+     if (lex->token == ']')
+         return array;
+ 
+     while (lex->token) {
+         json_t *elem = parse_value(lex, flags, error);
+         if (!elem)
+             goto error;
+ 
+         if (json_array_append_new(array, elem)) {
++            error_set(error, lex, json_error_out_of_memory, "not enough memory");
+             goto error;
+         }
+ 
+         lex_scan(lex, error);
+         if (lex->token != ',')
+             break;
+@@ -837,14 +876,17 @@ static json_t *parse_value(lex_t *lex, size_t flags, json_error_t *error) {
+ 
+         default:
+             error_set(error, lex, json_error_invalid_syntax, "unexpected token");
+             return NULL;
+     }
+ 
+-    if (!json)
++    if (!json) {
++        /* a container sets its own error; a scalar fails only for memory */
++        error_set(error, lex, json_error_out_of_memory, "not enough memory");
+         return NULL;
++    }
+ 
+     lex->depth--;
+     return json;
+ }
+ 
+ static json_t *parse_json(lex_t *lex, size_t flags, json_error_t *error) {
+@@ -911,13 +953,13 @@ json_t *json_loads(const char *string, size_t flags, json_error_t *error) {
+         return NULL;
+     }
+ 
+     stream_data.data = string;
+     stream_data.pos = 0;
+ 
+-    if (lex_init(&lex, string_get, flags, (void *)&stream_data))
++    if (lex_init(&lex, string_get, flags, (void *)&stream_data, error))
+         return NULL;
+ 
+     result = parse_json(&lex, flags, error);
+ 
+     lex_close(&lex);
+     return result;
+@@ -953,13 +995,13 @@ json_t *json_loadb(const char *buffer, size_t buflen, size_t flags, json_error_t
+     }
+ 
+     stream_data.data = buffer;
+     stream_data.pos = 0;
+     stream_data.len = buflen;
+ 
+-    if (lex_init(&lex, buffer_get, flags, (void *)&stream_data))
++    if (lex_init(&lex, buffer_get, flags, (void *)&stream_data, error))
+         return NULL;
+ 
+     result = parse_json(&lex, flags, error);
+ 
+     lex_close(&lex);
+     return result;
+@@ -979,13 +1021,13 @@ json_t *json_loadf(FILE *input, size_t flags, json_error_t *error) {
+ 
+     if (input == NULL) {
+         error_set(error, NULL, json_error_invalid_argument, "wrong arguments");
+         return NULL;
+     }
+ 
+-    if (lex_init(&lex, (get_func)fgetc, flags, input))
++    if (lex_init(&lex, (get_func)fgetc, flags, input, error))
+         return NULL;
+ 
+     result = parse_json(&lex, flags, error);
+ 
+     lex_close(&lex);
+     return result;
+@@ -1016,13 +1058,13 @@ json_t *json_loadfd(int input, size_t flags, json_error_t *error) {
+ 
+     if (input < 0) {
+         error_set(error, NULL, json_error_invalid_argument, "wrong arguments");
+         return NULL;
+     }
+ 
+-    if (lex_init(&lex, (get_func)fd_get_func, flags, &input))
++    if (lex_init(&lex, (get_func)fd_get_func, flags, &input, error))
+         return NULL;
+ 
+     result = parse_json(&lex, flags, error);
+ 
+     lex_close(&lex);
+     return result;
+@@ -1093,13 +1135,13 @@ json_t *json_load_callback(json_load_callback_t callback, void *arg, size_t flag
+ 
+     if (callback == NULL) {
+         error_set(error, NULL, json_error_invalid_argument, "wrong arguments");
+         return NULL;
+     }
+ 
+-    if (lex_init(&lex, (get_func)callback_get, flags, &stream_data))
++    if (lex_init(&lex, (get_func)callback_get, flags, &stream_data, error))
+         return NULL;
+ 
+     result = parse_json(&lex, flags, error);
+ 
+     lex_close(&lex);
+     return result;

@@ -91,9 +91,24 @@ backports the patches). Track upstream openresty.
 Same caveat as the previous CVEs: each deployed project must rebuild its
 own nginx / openresty copy.
 
+### jansson: heap overflow in the lexer (patched)
+
+jansson (v2.15.1, and upstream master) ignored a failed save of a token
+byte, and then wrote past its buffers: a string longer than about half of
+`MEM_MAX_BLOCK` crashed the process that parsed it. Fixed by
+`patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`
+(configure-libs.sh v1.22), which `configure-libs.sh` applies after the
+checkout. See `HACKS.md`. Every node that builds from source must run
+`./extrae.sh && ./configure-libs.sh` again, and then rebuild the SDK and
+its yunos.
+
 > If you change the version of any library, update
 > `VERSION_INSTALLED.txt` and the corresponding version in
 > `configure-libs.sh`.
+>
+> A fix to a library that upstream has not released goes in
+> `patches/<lib>/NNNN-<what>.patch` (a `git diff` with a header that says
+> why). `configure-libs.sh` applies it after the checkout of `<lib>`.
 
 ## Build flow
 

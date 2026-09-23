@@ -62,3 +62,31 @@ and `/etc/hosts` directly, bypassing glibc's NSS resolver chain.
 
 > All utils and yunos in the suite (including `emailsender` since 7.4.3)
 > build cleanly as fully static GCC/Clang binaries.
+
+
+## jansson — the lexer stops when a save fails (`patches/jansson/`)
+
+`configure-libs.sh` applies every `patches/<lib>/*.patch` after the checkout
+of `<lib>` (`apply_patches`; a patch already applied is skipped, a patch that
+does not apply stops the script). The first one is
+`patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`, on
+jansson v2.15.1. Upstream has the defect too (v2.15.1 and master,
+2026-09-23).
+
+The lexer saves each byte of a token in a buffer that grows by doubling, and
+it ignored a failed save. Yuneta routes jansson through `gbmem_*`, which
+refuses a block larger than `MEM_MAX_BLOCK`. So a string token longer than
+about half of that block lost its closing quote, and `lex_scan_string()`
+decoded past the end of its buffers: a heap overflow, from json text alone.
+It crashed the reads of timeranger2 (`SIGSEGV`, *"corrupted size vs.
+prev_size"*), and any other `json_load*()` of such a text. With the patch, a
+failed save stops the lexer with the error `json_error_out_of_memory`
+(*"not enough memory"*), and every other allocation failure of the parser
+sets that error too (before, they set none, and a caller could not tell "no
+memory" from "not json").
+
+The same patch is applied by hand to the ESP32 copy of jansson (2.14),
+`kernel/c/root-esp32/components/esp_jansson/jansson/src/load.c`.
+
+Check an installed library: `strings outputs_ext/lib/libjansson.a | grep
+"not enough memory"` finds the text (the unpatched `load.o` has none).
