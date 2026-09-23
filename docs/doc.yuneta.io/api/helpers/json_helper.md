@@ -723,7 +723,32 @@ Returns `0` on success, or `-1` if an error occurs.
 
 **Notes**
 
-The function makes sure that the directory exists before saving the file. If `only_read` is `TRUE`, the file permissions are set to read-only after writing.
+The file is written in place (truncated and rewritten), not atomically. Every
+failure is logged: a missing directory with `create` `FALSE` as an ERROR
+(*"Cannot save json file, directory not found and not to be created"*); a
+failure to create the directory, or to create, write or **close** the file, as
+a CRITICAL at `on_critical_error` (with the default it exits). The close is
+checked because a delayed write fails there (`EIO`, `ENOSPC`): since 7.25.5 a
+failed close returns `-1` (7.25.4 reported the file saved). If `only_read` is
+`TRUE`, the file is set to `0440` after writing.
+
+**Example**
+
+```C
+if(save_json_to_file(
+        gobj,
+        "/yuneta/store/x",
+        "state.json",
+        02770,              // directory
+        0660,               // file
+        LOG_OPT_EXIT_ZERO,  // on_critical_error
+        TRUE,               // create the directory if missing
+        FALSE,              // only_read
+        json_pack("{s:i}", "n", 1)  // owned
+    ) < 0) {
+    // Error already logged
+}
+```
 
 ---
 

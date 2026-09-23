@@ -178,9 +178,15 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
   ends with no restart.
 - The agent's `audit/` directory grows ~0.6-1 GB a day with no retention
   (19 GB on wattyzer, 90 GB on the dev machine).
-- An md2 whose last row write was torn (size not whole rows) is an
-  unacknowledged append but stays "damage": the code should cut it back to
-  whole rows itself (treedb.md gives the manual repair).
+- **An md2 whose last row write was torn** (size not whole rows; a power cut)
+  is an unacknowledged append but stays "damage": every append into that file
+  is refused, so when it is the current period's file the key takes no new
+  record until the period changes -- for msg2db, a device's alarms are lost for
+  the rest of the day. The code should cut it back to whole rows itself at the
+  open (treedb.md gives the manual repair).
+- `default: {}` placeholders are dropped by save + apply, so a `required`
+  column whose literal really declared `'default': {}` loses it (3ff80cc7c
+  reverted the fix).
 - A failed `open-treedb` withdraws the saved schema at once; it could wait for
   an open that succeeds.
 - msg2db consumers (the db_history alarms of wattyzer, yunovatios,

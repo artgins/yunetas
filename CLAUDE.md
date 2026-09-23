@@ -236,7 +236,7 @@ caught up at the `7.6.7` release.) **Every** consumer takes it from the
 registry — estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatios
 GUIs and the in-repo `yunos/js/*` yunos — but they do **not** all declare the
 same floor, and assuming they do has been wrong since the in-repo yunos moved
-ahead: `yunos/js/*` are on `^7.13.5` (2026-08-23), wattyzer on `^7.12.0`. Check
+ahead: `yunos/js/*` and wattyzer's gui are on `^7.22.2` (2026-09-23). Check
 the consumer's own `package.json` rather than this line. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.

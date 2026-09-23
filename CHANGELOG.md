@@ -37,9 +37,11 @@ listed under "No red test" in `TODO.md`.
   names. The library's `treedb_gc_files()` takes nothing on a refusal;
   `treedb_gc_files2()` returns the report.
 - **Damaged keys.** A key damaged on disk (an md2 that cannot be read, a size
-  that is not whole rows, a record whose content cannot be read) is flagged, at
-  runtime and at startup; the flag of a file is cleared when the file reads
-  again (an append into a file still unreadable is refused). A keyless
+  that is not whole rows, a record whose content cannot be read) makes every
+  load of the key fail (`load_failed`): a row or content that cannot be read
+  fails the load that meets it, and an md2 the cache build cannot count flags
+  the key at the open, also after a restart. The flag of a file is cleared when
+  the file reads again (an append into a file still unreadable is refused). A keyless
   `tranger2_open_list()` still loads every readable key and opens its realtime
   feed, and reports the failure as `load_failed` / `load_failed_keys`. treedb
   remembers those keys and refuses what memory would answer wrong: a create of
@@ -54,7 +56,9 @@ listed under "No red test" in `TODO.md`.
   message as current. It is now reloaded newest first, up to the damage: a
   pkey2 whose newest message comes after the damage is served as before; one
   whose newest message is in the damage or before it is ABSENT (its state is
-  unknown) until its next message. An ERROR names the id with `served=N`, and
+  unknown) until its next message -- unless the damaged file is the one new
+  messages go to (the current period's file): then every new message of that
+  id is refused until the file is repaired (treedb.md) or the period changes. An ERROR names the id with `served=N`, and
   the new `msg2db_id_incomplete()` tells "unknown" from "none" while the msg2db
   stays open. For the db_history alarms of the projects (wattyzer, yunovatios,
   estadodelaire, hidraulia), until an absent alarm's next message: a device
@@ -68,7 +72,8 @@ listed under "No red test" in `TODO.md`.
   critical log (with the default `on_critical_error` the process exits there,
   and 7.25.4 left the bytes behind); an md2
   with 0 rows beside a non-empty `.json` (a kill or a power cut between the two
-  writes) is ignored with a warning, as 7.25.4 did, and its key loads.
+  writes) is ignored with a warning, and its key loads (7.25.4 ignored its rows
+  too, without a warning).
 - **Lost lock.** A master that lost its lock while stopped (another process
   took the store) writes nothing: every write path, including the three md2
   flag rewriters (`tranger2_write_user_flag`, `tranger2_set_user_flag`,
@@ -127,14 +132,17 @@ listed under "No red test" in `TODO.md`.
   `unfinished_projection` field in `treedbs` and `saved-schema`; `save-schema`
   refuses meanwhile (it would publish the removed topic again).
 - **A second `open-treedb` of an open treedb is refused first** ("already open
-  here: close-treedb first, nothing was changed"); 7.25.4 changed the schema
-  file and `__system__` and then failed. A failed open destroys the tranger it
+  here: close-treedb first, nothing was changed"); 7.25.4 reconciled
+  `__system__` first and then failed with "Internal error, tranger client
+  NULL", and with this release's whole projection that reconcile would delete
+  topics and withdraw the saved schema. A failed open destroys the tranger it
   created.
 - **The client store decides.** If another process holds the client store's
   lock, the treedb opens as a replica and nothing is reconciled (INFO).
-- The apply record `saved_schemas/<treedb>.applied.json` is
-  `{"topics": {"<topic>": "applied"|"in_use"}}` (the old list is still read)
-  and lives as long as its file is in use. It is written before the rename;
+- `apply-schema` records what it put in use in a new file,
+  `saved_schemas/<treedb>.applied.json`:
+  `{"topics": {"<topic>": "applied"|"in_use"}}`. It lives as long as its file
+  is in use. It is written before the rename;
   `apply-schema` refuses when it cannot write it, and restores the previous
   record when the rename fails.
 - A seed from the schema file stamps `c_schema_version` with the literal's
@@ -177,15 +185,16 @@ listed under "No red test" in `TODO.md`.
 - Schema editor: the loading screen is honest (body cleared, toolbar disabled,
   navigation waits for the load); a dialog opened on a model that a reload
   replaced is closed with a message and nothing stamped with the old model is
-  written; a refused reload keeps the previous model; a transport drop ends the cut load or write and the reconnect
-  reloads; stale answers are ignored by round; nothing is sent out of session;
+  written; a refused reload keeps the previous model; a transport drop ends
+  the cut load or write and the reconnect reloads; stale answers are ignored by
+  round; no load is asked out of session (the reconnect asks it);
   a late successful write reloads and keeps its marks. A reload that was
   refused is owed: the operator's next change runs it first (the change is
-  refused with a toast and done again once the schemas are in; moves are not
-  refused). A confirmation that arrives with no model is refused as stale; the
+  refused with a toast and the operator does it again once the schemas are
+  in; a move is not refused). A confirmation that arrives with no model is refused as stale; the
   import plan lost to a reload is a warning and a toast.
-- Shell modals: `MODAL_BACK` and every `CONFIRM_BTN` carry a title and an
-  aria-label; the schema editor's export C/JSON switch is two buttons
+- Shell modals: every ✕ (toast, modal, confirmation), `MODAL_BACK` and every
+  `CONFIRM_BTN` carry a translatable title and aria-label; the schema editor's export C/JSON switch is two buttons
   (`aria-pressed`); its confirmations pass the keys `delete` / `cancel` (they
   rendered in English in every locale).
 - gui_treedb 0.17.58: only the gobj-ui range (^7.25.11).
@@ -206,7 +215,8 @@ listed under "No red test" in `TODO.md`.
 - treedb refuses creates of unloaded ids, snapshot ops with a partial
   `__snaps__`, `gc-assets` asset rows with a partial asset topic or an active
   snap.
-- `tranger2_write_topic_var()` / `tranger2_write_topic_cols()` can return -1;
+- `tranger2_write_topic_var()` / `tranger2_write_topic_cols()` return -1 when
+  the file cannot be written (7.25.4 ignored the write and returned 0);
   the three md2 flag rewriters return -1 on a non-master; a revive whose store
   another process holds exits at `on_critical_error` (default: exit), any other
   revive failure demotes to replica; `save_json_to_file()`'s failed close is a
@@ -217,19 +227,22 @@ listed under "No red test" in `TODO.md`.
   instance history); a topic changed without a version raise now shows the
   literal's content, with a warning. Seeding with no literal installed comes
   from the file, with `c_schema_version` 0 unless the file is the literal.
-- `saved_schemas/<treedb>.applied.json` changed shape and lives as long as its
-  file is in use; `apply-schema` refuses when it cannot write it; `save-schema`
+- `apply-schema` writes a new record, `saved_schemas/<treedb>.applied.json`,
+  and refuses when it cannot write it; `save-schema`
   refuses while a projection is unfinished; a second `open-treedb` is refused;
   a client store locked by another process is not reconciled. The log order at
   open changed (the client tranger's logs come first).
 - msg2db: the pkey2s of an id that did not load whole whose newest message is
   in the damage or before it are absent instead of stale (new
-  `msg2db_id_incomplete()`); the
-  `tr_queue_t` / `tr2_queue_t` structs grew (relink their users); an append into
-  a file flagged unreadable returns -1.
+  `msg2db_id_incomplete()`).
+- tr_queue / tr2q_mqtt: the `tr_queue_t` / `tr2_queue_t` structs grew (rebuild
+  their users); `trq_load()` / `tr2q_load()` return -1 when the load did not
+  read every pending message; `trq_check_backup()` / `tr2q_check_backup()`
+  return -1 while the backup is refused.
+- timeranger2: an append into a file flagged unreadable returns -1.
 - C_TREEDB answers carry new fields (`withdrawn`, `stale`, `broken`,
-  `withdrawn_at_open`, `unfinished_projection`, `stopped`) and `saved` changed
-  meaning;
+  `withdrawn_at_open`, `unfinished_projection`, `stopped`, and `master` in
+  `treedbs` rows) and `saved` changed meaning;
   C_NODE `gc-assets` `data` is a report, not a list; `instances` answers -1 on
   failure; command comment texts of C_NODE and C_AUTHZ changed.
 
