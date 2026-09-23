@@ -73,6 +73,7 @@ set(SRCS
     test_append_md_contract
     test_str2system_flag
     test_lost_lock
+    test_topic_var_replace
     test_key_reborn_pages
     test_testing
 )

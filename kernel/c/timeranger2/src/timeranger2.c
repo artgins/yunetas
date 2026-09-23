@@ -889,52 +889,100 @@ PRIVATE BOOL rt_id_is_confined(
 /***************************************************************************
  *  Replace a topic's topic_var.json WHOLE (no merge with what it held),
  *  through a temporary file and a rename(): at every instant the file on
- *  disk is the old one or the new one, never none.
+ *  disk is the old one or the new one, never a truncated one -- so a
+ *  process that dies half way loses neither the topic_version nor the
+ *  `last_rowid_id` counter treedb keeps there.
+ *
+ *  `durable` also fsyncs the temporary file before the rename and the
+ *  directory after it, so the new file survives a power cut too. It costs
+ *  two disk flushes: it is asked where the file changes rarely (a
+ *  topic_version change), not on the hot path of the counter (every
+ *  create of a rowid-key node), which is safe against the death of the
+ *  process and not against a power cut.
+ *
+ *  The topic in memory takes the new values only when the file did.
  ***************************************************************************/
 PRIVATE int replace_topic_var(
     hgobj gobj,
     json_t *tranger,
     const char *directory,
     const char *topic_name,
-    json_t *jn_topic_var  // owned
+    json_t *jn_topic_var,  // owned
+    BOOL durable
 )
 {
-    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
-    if(topic) {
-        kw_update_except(gobj, topic, jn_topic_var, topic_fields); // data from topic disk are inmutable!
-    }
-
-    if(save_json_to_file(
-        gobj,
-        directory,
-        "topic_var.json.new",
-        (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
-        (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
-        0,
-        TRUE,   // create
-        FALSE,  // only_read
-        jn_topic_var  // owned
-    )<0) {
-        // Error already logged
-        return -1;
-    }
-
     char path_new[PATH_MAX];
     char path_var[PATH_MAX];
     build_path(path_new, sizeof(path_new), directory, "topic_var.json.new", NULL);
     build_path(path_var, sizeof(path_var), directory, "topic_var.json", NULL);
-    if(rename(path_new, path_var)<0) {
+
+    int fd = newfile(path_new, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), TRUE);
+    if(fd < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot replace topic_var.json, rename() FAILED",
-            "path",         "%s", path_var,
+            "msg",          "%s", "Cannot replace topic_var.json, cannot create the temporary file",
+            "path",         "%s", path_new,
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
             NULL
         );
+        JSON_DECREF(jn_topic_var)
         return -1;
     }
+    const char *failed = NULL;
+    if(json_dumpfd(jn_topic_var, fd, JSON_INDENT(4)) < 0) {
+        failed = "Cannot replace topic_var.json, write FAILED";
+    } else if(durable && fsync(fd) < 0) {
+        failed = "Cannot replace topic_var.json, fsync() FAILED";
+    }
+    int err = errno;
+    if(close(fd) < 0 && !failed) {
+        failed = "Cannot replace topic_var.json, close() FAILED";
+        err = errno;
+    }
+    if(!failed && rename(path_new, path_var) < 0) {
+        failed = "Cannot replace topic_var.json, rename() FAILED";
+        err = errno;
+    }
+    if(failed) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", failed,
+            "path",         "%s", path_var,
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
+            NULL
+        );
+        unlink(path_new);
+        JSON_DECREF(jn_topic_var)
+        return -1;
+    }
+
+    if(durable) {
+        int dir_fd = open(directory, O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+        if(dir_fd < 0 || fsync(dir_fd) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "topic_var.json replaced, but its directory cannot be fsync'ed",
+                "path",         "%s", directory,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
+        if(dir_fd >= 0) {
+            close(dir_fd);
+        }
+    }
+
+    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
+    if(topic) {
+        kw_update_except(gobj, topic, jn_topic_var, topic_fields); // data from topic disk are inmutable!
+    }
+    JSON_DECREF(jn_topic_var)
     return 0;
 }
 
@@ -1264,36 +1312,40 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             if(last_rowid_id > 0) {
                 json_object_set_new(new_var, "last_rowid_id", json_integer(last_rowid_id));
             }
-            if(replace_topic_var(gobj, tranger, directory, topic_name, new_var)<0) {
+            if(replace_topic_var(gobj, tranger, directory, topic_name, new_var, TRUE)==0) {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INFO,
+                    "msg",          "%s", "Re-Creating topic_var.json",
+                    "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
+                    "topic",        "%s", topic_name,
+                    NULL
+                );
+            } else {
                 // Error already logged: the old topic_var.json is still there
             }
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Re-Creating topic_var.json",
-                "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
-                "topic",        "%s", topic_name,
-                NULL
-            );
 
         } else if(!file_exists(directory, "topic_var.json")) {
             /*----------------------------------------*
              *      Create topic_var.json
              *----------------------------------------*/
             JSON_INCREF(jn_var)
-            tranger2_write_topic_var(
+            if(tranger2_write_topic_var(
                 tranger,
                 topic_name,
                 jn_var
-            );
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Re-Creating topic_var.json",
-                "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
-                "topic",        "%s", topic_name,
-                NULL
-            );
+            )==0) {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INFO,
+                    "msg",          "%s", "Re-Creating topic_var.json",
+                    "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
+                    "topic",        "%s", topic_name,
+                    NULL
+                );
+            } else {
+                // Error already logged
+            }
         }
 
 
@@ -2187,24 +2239,14 @@ PUBLIC int tranger2_write_topic_var(
     json_object_update(topic_var, jn_topic_var);
     json_decref(jn_topic_var);
 
-    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
-    if(topic) {
-        kw_update_except(gobj, topic, topic_var, topic_fields); // data from topic disk are inmutable!
-    }
-
-    save_json_to_file(
-        gobj,
-        directory,
-        "topic_var.json",
-        (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
-        (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
-        0,
-        master? TRUE:FALSE, //create
-        FALSE,  //only_read
-        topic_var  // owned
-    );
-
-    return 0;
+    /*
+     *  Through a temporary file and a rename, never in place: this runs on
+     *  every create of a rowid-key node (treedb's `last_rowid_id`), and a
+     *  process that died between the truncate and the write left the file
+     *  empty (M4 of the 2026-09-23 independent review). Not fsync'ed: see
+     *  replace_topic_var.
+     */
+    return replace_topic_var(gobj, tranger, directory, topic_name, topic_var, FALSE);
 }
 
 /***************************************************************************
