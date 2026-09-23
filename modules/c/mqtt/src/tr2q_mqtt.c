@@ -137,6 +137,8 @@ PUBLIC tr2_queue_t *tr2q_open(
     }
     trq->tranger = tranger;
     trq->max_inflight_messages = max_inflight_messages;
+    trq->load_failed = FALSE;
+    trq->backup_refused_said = FALSE;
     snprintf(trq->topic_name, sizeof(trq->topic_name), "%s", topic_name);
 
     json_t *jn_topic_ext = json_object();
@@ -425,8 +427,11 @@ PUBLIC int tr2q_load(tr2_queue_t *trq)
             NULL
         );
         trq->first_rowid = last_first_rowid;
+        trq->load_failed = TRUE;
         return -1;
     }
+    trq->load_failed = FALSE;
+    trq->backup_refused_said = FALSE;
 
     if(trq->first_rowid==0) {
         // No pending msg, set the last rowid
@@ -744,6 +749,26 @@ PUBLIC int tr2q_check_backup(tr2_queue_t *trq)
 
     if(backup_queue_size) {
         uint64_t sz = tranger2_topic_size(trq->tranger, trq->topic_name);
+        if(sz >= backup_queue_size && trq->load_failed) {
+            /*
+             *  Nothing in flight because the load failed, not because the
+             *  messages were delivered: the backup took them for good (see
+             *  trq_check_backup). Said once: the caller asks every period.
+             */
+            if(!trq->backup_refused_said) {
+                trq->backup_refused_said = TRUE;
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TRANGER,
+                    "msg",          "%s", "Queue backup refused: its last load did not read every pending message",
+                    "topic_name",   "%s", trq->topic_name,
+                    "topic_size",   "%ld", (long)sz,
+                    "backup_queue_size", "%ld", (long)backup_queue_size,
+                    NULL
+                );
+            }
+            return -1;
+        }
         if(sz >= backup_queue_size) {
             tr2q_set_first_rowid(trq, sz);
             trq->topic = tranger2_backup_topic(

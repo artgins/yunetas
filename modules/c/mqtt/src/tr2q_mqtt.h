@@ -30,6 +30,8 @@ typedef struct {
     dl_list_t dl_queued;    // Queue with messages in disk, avoiding overload of memory.
     uint64_t first_rowid;
     BOOL verbose;
+    BOOL load_failed;           // the last tr2q_load() did not read every pending message
+    BOOL backup_refused_said;   // tr2q_check_backup() said once that it refuses
 } tr2_queue_t;
 
 typedef struct {
@@ -277,7 +279,14 @@ static inline uint64_t tr2q2_msg_time(q2_msg_t *msg)
 }
 
 /**
-    Do backup if needed.
+    Do backup if needed: when the topic holds `backup_queue_size` records or
+    more, it is moved to a backup and re-created EMPTY, and first_rowid is
+    reset. Call it only with nothing in flight.
+    Return 0, or -1 when the backup is refused: the last tr2q_load() did not
+    read every pending message (`load_failed` in the tr2_queue_t), and the
+    backup would take the ones it could not read. Said once with an ERROR,
+    "Queue backup refused: its last load did not read every pending
+    message"; refused until a tr2q_load() reads the queue whole.
 */
 PUBLIC int tr2q_check_backup(tr2_queue_t *trq);
 

@@ -57,6 +57,8 @@ PUBLIC tr_queue_t *trq_open(
     }
     trq->tranger = tranger;
     snprintf(trq->topic_name, sizeof(trq->topic_name), "%s", topic_name);
+    trq->load_failed = FALSE;
+    trq->backup_refused_said = FALSE;
 
     json_t *jn_topic_ext = json_object();
     json_object_set_new(jn_topic_ext, "filename_mask", json_string("queue"));
@@ -308,8 +310,11 @@ PUBLIC int trq_load(tr_queue_t * trq)
             NULL
         );
         trq->first_rowid = last_first_rowid;
+        trq->load_failed = TRUE;
         return -1;
     }
+    trq->load_failed = FALSE;
+    trq->backup_refused_said = FALSE;
 
     if(trq->first_rowid==0) {
         // No pending msg, set the last rowid
@@ -636,6 +641,29 @@ PUBLIC int trq_check_backup(tr_queue_t * trq)
 
     if(backup_queue_size) {
         uint64_t sz = tranger2_topic_size(trq->tranger, trq->topic_name);
+        if(sz >= backup_queue_size && trq->load_failed) {
+            /*
+             *  The queue is empty because its load failed, not because its
+             *  messages were processed: the backup re-created the topic
+             *  empty and reset first_rowid, and took for good the pending
+             *  messages bed7baad8 kept first_rowid for (independent review
+             *  of the fourth fix round). Said once: the caller asks every
+             *  period.
+             */
+            if(!trq->backup_refused_said) {
+                trq->backup_refused_said = TRUE;
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TRANGER,
+                    "msg",          "%s", "Queue backup refused: its last load did not read every pending message",
+                    "topic_name",   "%s", trq->topic_name,
+                    "topic_size",   "%ld", (long)sz,
+                    "backup_queue_size", "%ld", (long)backup_queue_size,
+                    NULL
+                );
+            }
+            return -1;
+        }
         if(sz >= backup_queue_size) {
             trq_set_first_rowid(trq, sz);
             trq->topic = tranger2_backup_topic(

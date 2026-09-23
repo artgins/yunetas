@@ -39,7 +39,11 @@ The function is specifically designed to extract the `__MD_TRQ__` metadata field
 (trq_check_backup)=
 ## [`trq_check_backup()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/timeranger2/src/tr_queue.c#L609)
 
-`trq_check_backup()` performs a backup operation on the queue if necessary.
+`trq_check_backup()` backs the queue's topic up when it has grown to the
+`backup_queue_size` given to [`trq_open()`](<#trq_open>): the topic is moved to
+a backup and re-created EMPTY, and `first_rowid` is reset. It is meant to be
+called only when the queue holds no message (`C_QIOGATE` calls it every
+`timeout_backup` seconds when `trq_size()` is 0 and no ack is pending).
 
 ```C
 int trq_check_backup(
@@ -55,11 +59,33 @@ int trq_check_backup(
 
 **Returns**
 
-Returns `0` on success, or a negative value if an error occurs.
+`0` when there was nothing to do or the backup was done. `-1` when the backup
+is REFUSED: the last [`trq_load()`](<#trq_load>) did not read every pending
+message (`load_failed` is `TRUE` in the `tr_queue_t`). The queue is then empty
+because its load failed, not because its messages were processed, and the
+backup would take for good the pending messages the load could not read --
+the ones `trq_load()` keeps `first_rowid` for. The refusal is said once, with
+an ERROR, and lasts until a `trq_load()` reads the queue whole (a restart
+after the repair):
 
-**Notes**
+```text
+ERROR trq_check_backup: Queue backup refused: its last load did not read every pending message
+      topic_name=emails topic_size=1000000 backup_queue_size=1000000
+```
 
-This function makes sure that the queue's backup mechanism is triggered when required.
+Up to 7.25.4 (and after bed7baad8 until this fix) the periodic backup of a
+queue whose load had failed re-created the topic empty. `tr2q_check_backup()`
+of the mqtt queues behaves the same after a failed `tr2q_load()`.
+
+**Example**
+
+```C
+tr_queue_t *trq = trq_open(tranger, "emails", "tm", 0, 1000000);
+trq_load(trq);                  // -1: a pending message could not be read
+if(trq_size(trq) == 0) {
+    trq_check_backup(trq);      // -1: refused, the topic keeps its messages
+}
+```
 
 ---
 

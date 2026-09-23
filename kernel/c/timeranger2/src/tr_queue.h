@@ -33,6 +33,8 @@ typedef struct {
     int maximum_retries;
     dl_list_t dl_q_msg;
     uint64_t first_rowid;
+    BOOL load_failed;           // the last trq_load() did not read every pending message
+    BOOL backup_refused_said;   // trq_check_backup() said once that it refuses
 } tr_queue_t;
 
 typedef struct {
@@ -273,7 +275,16 @@ PUBLIC json_t *trq_answer(
 );
 
 /**
-    Do backup if needed.
+    Do backup if needed: when the topic holds `backup_queue_size` records or
+    more, it is moved to a backup and re-created EMPTY, and first_rowid is
+    reset. Call it only with no message in the queue (c_qiogate: trq_size()
+    == 0 and no pending ack).
+    Return 0, or -1 when the backup is refused: the last trq_load() did not
+    read every pending message (`load_failed` in the tr_queue_t), so an
+    empty queue says nothing of the topic, and the backup would take the
+    pending messages the load could not read. Said once with an ERROR,
+    "Queue backup refused: its last load did not read every pending
+    message"; refused until a trq_load() reads the queue whole.
 */
 PUBLIC int trq_check_backup(tr_queue_t * trq);
 

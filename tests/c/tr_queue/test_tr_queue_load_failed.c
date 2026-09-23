@@ -16,6 +16,13 @@
  *  queue is loaded again after a restart: every pending message must be
  *  there.
  *
+ *  Nor must the periodic backup undo that (independent review of the
+ *  fourth fix round): after the failed load the queue holds no message,
+ *  and c_qiogate / c_prot_mqtt2 call trq_check_backup() / tr2q_check_backup()
+ *  exactly then. The backup re-created the topic EMPTY and reset
+ *  first_rowid: the pending messages were gone from the queue for good. A
+ *  queue whose last load failed refuses its backup, and says so once.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -162,6 +169,29 @@ PRIVATE int test_trq(void)
         result += -1;
     }
     result += expect_int("trq: first_rowid saved after a failed load", saved_first_rowid(tranger, topic_name), 0);
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  The periodic backup, with the queue
+     *  empty after the failed load: refused
+     *-------------------------------------*/
+    set_expected_results("trq: the backup after a failed load is refused",
+        json_pack("[{s:s}]",
+            "msg", "Queue backup refused: its last load did not read every pending message"
+        ),
+        NULL, NULL, 1
+    );
+    json_object_set_new(trq->topic, "backup_queue_size", json_integer(1));
+    result += expect_int("trq: messages in the queue after the failed load", (json_int_t)trq_size(trq), 0);
+    if(trq_check_backup(trq) == 0) {
+        printf("%sERROR%s --> trq_check_backup() answered 0 after a failed load\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    trq_check_backup(trq);      // said once
+    result += expect_int("trq: topic size after the refused backup",
+        (json_int_t)tranger2_topic_size(tranger, topic_name), 3);
+    result += expect_int("trq: first_rowid after the refused backup", saved_first_rowid(tranger, topic_name), 0);
+    json_object_del(trq->topic, "backup_queue_size");
     trq_close(trq);
     tranger2_shutdown(tranger);
     result += test_json(NULL);
@@ -221,6 +251,26 @@ PRIVATE int test_tr2q(void)
         result += -1;
     }
     result += expect_int("tr2q: first_rowid saved after a failed load", saved_first_rowid(tranger, topic_name), 0);
+    result += test_json(NULL);
+
+    set_expected_results("tr2q: the backup after a failed load is refused",
+        json_pack("[{s:s}]",
+            "msg", "Queue backup refused: its last load did not read every pending message"
+        ),
+        NULL, NULL, 1
+    );
+    json_object_set_new(trq->topic, "backup_queue_size", json_integer(1));
+    result += expect_int("tr2q: messages in flight after the failed load",
+        (json_int_t)tr2q_inflight_size(trq), 0);
+    if(tr2q_check_backup(trq) == 0) {
+        printf("%sERROR%s --> tr2q_check_backup() answered 0 after a failed load\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    tr2q_check_backup(trq);     // said once
+    result += expect_int("tr2q: topic size after the refused backup",
+        (json_int_t)tranger2_topic_size(tranger, topic_name), 3);
+    result += expect_int("tr2q: first_rowid after the refused backup", saved_first_rowid(tranger, topic_name), 0);
+    json_object_del(trq->topic, "backup_queue_size");
     tr2q_close(trq);
     tranger2_shutdown(tranger);
     result += test_json(NULL);
