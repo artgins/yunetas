@@ -94,8 +94,27 @@ iterator does not filter is counted LIVE at every `get-page`, like a one-key
 iterator: a backward page (newest first) shows the rows appended since the open.
 A filtered key keeps the count of the rows its filter matched at open (after
 7.25.3; before, every key kept the count of the open, so the whole-topic card
-never showed a new row). A key CREATED after the open is not in the iterator:
-open it again to see it. Bound it anyway: a negative `from_rowid` reads the last
+never showed a new row): a row appended to it after the open is never paged,
+although each page indexes the key again -- counting it would mean indexing
+every filtered key on every page. A key CREATED after the open is not in the
+iterator: open it again to see it.
+
+**Positions move under appends.** Because an unfiltered key is counted live, a
+row appended to a key moves the positions after it by one. Paging forward after
+an append to an EARLIER key (or backward after an append to a LATER key), the
+next page repeats the last row of the page before; an append never makes a page
+skip a row. Every record carries its key and rowid, so a client that must not
+show a row twice drops a repeated `(key, rowid)`. For example, with key `I`
+holding 3 rows and key `J` 2:
+
+```
+command-yuno id=<id> service=<tranger> command=open-iterator iterator_id=ij topic_name=t rkey=^[IJ]$
+command-yuno id=<id> service=<tranger> command=get-page iterator_id=ij from_rowid=1 limit=4
+#   I#1 I#2 I#3 J#1
+#   (a row is appended to I)
+command-yuno id=<id> service=<tranger> command=get-page iterator_id=ij from_rowid=5 limit=4
+#   J#1 J#2         <- J#1 again
+``` Bound it anyway: a negative `from_rowid` reads the last
 N records of EACH key, and is what gui_treedb's whole-topic card starts with:
 
 ```

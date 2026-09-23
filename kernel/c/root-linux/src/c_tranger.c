@@ -938,8 +938,17 @@ PRIVATE const char *deleted_key_of_iterator(hgobj gobj, const char *iterator_id)
  *  iterator is (get_single_key_page). With the count frozen at the open, a
  *  backward page ("newest first", the whole-topic card of the treedb GUI)
  *  never showed a row appended after it -- N4 of the 2026-09-22 review,
- *  fixed for one key only. A filtered part pages the index built at its
- *  open, which does not grow: its count is the one taken then.
+ *  fixed for one key only.
+ *
+ *  A FILTERED part keeps the count taken at the open. Its index is not
+ *  kept: open_part() builds it again for every page that reads the part,
+ *  so it may hold rows appended since -- but counting them would mean
+ *  indexing EVERY filtered part of the iterator on every page (a page opens
+ *  only the parts it touches), and a whole-topic card has a part per key.
+ *  So the concatenation is cut with the open's count, and a row appended to
+ *  a filtered key after the open is never paged: open the iterator again.
+ *  (The comment here said the index was built once and did not grow: it is
+ *  rebuilt per page; the count is what does not grow.)
  ***************************************************************************/
 PRIVATE json_int_t part_rows(hgobj gobj, json_t *entry, json_t *part)
 {
@@ -965,6 +974,13 @@ PRIVATE json_int_t part_rows(hgobj gobj, json_t *entry, json_t *part)
  *  Backward counts from the end of the concatenation: the parts are read
  *  forward and the page is reversed here, so it means the same whether a
  *  part is filtered (indexed) or not.
+ *
+ *  Positions are not stable under appends. An unfiltered part is counted
+ *  live, so a row appended to a key moves the positions after it by one:
+ *  paging FORWARD after an append to an EARLIER key, or BACKWARD after an
+ *  append to a LATER key, the next page repeats the last row of the page
+ *  before. An append never makes a page skip a row. A client that must not
+ *  see a row twice dedups by (key, rowid), which every record carries.
  ***************************************************************************/
 PRIVATE json_t *get_multi_key_page(
     hgobj gobj,

@@ -67,6 +67,12 @@
 #define KEY_G       "G"
 #define KEY_H       "H"
 
+/*  keys "I" and "J" pin what a multi-key iterator does not promise: a
+ *  filtered key's count is the open's, and a forward page shifts after an
+ *  append to an earlier key.  */
+#define KEY_I       "I"
+#define KEY_J       "J"
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -1771,6 +1777,108 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
     r = gobj_command(yuno, "close-iterator",
         json_pack("{s:s}", "iterator_id", "itG"), yuno);
+    JSON_DECREF(r)
+    global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
+     *      What a multi-key iterator does NOT promise, pinned so the
+     *      docs say it exactly (C_TRANGER lows of the 2026-09-23
+     *      independent review):
+     *      - a FILTERED key keeps the row count of the open: a row
+     *        appended after it is not paged, although each page opens
+     *        (and indexes) the key again;
+     *      - an UNFILTERED key is counted live, so paging FORWARD after
+     *        an append to an EARLIER key shifts every later position by
+     *        one: the next page repeats the last row of the one before.
+     *-------------------------------------------------*/
+    set_expected_results("multi-key paging: frozen filtered counts, forward shift", NULL, NULL, NULL, 1);
+    for(int j = 0; j < 3; j++) {
+        append_one(tranger, KEY_I, BASE_T + j);
+    }
+    for(int j = 0; j < 2; j++) {
+        append_one(tranger, KEY_J, BASE_T + j);
+    }
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:I}",
+            "iterator_id", "itIJf",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^[" KEY_I KEY_J "]$",
+            "from_t", (json_int_t)BASE_T
+        ), yuno);
+    check_int("open-iterator I+J filtered total_rows",
+        kw_get_int(0, kw_get_dict(0, r, "data", 0, 0), "total_rows", -1, 0), 5);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itIJ",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^[" KEY_I KEY_J "]$"
+        ), yuno);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}", "iterator_id", "itIJ", "from_rowid", 1, "limit", 4), yuno);
+    {
+        json_t *rows = kw_get_list(0, kw_get_dict(0, r, "data", 0, 0), "data", 0, 0);
+        json_t *last = json_array_get(rows, 3);
+        check_str("forward page 1 ends in J", kw_get_str(0, last, "__md_tranger__`key", "", 0), KEY_J);
+        check_int("forward page 1 ends in J rowid 1", record_rowid(last), 1);
+    }
+    JSON_DECREF(r)
+
+    append_one(tranger, KEY_I, BASE_T + 3);    /*  to the EARLIER key  */
+
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}", "iterator_id", "itIJf", "from_rowid", 1, "limit", 10), yuno);
+    {
+        json_t *page = kw_get_dict(0, r, "data", 0, 0);
+        check_int("a filtered key keeps the count of the open",
+            kw_get_int(0, page, "total_rows", -1, 0), 5);
+        check_int("a filtered key does not page the new row",
+            json_array_size(kw_get_list(0, page, "data", 0, 0)), 5);
+    }
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}", "iterator_id", "itIJ", "from_rowid", 5, "limit", 4), yuno);
+    {
+        json_t *page = kw_get_dict(0, r, "data", 0, 0);
+        json_t *first = json_array_get(kw_get_list(0, page, "data", 0, 0), 0);
+        check_int("an unfiltered key is counted live", kw_get_int(0, page, "total_rows", -1, 0), 6);
+        check_str("forward page 2 starts in J", kw_get_str(0, first, "__md_tranger__`key", "", 0), KEY_J);
+        check_int("forward page 2 repeats J rowid 1", record_rowid(first), 1);
+    }
+    JSON_DECREF(r)
+    /*  ...and backward, after an append to a LATER key: page 1 is J2 J1
+     *  (I has 4 rows, J 2), J gets a third, and page 2 starts with J1 again  */
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:b}",
+            "iterator_id", "itIJb",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^[" KEY_I KEY_J "]$",
+            "backward", 1
+        ), yuno);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}", "iterator_id", "itIJb", "from_rowid", 1, "limit", 2), yuno);
+    {
+        json_t *rows = kw_get_list(0, kw_get_dict(0, r, "data", 0, 0), "data", 0, 0);
+        check_int("backward page 1 ends in J rowid 1", record_rowid(json_array_get(rows, 1)), 1);
+    }
+    JSON_DECREF(r)
+    append_one(tranger, KEY_J, BASE_T + 2);    /*  to the LATER key  */
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}", "iterator_id", "itIJb", "from_rowid", 3, "limit", 2), yuno);
+    {
+        json_t *first = json_array_get(
+            kw_get_list(0, kw_get_dict(0, r, "data", 0, 0), "data", 0, 0), 0);
+        check_str("backward page 2 starts in J", kw_get_str(0, first, "__md_tranger__`key", "", 0), KEY_J);
+        check_int("backward page 2 repeats J rowid 1", record_rowid(first), 1);
+    }
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator", json_pack("{s:s}", "iterator_id", "itIJb"), yuno);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator", json_pack("{s:s}", "iterator_id", "itIJf"), yuno);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator", json_pack("{s:s}", "iterator_id", "itIJ"), yuno);
     JSON_DECREF(r)
     global_result += test_json(NULL);
 
