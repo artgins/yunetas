@@ -271,8 +271,10 @@ PRIVATE json_t *load_cache_cell_from_disk(
     const char *key,
     char *filename, // md2 filename with extension, WARNING modified, .md2 removed
     json_t *known_cell, // the cell this file already has in memory, or NULL
+    const dir_array_t *key_files,   // the key directory, listed and sorted, or NULL (see the function)
     BOOL master         // a master cuts a torn last row back, a replica reads the whole rows
 );
+PRIVATE BOOL key_file_listed(const dir_array_t *key_files, const char *name);
 PRIVATE json_int_t load_first_and_last_record_md(
     hgobj gobj,
     const char *topic_directory,
@@ -6556,6 +6558,7 @@ PRIVATE json_int_t update_new_records_from_disk(
         key,
         filename,   // warning .md2 removed
         cur_cache_cell,
+        NULL,       // no listing: the markers are looked for on disk
         json_is_true(json_object_get(tranger, "master"))
     );
     if(!new_cache_cell) {
@@ -7446,6 +7449,7 @@ PRIVATE int count_flagged_file_again(
         key,
         filename,   // warning .md2 removed
         NULL,       // the file has no cell: it was flagged
+        NULL,       // no listing: the markers are looked for on disk
         json_is_true(json_object_get(tranger, "master"))
     );
     if(!cache_cell) {
@@ -7549,12 +7553,24 @@ PRIVATE json_t *load_key_cache_from_disk(
     json_t *key_cache = create_cache_key();
     json_t *cache_files = json_object_get(key_cache, "files");
 
+    /*
+     *  A master lists EVERY file of the key: the markers of its md2 files
+     *  (`<file>.unordered`, `<file>.tm_unordered`) are looked for in that
+     *  listing, instead of two stat() per md2 file -- which made an open
+     *  of a clean store slower than 7.25.4, that looked for one marker.
+     *  Nobody else writes the store of a master, so the listing is still
+     *  true once the files are read. A replica lists only the md2 files
+     *  and looks for the markers on disk AFTER reading each one: the
+     *  master writes a marker before its row, so a row the replica read
+     *  has its marker there by then, and a listing taken before might not
+     *  have it.
+     */
     dir_array_t da;
 
     find_files_with_suffix_array(
         gobj,
         full_path,
-        ".md2",
+        master? NULL: ".md2",
         &da
     );
 
@@ -7562,6 +7578,11 @@ PRIVATE json_t *load_key_cache_from_disk(
 
     for(int i=0; i<da.count; i++) {
         char *filename = da.items[i];
+        size_t filename_len = strlen(filename);
+        if(filename_len < sizeof(".md2") - 1 ||
+                strcmp(filename + filename_len - (sizeof(".md2") - 1), ".md2") != 0) {
+            continue;   // a content file, a marker: the listing of a master has them all
+        }
         char file_id[NAME_MAX];
         snprintf(file_id, sizeof(file_id), "%s", filename);
         char *dot = strrchr(file_id, '.');
@@ -7569,12 +7590,15 @@ PRIVATE json_t *load_key_cache_from_disk(
             *dot = 0;
         }
 
+        char md2_name[NAME_MAX];    // a copy: the listing must stay sorted for key_file_listed()
+        snprintf(md2_name, sizeof(md2_name), "%s", filename);
         json_t *cache_cell = load_cache_cell_from_disk(
             gobj,
             topic_directory,
             key,
-            filename,   // warning .md2 removed
+            md2_name,   // warning .md2 removed
             NULL,       // no cell yet: the cache is being built
+            master? &da: NULL,
             master
         );
         if(!cache_cell) {
@@ -7722,6 +7746,7 @@ PRIVATE json_t *load_cache_cell_from_disk(
     const char *key,
     char *filename, // md2 filename with extension, WARNING modified, .md2 removed
     json_t *known_cell, // the cell this file already has in memory, or NULL
+    const dir_array_t *key_files,   // the key directory, listed and sorted, or NULL (see the function)
     BOOL master         // a master cuts a torn last row back, a replica reads the whole rows
 )
 {
@@ -7787,6 +7812,9 @@ PRIVATE json_t *load_cache_cell_from_disk(
         );
         t_marked = TRUE;
         tm_marked = TRUE;
+    } else if(key_files) {
+        t_marked = key_file_listed(key_files, marker);
+        tm_marked = key_file_listed(key_files, tm_marker);
     } else {
         char key_directory[PATH_MAX];
         build_path(key_directory, sizeof(key_directory), topic_directory, "keys", key, NULL);
@@ -7819,6 +7847,29 @@ PRIVATE json_t *load_cache_cell_from_disk(
     }
 
     return file_cache;
+}
+
+/***************************************************************************
+ *  Is `name` in the listing of a key directory? `key_files` is sorted by
+ *  name (dir_array_sort, strcmp), so it is a binary search.
+ ***************************************************************************/
+PRIVATE BOOL key_file_listed(const dir_array_t *key_files, const char *name)
+{
+    json_int_t lo = 0;
+    json_int_t hi = key_files->count;
+    while(lo < hi) {
+        json_int_t mid = lo + (hi - lo) / 2;
+        int cmp = strcmp(key_files->items[mid], name);
+        if(cmp == 0) {
+            return TRUE;
+        }
+        if(cmp < 0) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    return FALSE;
 }
 
 /***************************************************************************
