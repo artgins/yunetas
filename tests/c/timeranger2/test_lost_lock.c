@@ -119,6 +119,88 @@ PRIVATE int expect_bool(const char *what, BOOL got, BOOL expected)
  *  do_test
  ***************************************************************************/
 /***************************************************************************
+ *  A revive that finds the store taken: the startup's single-master guard
+ *  (the level and the exit are the same knob, on_critical_error), and a
+ *  demoted master that stays a replica
+ ***************************************************************************/
+PRIVATE int test_revive_conflict(void)
+{
+    int result = 0;
+    rmrdir(path_database);
+    char path_root[PATH_MAX];
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+
+    /*-------------------------------------*
+     *  With the default of a yuno (exit(0)
+     *  on a critical) the revive ends the
+     *  process, as the startup does
+     *-------------------------------------*/
+    set_expected_results("lost lock: a revive with exit on critical", NULL, NULL, NULL, 1);
+    fflush(stdout);
+    pid_t pid = fork();
+    if(pid == 0) {
+        gobj_log_del_handler("test_capture");
+        json_t *jn = json_pack("{s:s, s:s, s:b, s:i}",
+            "path", path_root,
+            "database", DATABASE,
+            "master", 1,
+            "on_critical_error", LOG_OPT_EXIT_ZERO
+        );
+        json_t *x = tranger2_startup(0, json_incref(jn), 0);
+        if(!x || !create_topic(x, TOPIC_NAME, 1)) {
+            _exit(4);
+        }
+        tranger2_stop(x);
+        json_t *y = tranger2_startup(0, jn, 0);   // takes the store
+        if(!y) {
+            _exit(5);
+        }
+        tranger2_write_topic_var(x, TOPIC_NAME, json_pack("{s:I}", "last_rowid_id", (json_int_t)1));
+        _exit(3);   // survived the revive
+    }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    char how[32];
+    snprintf(how, sizeof(how), "%s %d",
+        WIFEXITED(status)? "exit": "signal",
+        WIFEXITED(status)? WEXITSTATUS(status): WTERMSIG(status));
+    result += expect("a revive that finds the store taken exits like the startup", how, "exit 0");
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  Without exit: a demoted master stays
+     *  a replica, even once the lock is
+     *  free again
+     *-------------------------------------*/
+    rmrdir(path_database);
+    set_expected_results(
+        "lost lock: a demoted master stays a replica",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
+            "msg", "Master lock NOT retaken after a stop: another process holds it, go on as not master",
+            "msg", "Only master can write",
+            "msg", "Only master can write"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *a = startup_master();
+    create_topic(a, TOPIC_NAME, 1);
+    tranger2_stop(a);
+    json_t *b = startup_master();
+    tranger2_write_topic_var(a, TOPIC_NAME, json_pack("{s:I}", "last_rowid_id", (json_int_t)1));
+    tranger2_shutdown(b);           // the lock is free
+    tranger2_stop(a);
+    tranger2_write_topic_var(a, TOPIC_NAME, json_pack("{s:I}", "last_rowid_id", (json_int_t)2));
+    result += expect_bool("the demoted master is still not the master",
+        kw_get_bool(0, a, "master", 0, 0), FALSE);
+    tranger2_shutdown(a);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *  The three rewrites of a md2 row, by one that is not the master
  ***************************************************************************/
 PRIVATE int try_md2_rewrites(json_t *tranger, const char *who)
@@ -389,6 +471,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     result += test_md2_rewrites();
+    result += test_revive_conflict();
 
     return result;
 }

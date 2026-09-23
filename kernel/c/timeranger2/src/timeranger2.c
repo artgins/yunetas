@@ -644,9 +644,22 @@ PUBLIC int tranger2_stop(json_t *tranger)
  *  A tranger used again after tranger2_stop() is alive again: its shutdown
  *  must close what it opens from now on. And a master gave its lock back
  *  at the stop, so it takes it again, or it is not the master any more --
- *  another process may have taken the store meanwhile. Then it goes on as
- *  a replica: `master` false, and `master_lost` true to say why. It
- *  reads, and every write refuses (tranger_is_master).
+ *  another process may have taken the store meanwhile.
+ *
+ *  That is the startup's single-master conflict, and it is answered the
+ *  same way, with the same knob: a CRITICAL at `on_critical_error`. With a
+ *  yuno's default (LOG_OPT_EXIT_ZERO) the process exits(0) inside the log
+ *  and stays down, like a second instance at the startup; the other process
+ *  owns the store. A tranger configured to survive a critical goes on as a
+ *  replica: `master` false, and `master_lost` true to say why. It reads,
+ *  and every write refuses (tranger_is_master).
+ *
+ *  A demoted master never takes the lock again, not even once it is free:
+ *  what it holds in memory (the caches of its topics, the lists a treedb
+ *  opened as master, rt_mem and not rt_disk) did not follow what the other
+ *  master wrote meanwhile, and appending on top of it would number rows
+ *  that exist. To be the master again it is shut down and started again
+ *  (tranger2_shutdown() + tranger2_startup()), which reads the store anew.
  *
  *  Only the lock is taken: the tranger's settings were read at the startup.
  ***************************************************************************/
@@ -665,9 +678,11 @@ PRIVATE void revive_stopped_tranger(hgobj gobj, json_t *tranger)
     char path[PATH_MAX];
     build_path(path, sizeof(path), directory, "__timeranger2__.json", NULL);
 
+    log_opt_t on_critical_error = (log_opt_t)kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED);
+
     int fd = open(path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
     if(fd < 0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TRANGER,
             "msg",          "%s", "Master lock NOT retaken after a stop: cannot open the lock file, go on as not master",
@@ -683,7 +698,7 @@ PRIVATE void revive_stopped_tranger(hgobj gobj, json_t *tranger)
     if(flock(fd, LOCK_EX|LOCK_NB) < 0) {
         int err = errno;
         close(fd);
-        gobj_log_error(gobj, 0,
+        gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TRANGER,
             "msg",          "%s", (err == EWOULDBLOCK)?

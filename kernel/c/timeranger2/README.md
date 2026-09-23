@@ -153,13 +153,23 @@ misalign every later append. Regression coverage in
 `tranger2_stop()` gives the single-master lock back (C_TRANGER's `mt_stop`).
 The next call that opens a topic or writes -- `tranger2_create_topic()` is the
 restart path of C_TRANGER and C_TREEDB -- takes it again FIRST. When another
-process took the store meanwhile, nothing is written: the tranger goes on as a
-replica, reads, refuses every write, and says so in its json:
+process took the store meanwhile, nothing is written, and it is the startup's
+single-master conflict: a CRITICAL at `on_critical_error`. With a yuno's
+default (`2`, exit(0)) the process exits and stays down, as a second instance
+does at the startup. A tranger configured to survive a critical
+(`"on_critical_error": 0`) goes on as a replica, reads, refuses every write,
+and says so in its json:
 
 ```C
 kw_get_bool(0, tranger, "master", 0, 0);        // FALSE: what it holds now
 kw_get_bool(0, tranger, "master_lost", 0, 0);   // TRUE: it was the master, it lost the lock
 ```
+
+A demoted tranger never takes the lock again, not even once the other process
+let it go: its memory (the caches of its topics, the lists a treedb opened as
+master) did not follow what the other master wrote, and appending on top of it
+would number rows that exist. To be the master again, shut it down and start
+it again (`tranger2_shutdown()` + `tranger2_startup()`).
 
 Until 7.25.4 `tranger2_create_topic()` read the `master` of the stop and wrote
 the topic directory, `topic_cols.json` and `topic_var.json` into the other
