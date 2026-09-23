@@ -78,6 +78,19 @@
  ***************************************************************/
 PRIVATE int global_result = 0;
 
+/*
+ *  mark-tm-order all=1 says each directory of the store it skips because
+ *  it is not a topic (an INFO): counted here, for `saved_schemas`
+ */
+PRIVATE int g_not_a_topic_said = 0;
+PRIVATE int count_not_a_topic(void *h, int priority, const char *bf, size_t len)
+{
+    if(strstr(bf, "Directory of the store is not a topic") && strstr(bf, "saved_schemas")) {
+        g_not_a_topic_said++;
+    }
+    return 0;
+}
+
 /***************************************************************
  *              Check helpers
  ***************************************************************/
@@ -2322,7 +2335,13 @@ PRIVATE int do_test(void)
         save_json_to_file(0, not_a_topic, "treedb_x.treedb_schema.json", 02770, 0660, 0, TRUE, FALSE,
             json_pack("{s:s, s:i}", "id", "treedb_x", "schema_version", 2));
 
+        gobj_log_register_handler("not_a_topic", 0, count_not_a_topic, 0);
+        gobj_log_add_handler("count_not_a_topic", "not_a_topic", LOG_OPT_UP_INFO, 0);
+        g_not_a_topic_said = 0;
         r = gobj_command(yuno, "mark-tm-order", json_pack("{s:b}", "all", 1), yuno);
+        gobj_log_del_handler("count_not_a_topic");
+        check_int("mark-tm-order all=1: a directory skipped is said, once",
+            g_not_a_topic_said, 1);
         check_int("mark-tm-order all=1 result", kw_get_int(0, r, "result", -999, 0), 0);
         json_t *names = tranger2_list_topic_names(tranger);
         json_int_t topics_on_disk = 0;

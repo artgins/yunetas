@@ -1890,12 +1890,20 @@ PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj
          *  topic_desc.json. C_TREEDB keeps `saved_schemas/` in the store
          *  of __system__: listed as a topic it failed, and the upgrade step
          *  answered -1 on every node that ran save-schema (M-2 of the
-         *  fourth independent review, 2026-09-23).
+         *  fourth independent review, 2026-09-23). Skipped, and SAID: a
+         *  topic whose topic_desc.json was lost is skipped the same way.
          */
         char topic_dir[PATH_MAX];
         build_path(topic_dir, sizeof(topic_dir),
             kw_get_str(gobj, priv->tranger, "directory", "", KW_REQUIRED), name, NULL);
         if(!file_exists(topic_dir, "topic_desc.json")) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Directory of the store is not a topic (no topic_desc.json): mark-tm-order skips it",
+                "directory",    "%s", topic_dir,
+                NULL
+            );
             continue;
         }
         topics++;
