@@ -88,9 +88,18 @@ listed under "No red test" in `TODO.md`.
   that meets such an md2 cuts it back the same way before it writes its row,
   so a row always starts on a row boundary; if the cut fails, the append is
   refused with a CRITICAL (*"Cannot append record, its md2 file ends in a part
-  of a row that cannot be cut back: the append is refused"*). The cut
-  removes fewer than 32 bytes after the last whole row, so it can never remove
-  an acknowledged row. A replica reads only the whole rows and writes nothing.
+  of a row that cannot be cut back: the append is refused"*). A tail is cut only
+  when it follows a valid last row and the end-aligned 32 bytes are not a
+  whole row ending at the end of the content: an md2 that 7.25.4 kept
+  appending into after a torn row (its later rows off the row boundary) is NOT
+  cut, on a master or a replica -- it is flagged (`load_failed`, appends
+  refused) with a CRITICAL (*"md2 file of the key ends in a whole row that is
+  not on a row boundary: written by 7.25.4 after a torn row; not cut, repair it
+  by hand"*), and treedb.md gives the repair. A scan of ~21 500 md2 files on
+  four stores (local, wattyzer, both yunovatios) found none; to check a node:
+  `find /yuneta/store /yuneta/realms -name '*.md2' -printf '%s %p\n' | awk '$1 % 32'`.
+  With that check, the cut removes only the part of a row after the last whole
+  row, never an acknowledged row. A replica reads only the whole rows and writes nothing.
   7.25.4 logged a CRITICAL (*"Cannot read last record, md2 file corrupted"*)
   and left the whole file out of the key, on a master and on a replica: the
   acknowledged rows of that file were missing from every load, and nothing
