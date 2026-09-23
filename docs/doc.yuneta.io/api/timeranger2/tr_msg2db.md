@@ -325,8 +325,8 @@ number of 32-byte rows: a power cut came during the write of a row, so that
 append was never acknowledged. A master tranger cuts the md2 back to its
 whole rows at the open, with one WARNING, and the id loads whole: nothing
 is absent, the id is not incomplete, and its next message is stored and
-served as usual. In the unreleased work after 7.25.4 a torn row was taken
-for damage, and every new message of the id was refused as described below.
+served as usual. Up to 7.25.4 the file was left out of the id's history with
+a CRITICAL, and an older message could be served as current.
 
 ```text
 WARNING: {..., "function": "load_first_and_last_record_md", "msgset": "Tranger",

@@ -32,20 +32,19 @@ message of each `pkey2`:
 4. the store of 3 with a record of `dev1` whose `pkey2` is empty on each side
    of the damage: one read by the forward load, one read only by the backward
    reload. Both are dropped, and "Records NOT loaded, 'pkey2' empty" says
-   `dropped: 2`. It said 1: the count of the forward load was put back after
-   the reload;
+   `dropped: 2`;
 5. the md2 of the new message ends in a part of a row (a power cut during
    the write of a row). That is an append that was never acknowledged, not
    damage: the md2 is cut back to its whole rows with one warning, `dev1` is
    whole (`msg2db_id_incomplete()` is FALSE), and its next message is stored
-   and served, also after a restart. Before the fix, the file was flagged
-   and every new message of `dev1` was refused until the period changed.
+   and served, also after a restart. On 7.25.4 the file was left out of
+   `dev1` with a CRITICAL, and the OLD message was served.
 
-Cases 2, 3 and 4 use a md2 of mode 000. They are skipped as root, because
-root can read such a file.
+Cases 2, 3 and 4 use a md2 of mode 000. As root they are SKIPPED, and each
+prints that it is, because root can read such a file.
 
-1 and 2 served the OLD message before the fix of the fourth fix round. 3 was
-red after it: the whole of `dev1` was dropped, `X` too (fifth fix round).
+On 7.25.4 case 2 serves the OLD message as current (it had no backward
+reload).
 
 ## Why it was kept out of the suite, and why it is in now
 

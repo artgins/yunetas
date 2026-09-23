@@ -1735,9 +1735,9 @@ WARNING load_first_and_last_record_md: md2 file of the key ends in a part of a r
 ```
 
 The cut never removes a whole row. A replica does not cut: it reads the
-whole rows, and the master cuts the file when it opens the store. (In the
-unreleased work after 7.25.4 a torn row failed the key, and every append
-into the file was refused.)
+whole rows, and the master cuts the file when it opens the store. (Up to
+7.25.4 the cache build left such a file out of the key with a CRITICAL, and
+nothing failed.)
 
 A `.md2` of 0 bytes whose `.json` is NOT empty does not fail the key. It is
 the shape an append that was never acknowledged leaves: the content is

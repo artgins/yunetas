@@ -191,6 +191,42 @@ CRITICAL tranger2_append_record: Cannot append record, its md2 file cannot be op
 The same order holds for a content write that fails part way: its part is cut
 back before the critical.
 
+A write that stops part way (the file size limit, a full disk) is not said as
+a `write FAILED` with an `errno`: `write()` returned a count, and `errno` says
+nothing then. It is said as a SHORT write, with the bytes written and the bytes
+expected. A read that returns fewer bytes than a row is said as a SHORT read
+the same way:
+
+```text
+CRITICAL tranger2_append_record: Cannot append record, short write of its content: the file size
+         limit or the disk is full  topic=items written=13 expected=45
+CRITICAL tranger2_append_record: Cannot save record metadata, short write: the file size limit or
+         the disk is full  topic=items written=13 expected=32
+CRITICAL read_md2_row: Cannot read a record of md2 file, short read
+         path=<store>/items/keys/A/2000-01-02.md2 row=last offset=64 read=16 expected=32
+```
+
+**A row always goes on a row boundary.** When the md2 row of a failed append
+was written in part and the cut of that part failed too (*"Cannot cut back the
+md2 of an append whose row was not written whole: its size is not a whole
+number of rows"*), the md2 ends in a torn row. The next append cuts the md2
+back to its whole rows first, with the same warning the open gives (see *A
+`.md2` whose last row is torn* under
+[`tranger2_open_iterator()`](#tranger2_open_iterator)), and writes its row
+there:
+
+```text
+WARNING tranger2_append_record: md2 file of the key ends in a part of a row: an append that was
+        never acknowledged was cut back  topic=items key=A file_id=2000-01-02
+        old_size=141 new_size=128
+```
+
+If that cut fails, the append is refused with `-1` and its content is cut back
+(*"Cannot append record, its md2 file ends in a part of a row that cannot be
+cut back: the append is refused"*). Before this, the row went after the torn
+bytes: no read found it, and the cut at the next open removed bytes of that
+acknowledged row.
+
 **An append into a file flagged unreadable** (a `.md2` the cache build could
 not count, see the same section) counts the file again first. If it can be read
 now, it gets its cell, the flag of that file goes (*"md2 file of the key
@@ -1431,12 +1467,15 @@ bytes, and the file is then a `.md2` of 0 rows, ignored with the warning
 above.
 
 A REPLICA never writes. It reads only the whole rows of such a file, and logs
-nothing: a replica also sees a torn row while a live master is writing it, and
-counts the row when the master's next notification of the file comes. When the
-master opens the store, it cuts the file back. In the unreleased work after
-7.25.4 a torn row flagged the key, on a master and on a replica: every load
-said `load_failed` and every append into the file was refused until the md2
-was cut by hand or the period changed.
+nothing for the torn row: a replica also sees a torn row while a live master
+is writing it, and counts the row when the master's next notification of the
+file comes. A file with no whole row (fewer than 32 bytes) is a `.md2` of 0
+rows for the replica, so when its `.json` is not empty the replica logs the
+0-rows warning above, and does not cut. When the master opens the store, it
+cuts the file back. Up to 7.25.4 the cache build logged a CRITICAL (*"Cannot
+read last record, md2 file corrupted"*) and left the whole file out of the
+key, on a master and on a replica: its acknowledged rows were missing from
+every load, and nothing failed.
 
 The flag of a file goes once a cell counts it again: an append into the file
 that finds it readable (see [`tranger2_append_record()`](#tranger2_append_record)),

@@ -257,8 +257,7 @@ with the bytes written and expected. A kill or a power cut between the two write
 still leaves the shape, and the next open ignores it with the warning above.
 An append into a file still flagged unreadable is refused; one into a flagged
 file readable again counts it first, and a FILTERED iterator of the key takes
-its segments and its index again (the rowids after the file moved; its index
-used to be emptied). `tests/c/timeranger2/test_uncommitted_append.c`.
+its segments and its index again (the rowids after the file moved). `tests/c/timeranger2/test_uncommitted_append.c`.
 
 A `.md2` whose size is not a whole number of 32-byte rows is not damage
 either. Its last row is torn: a power cut came during the write of the row,
@@ -277,12 +276,18 @@ WARNING: {"function": "load_first_and_last_record_md", "msgset": "Tranger",
 ```
 
 The cut removes fewer than 32 bytes, all after the last whole row, so it never
-removes an acknowledged row. A cut that fails is damage (the file is flagged).
-A REPLICA never writes: it reads the whole rows and logs nothing, because it
-also sees a torn row while a live master writes it. In the unreleased work
-after 7.25.4 a torn row flagged the key, on a master and on a replica, and
-every append into the file was refused until the period changed -- a year for
-a `"%Y"` tranger. `tests/c/timeranger2/test_torn_md2_tail.c`.
+removes an acknowledged row: an append always writes its row on a row
+boundary. If the md2 of a running master ends in a torn row (a row written in
+part whose cut back failed), the next append cuts it back first, with the same
+warning, and a cut that fails refuses that append. A cut that fails at the open
+is damage (the file is flagged). A REPLICA never writes: it reads the whole
+rows and logs nothing for the torn row, because it also sees a torn row while
+a live master writes it. The exception is a file with no whole row: for the
+replica it is a md2 of 0 rows, and with its content not empty it gets the
+0-rows warning above. Up to 7.25.4 the cache build logged a CRITICAL
+(*"Cannot read last record, md2 file corrupted"*) and left the whole file out
+of the key, on a master and on a replica.
+`tests/c/timeranger2/test_torn_md2_tail.c`.
 
 `tranger2_open_list()` of ONE key answers `NULL` when the history of the key
 did not load whole. A KEYLESS list loads every key it can read, opens its
