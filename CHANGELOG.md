@@ -102,7 +102,10 @@ listed under "No red test" in `TODO.md`.
   cut, on a master or a replica -- it is flagged (`load_failed`, appends
   refused) with a CRITICAL (*"md2 file of the key ends in a whole row that is
   not on a row boundary: written by 7.25.4 after a torn row; not cut, repair it
-  by hand"*), and treedb.md gives the repair. A scan of ~21 500 md2 files on
+  by hand"*, with a `cause`), and treedb.md gives the repair. An append that
+  meets such a file refuses and flags it in memory at once (ERROR *"md2 file of
+  the key flagged unreadable at an append: every load of the key says
+  load_failed"*). A scan of ~21 500 md2 files on
   four stores (local, wattyzer, both yunovatios) found none; to check a node:
   `find /yuneta/store /yuneta/realms -name '*.md2' -printf '%s %p\n' | awk '$1 % 32'`.
   With that check, the cut removes only the part of a row after the last whole
