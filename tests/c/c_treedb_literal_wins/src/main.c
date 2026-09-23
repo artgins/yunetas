@@ -356,8 +356,9 @@ PRIVATE const char *expected_log_msgs[] = {
     "Schema applied",
 
     /*  M1: a snapshot holds departments; v2 leaves it (unfinished), the
-     *  operator adds users.email; the retry replaces it and SAYS so; once
-     *  the snapshot is gone the projection completes, saying nothing  */
+     *  operator adds users.email; the retry replaces it and SAYS so; a
+     *  column added to departments; once the snapshot is gone the
+     *  projection completes and says departments  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
@@ -376,7 +377,11 @@ PRIVATE const char *expected_log_msgs[] = {
     M_IN_PART,
     M_WITHDREW,
     M_COMPLETING,
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    M_COMPLETING,
     M_REMOVED,
+    M_WITHDREW,
 
     /*  M2 imposed: v1 with groups, a snapshot, v2 without (unfinished),
      *  snapshot gone, v2 again: completed, groups not reported  */

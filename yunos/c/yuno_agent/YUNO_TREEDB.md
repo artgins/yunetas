@@ -1635,22 +1635,58 @@ again.
 **A snapshot of `__system__` can refuse the delete.** A delete erases the key,
 so `treedb_delete_node()` refuses a node that a snapshot holds (*"cannot
 delete node, a snapshot still holds it"*, an ERROR). The projection is then
-UNFINISHED, and it says so; it is never passed off as done:
+UNFINISHED, and it says so; it is never passed off as done. A write that
+fails (a create, an update or a link of a node, logged as an ERROR) leaves
+it unfinished in the same way.
 
 - ONE warning, *"Schema projected into __system__ only in part: its version
   is not recorded, and every open of the treedb retries it"*, with
-  `not_removed` (the ids of `__system__`) and `how` (what to do).
+  `not_removed` (the ids of `__system__` that a delete refused),
+  `not_written` (the ids whose write failed) and `how` (what to do).
 - The numbers of the `treedbs` node are written LAST, and only on full
   success. An unfinished projection writes `c_schema_version: 0` and keeps
   its `schema_version`.
-- Every open retries it: *"Completing the projection of the schema from C
-  into __system__, left unfinished by an earlier open"*. It is retried when
-  the file in use IS the literal and `c_schema_version` is 0.
-- `treedbs` and `saved-schema` answer `unfinished_projection` (the ids,
-  `[]` when complete). What the projection could not remove is no draft of
-  anybody's: it is not withdrawn.
-- `save-schema` refuses until the projection completes. A save would
-  publish the removed topic again, and the next apply would bring it back.
+- The open RECORDS what the projection left, in
+  `saved_schemas/<treedb>.unfinished.json` under the `__system__` tranger.
+  `leftovers` holds every id that the projection left unlike the schema:
+  the two lists, plus the columns of a topic that it could not remove or
+  write. A projection that succeeds removes the record.
+
+```json
+{"schema_version": 3,
+ "not_removed": ["treedb_x.departments", "treedb_x.users.departments"],
+ "not_written": [],
+ "leftovers": ["treedb_x.departments", "treedb_x.users.departments",
+               "treedb_x.departments.id", "treedb_x.departments.name"]}
+```
+
+While the record is there:
+
+- Every open retries the projection. The record decides this, not
+  `c_schema_version` 0: a projection seeded from a dynamic file also has
+  `c_schema_version` 0, and it is complete.
+  - When no newer literal is installed (the file runs), the open logs
+    *"Completing the projection into __system__, left unfinished by an
+    earlier open"* (`source`: `schema from C` when the file IS the literal,
+    `schema file in use` otherwise) and projects what runs, whole.
+  - When a newer literal is installed, or the literal is imposed, the open
+    projects that literal, whole, as always (*"Updating TreeDB schema in
+    __system__"*). An imposed open retries even when the literal is not
+    newer than `__system__`.
+- What the record names is nobody's draft, on every path. `saved-schema`
+  does not name it in `draft_changed`, and the open that completes the
+  projection does not report it in `withdrawn_at_open`.
+- What the operator does in `__system__` meanwhile IS a draft. The retry
+  projects over it and reports it as withdrawn, `"unsaved"`, like any
+  draft that a projection replaces. A column that the operator adds to a
+  leftover topic makes that topic a draft too.
+- `treedbs` and `saved-schema` answer `unfinished_projection`: the ids of
+  `not_removed` and `not_written` (`[]` when the projection is complete).
+- `save-schema` refuses: `-1` *"<role^name>: the projection of 'treedb_x'
+  into __system__ is not complete, 2 node(s) could not be removed or
+  written (see the log): a save would publish them"*, with `data:
+  {treedb_name, unfinished_projection}`. A save would publish the removed
+  topic again, and the next apply would bring it back.
 
 A topic that cannot go keeps its columns (half a topic helps nobody). To
 finish, delete the snapshot and open the treedb again. There is no
@@ -1662,10 +1698,13 @@ ycommand -c 'command-yuno id=<id> service=treedb_system_schema command=delete-no
 
 Deleting the snapshot also deletes that rollback point of the schemas.
 If you keep the snapshot, the treedb runs the literal and `__system__` keeps
-the old topics, said at every open. (Until after 7.25.4 the numbers were
-written FIRST and the failed deletes were ignored. The next open was silent,
-the editor showed the leftovers as drafts, and save + apply brought the
-removed topic back.)
+the old topics, said at every open. For a write that failed, fix its cause
+(see the ERROR) and open the treedb again. For example, a seed from a
+dynamic file whose column has a `flag` that the meta-schema refuses
+(*"Value not in enum"*) is retried at every open, until the file is fixed.
+
+(In 7.25.4 a projection only created and updated, and nothing recorded a
+write that failed.)
 
 **What the literal withdraws is said.** A literal that wins replaces the
 operator's work over the old file. The open logs ONE warning, *"Schema from C
@@ -1744,7 +1783,7 @@ The whole matrix, with `impose_c_schema` off on a master:
 | 2; an unsaved draft of `departments` | as the file | 3 | the literal runs; the draft is withdrawn: `"unsaved"` |
 | 2, an apply of `users` that ran | as the file | 3, `users` with another content | the literal runs; the running dynamic `users` is withdrawn: `"in_use"` |
 | 2 | as the file | 3, without `departments` | `departments` goes from the file and `__system__`, and does not open |
-| 2 | as the file | 3, without `departments`, a snapshot of `__system__` holds it | the literal runs; `__system__` keeps `departments` (unfinished, warning, `c_schema_version` 0, retried at every open, `save-schema` refuses) |
+| 2 | as the file | 3, without `departments`, a snapshot of `__system__` holds it | the literal runs; `__system__` keeps `departments` (unfinished and recorded, warning, `c_schema_version` 0, retried at every open, no draft, `save-schema` refuses) |
 | 2 | as the file | 3, `departments` renamed `sections` | `sections` is created; `departments` goes |
 | 2 | `users` 1 | 3, `users` changed at 1 | the file and `__system__` say the literal; the store runs its own `users`; warning |
 | none | anything | any | the literal runs, whole; *"No schema file in use: the treedb opens with the schema from C, projected whole over __system__"* |

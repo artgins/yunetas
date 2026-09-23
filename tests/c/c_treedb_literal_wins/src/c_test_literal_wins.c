@@ -1524,7 +1524,8 @@ PRIVATE int write_schema_file(hgobj gobj, const char *treedb_name, json_t *jn_sc
  *  withdraws it. The column the operator ADDS to users meanwhile is a
  *  draft: the retry of the projection replaces it, and SAYS so
  *  ("unsaved"). It was deleted in silence: every row that __system__ had
- *  and the file did not was taken for a leftover.
+ *  and the file did not was taken for a leftover. A column the operator
+ *  adds to the leftover topic itself makes that topic a draft too.
  ***************************************************************************/
 PRIVATE int scenario_draft_while_unfinished(hgobj gobj)
 {
@@ -1568,6 +1569,20 @@ PRIVATE int scenario_draft_while_unfinished(hgobj gobj)
         0, json_pack("{s:s}", "users", "unsaved"));
     close_db(gobj, db);
 
+    /*
+     *  A column added to the LEFTOVER topic makes it somebody's draft
+     */
+    if(open_db(gobj, db, schema_of(db, 2, json_pack("[o]",
+            topic_of("users", 2, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User")))
+        )), FALSE) < 0) {
+        return result - 1;
+    }
+    result += add_draft_col(gobj, db, "departments", "budget");
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: M1, a column added to a leftover topic is not a draft",
+        json_pack("{s:b}", "departments", 1));
+    close_db(gobj, db);
+
     result += delete_system_snap(gobj, db, "m1");
     if(open_db(gobj, db, schema_of(db, 2, json_pack("[o]",
             topic_of("users", 2, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User")))
@@ -1575,8 +1590,9 @@ PRIVATE int scenario_draft_while_unfinished(hgobj gobj)
         return result - 1;
     }
     result += check_agree(gobj, db, "TEST FAIL: M1, the projection was not completed");
-    result += check_withdrawn(gobj, db, "TEST FAIL: M1, completing the projection withdrew work",
-        0, json_object());
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: M1, completing the projection did not say the column added to the leftover",
+        0, json_pack("{s:s}", "departments", "unsaved"));
     close_db(gobj, db);
     return result;
 }
