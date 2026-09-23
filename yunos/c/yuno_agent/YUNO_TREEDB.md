@@ -1660,8 +1660,11 @@ it unfinished in the same way.
   `saved_schemas/<treedb>.unfinished.json` under the `__system__` tranger.
   `leftovers` holds every id that the projection left unlike the schema:
   the two lists, plus the columns of a topic that it could not remove or
-  write, but NOT an id that carries an operator's draft (see below). A
-  projection that succeeds removes the record. The record is written
+  write, but NOT an id that carries an operator's draft (see below).
+  `leftover_nodes` keeps what the projection left at each of these ids:
+  the node without its metadata, its editor geometry and (for a topic) its
+  columns, or `null` where it left nothing. A projection that succeeds
+  removes the record. The record is written
   whole: to `<treedb>.unfinished.json.new` (created `O_EXCL|O_NOFOLLOW`,
   flushed) and renamed over the old one, so the file is the old record or
   the new one, never half of one.
@@ -1672,7 +1675,12 @@ it unfinished in the same way.
  "not_written": [],
  "leftovers": ["treedb_x.departments", "treedb_x.users.departments",
                "treedb_x.departments.id", "treedb_x.departments.name"],
- "draft_kinds": {}}
+ "draft_kinds": {},
+ "leftover_nodes": {
+   "treedb_x.departments.name": {"id": "treedb_x.departments.name", "value": "name",
+                                 "topics": ["topics^treedb_x.departments^cols"],
+                                 "header": "Name", "type": "string", ...},
+   ...}}
 ```
 
 `draft_kinds` holds the kind (`"saved"` or `"unsaved"`) of each operator's
@@ -1693,7 +1701,8 @@ While the record is there:
     projects that literal, whole, as always (*"Updating TreeDB schema in
     __system__"*). An imposed open retries even when the literal is not
     newer than `__system__`.
-- What the record names in `leftovers` is nobody's draft, on every path.
+- What the record names in `leftovers` is nobody's draft, on every path,
+  as long as it stays as the projection left it (`leftover_nodes`).
   `saved-schema` does not name it in `draft_changed`, and the open that
   completes the projection does not report it in `withdrawn_at_open`.
 - An operator's draft is reported ONCE, by the open that REPLACES it in
@@ -1709,14 +1718,23 @@ While the record is there:
   leftover at every retry.
 - A column that the operator adds to a leftover topic makes that topic a
   draft too.
-- An EDIT of a leftover is NOT a draft, and it is lost in silence.
-  Leftovers are nobody's work, and the record keeps their ids, not their
-  content, so nothing can tell an edit from what the projection left. For
-  example, `departments` is a leftover, and the operator changes the
-  header of `treedb_x.departments.name` in `__system__`. `saved-schema`
-  shows no draft, and the open that completes the projection deletes the
-  column with its new header and reports nothing. To keep a change, ADD a
-  node (that makes the topic a draft), or finish the projection first.
+- An EDIT of a leftover IS a draft. When the node at a
+  leftover id is not what `leftover_nodes` kept (the operator changed it,
+  deleted it, or created a node where the projection left nothing), the
+  edit is the operator's work, like any other draft: `saved-schema` shows
+  it in `draft_changed`, a retry that cannot finish keeps it a draft (it
+  is not a leftover in the new record, and `draft_kinds` keeps its kind),
+  and the open that replaces it reports it in the WARNING and in
+  `withdrawn_at_open`. The kind follows the usual rules (`"unsaved"`, or
+  `"saved"` when a pending save carries it). For example, `departments` is
+  a leftover, and the operator changes the header of
+  `treedb_x.departments.name` in `__system__` to `"Operator name"`.
+  `saved-schema` answers `draft_changed: {"departments": true}`, and the
+  open that removes `departments` answers
+  `withdrawn_at_open: {"topics": {"departments": "unsaved"}, ...}`. The same
+  holds for an attribute of the topic itself, for example `main_topic` of
+  `treedb_x.departments`. A record without `leftover_nodes` takes every
+  leftover as left.
 - `treedbs` and `saved-schema` answer `unfinished_projection`: the ids of
   `not_removed` and `not_written` (`[]` when the projection is complete).
 - `save-schema` refuses: `-1` *"<role^name>: the projection of 'treedb_x'
@@ -1781,10 +1799,28 @@ last topic is written. If the process dies between the two, the node says 0,
 there is no record, and some topics (or none) are in `__system__`. The next
 open finds a projection that was never stamped: `schema_version` 0 in the
 node, no record, and a file in use with a `schema_version` of 1 or more.
-It completes it, on every path (also when the file runs), and it logs
-*"Completing the projection into __system__, left unfinished by an earlier
-open"* with `why`: `"never stamped (schema_version 0), no record"`. Nothing
-in that projection is a draft, and nothing is reported. For example, after
+It completes it, on every path. The INFO line depends on the path:
+
+- When the file runs (no newer literal), the open logs *"Completing the
+  projection into __system__, left unfinished by an earlier open"*, with
+  `why`:
+
+  ```json
+  {"msg": "Completing the projection into __system__, left unfinished by an earlier open",
+   "treedb_name": "treedb_x", "why": "never stamped (schema_version 0), no record",
+   "source": "schema from C", "schema_version": 1, "stored_version": 0}
+  ```
+
+- When a newer literal is installed, or the literal is imposed, the open
+  projects that literal as always, and logs *"Updating TreeDB schema in
+  __system__"* (no `why`):
+
+  ```json
+  {"msg": "Updating TreeDB schema in __system__",
+   "treedb_name": "treedb_x", "schema_version": 2, "stored_version": 0, "in_use_version": 1}
+  ```
+
+Nothing in that projection is a draft, and nothing is reported. For example, after
 `delete-treedb` of `treedb_x` and a crash in the first open that follows:
 
 ```json
@@ -1810,7 +1846,13 @@ open of that treedb:
 | `"applied"` | a topic of an apply that never ran: `apply-schema` wrote the file, and no open read it |
 | `"in_use"` | a topic of an apply that RAN: an open read it, and the treedb was running that dynamic schema (after 7.25.4) |
 | `"saved"` | the draft of a topic that a pending `save-schema` published: an edit of the topic, or its deletion (the operator deleted the topic, and the saved schema does not declare it) |
-| `"unsaved"` | a draft never saved: a topic of `__system__` that differs from the file, or a topic of the file that the operator deleted from `__system__` |
+| `"unsaved"` | a draft never saved: a topic of `__system__` that differs from the file, a topic of the file that the operator deleted from `__system__`, or a topic that the operator added to `__system__` and the pending saved schema does not declare |
+
+A topic that the operator ADDED is `"saved"` only when the pending saved
+schema declares it. For example, the operator edits `users`, runs
+`save-schema`, and then adds a topic `groups` without saving again. A newer
+literal reports `{"users": "saved", "groups": "unsaved"}`, whether or not
+the literal declares `groups`.
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=treedbs command=saved-schema treedb_name=treedb_x'
@@ -2305,6 +2347,11 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    version is unknown, so nothing says it is a pending save; the next
    `save-schema` writes over it. Until 7.25.4 it answered `saved: false`
    with nothing to say why.
+
+   A pending saved schema with NO topics (for example, written by hand)
+   answers `saved: true` and `can_apply: false`, with the comment *"the saved
+   schema of 'treedb_x' has no topics: apply-schema refuses it, a treedb
+   without topics does not open"*. `apply-schema` refuses it (see below).
 3. **`apply-schema treedb_name=X`** puts the saved schema in place of the file
    in use — only on the master, only when C does not impose that treedb's
    schema (the literal would overwrite it at the next open), and only when the
@@ -2649,7 +2696,9 @@ ycommand -c 'command-yuno id=<id> service=<treedb> command=set-link-events'   # 
 ```
 
 It needs the `update` permission and is **not persistent**: the next start
-takes the configured value again. Put `with_link_events` in the yuno's
+takes the configured value again. Writing the attribute while the treedb is
+not open (before its open, or after an open that failed) changes nothing at
+that moment and logs nothing: the open reads the attribute. Put `with_link_events` in the yuno's
 `C_TREEDB` config for a lasting default. Two things bite here:
 
 - **It is an either/or, not additive.** With the flag ON, a link/unlink
