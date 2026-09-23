@@ -1719,8 +1719,9 @@ opened. A key fails:
   yuno's back;
 - after a RESTART, when the topic's cache, built from disk at the open,
   could not count a `.md2` file of the key: one that cannot be opened or
-  read. Up to 7.25.4 the cache build dropped such a file and nothing
-  failed: after a restart the guards below never fired.
+  read, or one that ends on no row boundary and must not be cut (below).
+  Up to 7.25.4 the cache build dropped such a file and nothing failed:
+  after a restart the guards below never fired.
 
 A `.md2` whose size is not a whole number of 32-byte rows does not fail the
 key. Its last row is torn: a power cut during the write of the row, an
@@ -1734,10 +1735,31 @@ WARNING load_first_and_last_record_md: md2 file of the key ends in a part of a r
       old_size=1285 new_size=1280
 ```
 
-The cut never removes a whole row. A replica does not cut: it reads the
-whole rows, and the master cuts the file when it opens the store. (Up to
-7.25.4 the cache build left such a file out of the key with a CRITICAL, and
-nothing failed.)
+The cut removes fewer than 32 bytes, all after the last whole row. A replica
+does not cut: it reads the whole rows, and the master cuts the file when it
+opens the store. (Up to 7.25.4 the cache build left such a file out of the
+key with a CRITICAL, and nothing failed.)
+
+The master cuts only a tail that is a torn row after a valid last row. Two
+other shapes also end on no row boundary. They are NOT cut, the bytes of the
+file do not change, and the key fails (a replica makes the same check):
+
+- a `.md2` that 7.25.4 wrote after a torn row. 7.25.4 did not cut a torn row
+  back: the next appends wrote their rows after the torn bytes, on no row
+  boundary, and those rows were acknowledged. The last 32 bytes of the file
+  are a whole row whose content ends exactly at the end of the `.json`. A cut
+  would remove the end of that row:
+
+  ```text
+  CRITICAL check_torn_md2_tail: md2 file of the key ends in a whole row that is not on a row
+        boundary: written by 7.25.4 after a torn row; not cut, repair it by hand
+        topic=items key=k2 file_id=2026-09-23 path=<store>/items/keys/k2/2026-09-23.md2
+        md2_size=173 content_size=192 row_at=141 __offset__=160 __size__=32
+  ```
+
+- a `.md2` whose last whole row is not a valid row (its content goes past
+  the end of the `.json`): *"md2 file of the key ends in a part of a row
+  after a last whole row that is not valid: not cut, repair it by hand"*.
 
 A `.md2` of 0 bytes whose `.json` is NOT empty does not fail the key. It is
 the shape an append that was never acknowledged leaves: the content is
@@ -1799,8 +1821,10 @@ a tagged record):
 2. Look at the key's directory, `<store>/<topic>/keys/<key>/`: a `.md2`
    shorter than what was written (the rows past its end fail); a `.json`
    that was cut (a row's content past its end fails); a file the yuno's user
-   cannot read. (A `.md2` whose size is not a multiple of 32 bytes is not on
-   this list: the master cuts it back itself, see above.)
+   cannot read; a `.md2` whose size is not a multiple of 32 bytes, when the
+   log has one of the two CRITICALs above (*"...not cut, repair it by
+   hand"*). Without them, such a `.md2` is not on this list: the master cuts
+   it back itself, see above.
 3. Repair it with the yuno STOPPED (the running yuno caches the store and
    writes it), with the least that brings the file back, in this order:
    - a file the yuno's user cannot read: give it back its owner and mode;
@@ -1819,8 +1843,53 @@ a tagged record):
      stat -c %s $f                             # 1280
      ```
 
-   - anything else: put the key's directory back from a backup copy of the
-     store.
+   - a `.md2` that 7.25.4 wrote after a torn row (*"md2 file of the key ends
+     in a whole row that is not on a row boundary: written by 7.25.4 after a
+     torn row; not cut, repair it by hand"*): remove the bytes of the torn
+     row, not the end of the file. They are `size % 32` bytes (13 in the log
+     above) and they start on a row boundary. The script below tries each
+     row boundary, and keeps the one where, with those bytes removed, every
+     row is valid (`__size__ > 0`, content inside the `.json`), each row's
+     content comes after the content of the row before, and the last row
+     ends the `.json`. It writes the result only when exactly one boundary
+     passes. Keep a copy, and write the result back into the same file
+     (`cat >` keeps its owner and mode):
+
+     ```bash
+     cd <store>/items/keys/k2                  # topic, key and file: from the log
+     f=2026-09-23.md2
+     cp -p $f /root/$f.orig                    # keep the original
+     python3 - $f <<'EOF'
+     import os, struct, sys
+     md2 = sys.argv[1]
+     content = os.path.getsize(md2[:-4] + '.json')
+     b = open(md2, 'rb').read()
+     k = len(b) % 32                           # the bytes of the torn row
+     def good(rows):
+         end = 0                               # where the content of the row before ends
+         for at in range(0, len(rows), 32):
+             offset, size = struct.unpack('>QQ', rows[at+16:at+32])
+             if size == 0 or offset < end or offset + size > content:
+                 return False
+             end = offset + size
+         return end == content
+     found = [at for at in range(0, len(b) - k, 32) if good(b[:at] + b[at+k:])]
+     print('torn row at', found, 'of', k, 'bytes')
+     if len(found) == 1:
+         open(md2 + '.new', 'wb').write(b[:found[0]] + b[found[0]+k:])
+     EOF
+     cat $f.new > $f && rm $f.new              # 'torn row at [96] of 13 bytes'
+     stat -c %s $f                             # 160: 5 whole rows
+     ```
+
+     The row whose append was refused is gone (it was never acknowledged);
+     its content stays in the `.json`, and no row names it. Every row that
+     7.25.4 acknowledged is read again. When the script prints no boundary,
+     or more than one, it writes nothing (and `cat` fails): put the key's
+     directory back from a backup copy.
+
+   - anything else (a last whole row that is not valid, too): put the key's
+     directory back from a backup copy of the store.
 
    Only when the records of the key are lost for good and that is
    acceptable, remove the key, on the master, with the `delete-key` command

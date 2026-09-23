@@ -223,9 +223,15 @@ WARNING tranger2_append_record: md2 file of the key ends in a part of a row: an 
 
 If that cut fails, the append is refused with `-1` and its content is cut back
 (*"Cannot append record, its md2 file ends in a part of a row that cannot be
-cut back: the append is refused"*). Before this, the row went after the torn
-bytes: no read found it, and the cut at the next open removed bytes of that
-acknowledged row.
+cut back: the append is refused"*). The append cuts only a tail that is a torn
+row after a valid last row, the same check as the open (see
+[`tranger2_open_iterator()`](#tranger2_open_iterator)). For any other tail it
+does not cut: it is refused with `-1`, its content is cut back, and the md2
+does not change (*"Cannot append record, its md2 file ends in a part of a row
+that must not be cut back: the append is refused"*, after the CRITICAL that
+names the shape). Up to 7.25.4 nothing cut a torn row back: an append wrote
+its row after the torn bytes, and the cache build left the whole file out of
+the key, so no read found that row.
 
 **An append into a file flagged unreadable** (a `.md2` the cache build could
 not count, see the same section) counts the file again first. If it can be read
@@ -1457,14 +1463,48 @@ WARNING: md2 file of the key ends in a part of a row: an append that was never
 forward load   -> the rows of days 1, 2 (3 rows) and 3, load_failed false
 ```
 
-The cut removes fewer than 32 bytes, all after the last whole row, so it
-never removes a row that was acknowledged. The `.json` is left as it is: its
-bytes after the last row belong to no row, and the next append writes at its
-end. If the cut itself fails, that is damage: the file is flagged as above
-(*"Cannot cut back a md2 file that ends in a part of a row: the file is
-damaged"*). A torn first row (a `.md2` of fewer than 32 bytes) is cut to 0
-bytes, and the file is then a `.md2` of 0 rows, ignored with the warning
-above.
+The cut removes fewer than 32 bytes, all after the last whole row. The
+`.json` is left as it is: its bytes after the last row belong to no row, and
+the next append writes at its end. If the cut itself fails, that is damage:
+the file is flagged as above (*"Cannot cut back a md2 file that ends in a part
+of a row: the file is damaged"*). A torn first row (a `.md2` of fewer than 32
+bytes) is cut to 0 bytes, and the file is then a `.md2` of 0 rows, ignored
+with the warning above.
+
+**Not every tail on no row boundary is a torn row.** 7.25.4 did not cut a torn
+row back: the next appends wrote their rows after the torn bytes, on no row
+boundary, and those rows were acknowledged. In such a file the last 32 bytes
+are a whole row, and a cut removes the end of it. So the tail is cut only when
+it is a torn row after a valid last row:
+
+1. the last 32 bytes of the `.md2` are NOT a row whose content ends exactly at
+   the end of the `.json` (`__size__ > 0` and `__offset__ + __size__` equal to
+   the size of the `.json`), and
+2. the last whole row IS a valid row (`__size__ > 0`, its content inside the
+   `.json`).
+
+For a torn row, the last 32 bytes are the end of the last whole row and the
+start of the torn one: read as a row, their `__offset__` and `__size__` are
+bytes moved out of their fields, and their sum is the size of the `.json`
+only by a coincidence of 64-bit values. When a rule fails, the file is NOT
+cut: a CRITICAL names the shape, the file is flagged as above, and the key
+says `load_failed` until the file is repaired by hand (see
+[the repair in treedb](<treedb.md#treedb-topic-not-loaded-whole>)). The
+bytes of the file do not change:
+
+```text
+CRITICAL: md2 file of the key ends in a whole row that is not on a row boundary:
+          written by 7.25.4 after a torn row; not cut, repair it by hand
+          topic=devices key=A file_id=2000-01-02
+          path=<store>/devices/keys/A/2000-01-02.md2 md2_size=173
+          content_size=192 row_at=141 __offset__=160 __size__=32
+CRITICAL: md2 file of the key ends in a part of a row after a last whole row
+          that is not valid: not cut, repair it by hand
+          topic=devices key=A file_id=2000-01-02 ... row_at=64
+```
+
+A replica makes the same check, and flags the file the same way: it does not
+read rows that are not on a row boundary.
 
 A REPLICA never writes. It reads only the whole rows of such a file, and logs
 nothing for the torn row: a replica also sees a torn row while a live master

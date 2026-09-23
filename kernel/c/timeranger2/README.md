@@ -264,8 +264,9 @@ either. Its last row is torn: a power cut came during the write of the row,
 and the md2 row is the commit point of an append, so that append was never
 acknowledged. A MASTER cuts the `.md2` back to its whole rows
 (`floor(size / 32) * 32`) when it first reads the file -- the cache build at
-the open, or the count of a flagged file -- logs ONE warning, and the key
-loads whole. The next append goes into the same file. The `.json` is left as
+the open, the count of a flagged file, or the read of the key again after a
+`tranger2_delete_key()` that could not remove the key's directory -- logs ONE
+warning, and the key loads whole. The next append goes into the same file. The `.json` is left as
 it is: its bytes after the last row belong to no row.
 
 ```text
@@ -275,14 +276,36 @@ WARNING: {"function": "load_first_and_last_record_md", "msgset": "Tranger",
     "path": "<store>/alarms/keys/dev1/2026.md2", "old_size": 109, "new_size": 96}
 ```
 
-The cut removes fewer than 32 bytes, all after the last whole row, so it never
-removes an acknowledged row: an append always writes its row on a row
-boundary. If the md2 of a running master ends in a torn row (a row written in
-part whose cut back failed), the next append cuts it back first, with the same
-warning, and a cut that fails refuses that append. A cut that fails at the open
-is damage (the file is flagged). A REPLICA never writes: it reads the whole
-rows and logs nothing for the torn row, because it also sees a torn row while
-a live master writes it. The exception is a file with no whole row: for the
+The cut removes fewer than 32 bytes, all after the last whole row. An append
+writes its row on a row boundary: if the md2 of a running master ends in a torn
+row (a row written in part whose cut back failed), the next append cuts it back
+first, with the same warning, and a cut that fails refuses that append. A cut
+that fails at the open is damage (the file is flagged).
+
+7.25.4 did not cut a torn row back: the next appends wrote their rows after the
+torn bytes, on no row boundary, and those rows were acknowledged. A cut of
+such a file removes the end of its last acknowledged row. So every cut (open,
+flagged count, delete-key read, append) first checks that the tail is a torn
+row after a valid last row: the last 32 bytes are NOT a row whose content ends
+exactly at the end of the `.json`, and the last whole row IS a valid row. If
+not, the file is not cut and its bytes do not change: a CRITICAL names the
+shape, the cache build flags the file (every load of the key says
+`load_failed`), and an append into it is refused. The file is repaired by
+hand (the repair is in the treedb docs, *A topic that did not load whole*):
+
+```text
+CRITICAL: {"function": "check_torn_md2_tail", "msgset": "Tranger",
+    "msg": "md2 file of the key ends in a whole row that is not on a row boundary: written by 7.25.4 after a torn row; not cut, repair it by hand",
+    "topic": "alarms", "key": "dev1", "file_id": "2026",
+    "path": "<store>/alarms/keys/dev1/2026.md2", "md2_size": 173,
+    "content_size": 192, "row_at": 141, "__offset__": 160, "__size__": 32}
+```
+
+The other shape is *"md2 file of the key ends in a part of a row after a last
+whole row that is not valid: not cut, repair it by hand"*. A REPLICA never
+writes: it reads the whole rows and logs nothing for a torn row, because it
+also sees a torn row while a live master writes it. It makes the same check,
+so it does not read the rows of a file that 7.25.4 wrote on no row boundary. The exception is a file with no whole row: for the
 replica it is a md2 of 0 rows, and with its content not empty it gets the
 0-rows warning above. Up to 7.25.4 the cache build logged a CRITICAL
 (*"Cannot read last record, md2 file corrupted"*) and left the whole file out
