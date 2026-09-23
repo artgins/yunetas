@@ -103,6 +103,7 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
 #define M_REPLICA       "The store of the treedb is not written here: it opens as a replica and runs its schema file, __system__ is not reconciled"
 #define M_NO_TOPICS_SAVE "Draft of a treedb schema with no topics: not saved, a treedb without topics does not open"
 #define M_NO_TOPICS_APPLY "Saved treedb schema with no topics: not applied, a treedb without topics does not open"
+#define M_OTHER_META    "Leftovers of an unfinished projection were kept under another meta-schema: every leftover is taken as left, an edit of one made meanwhile is not told apart"
 #define M_UNREADABLE    "Record of an unfinished projection cannot be read: the projection is unfinished, what it left is unknown; every open retries it, save-schema refuses, and what __system__ holds over the file is taken for drafts"
 
 /*
@@ -811,6 +812,44 @@ PRIVATE const char *expected_log_msgs[] = {
     M_COMPLETING,
     M_REMOVED,
     M_WITHDREW,
+
+    /*  FW (tw_fw): a write of the projection fails on disk (the files of
+     *  users.username read-only); after a restart the open that completes
+     *  it says nothing  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    "Cannot create json file",
+    "Cannot open file to write",
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    M_COMPLETING,
+
+    /*  MS (tw_ms): the leftovers were kept under an older meta-schema:
+     *  every leftover is taken as left, and that is said  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    M_COMPLETING,
+    M_OTHER_META,
+    M_REMOVED,
 
     /*  end  */
     "All treedb literal wins tests PASSED",

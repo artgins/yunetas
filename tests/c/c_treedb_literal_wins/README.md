@@ -39,7 +39,7 @@ places of the schema agree: what the store RUNS (the open topics, their
 | LOCK | `tw_lock` | The store of the treedb is locked (as by another process): it opens as a replica and `__system__` is not reconciled. When the lock is free, the literal is installed and projected. |
 | REC | `tw_rec` | The record of an apply cannot be written: the apply is refused and the file in use does not change. |
 | M1 | `tw_m1` | A projection is unfinished (a snapshot holds `departments`). `saved-schema` does not show the leftover as a draft. The operator adds a column to `users`: it is the only draft. The retry of the projection replaces that column and reports `users` as `unsaved`. A column added to the leftover topic makes that topic a draft: when the snapshot is gone, the projection completes and reports `departments` as `unsaved`. |
-| M2 | `tw_m2i`, `tw_m2d` | The leftover of an unfinished projection is not reported as withdrawn work when the projection completes: on the imposed retry, and when a newer literal arrives. |
+| M2 | `tw_m2i`, `tw_m2d` | An unedited leftover of an unfinished projection is not reported as withdrawn work when the projection completes: on the imposed retry, and when a newer literal arrives. |
 | L1 | `tw_l1` | A projection seeded from a dynamic file (`c_schema_version` 0) is not unfinished. The file itself, as the literal, projects nothing: the operator's column and header draft stay, nothing is reported. |
 | L3 | `tw_l3` | The process died between the record of an apply and its rename (the record is written by hand). The next apply keeps the topics of the apply that ran, from the record's `previous`: a newer literal reports `users` as `in_use` and `departments` as `applied`. |
 | L4 | `tw_l4` | A projection seeded from the file fails (a column flag that the meta-schema refuses). It is recorded, retried at every open, its partial projection is no draft, and `save-schema` refuses. When the file is fixed, the next open completes it. |
@@ -54,17 +54,28 @@ places of the schema agree: what the store RUNS (the open topics, their
 | N4 | `tw_n4` | A SAVED draft on the topic that the literal removes, and a snapshot refuses the delete. The first open reports only the withdrawn saved schema, and the record keeps `draft_kinds: {"departments": "saved"}`. When the snapshot is gone, the open that completes the projection reports `departments` as `saved`. |
 | LE | `tw_lec`, `tw_let` | A snapshot holds `departments`, which the literal removes, so it is a leftover. The operator edits it: the header of `departments.name` (`tw_lec`), or the attribute `main_topic` of the topic (`tw_let`). The edit is a draft: `saved-schema` shows `departments` in `draft_changed`. A retry that cannot finish reports nothing, keeps the edit a draft (the edited column is not a leftover in the new record, `draft_kinds` keeps `"unsaved"`). The open that removes the topic reports `departments` as `unsaved`. |
 | AD | `tw_adu`, `tw_adl`, `tw_adr`, `tw_dlu`, `tw_ads` | A save of `users` is pending, and the operator adds a topic `groups` that is not saved. A newer literal reports `groups` as `unsaved`, not `saved`: when the literal does not declare it (`tw_adu`), when it does (`tw_adl`), and through a projection that a snapshot leaves unfinished, where the record keeps `draft_kinds: {"groups": "unsaved"}` (`tw_adr`). The cases next to it do not change: an unsaved deletion with another save pending is `unsaved` (`tw_dlu`), and an added topic that was saved is `saved` (`tw_ads`). |
+| FW | `tw_fw` | A write of the projection fails on disk (the files of `users.username` are read-only): the node in memory took the update, the disk did not, and the record lists the column in `not_written`. After a restart of `__system__` (it is loaded from disk again), the open that completes the projection reports nothing. |
+| MS | `tw_ms` | The leftovers were kept under an older meta-schema (the record has a lower `system_schema_version`, and the kept columns have no `description`, as if the newer meta-schema added it). Every leftover is taken as left, a WARNING says it, and the open that completes the projection reports nothing. |
 
 An unfinished projection is RECORDED in
 `saved_schemas/<treedb>.unfinished.json` under the `__system__` tranger. The
-record says which ids of `__system__` the projection left. Only these are
-not drafts, on every path. An operator's draft that the projection cannot
-replace is not a leftover: it stays a draft, the record keeps its kind
-(`draft_kinds`), and the open that replaces it reports it with that kind.
+record says which ids of `__system__` the projection left. Only these, while
+they stay as the projection left them, are not drafts, on every path. An
+operator's draft that the projection cannot replace is not a leftover: it
+stays a draft, the record keeps its kind (`draft_kinds`), and the open that
+replaces it reports it with that kind.
 The record also keeps what the projection left at each of those ids
-(`leftover_nodes`). A leftover that the operator EDITS afterwards is no
-longer as the projection left it: the edit is a draft like any other, and
-the open that replaces it reports it (see YUNO_TREEDB.md §3.11).
+(`leftover_nodes`): only the attributes that a projection writes (for a
+column: `value`, `order` and the attributes of the column descriptor; for a
+topic: `value`, `order`, `pkey`, `pkey2s`, `system_flag`, `tkey`,
+`topic_version`, `system_topic`, `main_topic`), and the version of the
+meta-schema (`system_schema_version`). A leftover that the operator EDITS
+afterwards in one of those attributes is no longer as the projection left
+it: the edit is a draft like any other, and the open that replaces it
+reports it (see YUNO_TREEDB.md §3.11). A link and the editor geometry are
+not compared. No node is kept for an id that the projection failed to write
+(`not_written`): it is taken as left. When the meta-schema version changed,
+every leftover is taken as left, with a WARNING.
 
 The expected log list in `src/main.c` is strict FIFO: every line from INFO
 up, in order.

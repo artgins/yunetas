@@ -3917,14 +3917,16 @@ PRIVATE const char *draft_kind(
  *       "leftovers": ["tw.departments", "tw.departments.id",
  *                     "tw.departments.name"],
  *       "draft_kinds": {"users": "saved"},     // drafts it could not replace
- *       "leftover_nodes": {"tw.departments": {...}, ...}}
+ *       "leftover_nodes": {"tw.departments": {...}, ...},
+ *       "system_schema_version": 18}           // meta-schema of those nodes
  *
  *  `leftovers` is every id of __system__ the projection left unlike the
  *  schema: the ids of the two lists, and the columns of a topic that it
  *  could not remove or write. They are nobody's draft while they stay as
- *  the projection left them: `leftover_nodes` keeps what was there (added
- *  when the record is written, see keep_leftover_nodes), and an EDIT of a
- *  leftover is the operator's work (see leftovers_as_left). An id that
+ *  the projection left them: `leftover_nodes` keeps what was there, the
+ *  attributes a projection writes (added when the record is written, with
+ *  the meta-schema version, see keep_leftover_nodes), and an EDIT of one
+ *  of those is the operator's work (see leftovers_as_left). An id that
  *  carries an operator's draft is NOT a leftover, although it is in a
  *  list: the projection could not replace the draft, so it is still one
  *  (see upsert_treedb_schema). `draft_kinds` keeps what kind of draft each of
@@ -5345,17 +5347,63 @@ PRIVATE json_t *ids_as_dict(json_t *ids) // not owned, may be NULL
 }
 
 /***************************************************************************
- *  What is at the id `id` of __system__, a topic or a column in `tree`
- *  (the node tree of the treedb): the node without what says how it is
- *  stored (its metadata, its editor geometry, the columns a topic hooks).
- *  json null when nothing is there. Return is YOURS.
+ *  The attributes a projection WRITES in a topic (`is_topic`) or in a
+ *  column of __system__, {attr: true}: the fields a schema declares. They
+ *  are read from build_topic_projection() and build_col_projection()
+ *  themselves, projecting a topic or a column that carries every field
+ *  they know (the columns': every attribute of `cols_desc`), so a field
+ *  they learn is learned here too. The rest of a node says how it is
+ *  STORED -- its id, its links, its editor geometry, its metadata -- and a
+ *  change there is no edit of the schema. Return is YOURS.
  ***************************************************************************/
-PRIVATE json_t *leftover_node(hgobj gobj, json_t *tree, const char *id)
+PRIVATE json_t *projection_attrs(hgobj gobj, BOOL is_topic, json_t *cols_desc)
+{
+    json_t *projected;
+    if(is_topic) {
+        json_t *jn_topic = json_pack("{s:{}}", "pkey2s");
+        projected = build_topic_projection(gobj, jn_topic, "-", 0, 0);
+        JSON_DECREF(jn_topic)
+    } else {
+        json_t *jn_col = json_pack("{s:s, s:s}", "id", "-", "type", "-");
+        int idx; json_t *desc_entry;
+        json_array_foreach(cols_desc, idx, desc_entry) {
+            const char *attr = kw_get_str(gobj, desc_entry, "id", "", 0);
+            if(!empty_string(attr) && !json_object_get(jn_col, attr)) {
+                json_object_set_new(jn_col, attr, json_null());
+            }
+        }
+        projected = build_col_projection(gobj, jn_col, cols_desc, 0);
+        JSON_DECREF(jn_col)
+    }
+
+    json_t *attrs = json_object();
+    const char *attr; json_t *v;
+    json_object_foreach(projected, attr, v) {
+        json_object_set_new(attrs, attr, json_true());
+    }
+    JSON_DECREF(projected)
+    return attrs;
+}
+
+/***************************************************************************
+ *  What is at the id `id` of __system__, a topic or a column in `tree`
+ *  (the node tree of the treedb), as the schema declares it: only the
+ *  attributes a projection writes (`topic_attrs` or `col_attrs`, see
+ *  projection_attrs). json null when nothing is there. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *leftover_node(
+    hgobj gobj,
+    json_t *tree,
+    const char *id,
+    json_t *topic_attrs,    // not owned
+    json_t *col_attrs       // not owned
+)
 {
     json_t *topics = kw_get_dict(gobj, tree, "topics", 0, 0);
     json_t *node = json_object_get(topics, id);
-    BOOL is_topic = node? TRUE: FALSE;
+    json_t *attrs = topic_attrs;
     if(!node) {
+        attrs = col_attrs;
         const char *topic_id; json_t *topic;
         json_object_foreach(topics, topic_id, topic) {
             node = json_object_get(kw_get_dict(gobj, topic, "cols", 0, 0), id);
@@ -5367,11 +5415,12 @@ PRIVATE json_t *leftover_node(hgobj gobj, json_t *tree, const char *id)
     if(!node) {
         return json_null();
     }
-    json_t *copy = json_deep_copy(node);
-    json_object_del(copy, "__md_treedb__");
-    json_object_del(copy, "_geometry");
-    if(is_topic) {
-        json_object_del(copy, "cols");
+    json_t *copy = json_object();
+    const char *attr; json_t *v;
+    json_object_foreach(node, attr, v) {
+        if(json_object_get(attrs, attr)) {
+            json_object_set_new(copy, attr, json_deep_copy(v));
+        }
     }
     return copy;
 }
@@ -5379,15 +5428,33 @@ PRIVATE json_t *leftover_node(hgobj gobj, json_t *tree, const char *id)
 /***************************************************************************
  *  Keep in the record of an unfinished projection what it LEFT at each
  *  leftover id (`leftover_nodes`, {id: node or null}, see leftover_node),
- *  so a later open can tell the leftover from an operator's edit of it
- *  (see leftovers_as_left). Without the tree of the treedb (logged) no
- *  node is kept, and every leftover is then taken as left.
+ *  and the version of the meta-schema that says what those nodes hold
+ *  (`system_schema_version`), so a later open can tell the leftover from
+ *  an operator's edit of it (see leftovers_as_left).
+ *
+ *  No node is kept for an id the projection failed to WRITE
+ *  (`not_written`): a write updates the node in memory before it saves
+ *  it, and is not taken back when the save fails, so memory may say what
+ *  the disk does not, and after a restart the disk is what is read. The
+ *  record cannot say what is on disk there: the id is taken as left.
+ *  Without the tree of the treedb (logged) no node is kept, and every
+ *  leftover is then taken as left.
  ***************************************************************************/
 PRIVATE void keep_leftover_nodes(hgobj gobj, const char *treedb_name, json_t *unfinished)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *nodes = json_object();
+    json_object_set_new(unfinished, "leftover_nodes", nodes);
+    json_object_set_new(unfinished, "system_schema_version",
+        json_integer(priv->system_schema_version)
+    );
+
+    json_t *leftovers = json_object_get(unfinished, "leftovers");
+    if(json_array_size(leftovers) == 0) {
+        return;
+    }
+
     json_t *tree = gobj_node_tree(
         priv->gobj_node_system,
         "treedbs",
@@ -5396,28 +5463,57 @@ PRIVATE void keep_leftover_nodes(hgobj gobj, const char *treedb_name, json_t *un
         gobj
     );
     if(!tree) {
-        json_object_set_new(unfinished, "leftover_nodes", nodes);
         return;     // Error already logged
     }
+
+    json_t *cols_desc = _treedb_create_topic_cols_desc();
+    json_t *topic_attrs = projection_attrs(gobj, TRUE, cols_desc);
+    json_t *col_attrs = projection_attrs(gobj, FALSE, cols_desc);
+    json_t *not_written = ids_as_dict(json_object_get(unfinished, "not_written"));
+
     int idx; json_t *jn_id;
-    json_array_foreach(json_object_get(unfinished, "leftovers"), idx, jn_id) {
+    json_array_foreach(leftovers, idx, jn_id) {
         const char *id = json_string_value(jn_id);
-        if(id) {
-            json_object_set_new(nodes, id, leftover_node(gobj, tree, id));
+        if(!id) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Leftover id of an unfinished projection is not a string: no node kept for it",
+                "treedb_name",  "%s", treedb_name,
+                "id",           "%j", jn_id,
+                NULL
+            );
+            continue;
         }
+        if(json_object_get(not_written, id)) {
+            continue;
+        }
+        json_object_set_new(nodes, id, leftover_node(gobj, tree, id, topic_attrs, col_attrs));
     }
+
+    JSON_DECREF(not_written)
+    JSON_DECREF(col_attrs)
+    JSON_DECREF(topic_attrs)
+    JSON_DECREF(cols_desc)
     JSON_DECREF(tree)
-    json_object_set_new(unfinished, "leftover_nodes", nodes);
 }
 
 /***************************************************************************
  *  The leftovers of an unfinished projection (`record`, see
  *  load_unfinished_record) that are still as it LEFT them. An id whose
  *  node in __system__ is not what the record kept (`leftover_nodes`) was
- *  edited since -- changed, deleted, or created where the projection left
- *  nothing -- and that edit is the operator's work: a draft like any
- *  other, reported by the open that replaces it. An id the record kept no
- *  node for is taken as left.
+ *  edited since -- an attribute the projection writes changed (see
+ *  projection_attrs), the node deleted, or one created where the
+ *  projection left nothing -- and that edit is the operator's work: a
+ *  draft like any other, reported by the open that replaces it. A link or
+ *  an editor geometry is not compared: it is how the node is stored.
+ *
+ *  An id the record kept no node for is taken as left (see
+ *  keep_leftover_nodes). So is every id when the nodes were kept under
+ *  another meta-schema (the record's `system_schema_version`): a field it
+ *  added or changed reads as an edit of every node, and nobody made it.
+ *  That is said, as a WARNING: an operator's edit of a leftover made
+ *  meanwhile is not told apart any more.
  *
  *  Return is YOURS, a list of ids, NULL when there is no record.
  ***************************************************************************/
@@ -5434,6 +5530,22 @@ PRIVATE json_t *leftovers_as_left(hgobj gobj, const char *treedb_name, json_t *r
         return json_incref(leftovers);
     }
 
+    json_int_t kept_meta = kw_get_int(
+        gobj, record, "system_schema_version", 0, KW_WILD_NUMBER
+    );
+    if(kept_meta != priv->system_schema_version) {
+        gobj_log_warning(gobj, 0,
+            "function",                 "%s", __FUNCTION__,
+            "msgset",                   "%s", MSGSET_TREEDB,
+            "msg",                      "%s", "Leftovers of an unfinished projection were kept under another meta-schema: every leftover is taken as left, an edit of one made meanwhile is not told apart",
+            "treedb_name",              "%s", treedb_name,
+            "record_system_schema_version", "%d", (int)kept_meta,
+            "system_schema_version",    "%d", (int)priv->system_schema_version,
+            NULL
+        );
+        return json_incref(leftovers);
+    }
+
     json_t *tree = gobj_node_tree(
         priv->gobj_node_system,
         "treedbs",
@@ -5445,11 +5557,23 @@ PRIVATE json_t *leftovers_as_left(hgobj gobj, const char *treedb_name, json_t *r
         return json_incref(leftovers);  // Error already logged
     }
 
+    json_t *cols_desc = _treedb_create_topic_cols_desc();
+    json_t *topic_attrs = projection_attrs(gobj, TRUE, cols_desc);
+    json_t *col_attrs = projection_attrs(gobj, FALSE, cols_desc);
+
     json_t *left = json_array();
     int idx; json_t *jn_id;
     json_array_foreach(leftovers, idx, jn_id) {
         const char *id = json_string_value(jn_id);
         if(!id) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Leftover id of an unfinished projection is not a string: skipped",
+                "treedb_name",  "%s", treedb_name,
+                "id",           "%j", jn_id,
+                NULL
+            );
             continue;
         }
         json_t *node_then = json_object_get(kept, id);
@@ -5457,12 +5581,16 @@ PRIVATE json_t *leftovers_as_left(hgobj gobj, const char *treedb_name, json_t *r
             json_array_append(left, jn_id);
             continue;
         }
-        json_t *node_now = leftover_node(gobj, tree, id);
+        json_t *node_now = leftover_node(gobj, tree, id, topic_attrs, col_attrs);
         if(json_equal(node_now, node_then)) {
             json_array_append(left, jn_id);
         }
         JSON_DECREF(node_now)
     }
+
+    JSON_DECREF(col_attrs)
+    JSON_DECREF(topic_attrs)
+    JSON_DECREF(cols_desc)
     JSON_DECREF(tree)
     return left;
 }

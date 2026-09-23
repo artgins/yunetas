@@ -29,6 +29,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/file.h>
+#include <sys/stat.h>
+#include <dirent.h>
 
 #include "c_test_literal_wins.h"
 
@@ -2818,6 +2820,197 @@ PRIVATE int scenario_edited_leftover(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A restart of __system__, as a new process sees it: C_TREEDB stops (its
+ *  treedb closes, its tranger closes every file) and starts again, and
+ *  __system__ is loaded from DISK. What a failed write left only in
+ *  memory is gone.
+ ***************************************************************************/
+PRIVATE void restart_system(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_stop(priv->gobj_treedbs);
+    gobj_start(priv->gobj_treedbs);
+}
+
+/***************************************************************************
+ *  chmod every file of the key `key` of the topic `cols` of __system__:
+ *  0440 makes the next write of that key fail
+ ***************************************************************************/
+PRIVATE int chmod_system_col_key(hgobj gobj, const char *treedb_name, const char *key, mode_t mode)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, "__system__", "cols", "keys", key, NULL);
+    DIR *d = opendir(dir);
+    if(!d) {
+        return test_fail(gobj, treedb_name, "TEST FAIL: FW, the key directory cannot be read",
+            json_string(dir));
+    }
+    int result = 0;
+    int changed = 0;
+    struct dirent *de;
+    while((de = readdir(d)) != NULL) {
+        if(de->d_name[0] == '.') {
+            continue;
+        }
+        char path[PATH_MAX];
+        build_path(path, sizeof(path), dir, de->d_name, NULL);
+        if(chmod(path, mode) < 0) {
+            result += test_fail(gobj, treedb_name, "TEST FAIL: FW, chmod failed", json_string(path));
+        } else {
+            changed++;
+        }
+    }
+    closedir(d);
+    if(changed == 0) {
+        result += test_fail(gobj, treedb_name, "TEST FAIL: FW, the key has no files", json_string(dir));
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  FW: a write of the projection FAILS on disk (the files of the column
+ *  `users.username` are read-only), after the update was applied in
+ *  memory: the node in memory says "User v1b", the disk still says
+ *  "User". The projection is unfinished, and `users.username` is in its
+ *  `not_written`. After a RESTART (the disk again) and with the files
+ *  writable, the open that completes the projection reports nothing: the
+ *  record cannot say what is on disk at an id it failed to write, and a
+ *  difference there is nobody's work. It was reported as an "unsaved"
+ *  draft of `users`.
+ ***************************************************************************/
+PRIVATE json_t *users_v1b(const char *db)
+{
+    return schema_of(db, 2, json_pack("[o,o]",
+        topic_of("users", 2, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User v1b"))),
+        topic_of("departments", 1, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name")))
+    ));
+}
+
+PRIVATE int scenario_failed_write_then_restart(hgobj gobj)
+{
+    const char *db = "tw_fw";
+    const char *key = "tw_fw.users.username";
+    int result = 0;
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    close_db(gobj, db);
+    restart_system(gobj);
+
+    result += chmod_system_col_key(gobj, db, key, 0440);
+    if(open_db(gobj, db, users_v1b(db), FALSE) < 0) {
+        return result - 1;
+    }
+    json_t *record = unfinished_record(gobj, db);
+    json_t *not_written = json_object_get(record, "not_written");
+    if(json_array_size(not_written) != 1 ||
+            strcmp(json_string_value(json_array_get(not_written, 0))?
+                json_string_value(json_array_get(not_written, 0)) : "", key)!=0) {
+        result += test_fail(gobj, db, "TEST FAIL: FW, the failed write is not in the record",
+            json_incref(record));
+    }
+    JSON_DECREF(record)
+    close_db(gobj, db);
+    result += chmod_system_col_key(gobj, db, key, 0660);
+
+    restart_system(gobj);
+    if(open_db(gobj, db, users_v1b(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: FW, a failed write of the projection was reported as the operator's work",
+        0, json_object());
+    result += check_agree(gobj, db, "TEST FAIL: FW, the projection was not completed");
+    result += check_header(gobj, db, "TEST FAIL: FW, the header of the completed projection",
+        "users", "username", "User v1b", "User v1b", "User v1b");
+    record = unfinished_record(gobj, db);
+    if(record) {
+        result += test_fail(gobj, db, "TEST FAIL: FW, a completed projection left its record",
+            json_incref(record));
+    }
+    JSON_DECREF(record)
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  MS: the leftovers were kept under an OLDER meta-schema (the record says
+ *  a lower `system_schema_version`), and the newer one added a field to
+ *  `cols`: every node loaded from disk now carries it with its default,
+ *  and the kept nodes do not (emulated: `description` is taken out of
+ *  them). What the projection left cannot be told from an edit of it any
+ *  more: every leftover is taken as left, and that is said. It was every
+ *  leftover reported as the operator's work.
+ ***************************************************************************/
+PRIVATE int scenario_leftovers_under_older_meta_schema(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *db = "tw_ms";
+    int result = 0;
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    result += shoot_system_snap(gobj, db, db);
+    close_db(gobj, db);
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        return result - 1;
+    }
+    close_db(gobj, db);
+
+    json_t *meta = treedb_create_system_schema();
+    json_int_t meta_version = kw_get_int(gobj, meta, "schema_version", 0, KW_WILD_NUMBER);
+    JSON_DECREF(meta)
+
+    json_t *record = unfinished_record(gobj, db);
+    if(!json_is_object(record)) {
+        return result + test_fail(gobj, db, "TEST FAIL: MS, the projection left no record", record);
+    }
+    json_t *nodes = json_object_get(record, "leftover_nodes");
+    if(json_object_size(nodes) == 0) {
+        result += test_fail(gobj, db, "TEST FAIL: MS, the record keeps no leftover node",
+            json_incref(record));
+    }
+    int stripped = 0;
+    const char *id; json_t *node;
+    json_object_foreach(nodes, id, node) {
+        if(json_object_get(node, "description")) {
+            json_object_del(node, "description");
+            stripped++;
+        }
+    }
+    if(stripped == 0) {
+        result += test_fail(gobj, db, "TEST FAIL: MS, no kept column carries `description`",
+            json_incref(record));
+    }
+    json_object_set_new(record, "system_schema_version", json_integer(meta_version - 1));
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    if(save_json_to_file(gobj, dir, "tw_ms.unfinished.json", 02770, 0660, 0, TRUE, FALSE,
+            record) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: MS, cannot write the record", NULL);
+    }
+
+    result += delete_system_snap(gobj, db, db);
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: MS, leftovers kept under an older meta-schema were reported as the operator's work",
+        0, json_object());
+    result += check_agree(gobj, db, "TEST FAIL: MS, the projection was not completed");
+    if(system_has_topic(gobj, db, "departments")) {
+        result += test_fail(gobj, db, "TEST FAIL: MS, the leftover topic is still in __system__", NULL);
+    }
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
  *  Run every scenario
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -2855,6 +3048,8 @@ PRIVATE int run_tests(hgobj gobj)
     result += scenario_saved_draft_across_retries(gobj);
     result += scenario_added_topic_draft(gobj);
     result += scenario_edited_leftover(gobj);
+    result += scenario_failed_write_then_restart(gobj);
+    result += scenario_leftovers_under_older_meta_schema(gobj);
 
     if(result == 0) {
         gobj_log_info(gobj, 0,
