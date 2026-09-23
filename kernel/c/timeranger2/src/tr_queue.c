@@ -294,11 +294,10 @@ PUBLIC int trq_load(tr_queue_t * trq)
 
     /*
      *  A load that did not read every pending message says nothing of where
-     *  the first one is: first_rowid is not moved nor saved. It was set to
-     *  the size of the topic and saved, and the messages the load could not
-     *  read were skipped for ever, even once the store was repaired
-     *  (independent review of the third fix round). The next load starts
-     *  where the last good one said.
+     *  the first one is: first_rowid is not moved nor saved. Up to 7.25.4
+     *  it was set to the size of the topic and saved, and the messages the
+     *  load could not read were skipped for ever, even once the store was
+     *  repaired. The next load starts where the last good one said.
      */
     if(load_failed) {
         gobj_log_error(gobj, 0,
@@ -644,11 +643,10 @@ PUBLIC int trq_check_backup(tr_queue_t * trq)
         if(sz >= backup_queue_size && trq->load_failed) {
             /*
              *  The queue is empty because its load failed, not because its
-             *  messages were processed: the backup re-created the topic
-             *  empty and reset first_rowid, and took for good the pending
-             *  messages bed7baad8 kept first_rowid for (independent review
-             *  of the fourth fix round). Said once: the caller asks every
-             *  period.
+             *  messages were processed: a backup would re-create the topic
+             *  empty and reset first_rowid, and take for good the pending
+             *  messages that first_rowid still points to. Said once: the
+             *  caller asks every period.
              */
             if(!trq->backup_refused_said) {
                 trq->backup_refused_said = TRUE;

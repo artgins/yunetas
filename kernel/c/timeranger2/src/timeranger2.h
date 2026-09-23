@@ -545,8 +545,8 @@ PUBLIC int tranger2_write_topic_cols(
    topic_desc.json. Its files were never marked, so no file's tm range can be
    trusted, and a tm query (`from_tm` / `to_tm`) leaves out no file and ends no
    scan early: it reads every md2 row of the key, 32 bytes a row. The cost
-   grows with the files of the key -- 13 ms in 7.25.4 against ~400 ms after
-   b237e0af4 on one key of 30 files x 20000 rows (the review's repro r_perf).
+   grows with the files of the key -- about 400 ms on one key of 30 files x
+   20000 rows, against 13 ms in 7.25.4.
    A marked topic reads only the files whose tm range meets the query.
 
    What it does, for every key of the topic (the keys of its cache), every md2
