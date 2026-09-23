@@ -113,12 +113,32 @@ typedef struct { // Size: 32 bytes — fields are big-endian on disk
  */
 #define CONTENT_NOT_WHOLE       0
 #define CONTENT_WHOLE           1
-#define CONTENT_TOO_LARGE       2   // it can be whole, it is too large to parse here
+#define CONTENT_TOO_LARGE       2   // it can be whole, this process cannot parse it
 
 /*
  *  The part of a content read at a time when it is too large to read whole
  */
 #define CONTENT_SCAN_PART       (64*1024)
+
+/*
+ *  Did a parse of a record's content fail for MEMORY, not for its text?
+ *  The allocator refused a block: the largest is MEM_MAX_BLOCK, set per
+ *  yuno. A text smaller than that block can need more to parse: jansson
+ *  doubles the buffer of a string token, and the table of an array or an
+ *  object. jansson says json_error_out_of_memory (with
+ *  kernel/c/linux-ext-libs/patches/jansson/0001: before it, the lexer
+ *  ignored a failed save and wrote past its buffer, and the parser set no
+ *  error for the other failures). A failure with no error text did not
+ *  find the text wrong: it is taken for memory too. `error` must be
+ *  zeroed before the parse: jansson does not set the code of a parse that
+ *  sets no error.
+ */
+static inline BOOL parse_failed_for_memory(const json_error_t *error) {
+    if(!error->text[0] || json_error_code(error) == json_error_out_of_memory) {
+        return TRUE;
+    }
+    return FALSE;
+}
 
 static inline uint16_t get_user_flag(const md2_record_t *md_record) {
     return (uint16_t )((md_record->__t__ & USER_FLAG_MASK) >> 44);
@@ -8290,14 +8310,18 @@ PRIVATE int scan_content_in_parts(
  *  writes no other content. If they are implemented, this check must know
  *  their content too.
  *
- *  A content larger than the largest memory block of this process cannot
- *  be parsed here. MEM_MAX_BLOCK is set per yuno, and the yuno that wrote
- *  the content can have a larger one, so the size alone does not say that
- *  it is not a record. Its bytes are read in parts: a NUL before its last
- *  byte says that it is not whole (and, for a deleted instance, a byte
- *  that is not 0), with no block of its size. When its only NUL is the
- *  last byte, the check cannot tell: CONTENT_TOO_LARGE, and the caller
- *  does not cut on it.
+ *  A content that this process cannot parse is not a content that is not
+ *  a record. MEM_MAX_BLOCK is set per yuno, and the yuno that wrote the
+ *  content can have a larger one. Two cases:
+ *    - the content is larger than the largest memory block: its bytes are
+ *      read in parts. A NUL before its last byte says that it is not whole
+ *      (and, for a deleted instance, a byte that is not 0), with no block
+ *      of its size. When its only NUL is the last byte, the check cannot
+ *      tell: CONTENT_TOO_LARGE.
+ *    - the content fits in the block, and its parse fails for memory (a
+ *      long string, a long array or object: see parse_failed_for_memory).
+ *      The check cannot tell either: CONTENT_TOO_LARGE.
+ *  The caller does not cut on CONTENT_TOO_LARGE.
  *
  *  Return CONTENT_WHOLE, CONTENT_NOT_WHOLE, CONTENT_TOO_LARGE, or -1 (a
  *  CRITICAL logged) when the check cannot run: the content file cannot be
@@ -8392,11 +8416,13 @@ PRIVATE int md2_row_content_is_whole(
 
     int whole = CONTENT_NOT_WHOLE;
     if(!memchr(p, 0, row->__size__ - 1)) {
-        json_error_t error;
+        json_error_t error = {0};
         json_t *jn = json_loadb(p, row->__size__ - 1, RECORD_LOAD_FLAGS, &error);
         if(jn) {
             whole = CONTENT_WHOLE;
             JSON_DECREF(jn)
+        } else if(parse_failed_for_memory(&error)) {
+            whole = CONTENT_TOO_LARGE;
         }
     } else if(system_flag & sf_deleted_instance) {
         whole = CONTENT_WHOLE;
@@ -8456,7 +8482,7 @@ PRIVATE int check_torn_md2_rows(
         if(whole == CONTENT_WHOLE) {
             end_cause = "its content is a whole record of the content file";
         } else if(whole == CONTENT_TOO_LARGE) {
-            end_cause = "its content has no NUL but the one at its end, and is larger than the largest memory block of this process: it can be a record written by a yuno with a larger block";
+            end_cause = "its content has no NUL but the one at its end, and this process has not the memory to parse it (MEM_MAX_BLOCK): it can be a record written by a yuno with a larger block";
         }
     }
     if(end_cause) {
@@ -8499,7 +8525,7 @@ PRIVATE int check_torn_md2_rows(
         return TORN_TAIL_NOT_CHECKED;  // Error already logged
     }
     if(whole == CONTENT_TOO_LARGE) {
-        cause = "its content is larger than the largest memory block of this process: it cannot be checked";
+        cause = "this process has not the memory to parse its content (MEM_MAX_BLOCK): it cannot be checked";
     } else if(whole == CONTENT_NOT_WHOLE) {
         if(last_row.__size__ == 0 ||
                 last_row.__offset__ > content_size ||
@@ -8521,7 +8547,7 @@ PRIVATE int check_torn_md2_rows(
             return TORN_TAIL_NOT_CHECKED;  // Error already logged
         }
         if(whole == CONTENT_TOO_LARGE) {
-            cause = "the content of the whole row before it is larger than the largest memory block of this process: it cannot be checked";
+            cause = "this process has not the memory to parse the content of the whole row before it (MEM_MAX_BLOCK): it cannot be checked";
             bad_at = last_at - row_size;
             bad_row = &prev_row;
         } else if(whole == CONTENT_NOT_WHOLE) {
@@ -8595,11 +8621,13 @@ PRIVATE int check_torn_md2_rows(
  *  and acknowledged. Its content was written before it, with the same
  *  bytes as now (json text and a NUL): it is whole, wherever the content
  *  file ends. Content that no row names after it does not change that.
- *  When E's content is larger than the largest memory block of the
- *  process that checks (MEM_MAX_BLOCK is set per yuno, and the writer's
- *  can be larger), it cannot be parsed; its only NUL is its last byte,
- *  and that is enough to not cut: rule 1 fails for it too. Only a content
- *  damaged since (its bytes changed) lets such a file reach rule 2.
+ *  When the process that checks cannot parse E's content (MEM_MAX_BLOCK
+ *  is set per yuno, and the writer's can be larger): a content larger
+ *  than its block has its only NUL at its last byte, and a content that
+ *  fits in the block and whose parse fails for memory is not found
+ *  wrong. Either is CONTENT_TOO_LARGE, and that is enough to not cut:
+ *  rule 1 fails for it too. Only a content damaged since (its bytes
+ *  changed) lets such a file reach rule 2.
  *
  *  Why 1 holds for a torn row. With k torn bytes, E is the last 32-k bytes
  *  of the last whole row, then the first k bytes of the torn row. Its
@@ -8630,7 +8658,7 @@ PRIVATE int check_torn_md2_rows(
  *  content was damaged fails rule 2, and the file is flagged: its rows
  *  would fail to read too, and it is repaired by hand.
  *
- *  A row whose content is too large to parse here (L, P) is not taken for
+ *  A row whose content this process cannot parse (L, P) is not taken for
  *  a good row: the file is flagged, not cut.
  *
  *  The content is read only here, on a md2 that is not a whole number of
@@ -12122,11 +12150,19 @@ PRIVATE json_t *read_record_content(
     gbmem_free(p);
 
     if(!record) {
+        /*
+         *  A content that fits in the block can need more memory to parse
+         *  (see parse_failed_for_memory): the record can be good, and a
+         *  yuno with a larger MEM_MAX_BLOCK reads it
+         */
         gobj_log_critical(gobj, 0, // Let continue, will be a message lost
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Bad data, the content of the record is not json",
+            "msg",          "%s", parse_failed_for_memory(&error)?
+                "Cannot read the record, this process has not the memory to parse its content (MEM_MAX_BLOCK)":
+                "Bad data, the content of the record is not json",
             "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
             "__t__",        "%lu", (unsigned long)md_record_ex->__t__,
             "__size__",     "%lu", (unsigned long)md_record_ex->__size__,
             "__offset__",   "%lu", (unsigned long)md_record_ex->__offset__,

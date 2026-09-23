@@ -33,12 +33,23 @@
  *            The row before the end reads as a good row (the torn row's
  *            content is 256 bytes), so only rule 1 stops the cut. The
  *            content cannot be parsed, and its only NUL is its last byte:
- *            the file is flagged, not cut. Before, a content larger than
- *            the block was taken for no record, and the cut removed the
- *            acknowledged row and gave back the torn one.
+ *            the file is flagged, not cut.
  *         b. opens a torn row after a last whole row whose content is
  *            larger than its block: the row cannot be checked, the file
  *            is flagged, not cut.
+ *      5. the same master, with contents that fit in its block and whose
+ *         parse does not (jansson doubles the buffer of a string, and the
+ *         table of an array). Each case runs in a child, and a child that
+ *         dies by a signal fails the test:
+ *         a. the shape 7.25.4 left, the last row one string of 40 000
+ *            bytes: flagged, not cut. Before, jansson wrote past its
+ *            buffer (the crash of every open).
+ *         b. the same shape, the last row an array in 20 000 bytes:
+ *            flagged, not cut. Before, the failed parse was taken for "not
+ *            a record", and the cut lost the acknowledged row.
+ *         c. the read of a record of one string of 40 000 bytes: a
+ *            CRITICAL that says why, and the list says load_failed.
+ *            Before, the read crashed.
  *
  *  No file mode makes an open fail with EMFILE, so the test links with
  *  `-Wl,--wrap=open` (see CMakeLists.txt): __wrap_open() fails the next
@@ -56,6 +67,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <endian.h>
+#include <sys/wait.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -80,8 +92,10 @@
 #define MSG_ITER            "The history of the key is not whole: a md2 file of it could not be read when its cache was built"
 #define MSG_SHAPE           "md2 file of the key ends in a whole row that is not on a row boundary: written by 7.25.4 after a torn row; not cut, repair it by hand"
 #define MSG_TAIL_BAD        "md2 file of the key ends in a part of a row after a last whole row that is not valid: not cut, repair it by hand"
-#define CAUSE_E_TOO_LARGE   "its content has no NUL but the one at its end, and is larger than the largest memory block of this process: it can be a record written by a yuno with a larger block"
-#define CAUSE_L_TOO_LARGE   "its content is larger than the largest memory block of this process: it cannot be checked"
+#define CAUSE_E_TOO_LARGE   "its content has no NUL but the one at its end, and this process has not the memory to parse it (MEM_MAX_BLOCK): it can be a record written by a yuno with a larger block"
+#define CAUSE_L_TOO_LARGE   "this process has not the memory to parse its content (MEM_MAX_BLOCK): it cannot be checked"
+#define MSG_MAX_BLOCK       "SIZE GREATER THAN MAX_BLOCK"
+#define MSG_READ_NO_MEMORY  "Cannot read the record, this process has not the memory to parse its content (MEM_MAX_BLOCK)"
 #define MSG_LIST            "Cannot load the whole history of a key of the list: the records read before the failure were handed, the list goes on with the next key"
 
 /***************************************************************
@@ -517,9 +531,32 @@ PRIVATE json_t *padded_record(int v, size_t size)
 }
 
 /*
- *  A's file: rows of 256 bytes, then row 5 of `big` bytes when `big` is
- *  not 0. The rows are written by a process with the default memory block.
+ *  A record of about `size` bytes whose "pad" is an array of 1s: a text
+ *  much smaller than the memory a parse of it takes (jansson keeps a
+ *  table of pointers, and doubles it as it grows)
  */
+PRIVATE json_t *array_record(int v, size_t size)
+{
+    json_t *record = json_pack("{s:s, s:I, s:i, s:[]}",
+        "id", "A", "tm", (json_int_t)(DAY1 + v), "v", v, "pad"
+    );
+    char *text = json_dumps(record, JSON_COMPACT|JSON_ENCODE_ANY);
+    size_t base = text? strlen(text) + 1: 0;
+    GBMEM_FREE(text)
+    json_t *pad = json_object_get(record, "pad");
+    for(size_t ln = base; ln + 2 <= size; ln += 2) {
+        json_array_append_new(pad, json_integer(1));
+    }
+    return record;
+}
+
+/*
+ *  A's file: rows of 256 bytes, then one row of about `big` bytes when
+ *  `big` is not 0: one long string, or with `as_array` an array. The rows
+ *  are written by a process with the default memory block.
+ */
+PRIVATE BOOL big_as_array = FALSE;
+
 PRIVATE int build_padded_store(int rows, size_t big)
 {
     rmrdir(path_database);
@@ -539,7 +576,8 @@ PRIVATE int build_padded_store(int rows, size_t big)
     }
     int result = 0;
     for(int v = 1; v <= rows + (big? 1: 0); v++) {
-        json_t *record = padded_record(v, v <= rows? 256: big);
+        json_t *record = (v > rows && big_as_array)?
+            array_record(v, big): padded_record(v, v <= rows? 256: big);
         md2_record_ex_t md = {0};
         if(!record || tranger2_append_record(
                 tranger, TOPIC_NAME, (uint64_t)(DAY1 + v), 0, &md, record) < 0) {
@@ -597,23 +635,16 @@ PRIVATE int open_small_block_master(const char *what, size_t max_block, off_t md
     return result;
 }
 
-PRIVATE int test_row_larger_than_max_block(void)
+/*
+ *  The shape 7.25.4 left, from a store of 5 rows: rows 1, 2, 3, the first
+ *  31 bytes of row 4 (never acknowledged), then row 5 (acknowledged), and
+ *  50 bytes after row 5's content that no row names. Row 4's content is
+ *  256 bytes, so its last byte (0) is the first byte of row 5, and the
+ *  whole row before the end reads as row 4: rule 2 holds. Only rule 1
+ *  stops the cut.
+ */
+PRIVATE int make_shape_7254(const char *what)
 {
-    int result = 0;
-    size_t max_block = 64*1024;
-    size_t big = 100*1024;
-
-    /*
-     *  a. The shape 7.25.4 left: rows 1, 2, 3, the first 31 bytes of row 4
-     *  (never acknowledged), then row 5 (acknowledged), and 50 bytes after
-     *  row 5's content that no row names. Row 4's content is 256 bytes, so
-     *  its last byte (0) is the first byte of row 5, and the whole row
-     *  before the end reads as row 4: rule 2 holds. Only rule 1 stops the
-     *  cut, and row 5's content is larger than the reader's memory block.
-     */
-    if(build_padded_store(4, big) < 0) {
-        return -1;
-    }
     char rows[5*ROW];
     char path[PATH_MAX];
     file_of_a(path, sizeof(path), "md2");
@@ -629,7 +660,23 @@ PRIVATE int test_row_larger_than_max_block(void)
             append_to_a("md2", rows + 3*ROW, 31) < 0 ||
             append_to_a("md2", rows + 4*ROW, ROW) < 0 ||
             append_to_a("json", junk, sizeof(junk)) < 0) {
-        printf("%sERROR%s --> 4a: cannot make the shape\n", On_Red BWhite, Color_Off);
+        printf("%sERROR%s --> %s: cannot make the shape\n", On_Red BWhite, Color_Off, what);
+        return -1;
+    }
+    return 0;
+}
+
+PRIVATE int test_row_larger_than_max_block(void)
+{
+    int result = 0;
+    size_t max_block = 64*1024;
+    size_t big = 100*1024;
+
+    /*
+     *  a. The shape 7.25.4 left, and row 5's content is larger than the
+     *  reader's memory block
+     */
+    if(build_padded_store(4, big) < 0 || make_shape_7254("4a") < 0) {
         return -1;
     }
     result += open_small_block_master(
@@ -679,6 +726,154 @@ PRIVATE int test_row_larger_than_max_block(void)
 }
 
 /***************************************************************************
+ *  5. A content that fits in the block, and whose parse does not
+ ***************************************************************************/
+/*
+ *  In a child, whose largest memory block is `max_block`: open the store
+ *  as a master, and, when `list` is not NULL, load the keyless list, which
+ *  must hand `list` and say load_failed. The log must be `expected`
+ *  (owned). A crash of the child fails the test: the parent sees a signal,
+ *  not an exit. The parent then checks the size of the md2.
+ */
+PRIVATE int open_in_child(
+    const char *what,
+    size_t max_block,
+    off_t md2_size,
+    const char *list,
+    json_t *expected
+)
+{
+    fflush(stdout);
+    pid_t pid = fork();
+    if(pid < 0) {
+        printf("%sERROR%s --> %s: fork() failed\n", On_Red BWhite, Color_Off, what);
+        JSON_DECREF(expected)
+        return -1;
+    }
+    if(pid == 0) {
+        int result = 0;
+        set_expected_results(what, expected, NULL, NULL, 1);
+        gbmem_setup(max_block, 0, 0, 0, 0);
+        json_t *tranger = startup();
+        json_t *topic = tranger? tranger2_open_topic(tranger, TOPIC_NAME, FALSE): NULL;
+        if(!topic) {
+            printf("%sERROR%s --> %s: cannot open the store\n", On_Red BWhite, Color_Off, what);
+            result += -1;
+        }
+        if(topic && list) {
+            result += check_list(tranger, what, list, TRUE);
+        }
+        result += test_json(NULL);
+        fflush(stdout);
+        _exit(result < 0? 1 : 0);  // no shutdown: the parent's store is what is checked
+    }
+
+    JSON_DECREF(expected)   // the child's copy is the one that is used
+    int status = 0;
+    waitpid(pid, &status, 0);
+    char bf[64];
+    if(WIFSIGNALED(status)) {
+        snprintf(bf, sizeof(bf), "signal %d", WTERMSIG(status));
+    } else {
+        snprintf(bf, sizeof(bf), "exit %d", WIFEXITED(status)? WEXITSTATUS(status): -1);
+    }
+    int result = expect(what, bf, "exit 0");
+    result += expect_size(what, "md2", md2_size);
+    return result;
+}
+
+PRIVATE int test_content_that_cannot_be_parsed(void)
+{
+    int result = 0;
+    size_t max_block = 64*1024;
+
+    /*
+     *  a. The shape 7.25.4 left, and row 5's content is one string of
+     *  40 000 bytes: it fits in the reader's block, and its parse does not
+     *  (the lexer doubles its buffer as the string grows). Before, the
+     *  lexer ignored the failure and wrote past its buffer: a crash at
+     *  every open. Now the parse fails for memory, and the file is
+     *  flagged, not cut.
+     */
+    big_as_array = FALSE;
+    if(build_padded_store(4, 40000) < 0 || make_shape_7254("5a") < 0) {
+        return -1;
+    }
+    result += open_in_child(
+        "5a. a last acknowledged row of one long string: no crash, flagged, not cut",
+        max_block,
+        3*ROW + 31 + ROW,
+        NULL,
+        json_pack("[{s:s},{s:s, s:s, s:s, s:i},{s:s, s:s, s:s}]",
+            "msg", MSG_MAX_BLOCK,
+            "msg", MSG_SHAPE,
+            "cause", CAUSE_E_TOO_LARGE,
+            "key", "A",
+            "__size__", 40000,
+            "msg", MSG_FLAG,
+            "key", "A",
+            "file_id", "2000-01-01"
+        )
+    );
+
+    /*
+     *  b. The same shape, and row 5's content is an array in 20 000 bytes:
+     *  its parse takes a table of pointers larger than the block. Before,
+     *  the failure was taken for "not a record", rule 1 passed, and the
+     *  cut lost row 5 (acknowledged) and gave back row 4 (never
+     *  acknowledged).
+     */
+    big_as_array = TRUE;
+    if(build_padded_store(4, 20000) < 0 || make_shape_7254("5b") < 0) {
+        big_as_array = FALSE;
+        return -1;
+    }
+    big_as_array = FALSE;
+    result += open_in_child(
+        "5b. a last acknowledged row of a long array: flagged, not cut",
+        max_block,
+        3*ROW + 31 + ROW,
+        NULL,
+        json_pack("[{s:s},{s:s, s:s, s:s},{s:s, s:s, s:s}]",
+            "msg", MSG_MAX_BLOCK,
+            "msg", MSG_SHAPE,
+            "cause", CAUSE_E_TOO_LARGE,
+            "key", "A",
+            "msg", MSG_FLAG,
+            "key", "A",
+            "file_id", "2000-01-01"
+        )
+    );
+
+    /*
+     *  c. The read of a record: rows 1, 2, then row 3 of one string of
+     *  40 000 bytes, no torn row. The load reads rows 1 and 2, and the
+     *  read of row 3 fails with a CRITICAL that says why: the list says
+     *  load_failed. Before, the read crashed.
+     */
+    if(build_padded_store(2, 40000) < 0) {
+        return -1;
+    }
+    result += open_in_child(
+        "5c. a record that this process cannot parse: no crash, the read fails",
+        max_block,
+        3*ROW,
+        "A@1 A@2",
+        json_pack("[{s:s},{s:s, s:s, s:i},{s:s, s:s}]",
+            "msg", MSG_MAX_BLOCK,
+            "msg", MSG_READ_NO_MEMORY,
+            "key", "A",
+            "__size__", 40000,
+            "msg", MSG_LIST,
+            "key", "A"
+        )
+    );
+
+    rmrdir(path_database);
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -692,6 +887,7 @@ PRIVATE int do_test(void)
     result += test_open_check_cannot_run();
     result += test_candidate_larger_than_max_block();
     result += test_row_larger_than_max_block();
+    result += test_content_that_cannot_be_parsed();
 
     return result;
 }

@@ -132,9 +132,19 @@ tranger2_append_record(tranger, "topic", 0, 0, &md, rec);
 ```
 
 A content that is not json when it is read logs *"Bad data, the content of the
-record is not json"* (a CRITICAL, with `topic`, `__t__`, `__offset__`,
+record is not json"* (a CRITICAL, with `topic`, `key`, `__t__`, `__offset__`,
 `__size__`, the jansson `error` and its `position`), and the record is not
-handed.
+handed. A content that this process has not the memory to parse logs *"Cannot
+read the record, this process has not the memory to parse its content
+(MEM_MAX_BLOCK)"* (the same fields; the jansson `error` is *"not enough
+memory"*), and the record is not handed either. The largest memory block
+(`gbmem_get_maximum_block()`) is set by `MEM_MAX_BLOCK` for each yuno, and a
+content smaller than that block can need more to parse: jansson doubles the
+buffer of a string as it reads it, and the table of an array or an object. A
+string of 40 000 bytes does not parse with a block of 64 KiB, nor does an
+array of 10 000 numbers. A yuno with a larger block reads the record. Up to
+7.25.4 such a string crashed the process (jansson wrote past its buffer, see
+`kernel/c/linux-ext-libs/patches/jansson/`).
 
 The function does not add a `__md_tranger__` to the record for the caller.
 It adds one (`g_rowid`, `i_rowid`, `t`, `tm`, `offset`, `size`,
@@ -1534,12 +1544,16 @@ inside the `.json`, one json value and one NUL byte after it, as an append
 writes it (or only zero bytes, for an instance deleted with its content
 zeroed, see [`tranger2_delete_instance()`](#tranger2_delete_instance)). A NUL
 inside a string is written as the escape `\u0000`, so it is part of the value
-and is not a NUL byte. A content larger than the largest memory block of the
-process that checks it (`gbmem_get_maximum_block()`, set by `MEM_MAX_BLOCK`
-for each yuno) cannot be parsed there, and the yuno that wrote it can have a
-larger block. Its bytes are read in parts: a NUL before its last byte says
-that it is not whole, with no block of its size. When its only NUL is its
-last byte, the check cannot tell, and the tail is not cut on it. The rules:
+and is not a NUL byte. A content that the process that checks it has not the
+memory to parse is not a content that is not whole: the largest memory block
+(`gbmem_get_maximum_block()`) is set by `MEM_MAX_BLOCK` for each yuno, and the
+yuno that wrote it can have a larger block. A content larger than that block
+is read in parts: a NUL before its last byte says that it is not whole, with
+no block of its size, and when its only NUL is its last byte the check cannot
+tell. A content that fits in the block can still need more to parse (a long
+string, a long array or object: jansson doubles its buffers and tables); when
+its parse fails for memory, the check cannot tell either. The tail is not cut
+on a content that the check cannot tell. The rules:
 
 1. the last 32 bytes of the `.md2`, read as a row, are NOT a row of their own:
    their content does not end exactly at the end of the `.json`
@@ -1547,12 +1561,14 @@ last byte, the check cannot tell, and the tail is not cut on it. The rules:
 2. the last whole row is good, and so is the whole row before it, whose
    content ends at or before the start of the content of the last one.
 
-Rule 1 finds every file that 7.25.4 left, also when the `.json` has content
-after the last row (an append killed between its content and its md2 row;
-7.25.4 did not cut that content back): the last row is a real row, and its
-content is whole wherever the `.json` ends. When that content is larger than
-the largest memory block of the process that checks, it cannot be parsed, but
-its only NUL is its last byte, and that is enough to not cut. For a torn row, the last 32 bytes
+Rule 1 stops the cut of every file that 7.25.4 left whose last row still
+names its content as 7.25.4 wrote it, also when the `.json` has content after
+the last row (an append killed between its content and its md2 row; 7.25.4
+did not cut that content back): the last row is a real row, and its content
+is whole wherever the `.json` ends. When the process that checks has not the
+memory to parse that content, the check cannot tell, and that is enough to
+not cut. Only a content damaged since (its bytes changed) lets such a file
+reach rule 2. For a torn row, the last 32 bytes
 are the end of the last whole row and the start of the torn one: read as a
 row, their `__offset__` and `__size__` are bytes moved out of their fields.
 They name a whole record of the `.json`, to the byte, only by a coincidence
@@ -1585,26 +1601,29 @@ CRITICAL: md2 file of the key ends in a part of a row after a last whole row
 
 The `cause` of the first is *"its content ends the content file"*, *"its
 content is a whole record of the content file"* or *"its content has no NUL
-but the one at its end, and is larger than the largest memory block of this
-process: it can be a record written by a yuno with a larger block"*. The
-`cause` of the second is one of *"its content is not inside the content
-file"*, *"its content is not a record"*, *"its content is larger than the
-largest memory block of this process: it cannot be checked"*, *"the whole row
-before it is not a good row"* or *"the content of the whole row before it is
-larger than the largest memory block of this process: it cannot be checked"*
-(for these two, `row_at` is that row), and *"its content starts before the
-end of the content of the row before it"*.
+but the one at its end, and this process has not the memory to parse it
+(MEM_MAX_BLOCK): it can be a record written by a yuno with a larger block"*.
+The `cause` of the second is one of *"its content is not inside the content
+file"*, *"its content is not a record"*, *"this process has not the memory to
+parse its content (MEM_MAX_BLOCK): it cannot be checked"*, *"the whole row
+before it is not a good row"* or *"this process has not the memory to parse
+the content of the whole row before it (MEM_MAX_BLOCK): it cannot be
+checked"* (for these two, `row_at` is that row), and *"its content starts
+before the end of the content of the row before it"*.
 
 Example: a master with a block of 64 KiB opens a file that 7.25.4 left, whose
 last row names a record of 100 KiB, written by a yuno with a larger block.
-The file is flagged, and no row is lost:
+The file is flagged, and no row is lost. The same when the record is a string
+of 40 000 bytes, or an array in 20 000 bytes: it fits in the block, and its
+parse does not (the log also has the ERROR *"SIZE GREATER THAN MAX_BLOCK"* of
+the allocation that failed):
 
 ```text
 CRITICAL: md2 file of the key ends in a whole row that is not on a row boundary:
           written by 7.25.4 after a torn row; not cut, repair it by hand
-          cause="its content has no NUL but the one at its end, and is larger than
-          the largest memory block of this process: it can be a record written
-          by a yuno with a larger block"
+          cause="its content has no NUL but the one at its end, and this process
+          has not the memory to parse it (MEM_MAX_BLOCK): it can be a record
+          written by a yuno with a larger block"
           topic=devices key=A file_id=2000-01-01 md2_size=159 row_at=127
           __offset__=1024 __size__=102400
 ```

@@ -291,24 +291,28 @@ row after good rows. A row is good when its content is WHOLE: inside the
 `.json`, one json value and one NUL byte after it, as an append writes it (or
 only zero bytes, for an instance deleted with its content zeroed). A NUL inside
 a string is written as the escape `\u0000`: it is part of the value, not a NUL
-byte. A content larger than the largest memory block of the process that
-checks it (`gbmem_get_maximum_block()`, set by `MEM_MAX_BLOCK` for each yuno)
-cannot be parsed there, and the yuno that wrote it can have a larger block.
-Its bytes are read in parts: a NUL before its last byte says that it is not
-whole, with no block of its size. When its only NUL is its last byte, the
-check cannot tell, and the tail is not cut on it. The rules:
+byte. A content that the process that checks it has not the memory to parse
+is not a content that is not whole: the largest memory block
+(`gbmem_get_maximum_block()`) is set by `MEM_MAX_BLOCK` for each yuno, and the
+yuno that wrote it can have a larger block. A content larger than that block
+is read in parts: a NUL before its last byte says that it is not whole, with
+no block of its size, and when its only NUL is its last byte the check cannot
+tell. A content that fits in the block can still need more to parse (a long
+string, a long array or object); when its parse fails for memory, the check
+cannot tell either. The tail is not cut on a content that the check cannot
+tell. The rules:
 
 1. the last 32 bytes, read as a row, are NOT a row of their own: their content
    does not end exactly at the end of the `.json`, and it is not whole;
 2. the last whole row is good, and so is the whole row before it, whose content
    ends at or before the start of the content of the last one.
 
-Rule 1 stops the cut of every file 7.25.4 left, also with content after the
-last row in the `.json` (an append killed between its two writes, which 7.25.4
-did not cut back): the last row is a real row, and its content is whole. When
-that content is larger than the largest memory block of the process that
-checks, it cannot be parsed, but its only NUL is its last byte, and that is
-enough to not cut. The last 32 bytes of a torn row are bytes moved out of their fields,
+Rule 1 stops the cut of every file 7.25.4 left whose last row still names its
+content as 7.25.4 wrote it, also with content after the last row in the
+`.json` (an append killed between its two writes, which 7.25.4 did not cut
+back): the last row is a real row, and its content is whole. When the process
+that checks has not the memory to parse that content, the check cannot tell,
+and that is enough to not cut. The last 32 bytes of a torn row are bytes moved out of their fields,
 and name a whole record to the byte only by a coincidence of 64-bit values: the
 file is then flagged, not cut. The content is read only for a `.md2` that is
 not a whole number of rows, at most three records.
@@ -335,16 +339,16 @@ CRITICAL: {"function": "check_torn_md2_rows", "msgset": "Tranger",
 ```
 
 The other `cause`s of this shape are *"its content ends the content file"*
-and *"its content has no NUL but the one at its end, and is larger than the
-largest memory block of this process: it can be a record written by a yuno
+and *"its content has no NUL but the one at its end, and this process has not
+the memory to parse it (MEM_MAX_BLOCK): it can be a record written by a yuno
 with a larger block"*. The other shape is *"md2 file of the key ends in a part
 of a row after a last whole row that is not valid: not cut, repair it by
 hand"*, with the `cause` *"its content is not inside the content file"*, *"its
-content is not a record"*, *"its content is larger than the largest memory
-block of this process: it cannot be checked"*, *"the whole row before it is
-not a good row"*, *"the content of the whole row before it is larger than the
-largest memory block of this process: it cannot be checked"* or *"its content
-starts before the end of the content of the row before it"*. A REPLICA never
+content is not a record"*, *"this process has not the memory to parse its
+content (MEM_MAX_BLOCK): it cannot be checked"*, *"the whole row before it is
+not a good row"*, *"this process has not the memory to parse the content of
+the whole row before it (MEM_MAX_BLOCK): it cannot be checked"* or *"its
+content starts before the end of the content of the row before it"*. A REPLICA never
 writes: it reads the whole rows and logs nothing for a torn row, because it
 also sees a torn row while a live master writes it. It makes the same check,
 so it does not read the rows of a file that 7.25.4 wrote on no row boundary. The exception is a file with no whole row: for the
@@ -376,6 +380,15 @@ A string of a record can hold NUL characters: `json_dumps()` writes each one as
 `kw_get_str()` gets the C string up to the first NUL. A content that is not
 json when it is read logs *"Bad data, the content of the record is not json"*,
 with the jansson `error` and `position`. `tests/c/timeranger2/test_nul_escape_record.c`.
+
+A content that this process has not the memory to parse logs *"Cannot read
+the record, this process has not the memory to parse its content
+(MEM_MAX_BLOCK)"*, and the record is not handed: a content smaller than the
+largest memory block can need more to parse (jansson doubles the buffer of a
+string, and the table of an array or an object), and a yuno with a larger
+`MEM_MAX_BLOCK` reads it. Up to 7.25.4 a string longer than about half of the
+block crashed the process: jansson wrote past its buffer (fixed by
+`kernel/c/linux-ext-libs/patches/jansson/`). `tests/c/timeranger2/test_torn_tail_check_fails.c`.
 
 `tranger2_open_list()` of ONE key answers `NULL` when the history of the key
 did not load whole. A KEYLESS list loads every key it can read, opens its
