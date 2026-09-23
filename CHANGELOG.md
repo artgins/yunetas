@@ -197,11 +197,15 @@ listed under "No red test" in `TODO.md`.
   (in `draft_changed`), never a leftover. A topic the operator deleted from
   `__system__` is a draft too: when a newer literal re-creates it, it is
   reported as `unsaved`, or `saved` when a pending save published the
-  deletion. An edit of a LEFTOVER is nobody's draft: the open that completes the
-  projection deletes it and reports nothing.
+  deletion. A topic the operator added and did not save is `unsaved`, also
+  when a save of another topic is pending. An EDIT of a leftover is operator
+  work too: the record keeps `leftover_nodes` (what the projection left at each
+  leftover), a leftover that differs from it is a draft (`draft_changed`), and
+  the open that replaces it reports it; an unedited leftover is not reported.
 - `save-schema` refuses a draft with no topics and `apply-schema` a saved
   schema with no topics (WARNING, -1, the file in use unchanged): a treedb
-  without topics does not open.
+  without topics does not open. `saved-schema` answers `can_apply: false`, with
+  the reason, for such a saved schema (7.25.4 answered true and applied it).
 - The numbers of a treedb's node in `__system__` (`schema_version`,
   `c_schema_version`) are written last, only when the whole projection
   succeeded; a new node is created with them at 0 (7.25.4 wrote them first, so
@@ -220,7 +224,8 @@ listed under "No red test" in `TODO.md`.
   first (7.25.4: "while it is OPEN"). C_NODE gives a treedb that
   `treedb_open_db()` refused no callback and does not close it at stop, so the
   failed open logs only its cause and `close-treedb` logs nothing (7.25.4
-  logged "TreeDB not found" at the open and twice at the close, with stacks).
+  logged "TreeDB not found" at the open and twice at the close, with stacks);
+  a write of `with_link_events` on it sets no callback either.
   Every answer of `open-treedb`, `close-treedb` and `delete-treedb` starts with
   the yuno.
 - **The agent stops when its treedb does not open.** The agent opens
