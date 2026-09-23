@@ -106,7 +106,13 @@ listed under "No red test" in `TODO.md`.
   meets such a file refuses and flags it in memory at once (ERROR *"md2 file of
   the key flagged unreadable at an append: every load of the key says
   load_failed"*); with the default `on_critical_error` the yuno then exits at
-  the CRITICAL of the refused append. A scan of ~21 500 md2 files on four stores
+  the CRITICAL of the refused append. That is only when the check found a tail
+  that must not be cut: a check that cannot RUN (the `.json` cannot be opened or
+  read, no memory) refuses the append (*"Cannot append record, the torn tail of
+  its md2 file cannot be checked now: the append is refused, the file is not
+  flagged"*) and does not flag the file; the next append checks again. At an
+  open the file is still flagged. A candidate range larger than the largest
+  memory block is not a record. A scan of ~21 500 md2 files on four stores
   (local, wattyzer, both yunovatios) found none; to check a node:
   `find /yuneta/store /yuneta/realms -name '*.md2' -printf '%s %p\n' | awk '$1 % 32'`.
   With that check, the cut removes only the part of a row after the last whole
@@ -116,6 +122,11 @@ listed under "No red test" in `TODO.md`.
   replica: the acknowledged rows of that file were missing from every load, and
   nothing failed. A replica also did this when it caught a live master
   mid-write.
+- A record with a NUL in a string (`json_dumps()` writes it as `\u0000`) is read
+  back. 7.25.4 took it at the append, and every read failed (CRITICAL *"Bad
+  data, anystring2json() FAILED."*, `load_failed`). A read that fails now logs
+  *"Bad data, the content of the record is not json"*, with the jansson `error`
+  and `position`.
 - A read that returns fewer bytes than asked logs *"... short read"* with `read`
   / `expected` (it logged *"read FAILED"* with a stale errno); a short write
   likewise logs *"... short write"*. A read error or short read of an md2's
