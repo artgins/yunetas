@@ -707,6 +707,22 @@ Returns a new `gbuffer_t` containing the decoded binary data, or NULL on error (
 
 The output buffer is sized based on the expected decoded length. The caller is responsible for calling `gbuffer_decref()` on the returned buffer when done.
 
+It reads `base64_len` characters at most, or up to a `'\0'` if one comes first, so a slice of a longer text can be decoded in place. Up to 7.25.4 the length was ignored and the decoder read up to the `'\0'`: a slice followed by other text (the value of `content64='...'` inside a command line) failed on the closing quote.
+
+**Example**
+
+```C
+const char *line = "install-binary id=x content64='QUJD'";
+const char *value = strstr(line, "content64='") + strlen("content64='");
+gbuffer_t *gbuf = gbuffer_base64_to_binary(value, 4);   // "ABC", 3 bytes
+if(gbuf) {
+    size_t len = gbuffer_leftbytes(gbuf);
+    const char *data = gbuffer_cur_rd_pointer(gbuf);
+    // ... use data, len
+    GBUFFER_DECREF(gbuf)
+}
+```
+
 ---
 
 (gbuffer_binary_to_base64)=

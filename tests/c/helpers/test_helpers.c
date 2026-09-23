@@ -519,12 +519,43 @@ PRIVATE void test_find_files_with_suffix(void)
     rmrdir(RMR_BASE);
 }
 
+/***************************************************************************
+ *  gbuffer_base64_to_binary() decodes base64_len chars, not up to a '\0'.
+ *  Up to 7.25.4 the length was ignored: a slice of a longer text (the
+ *  value of content64='...' inside a command line) failed on the quote.
+ ***************************************************************************/
+PRIVATE void test_base64_slice(void)
+{
+    const char *text = "content64='QUJD' id=x";
+    const char *slice = text + strlen("content64='");
+    gbuffer_t *gbuf = gbuffer_base64_to_binary(slice, 4);
+    if(gbuf && gbuffer_leftbytes(gbuf) == 3 &&
+            memcmp(gbuffer_cur_rd_pointer(gbuf), "ABC", 3) == 0) {
+        printf("ok   %-40s\n", "base64: a slice of a text is decoded");
+    } else {
+        printf("FAIL %-40s\n", "base64: a slice of a text is decoded");
+        global_result += -1;
+    }
+    GBUFFER_DECREF(gbuf)
+
+    gbuf = gbuffer_base64_to_binary("QUI=", 4);
+    if(gbuf && gbuffer_leftbytes(gbuf) == 2 &&
+            memcmp(gbuffer_cur_rd_pointer(gbuf), "AB", 2) == 0) {
+        printf("ok   %-40s\n", "base64: padding at the end of the slice");
+    } else {
+        printf("FAIL %-40s\n", "base64: padding at the end of the slice");
+        global_result += -1;
+    }
+    GBUFFER_DECREF(gbuf)
+}
+
 PRIVATE int do_test(void)
 {
     test_save_json_to_file();
     test_rmrdir_symlinks();
     test_mkrdir_not_a_directory();
     test_find_files_with_suffix();
+    test_base64_slice();
     test_split_basic();
     test_split_empties_excluded();
     test_split_null_size_arg();

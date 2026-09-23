@@ -825,18 +825,23 @@ PRIVATE size_t b64_encode(const char *src, size_t srclength, char *target, size_
    converts characters, four at a time, starting at (or after)
    src from base - 64 numbers into three 8 bit bytes in the target area.
    it returns the number of data bytes stored at the target, or -1 on error.
+   It reads srclength chars of src at most (up to 7.25.4 it read up to a
+   '\0' and ignored the length: a slice of a longer text failed, or was
+   decoded past its end).
  */
+#define B64_NEXT_CHAR() ((src < src_end)? *src++ : '\0')
 
-PRIVATE size_t b64_decode(const char *src, uint8_t *target, size_t targsize)
+PRIVATE size_t b64_decode(const char *src, size_t srclength, uint8_t *target, size_t targsize)
 {
     size_t tarindex, state;
     const char *pos;
+    const char *src_end = src + srclength;
     char ch;
 
     state = 0;
     tarindex = 0;
 
-    while ((ch = *src++) != '\0') {
+    while ((ch = B64_NEXT_CHAR()) != '\0') {
         if (isspace((int)ch))    /* Skip whitespace anywhere. */
             continue;
 
@@ -896,7 +901,7 @@ PRIVATE size_t b64_decode(const char *src, uint8_t *target, size_t targsize)
      */
 
     if (ch == Pad64) {      /* We got a pad char. */
-        ch = *src++;        /* Skip it, get next. */
+        ch = B64_NEXT_CHAR();   /* Skip it, get next. */
         switch (state) {
         case 0:     /* Invalid = in first position */
         case 1:     /* Invalid = in second position */
@@ -904,13 +909,13 @@ PRIVATE size_t b64_decode(const char *src, uint8_t *target, size_t targsize)
 
         case 2:     /* Valid, means one byte of info */
             /* Skip any number of spaces. */
-            for ((void)NULL; ch != '\0'; ch = *src++)
+            for ((void)NULL; ch != '\0'; ch = B64_NEXT_CHAR())
                 if (!isspace((int)ch))
                     break;
             /* Make sure there is another trailing = sign. */
             if (ch != Pad64)
                 return (size_t)(-1);
-            ch = *src++;        /* Skip the = */
+            ch = B64_NEXT_CHAR();   /* Skip the = */
             /* Fall through to "single trailing =" case. */
             /* FALLTHROUGH */
 
@@ -919,7 +924,7 @@ PRIVATE size_t b64_decode(const char *src, uint8_t *target, size_t targsize)
              * We know this char is an =.  Is there anything but
              * whitespace after it?
              */
-            for ((void)NULL; ch != '\0'; ch = *src++)
+            for ((void)NULL; ch != '\0'; ch = B64_NEXT_CHAR())
                 if (!isspace((int)ch))
                     return (size_t)(-1);
 
@@ -1067,7 +1072,7 @@ PUBLIC gbuffer_t *gbuffer_base64_to_binary(const char *base64, size_t base64_len
         return 0;
     }
     uint8_t *p = gbuffer_cur_wr_pointer(gbuf_output);
-    size_t decoded = b64_decode(base64, p, output_len);
+    size_t decoded = b64_decode(base64, base64_len, p, output_len);
     if(decoded == (size_t)-1) {
         gbuffer_decref(gbuf_output);
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
