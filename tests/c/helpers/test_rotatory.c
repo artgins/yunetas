@@ -55,6 +55,8 @@ PRIVATE void check(BOOL ok, const char *name)
     }
 }
 
+PRIVATE size_t count_lines(const char *path);
+
 PRIVATE BOOL exists_no_follow(const char *path)
 {
     struct stat st;
@@ -341,6 +343,80 @@ PRIVATE void test_write_path(void)
 }
 
 /***************************************************************************
+ *  keep_all: a size rotation never removes a piece of the day.
+ *
+ *  Up to 7.25.4 each size rotation renamed the file to .OLD and removed
+ *  the previous .OLD: on a day that crossed the limit twice, the first
+ *  part of the day was deleted (the agent audit of wattyzer lost the
+ *  mornings of 22 and 23 September 2026 this way).
+ ***************************************************************************/
+PRIVATE void test_keep_all_old(void)
+{
+    rmrdir(BASE);
+    mkrdir(AUDIT_DIR, 02775);
+
+    hrotatory_h hr = rotatory_open(AUDIT_DIR "/" MASK, 0, 1, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    rotatory_keep_all_old_files(hr, TRUE);
+    char current[PATH_MAX];
+    snprintf(current, sizeof(current), "%s", rotatory_path(hr));
+
+    /*
+     *  7 megas of 1001-byte records: with a limit of 1 mega the file
+     *  rotates when it is over 2 megas (whole megas), so three rotations
+     */
+    char line[1001];
+    memset(line, 'k', sizeof(line)-1);
+    line[sizeof(line)-1] = 0;
+    int n_records = 7000;
+    for(int i=0; i<n_records; i++) {
+        rotatory_write(hr, LOG_AUDIT, line, strlen(line));
+    }
+    rotatory_flush(hr);
+
+    char path[PATH_MAX+16];
+    size_t lines = count_lines(current);
+    int pieces = 0;
+    for(int n=1; n<10; n++) {
+        snprintf(path, sizeof(path), "%s.OLD.%d", current, n);
+        if(exists_no_follow(path)) {
+            pieces++;
+            lines += count_lines(path);
+        }
+    }
+    snprintf(path, sizeof(path), "%s.OLD", current);
+    check(pieces >= 3 && !exists_no_follow(path), "keep_all: numbered .OLD.<n> pieces, no .OLD");
+    check(lines == (size_t)n_records, "keep_all: every record of the day is kept");
+    printf("     (%d pieces, %d records of %d)\n", pieces, (int)lines, n_records);
+
+    /*
+     *  The retention knows the numbered pieces
+     */
+    make_file(AUDIT_DIR "/001-01_01_2026.log.OLD.3", 10, 30);
+    make_file(AUDIT_DIR "/001-01_01_2026.log.OLD.x", 10, 30);
+    make_file(AUDIT_DIR "/001-01_01_2026.log.OLD.", 10, 30);
+    int removed = rotatory_remove_old_files(hr, 7, NULL, NULL);
+    check(removed == 1 && !exists_no_follow(AUDIT_DIR "/001-01_01_2026.log.OLD.3") &&
+        exists_no_follow(AUDIT_DIR "/001-01_01_2026.log.OLD.x") &&
+        exists_no_follow(AUDIT_DIR "/001-01_01_2026.log.OLD."),
+        "keep_all: the retention removes an old .OLD.<n>, and nothing of another shape"
+    );
+    snprintf(path, sizeof(path), "%s.OLD.1", current);
+    set_age(path, 30);
+    removed = rotatory_remove_old_files(hr, 7, NULL, NULL);
+    check(removed == 0 && exists_no_follow(path),
+        "keep_all: a piece of the current day stays, even old"
+    );
+
+    rotatory_close(hr);
+    rmrdir(BASE);
+}
+
+/***************************************************************************
  *  The free-space probe, faked for ONE directory.
  *
  *  This test binary is linked with -Wl,--wrap=statvfs,--wrap=fstatvfs
@@ -558,6 +634,7 @@ int main(int argc, char *argv[])
 
     test_retention();
     test_write_path();
+    test_keep_all_old();
     test_disk_full_per_handle();
     test_write_after_end();     // LAST: it ends the rotatory
 

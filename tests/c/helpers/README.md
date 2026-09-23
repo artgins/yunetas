@@ -28,6 +28,16 @@ directory: the test binary is linked with `--wrap=statvfs,--wrap=fstatvfs`).
 And after `rotatory_end()`, a write, flush, truncate or close through an old
 handle does nothing.
 
+`test_audit_record` compiles the audit record builder of `yuneta_agent`
+(`yunos/c/yuno_agent/src/audit_record.c`) and checks it: a `content64` (in
+the command text or as a kw key) is never written, only its size and the
+sha256 of the decoded content; `__md_iev__` becomes a short `source`; a
+read-only command is recorded with command, date and user only; the kw of the
+caller is not modified. It prints the size of a record, 7.25.4's way and now,
+and what one record costs. `test_rotatory` also covers
+`rotatory_keep_all_old_files()` (numbered `.OLD.<n>` pieces, none removed, and
+the retention matches them).
+
 ## Run
 
 ```bash

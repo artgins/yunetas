@@ -53,6 +53,7 @@ endif()
 set(SRCS
     test_helpers
     test_rotatory
+    test_audit_record
 )
 
 ##############################################
@@ -86,3 +87,11 @@ endforeach()
 
 # test_rotatory fakes the free space of one directory (see its header)
 target_link_options(test_rotatory PUBLIC LINKER:--wrap=statvfs,--wrap=fstatvfs)
+
+# test_audit_record tests the audit record builder of yuno_agent (its own source)
+target_sources(test_audit_record PRIVATE
+    ${YUNETAS_BASE}/yunos/c/yuno_agent/src/audit_record.c
+)
+target_include_directories(test_audit_record PRIVATE
+    ${YUNETAS_BASE}/yunos/c/yuno_agent/src
+)

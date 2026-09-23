@@ -35,6 +35,7 @@
 #define DATE_MASK               "DD/MM/CCYY-W-ZZZ"  // the mask of formatdate()
 #define DIGIT_MARK              '\001'
 #define OLD_SUFFIX              ".OLD"
+#define MAX_OLD_PIECES          9999    // .OLD.<n> of one day, see rotatory_keep_all_old_files()
 
 /*****************************************************************
  *          Structures
@@ -50,6 +51,7 @@ typedef struct rotatory_log_s {
     pe_flag_t pe_flag;          // Exit if cannot create rotatory file
 
     uint16_t counter_statvfs;
+    BOOL keep_all_old;          // size rotation to .OLD.<n>, see rotatory_keep_all_old_files()
     BOOL disk_full;             // below min_free_disk_percentage: records dropped
     uint64_t dropped_records;   // while disk_full
     char log_directory[NAME_MAX];   // from path
@@ -364,6 +366,20 @@ PUBLIC int rotatory_subscribe2newfile(
 }
 
 /*****************************************************************
+ *  See rotatory.h
+ *****************************************************************/
+PUBLIC int rotatory_keep_all_old_files(hrotatory_h hr_, BOOL keep_all)
+{
+    rotatory_log_t *hr = hr_;
+    if(!is_open_handle(hr)) {
+        print_error(PEF_SYSLOG, "rotatory_keep_all_old_files(): handle not open");
+        return -1;
+    }
+    hr->keep_all_old = keep_all;
+    return 0;
+}
+
+/*****************************************************************
  *   Return bytes written
  *****************************************************************/
 PUBLIC int rotatory_write(hrotatory_h hr_, int priority, const char* bf, size_t len)
@@ -586,10 +602,32 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
                 fclose(hr->flog);
                 hr->flog = 0;
 
-                char filename_old[2*NAME_MAX+5];
+                char filename_old[2*NAME_MAX+32];
                 snprintf(filename_old, sizeof(filename_old), "%s.OLD",
                     hr->path
                 );
+                if(hr->keep_all_old) {
+                    /*
+                     *  The first free .OLD.<n>: no piece of the day is removed
+                     */
+                    int n;
+                    for(n=1; n<=MAX_OLD_PIECES; n++) {
+                        snprintf(filename_old, sizeof(filename_old), "%s.OLD.%d",
+                            hr->path, n
+                        );
+                        if(access(filename_old, 0)!=0) {
+                            break;
+                        }
+                    }
+                    if(n > MAX_OLD_PIECES) {
+                        print_error(
+                            PEF_SYSLOG,
+                            "_rotatory(): %d pieces of '%s' in one day, the last one is replaced",
+                            MAX_OLD_PIECES,
+                            hr->path
+                        );
+                    }
+                }
                 if(access(filename_old, 0)==0) {
                     if(unlink(filename_old)<0) {
                         print_error(
@@ -817,9 +855,34 @@ PUBLIC const char *rotatory_path(hrotatory_h hr_)
 }
 
 /*****************************************************************
+ *  TRUE if `suffix` is "", ".OLD" or ".OLD.<n>": the file itself or
+ *  one of the pieces of a size rotation
+ *****************************************************************/
+PRIVATE BOOL is_piece_suffix(const char *suffix)
+{
+    if(*suffix == 0 || strcmp(suffix, OLD_SUFFIX) == 0) {
+        return TRUE;
+    }
+    size_t old_len = strlen(OLD_SUFFIX);
+    if(strncmp(suffix, OLD_SUFFIX, old_len) != 0 || suffix[old_len] != '.') {
+        return FALSE;
+    }
+    const char *n = suffix + old_len + 1;
+    if(!*n) {
+        return FALSE;
+    }
+    for(; *n; n++) {
+        if(!isdigit((unsigned char)*n)) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/*****************************************************************
  *  TRUE if `name` has the shape of the files of this rotatory:
  *  where formatdate() writes a digit there must be a digit, the rest
- *  of the mask literal, and an optional ".OLD" at the end.
+ *  of the mask literal, and an optional ".OLD" or ".OLD.<n>" at the end.
  *****************************************************************/
 PRIVATE BOOL name_has_the_shape_of_the_mask(rotatory_log_t *hr, const char *name)
 {
@@ -838,11 +901,7 @@ PRIVATE BOOL name_has_the_shape_of_the_mask(rotatory_log_t *hr, const char *name
 
     size_t shape_len = strlen(shape);
     size_t name_len = strlen(name);
-    if(name_len == shape_len + strlen(OLD_SUFFIX)) {
-        if(strcmp(name + shape_len, OLD_SUFFIX) != 0) {
-            return FALSE;
-        }
-    } else if(name_len != shape_len) {
+    if(name_len < shape_len || !is_piece_suffix(name + shape_len)) {
         return FALSE;
     }
 
@@ -901,16 +960,15 @@ PUBLIC int rotatory_remove_old_files(
         return -1;
     }
 
-    char current_old[NAME_MAX+sizeof(OLD_SUFFIX)];
-    snprintf(current_old, sizeof(current_old), "%s%s", hr->filename, OLD_SUFFIX);
+    size_t current_len = strlen(hr->filename);
 
     time_t limit = time(NULL) - (time_t)keep_days * 24 * 60 * 60;
     int removed = 0;
     struct dirent *de;
     while((de = readdir(dir)) != NULL) {
         const char *name = de->d_name;
-        if(strcmp(name, hr->filename) == 0 || strcmp(name, current_old) == 0) {
-            continue;
+        if(strncmp(name, hr->filename, current_len) == 0 && is_piece_suffix(name + current_len)) {
+            continue;   // The current file, or a piece of the current day
         }
         if(!name_has_the_shape_of_the_mask(hr, name)) {
             continue;

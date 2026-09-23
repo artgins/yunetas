@@ -24,6 +24,7 @@
 
 #include <c_pty.h>
 #include "c_agent.h"
+#include "audit_record.h"
 #include "treedb_schema_yuneta_agent.c"
 
 /***************************************************************************
@@ -1162,6 +1163,7 @@ PRIVATE void mt_create(hgobj gobj)
             TRUE
         );
         if(priv->audit_file) {
+            rotatory_keep_all_old_files(priv->audit_file, TRUE);   // a size rotation deletes no audit
             rotatory_subscribe2newfile(priv->audit_file, audit_newfile_cb, gobj);
             remove_old_audit_files(gobj);
             gobj_audit_commands(audit_command_cb, gobj);
@@ -9232,27 +9234,19 @@ PRIVATE int audit_command_cb(const char *command, json_t *kw, void *user_data)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->audit_file) {
-        if(!kw) {
-            kw = json_object();
-        } else {
-            KW_INCREF(kw);
+        char date[90];  // current_timestamp() wants 90 bytes
+        current_timestamp(date, sizeof(date));
+        json_t *jn_record = audit_record_build(command, kw, date);  // kw not owned
+        if(!jn_record) {
+            return 0;   // Error already logged
         }
-        char fecha[32];
-        current_timestamp(fecha, sizeof(fecha));
-        json_t *jn_cmd = json_pack("{s:s, s:s, s:o}",
-            "command", command,
-            "date", fecha,
-            "kw", kw
-        );
-        if(jn_cmd) {
-            char *audit = json2uglystr(jn_cmd);
-            if(audit) {
-                rotatory_write(priv->audit_file, LOG_AUDIT, audit, strlen(audit));
-                rotatory_write(priv->audit_file, LOG_AUDIT, "\n", 1);  // double new line: the separator field
-                gbmem_free(audit);
-            }
-            json_decref(jn_cmd);
+        char *audit = json2uglystr(jn_record);
+        if(audit) {
+            rotatory_write(priv->audit_file, LOG_AUDIT, audit, strlen(audit));
+            rotatory_write(priv->audit_file, LOG_AUDIT, "\n", 1);  // double new line: the separator field
+            gbmem_free(audit);
         }
+        json_decref(jn_record);
     }
     return 0;
 }

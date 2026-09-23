@@ -81,11 +81,23 @@ PUBLIC void rotatory_flush(hrotatory_h hr);
 PUBLIC const char *rotatory_path(hrotatory_h hr);
 
 /*
+ *  Keep every piece of a day. By default a size rotation renames the
+ *  file to "<name>.OLD" and removes the previous .OLD, so a day keeps at
+ *  most two pieces (the yuno logs: bounded by design). With keep_all,
+ *  each size rotation renames the file to the first free "<name>.OLD.<n>"
+ *  (n = 1, 2, ...) and nothing is removed: use it with a retention
+ *  (rotatory_remove_old_files()), as the agent audit does.
+ *  Return 0, -1 if the handle is not open.
+ */
+PUBLIC int rotatory_keep_all_old_files(hrotatory_h hr, BOOL keep_all);
+
+/*
  *  Retention: remove the files of this rotatory older than keep_days.
  *
  *  Only the files of THIS rotatory are candidates: regular files of its
  *  directory whose name has the shape of its mask (each mask letter of
- *  "DD/MM/CCYY-W-ZZZ" a digit, the rest literal), and their ".OLD" copy.
+ *  "DD/MM/CCYY-W-ZZZ" a digit, the rest literal), and their ".OLD" or
+ *  ".OLD.<n>" pieces.
  *  Never the current file or its ".OLD", never a symbolic link, never a
  *  directory. The age is the file's mtime.
  *

@@ -32,11 +32,29 @@ not dial out. See [`controlcenter`](controlcenter.md) for the operator side.
 
 The agent writes every command that it runs to a daily audit file in
 `/yuneta/realms/agent/agent/audit/` (`use_audit_command_file`, on by default).
-The attribute `audit_keep_days` (default `7`, `0` = keep all) is the retention:
-at start, and when a new audit file begins, the agent removes the audit files
-older than that and logs one INFO line with their names. Only files with the
-name shape of the audit mask are removed. For example, to keep 30 days, put
-this in `/yuneta/agent/yuneta_agent.json` and restart the agent:
+
+- A read-only command (`list-*`, `view-*`, `stats`, `nodes`, `help`, …) is
+  recorded with the command, the date and the user only.
+- Any other command also gets its `source` (the console purpose and each
+  inter-yuno hop: role, yuno, service, user, host) and its parameters.
+- A `content64` (a binary, a config) is never written: only its size and the
+  sha256 of the decoded content.
+
+```json
+{"command":"list-yunos","date":"2026-09-24T10:00:00.000000000+0200","user":"claudia@artgins.com"}
+{"command":"install-binary id=auth_bff content64='<33554432 bytes sha256:401b36b9…>'","date":"…","user":"yuneta","kw":{}}
+```
+
+Up to 7.25.4 an `install-binary` of a 32 MB yuno wrote 134 MB (the base64 three
+times); now it writes about 500 bytes.
+
+A day that crosses `max_megas_audit_file` (500 MB) continues in `.OLD.1`,
+`.OLD.2`, …; no piece of a day is removed. The attribute `audit_keep_days`
+(default `7`, `0` = keep all) is the retention: at start, and when a new audit
+file begins, the agent removes the audit files older than that and logs one
+INFO line with their names. Only files with the name shape of the audit mask
+are removed. For example, to keep 30 days, put this in
+`/yuneta/agent/yuneta_agent.json` and restart the agent:
 
 ```json
 {
@@ -47,8 +65,8 @@ this in `/yuneta/agent/yuneta_agent.json` and restart the agent:
 ```
 
 An old `audit/` directory from 7.25.4 or earlier needs no manual cleaning: the
-first start removes what is older than `audit_keep_days`. Details in
-[the agent's audit files](#agent-audit-files).
+first start removes what is older than `audit_keep_days`. Details and the full
+list of read-only commands in [the agent's audit files](#agent-audit-files).
 
 ## Redundancy
 

@@ -1203,7 +1203,7 @@ it by hand, run the script.
 
 6. [**`udpc_fwrite`**](logging/log_udp_handler.md#udpc_fwrite) — `PUBLIC int udpc_fwrite(udpc_t udpc, int priority, const char *format, ...)`
 
-### `rotatory.h` — 11 functions
+### `rotatory.h` — 12 functions
 
 **Source:** `kernel/c/gobj-c/src/rotatory.h`
 
@@ -1227,7 +1227,9 @@ it by hand, run the script.
 
 10. [**`rotatory_path`**](logging/rotatory.md#rotatory_path) — `PUBLIC const char *rotatory_path(hrotatory_h hr)`
 
-11. [**`rotatory_remove_old_files`**](logging/rotatory.md#rotatory_remove_old_files) — `PUBLIC int rotatory_remove_old_files( hrotatory_h hr, unsigned keep_days, json_t *jn_removed, uint64_t *removed_bytes )`
+11. [**`rotatory_keep_all_old_files`**](logging/rotatory.md#rotatory_keep_all_old_files) — `PUBLIC int rotatory_keep_all_old_files(hrotatory_h hr, BOOL keep_all)`
+
+12. [**`rotatory_remove_old_files`**](logging/rotatory.md#rotatory_remove_old_files) — `PUBLIC int rotatory_remove_old_files( hrotatory_h hr, unsigned keep_days, json_t *jn_removed, uint64_t *removed_bytes )`
 
 ### `stats_parser.h` — 3 functions
 
@@ -1263,7 +1265,7 @@ it by hand, run the script.
 
 10. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 598 functions**
+**Total: 599 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2320,7 +2322,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1004 functions** sorted alphabetically with their source header.
+All **1005 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -3032,6 +3034,7 @@ All **1004 functions** sorted alphabetically with their source header.
 | [**`rotatory_end`**](logging/rotatory.md#rotatory_end) | `rotatory.h` | gobj-c (Core Framework) |
 | [**`rotatory_flush`**](logging/rotatory.md#rotatory_flush) | `rotatory.h` | gobj-c (Core Framework) |
 | [**`rotatory_fwrite`**](logging/rotatory.md#rotatory_fwrite) | `rotatory.h` | gobj-c (Core Framework) |
+| [**`rotatory_keep_all_old_files`**](logging/rotatory.md#rotatory_keep_all_old_files) | `rotatory.h` | gobj-c (Core Framework) |
 | [**`rotatory_open`**](logging/rotatory.md#rotatory_open) | `rotatory.h` | gobj-c (Core Framework) |
 | [**`rotatory_path`**](logging/rotatory.md#rotatory_path) | `rotatory.h` | gobj-c (Core Framework) |
 | [**`rotatory_remove_old_files`**](logging/rotatory.md#rotatory_remove_old_files) | `rotatory.h` | gobj-c (Core Framework) |

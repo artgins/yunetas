@@ -27,7 +27,7 @@ So the file changes when the date changes. Two masks are in use:
 | `mqtt_broker-W.log` (the yuno logs) | `mqtt_broker-4.log` | 7 files. When a new day starts, the file of the same week day is opened with `"w"`, so the file of last week is emptied. The name is the retention. |
 | `ZZZ-DD_MM_CCYY.log` (the agent audit) | `266-23_09_2026.log` | One new file each day, never used again. Nothing is removed unless the user calls [`rotatory_remove_old_files()`](#rotatory_remove_old_files). |
 
-When the current file becomes larger than `max_megas_rotatoryfile_size`, the rotatory renames it to `<name>.OLD` (a previous `.OLD` is removed) and starts the file again. So one day keeps at most two files of that size.
+When the current file becomes larger than `max_megas_rotatoryfile_size`, the rotatory renames it to `<name>.OLD` (a previous `.OLD` is removed) and starts the file again. So one day keeps at most two files of that size: this is what bounds the yuno logs. A handle set with [`rotatory_keep_all_old_files()`](#rotatory_keep_all_old_files) renames to `<name>.OLD.1`, `<name>.OLD.2`, … instead and removes nothing: the agent audit does this, with a retention by days.
 
 A new file (a new day, or the size limit) calls the callback of [`rotatory_subscribe2newfile()`](#rotatory_subscribe2newfile). Nothing else happens on the write path.
 
@@ -221,6 +221,50 @@ Use [`rotatory_close()`](#rotatory_close) to properly close the log handle.
 
 ---
 
+(rotatory_keep_all_old_files)=
+## [`rotatory_keep_all_old_files()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/rotatory.c#L371)
+
+`rotatory_keep_all_old_files()` makes a size rotation keep every piece of the day: the file is renamed to the first free `<name>.OLD.<n>` (`n` = 1, 2, …) and nothing is removed.
+
+```C
+int rotatory_keep_all_old_files(
+    hrotatory_h hr,
+    BOOL        keep_all
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `hr` | `hrotatory_h` | Handle to the rotatory log instance. |
+| `keep_all` | `BOOL` | `TRUE`: numbered `.OLD.<n>` pieces, none removed. `FALSE` (the default): one `.OLD`, the previous one removed. |
+
+**Returns**
+
+Returns `0`, or `-1` if the handle is not open.
+
+**Notes**
+
+It is off by default, and the yuno logs keep it off: their `W` mask makes 7 files that are emptied each week, and one `.OLD` per file keeps them bounded (7 × 2 × 8 MB). With `keep_all`, a noisy yuno (traces on) would leave any number of `.OLD.<n>` pieces that the weekly reuse of the name never empties.
+
+Use it with a mask that makes a new name every day and a retention by days ([`rotatory_remove_old_files()`](#rotatory_remove_old_files)), which removes the `.OLD.<n>` pieces with the rest. The agent audit does this, because a piece of audit must never be removed by the size of the day: up to 7.25.4 a day that crossed the limit twice lost its first part.
+
+After 9999 pieces in one day, the last one is replaced (and a line is printed).
+
+**Example**
+
+```C
+hrotatory_h hr = rotatory_open(
+    "/yuneta/realms/agent/agent/audit/ZZZ-DD_MM_CCYY.log",
+    0, 500, 20, 02775, 0660, TRUE
+);
+rotatory_keep_all_old_files(hr, TRUE);
+// a big day: 266-23_09_2026.log.OLD.1, 266-23_09_2026.log.OLD.2, 266-23_09_2026.log
+```
+
+---
+
 (rotatory_path)=
 ## [`rotatory_path()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/rotatory.c#L652)
 
@@ -280,9 +324,9 @@ Returns the number of files removed, or `-1` on error (logged).
 Only the files of **this** rotatory are candidates. A file is removed only if all of these are true:
 
 - It is in the directory of the rotatory.
-- Its name has the shape of the mask: a digit in each position that the date fills, the other characters equal to the mask. A `.OLD` at the end is accepted.
+- Its name has the shape of the mask: a digit in each position that the date fills, the other characters equal to the mask. A `.OLD` or a `.OLD.<n>` at the end is accepted.
 - It is a regular file. A symbolic link, a directory or any other type stays. A link is never followed.
-- It is not the current file or its `.OLD`.
+- It is not the current file or one of its pieces (`.OLD`, `.OLD.<n>`).
 - Its `mtime` is older than `keep_days` days.
 
 A mask with no date letters matches only the current file, so the function removes nothing.

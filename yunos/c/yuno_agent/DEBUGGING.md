@@ -442,40 +442,124 @@ record for each command (`use_audit_command_file`, on by default). The files
 are in the `audit/` directory of the agent realm:
 
 ```
-/yuneta/realms/agent/agent/audit/266-23_09_2026.log      # ZZZ-DD_MM_CCYY.log
-/yuneta/realms/agent/agent/audit/266-23_09_2026.log.OLD  # the first part of a big day
+/yuneta/realms/agent/agent/audit/266-23_09_2026.log        # ZZZ-DD_MM_CCYY.log
+/yuneta/realms/agent/agent/audit/266-23_09_2026.log.OLD.1  # the first 500 MB of a big day
+/yuneta/realms/agent/agent/audit/266-23_09_2026.log.OLD.2  # the next 500 MB
 ```
 
-The mask `ZZZ-DD_MM_CCYY.log` makes a new name every day, so the name gives no
-retention. The attribute **`audit_keep_days`** (default `7`) is the retention.
-The agent removes the audit files older than that number of days:
+#### What a record holds
+
+The record is built by `audit_record_build()`
+(`yunos/c/yuno_agent/src/audit_record.c`). There are two forms.
+
+**A read-only command** gets only the command, the date and the user:
+
+```json
+{"command":"list-yunos","date":"2026-09-24T10:00:00.000000000+0200","user":"claudia@artgins.com"}
+```
+
+The command tables do not say which commands are read-only, so the list is by
+name: the prefixes `list-`, `view-`, `get-`, `info-`, `dir-`, and `help`,
+`authzs`, `ping`, `node-uuid`, `top`, `top-services`, `services`, `stats`,
+`stats-agent`, `stats-yuno`, `authzs-yuno`, `treedbs`, `treedb-info`, `topics`,
+`desc`, `descs`, `system-schema`, `schema-file`, `saved-schema`,
+`diff-schema`, `jtree`, `nodes`, `node`, `instances`, `hooks`, `links`,
+`parents`, `children`, `pkey2s`, `snaps`, `snap-content`, `print-role`,
+`print-tranger`, `check-json`, `check-realm`, `cert-expiry-status`,
+`cert-sync-status`, `global-variables`, `running-keys`, `running-bin`,
+`users`, `accesses`, `roles`, `user-roles`, `user-authzs`. `command-yuno` and
+`command-agent` are judged by the command that they carry, and the record names
+it: `"command":"command-yuno command=view-attrs"`. These commands keep the full
+record: `read-file`, `read-json` and `read-binary-file` (they read files of the
+node), `check-user-pwd`, and anything that opens something (`open-list`,
+`open-treedb`, …).
+
+**Every other command** gets the command, the date, the user, the source and the
+parameters:
+
+```json
+{"command":"install-binary id=auth_bff content64='<33554432 bytes sha256:401b36b9e4f91e967e815f96fd293cb384222d3e73e1b9fcf759d5ecfadfdbf8>'",
+ "date":"2026-09-24T10:00:00.000000000+0200",
+ "user":"yuneta",
+ "source":{"console_purpose":"statnodes",
+           "hops":[{"role":"controlcenter","yuno":"artgins.com","service":"top-16",
+                    "user":"yuneta_agent@artgins.com","host":"artgins"},
+                   {"role":"gui_agent","yuno":"gui_agent_yuno","service":"agent_link",
+                    "user":"claudia@artgins.com","host":"544f1345-65a6-455c-aa94-62b6b020b5c5"}]},
+ "kw":{"__username__":"yuneta"}}
+```
+
+- `user` is the end user (`__username__` of the kw), or the user of the nearest
+  hop.
+- `source` replaces `__md_iev__`. It keeps the console purpose (if any) and, for
+  each inter-yuno hop (nearest first), the role, the yuno and the service of
+  the sender, its user and its host. The address of the peer is not in the kw
+  and is not written. A command typed on the node (local `ycommand`) has no
+  `source`.
+- **A `content64` is never written.** Everywhere (in the command text, where
+  `ycommand` puts it, and in any kw key named `content64`), the value is
+  replaced by `<N bytes sha256:HEX>`: the size and the sha256 of the DECODED
+  content. The sha256 is the one of the binary, so you can check it on the
+  node:
+
+  ```bash
+  sha256sum /yuneta/repos/*/auth_bff/*/auth_bff
+  ```
+
+  A value that is not base64 (a path, for example) is replaced by
+  `<N chars, not base64, sha256 of the text:HEX>`.
+- `__command__` is left out when it repeats the command text.
+
+Up to 7.25.4 the record was the command, the date and the WHOLE kw. The sizes,
+measured with the same commands:
+
+| Command | Up to 7.25.4 | Now |
+|---|---|---|
+| `install-binary` of a 32 MB yuno, by `ycommand` | 134,218,673 bytes (the base64 three times) | 541 bytes |
+| `run-yuno` through the controlcenter | 891 bytes | 489 bytes |
+| `list-yunos` through the controlcenter | 840 bytes | 97 bytes |
+
+On wattyzer, a deploy day wrote 0.6–1.2 GB of audit (5 to 9 binaries) and a
+normal day 2 KB to 2.6 MB. With this format a deploy day writes a few KB.
+
+#### Rotation and retention
+
+The mask `ZZZ-DD_MM_CCYY.log` makes a new name every day. When the file of the
+day crosses `max_megas_audit_file`, it is renamed to the first free
+`.OLD.<n>` (`.OLD.1`, `.OLD.2`, …) and a new file begins. **No piece of a day
+is removed at a rotation**: the audit rotatory uses
+[`rotatory_keep_all_old_files()`](#rotatory_keep_all_old_files). Up to 7.25.4
+each rotation removed the previous `.OLD`, so a day that crossed the limit
+twice lost its first part (on wattyzer, the mornings of 22 and 23 September
+2026).
+
+The attribute **`audit_keep_days`** (default `7`) is the retention. The agent
+removes the audit files older than that number of days:
 
 - when it starts, and
 - when a new audit file begins (a new day, or the size limit).
 
 It never removes files on the write path of a command. It removes only regular
-files with the name shape of the mask (and their `.OLD`), never the current
-file, never a symbolic link, never another file in the directory
-([`rotatory_remove_old_files()`](#rotatory_remove_old_files)). Each sweep that
-removes something writes one INFO line to the agent log:
+files with the name shape of the mask (and their `.OLD` / `.OLD.<n>`), never a
+file of the current day, never a symbolic link, never another file in the
+directory ([`rotatory_remove_old_files()`](#rotatory_remove_old_files)). Each
+sweep that removes something writes one INFO line to the agent log:
 
 ```json
-{"msg": "Old audit files removed", "audit_keep_days": 7, "removed": 2, "megas": 961,
+{"msg": "Old audit files removed", "audit_keep_days": 7, "removed": 3, "megas": 961,
  "current_file": "/yuneta/realms/agent/agent/audit/266-23_09_2026.log",
- "files": ["258-15_09_2026.log", "258-15_09_2026.log.OLD"]}
+ "files": ["258-15_09_2026.log", "258-15_09_2026.log.OLD.1", "258-15_09_2026.log.OLD.2"]}
 ```
 
 | Attribute | Default | Meaning |
 |---|---|---|
 | `use_audit_command_file` | `1` | Write the audit files. |
-| `max_megas_audit_file` | `500` | Size of one audit file, in MB. A bigger day keeps the first part in `.OLD`. |
+| `max_megas_audit_file` | `500` | Size of one piece of a day, in MB. A bigger day continues in `.OLD.<n>` pieces. |
 | `audit_keep_days` | `7` | Days of audit files kept. `0` keeps all (the behaviour up to 7.25.4). |
 | `min_free_disk_percentage` | `20` | Stop writing the audit when the disk has less free space (checked every 100 records), and write it again when the space is back. |
 
-The directory is bounded: at most (`audit_keep_days` + 1) days × 2 ×
-`max_megas_audit_file`. With the defaults that is 8 GB, and less on a node
-that writes less (0.6–1 GB each day was measured on a busy node, so about
-5–8 GB).
+With the new record format the directory is a few MB a week. The retention
+still bounds it by days, whatever a day writes.
 
 To keep 30 days, set the attribute in the agent config
 (`/yuneta/agent/yuneta_agent.json`) and restart the agent:
@@ -502,6 +586,10 @@ agent with this version removes every audit file older than 7 days, logs one
 INFO line with the list, and keeps the last 7 days and today. On a slow disk
 this first sweep can take some seconds, once. To keep more, set
 `audit_keep_days` before that start.
+
+**A tool that reads the audit** must accept both formats: the files written
+before the upgrade have the whole `kw` (with `__md_iev__` and the base64) and
+no `user` or `source`.
 
 ---
 
