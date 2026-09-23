@@ -20,6 +20,7 @@
 #include <fnmatch.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 
 #define PCRE2_STATIC
 #define PCRE2_CODE_UNIT_WIDTH 8
@@ -625,15 +626,19 @@ PUBLIC int tranger2_stop(json_t *tranger)
 }
 
 /***************************************************************************
- *  A tranger that opens a topic again after tranger2_stop() is alive
- *  again: its shutdown must close what it opens from now on. And a master
- *  gave its lock back at the stop, so it takes it again, or it is not the
- *  master any more -- another process may have taken the store meanwhile.
+ *  A tranger used again after tranger2_stop() is alive again: its shutdown
+ *  must close what it opens from now on. And a master gave its lock back
+ *  at the stop, so it takes it again, or it is not the master any more --
+ *  another process may have taken the store meanwhile. Then it goes on as
+ *  a replica: `master` false, and `master_lost` true to say why. It
+ *  reads, and every write refuses (tranger_is_master).
+ *
+ *  Only the lock is taken: the tranger's settings were read at the startup.
  ***************************************************************************/
 PRIVATE void revive_stopped_tranger(hgobj gobj, json_t *tranger)
 {
-    if(!kw_get_bool(gobj, tranger, "__closed__", 0, 0)) {
-        return;
+    if(!json_is_true(json_object_get(tranger, "__closed__"))) {
+        return;     // on the hot path of every append: no kw path lookup
     }
     json_object_del(tranger, "__closed__");
 
@@ -642,26 +647,40 @@ PRIVATE void revive_stopped_tranger(hgobj gobj, json_t *tranger)
     }
 
     const char *directory = kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED);
-    int fd = -1;
-    json_t *jn_disk_tranger = load_persistent_json(
-        gobj,
-        directory,
-        "__timeranger2__.json",
-        LOG_NONE,
-        &fd,
-        TRUE,   // exclusive
-        TRUE    // silence
-    );
-    JSON_DECREF(jn_disk_tranger)
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), directory, "__timeranger2__.json", NULL);
+
+    int fd = open(path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
     if(fd < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TRANGER,
-            "msg",          "%s", "Master lock NOT retaken after a stop, go on as not master",
-            "path",         "%s", directory,
+            "msg",          "%s", "Master lock NOT retaken after a stop: cannot open the lock file, go on as not master",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         json_object_set_new(tranger, "master", json_false());
+        json_object_set_new(tranger, "master_lost", json_true());
+        return;
+    }
+    if(flock(fd, LOCK_EX|LOCK_NB) < 0) {
+        int err = errno;
+        close(fd);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", (err == EWOULDBLOCK)?
+                "Master lock NOT retaken after a stop: another process holds it, go on as not master" :
+                "Master lock NOT retaken after a stop: flock() FAILED, go on as not master",
+            "path",         "%s", path,
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
+            NULL
+        );
+        json_object_set_new(tranger, "master", json_false());
+        json_object_set_new(tranger, "master_lost", json_true());
         return;
     }
     kw_set_subdict_value(gobj, tranger, "fd_opened_files", "__timeranger2__.json", json_integer(fd));
@@ -680,6 +699,20 @@ PUBLIC int tranger2_shutdown(json_t *tranger)
     }
     JSON_DECREF(tranger)
     return 0;
+}
+
+/***************************************************************************
+ *  May this tranger write? Asked by every write path BEFORE it writes: a
+ *  stopped master takes its lock again first (revive_stopped_tranger), and
+ *  the answer is what it holds NOW. It was read from the `master` of the
+ *  stop, and tranger2_create_topic() wrote the topic files into the store
+ *  of the process that had taken it meanwhile (M3 of the 2026-09-23
+ *  independent review).
+ ***************************************************************************/
+PRIVATE BOOL tranger_is_master(hgobj gobj, json_t *tranger)
+{
+    revive_stopped_tranger(gobj, tranger);
+    return json_boolean_value(json_object_get(tranger, "master"))? TRUE: FALSE;
 }
 
 /***************************************************************************
@@ -921,7 +954,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+    BOOL master = tranger_is_master(gobj, tranger);
 
     /*-------------------------------*
      *      Some checks
@@ -1802,7 +1835,7 @@ PUBLIC int tranger2_delete_topic(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+    BOOL master = tranger_is_master(gobj, tranger);
 
     if(!master) {
         gobj_log_error(gobj, 0,
@@ -1897,7 +1930,7 @@ PUBLIC json_t *tranger2_backup_topic(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+    BOOL master = tranger_is_master(gobj, tranger);
 
     if(!master) {
         gobj_log_error(gobj, 0,
@@ -2118,7 +2151,7 @@ PUBLIC int tranger2_write_topic_var(
         return -1;
     }
 
-    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+    BOOL master = tranger_is_master(gobj, tranger);
     if(!master) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2205,7 +2238,7 @@ PUBLIC int tranger2_write_topic_cols(
         return -1;
     }
 
-    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+    BOOL master = tranger_is_master(gobj, tranger);
     if(!master) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2907,7 +2940,7 @@ PUBLIC int tranger2_append_record(
 
     // TEST performance 800.000
 
-    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+    BOOL master = tranger_is_master(gobj, tranger);
     if(!master) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -3549,7 +3582,7 @@ PUBLIC int tranger2_delete_key(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+    BOOL master = tranger_is_master(gobj, tranger);
 
     /*----------------------------------------*
      *  Delete key only if master
@@ -4126,7 +4159,7 @@ PUBLIC int tranger2_delete_instance(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+    BOOL master = tranger_is_master(gobj, tranger);
 
     if(!master) {
         gobj_log_error(gobj, 0,
