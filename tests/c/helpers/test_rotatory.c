@@ -6,6 +6,8 @@
  *          never the current file, a symbolic link, a directory, or a file
  *          of another name. And the rotation calls the newfile callback,
  *          which is where a user (the agent's audit) applies it.
+ *          And the write path: whole records across a size rotation, and
+ *          a removed file created again.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -246,6 +248,98 @@ PRIVATE void test_retention(void)
 }
 
 /***************************************************************************
+ *  The write path: a record is never split between two files, and a
+ *  file removed from the directory is created again at the next record.
+ *
+ *  Up to 7.25.4 the file was checked before EACH PIECE of a record (the
+ *  text, then its "\n"): when the text crossed the size limit, the size
+ *  rotation came between the two, the .OLD ended without its newline and
+ *  the new file began with it.
+ ***************************************************************************/
+PRIVATE char *read_whole_file(const char *path, size_t *plen)
+{
+    *plen = 0;
+    FILE *f = fopen(path, "r");
+    if(!f) {
+        return NULL;
+    }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *bf = gbmem_malloc((size_t)size + 1);
+    if(bf) {
+        *plen = fread(bf, 1, (size_t)size, f);
+        bf[*plen] = 0;
+    }
+    fclose(f);
+    return bf;
+}
+
+PRIVATE void test_write_path(void)
+{
+    rmrdir(BASE);
+    mkrdir(AUDIT_DIR, 02775);
+
+    hrotatory_h hr = rotatory_open(
+        AUDIT_DIR "/" MASK,
+        0,          // default buffer
+        1,          // 1 mega
+        1,          // min free disk percentage: do not stop on a full /tmp
+        02775,
+        0660,
+        FALSE
+    );
+    if(!hr) {
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    char current[PATH_MAX];
+    snprintf(current, sizeof(current), "%s", rotatory_path(hr));
+    char current_old[PATH_MAX+8];
+    snprintf(current_old, sizeof(current_old), "%s.OLD", current);
+
+    /*
+     *  Records of 1000 bytes + "\n" until the size rotation
+     */
+    char line[1001];
+    memset(line, 'r', sizeof(line)-1);
+    line[sizeof(line)-1] = 0;
+    for(int i=0; i<2200 && !exists_no_follow(current_old); i++) {
+        rotatory_write(hr, LOG_AUDIT, line, strlen(line));
+    }
+    rotatory_write(hr, LOG_AUDIT, line, strlen(line));
+    rotatory_flush(hr);
+
+    size_t len_old = 0, len_cur = 0;
+    char *old = read_whole_file(current_old, &len_old);
+    char *cur = read_whole_file(current, &len_cur);
+    check(old && len_old > 0 && (len_old % 1001) == 0 && old[len_old-1] == '\n',
+        "size rotation: the .OLD holds whole records"
+    );
+    check(cur && len_cur > 0 && (len_cur % 1001) == 0 && cur[0] == 'r',
+        "size rotation: the new file begins with a whole record"
+    );
+    GBMEM_FREE(old);
+    GBMEM_FREE(cur);
+
+    /*
+     *  The current file removed: the next record creates it again
+     */
+    unlink(current);
+    rotatory_write(hr, LOG_AUDIT, "after the rm", strlen("after the rm"));
+    rotatory_flush(hr);
+    cur = read_whole_file(current, &len_cur);
+    check(cur && strcmp(cur, "after the rm\n") == 0,
+        "a removed file is created again at the next record"
+    );
+    GBMEM_FREE(cur);
+
+    rotatory_close(hr);
+    rmrdir(BASE);
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -290,6 +384,7 @@ int main(int argc, char *argv[])
     gobj_log_add_handler("count_errors", "count_errors", LOG_OPT_UP_ERROR, 0);
 
     test_retention();
+    test_write_path();
 
     rotatory_end();
     gobj_end();

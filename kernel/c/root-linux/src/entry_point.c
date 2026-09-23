@@ -1027,12 +1027,20 @@ PRIVATE void process(
     // yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
     yuno_event_destroy();
 
-    rotatory_end();
     json_decref(__jn_config__);
     if(cleaning_fn) {
         cleaning_fn();
     }
     print_track_mem();
+
+    /*
+     *  The file log handlers write through the rotatory handles: close
+     *  them LAST. Up to 7.25.4 this ran before cleaning_fn() and
+     *  print_track_mem(), and what they logged (the leak report among
+     *  it) went to freed handles and never reached the log file.
+     *  The rotatory memory is system memory, out of the leak count.
+     */
+    rotatory_end();
 }
 
 /***************************************************************************

@@ -19,7 +19,10 @@ through a link to a directory (works).
 agent's audit directory: only the old files of the mask (and their `.OLD`) go;
 a recent file, other names, a symbolic link, a directory and the current file
 stay. It also checks that a size rotation calls the newfile callback, where the
-agent applies the retention.
+agent applies the retention. And the write path: across a size rotation the
+`.OLD` and the new file hold whole records (up to 7.25.4 the `"\n"` of the
+record that crossed the limit went to the new file), and a file removed by hand
+is created again by the next record.
 
 ## Run
 

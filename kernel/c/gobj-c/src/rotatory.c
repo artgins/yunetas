@@ -53,6 +53,8 @@ typedef struct rotatory_log_s {
     char log_directory[NAME_MAX];   // from path
     char filenamemask[NAME_MAX];    // from path
     char filename[NAME_MAX];        // current filename
+    time_t day_start;               // the name of the file is valid while the time
+    time_t next_day_start;          //   is in [day_start, next_day_start): one local day
     int (*cb_newfile)(void *user_data, const char *old_filename, const char *new_filename);
     void *user_data;
     FILE *flog;
@@ -64,6 +66,7 @@ typedef struct rotatory_log_s {
  *          Data
  *****************************************************************/
 PRIVATE char __initialized__ = 0;
+PRIVATE char disk_full_informed = 0;
 PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 PRIVATE dl_list_t dl_clients;
 PRIVATE const char *priority_names[]={
@@ -88,7 +91,8 @@ PRIVATE const char *priority_names[]={
 PRIVATE void _rotatory_truncate(rotatory_log_t *rotatory_log);
 PRIVATE void _rotatory_flush(rotatory_log_t* hr);
 PRIVATE BOOL _get_rotatory_filename(rotatory_log_t *rotatory_log);
-PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len);
+PRIVATE int _rotatory_prepare(rotatory_log_t *hr);
+PRIVATE int _rotatory_fwrite(rotatory_log_t *hr, const char *bf, size_t len);
 PRIVATE int _translate_mask(rotatory_log_t *hr);
 
 
@@ -174,6 +178,14 @@ PUBLIC hrotatory_h rotatory_open(
 
     /*-------------------------------------*
      *          Alloc memory
+     *
+     *  HACK use system memory, not gbmem_*, as glogger does for its
+     *  handlers: a rotatory is the sink of the file log handler, and it
+     *  must live until the end. The leak report of gbmem
+     *  (print_track_mem(), after gobj_end()) is written THROUGH it, so it
+     *  cannot be one of the blocks that report counts, and it cannot be
+     *  freed before it (see yuneta_entry_point(): rotatory_end() goes
+     *  after print_track_mem()).
      *-------------------------------------*/
     hr = calloc(1, sizeof(rotatory_log_t));
     if(!hr) {
@@ -300,7 +312,7 @@ PUBLIC void rotatory_close(hrotatory_h hr_)
     if(dl_find(&dl_clients, hr)) {
         dl_delete(&dl_clients, hr, 0);
     }
-    free(hr->buffer);
+    free(hr->buffer);   // System memory, see rotatory_open()
     free(hr);
 }
 
@@ -333,9 +345,17 @@ PUBLIC int rotatory_write(hrotatory_h hr_, int priority, const char* bf, size_t 
         priority = LOG_DEBUG;
     }
 
+    /*
+     *  The file is checked (name, size, still there) once for the record,
+     *  never between its pieces: a record is not split between two files.
+     */
+    if(_rotatory_prepare(hr) < 0) {
+        return 0;   // Nothing written: disk full, or the file cannot be opened
+    }
+
     if(priority == LOG_AUDIT) {
         // without header
-        _rotatory(hr, bf, len);
+        _rotatory_fwrite(hr, bf, len);
     } else {
         char spriority[64];
         snprintf(
@@ -344,11 +364,11 @@ PUBLIC int rotatory_write(hrotatory_h hr_, int priority, const char* bf, size_t 
             "%s: ",
             priority_names[priority]
         );
-        _rotatory(hr, spriority, strlen(spriority));
-        _rotatory(hr, bf, len);
+        _rotatory_fwrite(hr, spriority, strlen(spriority));
+        _rotatory_fwrite(hr, bf, len);
     }
     #define END_LOG "\n"
-    _rotatory(hr, END_LOG, strlen(END_LOG));
+    _rotatory_fwrite(hr, END_LOG, strlen(END_LOG));
     return 0;
 }
 
@@ -452,46 +472,57 @@ PRIVATE void _rotatory_flush(rotatory_log_t *hr)
 
 /*****************************************************************
  *  Return TRUE is filename has changed
+ *
+ *  The name is made from the local DATE only (every letter of the
+ *  mask is a part of the date), so it cannot change inside one local
+ *  day: it is made again only when the time leaves the day of the
+ *  current name (midnight, or the clock set to another day).
+ *  Up to 7.25.4 it was made again for every piece written, with a
+ *  localtime() that stat()s the zone file each time.
  *****************************************************************/
 PRIVATE BOOL _get_rotatory_filename(rotatory_log_t *hr)
 {
-    BOOL change_file = 0;
+    time_t now = time(NULL);
+    if(now >= hr->day_start && now < hr->next_day_start) {
+        return FALSE;
+    }
+
     char path[2*NAME_MAX+1];
     _translate_mask(hr);
 
     snprintf(path, sizeof(path), "%s/%s", hr->log_directory, hr->filename);
 
     if(strcmp(path, hr->path)!=0) {
-        change_file = 1;
-    } else {
-        if(access(hr->path, 0)!=0) {
-            change_file = 1;
-        }
+        return TRUE;
     }
-
-    return change_file;
+    return FALSE;
 }
 
 /*****************************************************************
- *
+ *  Make sure the file to write the next record is open:
+ *  a new name (a new day), the size limit, or the file removed from
+ *  the directory. Once for each record, see rotatory_write().
+ *  Return -1 if the record cannot be written.
  *****************************************************************/
-PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
+PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
 {
-    static char disk_full_informed=0;
-
     if(disk_full_informed) {
         return -1;
     }
     BOOL change_file = _get_rotatory_filename(hr);
 
-    /*
-     *  Check the size of file
-     */
     if(hr->flog) {
-        if(hr->max_megas_rotatoryfile_size) {
-            uint64_t siz = filesize2(fileno(hr->flog));
-            siz /= 1*1024*1024;
-            if(siz > hr->max_megas_rotatoryfile_size) {
+        /*
+         *  One fstat() gives the size and whether the file is still in the
+         *  directory (st_nlink 0 = removed: a new one is created, as the
+         *  access() of each piece did up to 7.25.4).
+         */
+        struct stat st;
+        if(fstat(fileno(hr->flog), &st) == 0) {
+            if(st.st_nlink == 0) {
+                change_file = 1;
+            } else if(hr->max_megas_rotatoryfile_size &&
+                    ((uint64_t)st.st_size)/(1024*1024) > hr->max_megas_rotatoryfile_size) {
                 /*
                  *  Rename to OLD and create a new file
                  */
@@ -524,6 +555,10 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
                 }
                 change_file = 1;
             }
+        }
+    } else if(!change_file) {
+        if(access(hr->path, 0)!=0) {
+            change_file = 1;    // No file open and no file there: create it
         }
     }
 
@@ -610,6 +645,18 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
 #endif /* __linux__ */
     }
 
+    if(!hr->flog) {
+        return -1;
+    }
+    return 0;
+}
+
+/*****************************************************************
+ *  Write one piece of a record to the file opened by
+ *  _rotatory_prepare()
+ *****************************************************************/
+PRIVATE int _rotatory_fwrite(rotatory_log_t *hr, const char *bf, size_t len)
+{
     // TODO perhaps I would remove lock file in order to get more speed.
     // block to write
     if(hr->flog) {
@@ -649,6 +696,33 @@ PRIVATE int _translate_mask(rotatory_log_t *hr)
         sizeof(hr->filename),
         hr->filenamemask
     );
+
+    /*
+     *  The local day of this name: [today 00:00, tomorrow 00:00)
+     */
+    struct tm tm;
+    localtime_r(&t, &tm);
+    tm.tm_hour = 0;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    tm.tm_isdst = -1;
+    time_t day_start = mktime(&tm);
+    tm.tm_mday += 1;
+    tm.tm_hour = 0;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    tm.tm_isdst = -1;
+    time_t next_day_start = mktime(&tm);
+
+    if(day_start == (time_t)-1 || next_day_start == (time_t)-1 ||
+            t < day_start || t >= next_day_start) {
+        // The day cannot be told: make the name again in the next second
+        hr->day_start = t;
+        hr->next_day_start = t + 1;
+    } else {
+        hr->day_start = day_start;
+        hr->next_day_start = next_day_start;
+    }
 
     return 0;
 }

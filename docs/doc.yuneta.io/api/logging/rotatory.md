@@ -7,9 +7,10 @@ Source code:
 - [`rotatory.h`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/rotatory.h)
 - [`rotatory.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/rotatory.c)
 
+(rotatory-file-names)=
 ## File names and rotation
 
-The last segment of the `path` given to [`rotatory_open()`](#rotatory_open) is a **mask**. Before each write, the rotatory makes the file name from the mask and the current local date. These letters of the mask get digits; all other characters stay as they are:
+The last segment of the `path` given to [`rotatory_open()`](#rotatory_open) is a **mask**. The rotatory makes the file name from the mask and the current local date. These letters of the mask get digits; all other characters stay as they are:
 
 | Letters | Replaced by | Example (Wednesday 23 September 2026) |
 |---|---|---|
@@ -29,6 +30,10 @@ So the file changes when the date changes. Two masks are in use:
 When the current file becomes larger than `max_megas_rotatoryfile_size`, the rotatory renames it to `<name>.OLD` (a previous `.OLD` is removed) and starts the file again. So one day keeps at most two files of that size.
 
 A new file (a new day, or the size limit) calls the callback of [`rotatory_subscribe2newfile()`](#rotatory_subscribe2newfile). Nothing else happens on the write path.
+
+**What one [`rotatory_write()`](#rotatory_write) costs.** The file is checked once for each record, before its first piece (the priority header, the text, the `"\n"`), so a record is never split between two files. The check is one `fstat()` of the open file: it gives the size (for the size limit) and the link count (a file removed from the directory is created again). The name is made again only when the time leaves the local day of the current name (midnight, or the clock set to another day), so `localtime()` does not run for each record. Measured on the agent's audit record (two writes of 300 bytes and 1 byte): 7.2 µs up to 7.25.4, 0.59 µs after.
+
+Two small differences from 7.25.4: a file RENAMED by another program is not noticed (the record goes on to the renamed file, until the next new file), and the free-disk check (`min_free_disk_percentage`) runs every 100 records instead of every 100 pieces.
 
 (rotatory_close)=
 ## [`rotatory_close()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/rotatory.c#L280)
@@ -341,14 +346,22 @@ int rotatory_write(
 
 **Returns**
 
-Returns the number of bytes written on success, or `-1` on error.
+Returns `0`, also when the record could not be written (disk below `min_free_disk_percentage`, or the file cannot be opened: those are reported with `print_error()`). Returns `-1` only when `hr` or `bf` is `NULL`. The value `0` matters: the logger stops calling the next handlers when a handler returns a negative value.
 
 **Notes**
 
 If `priority` is `LOG_AUDIT`, the message is written without a header.
 If `priority` is outside the valid range, it defaults to `LOG_DEBUG`.
 The function appends a newline character (`\n`) to the log message.
-Internally calls `_rotatory()` to perform the actual writing.
+The file is checked (new day, size limit, file removed) once, before the first piece of the record. See [File names and rotation](#rotatory-file-names).
+
+**Example**
+
+```C
+const char *record = "{\"command\":\"list-yunos\"}";
+rotatory_write(hr, LOG_AUDIT, record, strlen(record));     // no header
+rotatory_write(hr, LOG_INFO, "started", strlen("started")); // "INFO: started\n"
+```
 
 ---
 
