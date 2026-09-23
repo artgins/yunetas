@@ -9,6 +9,10 @@ listed under "No red test" in `TODO.md`.
 
 ### Upgrade steps (operators, read first)
 
+- **Nodes that build from source: rebuild the external libraries first.**
+  linux-ext-libs is 1.22 (a patched jansson): run
+  `cd kernel/c/linux-ext-libs && ./extrae.sh && ./configure-libs.sh`, then
+  `yunetas clean && yunetas build` (it refuses a stale `outputs_ext` until then).
 - **Migrate the timeranger2 topics once, after upgrading.** Topics created by
   7.25.4 or earlier do `tm` queries (`from_tm` / `to_tm`) much slower than
   7.25.4 did until they are migrated, because no file's tm range is trusted in
@@ -32,6 +36,24 @@ listed under "No red test" in `TODO.md`.
   migrated by this release without running `mark-tm-order` again after coming
   forward: an older binary appends out-of-order `tm` rows without writing the
   marker, and a tm scan can then hide rows.
+
+### Security
+
+- **jansson overflowed its buffers on a long string** (v2.15.1; not fixed
+  upstream, and the distribution's libjansson does the same). Its lexer ignored
+  a failed save and wrote past its buffers: a json string longer than about half
+  of `MEM_MAX_BLOCK` (~8 MB with the default 16 MB) crashed the process that
+  parsed it -- any `json_load*()`, json received from a peer included.
+  linux-ext-libs 1.22 carries
+  `patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`: the lexer
+  stops with `json_error_out_of_memory`, and every allocation failure of the
+  parser now sets that error. `configure-libs.sh` applies `patches/<lib>/*.patch`
+  after the checkout. The ESP32 copy of jansson has the same fix.
+- timeranger2: a record this process has not the memory to parse is reported
+  (*"Cannot read the record, this process has not the memory to parse its
+  content (MEM_MAX_BLOCK)"*, with its `key`) instead of crashing the reader; a
+  torn md2 whose last row names such a record is flagged, not cut (the open
+  crashed, or cut the file and lost the acknowledged row).
 
 ### Data loss and integrity
 
@@ -132,8 +154,9 @@ listed under "No red test" in `TODO.md`.
   and `position`.
 - The repair of an md2 that 7.25.4 wrote after a torn row (treedb.md) is a
   script that is linear (86 400 rows in 0.13 s) and runs in a `set -e`
-  subshell: it stops, with the `.md2` unchanged, when the backup copy fails;
-  when more than one boundary passes it writes nothing.
+  subshell: it names its backup `~/<topic>.<key>.<file>.orig` and refuses to
+  overwrite one, writes through `$f.tmp` + `mv` (a failure leaves the `.md2`
+  unchanged), and writes nothing when more than one boundary passes.
 - A read that returns fewer bytes than asked logs *"... short read"* with `read`
   / `expected` (it logged *"read FAILED"* with a stale errno); a short write
   likewise logs *"... short write"*. A read error or short read of an md2's
