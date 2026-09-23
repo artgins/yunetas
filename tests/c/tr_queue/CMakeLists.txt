@@ -52,6 +52,7 @@ endif()
 ##############################################
 set(SRCS
     test_tr_queue1
+    test_tr_queue_load_failed
 )
 
 ##############################################
@@ -69,6 +70,7 @@ foreach(test ${SRCS})
     endif()
 
     target_link_libraries(${binary}
+        ${MODULE_MQTT}      # tr2q_mqtt, the mqtt queues (test_tr_queue_load_failed)
         ${YUNETAS_KERNEL_LIBS}
         ${YUNETAS_EXTERNAL_LIBS}
         ${YUNETAS_PCRE_LIBS}

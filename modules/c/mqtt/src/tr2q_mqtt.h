@@ -238,6 +238,12 @@ static inline json_t * tr2q_topic(tr2_queue_t *trq)
 /**
     Load pending messages (with TR2Q_MSG_PENDING flag)
     Content is not loaded or is discarded
+    The rowid of the first pending message is saved as the queue's
+    `first_rowid` (topic_var.json): the next load starts there.
+    Return 0, or -1 when the load could not read every pending message
+    (the list says `load_failed`): the messages it read ARE in the queue,
+    and `first_rowid` is NOT moved nor saved, so that the next load, once
+    the store is repaired, finds the ones this one could not read.
 */
 PUBLIC int tr2q_load(tr2_queue_t *trq);
 

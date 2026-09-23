@@ -403,7 +403,30 @@ PUBLIC int tr2q_load(tr2_queue_t *trq)
             NULL
         );
     }
+    BOOL load_failed = (!tr_list || json_is_true(json_object_get(tr_list, "load_failed")))?
+        TRUE: FALSE;
     tranger2_close_list(trq->tranger, tr_list);
+
+    /*
+     *  A load that did not read every pending message says nothing of where
+     *  the first one is: first_rowid is not moved nor saved. It was set to
+     *  the size of the topic and saved, and the messages the load could not
+     *  read were skipped for ever, even once the store was repaired
+     *  (independent review of the third fix round). The next load starts
+     *  where the last good one said.
+     */
+    if(load_failed) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Queue loaded without some of its messages: its first_rowid is not moved nor saved",
+            "topic_name",   "%s", trq->topic_name,
+            "first_rowid",  "%ld", (long)last_first_rowid,
+            NULL
+        );
+        trq->first_rowid = last_first_rowid;
+        return -1;
+    }
 
     if(trq->first_rowid==0) {
         // No pending msg, set the last rowid
