@@ -2348,7 +2348,7 @@ PRIVATE int test_gc_after_a_restart(const char *path_root)
     int result = 0;
     const char *test = "25. after a restart: the gc does not take an asset linked by a node that did not load";
     if(geteuid() == 0) {
-        printf("25, 26: skipped, root reads a file of mode 000\n");
+        printf("25, 26: SKIPPED, running as root: a file of mode 000 is still read\n");
         return 0;
     }
 

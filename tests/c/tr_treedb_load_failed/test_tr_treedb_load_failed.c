@@ -331,7 +331,7 @@ PRIVATE int test_damaged_at_restart(const char *path_root, const char *case_name
 {
     int result = 0;
     if(unreadable && geteuid() == 0) {
-        printf("%s: skipped, root reads a file of mode 000\n", case_name);
+        printf("%s: SKIPPED, running as root: a file of mode 000 is still read\n", case_name);
         return 0;
     }
     char path_database[PATH_MAX];
@@ -615,7 +615,7 @@ PRIVATE int test_snaps_damaged_at_restart(const char *path_root)
 {
     int result = 0;
     if(geteuid() == 0) {
-        printf("7: skipped, root reads a file of mode 000\n");
+        printf("7: SKIPPED, running as root: a file of mode 000 is still read\n");
         return 0;
     }
     char path_database[PATH_MAX];

@@ -401,7 +401,7 @@ PRIVATE int test_flag_cleared(void)
 {
     int result = 0;
     if(geteuid() == 0) {
-        printf("  4. skipped: a 0000 mode does not stop root\n");
+        printf("  4. SKIPPED, running as root: a md2 of mode 000 is still read\n");
         return 0;
     }
     if(build_store() < 0) {

@@ -81,6 +81,7 @@ set(SRCS
     test_mark_tm_order
     test_uncommitted_append
     test_torn_md2_tail
+    test_md2_read_error
     test_testing
 )
 
@@ -107,6 +108,11 @@ foreach(test ${SRCS})
         ${MBEDTLS_LIBS}
         ${DEBUG_LIBS}
     )
+    if(test STREQUAL "test_md2_read_error")
+        # The test fails the read of one md2 file in its own __wrap_pread()
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=pread")
+    endif()
+
     add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()

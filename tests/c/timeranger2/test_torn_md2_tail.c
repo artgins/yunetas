@@ -7,10 +7,10 @@
  *  written first, the row after), so a torn last row is an append that was
  *  never acknowledged. It is not damage.
  *
- *  Since 7.25.4 (unreleased work) it was taken for damage: the key was
- *  flagged, every load of it said load_failed, and every append into the
- *  file was refused until an operator cut the md2 by hand or the period
- *  changed. With "filename_mask": "%Y" that is months.
+ *  Up to 7.25.4 the cache build logged a CRITICAL ("Cannot read last
+ *  record, md2 file corrupted") and left the whole file out of the key, on
+ *  a master and on a replica: its acknowledged rows were missing from
+ *  every load, and nothing failed.
  *
  *  The cases:
  *      1. a MASTER opens a store whose last md2 of a key has 3 whole
@@ -26,6 +26,32 @@
  *         it to 0 bytes, and a md2 of 0 rows beside a content file that is
  *         not empty is ignored with its own warning (test_uncommitted_
  *         append.c). The next append into the file is its row 1.
+ *      4. a RUNNING master finds its md2 torn at the next append (a row
+ *         written in part whose cut back failed leaves this shape): the
+ *         append cuts the md2 back to its whole rows first, with the same
+ *         warning, and writes its row there. Before the fix the row went
+ *         at offset 141, where no read finds it: the list said load_failed,
+ *         and the cut of the next restart removed bytes of that
+ *         acknowledged row.
+ *      5. a md2 flagged unreadable (mode 000) that also ends torn: the
+ *         append that finds it readable again counts it, cuts it back,
+ *         unflags it, and writes its row as the file's next row.
+ *      6. a delete of the key that cannot remove the key directory reads
+ *         the key again from the disk: the master cuts a torn md2 there too.
+ *      7. a REPLICA with a realtime disk feed on a torn store: a master
+ *         opens it (cut) and appends two rows; the feed hands each new row
+ *         once, and the two agree on the rows.
+ *      8. a REPLICA feed that sees a row half written at a notification
+ *         (first a row of a file it counts, then the first row of a new
+ *         file, which has no cell yet): nothing is handed, nothing is
+ *         logged, and each row is handed once when the next notification
+ *         comes.
+ *      9. a REPLICA opens a md2 of 13 bytes only: it has no whole row, so
+ *         it is a md2 of 0 rows beside a content that is not empty, and
+ *         the replica logs the warning of case 3. It does not cut.
+ *
+ *      Cases 5 and 6 need a mode that stops a read or a remove: they are
+ *      SKIPPED, and say so, when the test runs as root.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -35,6 +61,7 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -53,6 +80,8 @@
 
 #define MSG_CUT         "md2 file of the key ends in a part of a row: an append that was never acknowledged was cut back"
 #define MSG_NO_ROWS     "md2 file of the key with no rows and a content file that is not empty: an append that was never acknowledged, the file is ignored"
+#define MSG_FLAG        "md2 file of the key unreadable when its cache was built: every load of the key says load_failed"
+#define MSG_UNFLAG      "md2 file of the key readable again: it is counted, and the key is not flagged for it"
 
 /***************************************************************
  *              Data
@@ -95,6 +124,27 @@ PRIVATE json_t *startup(BOOL master)
         "on_critical_error", LOG_OPT_TRACE_STACK,
         "filename_mask", "%Y-%m-%d"
     ), 0);
+}
+
+/*
+ *  With the event loop: a replica's realtime disk feed needs it
+ */
+PRIVATE json_t *startup_rt(BOOL master)
+{
+    return tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i, s:s}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", master,
+        "on_critical_error", LOG_OPT_TRACE_STACK,
+        "filename_mask", "%Y-%m-%d"
+    ), yev_loop);
+}
+
+PRIVATE void drain(void)
+{
+    for(int i = 0; i < 30; i++) {
+        yev_loop_run_once(yev_loop);
+    }
 }
 
 PRIVATE json_t *create_topic(json_t *tranger)
@@ -154,6 +204,17 @@ PRIVATE int tear_md2(const char *day, off_t size)
     file_of_a(path, sizeof(path), day, "md2");
     if(truncate(path, size) < 0) {
         printf("%sERROR%s --> cannot tear %s\n", On_Red BWhite, Color_Off, path);
+        return -1;
+    }
+    return 0;
+}
+
+PRIVATE int chmod_md2(const char *day, mode_t mode)
+{
+    char path[PATH_MAX];
+    file_of_a(path, sizeof(path), day, "md2");
+    if(chmod(path, mode) < 0) {
+        printf("%sERROR%s --> cannot chmod %s\n", On_Red BWhite, Color_Off, path);
         return -1;
     }
     return 0;
@@ -361,6 +422,427 @@ PRIVATE int test_first_row_torn(void)
 }
 
 /***************************************************************************
+ *  4. A running master finds its md2 torn at the next append
+ ***************************************************************************/
+PRIVATE int test_running_master_append(void)
+{
+    int result = 0;
+    if(build_store() < 0) {
+        return -1;
+    }
+
+    set_expected_results("4. a running master appends", NULL, NULL, NULL, 1);
+    json_t *tranger = startup(TRUE);
+    if(!tranger || !tranger2_open_topic(tranger, TOPIC_NAME, FALSE)) {
+        printf("%sERROR%s --> 4: cannot open the store\n", On_Red BWhite, Color_Off);
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        test_json(NULL);
+        return -1;
+    }
+    if(append(tranger, "A", 1, 5) < 0) {
+        printf("%sERROR%s --> 4: the first append was refused\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A row written in part whose cut back failed leaves the md2 of the
+     *  running master torn, with its write fd open
+     */
+    if(tear_md2("2000-01-02", 4*ROW + TORN) < 0) {
+        tranger2_shutdown(tranger);
+        return -1;
+    }
+
+    set_expected_results("4. the next append cuts the torn row back first",
+        json_pack("[{s:s, s:s, s:s, s:i, s:i}]",
+            "msg", MSG_CUT,
+            "key", "A",
+            "file_id", "2000-01-02",
+            "old_size", 4*ROW + TORN,
+            "new_size", 4*ROW
+        ), NULL, NULL, 1
+    );
+    if(append(tranger, "A", 1, 6) < 0) {
+        printf("%sERROR%s --> 4: the append after the torn row was refused\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("4. the row is where a read finds it", NULL, NULL, NULL, 1);
+    result += expect_size("4. after the append", md2_size("2000-01-02"), 5*ROW);
+    result += check_list(tranger, "4. the list after the append", "A@1 A@2 A@3 A@4 A@5 A@6 B@1");
+    result += check_rows(tranger, "4. the range after the append", 6);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    set_expected_results("4. the restart: nothing to cut", NULL, NULL, NULL, 1);
+    tranger = startup(TRUE);
+    tranger2_open_topic(tranger, TOPIC_NAME, FALSE);
+    result += expect_size("4. after the restart", md2_size("2000-01-02"), 5*ROW);
+    result += check_list(tranger, "4. the list after the restart", "A@1 A@2 A@3 A@4 A@5 A@6 B@1");
+    result += check_rows(tranger, "4. the range after the restart", 6);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  5. A flagged file that ends torn: the append counts it again
+ ***************************************************************************/
+PRIVATE int test_flagged_and_torn(void)
+{
+    int result = 0;
+    if(geteuid() == 0) {
+        printf("5. SKIPPED: running as root, a md2 of mode 000 is still read\n");
+        return 0;
+    }
+    if(build_store() < 0 || tear_md2("2000-01-02", 3*ROW + TORN) < 0 ||
+            chmod_md2("2000-01-02", 0) < 0) {
+        return -1;
+    }
+
+    set_expected_results("5. a md2 that cannot be read is flagged",
+        json_pack("[{s:s},{s:s, s:s, s:s}]",
+            "msg", "Cannot open md2 file",
+            "msg", MSG_FLAG,
+            "key", "A",
+            "file_id", "2000-01-02"
+        ), NULL, NULL, 1
+    );
+    json_t *tranger = startup(TRUE);
+    if(!tranger || !tranger2_open_topic(tranger, TOPIC_NAME, FALSE)) {
+        printf("%sERROR%s --> 5: cannot open the store\n", On_Red BWhite, Color_Off);
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        test_json(NULL);
+        return -1;
+    }
+    result += test_json(NULL);
+
+    if(chmod_md2("2000-01-02", 0660) < 0) {
+        tranger2_shutdown(tranger);
+        return -1;
+    }
+    set_expected_results("5. the append counts it again: cut back, unflagged",
+        json_pack("[{s:s, s:s, s:i, s:i},{s:s, s:s, s:s}]",
+            "msg", MSG_CUT,
+            "file_id", "2000-01-02",
+            "old_size", 3*ROW + TORN,
+            "new_size", 3*ROW,
+            "msg", MSG_UNFLAG,
+            "key", "A",
+            "file_id", "2000-01-02"
+        ), NULL, NULL, 1
+    );
+    if(append(tranger, "A", 1, 5) < 0) {
+        printf("%sERROR%s --> 5: the append into the file was refused\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("5. the row is the file's next row", NULL, NULL, NULL, 1);
+    result += expect_size("5. after the append", md2_size("2000-01-02"), 4*ROW);
+    result += check_list(tranger, "5. the list after the append", "A@1 A@2 A@3 A@4 A@5 B@1");
+    result += check_rows(tranger, "5. the range after the append", 5);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  6. A delete that cannot remove the key reads it again: the cut
+ ***************************************************************************/
+PRIVATE int test_delete_key_reload(void)
+{
+    int result = 0;
+    if(geteuid() == 0) {
+        printf("6. SKIPPED: running as root, a directory of mode 0500 does not stop a remove\n");
+        return 0;
+    }
+    if(build_store() < 0) {
+        return -1;
+    }
+
+    set_expected_results("6. a running master", NULL, NULL, NULL, 1);
+    json_t *tranger = startup(TRUE);
+    if(!tranger || !tranger2_open_topic(tranger, TOPIC_NAME, FALSE)) {
+        printf("%sERROR%s --> 6: cannot open the store\n", On_Red BWhite, Color_Off);
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        test_json(NULL);
+        return -1;
+    }
+    result += test_json(NULL);
+
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_database, TOPIC_NAME, "keys", "A", NULL);
+    struct stat st;
+    if(tear_md2("2000-01-02", 3*ROW + TORN) < 0 || stat(key_dir, &st) < 0 ||
+            chmod(key_dir, 0500) < 0) {
+        printf("%sERROR%s --> 6: cannot prepare %s\n", On_Red BWhite, Color_Off, key_dir);
+        tranger2_shutdown(tranger);
+        return -1;
+    }
+
+    set_expected_results("6. the delete fails, the key is read again and cut back",
+        json_pack("[{s:s},{s:s},{s:s, s:s, s:s, s:i, s:i}]",
+            "msg", "remove() FAILED",
+            "msg", "Cannot delete subdir key. rmrdir() FAILED",
+            "msg", MSG_CUT,
+            "key", "A",
+            "file_id", "2000-01-02",
+            "old_size", 3*ROW + TORN,
+            "new_size", 3*ROW
+        ), NULL, NULL, 1
+    );
+    if(tranger2_delete_key(tranger, TOPIC_NAME, "A") == 0) {
+        printf("%sERROR%s --> 6: the delete answered done\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+    chmod(key_dir, st.st_mode & 07777);
+
+    set_expected_results("6. the key is whole", NULL, NULL, NULL, 1);
+    result += expect_size("6. after the delete", md2_size("2000-01-02"), 3*ROW);
+    result += check_list(tranger, "6. the list after the delete", "A@1 A@2 A@3 A@4 B@1");
+    result += check_rows(tranger, "6. the range after the delete", 4);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  7. A replica feed on a torn store: the master cuts and appends
+ ***************************************************************************/
+PRIVATE int test_replica_feed_converges(void)
+{
+    int result = 0;
+    if(build_store() < 0 || tear_md2("2000-01-02", 3*ROW + TORN) < 0) {
+        return -1;
+    }
+
+    set_expected_results("7. a replica and its feed open a torn store", NULL, NULL, NULL, 1);
+    json_t *replica = startup_rt(FALSE);
+    if(!replica || !tranger2_open_topic(replica, TOPIC_NAME, FALSE)) {
+        printf("%sERROR%s --> 7: cannot open the store as a replica\n", On_Red BWhite, Color_Off);
+        if(replica) {
+            tranger2_shutdown(replica);
+        }
+        test_json(NULL);
+        return -1;
+    }
+    got[0] = 0;
+    json_t *rt = tranger2_open_rt_disk(
+        replica, TOPIC_NAME, "A", NULL, on_record, "rt_torn7", "", NULL
+    );
+    if(!rt) {
+        printf("%sERROR%s --> 7: cannot open the feed\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += check_rows(replica, "7. the replica's range", 4);
+    result += test_json(NULL);
+
+    set_expected_results("7. a master opens it: the cut",
+        json_pack("[{s:s, s:s, s:i, s:i}]",
+            "msg", MSG_CUT,
+            "file_id", "2000-01-02",
+            "old_size", 3*ROW + TORN,
+            "new_size", 3*ROW
+        ), NULL, NULL, 1
+    );
+    json_t *master = startup_rt(TRUE);
+    tranger2_open_topic(master, TOPIC_NAME, FALSE);
+    drain();
+    result += test_json(NULL);
+    result += expect("7. the cut hands nothing", got, "");
+
+    set_expected_results("7. two appends: each is handed once", NULL, NULL, NULL, 1);
+    append(master, "A", 1, 5);
+    drain();
+    append(master, "A", 1, 6);
+    drain();
+    result += expect("7. the replica's feed", got, "A@5 A@6");
+    result += check_rows(replica, "7. the replica's range after the appends", 6);
+    result += check_rows(master, "7. the master's range after the appends", 6);
+    if(rt) {
+        tranger2_close_rt_disk(replica, rt);
+    }
+    tranger2_shutdown(replica);
+    tranger2_shutdown(master);
+    drain();
+    result += test_json(NULL);
+
+    return result;
+}
+
+/*
+ *  Tear the md2 of A's file of `day` to `size` bytes and keep the bytes
+ *  cut, to write them back as the master finishing its row
+ */
+PRIVATE int tear_and_keep(const char *day, off_t size, char *kept, size_t kept_size)
+{
+    char path[PATH_MAX];
+    file_of_a(path, sizeof(path), day, "md2");
+    int fd = open(path, O_RDONLY|O_CLOEXEC);
+    if(fd < 0 || pread(fd, kept, kept_size, size) != (ssize_t)kept_size) {
+        printf("%sERROR%s --> cannot keep the tail of %s\n", On_Red BWhite, Color_Off, path);
+        if(fd >= 0) {
+            close(fd);
+        }
+        return -1;
+    }
+    close(fd);
+    return tear_md2(day, size);
+}
+
+PRIVATE int finish_row(const char *day, off_t offset, const char *kept, size_t kept_size)
+{
+    char path[PATH_MAX];
+    file_of_a(path, sizeof(path), day, "md2");
+    int fd = open(path, O_WRONLY|O_CLOEXEC);
+    if(fd < 0 || pwrite(fd, kept, kept_size, offset) != (ssize_t)kept_size) {
+        printf("%sERROR%s --> cannot finish the row of %s\n", On_Red BWhite, Color_Off, path);
+        if(fd >= 0) {
+            close(fd);
+        }
+        return -1;
+    }
+    close(fd);
+    return 0;
+}
+
+/***************************************************************************
+ *  8. A replica feed sees a row half written at a notification
+ ***************************************************************************/
+PRIVATE int test_replica_feed_half_written(void)
+{
+    int result = 0;
+    char kept[ROW];
+    if(build_store() < 0) {
+        return -1;
+    }
+
+    set_expected_results("8. a master, a replica and its feed", NULL, NULL, NULL, 1);
+    json_t *master = startup_rt(TRUE);
+    json_t *replica = startup_rt(FALSE);
+    if(!master || !replica ||
+            !tranger2_open_topic(master, TOPIC_NAME, FALSE) ||
+            !tranger2_open_topic(replica, TOPIC_NAME, FALSE)) {
+        printf("%sERROR%s --> 8: cannot open the store\n", On_Red BWhite, Color_Off);
+        if(replica) {
+            tranger2_shutdown(replica);
+        }
+        if(master) {
+            tranger2_shutdown(master);
+        }
+        test_json(NULL);
+        return -1;
+    }
+    json_t *rt = tranger2_open_rt_disk(
+        replica, TOPIC_NAME, "A", NULL, on_record, "rt_torn8", "", NULL
+    );
+    if(!rt) {
+        printf("%sERROR%s --> 8: cannot open the feed\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    drain();
+    got[0] = 0;
+    result += test_json(NULL);
+
+    set_expected_results("8. half written rows: nothing handed, nothing said", NULL, NULL, NULL, 1);
+
+    /*
+     *  A row of a file the replica counts
+     */
+    append(master, "A", 1, 5);
+    if(tear_and_keep("2000-01-02", 3*ROW + TORN, kept, ROW - TORN) < 0) {
+        result += -1;
+    }
+    drain();
+    result += expect("8. a torn row of a counted file is not handed", got, "");
+    result += check_rows(replica, "8. the replica's range with a torn row", 4);
+    result += finish_row("2000-01-02", 3*ROW + TORN, kept, ROW - TORN);
+    append(master, "A", 1, 6);
+    drain();
+    result += expect("8. the rows of the counted file, each once", got, "A@5 A@6");
+
+    /*
+     *  The first row of a new file: no cell yet
+     */
+    append(master, "A", 2, 7);
+    if(tear_and_keep("2000-01-03", TORN, kept, ROW - TORN) < 0) {
+        result += -1;
+    }
+    drain();
+    result += expect("8. a torn first row of a new file is not handed", got, "A@5 A@6");
+    result += check_rows(replica, "8. the replica's range with a torn new file", 6);
+    result += finish_row("2000-01-03", TORN, kept, ROW - TORN);
+    append(master, "A", 2, 8);
+    drain();
+    result += expect("8. the rows of the new file, each once", got, "A@5 A@6 A@7 A@8");
+    result += check_rows(replica, "8. the replica's range at the end", 8);
+    result += check_rows(master, "8. the master's range at the end", 8);
+
+    if(rt) {
+        tranger2_close_rt_disk(replica, rt);
+    }
+    tranger2_shutdown(replica);
+    tranger2_shutdown(master);
+    drain();
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  9. A replica opens a md2 whose only row is torn
+ ***************************************************************************/
+PRIVATE int test_replica_only_row_torn(void)
+{
+    int result = 0;
+    if(build_store() < 0 || tear_md2("2000-01-02", TORN) < 0) {
+        return -1;
+    }
+
+    set_expected_results("9. a replica and a md2 with no whole row: the 0-rows warning",
+        json_pack("[{s:s, s:s, s:s}]",
+            "msg", MSG_NO_ROWS,
+            "key", "A",
+            "file_id", "2000-01-02"
+        ), NULL, NULL, 1
+    );
+    json_t *tranger = startup(FALSE);
+    if(!tranger || !tranger2_open_topic(tranger, TOPIC_NAME, FALSE)) {
+        printf("%sERROR%s --> 9: cannot open the store as a replica\n", On_Red BWhite, Color_Off);
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        test_json(NULL);
+        return -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("9. the replica reads the other files, and writes nothing", NULL, NULL, NULL, 1);
+    result += expect_size("9. the replica does not cut", md2_size("2000-01-02"), TORN);
+    result += check_list(tranger, "9. the replica's list", "A@1 B@1");
+    result += check_rows(tranger, "9. the replica's range", 1);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -373,6 +855,12 @@ PRIVATE int do_test(void)
     result += test_master_cuts();
     result += test_replica_reads();
     result += test_first_row_torn();
+    result += test_running_master_append();
+    result += test_flagged_and_torn();
+    result += test_delete_key_reload();
+    result += test_replica_feed_converges();
+    result += test_replica_feed_half_written();
+    result += test_replica_only_row_torn();
 
     return result;
 }

@@ -217,10 +217,10 @@ PRIVATE int move_today_files(const char *id, const char *day)
  *  A md2 that cannot be read: mode 000. Return 1 when done, 0 when it
  *  cannot be done (root reads a file of mode 000), -1 on error.
  */
-PRIVATE int make_unreadable(const char *path)
+PRIVATE int make_unreadable(const char *case_name, const char *path)
 {
     if(geteuid() == 0) {
-        printf("skipped: root reads a file of mode 000\n");
+        printf("%s: SKIPPED, running as root: a md2 of mode 000 is still read\n", case_name);
         return 0;
     }
     if(chmod(path, 0) < 0) {
@@ -338,7 +338,7 @@ PRIVATE int test_damaged(void)
         if(strstr(da.items[i], "2000-01-01.md2")) {
             continue;
         }
-        int ret = make_unreadable(da.items[i]);
+        int ret = make_unreadable("2", da.items[i]);
         if(ret == 0) {
             dir_array_free(&da);
             return 0;   // skipped
@@ -426,7 +426,7 @@ PRIVATE int test_damaged_middle(void)
     char md2[PATH_MAX];
     key_dir(dir, sizeof(dir), "dev1");
     build_path(md2, sizeof(md2), dir, "2000-01-02.md2", NULL);
-    int ret = make_unreadable(md2);
+    int ret = make_unreadable("3", md2);
     if(ret == 0) {
         return 0;   // skipped
     }
@@ -533,7 +533,7 @@ PRIVATE int test_empty_pkey2_both_loads(void)
     char md2[PATH_MAX];
     key_dir(dir, sizeof(dir), "dev1");
     build_path(md2, sizeof(md2), dir, "2000-01-02.md2", NULL);
-    int ret = make_unreadable(md2);
+    int ret = make_unreadable("4", md2);
     if(ret == 0) {
         return 0;   // skipped
     }

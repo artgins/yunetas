@@ -162,7 +162,7 @@ PRIVATE int test_failure_half_way(void)
     test_json(NULL);    // the setup logs are not what is tested
 
     if(geteuid() == 0) {
-        printf("  (skipped: root reads a file of mode 000)\n");
+        printf("  SKIPPED, running as root: a md2 of mode 000 is still read\n");
         tranger2_shutdown(tranger);
         return result;
     }

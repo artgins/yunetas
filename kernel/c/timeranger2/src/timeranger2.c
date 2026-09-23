@@ -3593,6 +3593,53 @@ PUBLIC int tranger2_append_record(
             return -1;
         }
 
+        /*
+         *  A md2 that does not end on a row boundary ends in a torn row:
+         *  an earlier append wrote its row in part and could not cut it
+         *  back, and that append was refused. The row of THIS append is
+         *  written after the whole rows, never after the torn one: there
+         *  no read finds it, and the cut of the next open would remove
+         *  bytes of an acknowledged row (independent review of the eighth
+         *  fix round, repro review8_tr/B). The md2 is cut back first, as
+         *  a master's open does (load_first_and_last_record_md). If the
+         *  cut fails, the append is refused.
+         */
+        off_t torn = offset % (off_t)sizeof(md2_record_t);
+        if(torn != 0) {
+            off_t whole = offset - torn;
+            if(ftruncate(md2_fd, whole) < 0 || lseek(md2_fd, whole, SEEK_SET) != whole) {
+                int err = errno;
+                cut_back_content(gobj, topic, key_value, file_id, __offset__);
+                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot append record, its md2 file ends in a part of a row that cannot be cut back: the append is refused",
+                    "topic",        "%s", topic_name,
+                    "key",          "%s", key_value,
+                    "file_id",      "%s", file_id,
+                    "old_size",     "%ld", (long)offset,
+                    "new_size",     "%ld", (long)whole,
+                    "errno",        "%d", err,
+                    "serrno",       "%s", strerror(err),
+                    NULL
+                );
+                JSON_DECREF(record)
+                return -1;
+            }
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "md2 file of the key ends in a part of a row: an append that was never acknowledged was cut back",
+                "topic",        "%s", topic_name,
+                "key",          "%s", key_value,
+                "file_id",      "%s", file_id,
+                "old_size",     "%ld", (long)offset,
+                "new_size",     "%ld", (long)whole,
+                NULL
+            );
+            offset = whole;
+        }
+
         i_rowid = (json_int_t)(offset/sizeof(md2_record_t)) + 1;
 
         /*--------------------------------------------*
@@ -7928,17 +7975,21 @@ PRIVATE int read_md2_row(
  *
  *  A MASTER cuts the md2 back to its whole rows, with one warning. The cut
  *  removes fewer bytes than one row, all of them after the last whole row,
- *  so it never removes a row that was acknowledged. The content file is
- *  left as it is: its bytes after the last row belong to no row, and the
- *  next append writes at its end. Flagging the file instead (7.25.4
- *  unreleased work) refused every append into it until an operator cut
- *  the md2 by hand or the period changed, and with a yearly file
- *  ("filename_mask": "%Y") that is months of refused messages.
+ *  so it never removes a row that was acknowledged: an append always
+ *  writes its row on a row boundary, it cuts a torn tail back first
+ *  (tranger2_append_record). The content file is left as it is: its bytes
+ *  after the last row belong to no row, and the next append writes at its
+ *  end. Up to 7.25.4 the cache build logged a CRITICAL ("Cannot read last
+ *  record, md2 file corrupted") and left the whole file out of the key,
+ *  on a master and on a replica: its acknowledged rows were missing from
+ *  every load, and nothing failed.
  *
  *  A REPLICA never writes: it reads the whole rows only. It also sees a
  *  torn row when the master is writing that row; the row is counted when
- *  the master's next notification of the file arrives. Nothing is logged:
- *  for a replica it is not an error.
+ *  the master's next notification of the file arrives. Nothing is logged
+ *  here: for a replica it is not an error. A file with no whole row is a
+ *  md2 of 0 rows, and when its content is not empty the cache build logs
+ *  the 0-rows warning for it (load_key_cache_from_disk).
  ***************************************************************************/
 PRIVATE json_int_t load_first_and_last_record_md(
     hgobj gobj,

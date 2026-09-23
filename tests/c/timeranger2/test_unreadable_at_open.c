@@ -222,7 +222,7 @@ PRIVATE int test_damage(const char *case_name, const char *damage)
     char path[PATH_MAX];
     if(strcmp(damage, "unreadable") == 0) {
         if(geteuid() == 0) {
-            printf("%s: skipped, root reads a file of mode 000\n", case_name);
+            printf("%s: SKIPPED, running as root: a md2 of mode 000 is still read\n", case_name);
             return 0;
         }
         file_of_a(path, sizeof(path), "2000-01-02", "md2");
