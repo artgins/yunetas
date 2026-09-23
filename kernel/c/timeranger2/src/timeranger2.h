@@ -262,7 +262,9 @@ PUBLIC json_t *tranger2_startup(
    says `"master": false, "master_lost": true`.
    A demoted handle never takes the lock again, not even once it is free (its
    memory did not follow what the other master wrote): shut it down and start
-   it again. The `master` of the handle is what it holds NOW: read it again
+   it again. That holds for a TRANSIENT cause too (EMFILE, EINTR, ENOLCK): the
+   process goes on, refuses every write for good, and only the ERROR and
+   `master` false (`master_lost` true) say so -- monitor them, and restart. The `master` of the handle is what it holds NOW: read it again
    after the restart.
 */
 PUBLIC int tranger2_stop(json_t *tranger);

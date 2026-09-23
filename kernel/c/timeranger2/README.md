@@ -195,6 +195,14 @@ master) did not follow what the other master wrote, and appending on top of it
 would number rows that exist. To be the master again, shut it down and start
 it again (`tranger2_shutdown()` + `tranger2_startup()`).
 
+**This holds for a transient failure too.** An `EMFILE`, `EINTR` or `ENOLCK`
+at the revive is an ERROR, the process does not exit, and it stays a replica
+for good: every later write is refused, until somebody restarts the yuno.
+Monitor the log for *"Master lock NOT retaken after a stop"*, and the `master`
+attribute of the `C_TRANGER` service (`view-attrs gobj=<service>` without
+`attribute=`, which reads it through `mt_reading`): false on a yuno configured
+as master means demoted.
+
 Until 7.25.4 `tranger2_create_topic()` read the `master` of the stop and wrote
 the topic directory, `topic_cols.json` and `topic_var.json` into the other
 master's store before it noticed. Regression coverage in

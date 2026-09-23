@@ -2218,6 +2218,27 @@ What the stop does:
   not follow what the other master wrote; shut it down and start it again to
   be the master. Read `master` again after a restart: it is what the tranger
   holds now. A lookup of a topic that is already open revives nothing.
+- **A TRANSIENT failure demotes for good too.** An `EMFILE` (too many open
+  files for a moment), an `EINTR` or an `ENOLCK` at the revive is logged as an
+  ERROR, not a critical: the process does NOT exit, it goes on as a replica,
+  and it stays one after the cause is gone. Every write it is asked for is
+  refused from then on (each with its own error), and nothing else says so.
+  Nothing restarts it: the operator does. Watch for it:
+  - the log line *"Master lock NOT retaken after a stop"* (any of its three
+    endings), at ERROR or CRITICAL;
+  - the `master` attribute of the `C_TRANGER` service, which answers what the
+    tranger IS (false once demoted). Read it with `view-attrs` WITHOUT
+    `attribute=`: that form goes through the gclass' `mt_reading`; the
+    one-attribute form answers the stored configuration.
+
+    ```bash
+    ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-attrs gobj=<tranger service>'
+    # "master": false on a yuno configured as the master = demoted: restart it
+    ```
+  - in C, `master_lost` true in the tranger's json.
+
+  Restart the yuno (`kill-yuno` + `run-yuno`) once the cause is found: the new
+  process takes the lock at its startup.
 
 This is the life of the tranger of a `C_TRANGER` that is stopped and started
 again: the tranger is built in `mt_create`, stopped in `mt_stop`, and shut down
