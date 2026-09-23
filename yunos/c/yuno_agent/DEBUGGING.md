@@ -27,7 +27,7 @@ yuno config JSON:
 
 ```
                         ┌──────────────────────────┐
-       severity logs    │     file handler         │  → /yuneta/logs/<yuno>/<mask>.log
+       severity logs    │     file handler         │  → <yuno dir>/logs/<mask>.log
        + traces  ──────►│     (rotatory, ~8 MB)    │
                         └──────────────────────────┘
                         ┌──────────────────────────┐
@@ -330,10 +330,19 @@ correction belongs in the node's `/etc/resolv.conf`.
 
 Per-yuno log file, built by [`yuneta_log_file()`](#yuneta_log_file) at
 [`kernel/c/root-linux/src/yunetas_environment.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/yunetas_environment.c):
+`<work_dir>/<domain_dir>/logs/<filename_mask>`. `work_dir` is `/yuneta`. The
+agent gives each yuno that it runs its own `domain_dir`
+(`build_yuno_private_domain()` in `c_agent.c`):
 
 ```
-/yuneta/logs/<yuno_role_plus_name>/<filename_mask>
+/yuneta/realms/<realm_owner>/<realm_name>.<realm_role>.<realm_env>/<role>^<id>/logs/<filename_mask>
 ```
+
+For example, `/yuneta/realms/artgins/artgins.yunetacontrol.com/controlcenter^1996/logs/controlcenter-4.log`.
+The agent itself and the utilities run by hand have a fixed `domain_dir` in
+their `main.c`: `/yuneta/realms/agent/agent/logs/` for `yuneta_agent`,
+`/yuneta/realms/agent/<utility>/logs/` for `ycommand`, `ybatch` and the
+others. There is no `/yuneta/logs/` directory.
 
 The mask is the value that you set in
 `daemon_log_handlers.<handler>.filename_mask` (see §5.4). By convention it is
@@ -343,8 +352,8 @@ The mask is the value that you set in
 Active log discovery:
 
 ```bash
-ls -lt /yuneta/logs/<yuno>/
-tail -f /yuneta/logs/<yuno>/<latest>.log | grep -a "keyword"
+ls -lt /yuneta/realms/*/*/*^<id>/logs/
+tail -f /yuneta/realms/*/*/*^<id>/logs/<latest>.log | grep -a "keyword"
 ```
 
 ### 5.2 Log line format
@@ -371,15 +380,15 @@ added automatically by [`discover()`](https://github.com/artgins/yunetas/blob/7.
 Searching is JSON-friendly:
 
 ```bash
-grep -a '"priority":3' /yuneta/logs/<yuno>/<file>.log       # all errors
-grep -a '"gclass":"C_TCP_S"' /yuneta/logs/<yuno>/<file>.log  # one gclass
+grep -a '"priority":3' <yuno dir>/logs/<file>.log       # all errors
+grep -a '"gclass":"C_TCP_S"' <yuno dir>/logs/<file>.log  # one gclass
 grep -a '"msg":"Event NOT DEFINED in state"' …               # the canonical FSM bug
 ```
 
 ### 5.3 Rotation
 
 The [`rotatory`](#rotatory_open) library makes the file name from the mask and
-the date before each write, so the file changes at midnight. With the `W` mask,
+the local date, so the file changes at midnight (the first record after it). With the `W` mask,
 the first write of a new day opens the file of the same week day with `"w"`,
 which empties last week's file. So a yuno keeps **7 days** of log, and the mask
 is the retention.
@@ -389,6 +398,9 @@ The library also rotates the file when it crosses a size threshold (default
 [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/entry_point.c)):
 it renames the file to `<name>.OLD` (a previous `.OLD` is removed) and starts
 the file again. There is no cron. Both rotations happen on the next write.
+The file is checked once for each record, never between the pieces of a record,
+so a record is never split between two files. A log file removed by hand is
+created again by the next record.
 
 With the defaults, one yuno uses at most 7 × 2 × 8 MB = 112 MB of log.
 
@@ -643,7 +655,7 @@ hops, each entry: `{src_yuno, src_service, dst_yuno, dst_service, user, host, �
 To grep the same transaction across multiple yunos' logs:
 
 ```bash
-grep -a 'ievent_gate_stack' /yuneta/logs/*/*.log | grep '<the user or src_yuno you care about>'
+grep -a 'ievent_gate_stack' /yuneta/realms/*/*/*/logs/*.log | grep '<the user or src_yuno you care about>'
 ```
 
 The framework propagates **no automatic UUID** for calls that are not ievents.
@@ -670,7 +682,7 @@ ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gclass-trace gcl
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gclass-trace gclass=C_IEVENT_SRV level=ievents2 set=1"
 
 # trigger the request, capture the noise
-tail -F /yuneta/logs/$YUNO/*.log > /tmp/$YUNO.trace &
+tail -F /yuneta/realms/*/*/*^$YUNO/logs/*.log > /tmp/$YUNO.trace &
 # … reproduce …
 kill %1
 
@@ -813,7 +825,7 @@ UDP queue that floods.
 ### Per-yuno vs centralized — when to use each
 
 - **Per-yuno tail** when you know which yuno is misbehaving and want raw
-  control over `grep`. `/yuneta/logs/<yuno>/<file>.log` is full fidelity.
+  control over `grep`. `<yuno dir>/logs/<file>.log` is full fidelity.
 - **logcenter** when you need correlation across multiple yunos, or when
   a yuno crashes too fast to read its own file, or for the rollup
   counters / email summaries.
@@ -892,7 +904,7 @@ someone left in its `mt_create`.
 ```bash
 YUNO=<id>
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-global-trace level=machine set=1"
-tail -F /yuneta/logs/$YUNO/*.log | grep -a '"msg":'
+tail -F /yuneta/realms/*/*/*^$YUNO/logs/*.log | grep -a '"msg":'
 # reproduce
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-global-trace level=machine set=0"
 ```
@@ -902,7 +914,7 @@ ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-global-trace lev
 ```bash
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gclass-trace gclass=C_TCP_S        level=traffic set=1"
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gclass-trace gclass=C_PROT_HTTP_SR level=traffic set=1"
-tail -F /yuneta/logs/$YUNO/*.log
+tail -F /yuneta/realms/*/*/*^$YUNO/logs/*.log
 # … done …
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gclass-trace gclass=C_TCP_S        level=traffic set=0"
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gclass-trace gclass=C_PROT_HTTP_SR level=traffic set=0"
@@ -939,7 +951,7 @@ everything afterwards.
 ```bash
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gobj-trace gobj=<short_name> level=machine set=1"
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gobj-trace gobj=<short_name> level=ev_kw   set=1"
-tail -F /yuneta/logs/$YUNO/*.log | grep -a '<short_name>'
+tail -F /yuneta/realms/*/*/*^$YUNO/logs/*.log | grep -a '<short_name>'
 # … done …
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gobj-trace gobj=<short_name> level=machine set=0"
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gobj-trace gobj=<short_name> level=ev_kw   set=0"
@@ -957,7 +969,7 @@ The framework logs it at `LOG_ERR`, and the trace settings do not change that,
 so:
 
 ```bash
-grep -a '"msg":"Event NOT DEFINED in state"' /yuneta/logs/*/*.log
+grep -a '"msg":"Event NOT DEFINED in state"' /yuneta/realms/*/*/*/logs/*.log
 ```
 
 This command works on any host, and it needs no trace.

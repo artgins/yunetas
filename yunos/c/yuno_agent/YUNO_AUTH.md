@@ -1538,7 +1538,7 @@ ycommand -c 'command-yuno id=<yuno> service=authz command=user-authzs user_id=<m
 
 # 3. enable the authzs trace globally to see the predicate's verdict
 ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-global-trace level=authzs set=1'
-tail -F /yuneta/logs/<yuno>/*.log | grep -a '"msg":' | grep -i authz
+tail -F /yuneta/realms/*/*/*^<yuno>/logs/*.log | grep -a '"msg":' | grep -i authz
 ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-global-trace level=authzs set=0'
 ```
 
