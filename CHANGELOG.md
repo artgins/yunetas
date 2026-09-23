@@ -173,12 +173,22 @@ listed under "No red test" in `TODO.md`.
   projection that completes removes the record; so does `delete-treedb`. The
   record is written whole (a `.new` file and a rename); one that cannot be
   read still means "unfinished" (WARNING at each read, `save-schema` refused,
-  retried), and then what `__system__` holds over the file is reported as a
-  draft when the projection completes.
+  retried; one WARNING with its cause in `error`), and then what `__system__`
+  holds over the file is reported as a draft when the projection completes.
+  The record keeps `draft_kinds`, so the open that finally replaces a draft
+  reports its kind (a saved draft is `saved`). A treedbs node never stamped
+  (`schema_version` 0, no record) is a seed that died: the next open completes
+  it and reports nothing.
 - **A draft is reported once, by the open that replaces it in `__system__`**,
   whether it was made before the projection failed or while it was
   unfinished. The part of a draft a projection could not replace stays a draft
-  (in `draft_changed`), never a leftover.
+  (in `draft_changed`), never a leftover. A topic the operator deleted from
+  `__system__` is a draft too: when a newer literal re-creates it, it is
+  reported as `unsaved`, or `saved` when a pending save published the
+  deletion. An edit of a LEFTOVER is nobody's draft and is not reported.
+- `save-schema` refuses a draft with no topics and `apply-schema` a saved
+  schema with no topics (WARNING, -1, the file in use unchanged): a treedb
+  without topics does not open.
 - The numbers of a treedb's node in `__system__` (`schema_version`,
   `c_schema_version`) are written last, only when the whole projection
   succeeded; a new node is created with them at 0 (7.25.4 wrote them first, so
@@ -193,6 +203,11 @@ listed under "No red test" in `TODO.md`.
   close-treedb it before opening it again"); 7.25.4 answered 0 "Treedb
   opened!". Until `close-treedb`, a second open of it answers -1 ("did not open
   at its last open-treedb...") and its `treedbs` row says `opened: false`.
+  `delete-treedb` of it answers that it did not open and to close-treedb it
+  first (7.25.4: "while it is OPEN"). C_NODE gives a treedb that
+  `treedb_open_db()` refused no callback and does not close it at stop, so the
+  failed open logs only its cause and `close-treedb` logs nothing (7.25.4
+  logged "TreeDB not found" at the open and twice at the close, with stacks).
   Every answer of `open-treedb`, `close-treedb` and `delete-treedb` starts with
   the yuno.
 - **The agent stops when its treedb does not open.** The agent opens
