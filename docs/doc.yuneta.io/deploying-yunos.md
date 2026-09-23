@@ -232,6 +232,9 @@ To make sure that the node runs the new release:
 ycommand -c 'list-yunos'      # the release column shows the new version, running=true
 ```
 
+If the node came from SDK 7.25.4 or earlier, migrate its topics next: see
+[After an upgrade from 7.25.4 or earlier](#dy-mark-tm-order).
+
 ### Why step 3 is not optional
 
 `install-binary` makes a **new** `(role, version)` slot next to the old one. It
@@ -270,6 +273,55 @@ acceptable. On a production node it is not, and the CAUTION above applies.
 SIGKILL gives no orderly shutdown, because `mt_stop` does not run. If a yuno
 must write its state to disk on exit, stop it first with
 `ycommand -c 'kill-yuno id=<id>'`. Then run `upgrade-yunos`.
+
+(dy-mark-tm-order)=
+### After an upgrade from 7.25.4 or earlier: `mark-tm-order`
+
+A topic created by SDK 7.25.4 or earlier does not mark the md2 files whose
+`__tm__` goes back, so a tm query (`from_tm` / `to_tm`) on it reads every md2
+row of the key. A topic created or migrated by 7.25.5 reads only the files
+whose tm range the query meets. So a tm query on an old topic is much slower
+until the topic is migrated, and nothing migrates it on its own.
+
+After Recipe B has moved a node from 7.25.4 or earlier to 7.25.5, run
+`mark-tm-order all=1` on **each tranger service** of each yuno. It migrates
+every topic of that tranger, one row each:
+
+```bash
+# The tranger services of a yuno: the C_TRANGER rows of `services`
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=services'
+
+# A treedb opened by C_TREEDB has the tranger `tranger_<treedb_name>`,
+# and C_TREEDB's __system__ has `tranger_system_schema`
+ycommand -c 'command-yuno id=<id> service=tranger_treedb_x command=mark-tm-order all=1'
+ycommand -c 'command-yuno id=<id> service=tranger_system_schema command=mark-tm-order all=1'
+
+# The agent's own treedb
+ycommand -c 'command-agent service=tranger_treedb_yuneta_agent command=mark-tm-order all=1'
+```
+
+The answer has one row per topic on disk, `{topic_name, result, comment,
+data}`, and says the totals: `0: <role^name>: mark-tm-order of every topic: 5
+topic(s), 5 marked now, 0 re-marked`. A topic that fails does not stop the
+others: its row says `-1`, it is left as it was (the markers written stay),
+and the answer is `-1`. It runs on the master only; on a replica it answers
+*"READ-ONLY"*. It is idempotent: run it again when in doubt.
+
+CAUTION: `mark-tm-order` is **synchronous**. The yuno does nothing else until
+the last topic is marked: no events, no commands, no traffic. The cost is one
+sequential read of every md2 file (32 bytes a row), linear in rows and in
+files. timeranger2 measured, with a warm page cache: 16 ms for 600000 rows in
+30 files, and 72 to 88 ms for 4 keys of 3650 daily files. A cold page cache
+adds the read of the md2 files from the disk. On a large store, run it per
+topic (`topic_name=<t>`) in a quiet window instead of `all=1`.
+
+CAUTION: **never roll back to 7.25.4 or earlier** on topics that 7.25.5
+created or migrated **without running `mark-tm-order all=1` again after you
+come forward**. A 7.25.4 binary appends without markers: a file whose
+`__tm__` goes back gets no marker, and when 7.25.5 reads that file again it
+trusts its tm range, so a tm query can MISS rows of it. Running it again
+writes the missing markers. See
+[`tranger2_mark_tm_order()`](#tranger2_mark_tm_order).
 
 (dy-recipe-config)=
 ## Recipe C — config-only change

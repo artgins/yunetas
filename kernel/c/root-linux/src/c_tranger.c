@@ -273,6 +273,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_mark_tm_order[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic to migrate to tm marking"),
+SDATAPM (DTP_BOOLEAN,   "all",          0,              0,          "Migrate every topic of the tranger (on disk), one row each; topic_name is not read"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_add_record[] = {
@@ -397,7 +398,7 @@ SDATACM2 (DTP_SCHEMA,   "create-topic",     SDF_AUTHZ_X,    0,      pm_create_to
 SDATACM2 (DTP_SCHEMA,   "open-topic",       SDF_AUTHZ_X,    0,      pm_open_topic,    cmd_open_topic,   "Open topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic",     SDF_AUTHZ_X,    0,      pm_delete_topic,    cmd_delete_topic,   "Delete topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-key",       SDF_AUTHZ_X,    0,      pm_delete_key,      cmd_delete_key,     "Delete a whole key (primary key) and every record it holds. Irrecoverable, master-only; force=1 when the key is not empty"),
-SDATACM2 (DTP_SCHEMA,   "mark-tm-order",    SDF_AUTHZ_X,    0,      pm_mark_tm_order,   cmd_mark_tm_order,  "Migrate a topic written before the tm markers (7.25.4 or earlier): mark its md2 files whose __tm__ or __t__ goes back and make it a topic that marks, so a tm query reads only the files its range meets. Master-only, synchronous, idempotent; permission 'write'"),
+SDATACM2 (DTP_SCHEMA,   "mark-tm-order",    SDF_AUTHZ_X,    0,      pm_mark_tm_order,   cmd_mark_tm_order,  "Migrate a topic written before the tm markers (7.25.4 or earlier): mark its md2 files whose __tm__ or __t__ goes back and make it a topic that marks, so a tm query reads only the files its range meets. all=1: every topic of the tranger, one row each. Master-only, SYNCHRONOUS (the yuno is blocked until it ends), idempotent; permission 'write'"),
 
 SDATACM2 (DTP_SCHEMA,   "open-list",        SDF_AUTHZ_X,    0,      pm_open_list,       cmd_open_list,      "Open list. With return_data=1 loads and returns the matching records, auto-closing (one-shot read); else the list stays open collecting appends until close-list"),
 SDATACM2 (DTP_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_list,      cmd_close_list,     "Close list"),
@@ -1761,6 +1762,55 @@ PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  *  files (markers, topic_desc.json), and adds or deletes no record.
  *  MASTER-ONLY, asked before the library: what the tranger IS (the
  *  `master` attribute answers it, see mt_reading).
+ *
+ *  This is one topic: the report of the library (YOURS) or NULL, with the
+ *  result and the comment of its answer.
+ ***************************************************************************/
+PRIVATE json_t *mark_tm_order_of_topic(
+    hgobj gobj,
+    const char *topic_name,
+    int *p_result,
+    json_t **p_comment  // YOURS
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!tranger2_topic(priv->tranger, topic_name)) {
+        *p_result = -1;
+        *p_comment = json_sprintf("%s: Topic not found: '%s'", gobj_yuno_role_plus_name(), topic_name);
+        return NULL;
+    }
+
+    json_t *report = tranger2_mark_tm_order(priv->tranger, topic_name);
+    if(!report) {
+        *p_result = -1;
+        *p_comment = json_sprintf("%s: cannot mark the tm order of topic '%s', it is left as it "
+            "was (see the log)", gobj_yuno_role_plus_name(), topic_name);
+        return NULL;
+    }
+
+    *p_result = 0;
+    *p_comment = json_sprintf(
+        "%s: topic '%s' %s: %d key(s), %d file(s), %d tm and %d t marker(s) written",
+        gobj_yuno_role_plus_name(),
+        topic_name,
+        kw_get_bool(gobj, report, "was_marking", 0, 0)? "re-marked" : "marks tm order now",
+        (int)kw_get_int(gobj, report, "keys", 0, 0),
+        (int)kw_get_int(gobj, report, "files", 0, 0),
+        (int)kw_get_int(gobj, report, "tm_unordered_marked", 0, 0),
+        (int)kw_get_int(gobj, report, "t_unordered_marked", 0, 0)
+    );
+    return report;
+}
+
+/***************************************************************************
+ *  mark-tm-order topic_name=<t>, or all=1: every topic of the tranger, the
+ *  migration of a whole node after an upgrade from 7.25.4 or earlier.
+ *
+ *  SYNCHRONOUS: the yuno's loop is blocked until the last topic is marked.
+ *  The cost is one sequential read of every md2 file, linear in rows and
+ *  in files (timeranger2's own measure, warm page cache: 16 ms for 600000
+ *  rows in 30 files; 72-88 ms for 4 keys of 3650 daily files).
  ***************************************************************************/
 PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -1782,11 +1832,12 @@ PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj
     }
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-    if(empty_string(topic_name)) {
+    BOOL all = kw_get_bool(gobj, kw, "all", 0, KW_WILD_NUMBER);
+    if(empty_string(topic_name) && !all) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
+            json_sprintf("%s: What topic_name? (all=1 migrates every topic)", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -1806,46 +1857,65 @@ PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    if(!tranger2_topic(priv->tranger, topic_name)) {
+    if(!all) {
+        int result;
+        json_t *comment;
+        json_t *report = mark_tm_order_of_topic(gobj, topic_name, &result, &comment);
         return msg_iev_build_response(
             gobj,
-            -1,
-            json_sprintf("%s: Topic not found: '%s'", gobj_yuno_role_plus_name(), topic_name),
+            result,
+            comment,
             0,
-            0,
+            report,
             kw  // owned
         );
     }
 
-    json_t *report = tranger2_mark_tm_order(priv->tranger, topic_name);
-    if(!report) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("%s: cannot mark the tm order of topic '%s', it is left as it "
-                "was (see the log)", gobj_yuno_role_plus_name(), topic_name),
-            0,
-            0,
-            kw  // owned
-        );
+    /*
+     *  Every topic ON DISK, the ones this yuno never opened too (each is
+     *  opened to be marked). One row per topic, {topic_name, result,
+     *  comment, data}; a topic that fails does not stop the others, and
+     *  the answer is -1 when one did. Synchronous as a whole: the yuno is
+     *  blocked until the last topic is marked.
+     */
+    json_t *names = tranger2_list_topic_names(priv->tranger);
+    json_t *rows = json_array();
+    int marked = 0, already = 0, failed = 0;
+    int idx; json_t *jn_name;
+    json_array_foreach(names, idx, jn_name) {
+        const char *name = json_string_value(jn_name);
+        int result;
+        json_t *comment;
+        json_t *report = mark_tm_order_of_topic(gobj, name, &result, &comment);
+        if(result < 0) {
+            failed++;
+        } else if(kw_get_bool(gobj, report, "was_marking", 0, 0)) {
+            already++;
+        } else {
+            marked++;
+        }
+        json_array_append_new(rows, json_pack("{s:s, s:i, s:o, s:o}",
+            "topic_name", name,
+            "result", result,
+            "comment", comment,
+            "data", report? report : json_null()
+        ));
     }
+    int total = (int)json_array_size(names);
+    JSON_DECREF(names)
 
-    json_t *comment = json_sprintf(
-        "%s: topic '%s' %s: %d key(s), %d file(s), %d tm and %d t marker(s) written",
-        gobj_yuno_role_plus_name(),
-        topic_name,
-        kw_get_bool(gobj, report, "was_marking", 0, 0)? "re-marked" : "marks tm order now",
-        (int)kw_get_int(gobj, report, "keys", 0, 0),
-        (int)kw_get_int(gobj, report, "files", 0, 0),
-        (int)kw_get_int(gobj, report, "tm_unordered_marked", 0, 0),
-        (int)kw_get_int(gobj, report, "t_unordered_marked", 0, 0)
-    );
     return msg_iev_build_response(
         gobj,
+        failed? -1 : 0,
+        failed?
+            json_sprintf("%s: mark-tm-order of every topic: %d topic(s), %d marked now, "
+                "%d re-marked, %d FAILED, left as they were (see each row and the log)",
+                gobj_yuno_role_plus_name(), total, marked, already, failed) :
+            json_sprintf("%s: mark-tm-order of every topic: %d topic(s), %d marked now, "
+                "%d re-marked",
+                gobj_yuno_role_plus_name(), total, marked, already),
         0,
-        comment,
-        0,
-        report,
+        rows,
         kw  // owned
     );
 }

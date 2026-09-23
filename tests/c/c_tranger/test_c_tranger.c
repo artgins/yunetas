@@ -2296,6 +2296,39 @@ PRIVATE int do_test(void)
         check_bool("mark-tm-order again: it marked already",
             kw_get_bool(0, r, "data`was_marking", 0, 0), TRUE);
         JSON_DECREF(r)
+
+        /*
+         *  all=1: every topic of the tranger, one row each (the
+         *  migration of a whole node after an upgrade; item 4 of the
+         *  third independent review, 2026-09-23). The topic made legacy
+         *  again is migrated, and its row says so.
+         */
+        desc = load_json_from_file(0, topic_dir, "topic_desc.json", 0);
+        json_object_del(desc, "marks_tm_unordered");
+        chmod(desc_path, 0660);
+        save_json_to_file(0, topic_dir, "topic_desc.json", 02770, 0660, 0, TRUE, FALSE, desc);
+        json_object_del(tranger2_topic(tranger, TOPIC_NAME), "marks_tm_unordered");
+
+        r = gobj_command(yuno, "mark-tm-order", json_pack("{s:b}", "all", 1), yuno);
+        check_int("mark-tm-order all=1 result", kw_get_int(0, r, "result", -999, 0), 0);
+        json_t *names = tranger2_list_topic_names(tranger);
+        json_t *rows = kw_get_list(0, r, "data", 0, 0);
+        check_int("mark-tm-order all=1: one row per topic on disk",
+            (json_int_t)json_array_size(rows), (json_int_t)json_array_size(names));
+        JSON_DECREF(names)
+        BOOL seen = FALSE;
+        int idx; json_t *row;
+        json_array_foreach(rows, idx, row) {
+            if(strcmp(kw_get_str(0, row, "topic_name", "", 0), TOPIC_NAME)==0) {
+                seen = kw_get_int(0, row, "result", -1, 0) == 0 &&
+                    !kw_get_bool(0, row, "data`was_marking", 1, 0) &&
+                    kw_get_bool(0, row, "data`marks_tm_unordered", 0, 0);
+            }
+        }
+        check_bool("mark-tm-order all=1: the legacy topic's row says it marks now", seen, TRUE);
+        check_bool("mark-tm-order all=1: the comment says every topic",
+            strstr(kw_get_str(0, r, "comment", "", 0), "every topic") != NULL, TRUE);
+        JSON_DECREF(r)
     }
 
     /*-------------------------------------------------*
