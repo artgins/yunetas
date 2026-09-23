@@ -7110,6 +7110,10 @@ PRIVATE int delete_node(
  *  md2 row of a key that belongs to a given pkey2 value. Collects each
  *  matching row's (__t__, i_rowid) into the `__del_hits__` array carried
  *  in the transient list's `extra`.
+ *
+ *  A row whose content cannot be read (the load hands it as NULL) cannot
+ *  say whose instance it is: it is not "another instance". The walk stops
+ *  and says so in `__del_state__`, and the delete refuses.
  ***************************************************************************/
 PRIVATE int collect_instance_md_cb(
     json_t *tranger,
@@ -7124,6 +7128,14 @@ PRIVATE int collect_instance_md_cb(
     const char *pkey2_name = kw_get_str(0, list, "__del_pkey2_name__", "", 0);
     const char *pkey2_value = kw_get_str(0, list, "__del_pkey2_value__", "", 0);
     json_t *hits = kw_get_dict_value(0, list, "__del_hits__", 0, 0);
+
+    if(!json_is_object(jn_record)) {
+        json_object_set_new(
+            json_object_get(list, "__del_state__"), "unreadable", json_true()
+        );
+        JSON_DECREF(jn_record)
+        return -1;  // Error already logged by the read; the delete refuses
+    }
 
     const char *v = kw_get_str(0, jn_record, pkey2_name, "", 0);
     if(!empty_string(v) && strcmp(v, pkey2_value)==0) {
@@ -7306,10 +7318,12 @@ PUBLIC int treedb_delete_instance(
          *  and a feed nobody wanted.
          */
         json_t *hits = json_array();
-        json_t *jn_extra = json_pack("{s:s, s:s, s:O}",
+        json_t *state = json_object();
+        json_t *jn_extra = json_pack("{s:s, s:s, s:O, s:O}",
             "__del_pkey2_name__", pkey2_name,
             "__del_pkey2_value__", pkey2_value,
-            "__del_hits__", hits
+            "__del_hits__", hits,
+            "__del_state__", state
         );
         json_t *it = tranger2_open_iterator(
             tranger,
@@ -7338,10 +7352,44 @@ PUBLIC int treedb_delete_instance(
                 NULL
             );
             JSON_DECREF(hits)
+            JSON_DECREF(state)
             JSON_DECREF(node)   // the maintain ref
             JSON_DECREF(jn_options)
             return -1;
         }
+
+        /*
+         *  A walk that stopped half way (a row that cannot be read) found
+         *  SOME of the rows of the instance: tombstoning those and dropping
+         *  the slot answered 0, and the instance came back at the next
+         *  open from a row the walk never reached (M1 of the 2026-09-23
+         *  independent review). Nothing is tombstoned, nothing dropped.
+         */
+        const char *unread = NULL;
+        if(json_is_true(json_object_get(it, "load_failed"))) {
+            unread = "Cannot delete instance, cannot read every row of its key";
+        } else if(json_is_true(json_object_get(state, "unreadable"))) {
+            unread = "Cannot delete instance, a row of its key cannot be read";
+        }
+        if(unread) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", unread,
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", id,
+                "key2",         "%s", pkey2_value,
+                NULL
+            );
+            gobj_log_set_last_message("%s", unread);
+            tranger2_close_iterator(tranger, it);
+            JSON_DECREF(hits)
+            JSON_DECREF(state)
+            JSON_DECREF(node)   // the maintain ref
+            JSON_DECREF(jn_options)
+            return -1;
+        }
+
         size_t i; json_t *hit;
         json_array_foreach(hits, i, hit) {
             if(tranger2_delete_instance(
@@ -7367,6 +7415,7 @@ PUBLIC int treedb_delete_instance(
             tranger2_close_iterator(tranger, it);
         }
         JSON_DECREF(hits)
+        JSON_DECREF(state)
     }
 
     if(delete_secondary_node(indexy, id, pkey2_value)<0) {

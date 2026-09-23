@@ -561,6 +561,153 @@ PRIVATE int test_durable_delete_across_reopen(void)
 }
 
 /***************************************************************************
+ *  A delete that cannot READ every row of the instance refuses.
+ *
+ *  delete_instance tombstones every md2 row of (id, pkey2 value), read with
+ *  a one-shot iterator of the key. It ignored the iterator's load_failed:
+ *  a read that stopped half way tombstoned what it had read (or nothing),
+ *  dropped the secondary slot, answered 0 -- and the instance came back at
+ *  the next open (M1 of the 2026-09-23 independent review of 7.25.4). And a
+ *  row whose CONTENT could not be read was taken, silently, as a row of
+ *  another instance.
+ *
+ *  Self-contained (own database): the md2 and the content of the keys are
+ *  cut behind treedb's back.
+ ***************************************************************************/
+PRIVATE int cut_files_of_key(const char *db, const char *id, const char *pattern, int keep_rows)
+{
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir),
+        getenv("HOME"), "tests_yuneta", db, TOPIC_NAME, "keys", id, NULL);
+    dir_array_t da;
+    get_ordered_filename_array(0, key_dir, pattern, WD_MATCH_REGULAR_FILE, &da);
+    int cut = 0;
+    for(int i=0; i<da.count; i++) {
+        if(truncate(da.items[i], (off_t)keep_rows * 32) == 0) {
+            cut++;
+        }
+    }
+    dir_array_free(&da);
+    return cut;
+}
+
+PRIVATE json_t *open_db(const char *path_root, const char *db, const char *treedb_name)
+{
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root, "database", db, "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK
+    );
+    json_t *tranger = tranger2_startup(0, jn_tranger, 0);
+    treedb_open_db(tranger, treedb_name, legalstring2json(schema_sample, TRUE), 0);
+    return tranger;
+}
+
+PRIVATE int test_delete_that_cannot_read_refuses(void)
+{
+    int result = 0;
+    const char *test = "a delete_instance that cannot read every row refuses";
+    const char *treedb_name = "treedb_delete_unreadable";
+    const char *DB = "tr_delete_instance_unreadable";
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    build_path(path_database, sizeof(path_database), path_root, DB, NULL);
+    rmrdir(path_database);
+    helper_quote2doublequote(schema_sample);
+
+    set_expected_results(test,
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic"),
+        NULL, NULL, 1);
+    json_t *tranger = open_db(path_root, DB, treedb_name);
+
+    treedb_create_node(tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "rel-1", "version", "v1", "payload", "a"));
+    treedb_create_node(tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "rel-1", "version", "v2", "payload", "b"));
+    treedb_create_node(tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "rel-1", "version", "v3", "payload", "c"));
+    treedb_create_node(tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "rel-2", "version", "w1", "payload", "a"));
+    treedb_create_node(tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "rel-2", "version", "w2", "payload", "b"));
+    result += test_json(NULL);
+
+    /*------------------------------------*
+     *  The newest md2 row of rel-1 is cut
+     *------------------------------------*/
+    set_expected_results(test,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot read record metadata, read FAILED",
+            "msg", "Cannot delete instance, cannot read every row of its key"),
+        NULL, NULL, 1);
+    if(cut_files_of_key(DB, "rel-1", ".*\\.md2", 2) != 1) {
+        printf("%s  FAIL: cannot cut the md2 of rel-1%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *node = treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v2");
+    if(!node || treedb_delete_instance(tranger, node, PKEY2_NAME, NULL) == 0) {
+        printf("%s  FAIL: delete_instance answered 0 with a row it could not read%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v2")) {
+        printf("%s  FAIL: the refused delete dropped the instance from memory%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*------------------------------------*
+     *  The content of rel-2 cannot be read
+     *------------------------------------*/
+    set_expected_results(test,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Bad on-disk record: __offset__/__size__ out of range",
+            "msg", "Cannot delete instance, a row of its key cannot be read"),
+        NULL, NULL, 1);
+    if(cut_files_of_key(DB, "rel-2", ".*\\.json", 0) != 1) {
+        printf("%s  FAIL: cannot cut the content of rel-2%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    node = treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-2", "w1");
+    if(!node || treedb_delete_instance(tranger, node, PKEY2_NAME, NULL) == 0) {
+        printf("%s  FAIL: delete_instance answered 0 with a content it could not read%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-2", "w1")) {
+        printf("%s  FAIL: the refused delete dropped w1 from memory%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    treedb_close_db(tranger, treedb_name);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    /*------------------------------------*
+     *  Reopen: v2 was not deleted, and
+     *  says so (it did not resurrect: it
+     *  never went)
+     *------------------------------------*/
+    set_expected_results(test, NULL, NULL, NULL, 0);
+    tranger = open_db(path_root, DB, treedb_name);
+    if(!treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v2")) {
+        printf("%s  FAIL: v2 is gone after the reopen%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    treedb_close_db(tranger, treedb_name);
+    tranger2_shutdown(tranger);
+    test_json(NULL);    // what the load of the cut content says is not this test's
+
+    return result;
+}
+
+/***************************************************************************
  *              do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -716,6 +863,7 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     int result = do_test();
     result += test_durable_delete_across_reopen();
+    result += test_delete_that_cannot_read_refuses();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
