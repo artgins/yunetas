@@ -407,18 +407,28 @@ PUBLIC json_t *msg2db_open_db(
             );
         } else {
             /*
-             *  A key whose history did not load whole: msg2db keeps, per
-             *  pkey2, the LAST message it loaded, and the load is forward,
-             *  so what it holds of that key is the last one read before the
-             *  failure -- an OLD message, served as current (independent
-             *  review of the fourth fix round, repro r_msg2db_stale). Its
-             *  messages are not served: absent and logged is what a reader
-             *  can act on; an old state taken for the current one is not.
-             *  (The mqtt broker's alarms: a cleared alarm came back active.)
-             *  The next message of the key is served as it arrives.
+             *  A key whose history did not load whole. The forward load
+             *  keeps, per pkey2, the LAST message read, so what it holds of
+             *  that key is the last one read before the damage -- an OLD
+             *  message, served as current (independent review of the fourth
+             *  fix round). Dropping the whole key (3b938baa9) was the other
+             *  error: the pkey2s whose current message was readable, after
+             *  the damage, were absent too, and the alarms of db_history
+             *  announced an active alarm again as new and lost the clear of
+             *  one that ended (independent review of the fifth fix round).
+             *
+             *  The key is loaded again BACKWARD, newest first, keeping the
+             *  FIRST message of each pkey2 (load_record_callback with
+             *  `msg2db_newest_first`). The load stops at the damage, so what
+             *  it keeps is exactly current; a pkey2 whose newest message is
+             *  in the damage or before it stays absent -- its state is
+             *  unknown, and an old one is not served for it. The id is
+             *  marked (msg2db_id_incomplete) so that a reader can tell
+             *  "unknown" from "none".
              */
             json_t *failed_keys = json_object_get(list, "load_failed_keys");
             json_t *indexx = kw_get_dict(gobj, tranger, path, 0, 0);
+            json_t *topic_ = tranger2_topic(tranger, topic_name);
             int kidx; json_t *jn_key;
             json_array_foreach(failed_keys, kidx, jn_key) {
                 const char *key = json_string_value(jn_key);
@@ -426,13 +436,51 @@ PUBLIC json_t *msg2db_open_db(
                     continue;
                 }
                 json_object_del(indexx, key);
+                json_t *incomplete = kw_get_subdict_value(
+                    gobj, msg2db, topic_name, "incomplete", json_object(), KW_CREATE
+                );
+                json_object_set_new(incomplete, key, json_true());
+
+                /*
+                 *  The empty-pkey2 tally was taken by the forward load:
+                 *  the second read of the key does not count its rows twice
+                 */
+                json_t *dropped = json_incref(json_object_get(topic_, "pkey2_dropped"));
+
+                json_t *it = tranger2_open_iterator(
+                    tranger,
+                    topic_name,
+                    key,
+                    json_pack("{s:b}", "backward", 1),  // match_cond, owned
+                    load_record_callback,
+                    "msg2db-newest-first",  // iterator id
+                    msg2db_name,            // creator
+                    NULL,                   // data
+                    json_pack("{s:s, s:s, s:b}",    // extra, owned
+                        "msg2db_name", msg2db_name,
+                        "topic_name", topic_name,
+                        "msg2db_newest_first", 1
+                    )
+                );
+                if(it) {
+                    tranger2_close_iterator(tranger, it);
+                }   // else Error already logged: the key stays absent
+
+                if(dropped) {
+                    json_object_set_new(topic_, "pkey2_dropped", dropped);
+                } else {
+                    json_object_del(topic_, "pkey2_dropped");
+                }
+
+                json_t *served = json_object_get(indexx, key);
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MSG2DB,
-                    "msg",          "%s", "msg2db: the messages of a key whose history did not load whole are NOT served, the last one read may not be the current one",
+                    "msg",          "%s", "msg2db: a key whose history did not load whole: only the messages newer than the damage are served, a pkey2 whose newest message was not read is ABSENT and its state unknown (msg2db_id_incomplete)",
                     "msg2db_name",  "%s", msg2db_name,
                     "topic_name",   "%s", topic_name,
                     "key",          "%s", key,
+                    "served",       "%d", (int)json_object_size(served),
                     NULL
                 );
             }
@@ -442,7 +490,6 @@ PUBLIC json_t *msg2db_open_db(
              *  first one was logged whole; this is how many followed it, and
              *  it is the line that says how much of the topic is missing.
              */
-            json_t *topic_ = tranger2_topic(tranger, topic_name);
             json_int_t dropped = kw_get_int(gobj, topic_, "pkey2_dropped", 0, 0);
             if(dropped > 0) {
                 json_object_del(topic_, "pkey2_dropped");
@@ -1056,6 +1103,17 @@ PRIVATE int load_record_callback(
             jn_record // not owned
         );
 
+        /*
+         *  The backward reload of a key that did not load whole
+         *  (msg2db_open_db): the first message of a pkey2 is its newest,
+         *  an older one does not replace it
+         */
+        if(json_is_true(json_object_get(list, "msg2db_newest_first")) &&
+                json_object_get(json_object_get(indexx, key), pkey2_value)) {
+            JSON_DECREF(jn_record);
+            return 0;   // Timeranger: does not load the record, it's mine.
+        }
+
         /*-------------------------------*
          *  Write node
          *-------------------------------*/
@@ -1404,4 +1462,35 @@ PUBLIC json_t *msg2db_get_message( // Return is NOT YOURS
     }
 
     return 0;
+}
+
+/***************************************************************************
+ *  TRUE when the history of `id` did not load whole at the open: an absent
+ *  message of it is unknown, not "none" (see msg2db_open_db)
+ ***************************************************************************/
+PUBLIC BOOL msg2db_id_incomplete(
+    json_t *tranger,
+    const char *msg2db_name,
+    const char *topic_name,
+    const char *id
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *topic = kwid_get(gobj, tranger, 0, "msg2dbs`%s`%s", msg2db_name, topic_name);
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MSG2DB,
+            "msg",          "%s", "Msg2Db topic NOT FOUND",
+            "msg2db_name",  "%s", msg2db_name,
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        return FALSE;
+    }
+    if(empty_string(id)) {
+        return FALSE;
+    }
+    return json_is_true(json_object_get(json_object_get(topic, "incomplete"), id));
 }

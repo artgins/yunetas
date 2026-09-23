@@ -1711,7 +1711,7 @@ it by hand, run the script.
 
 16. [**`trmsg_foreach_messages`**](timeranger2/tr_msg.md#trmsg_foreach_messages) — `PUBLIC int trmsg_foreach_messages( json_t *list, BOOL duplicated, int (*callback)( json_t *list, const char *key, json_t *instances, void *user_data1, void *user_data2 ), void *user_data1, void *user_data2, json_t *jn_filter )`
 
-### `tr_msg2db.h` — 6 functions
+### `tr_msg2db.h` — 7 functions
 
 **Source:** `kernel/c/timeranger2/src/tr_msg2db.h`
 
@@ -1725,7 +1725,9 @@ it by hand, run the script.
 
 5. [**`msg2db_get_message`**](timeranger2/tr_msg2db.md#msg2db_get_message) — `PUBLIC json_t *msg2db_get_message( json_t *tranger, const char *msg2db_name, const char *topic_name, const char *id, const char *id2 )`
 
-6. [**`build_msg2db_index_path`**](timeranger2/tr_msg2db.md#build_msg2db_index_path) — `PUBLIC char *build_msg2db_index_path( char *bf, int bfsize, const char *msg2db_name, const char *topic_name, const char *key )`
+6. [**`msg2db_id_incomplete`**](timeranger2/tr_msg2db.md#msg2db_id_incomplete) — `PUBLIC BOOL msg2db_id_incomplete( json_t *tranger, const char *msg2db_name, const char *topic_name, const char *id )`
+
+7. [**`build_msg2db_index_path`**](timeranger2/tr_msg2db.md#build_msg2db_index_path) — `PUBLIC char *build_msg2db_index_path( char *bf, int bfsize, const char *msg2db_name, const char *topic_name, const char *key )`
 
 ### `tr_queue.h` — 17 functions
 
@@ -1893,7 +1895,7 @@ it by hand, run the script.
 
 62. [**`create_template_record`**](timeranger2/treedb.md#create_template_record) — `PUBLIC json_t *create_template_record( const char *template_name, json_t *cols, json_t *kw )`
 
-**Total: 157 functions**
+**Total: 158 functions**
 
 ## root-linux (Runtime GClasses)
 
@@ -2314,7 +2316,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1001 functions** sorted alphabetically with their source header.
+All **1002 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2946,6 +2948,7 @@ All **1001 functions** sorted alphabetically with their source header.
 | [**`msg2db_append_message`**](timeranger2/tr_msg2db.md#msg2db_append_message) | `tr_msg2db.h` | timeranger2 (Time-Series DB) |
 | [**`msg2db_close_db`**](timeranger2/tr_msg2db.md#msg2db_close_db) | `tr_msg2db.h` | timeranger2 (Time-Series DB) |
 | [**`msg2db_get_message`**](timeranger2/tr_msg2db.md#msg2db_get_message) | `tr_msg2db.h` | timeranger2 (Time-Series DB) |
+| [**`msg2db_id_incomplete`**](timeranger2/tr_msg2db.md#msg2db_id_incomplete) | `tr_msg2db.h` | timeranger2 (Time-Series DB) |
 | [**`msg2db_list_messages`**](timeranger2/tr_msg2db.md#msg2db_list_messages) | `tr_msg2db.h` | timeranger2 (Time-Series DB) |
 | [**`msg2db_open_db`**](timeranger2/tr_msg2db.md#msg2db_open_db) | `tr_msg2db.h` | timeranger2 (Time-Series DB) |
 | [**`msg_iev_build_response`**](runtime/msg_ievent.md#msg_iev_build_response) | `msg_ievent.h` | root-linux (Runtime GClasses) |

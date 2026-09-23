@@ -142,6 +142,68 @@ The function returns a reference to an internal JSON object, so the caller must 
 If the message is not found, the function can return `NULL`.
 The function relies on the structure and indexing of the database, which must be properly initialized using [`msg2db_open_db()`](<#msg2db_open_db>).
 
+A message it answers is the current one. A `NULL` for an id whose history did
+not load whole at the open means UNKNOWN, not "there is none": ask
+[`msg2db_id_incomplete()`](<#msg2db_id_incomplete>) when the difference
+matters.
+
+---
+
+(msg2db_id_incomplete)=
+## `msg2db_id_incomplete()`
+
+`msg2db_id_incomplete()` tells whether the history of `id` loaded whole when
+the msg2db was opened. When it did not, the messages served of it are current,
+but a `pkey2` whose newest message could not be read is absent (see
+[`msg2db_open_db()`](<#msg2db_open_db>)).
+
+```C
+BOOL msg2db_id_incomplete(
+    json_t      *tranger,
+    const char  *msg2db_name,
+    const char  *topic_name,
+    const char  *id
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | The TimeRanger instance of the msg2db. |
+| `msg2db_name` | `const char *` | Name of the message database. |
+| `topic_name` | `const char *` | Name of the topic. |
+| `id` | `const char *` | The primary key (the `id` of the messages). |
+
+**Returns**
+
+`TRUE` when the history of `id` did not load whole at the open. `FALSE` when
+it did, when `id` has no messages, or when it is empty. An unknown msg2db or
+topic logs an error and answers `FALSE`.
+
+**Notes**
+
+It stays `TRUE` while the msg2db is open, whatever messages arrive: the
+damaged file is still on disk, and other `pkey2` of the id may still be
+unknown. A restart after the repair clears it.
+
+A consumer that must not take "unknown" for "none" asks it when
+[`msg2db_get_message()`](<#msg2db_get_message>) answers `NULL`. For example,
+an alarm check that does not announce as NEW an alarm whose earlier state is
+unknown, and records its state instead:
+
+```C
+json_t *alarm = msg2db_get_message(tranger, "msg2db_alarms", "alarms", device_id, alarm_id);
+BOOL unknown = (!alarm && msg2db_id_incomplete(tranger, "msg2db_alarms", "alarms", device_id));
+if(unknown) {
+    /*
+     *  The newest message of this alarm could not be read: record the state
+     *  the device reports now (active or not), and say it is a state
+     *  recovered after a damaged store, not a change
+     */
+}
+```
+
 ---
 
 (msg2db_list_messages)=
@@ -220,28 +282,69 @@ If the 'persistent' option is enabled, the schema is loaded from a file, which t
 To modify the schema after it was saved, the schema version and topic version must be updated.
 
 The load is forward, oldest first, and msg2db keeps per `id` and `pkey2` the
-LAST message it loaded. A key whose history does not load whole (a md2 file of
-it that cannot be read, see
-[`tranger2_open_list()`](<timeranger2.md#tranger2_open_list>)) stops before the damage, so
-the last message read may be an OLD one. The messages of such a key are **not
-served**: the key is not in memory, and an ERROR names it:
+LAST message it loaded.
+
+**An id whose history does not load whole** (a md2 file of it that cannot be
+read, see [`tranger2_open_list()`](<timeranger2.md#tranger2_open_list>)). The
+forward load stops before the damage, so the last message it read of a
+`pkey2` may be an OLD one. msg2db does not serve that: it loads the id again
+BACKWARD, newest first, and keeps the FIRST message of each `pkey2`. That load
+stops at the damage too, from the other side. So:
+
+- a `pkey2` whose newest message is NEWER than the damage is served, and it is
+  exactly its current message;
+- a `pkey2` whose newest message is in the damage (or before it) is ABSENT. Its
+  state is unknown: an older message of it may be readable, and it is not
+  served as current.
+
+The id is marked incomplete ([`msg2db_id_incomplete()`](<#msg2db_id_incomplete>)
+answers `TRUE` while the msg2db is open), and an ERROR names it, with the
+number of `pkey2` served:
 
 ```text
 ERROR: {..., "function": "msg2db_open_db", "msgset": "Msg2Db",
-    "msg": "msg2db: the messages of a key whose history did not load whole are NOT served, the last one read may not be the current one",
-    "msg2db_name": "msg2db_alarms", "topic_name": "alarms", "key": "dev1"}
+    "msg": "msg2db: a key whose history did not load whole: only the messages newer than the damage are served, a pkey2 whose newest message was not read is ABSENT and its state unknown (msg2db_id_incomplete)",
+    "msg2db_name": "msg2db_alarms", "topic_name": "alarms", "key": "dev1", "served": 1}
 ```
 
 ```C
+/*
+ *  dev1: X old (file 1), Y old (file 1), Y newer (file 2, damaged),
+ *        X new (file 3). dev2: whole.
+ */
 msg2db_open_db(tranger, "msg2db_alarms", jn_schema, "");
-msg2db_get_message(tranger, "msg2db_alarms", "alarms", "dev1", "X");   // NULL: dev1 did not load whole
-msg2db_get_message(tranger, "msg2db_alarms", "alarms", "dev2", "X");   // dev2 is whole: served
+msg2db_get_message(tranger, "msg2db_alarms", "alarms", "dev1", "X");   // X new: current
+msg2db_get_message(tranger, "msg2db_alarms", "alarms", "dev1", "Y");   // NULL: unknown
+msg2db_id_incomplete(tranger, "msg2db_alarms", "alarms", "dev1");      // TRUE
+msg2db_get_message(tranger, "msg2db_alarms", "alarms", "dev2", "X");   // served
+msg2db_id_incomplete(tranger, "msg2db_alarms", "alarms", "dev2");      // FALSE
 ```
 
-For the mqtt broker's alarms this means an unknown alarm until the device
-reports it again (the next message of the key is served as it arrives), never
-a cleared alarm served as active. Until 7.25.4 the old message was served as
-current, and nothing was logged. Repair the key as the treedb page says
-([what the operator does](<treedb.md#treedb-topic-not-loaded-whole>)).
+The next message of an absent `pkey2` is served as it arrives, and it is
+current. The id stays incomplete: the damaged file is still on disk, and other
+`pkey2` of it may still be unknown.
+
+**What it means for the alarms of `db_history`** (the msg2db consumers in the
+projects compare the triggers of a new measure with the `triggers` of
+`msg2db_get_message(<device>, <alarm>)`). For an alarm whose newest message
+was read, nothing changes. For an absent one, until its next message:
+
+- the device reports the alarm's triggers: the alarm is announced as NEW. If
+  it was already active in the message that could not be read, that is a
+  repeated notification;
+- the device reports no trigger: nothing is recorded (the `!n_new && !n_old`
+  path). If the alarm was active in the message that could not be read, its
+  end is not announced;
+- the alarm is not in [`msg2db_list_messages()`](<#msg2db_list_messages>), so
+  the lists of alarms do not show it.
+
+Up to 7.25.4 the forward load served the OLD message as current, with nothing
+logged: a cleared alarm could come back active, or an active one be taken as
+cleared. The first fix after it (3b938baa9) dropped the WHOLE id, and every
+alarm of the device was absent, also the ones whose current message was
+readable. Now only the alarms whose state is really unknown are absent.
+Repair the key as the treedb page says
+([what the operator does](<treedb.md#treedb-topic-not-loaded-whole>)); after
+the repair and a restart, the id is whole and not marked.
 
 ---

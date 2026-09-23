@@ -11,17 +11,23 @@ reload then finds only what it can read.
 `test_msg2db_load_failed` pins what msg2db serves when a key's history does
 not load whole. msg2db loads forward and keeps the LAST message per `id` and
 `pkey2`, so a load that stops half way leaves an OLD message in the place of
-the current one:
+the current one. Such a key is loaded again backward, keeping the NEWEST
+message of each `pkey2`:
 
 1. a file of `dev1` whose only append was never acknowledged (a md2 of 0
    rows, its content not empty), between its old and its new message: the
    file is ignored with a warning, and the NEW message is served;
 2. the md2 of the new message damaged (5 bytes after it, not a whole row):
-   `dev1` is not served at all (absent, with an ERROR naming it), and `dev2`,
-   whole, is.
+   `dev1` is reloaded backward, the load stops at once at its newest file, and
+   `dev1` is not served (absent, with an ERROR naming it); `dev2`, whole, is;
+3. the damage in the MIDDLE of `dev1`'s history, with two alarms: `X`, whose
+   newest message is in the last file, is served (its current message); `Y`,
+   whose newest message is in the damaged file, is absent (its old message is
+   not served as current); `msg2db_id_incomplete()` is TRUE for `dev1`, FALSE
+   for `dev2`, and stays TRUE after `Y`'s next message, which is served.
 
-Both served the OLD message before the fix (independent review of the fourth
-fix round).
+1 and 2 served the OLD message before the fix of the fourth fix round. 3 was
+red after it: the whole of `dev1` was dropped, `X` too (fifth fix round).
 
 ## Why it was kept out of the suite, and why it is in now
 

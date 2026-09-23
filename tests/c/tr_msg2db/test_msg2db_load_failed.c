@@ -14,8 +14,17 @@
  *         ignored with a warning: the new message is served.
  *      2. The file of dev1's new message really damaged (a md2 whose size
  *         is not a whole number of rows): the load of dev1 stops before it.
- *         What it read is not served as current: dev1 is not in memory, and
- *         that is logged. dev2, whole, is served.
+ *         What it read is not served as current: msg2db reloads dev1
+ *         BACKWARD, the load stops at once at the damaged newest file, and
+ *         dev1 is not in memory; that is logged. dev2, whole, is served.
+ *      3. dev1 with two alarms and the damage in the MIDDLE of its history:
+ *         X (old in the first file, new in the last) and Y (old in the
+ *         first file, newer in the damaged one). X's newest message is
+ *         readable, and it is served; Y's newest message is not, and Y is
+ *         absent -- its old message is not served as current. The whole
+ *         key was dropped before the fix of the fifth fix round: X, whose
+ *         current state was on disk and readable, was absent too, and the
+ *         alarms of the projects (db_history) announced it again as new.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -34,7 +43,7 @@
 #define TOPIC_NAME      "alarms"
 
 #define MSG_UNCOMMITTED "md2 file of the key with no rows and a content file that is not empty: an append that was never acknowledged, the file is ignored"
-#define MSG_NOT_SERVED  "msg2db: the messages of a key whose history did not load whole are NOT served, the last one read may not be the current one"
+#define MSG_NOT_SERVED  "msg2db: a key whose history did not load whole: only the messages newer than the damage are served, a pkey2 whose newest message was not read is ABSENT and its state unknown (msg2db_id_incomplete)"
 
 PRIVATE yev_loop_h yev_loop;
 PRIVATE char path_root[PATH_MAX];
@@ -110,34 +119,76 @@ PRIVATE void close_all(json_t *tranger)
     drain_loop();
 }
 
-PRIVATE void put(json_t *tranger, const char *id, const char *description)
+PRIVATE void put_alarm(json_t *tranger, const char *id, const char *alarm, const char *description)
 {
     msg2db_append_message(tranger, MSG2DB_NAME, TOPIC_NAME,
         json_pack("{s:s, s:I, s:s, s:s}",
             "id", id,
             "tm", (json_int_t)time(0),
-            "alarm", "X",
+            "alarm", alarm,
             "description", description
         ),
         ""
     );
 }
 
-PRIVATE int expect_description(json_t *tranger, const char *what, const char *id, const char *expected)
+PRIVATE void put(json_t *tranger, const char *id, const char *description)
 {
-    json_t *msg = msg2db_get_message(tranger, MSG2DB_NAME, TOPIC_NAME, id, "X");
+    put_alarm(tranger, id, "X", description);
+}
+
+PRIVATE int expect_alarm(json_t *tranger, const char *what, const char *id, const char *alarm,
+    const char *expected)
+{
+    json_t *msg = msg2db_get_message(tranger, MSG2DB_NAME, TOPIC_NAME, id, alarm);
     const char *found = msg? kw_get_str(0, msg, "description", "?", 0) : "(absent)";
     if(strcmp(found, expected) != 0) {
-        printf("%sERROR%s --> %s: %s/X is [%s], expected [%s]\n",
-            On_Red BWhite, Color_Off, what, id, found, expected);
+        printf("%sERROR%s --> %s: %s/%s is [%s], expected [%s]\n",
+            On_Red BWhite, Color_Off, what, id, alarm, found, expected);
         return -1;
     }
     return 0;
 }
 
+PRIVATE int expect_description(json_t *tranger, const char *what, const char *id, const char *expected)
+{
+    return expect_alarm(tranger, what, id, "X", expected);
+}
+
 PRIVATE void key_dir(char *bf, size_t bfsize, const char *id)
 {
     build_path(bf, bfsize, path_database, TOPIC_NAME, "keys", id, NULL);
+}
+
+/*
+ *  Give the files of `id` written today (not named 2000-*) the name of `day`
+ */
+PRIVATE int move_today_files(const char *id, const char *day)
+{
+    char dir[PATH_MAX];
+    key_dir(dir, sizeof(dir), id);
+    const char *exts[] = {"md2", "json", NULL};
+    int moved = 0;
+    for(int e = 0; exts[e]; e++) {
+        char pattern[32];
+        snprintf(pattern, sizeof(pattern), ".*\\.%s", exts[e]);
+        dir_array_t da;
+        get_ordered_filename_array(0, dir, pattern, WD_MATCH_REGULAR_FILE, &da);
+        for(int i = 0; i < da.count; i++) {
+            if(strstr(da.items[i], "/2000-")) {
+                continue;
+            }
+            char name[NAME_MAX];
+            char dst[PATH_MAX];
+            snprintf(name, sizeof(name), "%s.%s", day, exts[e]);
+            build_path(dst, sizeof(dst), dir, name, NULL);
+            if(rename(da.items[i], dst) == 0) {
+                moved++;
+            }
+        }
+        dir_array_free(&da);
+    }
+    return moved;
 }
 
 /*
@@ -264,18 +315,113 @@ PRIVATE int test_damaged(void)
     }
 
     set_expected_results("2. the file of the new message damaged",
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Cannot read last record, md2 file corrupted",
             "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
             "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
             "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
                    "were handed, the list goes on with the next key",
+            "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
             "msg", MSG_NOT_SERVED
         ), NULL, NULL, TRUE
     );
     json_t *tranger = open_all();
     result += expect_description(tranger, "2", "dev1", "(absent)");
     result += expect_description(tranger, "2", "dev2", "WHOLE");
+    close_all(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  3. The damage in the middle of dev1's history: what was newer is served
+ ***************************************************************************/
+PRIVATE int test_damaged_middle(void)
+{
+    int result = 0;
+    rmrdir(path_database);
+    set_expected_results("3. build the store", NULL, NULL, NULL, FALSE);
+
+    json_t *tranger = open_all();
+    put_alarm(tranger, "dev1", "X", "OLD_X");
+    put_alarm(tranger, "dev1", "Y", "OLD_Y");
+    close_all(tranger);
+    int moved = move_today_files("dev1", "2000-01-01");
+
+    tranger = open_all();
+    put_alarm(tranger, "dev1", "Y", "MID_Y");
+    close_all(tranger);
+    moved += move_today_files("dev1", "2000-01-02");
+
+    tranger = open_all();
+    put_alarm(tranger, "dev1", "X", "NEW_X");
+    put_alarm(tranger, "dev2", "X", "WHOLE");
+    close_all(tranger);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    if(moved != 4) {
+        printf("%sERROR%s --> 3: cannot move the files of dev1\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    /*
+     *  5 bytes after the md2 of the middle file: not a whole number of rows
+     */
+    char dir[PATH_MAX];
+    char md2[PATH_MAX];
+    key_dir(dir, sizeof(dir), "dev1");
+    build_path(md2, sizeof(md2), dir, "2000-01-02.md2", NULL);
+    FILE *f = fopen(md2, "a");
+    if(!f || fwrite("XXXXX", 1, 5, f) != 5) {
+        printf("%sERROR%s --> 3: cannot damage the middle md2 of dev1\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(f) {
+        fclose(f);
+    }
+
+    set_expected_results("3. the damage in the middle of dev1's history",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Cannot read last record, md2 file corrupted",
+            "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
+            "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
+            "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
+                   "were handed, the list goes on with the next key",
+            "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
+            "msg", MSG_NOT_SERVED
+        ), NULL, NULL, TRUE
+    );
+    tranger = open_all();
+    result += expect_alarm(tranger, "3", "dev1", "X", "NEW_X");
+    result += expect_alarm(tranger, "3", "dev1", "Y", "(absent)");
+    result += expect_alarm(tranger, "3", "dev2", "X", "WHOLE");
+    result += test_json(NULL);
+
+    /*
+     *  An absent message of an incomplete id is UNKNOWN, not "never was":
+     *  the id says so
+     */
+    set_expected_results("3. the ids that are incomplete", NULL, NULL, NULL, TRUE);
+    if(!msg2db_id_incomplete(tranger, MSG2DB_NAME, TOPIC_NAME, "dev1")) {
+        printf("%sERROR%s --> 3: dev1 is not incomplete\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(msg2db_id_incomplete(tranger, MSG2DB_NAME, TOPIC_NAME, "dev2")) {
+        printf("%sERROR%s --> 3: dev2 is incomplete\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*
+     *  The next message of Y is its current one; dev1 stays incomplete (its
+     *  other alarms may still be unknown) until the store is repaired
+     */
+    put_alarm(tranger, "dev1", "Y", "NEXT_Y");
+    result += expect_alarm(tranger, "3", "dev1", "Y", "NEXT_Y");
+    if(!msg2db_id_incomplete(tranger, MSG2DB_NAME, TOPIC_NAME, "dev1")) {
+        printf("%sERROR%s --> 3: dev1 is not incomplete after a message\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
     close_all(tranger);
     result += test_json(NULL);
 
@@ -295,6 +441,7 @@ PRIVATE int do_test(void)
 
     result += test_uncommitted();
     result += test_damaged();
+    result += test_damaged_middle();
 
     return result;
 }

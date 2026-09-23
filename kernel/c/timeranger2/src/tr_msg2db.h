@@ -63,11 +63,16 @@ extern "C"{
             then you must change the schema version and topic_version
 
     The load is forward and keeps, per id and pkey2, the LAST message
-    loaded. The messages of a key whose history did not load whole (a md2
-    file of it cannot be read) are NOT served: the last one read may be an
-    old one. The key is not in memory and an ERROR names it ("msg2db: the
-    messages of a key whose history did not load whole are NOT served...");
-    its next message is served as it arrives.
+    loaded. A key (id) whose history did not load whole (a md2 file of it
+    cannot be read) is loaded again BACKWARD, newest first, keeping the
+    FIRST message of each pkey2: what is served of it is exactly its
+    current message, for every pkey2 whose newest message is newer than
+    the damage. A pkey2 whose newest message was not read is ABSENT (an
+    older one may be read, and it is not served as current). The id is
+    marked incomplete (msg2db_id_incomplete()) and an ERROR names it
+    ("msg2db: a key whose history did not load whole: only the messages
+    newer than the damage are served..."); the next message of a pkey2 is
+    served as it arrives.
 **rst**/
 
 PUBLIC json_t *msg2db_open_db(
@@ -108,6 +113,21 @@ PUBLIC json_t *msg2db_get_message( // Return is NOT YOURS
     const char *topic_name,
     const char *id,
     const char *id2
+);
+
+/**rst**
+    TRUE when the history of `id` did not load whole at the open: a
+    msg2db_get_message() of it that answers NULL means UNKNOWN (its newest
+    message was not read), not "there is none". The messages it answers
+    are current. It stays TRUE while the msg2db is open, whatever messages
+    arrive: the damaged file is still on disk, and other pkey2 of the id
+    may still be unknown.
+**rst**/
+PUBLIC BOOL msg2db_id_incomplete(
+    json_t *tranger,
+    const char *msg2db_name,
+    const char *topic_name,
+    const char *id
 );
 
 /*
