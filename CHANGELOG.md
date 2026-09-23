@@ -19,6 +19,10 @@ listed under "No red test" in `TODO.md`.
   while it runs (4 keys x 3 650 daily files: ~80 ms warm cache; 1 key x 30 files
   x 20 000 rows: ~16 ms). On that 30-file topic a tm query took ~13 ms on
   7.25.4, ~400 ms unmigrated and ~0.1 ms migrated. See `deploying-yunos.md`.
+- **If the main agent does not come back after the upgrade**, look for
+  *"Cannot start agent treedb"* in its log: when its treedb's schema is
+  refused, the agent now exits 0 and is not relaunched. Reach the node through
+  `yuneta_agent22`.
 - **Do not roll a node back to 7.25.4 or earlier** for topics created or
   migrated by this release without running `mark-tm-order` again after coming
   forward: an older binary appends out-of-order `tm` rows without writing the
@@ -166,8 +170,10 @@ listed under "No red test" in `TODO.md`.
   whether it was made before the projection failed or while it was
   unfinished. The part of a draft a projection could not replace stays a draft
   (in `draft_changed`), never a leftover.
-- A new `treedbs` node of `__system__` is created with its numbers at 0 and
-  stamped last, on full success, like an existing one.
+- The numbers of a treedb's node in `__system__` (`schema_version`,
+  `c_schema_version`) are written last, only when the whole projection
+  succeeded; a new node is created with them at 0 (7.25.4 wrote them first, so
+  a process that died half way left a projection that said it was complete).
 - **A second `open-treedb` of an open treedb is refused first** ("already open
   here: close-treedb first, nothing was changed"); 7.25.4 reconciled
   `__system__` first and then failed with "Internal error, tranger client
@@ -288,7 +294,8 @@ listed under "No red test" in `TODO.md`.
   refused, and one whose schema is refused answers -1 (7.25.4: 0 "Treedb
   opened!") -- so a refused agent schema stops the agent (exit 0, not
   relaunched); new answer texts for `open-treedb` / `close-treedb` /
-  `delete-treedb` ("Treedb closed!" -> "<yuno>: treedb closed: 'X'",
+  `delete-treedb` ("Treedb opened!" -> "<yuno>: treedb opened: 'X'",
+  "Treedb closed!" -> "<yuno>: treedb closed: 'X'",
   "Treedb_name not found" -> "<yuno>: treedb 'X' not found", ...);
   a client store locked by another process is not reconciled. The log order at
   open changed (the client tranger's logs come first).
