@@ -49,6 +49,7 @@ PRIVATE const char *topic_fields[] = {
     "filename_mask",
     "xpermission",
     "rpermission",
+    "marks_tm_unordered",
 
     0
 };
@@ -151,7 +152,8 @@ PRIVATE void mark_file_unordered(
     json_t *topic,
     const char *key,
     const char *file_id,
-    json_t *cache_cell
+    json_t *cache_cell,
+    const char *mark
 );
 PRIVATE int widen_cell_from_rows(
     hgobj gobj,
@@ -301,6 +303,7 @@ PRIVATE json_int_t first_segment_row(
     json_t *segments,
     json_t *cache_total,
     json_t *match_cond,  // not owned
+    BOOL tm_known,
     json_int_t *rowid
 );
 PRIVATE json_int_t next_segment_row(
@@ -310,6 +313,9 @@ PRIVATE json_int_t next_segment_row(
     json_int_t *rowid
 );
 PRIVATE BOOL segment_t_ordered(json_t *segment);
+PRIVATE BOOL topic_marks_tm(json_t *topic);
+PRIVATE BOOL segment_tm_ordered(json_t *topic, json_t *segment);
+PRIVATE json_int_t leave_segment_row(json_t *segment, BOOL backward);
 PRIVATE json_t *key_cache_stamp(json_t *topic, const char *key);
 PRIVATE void forget_segments_of_key(json_t *topic, const char *key);
 PRIVATE BOOL tranger2_match_metadata(
@@ -318,7 +324,9 @@ PRIVATE BOOL tranger2_match_metadata(
     json_int_t rowid,
     md2_record_ex_t *md_record_ex,
     BOOL t_ordered,
-    BOOL *end
+    BOOL tm_ordered,
+    BOOL *end,
+    BOOL *end_segment
 );
 PRIVATE fs_event_t *monitor_disks_directory_by_master(
     hgobj gobj,
@@ -687,6 +695,20 @@ PRIVATE void revive_stopped_tranger(hgobj gobj, json_t *tranger)
 }
 
 /***************************************************************************
+ *  May this tranger write? Asked by every write path BEFORE it writes: a
+ *  stopped master takes its lock again first (revive_stopped_tranger), and
+ *  the answer is what it holds NOW. It was read from the `master` of the
+ *  stop, and tranger2_create_topic() wrote the topic files into the store
+ *  of the process that had taken it meanwhile (M3 of the 2026-09-23
+ *  independent review).
+ ***************************************************************************/
+PRIVATE BOOL tranger_is_master(hgobj gobj, json_t *tranger)
+{
+    revive_stopped_tranger(gobj, tranger);
+    return json_boolean_value(json_object_get(tranger, "master"))? TRUE: FALSE;
+}
+
+/***************************************************************************
  *  Shutdown TimeRanger database
  ***************************************************************************/
 PUBLIC int tranger2_shutdown(json_t *tranger)
@@ -699,20 +721,6 @@ PUBLIC int tranger2_shutdown(json_t *tranger)
     }
     JSON_DECREF(tranger)
     return 0;
-}
-
-/***************************************************************************
- *  May this tranger write? Asked by every write path BEFORE it writes: a
- *  stopped master takes its lock again first (revive_stopped_tranger), and
- *  the answer is what it holds NOW. It was read from the `master` of the
- *  stop, and tranger2_create_topic() wrote the topic files into the store
- *  of the process that had taken it meanwhile (M3 of the 2026-09-23
- *  independent review).
- ***************************************************************************/
-PRIVATE BOOL tranger_is_master(hgobj gobj, json_t *tranger)
-{
-    revive_stopped_tranger(gobj, tranger);
-    return json_boolean_value(json_object_get(tranger, "master"))? TRUE: FALSE;
 }
 
 /***************************************************************************
@@ -1142,6 +1150,14 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             json_object_update(jn_topic_desc, jn_topic_ext_);
             JSON_DECREF(jn_topic_ext_)
         }
+
+        /*
+         *  A topic created from now on marks every md2 file whose tm goes
+         *  back (`<file>.tm_unordered`): the tm range of each of its files
+         *  can be trusted. A topic without this key was written before the
+         *  marks, and no tm range of it is (see topic_marks_tm).
+         */
+        json_object_set_new(jn_topic_desc, "marks_tm_unordered", json_true());
 
         json_t *topic_desc = kw_clone_by_path(
             gobj,
@@ -6837,31 +6853,43 @@ PRIVATE json_t *load_cache_cell_from_disk(
      *  The first and the last row give the file's range only while its rows
      *  are in time order. A late record (a __t__ below the file's to_t) is
      *  the LAST row with a lower time, and the range read from it hid the
-     *  file from time-range queries (M16 of the 2026-09-21 review). The
-     *  master marks such a file (mark_file_unordered); a marked one is read
-     *  whole -- 32 bytes a row, sequentially -- and only that one.
+     *  file from time-range queries (M16 of the 2026-09-21 review); a __tm__
+     *  that goes back hid it from tm queries (M2 of the 2026-09-23
+     *  independent review). The master marks such a file
+     *  (mark_file_unordered); a marked one is read whole -- 32 bytes a row,
+     *  sequentially -- and only that one.
      */
     char marker[NAME_MAX];
+    char tm_marker[NAME_MAX];
     snprintf(marker, sizeof(marker), "%s.unordered", filename);
+    snprintf(tm_marker, sizeof(tm_marker), "%s.tm_unordered", filename);
     char key_directory[PATH_MAX];
     build_path(key_directory, sizeof(key_directory), topic_directory, "keys", key, NULL);
-    if(file_exists(key_directory, marker)) {
+    BOOL t_marked = file_exists(key_directory, marker);
+    BOOL tm_marked = file_exists(key_directory, tm_marker);
+    if(t_marked || tm_marked) {
         /*
          *  The rows already read need no second reading: a follower wakes
          *  up on every append of the master, and read the marked file WHOLE
-         *  each time (N12 of the 2026-09-22 review). The cell in memory
-         *  already holds the range of the rows it counted; only the rows
-         *  after them are read, and the two ranges are joined.
+         *  each time (N12 of the 2026-09-22 review). A cell flagged in memory
+         *  holds the range of every row it counted (it was read whole); only
+         *  the rows after them are read, and the two ranges are joined.
          */
         json_int_t from_row = 1;
-        if(known_cell && json_is_true(json_object_get(known_cell, "unordered"))) {
+        if(known_cell && (json_is_true(json_object_get(known_cell, "unordered")) ||
+                json_is_true(json_object_get(known_cell, "tm_unordered")))) {
             join_cell_ranges(file_cache, known_cell);
             from_row = json_integer_value(json_object_get(known_cell, "rows")) + 1;
         }
         if(widen_cell_from_rows(gobj, topic_directory, key, filename, file_cache, from_row) < 0) {
             // Error already logged: the cell keeps the first/last range
         }
-        json_object_set_new(file_cache, "unordered", json_true());
+        if(t_marked) {
+            json_object_set_new(file_cache, "unordered", json_true());
+        }
+        if(tm_marked) {
+            json_object_set_new(file_cache, "tm_unordered", json_true());
+        }
     }
 
     return file_cache;
@@ -6989,34 +7017,39 @@ PRIVATE int widen_cell_from_rows(
 }
 
 /***************************************************************************
- *  A record arrived with a __t__ below its file's to_t: from now on the
- *  first and the last row do not give that file's range. Leave a marker
- *  beside the md2, `<file>.unordered`, so a load reads the file whole
- *  (see load_cache_cell_from_disk). Once per file: the cell remembers.
+ *  A record arrived that the first and the last row of its file do not
+ *  bound any more. Leave a marker beside the md2 so a load reads the file
+ *  whole (see load_cache_cell_from_disk), and flag the cell. `mark`:
+ *      "unordered"     a __t__ below the file's to_t (a late record)
+ *      "tm_unordered"  a __tm__ below the file's to_tm (only in a topic that
+ *                      marks tm, see topic_marks_tm)
+ *  The marker is `<file>.<mark>`. Once per file: the cell remembers.
  ***************************************************************************/
 PRIVATE void mark_file_unordered(
     hgobj gobj,
     json_t *topic,
     const char *key,
     const char *file_id,
-    json_t *cache_cell
+    json_t *cache_cell,
+    const char *mark
 )
 {
-    if(json_is_true(json_object_get(cache_cell, "unordered"))) {
+    if(json_is_true(json_object_get(cache_cell, mark))) {
         return;
     }
     char marker[NAME_MAX];
-    if(snprintf(marker, sizeof(marker), "%s.unordered", file_id) >= (int)sizeof(marker)) {
+    if(snprintf(marker, sizeof(marker), "%s.%s", file_id, mark) >= (int)sizeof(marker)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Cannot mark md2 file as unordered, file_id too long",
+            "msg",          "%s", "Cannot mark md2 file, file_id too long",
             "topic",        "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
             "file_id",      "%s", file_id,
+            "mark",         "%s", mark,
             NULL
         );
-        json_object_set_new(cache_cell, "unordered", json_true());
+        json_object_set_new(cache_cell, mark, json_true());
         return;
     }
     char path[PATH_MAX];
@@ -7028,7 +7061,7 @@ PRIVATE void mark_file_unordered(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot mark md2 file as unordered, a reload will misread its time range",
+            "msg",          "%s", "Cannot mark md2 file, a reload will misread its time range",
             "path",         "%s", path,
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
@@ -7039,7 +7072,7 @@ PRIVATE void mark_file_unordered(
     if(fd >= 0) {
         close(fd);
     }
-    json_object_set_new(cache_cell, "unordered", json_true());
+    json_object_set_new(cache_cell, mark, json_true());
 }
 
 /***************************************************************************
@@ -7259,7 +7292,11 @@ PRIVATE json_int_t update_new_record_from_mem(
     } else {
         if(get_time_t(md_record) <
                 (uint64_t)json_integer_value(json_object_get(cur_cache_cell, "to_t"))) {
-            mark_file_unordered(gobj, topic, key, file_id, cur_cache_cell);
+            mark_file_unordered(gobj, topic, key, file_id, cur_cache_cell, "unordered");
+        }
+        if(topic_marks_tm(topic) && get_time_tm(md_record) <
+                (uint64_t)json_integer_value(json_object_get(cur_cache_cell, "to_tm"))) {
+            mark_file_unordered(gobj, topic, key, file_id, cur_cache_cell, "tm_unordered");
         }
         update_cache_cell(cur_cache_cell, file_id, md_record, 1, 1);
     }
@@ -7566,10 +7603,12 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         md2_record_ex_t md_record_ex;
 
         json_t *cache_total = get_cache_total(topic, key);
+        BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
         json_int_t cur_segment = first_segment_row(
             segments,
             cache_total,
             match_cond,
+            topic_marks_tm(topic),
             &rowid
         );
 
@@ -7622,9 +7661,11 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 }
                 continue;
             }
+            BOOL end_segment = FALSE;
             if(tranger2_match_metadata(
                 match_cond, total_rows, rowid, &md_record_ex,
-                segment_t_ordered(segment), &end
+                segment_t_ordered(segment), segment_tm_ordered(topic, segment),
+                &end, &end_segment
             )) {
                 const char *file_id = json_string_value(json_object_get(segment, "id"));
                 json_t *record = NULL;
@@ -7669,6 +7710,9 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     json_array_append(data, record);
                 }
                 JSON_DECREF(record)
+            }
+            if(end_segment) {
+                rowid = leave_segment_row(segment, backward);
             }
 
             cur_segment = next_segment_row(
@@ -7932,13 +7976,15 @@ PRIVATE json_t *build_iterator_index(
             if(is_deleted_instance(&md_record_ex)) {
                 continue;
             }
+            BOOL end_segment = FALSE;
             if(tranger2_match_metadata(
                 forward_cond, total_rows, rowid, &md_record_ex,
-                segment_t_ordered(segment), &end
+                segment_t_ordered(segment), segment_tm_ordered(topic, segment),
+                &end, &end_segment
             )) {
                 json_array_append_new(index, json_integer(rowid));
             }
-            if(end) {
+            if(end || end_segment) {
                 break;
             }
         }
@@ -8190,6 +8236,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         segments,
         cache_total,
         match_cond,
+        topic_marks_tm(topic),
         &rowid
     );
 
@@ -8244,9 +8291,11 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
             continue;
         }
 
+        BOOL end_segment = FALSE;
         if(tranger2_match_metadata(
             match_cond, total_rows, rowid, &md_record_ex,
-            segment_t_ordered(segment), &end
+            segment_t_ordered(segment), segment_tm_ordered(topic, segment),
+            &end, &end_segment
         )) {
             const char *file_id = json_string_value(json_object_get(segment, "id"));
             json_t *record = read_record_content(
@@ -8262,6 +8311,9 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
             } else if(log_if_key_gone(gobj, topic, key)) {
                 break;  // Error already logged
             }
+        }
+        if(end_segment) {
+            rowid = leave_segment_row(segment, backward);
         }
 
         cur_segment = next_segment_row(
@@ -8306,6 +8358,33 @@ PRIVATE json_t *key_cache_stamp(json_t *topic, const char *key)
 }
 
 /***************************************************************************
+ *  The key was deleted: what its iterators took from its cache names rows
+ *  that are gone. The stamp above does not see it when the key is written
+ *  again with the same numbers and its rows spread another way over its
+ *  files, and a page read the new files with the old segments (L1 of the
+ *  2026-09-23 independent review). So an unfiltered iterator loses its
+ *  segments and its stamp, and takes them again at its next page; a
+ *  filtered one loses its index -- the rows it indexed do not exist any
+ *  more, and an index is built only at the open.
+ ***************************************************************************/
+PRIVATE void forget_segments_of_key(json_t *topic, const char *key)
+{
+    json_t *iterators = json_object_get(topic, "iterators");
+    int idx; json_t *iterator;
+    json_array_foreach(iterators, idx, iterator) {
+        const char *key_ = json_string_value(json_object_get(iterator, "key"));
+        if(!key_ || strcmp(key_, key) != 0) {
+            continue;
+        }
+        json_object_set_new(iterator, "segments", json_array());
+        json_object_set_new(iterator, "segments_stamp", json_null());
+        if(json_object_get(iterator, "index")) {
+            json_object_set_new(iterator, "index", json_array());
+        }
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *get_cache_files(json_t *topic, const char *key)
@@ -8337,33 +8416,6 @@ PRIVATE json_t *get_cache_total(json_t *topic, const char *key)
     }
     json_t *cache_total = json_object_get(key_cache, "total");
     return cache_total;
-}
-
-/***************************************************************************
- *  The key was deleted: what its iterators took from its cache names rows
- *  that are gone. The stamp above does not see it when the key is written
- *  again with the same numbers and its rows spread another way over its
- *  files, and a page read the new files with the old segments (L1 of the
- *  2026-09-23 independent review). So an unfiltered iterator loses its
- *  segments and its stamp, and takes them again at its next page; a
- *  filtered one loses its index -- the rows it indexed do not exist any
- *  more, and an index is built only at the open.
- ***************************************************************************/
-PRIVATE void forget_segments_of_key(json_t *topic, const char *key)
-{
-    json_t *iterators = json_object_get(topic, "iterators");
-    int idx; json_t *iterator;
-    json_array_foreach(iterators, idx, iterator) {
-        const char *key_ = json_string_value(json_object_get(iterator, "key"));
-        if(!key_ || strcmp(key_, key) != 0) {
-            continue;
-        }
-        json_object_set_new(iterator, "segments", json_array());
-        json_object_set_new(iterator, "segments_stamp", json_null());
-        if(json_object_get(iterator, "index")) {
-            json_object_set_new(iterator, "index", json_array());
-        }
-    }
 }
 
 /***************************************************************************
@@ -8576,10 +8628,19 @@ PRIVATE json_t *get_segments(
         from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
     }
 
+    /*
+     *  The tm ranges of the cache are trusted only in a topic that marks
+     *  the files whose tm goes back (topic_marks_tm): in one written before
+     *  the marks, a file's tm range came from its first and last rows, and
+     *  a file holding a matching row could be left out. There no file is
+     *  left out by tm; the rows are.
+     */
+    BOOL tm_known = topic_marks_tm(topic);
+
     // WARNING adjust
     if(from_tm == 0) {
         from_tm = total_from_tm;
-    } else {
+    } else if(tm_known) {
         if (from_tm > total_to_tm) {
             // not exist
             return jn_segments;
@@ -8615,12 +8676,14 @@ PRIVATE json_t *get_segments(
         if(realtime) {
             realtime = FALSE;
         }
-        if (to_tm > total_to_tm) {
-            // out of range, begin at the end
-            to_tm = total_to_tm;
-        } else if (to_tm < total_from_tm) {
-            // not exist
-            return jn_segments;
+        if(tm_known) {
+            if (to_tm > total_to_tm) {
+                // out of range, begin at the end
+                to_tm = total_to_tm;
+            } else if (to_tm < total_from_tm) {
+                // not exist
+                return jn_segments;
+            }
         }
     }
 
@@ -8653,7 +8716,9 @@ PRIVATE json_t *get_segments(
             /*
              *  No early break on tm: the files are cut by __t__, and the tm
              *  written by a producer need not grow with it. A file out of
-             *  the tm range is skipped by the test below, not the end.
+             *  the tm range is skipped by the test below, not the end, and
+             *  the segments then have a HOLE of rowids: the scans step over
+             *  it (see next_segment_row).
              */
             json_int_t rangeTM_start = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
             json_int_t rangeTM_end = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
@@ -8661,7 +8726,7 @@ PRIVATE json_t *get_segments(
             // Print only the valid ranges
             if (rangeStart <= to_rowid && rangeEnd >= from_rowid &&
                 rangeT_start <= to_t && rangeT_end >= from_t &&
-                rangeTM_start <= to_tm && rangeTM_end >= from_tm
+                (!tm_known || (rangeTM_start <= to_tm && rangeTM_end >= from_tm))
             ) {
                 json_t *jn_segment = json_deep_copy(cache_file);
                 json_object_set_new(jn_segment, "first_row", json_integer(rangeStart));
@@ -8698,7 +8763,7 @@ PRIVATE json_t *get_segments(
             // Print only the valid ranges
             if (rangeStart <= to_rowid && rangeEnd >= from_rowid &&
                 rangeT_start <= to_t && rangeT_end >= from_t &&
-                rangeTM_start <= to_tm && rangeTM_end >= from_tm
+                (!tm_known || (rangeTM_start <= to_tm && rangeTM_end >= from_tm))
             ) {
 
                 json_t *jn_segment = json_deep_copy(cache_file);
@@ -8725,6 +8790,40 @@ PRIVATE BOOL segment_t_ordered(json_t *segment)
 }
 
 /***************************************************************************
+ *  Does the topic mark its md2 files whose __tm__ goes back? Every topic
+ *  created since the marks exist says so in its topic_desc.json
+ *  (`marks_tm_unordered`). One written before them cannot tell which of
+ *  its files are in tm order, nor trust the tm range of any: its first and
+ *  last rows gave it.
+ ***************************************************************************/
+PRIVATE BOOL topic_marks_tm(json_t *topic)
+{
+    return json_is_true(json_object_get(topic, "marks_tm_unordered"))? TRUE: FALSE;
+}
+
+/***************************************************************************
+ *  Are the rows of a segment in __tm__ order? Only in a topic that marks
+ *  its files (topic_marks_tm) and a file that is not marked.
+ ***************************************************************************/
+PRIVATE BOOL segment_tm_ordered(json_t *topic, json_t *segment)
+{
+    if(!topic_marks_tm(topic)) {
+        return FALSE;
+    }
+    return json_is_true(json_object_get(segment, "tm_unordered"))? FALSE: TRUE;
+}
+
+/***************************************************************************
+ *  The row a scan leaves `segment` from: its last in a forward scan, its
+ *  first in a backward one. A scan told that no later row of the segment
+ *  matches (`end_segment`) goes on from there, into the next segment.
+ ***************************************************************************/
+PRIVATE json_int_t leave_segment_row(json_t *segment, BOOL backward)
+{
+    return json_integer_value(json_object_get(segment, backward? "first_row": "last_row"));
+}
+
+/***************************************************************************
  *  Used by tranger2_iterator_get_page() where rowid/limit is set
  *      as from_rowid/to_rowid in a self create match_cond
  *  and by tranger2_open_iterator()
@@ -8736,12 +8835,15 @@ PRIVATE BOOL segment_t_ordered(json_t *segment)
  *      - __t__: only in a segment whose md2 file is not marked `unordered`
  *        (`t_ordered`). A late record sits AFTER rows with a higher t, and
  *        a scan that stopped at the first row past the range lost it, in
- *        both directions.
- *      - __tm__: never. It is the time the record was CREATED, written by
- *        the producer: a device that sends what it buffered writes it out of
- *        order, and nothing marks it. A tm condition skips a row, it never
- *        ends the scan; what bounds the cost is the per-file tm range that
- *        get_segments() already applies.
+ *        both directions. The files are cut by t, so the end of the segment
+ *        is the end of the scan.
+ *
+ *  `end_segment` tells it that no later row OF THIS SEGMENT can match: the
+ *  scan goes on in the next segment. That is what __tm__ gives, and only in
+ *  a segment in tm order (`tm_ordered`, see segment_tm_ordered): tm is the
+ *  time the record was CREATED, written by the producer, and the files are
+ *  cut by t, so a later file may hold a lower tm; and inside a file marked
+ *  `tm_unordered` a tm condition skips a row and ends nothing.
  ***************************************************************************/
 PRIVATE BOOL tranger2_match_metadata(
     json_t *match_cond,
@@ -8749,11 +8851,14 @@ PRIVATE BOOL tranger2_match_metadata(
     json_int_t rowid,
     md2_record_ex_t *md_record_ex,
     BOOL t_ordered,
-    BOOL *end
+    BOOL tm_ordered,
+    BOOL *end,
+    BOOL *end_segment
 )
 {
     BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
     *end = FALSE;
+    *end_segment = FALSE;
 
     /*--------------------------*
      *      Rowid
@@ -8850,12 +8955,18 @@ PRIVATE BOOL tranger2_match_metadata(
 
     if(from_tm != 0) {
         if(md_record_ex->__tm__ < from_tm) {
+            if(backward && tm_ordered) {
+                *end_segment = TRUE;
+            }
             return FALSE;
         }
     }
 
     if(to_tm != 0) {
         if(md_record_ex->__tm__ > to_tm) {
+            if(!backward && tm_ordered) {
+                *end_segment = TRUE;
+            }
             return FALSE;
         }
     }
@@ -8913,11 +9024,17 @@ PRIVATE BOOL tranger2_match_metadata(
  *  and by tranger2_open_iterator()
  *  In this point all segments are matched, this function is only
  *  to search the first segment to begin.
+ *
+ *  The segments can have holes (a file left out by tm): a rowid bound that
+ *  falls in one begins at the first row of the next segment in the scan's
+ *  direction, never at a row the segment does not hold.
+ *  `tm_known`: the tm ranges of the segments can be trusted (topic_marks_tm).
  ***************************************************************************/
 PRIVATE json_int_t first_segment_row(
     json_t *segments,
     json_t *cache_total,
     json_t *match_cond,  // not owned
+    BOOL tm_known,
     json_int_t *prowid
 )
 {
@@ -8983,7 +9100,7 @@ PRIVATE json_int_t first_segment_row(
                     }
                 }
 
-                if(from_tm != 0) {
+                if(from_tm != 0 && tm_known) {
                     if(from_tm > seg_last_tm) {
                         // no match, break and continue
                         break;
@@ -8991,6 +9108,9 @@ PRIVATE json_int_t first_segment_row(
                 }
 
                 // Match
+                if(rowid < seg_first_rowid) {
+                    rowid = seg_first_rowid;    // the bound fell in a hole
+                }
                 *prowid = rowid;
                 return idx;
             } while(0);
@@ -9041,13 +9161,16 @@ PRIVATE json_int_t first_segment_row(
                     }
                 }
 
-                if(to_tm != 0) {
+                if(to_tm != 0 && tm_known) {
                     if(to_tm < seg_first_tm) {
                         break;
                     }
                 }
 
                 // Match
+                if(rowid > seg_last_rowid) {
+                    rowid = seg_last_rowid;     // the bound fell in a hole
+                }
                 *prowid = rowid;
                 return idx;
             } while(0);
@@ -9058,7 +9181,11 @@ PRIVATE json_int_t first_segment_row(
 }
 
 /***************************************************************************
- *
+ *  The next row of a scan, in its direction, and the segment that holds
+ *  it. The segments are in rowid order but need not be CONSECUTIVE: a file
+ *  left out by a tm condition is a hole (get_segments), and the scan goes
+ *  on at the first row of the next segment. Only rows going BACK in the
+ *  scan's direction would be a broken invariant.
  ***************************************************************************/
 PRIVATE json_int_t next_segment_row(
     json_t *segments,
@@ -9100,17 +9227,18 @@ PRIVATE json_int_t next_segment_row(
             }
             segment = json_array_get(segments, cur_segment);
             json_int_t segment_first_row = json_integer_value(json_object_get(segment, "first_row"));
-            if(cur_rowid != segment_first_row) {
+            if(cur_rowid > segment_first_row) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL,
-                    "msg",          "%s", "next rowids not consecutive",
+                    "msg",          "%s", "next segment begins before the row just read",
                     "cur_rowid",    "%ld", (long)cur_rowid,
                     "segment_first","%ld", (long)segment_first_row,
                     NULL
                 );
                 return -1;
             }
+            cur_rowid = segment_first_row;  // over a hole, if any
         }
 
         *rowid = cur_rowid;
@@ -9139,17 +9267,18 @@ PRIVATE json_int_t next_segment_row(
             segment = json_array_get(segments, cur_segment);
 
             json_int_t segment_last_row = json_integer_value(json_object_get(segment, "last_row"));
-            if(cur_rowid != segment_last_row) {
+            if(cur_rowid < segment_last_row) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL,
-                    "msg",          "%s", "previous rowids not consecutive",
+                    "msg",          "%s", "previous segment ends after the row just read",
                     "cur_rowid",    "%ld", (long)cur_rowid,
-                    "segment_first","%ld", (long)segment_last_row,
+                    "segment_last", "%ld", (long)segment_last_row,
                     NULL
                 );
                 return -1;
             }
+            cur_rowid = segment_last_row;   // over a hole, if any
         }
 
         *rowid = cur_rowid;

@@ -138,7 +138,8 @@ PRIVATE int do_test(void)
           'topic_name': '%s', \
           'pkey': 'id', \
           'tkey': '', \
-          'system_flag': 1 \
+          'system_flag': 1, \
+          'marks_tm_unordered': true \
         } \
         ", TOPIC_NAME);
 
@@ -221,6 +222,7 @@ PRIVATE int do_test(void)
                         'pkey': 'id', \
                         'tkey': '', \
                         'system_flag': 1, \
+                        'marks_tm_unordered': true, \
                         'cols': { \
                         'id': '', \
                             'address': '' \

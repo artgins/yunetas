@@ -311,6 +311,7 @@ PRIVATE int do_test(void)
                     'pkey': 'id', \
                     'tkey': 'tm', \
                     'system_flag': 4, \
+                    'marks_tm_unordered': true, \
                     'filename_mask': '%%Y-%%m-%%d', \
                     'xpermission': 1472, \
                     'rpermission': 384, \
@@ -628,6 +629,7 @@ PRIVATE int do_test(void)
                     'pkey': 'id', \
                     'tkey': 'tm', \
                     'system_flag': 4, \
+                    'marks_tm_unordered': true, \
                     'filename_mask': '%%Y-%%m-%%d', \
                     'xpermission': 1472, \
                     'rpermission': 384, \
