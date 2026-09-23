@@ -731,11 +731,40 @@ PUBLIC json_t *treedb_import_files(
  *  that no row names (what an interrupted write leaves: the blob goes
  *  down before the index node). On demand, never automatic.
  *  Return the list of ids taken (dry_run: that would be taken). YOURS.
- *  NULL (logged, nothing taken) when __assets__ is not open, or when what
- *  the snapshots hold cannot be read whole: a tagged record that cannot be
- *  read may name any blob.
+ *  NULL (logged, NOTHING taken, not even the blobs no row names) when:
+ *      - __assets__ is not open;
+ *      - a snap is active in any treedb of the tranger: the nodes in memory
+ *        are its photo, not the live links ("gc refused: a snap is active,
+ *        ...  (deactivate it first)");
+ *      - what the snapshots hold cannot be read whole: a tagged record that
+ *        cannot be read may name any blob;
+ *      - a topic that links assets did not load whole.
  */
 PUBLIC json_t *treedb_gc_files(
+    json_t *tranger,
+    const char *treedb_name,
+    BOOL dry_run
+);
+
+/*
+ *  The same gc, answered as a REPORT, YOURS, which says what a refusal
+ *  still did: the blobs no row names are swept (or listed, dry_run) when
+ *  the asset rows are refused, since no link nor snapshot can lead to them.
+ *      {
+ *          "dry_run": false,
+ *          "refused": "gc refused: a snap is active, ...",   // only when refused
+ *          "assets": ["<id>", ...],        // asset rows taken ([] when refused)
+ *          "blobs": ["<id>", ...],         // blobs no row names, taken
+ *          "blobs_refused": "gc: the blobs are not swept, __assets__ did not load whole"
+ *                                          // only when the sweep refused too
+ *      }
+ *  NULL only on an error (logged), e.g. __assets__ not open.
+ *  E.g. a command that must say everything it did:
+ *      json_t *r = treedb_gc_files2(tranger, "treedb_items", FALSE);
+ *      const char *refused = kw_get_str(gobj, r, "refused", 0, 0);
+ *      // refused: answer -1 with `refused`, AND the blobs of r["blobs"] taken
+ */
+PUBLIC json_t *treedb_gc_files2(
     json_t *tranger,
     const char *treedb_name,
     BOOL dry_run

@@ -14073,7 +14073,8 @@ PRIVATE int sweep_orphan_blobs(
     hgobj gobj,
     json_t *tranger,
     json_t *taken,      // NOT owned, the ids the gc answers
-    BOOL dry_run
+    BOOL dry_run,
+    const char **prefused   // optional: why nothing was swept
 )
 {
     const char *directory = kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED);
@@ -14099,6 +14100,9 @@ PRIVATE int sweep_orphan_blobs(
                 "treedb_name",  "%s", any_name,
                 NULL
             );
+            if(prefused) {
+                *prefused = "gc: the blobs are not swept, __assets__ did not load whole";
+            }
             return -1;
         }
     }
@@ -14134,29 +14138,37 @@ PRIVATE int sweep_orphan_blobs(
 }
 
 /***************************************************************************
- *  The garbage collector of the bytes: an asset that no live node links
- *  AND no snapshotted version of a node links is garbage.
- *
- *  Never automatic: `treedb_delete_node` with `force` UNLINKS the children
- *  rather than deleting them, so an unlinked asset is a normal intermediate
- *  state of a bulk operation. Somebody asks for this.
- *
- *  It reads the snapshots for real: every tagged instance of every topic
- *  with a `file` column is walked on disk, which is what makes the answer
- *  conservative.
- *
- *  And it takes the bytes with no row too (sweep_orphan_blobs): the write
- *  path puts the blob down before the index node, so an interrupted write
- *  leaves bytes that no row will ever lead anybody to. Return the list of
- *  the ids taken (or, dry_run, the ids it would take). Return is YOURS.
+ *  Is a snap active in any treedb of the tranger? Its nodes in memory are
+ *  then the snap's photo: a node written after the snap is not there, and
+ *  what it links reads as linked by nobody. `__assets__` itself is never
+ *  tagged, so its rows are all loaded all the same.
  ***************************************************************************/
-PUBLIC json_t *treedb_gc_files(
+PRIVATE const char *treedb_with_a_snap_active(json_t *tranger)
+{
+    const char *any_name; json_t *any_treedb;
+    json_object_foreach(json_object_get(tranger, "treedbs"), any_name, any_treedb) {
+        if(current_snap_tag(tranger, any_name) != 0) {
+            return any_name;
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  The asset ROWS no live node and no snapshot links: taken (row and
+ *  bytes, see treedb_delete_node), or listed with `dry_run`. Return the
+ *  ids, YOURS; NULL when the gc is refused (`*prefused` says why, logged)
+ *  or on an error (logged, `*prefused` NULL). A refusal takes nothing.
+ ***************************************************************************/
+PRIVATE json_t *gc_asset_rows(
+    hgobj gobj,
     json_t *tranger,
     const char *treedb_name,
-    BOOL dry_run
+    BOOL dry_run,
+    const char **prefused
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    *prefused = NULL;
 
     json_t *indexx = treedb_get_id_index(tranger, treedb_name, TREEDB_ASSETS_TOPIC);
     if(!indexx) {
@@ -14171,15 +14183,28 @@ PUBLIC json_t *treedb_gc_files(
     }
 
     /*--------------------------------------------*
+     *  Are the live links in memory at all?
+     *  (a snap active: they are its photo)
+     *--------------------------------------------*/
+    const char *refused = NULL;
+    json_t *held = NULL;
+    const char *snap_treedb = treedb_with_a_snap_active(tranger);
+    if(snap_treedb) {
+        refused = "gc refused: a snap is active, the nodes in memory are its photo and not the live links "
+                  "(deactivate it first)";
+    }
+
+    /*--------------------------------------------*
      *  What the snapshots still point at, and
      *  whether the live links are all in memory
      *--------------------------------------------*/
-    const char *refused = NULL;
-    json_t *held = assets_held_by_snaps(gobj, tranger, treedb_name);
-    if(!held) {
-        refused = "gc refused: cannot tell which assets a snapshot links (see the log)";
-    } else if(!file_topics_loaded_whole(gobj, tranger)) {
-        refused = "gc refused: a topic that links assets did not load whole, the live links are unknown (see the log)";
+    if(!refused) {
+        held = assets_held_by_snaps(gobj, tranger, treedb_name);
+        if(!held) {
+            refused = "gc refused: cannot tell which assets a snapshot links (see the log)";
+        } else if(!file_topics_loaded_whole(gobj, tranger)) {
+            refused = "gc refused: a topic that links assets did not load whole, the live links are unknown (see the log)";
+        }
     }
     if(refused) {
         gobj_log_error(gobj, 0,
@@ -14187,34 +14212,12 @@ PUBLIC json_t *treedb_gc_files(
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", refused,
             "treedb_name",  "%s", treedb_name,
+            "snap_active_in", "%s", snap_treedb? snap_treedb: "",
             NULL
         );
         JSON_DECREF(held)
-
-        /*
-         *  The bytes no row names need neither answer: no link nor snapshot
-         *  can lead to them. They are swept all the same (it refuses on its
-         *  own when __assets__ did not load whole), and said here, since the
-         *  answer is the refusal.
-         */
-        json_t *swept = json_array();
-        sweep_orphan_blobs(gobj, tranger, swept, dry_run);   // Errors already logged
-        if(json_array_size(swept) > 0) {
-            char *s = json2uglystr(swept);
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB,
-                "msg",          "%s", dry_run?
-                    "gc: the asset rows were refused; blobs no row names would be taken" :
-                    "gc: the asset rows were refused; blobs no row names were taken",
-                "treedb_name",  "%s", treedb_name,
-                "ids",          "%s", s? s: "",
-                NULL
-            );
-            GBMEM_FREE(s)
-        }
-        JSON_DECREF(swept)
         gobj_log_set_last_message("%s", refused);
+        *prefused = refused;
         return NULL;
     }
 
@@ -14253,7 +14256,6 @@ PUBLIC json_t *treedb_gc_files(
     JSON_DECREF(held)
 
     if(dry_run) {
-        sweep_orphan_blobs(gobj, tranger, orphans, TRUE);    // Errors already logged
         return orphans;
     }
 
@@ -14284,13 +14286,118 @@ PUBLIC json_t *treedb_gc_files(
         }
     }
     JSON_DECREF(orphans)
+    return deleted;
+}
+
+/***************************************************************************
+ *  The garbage collector of the bytes: an asset that no live node links
+ *  AND no snapshotted version of a node links is garbage.
+ *
+ *  Never automatic: `treedb_delete_node` with `force` UNLINKS the children
+ *  rather than deleting them, so an unlinked asset is a normal intermediate
+ *  state of a bulk operation. Somebody asks for this.
+ *
+ *  It reads the snapshots for real: every tagged instance of every topic
+ *  with a `file` column is walked on disk, which is what makes the answer
+ *  conservative. And it refuses while a snap is active in any treedb of the
+ *  tranger: the nodes in memory are the snap's photo, and it took the
+ *  asset of every node written after the snap (there since 7.18.1).
+ *
+ *  And it takes the bytes with no row too (sweep_orphan_blobs): the write
+ *  path puts the blob down before the index node, so an interrupted write
+ *  leaves bytes that no row will ever lead anybody to. Return the list of
+ *  the ids taken (or, dry_run, the ids it would take). Return is YOURS.
+ *
+ *  A refusal answers NULL and takes NOTHING, not even the bytes no row
+ *  names: it swept them while the caller could only say "refused"
+ *  (independent review of the third fix round). treedb_gc_files2() sweeps
+ *  them on a refusal too, and says which.
+ ***************************************************************************/
+PUBLIC json_t *treedb_gc_files(
+    json_t *tranger,
+    const char *treedb_name,
+    BOOL dry_run
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    const char *refused = NULL;
+    json_t *taken = gc_asset_rows(gobj, tranger, treedb_name, dry_run, &refused);
+    if(!taken) {
+        return NULL;    // Error already logged, nothing taken
+    }
 
     /*--------------------------------------------*
      *  And the bytes that no row ever named
      *--------------------------------------------*/
-    sweep_orphan_blobs(gobj, tranger, deleted, FALSE);   // Errors already logged
+    sweep_orphan_blobs(gobj, tranger, taken, dry_run, NULL);   // Errors already logged
 
-    return deleted;
+    return taken;
+}
+
+/***************************************************************************
+ *  See tr_treedb.h
+ ***************************************************************************/
+PUBLIC json_t *treedb_gc_files2(
+    json_t *tranger,
+    const char *treedb_name,
+    BOOL dry_run
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    const char *refused = NULL;
+    json_t *assets = gc_asset_rows(gobj, tranger, treedb_name, dry_run, &refused);
+    if(!assets && !refused) {
+        return NULL;    // Error already logged, nothing taken
+    }
+
+    json_t *report = json_object();
+    json_object_set_new(report, "dry_run", json_boolean(dry_run));
+    if(refused) {
+        json_object_set_new(report, "refused", json_string(refused));
+        assets = json_array();
+    }
+    json_object_set_new(report, "assets", assets);
+
+    /*--------------------------------------------*
+     *  The bytes no row names need neither
+     *  answer: no link nor snapshot can lead
+     *  to them. Swept on a refusal too.
+     *--------------------------------------------*/
+    json_t *blobs = json_array();
+    const char *blobs_refused = NULL;
+    sweep_orphan_blobs(gobj, tranger, blobs, dry_run, &blobs_refused);  // Errors already logged
+    if(blobs_refused) {
+        json_object_set_new(report, "blobs_refused", json_string(blobs_refused));
+    }
+    /*
+     *  A leftover of an asset taken above is named once, in `assets`
+     */
+    json_t *blobs_only = json_array();
+    int idx; json_t *jn_id;
+    json_array_foreach(blobs, idx, jn_id) {
+        if(!json_str_in_list(gobj, assets, json_string_value(jn_id), 0)) {
+            json_array_append(blobs_only, jn_id);
+        }
+    }
+    JSON_DECREF(blobs)
+    json_object_set_new(report, "blobs", blobs_only);
+
+    if(refused && json_array_size(blobs_only) > 0) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", dry_run?
+                "gc: the asset rows were refused; blobs no row names would be taken" :
+                "gc: the asset rows were refused; blobs no row names were taken",
+            "treedb_name",  "%s", treedb_name,
+            "ids",          "%j", blobs_only,
+            NULL
+        );
+    }
+
+    return report;
 }
 
 /***************************************************************************

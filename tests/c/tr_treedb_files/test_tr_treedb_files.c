@@ -32,6 +32,8 @@
  *           20. a replica writes no file and moves no link
  *           21-24. the guards of the gc fail closed on what did not load
  *           25, 26. the same after a restart, with the store cut while down
+ *           27. the gc refuses while a snap is active
+ *           28. treedb_gc_files2() reports what a refused gc still swept
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -2045,9 +2047,10 @@ PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
     dir_array_free(&da);
 
     /*
-     *  And bytes no row names: no snapshot nor link can lead to them, so
-     *  the refusal of the rows does not keep them (it did: the gc returned
-     *  before its sweep).
+     *  And bytes no row names. treedb_gc_files() answers a refusal with
+     *  NULL, and a NULL takes NOTHING: it swept them while the command
+     *  answered only "refused" (independent review of the third fix
+     *  round). treedb_gc_files2() sweeps them and says so (case 28).
      */
     const char *ghost = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     char ghost_path[PATH_MAX];
@@ -2083,9 +2086,38 @@ PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
         result += -1;
     }
     JSON_DECREF(taken)
-    if(is_regular_file(ghost_path)) {
-        printf("%s  FAIL: the refusal of the rows kept the bytes no row names%s\n",
+    if(!is_regular_file(ghost_path)) {
+        printf("%s  FAIL: a refused gc took the bytes no row names, and answered only NULL%s\n",
             On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*
+     *  28. treedb_gc_files2(): the refusal, AND the bytes no row names it
+     *  swept (dry run: would sweep), in the report
+     */
+    for(int dry = 1; dry >= 0; dry--) {
+        json_t *report = treedb_gc_files2(tranger, TREEDB_NAME, dry? TRUE: FALSE);
+        char *s_report = report? json2uglystr(report): NULL;
+        if(!report ||
+                !strstr(kw_get_str(0, report, "refused", "", 0), "gc refused: cannot tell which assets") ||
+                json_array_size(kw_get_list(0, report, "assets", 0, 0)) != 0 ||
+                json_array_size(kw_get_list(0, report, "blobs", 0, 0)) != 1 ||
+                !json_str_in_list(0, kw_get_list(0, report, "blobs", 0, 0), ghost, 0)) {
+            printf("%s  FAIL: 28. gc_files2 %s, report %s%s\n", On_Red BWhite,
+                dry? "dry run": "real", s_report? s_report: "NULL", Color_Off);
+            result += -1;
+        }
+        GBMEM_FREE(s_report)
+        JSON_DECREF(report)
+        if(dry && !is_regular_file(ghost_path)) {
+            printf("%s  FAIL: 28. the dry run of gc_files2 took the bytes no row names%s\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+        }
+    }
+    if(is_regular_file(ghost_path)) {
+        printf("%s  FAIL: 28. gc_files2 kept the bytes no row names%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
 
@@ -2271,6 +2303,13 @@ PRIVATE int test_sweep_with_a_row_that_did_not_load(const char *path_root)
         result += -1;
     }
     JSON_DECREF(taken)
+    json_t *report = treedb_gc_files2(tranger, TREEDB_NAME, FALSE);
+    if(!report || !kw_get_str(0, report, "blobs_refused", 0, 0) ||
+            json_array_size(kw_get_list(0, report, "blobs", 0, 0)) != 0) {
+        printf("%s  FAIL: gc_files2 does not report the sweep refused%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(report)
     if(!blob_exists(tranger, id_c, "image/png")) {
         printf("%s  FAIL: the bytes of C are gone: their row did not load%s\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -2366,8 +2405,116 @@ PRIVATE int test_gc_after_a_restart(const char *path_root)
         result += -1;
     }
     JSON_DECREF(taken)
+    json_t *report = treedb_gc_files2(tranger, TREEDB_NAME, FALSE);
+    if(!report || !kw_get_str(0, report, "blobs_refused", 0, 0) ||
+            json_array_size(kw_get_list(0, report, "blobs", 0, 0)) != 0) {
+        printf("%s  FAIL: gc_files2 does not report the sweep refused%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(report)
     if(!blob_exists(tranger, id_c, "image/png")) {
         printf("%s  FAIL: the bytes of C are gone: their row did not load%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 0);
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+    test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  27. The gc refuses while a snap is ACTIVE
+ *
+ *  With a snap active the nodes in memory are the snap's photo: a node
+ *  written after the snap is not there, and the asset it links read as
+ *  linked by nobody. The gc took it -- the row and the bytes of a live
+ *  node on disk (independent review of the third fix round, repro
+ *  indep3_B/gc snap; there since f1654c73e, 7.18.1).
+ ***************************************************************************/
+PRIVATE int test_gc_refuses_with_a_snap_active(const char *path_root)
+{
+    int result = 0;
+    const char *test = "27. the gc refuses while a snap is active";
+    const char *DB = "tr_files_gc_snap_active";
+    char path_db[PATH_MAX];
+    build_path(path_db, sizeof(path_db), path_root, DB, NULL);
+    rmrdir(path_db);
+
+    set_expected_results(test, NULL, NULL, NULL, 0);
+    json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root, "database", DB, "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK), 0);
+    helper_quote2doublequote(schema_sample);
+    treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
+
+    char id_b[SHA256_HEX_LEN + 1];
+    snprintf(id_b, sizeof(id_b), "%s", sha(PNG_B, sizeof(PNG_B)-1));
+
+    /*  dev-27a links A, snap s1, dev-27b links B AFTER it; s1 activated  */
+    int ret = create_device_with_foto(tranger, "dev-27a", PNG_A, sizeof(PNG_A)-1, "image/png", 0)? 0: -1;
+    ret += treedb_shoot_snap(tranger, TREEDB_NAME, "s1", "A only");
+    ret += create_device_with_foto(tranger, "dev-27b", PNG_B, sizeof(PNG_B)-1, "image/png", 0)? 0: -1;
+    ret += treedb_activate_snap(tranger, TREEDB_NAME, "s1") > 0? 0: -1;
+    treedb_close_db(tranger, TREEDB_NAME);
+    treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
+    if(ret < 0 || current_snap_tag(tranger, TREEDB_NAME) == 0) {
+        printf("%s  FAIL: cannot set up the active snap%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    test_json(NULL);    // the setup logs are the other cases'
+
+    set_expected_results_unordered(test,
+        json_pack("[{s:s}]",
+            "msg", "gc refused: a snap is active, the nodes in memory are its photo and not the live links "
+                   "(deactivate it first)"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
+    if(would) {
+        printf("%s  FAIL: the dry run answered a list (%s B) with a snap active%s\n",
+            On_Red BWhite, json_str_in_list(0, would, id_b, 0)? "WITH": "without", Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(would)
+    json_t *taken = treedb_gc_files(tranger, TREEDB_NAME, FALSE);
+    if(taken) {
+        printf("%s  FAIL: the gc took %s with a snap active%s\n",
+            On_Red BWhite, json_str_in_list(0, taken, id_b, 0)? "B": "something", Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(taken)
+    json_t *report = treedb_gc_files2(tranger, TREEDB_NAME, FALSE);
+    if(!report || !strstr(kw_get_str(0, report, "refused", "", 0), "a snap is active") ||
+            json_array_size(kw_get_list(0, report, "assets", 0, 0)) != 0 ||
+            json_array_size(kw_get_list(0, report, "blobs", 0, 0)) != 0) {
+        printf("%s  FAIL: gc_files2 with a snap active does not report the refusal alone%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(report)
+    if(!treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_b) ||
+            !blob_exists(tranger, id_b, "image/png")) {
+        printf("%s  FAIL: the asset B of the live dev-27b is gone%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*  Deactivated: dev-27b is back, and its asset with it  */
+    set_expected_results(test, NULL, NULL, NULL, 0);
+    treedb_activate_snap(tranger, TREEDB_NAME, "__clear__");
+    treedb_close_db(tranger, TREEDB_NAME);
+    treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
+    test_json(NULL);
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    json_t *dev_b = treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-27b");
+    if(!dev_b || strcmp(fkey_id(dev_b, "foto"), id_b) != 0 ||
+            !treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_b)) {
+        printf("%s  FAIL: after the deactivation dev-27b does not link its asset B%s\n",
+            On_Red BWhite, Color_Off);
         result += -1;
     }
     result += test_json(NULL);
@@ -2474,6 +2621,7 @@ PRIVATE int do_test(void)
     result += test_gc_with_a_node_that_did_not_load(path_root);
     result += test_sweep_with_a_row_that_did_not_load(path_root);
     result += test_gc_after_a_restart(path_root);
+    result += test_gc_refuses_with_a_snap_active(path_root);
 
     return result;
 }
