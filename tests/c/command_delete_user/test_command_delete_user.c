@@ -21,6 +21,11 @@
  *                                                   created, nothing moved (M4)
  *           10. disable-user / enable-user / set-max-sessions -> the local
  *                                                   password survives them
+ *           11. every comment starts with the yuno, walked from the
+ *                                                   command table, and the causes are
+ *                                                   the command's own, never the global
+ *                                                   last message (review of the second
+ *                                                   fix round, 2026-09-23)
  *
  *          A real C_AUTHZ service is instantiated over a temp tranger store;
  *          a role and an immutable user are seeded via initial_load, and the
@@ -161,6 +166,30 @@ PRIVATE int cmd_result(hgobj authz, const char *command, json_t *kw)
     int result = (int)kw_get_int(0, r, "result", -999, 0);
     JSON_DECREF(r)
     return result;
+}
+
+/*
+ *  The comment of a C_AUTHZ command must start with the yuno that answers,
+ *  and must not carry the stale last message planted before it.
+ */
+PRIVATE void check_comment(hgobj authz, const char *command, json_t *kw, int expected, const char *says)
+{
+    gobj_log_set_last_message("a stale message of somebody else");
+    json_t *r = gobj_command(authz, command, kw, authz);
+    int result = (int)kw_get_int(0, r, "result", -999, 0);
+    const char *comment = kw_get_str(0, r, "comment", "", 0);
+    const char *prefix = gobj_yuno_role_plus_name();
+    char name[NAME_MAX];
+    snprintf(name, sizeof(name), "%s says its yuno", command);
+    int ok = (result == expected &&
+        strncmp(comment, prefix, strlen(prefix))==0 &&
+        (empty_string(says) || strstr(comment, says)) &&
+        !strstr(comment, "stale"))? 1 : 0;
+    if(!ok) {
+        printf("     %s -> %d '%s'\n", command, result, comment);
+    }
+    check_int(name, ok, 1);
+    JSON_DECREF(r)
 }
 
 PRIVATE BOOL user_disabled(const char *username)
@@ -548,6 +577,69 @@ PRIVATE void run_checks(hgobj gobj)
         }
         check_int("disable-user wrote disabled", user_disabled("local_passw_0"), 1);
         check_int("set-max-sessions wrote max_sessions", user_max_sessions("local_passw_2"), 3);
+    }
+
+    /*
+     *  Case 11: every comment starts with the yuno (review of the second fix
+     *  round, 2026-09-23: "User enabled: x", "Set max_sessions ...", "User
+     *  not found" and most of the others did not). Named, so the check of
+     *  the prefix is not a check of "".
+     */
+    {
+        gobj_write_str_attr(gobj_yuno(), "yuno_role_plus_name", APP "^messages");
+
+        /*  The table, each command with nothing to act on. Left out: what
+         *  answers no comment (help, authzs), and set-max-sessions, which
+         *  with no username sets the service's own value.  */
+        const char *skip[] = {"help", "authzs", "set-max-sessions", NULL};
+        const sdata_desc_t *cmds = gclass_command_desc(gclass_find_by_name(C_AUTHZ), NULL, TRUE);
+        for(const sdata_desc_t *it = cmds; it && it->name; it++) {
+            BOOL skipped = FALSE;
+            for(int i = 0; skip[i]; i++) {
+                if(strcmp(it->name, skip[i])==0) {
+                    skipped = TRUE;
+                }
+            }
+            if(skipped) {
+                continue;
+            }
+            gobj_log_set_last_message("a stale message of somebody else");
+            json_t *r = gobj_command(authz, it->name, json_object(), authz);
+            const char *comment = kw_get_str(0, r, "comment", "", 0);
+            const char *prefix = gobj_yuno_role_plus_name();
+            int ok = ((empty_string(comment) || strncmp(comment, prefix, strlen(prefix))==0) &&
+                !strstr(comment, "stale"))? 1 : 0;
+            if(!ok) {
+                printf("     %s -> '%s'\n", it->name, comment);
+            }
+            char name[NAME_MAX];
+            snprintf(name, sizeof(name), "%s (empty kw) says its yuno", it->name);
+            check_int(name, ok, 1);
+            JSON_DECREF(r)
+        }
+
+        check_comment(authz, "create-user",
+            json_pack("{s:s}", "username", "local_comment"), 0, "User created");
+        check_comment(authz, "create-user",
+            json_pack("{s:s}", "username", "local_comment"), -1, "already exists");
+        check_comment(authz, "disable-user",
+            json_pack("{s:s}", "username", "local_comment"), 0, "User disabled");
+        check_comment(authz, "enable-user",
+            json_pack("{s:s}", "username", "local_comment"), 0, "User enabled");
+        check_comment(authz, "enable-user",
+            json_pack("{s:s}", "username", "no_such_user"), -1, "User not found");
+        check_comment(authz, "set-max-sessions",
+            json_pack("{s:s, s:i}", "username", "local_comment", "max_sessions", 2), 0, "max_sessions");
+        check_comment(authz, "set-max-sessions",
+            json_pack("{s:s, s:i}", "username", "no_such_user", "max_sessions", 2), -1, "User not found");
+        check_comment(authz, "set-user-pwd",
+            json_pack("{s:s, s:s}", "username", "local_comment", "password", "An0ther-pass"), 0,
+            "password");
+        check_comment(authz, "check-user-pwd",
+            json_pack("{s:s, s:s}", "username", "local_comment", "password", "An0ther-pass"), 0,
+            "Password match");
+        check_comment(authz, "delete-user",
+            json_pack("{s:s}", "username", "local_comment"), 0, "User deleted");
     }
 }
 

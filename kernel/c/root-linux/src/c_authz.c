@@ -1427,7 +1427,7 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What kid (iss)?"),
+            json_sprintf("%s: What kid (iss)?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -1437,7 +1437,7 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What n (pkey)?"),
+            json_sprintf("%s: What n (pkey)?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -1469,7 +1469,7 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Kid (iss) '%s' already exists", kid),
+            json_sprintf("%s: Kid (iss) '%s' already exists", gobj_yuno_role_plus_name(), kid),
             0,
             0,
             kw  // owned
@@ -1521,7 +1521,7 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *jn_comment = NULL;
     int status = create_validation_key(gobj, jn_jwk);
     if(status != 0) {
-        jn_comment = json_sprintf("Cannot create validation key");
+        jn_comment = json_sprintf("%s: Cannot create validation key", gobj_yuno_role_plus_name());
     }
 
     return msg_iev_build_response(
@@ -1550,7 +1550,7 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What kid (iss)?"),
+            json_sprintf("%s: What kid (iss)?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -1575,7 +1575,7 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("kid (iss) '%s' NOT exist", kid),
+            json_sprintf("%s: kid (iss) '%s' NOT exist", gobj_yuno_role_plus_name(), kid),
             0,
             0,
             kw  // owned
@@ -1608,7 +1608,7 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("kid (iss) '%s' deleted", kid),
+        json_sprintf("%s: kid (iss) '%s' deleted", gobj_yuno_role_plus_name(), kid),
         json_desc_to_schema(jwk_desc),
         jn_record, // owned
         kw  // owned
@@ -1752,7 +1752,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What username?"),
+            json_sprintf("%s: What username?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -1775,7 +1775,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         JSON_DECREF(user)
         return msg_iev_build_response(gobj,
             -1,
-            json_sprintf("User already exists: %s", username),
+            json_sprintf("%s: User already exists: %s", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -1815,7 +1815,8 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("Error creating credentials: %s", gobj_log_last_message()),
+                json_sprintf("%s: cannot hash the password of user '%s' (see the log)",
+                gobj_yuno_role_plus_name(), username),
                 0,
                 0,
                 kw  // owned
@@ -1829,7 +1830,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             gobj,
             -1,
             // Error already logged
-            json_sprintf("Can't create user %s: %s", username, gobj_log_last_message()),
+            json_sprintf("%s: Can't create user %s (see the log)", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -1849,7 +1850,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Can't create user: %s", username),
+            json_sprintf("%s: Can't create user: %s", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -1858,7 +1859,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             0,
-            json_sprintf("User created: %s", username),
+            json_sprintf("%s: User created: %s", gobj_yuno_role_plus_name(), username),
             tranger2_list_topic_desc_cols(priv->tranger, "users"),
             user,
             kw  // owned
@@ -1885,7 +1886,7 @@ PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What username?"),
+            json_sprintf("%s: What username?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -1907,7 +1908,7 @@ PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     if(!user) {
         return msg_iev_build_response(gobj,
             -1,
-            json_sprintf("User does not exist: %s", username),
+            json_sprintf("%s: User does not exist: %s", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -1949,7 +1950,8 @@ PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("Error creating credentials: %s", gobj_log_last_message()),
+                json_sprintf("%s: cannot hash the password of user '%s' (see the log)",
+                gobj_yuno_role_plus_name(), username),
                 0,
                 0,
                 kw  // owned
@@ -1963,7 +1965,7 @@ PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             gobj,
             -1,
             // Error already logged
-            json_sprintf("Can't update user %s: %s", username, gobj_log_last_message()),
+            json_sprintf("%s: Can't update user %s (see the log)", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -1983,7 +1985,7 @@ PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Can't update user: %s", username),
+            json_sprintf("%s: Can't update user: %s", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -1992,7 +1994,7 @@ PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             0,
-            json_sprintf("User updated: %s", username),
+            json_sprintf("%s: User updated: %s", gobj_yuno_role_plus_name(), username),
             tranger2_list_topic_desc_cols(priv->tranger, "users"),
             user,
             kw  // owned
@@ -2016,7 +2018,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What username?"),
+            json_sprintf("%s: What username?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2036,7 +2038,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("User not found: '%s'", username),
+            json_sprintf("%s: User not found: '%s'", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -2073,7 +2075,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("User enabled: %s", username),
+        json_sprintf("%s: User enabled: %s", gobj_yuno_role_plus_name(), username),
         tranger2_list_topic_desc_cols(priv->tranger, "users"),
         user,
         kw  // owned
@@ -2096,7 +2098,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What username?"),
+            json_sprintf("%s: What username?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2116,7 +2118,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("User not found: '%s'", username),
+            json_sprintf("%s: User not found: '%s'", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -2161,7 +2163,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("User disabled: %s", username),
+        json_sprintf("%s: User disabled: %s", gobj_yuno_role_plus_name(), username),
         tranger2_list_topic_desc_cols(priv->tranger, "users"),
         user,
         kw  // owned
@@ -2185,7 +2187,7 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What username?"),
+            json_sprintf("%s: What username?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2205,7 +2207,7 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("User not found: '%s'", username),
+            json_sprintf("%s: User not found: '%s'", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -2222,7 +2224,7 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Can't delete user '%s': it is immutable (protected).", username),
+            json_sprintf("%s: Can't delete user '%s': it is immutable (protected).", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -2241,9 +2243,9 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             gobj,
             -1,
             json_sprintf(
-                "User '%s' holds roles. Pass force=1 to delete it "
+                "%s: User '%s' holds roles. Pass force=1 to delete it "
                 "(its role links will be unlinked).",
-                username
+                gobj_yuno_role_plus_name(), username
             ),
             0,
             0,
@@ -2276,7 +2278,7 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Can't delete user '%s'", username),
+            json_sprintf("%s: Can't delete user '%s'", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -2286,7 +2288,7 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("User deleted: %s", username),
+        json_sprintf("%s: User deleted: %s", gobj_yuno_role_plus_name(), username),
         0,
         0,
         kw  // owned
@@ -2309,7 +2311,7 @@ PRIVATE json_t *cmd_check_user_passw(hgobj gobj, const char *cmd, json_t *kw, hg
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What username?"),
+            json_sprintf("%s: What username?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2319,7 +2321,7 @@ PRIVATE json_t *cmd_check_user_passw(hgobj gobj, const char *cmd, json_t *kw, hg
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What password?"),
+            json_sprintf("%s: What password?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2341,7 +2343,7 @@ PRIVATE json_t *cmd_check_user_passw(hgobj gobj, const char *cmd, json_t *kw, hg
     if(!user) {
         return msg_iev_build_response(gobj,
             -1,
-            json_sprintf("User does not exist: %s", username),
+            json_sprintf("%s: User does not exist: %s", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -2354,7 +2356,7 @@ PRIVATE json_t *cmd_check_user_passw(hgobj gobj, const char *cmd, json_t *kw, hg
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Password match: %s", authorization==0?"Yes":"No"),
+        json_sprintf("%s: Password match: %s", gobj_yuno_role_plus_name(), authorization==0?"Yes":"No"),
         0,
         0, // owned
         kw  // owned
@@ -2382,7 +2384,7 @@ PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgob
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What username?"),
+            json_sprintf("%s: What username?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2392,7 +2394,7 @@ PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgob
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What password?"),
+            json_sprintf("%s: What password?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2414,7 +2416,7 @@ PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgob
     if(!user) {
         return msg_iev_build_response(gobj,
             -1,
-            json_sprintf("User does not exist: %s", username),
+            json_sprintf("%s: User does not exist: %s", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -2449,7 +2451,8 @@ PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgob
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Error creating credentials: %s", gobj_log_last_message()),
+            json_sprintf("%s: cannot hash the password of user '%s' (see the log)",
+                gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -2471,7 +2474,8 @@ PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgob
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Cannot update user password: %s", gobj_log_last_message()),
+            json_sprintf("%s: Cannot update the password of user '%s' (see the log)",
+                gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -2482,7 +2486,7 @@ PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgob
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Updated user password: %s", username),
+        json_sprintf("%s: Updated user password: %s", gobj_yuno_role_plus_name(), username),
         0,
         0, // owned
         kw  // owned
@@ -2531,7 +2535,7 @@ PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What username?"),
+            json_sprintf("%s: What username?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2551,7 +2555,7 @@ PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("User not found: '%s'", username),
+            json_sprintf("%s: User not found: '%s'", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -2597,7 +2601,7 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What username?"),
+            json_sprintf("%s: What username?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2617,7 +2621,7 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("User not found: '%s'", username),
+            json_sprintf("%s: User not found: '%s'", gobj_yuno_role_plus_name(), username),
             0,
             0,
             kw  // owned
@@ -2726,7 +2730,7 @@ PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hg
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("User not found: %s", username),
+                json_sprintf("%s: User not found: %s", gobj_yuno_role_plus_name(), username),
                 0,
                 0,
                 kw  // owned
@@ -2765,7 +2769,7 @@ PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hg
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Set max_sessions: %d in %s", max_sessions, dst),
+        json_sprintf("%s: Set max_sessions: %d in %s", gobj_yuno_role_plus_name(), max_sessions, dst),
         0,
         0,
         kw  // owned
