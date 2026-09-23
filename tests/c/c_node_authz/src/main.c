@@ -139,7 +139,7 @@ static int register_yuno_and_more(void)
          *  for: the link the nested-update check refuses, the autolink
          *  update refused on the replica, and its link, unlink and forced
          *  delete refused before anything moves. */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -162,6 +162,10 @@ static int register_yuno_and_more(void)
             "msg", "hook not found",
             "msg", "Topic name not found in treedbs",
             "msg", "Topic name not found in treedbs",
+            /*  an update-create with a bad id: the library's cause, then
+             *  C_NODE's own (not the last message again)  */
+            "msg", "Invalid 'id': contains path metacharacters",
+            "msg", "Cannot update node: it does not exist and it cannot be created (see the previous log)",
             /*  the replica  */
             "msg", "Cannot write a node on a READ-ONLY replica",
             "msg", "Cannot link nodes on a READ-ONLY replica",

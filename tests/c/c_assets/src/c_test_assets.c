@@ -853,10 +853,58 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
+     *  7a: gc-assets REFUSED (a snap active: the nodes
+     *  in memory are its photo) still sweeps the blobs
+     *  no row names, and SAYS so: the answer is the
+     *  report of treedb_gc_files2(), `refused`, the
+     *  asset rows untouched, the blobs taken. It said
+     *  "gc refused, see the log" and nothing of them.
+     *  The active snap is set in memory by hand: the
+     *  library's own detection is tr_treedb_files'.
+     *-----------------------------------------------*/
+    {
+        const char *stray_id = "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a";
+        char stray[PATH_MAX];
+        if(treedb_blob_path(priv->tranger, stray_id, "image/png", stray, sizeof(stray)) == 0) {
+            char stray_dir[PATH_MAX];
+            snprintf(stray_dir, sizeof(stray_dir), "%s", stray);
+            char *slash = strrchr(stray_dir, '/');
+            if(slash) {
+                *slash = 0;
+            }
+            mkrdir(stray_dir, 02770);
+            FILE *fp = fopen(stray, "w");
+            if(fp) {
+                fputs("bytes no row names", fp);
+                fclose(fp);
+            }
+        }
+        json_t *snaps = kw_get_dict(gobj, priv->tranger, "treedbs_snaps", 0, 0);
+        json_t *snap = kw_get_dict(gobj, snaps, TREEDB_NAME, 0, 0);
+        json_int_t tag_was = kw_get_int(gobj, snap, "activated_snap_tag", 0, 0);
+        json_object_set_new(snap, "activated_snap_tag", json_integer(1));
+
+        resp = ask_node(gobj, "gc-assets", json_object());
+        json_t *blobs = kw_get_list(0, resp, "data`blobs", 0, 0);
+        if(resp_result(resp) != -1 ||
+                !strstr(kw_get_str(0, resp, "comment", "", 0), "refused") ||
+                empty_string(kw_get_str(0, resp, "data`refused", "", 0)) ||
+                json_array_size(kw_get_list(0, resp, "data`assets", 0, 0)) != 0 ||
+                !json_str_in_list(gobj, blobs, stray_id, 0) ||
+                is_regular_file(stray)) {
+            gobj_trace_json(gobj, resp, "gc-assets refused");
+            result += fail(gobj, "a refused gc-assets does not say the blobs it swept");
+        }
+        JSON_DECREF(resp)
+        json_object_set_new(snap, "activated_snap_tag", json_integer(tag_was));
+    }
+
+    /*-----------------------------------------------*
      *  7: gc-assets removes exactly the orphan
      *-----------------------------------------------*/
     resp = ask_node(gobj, "gc-assets", json_pack("{s:s}", "dry_run", "1"));
-    if(resp_result(resp) != 0 || json_array_size(resp_data(resp)) != 1) {
+    if(resp_result(resp) != 0 || json_array_size(kw_get_list(0, resp, "data`assets", 0, 0)) != 1 ||
+            !kw_get_bool(0, resp, "data`dry_run", 0, 0)) {
         result += fail(gobj, "gc-assets dry_run did not find exactly the imported orphan");
     }
     JSON_DECREF(resp)
@@ -868,10 +916,10 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     resp = ask_node(gobj, "gc-assets", json_object());
-    if(resp_result(resp) != 0 || json_array_size(resp_data(resp)) != 1) {
+    if(resp_result(resp) != 0 || json_array_size(kw_get_list(0, resp, "data`assets", 0, 0)) != 1) {
         result += fail(gobj, "gc-assets did not delete exactly the orphan");
     } else {
-        const char *gone = json_string_value(json_array_get(resp_data(resp), 0));
+        const char *gone = json_string_value(json_array_get(kw_get_list(0, resp, "data`assets", 0, 0), 0));
         char path[PATH_MAX];
         if(treedb_blob_path(priv->tranger, gone, "image/png", path, sizeof(path)) == 0) {
             if(is_regular_file(path)) {

@@ -1045,16 +1045,22 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             );
         }
         if(!node) {
-            const char *msg = gobj_log_last_message();
-            if(empty_string(msg)) {
-                msg = "treedb_create_node failed";
-            }
+            /*
+             *  Its own cause: the library logged why before this line. It
+             *  logged gobj_log_last_message(), the process-global buffer of
+             *  the last ERROR of anybody (L7 of the third independent
+             *  review, 2026-09-23).
+             */
+            const char *msg = create?
+                "Cannot update node: it does not exist and it cannot be created (see the previous log)" :
+                "Cannot update node: it does not exist";
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", msg,
                 "treedb_name",  "%s", priv->treedb_name,
                 "topic_name",   "%s", topic_name,
+                "id",           "%s", kw_get_str(gobj, kw, "id", "", 0),
                 NULL
             );
             gobj_trace_json(gobj, kw, "%s", msg);
@@ -2581,29 +2587,50 @@ PRIVATE json_t *cmd_gc_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
+    /*
+     *  The REPORT, which says everything the gc did: a refusal of the asset
+     *  rows (a snap active, what the snapshots hold not readable whole, ...)
+     *  still sweeps the blobs no row names, since no link nor snapshot can
+     *  lead to them. It answered "gc refused, see the log" of a gc that had
+     *  deleted files (independent review of the third fix round, 2026-09-23;
+     *  treedb_gc_files2() in tr_treedb.h).
+     */
     BOOL dry_run = kw_get_bool(gobj, kw, "dry_run", 0, KW_WILD_NUMBER);
-    json_t *taken = treedb_gc_files(priv->tranger, priv->treedb_name, dry_run);
-    if(!taken) {
+    json_t *report = treedb_gc_files2(priv->tranger, priv->treedb_name, dry_run);
+    if(!report) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: gc refused, see the log", gobj_yuno_role_plus_name()),
+            json_sprintf("%s: gc failed, nothing was taken (see the log)", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
         );
     }
 
+    const char *refused = kw_get_str(gobj, report, "refused", 0, 0);
+    const char *blobs_refused = kw_get_str(gobj, report, "blobs_refused", 0, 0);
+    int assets = (int)json_array_size(kw_get_list(gobj, report, "assets", 0, 0));
+    int blobs = (int)json_array_size(kw_get_list(gobj, report, "blobs", 0, 0));
+    const char *verb = dry_run? "would delete": "deleted";
+
+    json_t *comment;
+    if(refused) {
+        comment = json_sprintf("%s: %s; the asset rows are untouched, %s %d blob(s) no row names%s%s",
+            gobj_yuno_role_plus_name(), refused, verb, blobs,
+            blobs_refused? "; " : "", blobs_refused? blobs_refused : "");
+    } else {
+        comment = json_sprintf("%s: %s %d orphan asset(s) and %d blob(s) no row names%s%s",
+            gobj_yuno_role_plus_name(), verb, assets, blobs,
+            blobs_refused? "; " : "", blobs_refused? blobs_refused : "");
+    }
+
     return msg_iev_build_response(
         gobj,
+        refused? -1 : 0,
+        comment,
         0,
-        json_sprintf("%s: %s %d orphan assets",
-            gobj_yuno_role_plus_name(),
-            dry_run? "would delete": "deleted",
-            (int)json_array_size(taken)
-        ),
-        0,
-        taken,
+        report,
         kw  // owned
     );
 }
@@ -4214,7 +4241,6 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     const char *node_id = kw_get_str(gobj, kw, "node_id", "", 0);
     const char *pkey2 = kw_get_str(gobj, kw, "pkey2", "", 0);
-    json_t *jn_filter = json_incref(kw_get_dict(gobj, kw, "filter", 0, 0));
     json_t *_jn_options = kw_get_dict(gobj, kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
@@ -4227,6 +4253,13 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
             kw  // owned
         );
     }
+
+    /*
+     *  The reference is taken only once the command goes on: taken before
+     *  the "What topic_name?" above, it leaked (L7 of the third independent
+     *  review, 2026-09-23)
+     */
+    json_t *jn_filter = json_incref(kw_get_dict(gobj, kw, "filter", 0, 0));
     if(!empty_string(node_id)) {
         if(!jn_filter) {
             jn_filter = json_pack("{s:s}", "id", node_id);

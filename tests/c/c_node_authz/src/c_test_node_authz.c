@@ -436,6 +436,37 @@ PRIVATE int check_comments_name_their_yuno(hgobj gobj)
     result += expect_comment(gobj, "hooks",
         json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "cannot list the hooks");
 
+    /*
+     *  instances with a `filter` and no topic_name took a reference to the
+     *  filter before it asked "What topic_name?", and leaked it: the memory
+     *  audit at the end of the test is what fails (L7 of the third
+     *  independent review, 2026-09-23)
+     */
+    result += expect_comment(gobj, "instances",
+        json_pack("{s:{s:s}}", "filter", "id", "x"), -1, "What topic_name?");
+
+    /*
+     *  An update with `create` whose create fails logs ITS cause, not the
+     *  process-global last message: the expected log list pins the line
+     *  after the library's own error (same review)
+     */
+    gobj_log_set_last_message("a stale message of somebody else");
+    json_t *node = gobj_update_node(priv->gobj_node, "items",
+        json_pack("{s:s}", "id", "../escape"),
+        json_pack("{s:b}", "create", 1),
+        gobj
+    );
+    if(node) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: an update-create with a bad id created a node",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(node)
+
     return result;
 }
 
