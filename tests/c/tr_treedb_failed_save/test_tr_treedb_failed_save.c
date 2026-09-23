@@ -33,6 +33,13 @@
  *          deactivation that cannot be saved leaves the snap active in
  *          memory as on disk, and a replica does not try.
  *
+ *          A refused forced delete whose put-back of a child fails too
+ *          leaves that child unlinked, in memory as on disk, and says so.
+ *          A read-only file cannot make that second save fail (the first
+ *          save opened the files of the key, and they stay open), so the
+ *          test fails the writes of that key in its own __wrap_write()
+ *          (see CMakeLists.txt).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -41,6 +48,8 @@
 #include <signal.h>
 #include <limits.h>
 #include <dirent.h>
+#include <errno.h>
+#include <unistd.h>
 #include <sys/stat.h>
 
 #include <gobj.h>
@@ -147,6 +156,15 @@ PRIVATE char path_database[PATH_MAX];
 PRIVATE int events_told = 0;
 
 /*
+ *  __wrap_write(): with `fail_writes_key` set (a key directory, ending in
+ *  '/'), the writes into the files of that key go through until
+ *  `fail_writes_after_rows` rows of its md2 were written, and fail with
+ *  EIO after. Every other write goes through.
+ */
+PRIVATE char fail_writes_key[PATH_MAX];
+PRIVATE int fail_writes_after_rows = 0;
+
+/*
  *  What a write that cannot open its files logs, in order
  */
 #define M_CREATE_JSON   "Cannot create json file"
@@ -158,6 +176,52 @@ PRIVATE int events_told = 0;
 #define REF_SALES_U     "departments^sales^users"
 #define REF_DIRECTION_U "departments^direction^users"
 #define REF_STALE       "departments^direction^nohook"
+
+/***************************************************************************
+ *  The writes of the files of one key fail on demand (see above)
+ ***************************************************************************/
+ssize_t __real_write(int fd, const void *buf, size_t count);
+ssize_t __wrap_write(int fd, const void *buf, size_t count);
+
+ssize_t __wrap_write(int fd, const void *buf, size_t count)
+{
+    if(fail_writes_key[0]) {
+        char link[64];
+        char target[PATH_MAX];
+        snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+        ssize_t ln = readlink(link, target, sizeof(target) - 1);
+        if(ln > 0) {
+            target[ln] = 0;
+            if(strncmp(target, fail_writes_key, strlen(fail_writes_key)) == 0) {
+                if(fail_writes_after_rows <= 0) {
+                    errno = EIO;
+                    return -1;
+                }
+                if(ln > 4 && strcmp(target + ln - 4, ".md2") == 0) {
+                    fail_writes_after_rows--;
+                }
+            }
+        }
+    }
+    return __real_write(fd, buf, count);
+}
+
+/***************************************************************************
+ *  Arm the failing writes of the key `key` of `topic_name`: they fail
+ *  after `after_rows` rows of its md2 (NULL disarms)
+ ***************************************************************************/
+PRIVATE void fail_writes_of_key(const char *topic_name, const char *key, int after_rows)
+{
+    if(!topic_name) {
+        fail_writes_key[0] = 0;
+        fail_writes_after_rows = 0;
+        return;
+    }
+    build_path(fail_writes_key, sizeof(fail_writes_key) - 1,
+        path_database, topic_name, "keys", key, NULL);
+    strcat(fail_writes_key, "/");
+    fail_writes_after_rows = after_rows;
+}
 
 /***************************************************************************
  *  Every event of the treedb is counted: a write that is taken back
@@ -892,6 +956,86 @@ PRIVATE int test_repointed_hook(json_t *tranger)
 }
 
 /***************************************************************************
+ *  The nodes of the put-back case, in memory or as a reload gives them:
+ *  bob unlinked from finance (in sales alone), everything else as before
+ ***************************************************************************/
+PRIVATE int check_put_back_family(json_t *tranger, const char *test)
+{
+    int result = 0;
+    json_t *board = treedb_get_node(tranger, TREEDB_NAME, "departments", "board");
+    json_t *finance = treedb_get_node(tranger, TREEDB_NAME, "departments", "finance");
+    json_t *audit = treedb_get_node(tranger, TREEDB_NAME, "departments", "audit");
+    json_t *sales = treedb_get_node(tranger, TREEDB_NAME, "departments", "sales");
+    json_t *bob = treedb_get_node(tranger, TREEDB_NAME, "users", "bob");
+    json_t *carol = treedb_get_node(tranger, TREEDB_NAME, "users", "carol");
+    if(!board || !finance || !audit || !sales || !bob || !carol) {
+        return fail(test, "a node of the family is gone", NULL);
+    }
+    if(!field_is(finance, "department_id", json_string(REF_BOARD)) ||
+            !hook_holds(board, "departments", finance)) {
+        result += fail(test, "finance lost its parent", finance);
+    }
+    if(!field_is(audit, "department_id", json_string(REF_FINANCE)) ||
+            !hook_holds(finance, "departments", audit)) {
+        result += fail(test, "audit was not put back", audit);
+    }
+    if(!field_is(carol, "departments", json_pack("[s]", REF_FINANCE_U)) ||
+            !hook_holds(finance, "users", carol)) {
+        result += fail(test, "carol lost her parent", carol);
+    }
+    if(!field_is(bob, "departments", json_pack("[s]", REF_SALES_U))) {
+        result += fail(test, "bob's fkey is not the one on disk", bob);
+    }
+    if(hook_holds(finance, "users", bob)) {
+        result += fail(test, "finance hooks bob, the disk does not", NULL);
+    }
+    if(!hook_holds(sales, "users", bob)) {
+        result += fail(test, "sales lost bob", NULL);
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  A refused forced delete whose put-back fails too. finance has audit,
+ *  bob and carol: audit and bob are unlinked and saved, carol cannot be
+ *  saved (read-only), so the delete is refused, and bob cannot be saved
+ *  linked again (his writes fail after his unlink). bob stays unlinked, in
+ *  memory as on disk, and the ERROR names him; audit is put back.
+ ***************************************************************************/
+PRIVATE int test_put_back_fails(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "refused delete, a child cannot be put back: it stays unlinked, as on disk";
+    set_expected_results(test, json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        "msg", M_CREATE_JSON,
+        "msg", M_OPEN_WRITE,
+        "msg", "Cannot delete node: still has down links",
+        "msg", "Cannot append record, write FAILED",
+        "msg", "A refused delete cannot put back a child it had unlinked: the child stays unlinked, in memory as on disk"
+    ), NULL, NULL, 1);
+
+    json_t *finance = treedb_get_node(tranger, TREEDB_NAME, "departments", "finance");
+    json_t *bob = treedb_get_node(tranger, TREEDB_NAME, "users", "bob");
+    if(!finance || !bob || !field_is(bob, "departments", json_pack("[s,s]", REF_FINANCE_U, REF_SALES_U))) {
+        return fail(test, "the family is not as the setup left it", bob);
+    }
+
+    events_told = 0;
+    fail_writes_of_key("users", "bob", 1);
+    int ret = treedb_delete_node(tranger, finance, json_pack("{s:b}", "force", 1));
+    fail_writes_of_key(NULL, NULL, 0);
+    if(ret >= 0) {
+        result += fail(test, "the delete answered success", NULL);
+    }
+    result += check_put_back_family(tranger, test);
+    if(events_told != 0) {
+        result += fail(test, "an event was told", NULL);
+    }
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  The snap `name` of __snaps__, NOT yours
  ***************************************************************************/
 PRIVATE json_t *get_snap(json_t *tranger, const char *name)
@@ -1091,6 +1235,24 @@ PRIVATE int do_test(void)
     result += test_repointed_hook(tranger);
     close_all(tranger);
     result += chmod_key("users", "alice", 0660);
+
+    /*
+     *  A put-back that fails too: memory and disk agree on bob after it
+     */
+    tranger = open_all("reload, a put-back that fails", NULL);
+    result += test_json(NULL);
+    result += chmod_key("users", "carol", 0440);
+    result += test_put_back_fails(tranger);
+    json_check_refcounts(tranger, 1000, &result);
+    close_all(tranger);
+    result += chmod_key("users", "carol", 0660);
+
+    tranger = open_all("reload after the put-back that failed", NULL);
+    result += test_json(NULL);
+    set_expected_results("the disk says what memory said after the put-back", NULL, NULL, NULL, 1);
+    result += check_put_back_family(tranger, "the disk says what memory said after the put-back");
+    result += test_json(NULL);
+    close_all(tranger);
 
     result += test_too_many_active_snaps();
 

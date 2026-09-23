@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(test_tr_treedb_failed_save)
+project(test_c_node_failed_save C)
 
 #-----------------------------------------------------#
 #   Resolve YUNETAS_BASE
@@ -42,14 +42,18 @@ endif()
 ##############################################
 #   Source
 ##############################################
-set(SRCS
-    test_tr_treedb_failed_save.c
+SET (YUNO_SRCS
+    src/main.c
+    src/c_test_failed_save.c
+)
+SET (YUNO_HDRS
+    src/c_test_failed_save.h
 )
 
 ##############################################
 #   Binary
 ##############################################
-add_yuno_executable(${PROJECT_NAME} ${SRCS})
+add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 if(CONFIG_FULLY_STATIC)
     set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -58,12 +62,8 @@ if(CONFIG_FULLY_STATIC)
     )
 endif()
 
-# Low-level test: only needs timeranger2, yev_loop, gobj (not root-linux)
 target_link_libraries(${PROJECT_NAME}
-    libtimeranger2.a
-    libyev_loop.a
-    libytls.a
-    libyunetas-gobj.a
+    ${YUNETAS_KERNEL_LIBS}
     ${YUNETAS_EXTERNAL_LIBS}
     ${YUNETAS_PCRE_LIBS}
     ${JWT_LIBS}

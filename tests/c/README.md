@@ -29,8 +29,9 @@ ctest -R test_c_timer --output-on-failure --test-dir build
 | `c_mqtt` | Embedded MQTT broker + client round-trip |
 | `c_auth_bff` | BFF HTTP auth flow (mock Keycloak + signed JWTs) |
 | `c_node_link_events` | TreeDB `EV_TREEDB_NODE_LINKED/UNLINKED` |
+| `c_node_failed_save` | `update-node` with `autolink` whose save fails: answered `NULL` / `-1`, taken back whole, no event (update and create) |
 | `tr_treedb`, `tr_treedb_link_events` | TreeDB core and link-event subscriptions |
-| `tr_treedb_failed_save` | A treedb write whose save fails is taken back whole in memory, with no event (update, links, update with its links, clean, stale refs); a refused forced delete changes nothing; two active snaps at open |
+| `tr_treedb_failed_save` | A treedb write whose save fails is taken back whole in memory, with no event (update, links, update with its links, clean, stale refs); a refused forced delete changes nothing, and a child it cannot put back stays unlinked in memory as on disk; two active snaps at open |
 | `tr_msg`, `tr_queue` | timeranger2 message wrapper and queue (msg2db) |
 | `timeranger2` | timeranger2 append / read / iterator tests |
 | `kw` | `kw_*` helpers from `gobj-c/kwid.c` |
