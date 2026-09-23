@@ -1486,7 +1486,14 @@ update — an editor saving a column appended a second one instead of changing
 it. `migrate_schema_ids_to_qualified()` in
 [`c_treedb.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_treedb.c) moves a projection made that way, node by node, content
 and all, when a store written with an older meta-schema is opened. That
-moves ids and re-projects nothing.
+moves ids and re-projects nothing. The move can die at any write and be run
+again: a qualified copy already there is taken (and linked, when it is not),
+a legacy column is deleted once its copy is linked, and a legacy topic once
+every column of it moved. The treedb node keeps its old meta-schema version
+until a projection stamps it, so the next open runs the move again and
+completes it. (Until this release a move that died left a qualified copy
+that the next move failed to create, *"Node already exists"*, and the legacy
+node stayed.)
 
 The keying is also why the descriptor used to validate a *user* column is
 derived, not copied, from that topic: `_treedb_create_topic_cols_desc()`
@@ -1539,7 +1546,7 @@ interchangeable:
 | | Written by | Means |
 |---|---|---|
 | `schema_version` | whoever edits the schema (an editor raises it on save) | what this schema is worth to `treedb_open_db` |
-| `c_schema_version` | only the projection | which version of the C literal this projection came from; `0` when it came from none: seeded from a dynamic schema file, or left unfinished |
+| `c_schema_version` | only the projection | which version of the C literal this projection came from; `0` when it came from none: seeded from a dynamic schema file, or left unfinished; `-1` when it is unfinished and its record could not be written (see below) |
 | `system_schema_version` | only the projection | which version of the **meta-schema** produced it |
 
 A change of the meta-schema re-projects **nothing**. The schema in use can be
@@ -1582,10 +1589,51 @@ and its name, so the topic node says the treedb. A treedb called `m2.b` has a
 topic `c` whose id is `m2.b.c`, and that is not a topic `b.c` of a treedb
 `m2`. The projection of `m2` does not touch it, and `delete-treedb` of `m2`
 deletes no node of `m2.b`. When the topic node of a column is gone too, the
-treedb is the one of the known treedbs that the id names; when more than one
-could own it, no treedb takes it, and a WARNING says so (*"Node of
-__system__ that no tree reaches and more than one treedb could own: left as
-it is, delete it by hand if nobody needs it"*).
+treedb is the one of the known treedbs that the id names. When more than one
+could own it, the owner is the one that SAYS it owns the node:
+
+1. the record of an unfinished projection of that treedb names the id (a
+   projection of it that died or failed left the node), or else
+2. the schema of that treedb declares the topic and the column: its
+   literal (when it is open), its schema file in use, or its saved schema.
+
+When none of them says it, the treedb that is projected now takes it: the
+node is in no tree and no schema of them declares it, so the projection of
+any of them removes it. Only the treedb that takes the node says it, ONE
+WARNING per node: *"Node of __system__ that no tree reaches and more than
+one treedb could own: taken by this treedb"*, with `how` (`record`,
+`schema` or `none says it`) and `candidates`. The other treedbs, and a
+treedb that could not own it at all, say nothing. For example, the operator
+deletes the topic node `m2.b.departments` with `force`: its columns are left
+in no topic, and `m2.b.departments.name` could be the column `name` of the
+topic `b.departments` of `m2`, or of the topic `departments` of `m2.b`. The
+schema file of `m2.b` declares `departments.name`, so a newer literal of
+`m2` leaves the columns alone, and a newer literal of `m2.b` without
+`departments` takes them (`how: "schema"`), deletes them, and reports the
+operator's delete: `withdrawn_at_open: {"topics": {"departments":
+"unsaved"}, ...}`. (Until this release every projection of every treedb
+warned for each such node, naming itself, and the node was left to none,
+for ever.)
+
+**A name with a dot can give two elements ONE id, and such a schema is
+refused.** An id is the parent's id, a dot and the name, so the column
+`x.y` of the topic `u` and the column `y` of the topic `u.x` are both
+`<treedb>.u.x.y`, and the topic `b.c` of the treedb `m2` and the topic `c`
+of the treedb `m2.b` are both `m2.b.c`. Two elements with one id are one
+node. The schema is refused where it would be written: a treedb whose
+schema collides does not open (`-1` *"cannot open treedb '<name>': no valid
+treedb_schema (see the log)"*), `save-schema` does not save a draft that
+collides, and `apply-schema` does not apply a saved schema that collides.
+Each refusal is ONE ERROR that names both elements: *"Schema refused: two
+elements have the same qualified id in __system__ (a name with a dot),
+rename one of them"*, for example with `id: "m2.b.c"`, `first: "topic 'c'
+of treedb 'm2.b'"` and `second: "a topic of treedb 'm2', a node of
+__system__"`. A collision with another treedb is looked for only when one
+treedb name is the other's and a dot (`m2` and `m2.b`). The ids are not
+escaped: no id of an existing store changes, and no schema of the SDK or of
+the projects has a dot in a name. (Until this release the two elements were
+one node with no error, or the second treedb failed at every open with
+*"Cannot update node: it does not exist"*.)
 
 What the operator LINKED differently is replaced in the same open:
 
@@ -1715,9 +1763,11 @@ it unfinished in the same way.
  "leftovers": ["treedb_x.departments", "treedb_x.users.departments",
                "treedb_x.departments.id", "treedb_x.departments.name"],
  "draft_kinds": {},
+ "replaced_kinds": {},
  "leftover_nodes": {
    "treedb_x.departments.name": {"value": "name", "order": 1, "header": "Name",
-                                 "type": "string", "flag": ["persistent"], ...},
+                                 "type": "string", "flag": ["persistent"],
+                                 "__parents__": ["treedb_x.departments"], ...},
    ...},
  "system_schema_version": 18}
 ```
@@ -1726,6 +1776,21 @@ it unfinished in the same way.
 draft that the projection could not replace, for example
 `{"departments": "saved"}`. The open that replaces the draft reports this
 kind (see below).
+
+`replaced_kinds` is always written, `{}` when it is empty. It holds the
+drafts that a projection which DIED half way was replacing (see *A
+projection that dies half way*, below), `{topic: kind}`. When the retry of
+that projection fails too, its record CARRIES THEM FORWARD: a projection that
+fails writes the kinds of the record before it that it did not report, so
+the open that completes the projection still reports them, once. For
+example, a process dies while it replaces the saved draft of `users`, and
+the retry is refused by a snapshot: the record of the retry says
+`"replaced_kinds": {"users": "saved"}`, and the open after the snapshot is
+deleted reports `{"topics": {"users": "saved"}, ...}`.
+
+`__parents__` in a kept node is its PLACE: the ids of the parents it hangs
+from (`treedbs` for a topic, `topics` for a column), sorted. It is part of
+"as left" (see *An EDIT of a leftover*, below).
 
 While the record is there:
 
@@ -1759,9 +1824,10 @@ While the record is there:
   draft too.
 - An EDIT of a leftover IS a draft. When the node at a
   leftover id is not what `leftover_nodes` kept (the operator changed one of
-  the attributes a projection writes, unlinked a column from its topic,
-  deleted the node, or created a node where the projection left nothing),
-  the edit is the operator's work, like any other draft: `saved-schema` shows
+  the attributes a projection writes, changed its PLACE -- moved a column to
+  another topic, linked it to one more, unlinked it and left it in no topic
+  --, deleted the node, or created a node where the projection left
+  nothing), the edit is the operator's work, like any other draft: `saved-schema` shows
   it in `draft_changed`, a retry that cannot finish keeps it a draft (it
   is not a leftover in the new record, and `draft_kinds` keeps its kind),
   and the open that replaces it reports it in the WARNING and in
@@ -1777,9 +1843,21 @@ While the record is there:
   `treedb_x.departments.name` from `departments` (the column is still a
   node of `__system__`, in no topic), `saved-schema` answers
   `draft_changed: {"departments": true}`, and the open that removes the topic
-  removes the column too and reports `departments` as `"unsaved"`. What is
-  NOT an edit: a change of a link that keeps the node in its topic, of the
-  editor geometry (`_geometry`) or of the metadata. A record without
+  removes the column too and reports `departments` as `"unsaved"`. The node
+  is looked for wherever it is: in a topic of the treedb, in another, or in
+  none. A MOVE is an edit of both topics: the operator moves the leftover
+  column `treedb_x.departments.name` to `users`, `saved-schema` answers
+  `draft_changed: {"departments": true, "users": true}`, and the open that
+  removes `departments` deletes the column and answers
+  `withdrawn_at_open: {"topics": {"departments": "unsaved", "users":
+  "unsaved"}, ...}`. The topic of an edited leftover is reported by the open
+  that replaces it, wherever the node went. (Until this release a leftover
+  was found in whatever topic held it and compared by its attributes only,
+  and a node in no topic read as "nothing", which is also what a delete
+  leaves: a move, and an edit of a column in no topic, were deleted in
+  silence.) What is NOT an edit: the editor geometry (`_geometry`) and the
+  metadata. A node kept before the place was recorded (no `__parents__`) is
+  compared by its attributes only. A record without
   `leftover_nodes` takes every leftover as left, and so does a record whose
   `system_schema_version` is not the running meta-schema: a newer
   meta-schema gives every node loaded from disk the fields it added, and
@@ -1809,6 +1887,27 @@ While the record is there:
   written (see the log): a save would publish them"*, with `data:
   {treedb_name, unfinished_projection}`. A save would publish the removed
   topic again, and the next apply would bring it back.
+- A record that cannot be WRITTEN (the disk refuses `saved_schemas/`) does
+  not make the projection read as complete. The record is kept in memory:
+  the process goes on reading it (`unfinished_projection`, no draft for a
+  leftover, `save-schema` refuses), and every open tries to write it again
+  (INFO *"Record of an unfinished projection written, the disk refused it
+  before"*). And the node of the treedb says it: `c_schema_version: -1`,
+  written before the first write of the projection when its record in
+  progress cannot be written, and at the end when the record of the failure
+  cannot. After a restart the memory is gone and the node still says -1: the
+  record is LOST, ONE WARNING says so at every read (*"Record of an
+  unfinished projection is lost (the disk refused it, and the process that
+  kept it is gone): ..."*), `unfinished_projection` is `["treedb_x"]`,
+  `save-schema` refuses, and the open retries the projection. What the lost
+  record said is unknown, so, as for a record that cannot be read, what
+  `__system__` holds over the file is taken for a draft: it is reported by
+  the open that replaces it, never deleted in silence. For example, with
+  `saved_schemas/` read-only and a snapshot that holds `departments`, the
+  open with a literal without `departments` leaves `c_schema_version: -1`,
+  `unfinished_projection: ["treedb_x.departments"]` and `draft_changed: {}`.
+  (Until this release the next open read the projection as complete, showed
+  the leftover as a draft, and a save published it.)
 - A record that cannot be READ (not json, or not this shape) still means
   UNFINISHED. At every read ONE WARNING says *"Record of an unfinished
   projection cannot be read: the projection is unfinished, what it left is
@@ -1962,6 +2061,23 @@ projects `users` and `departments` again and stamps
 stamps 1 or more. A file that declares `schema_version` 0 has no version,
 and its projection is never retried this way.
 
+**A projection stamped before its topics is completed too.** 7.25.4 and
+earlier wrote the numbers of the node FIRST: a process that died then left a
+node that says the literal (`schema_version` and `c_schema_version` equal to
+it) over a projection with part of the topics, or none. With the file in use
+missing or behind the literal, an open used to take it as done ("the
+projection is of this literal already") at every open. Now that open
+compares `__system__` with the literal: when a topic or a column the literal
+declares is missing, or a topic's `topic_version` is behind, it completes
+the projection (INFO *"Completing the projection into __system__: it says it
+is of the schema from C, and it misses part of it (stamped before its
+topics were written, by an older release)"*). What differs from the old file
+AND from the literal is the operator's draft, and reported; what differs from
+one of them only is the projection's. For example, a node
+`{"id": "treedb_x", "schema_version": 2, "c_schema_version": 2}` with no
+topic and no schema file: the open with the literal 2 projects its topics,
+stamps them and reports nothing.
+
 **What the literal withdraws is said.** A literal that wins replaces the
 operator's work over the old file. The open logs ONE warning, *"Schema from C
 withdrew work on the schema at open"*, with `treedb_name`, `schema_version`
@@ -1997,7 +2113,13 @@ take it into the literal.
 
 An apply is RECORDED, not guessed. `apply-schema` writes
 `saved_schemas/<treedb>.applied.json` under the `__system__` tranger, with
-the version it put in use and the topics whose `topic_version` it raised:
+the version it put in use and the topics whose `topic_version` it raised.
+It is written WHOLE, as the record of an unfinished projection is: to a
+`.new` file created `O_EXCL|O_NOFOLLOW`, flushed, renamed over the old one,
+and the directory flushed (until this release it was written in place, and
+a process that died half way left a torn file). A record that cannot be
+written is ONE ERROR, *"Cannot write a record of saved_schemas/"*, with
+`record: "apply"`:
 
 ```json
 {"schema_version": 13, "topics": {"users": "applied"}}
@@ -2118,9 +2240,15 @@ ycommand -c 'command-yuno id=<id> service=treedbs command=close-treedb treedb_na
 (In 7.25.4 that close logged *"TreeDB not found"* twice, with a stack, and
 `delete-treedb` answered *"while it is OPEN"*.)
 
-Every answer of `open-treedb`, `close-treedb` and `delete-treedb` starts
-with the yuno (`<role^name>: ...`), the refusals of their parameters too
-(*"<role^name>: what treedb_name?"*).
+Every answer of every command of `C_TREEDB` starts with the yuno
+(`<role^name>: ...`), the refusals of their parameters and of a permission
+too (*"<role^name>: what treedb_name?"*, *"<role^name>: No permission to
+'read' in service 'treedbs'"*). `create-topic` answers *"<role^name>: topic
+'<topic>' created in treedb '<treedb>'"* (7.25.4: *"Topic created!"*),
+`delete-topic` *"<role^name>: topic '<topic>' deleted from treedb
+'<treedb>'"* (7.25.4: *"Topic deleted!"*), and both answer *"<role^name>:
+treedb '<treedb>' not found"* for a name that is not open (7.25.4:
+*"Treedb_name not found: '<treedb>'"*).
 
 The agent opens its own treedb with `impose_c_schema=1`
 (`c_agent.c`, `mt_play`). When that `open-treedb` answers `-1` it prints
@@ -2642,9 +2770,13 @@ Round-trip coverage:
 removes the projection in `__system__` (`delete_client_treedb_schema()`: the
 `treedbs` node with `force`, which unlinks its `topics` and `cols` itself,
 then the topics and columns OF the treedb) and never touches the client
-treedb's store on disk. A node of another treedb, or of another topic, that
+treedb's store on disk. It deletes EVERY node of the treedb: a column the
+operator moved to another topic of it, and a topic or column of it that no
+tree reaches (the operator unlinked it). A node of another treedb that
 somebody linked into it is only unlinked: deleted, it would be taken from the
-schema it belongs to. `force=1` is required and
+schema it belongs to. (Until this release a column whose id names another
+topic was skipped even when that topic is of the same treedb, and a node in
+no topic was not seen.) `force=1` is required and
 means "yes, delete the schema"; it does not lift the refusal of an OPEN
 treedb, because an open one goes on answering from its copy in memory with a
 schema that exists nowhere, and the next `open-treedb` dies on the C_TRANGER
