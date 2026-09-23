@@ -1612,6 +1612,14 @@ never touched was lost. With NO file in use at all, the treedb opens from the
 literal and every topic is projected: *"No schema file in use: the treedb
 opens with the schema from C, projected whole over __system__"*.
 
+**`__system__`'s `schema_version` never goes down** (after 7.25.4). A literal
+that takes over is older than `__system__` by definition -- a save raised
+`__system__` past the file -- and it used to write its own number there, below
+the save. Now the treedb node keeps the higher number and `c_schema_version`
+records the literal: with `__system__` at 18 after a save, the file missing,
+and a literal 17, `__system__` reads `schema_version: 18, c_schema_version:
+17` after the open.
+
 A literal that carries the SAME `schema_version` as a dynamic file in use but
 another content is two schemas under one number: the file wins, as ties always
 do, and the log says *"Schema from C has the schema_version of the dynamic

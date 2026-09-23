@@ -3239,6 +3239,20 @@ PRIVATE int upsert_treedb_schema(
     json_int_t c_schema_version = kw_get_int(gobj, kw, "schema_version", 1, KW_WILD_NUMBER);
     json_int_t schema_version = c_schema_version;
 
+    /*
+     *  ...and a number of __system__ never goes down. A literal that takes
+     *  over the file in use (or the missing file) can be older than a save
+     *  that raised __system__: written as it was, its number lowered
+     *  __system__ below that save (review of the second fix round,
+     *  2026-09-23).
+     */
+    if(current) {
+        json_int_t stored_version = kw_get_int(gobj, current, "schema_version", 0, KW_WILD_NUMBER);
+        if(stored_version > schema_version) {
+            schema_version = stored_version;
+        }
+    }
+
     json_t *kw_treedb = json_pack("{s:s, s:I, s:I, s:I}",
         "id", treedb_name,
         "schema_version", (json_int_t )schema_version,

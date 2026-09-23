@@ -4001,6 +4001,7 @@ PRIVATE int check_takeover_projects_raised_topics_only(hgobj gobj)
      *  expected log list pins the message.
      */
     jn_resp = treedbs_command(gobj, "save-schema", json_object());   /*  __system__ ahead again  */
+    json_int_t saved_v = kw_get_int(gobj, jn_resp, "data`schema_version", 0, KW_WILD_NUMBER);
     JSON_DECREF(jn_resp)
     json_t *literal2 = legalstring2json(schema_test2, TRUE);
     json_object_set_new(literal2, "schema_version", json_integer(in_use_v + 1));
@@ -4025,6 +4026,25 @@ PRIVATE int check_takeover_projects_raised_topics_only(hgobj gobj)
         file_remove(in_use_dir, TREEDB_NAME ".treedb_schema.json");
     }
     if(open_test_treedb(gobj, literal2) < 0) {   // literal2 owned
+        result += -1;
+    }
+
+    /*
+     *  The literal (in_use_v + 1) is older than the save (saved_v): taking
+     *  the missing file over, it wrote ITS number into __system__, which
+     *  never goes down (review of the second fix round, 2026-09-23)
+     */
+    json_int_t system_v = system_schema_version(gobj, "schema_version");
+    if(saved_v <= in_use_v + 1 || system_v < saved_v) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: a take-over with no file in use lowered __system__'s schema_version",
+            "saved_version",    "%d", (int)saved_v,
+            "literal_version",  "%d", (int)(in_use_v + 1),
+            "system_version",   "%d", (int)system_v,
+            NULL
+        );
         result += -1;
     }
 
@@ -4750,8 +4770,10 @@ PRIVATE int run_tests(hgobj gobj)
      *  the draft went. Judged by __system__'s 10 it was
      *  "behind", never projected, and the next save put
      *  the draft back over it (the second medium of M36,
-     *  2026-09-23 review). Then 11 lands as usual, under
-     *  its own number. Nobody invents a version.
+     *  2026-09-23 review). Its topics land, and the
+     *  treedb's schema_version stays 10: a number of
+     *  __system__ never goes down. Then 11 lands as
+     *  usual, under its own number. Nobody invents one.
      *-----------------------------------------------*/
     hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
     json_t *edited = gobj_update_node(
@@ -4803,8 +4825,10 @@ PRIVATE int run_tests(hgobj gobj)
         );
         BOOL landed = (email_header && strcmp(email_header, "E-mail")==0)? TRUE: FALSE;
 
+        /*  A number of __system__ never goes down: the literal 3 lands
+         *  (c_schema_version 3, its header) under the 10 already there  */
         json_int_t expected_from_c = must_land? literal_version: 2;
-        json_int_t expected_version = must_land? literal_version: 10;
+        json_int_t expected_version = (literal_version > 10)? literal_version: 10;
         if(from_c3 != expected_from_c || version3 != expected_version || landed != must_land) {
             gobj_log_error(gobj, 0,
                 "function",             "%s", __FUNCTION__,
