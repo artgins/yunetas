@@ -94,6 +94,12 @@ PRIVATE int _walk_tree(
     int level,
     walkdir_cb cb
 );
+PRIVATE json_t *load_json_from_fd(
+    hgobj gobj,
+    int fd,
+    const char *path,
+    log_opt_t on_critical_error
+);
 
 /*****************************************************************
  *     Data
@@ -1567,6 +1573,87 @@ PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case)
 
 
 /***************************************************************************
+ *  The json of an open file, read WHOLE and then parsed. json_loadfd()
+ *  reads ONE byte per read() (it must not read past the value), and a
+ *  file here is all one value: a schema of 60 KB was 60000 system calls,
+ *  15 ms, every time a treedb opened. A read or parse failure is logged
+ *  (critical, with `on_critical_error`) and answers NULL.
+ ***************************************************************************/
+PRIVATE json_t *load_json_from_fd(
+    hgobj gobj,
+    int fd,
+    const char *path,
+    log_opt_t on_critical_error
+)
+{
+    struct stat st;
+    size_t size = (fstat(fd, &st) == 0 && st.st_size > 0)? (size_t)st.st_size : 0;
+    size_t bfsize = size + 1;   /*  one more: a file that grew is read to its end  */
+    size_t len = 0;
+    char *bf = gbmem_malloc(bfsize);
+    while(bf) {
+        if(len == bfsize) {
+            char *bf2 = gbmem_realloc(bf, bfsize * 2);
+            if(!bf2) {
+                gbmem_free(bf);
+                bf = NULL;
+                break;  /*  logged below  */
+            }
+            bf = bf2;
+            bfsize *= 2;
+        }
+        ssize_t n = read(fd, bf + len, bfsize - len);
+        if(n < 0) {
+            if(errno == EINTR) {
+                continue;
+            }
+            gobj_log_critical(gobj, on_critical_error,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot read json file",
+                "path",         "%s", path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            gbmem_free(bf);
+            return 0;
+        }
+        if(n == 0) {
+            break;
+        }
+        len += (size_t)n;
+    }
+    if(!bf) {
+        gobj_log_critical(gobj, on_critical_error,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "No memory to read json file",
+            "path",         "%s", path,
+            "size",         "%lu", (unsigned long)bfsize,
+            NULL
+        );
+        return 0;
+    }
+
+    json_error_t error;
+    json_t *jn = json_loadb(bf, len, 0, &error);
+    gbmem_free(bf);
+    if(!jn) {
+        gobj_log_critical(gobj, on_critical_error,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON,
+            "msg",          "%s", "Cannot load json file, bad json",
+            "path",         "%s", path,
+            "error",        "%s", error.text,
+            "line",         "%d", error.line,
+            NULL
+        );
+    }
+    return jn;
+}
+
+/***************************************************************************
  *  If exclusive then let file opened and return the fd, else close the file
  ***************************************************************************/
 PUBLIC json_t *load_persistent_json(
@@ -1625,16 +1712,10 @@ PUBLIC json_t *load_persistent_json(
         return 0;
     }
 
-    json_t *jn = json_loadfd(fd, 0, 0);
+    json_t *jn = load_json_from_fd(gobj, fd, full_path, on_critical_error);
     if(!jn) {
-        gobj_log_critical(gobj, on_critical_error,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON,
-            "msg",          "%s", "Cannot load json file, bad json",
-            NULL
-        );
         close(fd);
-        return 0;
+        return 0;   // Error already logged
     }
     if(!exclusive) {
         close(fd);
@@ -1681,15 +1762,7 @@ PUBLIC json_t *load_json_from_file(
         return 0;
     }
 
-    json_t *jn = json_loadfd(fd, 0, 0);
-    if(!jn) {
-        gobj_log_critical(gobj, on_critical_error,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON,
-            "msg",          "%s", "Cannot load json file, bad json",
-            NULL
-        );
-    }
+    json_t *jn = load_json_from_fd(gobj, fd, full_path, on_critical_error);  // Error already logged
     close(fd);
     return jn;
 }

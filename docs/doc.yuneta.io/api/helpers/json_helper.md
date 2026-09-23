@@ -612,7 +612,19 @@ Returns a `json_t *` object containing the parsed JSON data if successful, or NU
 
 **Notes**
 
-The function uses `json_loadfd()` to parse the JSON file. If the file does not exist, it returns NULL without logging an error. If an error occurs while opening or parsing the file, it logs an error message using [`gobj_log_critical()`](<#gobj_log_critical>).
+The function reads the whole file into one buffer and then parses it (`json_loadb()`). If the file does not exist, it returns NULL without logging an error. If an error occurs while opening, reading or parsing the file, it logs an error message using [`gobj_log_critical()`](<#gobj_log_critical>): *"Cannot load json file, bad json"* carries `path` and the parser's `error` and `line`.
+
+Until 7.25.5 the file was parsed with `json_loadfd()`, which reads ONE byte per `read()`: a schema file of 60 KB was 60 000 system calls (about 15 ms), and every open of a treedb reads several such files. Now it is a few `read()` calls.
+
+**Example**
+
+```C
+json_t *jn_schema = load_json_from_file(gobj, "/yuneta/store/treedb_x", "treedb_x.treedb_schema.json", 0);
+if(!jn_schema) {
+    // No file (nothing logged), or it cannot be read or parsed (logged)
+}
+JSON_DECREF(jn_schema)
+```
 
 ---
 
@@ -651,7 +663,7 @@ Returns a `json_t *` representing the loaded JSON object. Returns `NULL` if the 
 
 **Notes**
 
-If `exclusive` is `TRUE`, the caller is responsible for closing the file descriptor stored in `pfd`. The function logs errors unless `silence` is `TRUE` and `on_critical_error` is set to `LOG_NONE`.
+If `exclusive` is `TRUE`, the caller is responsible for closing the file descriptor stored in `pfd`. The function logs errors unless `silence` is `TRUE` and `on_critical_error` is set to `LOG_NONE`. The file is read whole and then parsed, as in [`load_json_from_file()`](<#load_json_from_file>).
 
 ---
 
