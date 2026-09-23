@@ -76,6 +76,7 @@ set(SRCS
     test_lost_lock
     test_topic_var_replace
     test_key_reborn_pages
+    test_open_list_history
     test_testing
 )
 

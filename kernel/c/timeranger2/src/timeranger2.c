@@ -10099,6 +10099,14 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         realtime = TRUE;
     }
 
+    /*
+     *  The history is loaded with one-shot iterators, closed at once. Their
+     *  creator is reserved: with the caller's default ("" and the key as the
+     *  id) an iterator the caller keeps open on the key made this one
+     *  "already exist", and the load did not happen.
+     */
+    const char *load_creator = "__tranger2_open_list__";
+
     const char *key = kw_get_str(gobj, match_cond, "key", "", 0);
     if(!empty_string(key)) {
         json_t *ll = tranger2_open_iterator(
@@ -10107,8 +10115,8 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             key,
             json_incref(match_cond),  // match_cond, owned
             load_record_callback, // called on LOADING and APPENDING
-            "",     // iterator id
-            "",     // creator
+            "",     // iterator id: the key
+            load_creator,
             NULL,   // to store LOADING data, not owned
             json_incref(extra) // extra, owned
         );
@@ -10170,6 +10178,14 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             }
         }
 
+        /*
+         *  Every key's history, and all of it: a key that cannot be loaded
+         *  refuses the list, like the list of one key does. It was closed
+         *  with its load_failed unread, and the caller took what it got for
+         *  the whole topic (M2 of the 2026-09-23 independent review: the
+         *  snapshot guard of the assets read "held by nothing").
+         */
+        const char *failed_key = NULL;
         json_t *jn_keys = tranger2_list_keys(tranger, topic_name);
         if(json_array_size(jn_keys)>0) {
             /*
@@ -10196,20 +10212,43 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                     key_,
                     json_incref(match_cond),  // match_cond, owned
                     load_record_callback, // called on LOADING and APPENDING
-                    "",     // iterator id
-                    "",     // creator
+                    "",     // iterator id: the key
+                    load_creator,
                     NULL,   // to store LOADING data, not owned
                     json_incref(extra) // extra, owned
                 );
-
-                tranger2_close_iterator(tranger, ll);
+                BOOL load_failed = (!ll || json_is_true(json_object_get(ll, "load_failed")))?
+                    TRUE: FALSE;
+                if(ll) {
+                    tranger2_close_iterator(tranger, ll);
+                }
+                if(load_failed) {
+                    failed_key = key_;
+                    break;
+                }
             }
+        }
+
+        if(failed_key) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "Cannot load the history of a key of the list",
+                "topic_name",   "%s", topic_name,
+                "key",          "%s", failed_key,
+                NULL
+            );
         }
         json_decref(jn_keys);
 
         if(re) {
             pcre2_match_data_free(md);
             pcre2_code_free(re);
+        }
+        if(failed_key) {
+            JSON_DECREF(match_cond)
+            JSON_DECREF(extra)
+            return NULL;
         }
     }
 

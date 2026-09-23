@@ -6785,13 +6785,16 @@ PRIVATE int delete_node(
      *-------------------------------------------------*/
     if(strcmp(topic_name, TREEDB_ASSETS_TOPIC)==0 && !snaps_walked) {
         json_t *held = assets_held_by_snaps(gobj, tranger, treedb_name);
-        BOOL in_a_snap = json_object_get(held, id)? TRUE: FALSE;
+        BOOL in_a_snap = (!held || json_object_get(held, id))? TRUE: FALSE;
+        BOOL unknown = held? FALSE: TRUE;
         JSON_DECREF(held)
         if(in_a_snap) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
-                "msg",          "%s", "cannot delete asset, a snapshot still links it",
+                "msg",          "%s", unknown?
+                    "cannot delete asset, cannot tell whether a snapshot links it (see the log)" :
+                    "cannot delete asset, a snapshot still links it",
                 "treedb_name",  "%s", treedb_name,
                 "topic_name",   "%s", topic_name,
                 "id",           "%s", id,
@@ -13100,6 +13103,10 @@ PRIVATE int derive_file_hooks(
  *  instances arrive here in rowid order, so the last one seen per
  *  (tag, topic, key, col) wins, and a tag that names no row of __snaps__
  *  any more holds nothing: deleting the snap is what frees the asset.
+ *
+ *  A tagged record of an existing snap whose content cannot be read holds
+ *  what nobody can tell: the walk stops and says so in `walk_state`, and
+ *  the guard fails closed (see assets_held_by_snaps).
  ***************************************************************************/
 PRIVATE int gc_scan_callback(
     json_t *tranger,
@@ -13113,15 +13120,17 @@ PRIVATE int gc_scan_callback(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    if(md_record->user_flag == 0 || !json_is_object(jn_record)) {
+    if(md_record->user_flag == 0) {
         JSON_DECREF(jn_record)
         return 0;
     }
+    json_t *walk_state = kw_get_dict(gobj, list, "walk_state", 0, KW_REQUIRED);
     json_t *snaps = (json_t *)(uintptr_t)kw_get_int(gobj, list, "snaps", 0, KW_REQUIRED);
     json_t *latest = (json_t *)(uintptr_t)kw_get_int(gobj, list, "latest", 0, KW_REQUIRED);
     const char *col = kw_get_str(gobj, list, "col", "", KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
-    if(!snaps || !latest) {
+    if(!walk_state || !snaps || !latest) {
+        json_object_set_new(walk_state, "failed", json_true());
         JSON_DECREF(jn_record)
         return -1;  // Error already logged
     }
@@ -13131,6 +13140,22 @@ PRIVATE int gc_scan_callback(
     if(!json_object_get(snaps, tag)) {
         JSON_DECREF(jn_record)
         return 0;   // A snap that is gone holds nothing
+    }
+
+    if(!json_is_object(jn_record)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "cannot read a tagged record: the assets a snapshot holds are unknown",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            "tag",          "%s", tag,
+            "rowid",        "%ld", (long)rowid,
+            NULL
+        );
+        json_object_set_new(walk_state, "failed", json_true());
+        JSON_DECREF(jn_record)
+        return -1;
     }
 
     /*
@@ -13188,7 +13213,11 @@ PRIVATE int gc_scan_callback(
  *  rather than making it run again (the `snaps_walked` of delete_node()),
  *  and why a treedb with no snapshot at all does not walk.
  *
- *  Return a dict used as a set, {id: true}. YOURS, never NULL.
+ *  Return a dict used as a set, {id: true}. YOURS. NULL when the walk could
+ *  not read everything it needs (logged): the caller must refuse to take
+ *  any asset, since it cannot tell which a snapshot still needs. It used
+ *  to skip what it could not read, and the gc took a blob a snapshot
+ *  needed (M2 of the 2026-09-23 independent review).
  ***************************************************************************/
 PRIVATE json_t *assets_held_by_snaps(
     hgobj gobj,
@@ -13205,6 +13234,7 @@ PRIVATE json_t *assets_held_by_snaps(
     }
 
     json_t *latest = json_object();     // {tag: {topic^key^col: [asset ids]}}
+    json_t *walk_state = json_object(); // {failed: true} when something could not be read
     json_t *assets_cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
 
     const char *hook_name; json_t *hook_col;
@@ -13222,11 +13252,12 @@ PRIVATE json_t *assets_held_by_snaps(
                 "to_rowid", (json_int_t)0x7fffffffffffLL,  // one-shot load, no realtime
                 "load_record_callback", (json_int_t)(uintptr_t)gc_scan_callback
             );
-            json_t *extra = json_pack("{s:s, s:s, s:I, s:I}",
+            json_t *extra = json_pack("{s:s, s:s, s:I, s:I, s:O}",
                 "col", child_col,
                 "topic_name", child_topic,
                 "snaps", (json_int_t)(uintptr_t)snaps,
-                "latest", (json_int_t)(uintptr_t)latest
+                "latest", (json_int_t)(uintptr_t)latest,
+                "walk_state", walk_state
             );
             json_t *list = tranger2_open_list(
                 tranger,
@@ -13246,12 +13277,22 @@ PRIVATE json_t *assets_held_by_snaps(
                     "topic_name",   "%s", child_topic,
                     NULL
                 );
+                json_object_set_new(walk_state, "failed", json_true());
                 continue;
             }
             tranger2_close_list(tranger, list);
         }
     }
     JSON_DECREF(assets_cols)
+
+    if(json_is_true(json_object_get(walk_state, "failed"))) {
+        JSON_DECREF(walk_state)
+        JSON_DECREF(latest)
+        JSON_DECREF(snaps)
+        JSON_DECREF(held)
+        return NULL;    // Error already logged
+    }
+    JSON_DECREF(walk_state)
 
     /*
      *  What the winning instances name, flattened
@@ -13837,6 +13878,17 @@ PUBLIC json_t *treedb_gc_files(
      *  What the snapshots still point at
      *--------------------------------------------*/
     json_t *held = assets_held_by_snaps(gobj, tranger, treedb_name);
+    if(!held) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "gc refused: cannot tell which assets a snapshot links (see the log)",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        gobj_log_set_last_message("gc refused: cannot tell which assets a snapshot links");
+        return NULL;
+    }
 
     /*--------------------------------------------*
      *  The hooks of __assets__: the live links

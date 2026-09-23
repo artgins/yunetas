@@ -1834,6 +1834,124 @@ PRIVATE int test_replica_writes_nothing(const char *path_root)
     return result;
 }
 
+/***************************************************************************
+ *  21. The snapshot guard of the assets fails CLOSED
+ *
+ *  assets_held_by_snaps() walks the tagged instances of every topic with a
+ *  file column. A tagged record whose content could not be read "held
+ *  nothing", and a topic whose walk did not load was skipped: the gc took
+ *  the blob a snapshot needs, and so did a delete of the asset -- the
+ *  bytes are gone for good (M2 of the 2026-09-23 independent review of
+ *  7.25.4). The node and instance guards were made to fail closed for the
+ *  same case in b5625fdeb; this one was not.
+ *
+ *  Self-contained (own database): the content of the device is cut
+ *  behind treedb's back.
+ ***************************************************************************/
+PRIVATE int test_gc_guard_that_cannot_read_refuses(const char *path_root)
+{
+    int result = 0;
+    const char *test = "21. the snapshot guard of the assets fails closed";
+    const char *DB = "tr_files_gc_unreadable";
+    char path_db[PATH_MAX];
+    build_path(path_db, sizeof(path_db), path_root, DB, NULL);
+    rmrdir(path_db);
+
+    set_expected_results(test, NULL, NULL, NULL, 0);
+    json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root, "database", DB, "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK), 0);
+    helper_quote2doublequote(schema_sample);
+    treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
+    test_json(NULL);    // the setup logs are the other cases'
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    char id_e[SHA256_HEX_LEN + 1];
+    char id_a[SHA256_HEX_LEN + 1];
+    snprintf(id_e, sizeof(id_e), "%s", sha(PNG_E, sizeof(PNG_E)-1));
+    snprintf(id_a, sizeof(id_a), "%s", sha(PNG_A, sizeof(PNG_A)-1));
+
+    /*  dev-21 holds E, a snap, then dev-21 moves to A: only snap_e holds E  */
+    json_t *dev = create_device_with_foto(tranger, "dev-21", PNG_E, sizeof(PNG_E)-1, "image/png", 0);
+    if(!dev || treedb_shoot_snap(tranger, TREEDB_NAME, "snap_e", "dev-21 holds E")<0) {
+        printf("%s  FAIL: cannot set up dev-21 and snap_e%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *kw = create_device_with_foto(tranger, "dev-21b", PNG_A, sizeof(PNG_A)-1, "image/png", 0)?
+        json_pack("{s:s, s:s}", "id", "dev-21", "foto", id_a) : NULL;
+    if(!dev || !kw || !treedb_update_node(tranger, dev, kw, TRUE)) {
+        printf("%s  FAIL: cannot move dev-21 to A%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
+    if(!would || json_str_in_list(0, would, id_e, 0)) {
+        printf("%s  FAIL: E let go while snap_e holds it%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(would)
+    result += test_json(NULL);
+
+    /*  The records of dev-21 cannot be read any more  */
+    set_expected_results_unordered(test,
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Bad on-disk record: __offset__/__size__ out of range",
+            "msg", "cannot read a tagged record: the assets a snapshot holds are unknown",
+            "msg", "gc refused: cannot tell which assets a snapshot links (see the log)",
+            "msg", "cannot delete asset, cannot tell whether a snapshot links it (see the log)"
+        ),
+        NULL, NULL, 1
+    );
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_db, "devices", "keys", "dev-21", NULL);
+    dir_array_t da;
+    get_ordered_filename_array(0, key_dir, ".*\\.json", WD_MATCH_REGULAR_FILE, &da);
+    for(int i = 0; i < da.count; i++) {
+        if(truncate(da.items[i], 0) < 0) {
+            printf("%s  FAIL: cannot cut %s%s\n", On_Red BWhite, da.items[i], Color_Off);
+            result += -1;
+        }
+    }
+    if(da.count == 0) {
+        printf("%s  FAIL: no content file under %s%s\n", On_Red BWhite, key_dir, Color_Off);
+        result += -1;
+    }
+    dir_array_free(&da);
+
+    would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
+    if(would) {
+        printf("%s  FAIL: the gc answered a list (%s E) with a snapshot it could not read%s\n",
+            On_Red BWhite, json_str_in_list(0, would, id_e, 0)? "WITH": "without", Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(would)
+    json_t *taken = treedb_gc_files(tranger, TREEDB_NAME, FALSE);
+    if(taken) {
+        printf("%s  FAIL: the gc took something with a snapshot it could not read%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(taken)
+
+    json_t *asset_e = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_e);
+    if(!asset_e || treedb_delete_node(tranger, asset_e, 0) == 0) {
+        printf("%s  FAIL: the asset E was deleted with a snapshot it could not read%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!blob_exists(tranger, id_e, "image/png")) {
+        printf("%s  FAIL: the bytes of E are gone%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 0);
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+    test_json(NULL);
+
+    return result;
+}
+
 PRIVATE int do_test(void)
 {
     int result = 0;
@@ -1924,6 +2042,7 @@ PRIVATE int do_test(void)
     }
 
     result += test_replica_writes_nothing(path_root);
+    result += test_gc_guard_that_cannot_read_refuses(path_root);
 
     return result;
 }
