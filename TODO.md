@@ -41,14 +41,6 @@ What that workspace still lacks:
 The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
 (7.13.0, `YUNO_TREEDB.md` §3.11). What it does not do yet:
 
-- **Nothing is ever removed from a projection.** By design: an element that is
-    in `__system__` and not in the incoming schema cannot be told apart from an
-    operator addition. The consequence is that a topic or column dropped from
-    the C literal lingers in `__system__` until somebody removes it explicitly,
-    and with `impose_c_schema=0` it stays in the schema the treedb opens
-    with. Telling the two cases apart needs state the projection does not carry
-    (which side wrote each element), so decide that before adding a rule.
-
 - **Not every treedb is projected at all.** `C_AUTHZ` creates its `C_NODE`
     directly instead of going through `C_TREEDB`'s `open-treedb`, so
     `treedb_authzs` never reaches `__system__` and cannot be edited. Any other
@@ -147,7 +139,7 @@ once per `create-yuno`.
 
 ## TreeDB / timeranger2: what the reviews of 2026-09-23 left open
 
-Three independent reviews of the 7.25.4 fixes and four fix rounds
+The independent reviews of the 7.25.4 fixes and the fix round after each
 (`CHANGELOG.md`, Unreleased). What is still open:
 
 - `rmrdir()` (gobj-c helpers) uses `stat()`, which follows symlinks: a dangling
@@ -168,8 +160,6 @@ Three independent reviews of the 7.25.4 fixes and four fix rounds
   ids are allowed.
 - **`treedb_delete_instance()`**: a tombstone write that fails partway still
   logs and answers 0.
-- A C literal and an operator's saved draft of the same topic are not merged:
-  the literal wins (said as `withdrawn_at_open`).
 - A store whose schema file is already behind what runs (written whole by an
   older release) stays inconsistent for that topic (the running definition is
   only in `topic_cols.json`).
@@ -189,7 +179,14 @@ Three independent reviews of the 7.25.4 fixes and four fix rounds
 - The agent's `audit/` directory grows ~0.6-1 GB a day with no retention
   (19 GB on wattyzer, 90 GB on the dev machine).
 - An md2 whose last row write was torn (size not whole rows) is an
-  unacknowledged append but stays "damage": truncate it to whole rows instead.
+  unacknowledged append but stays "damage": the code should cut it back to
+  whole rows itself (treedb.md gives the manual repair).
+- A failed `open-treedb` withdraws the saved schema at once; it could wait for
+  an open that succeeds.
+- msg2db consumers (the db_history alarms of wattyzer, yunovatios,
+  estadodelaire, hidraulia) do not use `msg2db_id_incomplete()` yet: an alarm
+  absent after a damaged load can be announced again as new
+  (`tr_msg2db.md` has the code).
 - **No red test** for: `deactivate-snap` -1 on a failed save, the fs_watcher
   root, `save_json_to_file()`'s `close()` failure, the crash window between a
   marker and its md2 row. Not exercised live: a form Save through a real

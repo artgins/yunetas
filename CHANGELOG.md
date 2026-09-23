@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-What changed after 7.25.4. It comes from three independent reviews of the
-7.25.4 fixes (none written by their reviewers) and four fix rounds; each
-behaviour change has a test that fails on the code before it, except where
-stated.
+What changed after 7.25.4. It comes from the independent reviews of the 7.25.4
+fixes (none written by their reviewers) and the fix round after each. Each
+behaviour change has a test that fails on the code before it, except the four
+listed under "No red test" in `TODO.md`.
 
 ### Upgrade steps (operators, read first)
 
@@ -47,13 +47,26 @@ stated.
   snapshot-guarded deletes when `__snaps__` is partial; `gc-assets` when a
   topic with a `file` column or `__assets__` is partial.
   `treedb_delete_instance()` refuses when it cannot read every row of the key,
-  and the asset snapshot guard fails closed when it cannot read. msg2db does
-  not serve a key whose history did not load whole (it used to serve an older
-  message as current): the key is absent until its next message, with an
-  error naming it. Recovery procedure in treedb.md ("A topic that did not load
-  whole"), from least to most destructive.
+  and the asset snapshot guard fails closed when it cannot read. Recovery
+  procedure in treedb.md ("A topic that did not load whole"), from least to
+  most destructive.
+- **msg2db: an id whose history did not load whole** used to serve an older
+  message as current. It is now reloaded newest first, up to the damage: a
+  pkey2 whose newest message comes after the damage is served as before; one
+  whose newest message is in the damage or before it is ABSENT (its state is
+  unknown) until its next message. An ERROR names the id with `served=N`, and
+  the new `msg2db_id_incomplete()` tells "unknown" from "none" while the msg2db
+  stays open. For the db_history alarms of the projects (wattyzer, yunovatios,
+  estadodelaire, hidraulia), until an absent alarm's next message: a device
+  that reports it active gets it announced as new (a notification may repeat),
+  a clear that was in the unread message is not announced, and
+  `msg2db_list_messages()` leaves it out. `tr_msg2db.md` shows how a consumer
+  can use `msg2db_id_incomplete()` to avoid the repeat; no project repo was
+  changed.
 - **An append that was never acknowledged is not damage.** When the md2 write
-  of an append fails, the content written for it is truncated back; an md2
+  of an append fails, the content written for it is truncated back, BEFORE the
+  critical log (with the default `on_critical_error` the process exits there,
+  and 7.25.4 left the bytes behind); an md2
   with 0 rows beside a non-empty `.json` (a kill or a power cut between the two
   writes) is ignored with a warning, as 7.25.4 did, and its key loads.
 - **Lost lock.** A master that lost its lock while stopped (another process
@@ -90,21 +103,42 @@ stated.
   segment stamp could miss a key deleted and written again with the same
   counts). The delete is announced only once its directory is gone.
 - A marker name that does not fit makes the file be read whole (logged).
+- A recount of a flagged file (an append into a file that reads again) rebuilds
+  the index of a filtered iterator of the key; it used to leave it empty.
 
 ### Schemas (C_TREEDB)
 
-- **A newer C literal wins whole** (dynamic-schema treedb, impose off), as in
-  7.25.4: a literal with a `schema_version` higher than the schema file in use
-  replaces the whole file, and `__system__` is projected from it whole --
+- **A newer C literal wins whole** (dynamic-schema treedb, impose off). As in
+  7.25.4, a literal with a `schema_version` higher than the schema file in use
+  replaces the whole file; an equal or older literal is not installed and the
+  file runs. New: `__system__` is projected from an installed literal whole --
   topics, columns and attributes the literal no longer declares are removed
-  from `__system__` too. An equal or older literal is not installed and the
-  file runs. What the literal discards (an unsaved draft, a saved draft, an
-  APPLIED schema never opened) is said in one WARNING and exposed as
-  `withdrawn_at_open` (`applied` / `saved` / `unsaved` per topic) in `treedbs`
-  rows and `saved-schema` until the next open. A topic whose columns the
-  literal changes without raising its `topic_version` keeps running its old
-  columns in the store (tranger2 swaps columns only on a version raise): the
-  open warns.
+  from `__system__` too (7.25.4 only added and updated). What the literal
+  discards is said in one WARNING and exposed as `withdrawn_at_open` per topic
+  in `treedbs` rows and `saved-schema` until the next open: `applied` (an
+  applied schema never opened), `in_use` (an applied schema that ran), `saved`,
+  `unsaved` (drafts). A topic whose columns the literal changes without raising
+  its `topic_version` keeps running its old columns in the store (tranger2
+  swaps columns only on a version raise): the open warns.
+- **A projection says when it is unfinished.** A removal that is refused (a
+  snapshot of `__system__` holds the node) leaves the projection unfinished: it
+  gets `c_schema_version` 0, one WARNING with `not_removed` and how to finish
+  it (delete the `__snaps__` row), a retry at every open, and a new
+  `unfinished_projection` field in `treedbs` and `saved-schema`; `save-schema`
+  refuses meanwhile (it would publish the removed topic again).
+- **A second `open-treedb` of an open treedb is refused first** ("already open
+  here: close-treedb first, nothing was changed"); 7.25.4 changed the schema
+  file and `__system__` and then failed. A failed open destroys the tranger it
+  created.
+- **The client store decides.** If another process holds the client store's
+  lock, the treedb opens as a replica and nothing is reconciled (INFO).
+- The apply record `saved_schemas/<treedb>.applied.json` is
+  `{"topics": {"<topic>": "applied"|"in_use"}}` (the old list is still read)
+  and lives as long as its file is in use. It is written before the rename;
+  `apply-schema` refuses when it cannot write it, and restores the previous
+  record when the rename fails.
+- A seed from the schema file stamps `c_schema_version` with the literal's
+  version only when the file IS the literal, 0 otherwise.
 - A saved draft that is reverted is withdrawn by the next `save-schema`
   (`withdrawn` in the answer). A saved schema lives only as long as the file it
   was saved against: applied, withdrawn or superseded files are removed;
@@ -121,7 +155,9 @@ stated.
   "No permission ... in service" refusals, which name the service), and none
   reads `gobj_log_last_message()` (import-db still keys its error stats on it).
 - `activate-snap` keeps the old snap active when the new one cannot be saved.
-- C_TRANGER `mark-tm-order [topic_name=<t> | all=1]` (master, `write`).
+- C_TRANGER `mark-tm-order [topic_name=<t> | all=1]` (master, `write`); with
+  `all=1` it skips, with an INFO, each directory of the store that is not a
+  topic (no `topic_desc.json`, e.g. `saved_schemas/`).
 - `gc-assets` answers a report (`dry_run`, `assets`, `blobs`, `refused`,
   `blobs_refused`) instead of the list of ids taken.
 - rt disk ids: an empty id and a same-creator duplicate are warnings (peer
@@ -153,7 +189,8 @@ stated.
 ### BREAKING
 
 - A keyless `tranger2_open_list()` returns a list flagged `load_failed` /
-  `load_failed_keys` when keys could not be read (7.25.4 returned NULL); more
+  `load_failed_keys` when keys could not be read (7.25.4 skipped them and
+  returned the list with no sign of it); more
   cases now fail a load: a key flagged at startup, and a record whose content
   cannot be read (it used to reach the callback as NULL).
 - treedb refuses creates of unloaded ids, snapshot ops with a partial
@@ -169,13 +206,20 @@ stated.
   and attributes the literal no longer declares are deleted there (with their
   instance history); a topic changed without a version raise now shows the
   literal's content, with a warning. Seeding with no literal installed comes
-  from the file. `apply-schema` leaves `saved_schemas/<treedb>.applied.json`
-  until the next open.
-- msg2db keys that did not load whole are absent instead of stale; the
+  from the file, with `c_schema_version` 0 unless the file is the literal.
+- `saved_schemas/<treedb>.applied.json` changed shape and lives as long as its
+  file is in use; `apply-schema` refuses when it cannot write it; `save-schema`
+  refuses while a projection is unfinished; a second `open-treedb` is refused;
+  a client store locked by another process is not reconciled. The log order at
+  open changed (the client tranger's logs come first).
+- msg2db: the pkey2s of an id that did not load whole whose newest message is
+  in the damage or before it are absent instead of stale (new
+  `msg2db_id_incomplete()`); the
   `tr_queue_t` / `tr2_queue_t` structs grew (relink their users); an append into
   a file flagged unreadable returns -1.
 - C_TREEDB answers carry new fields (`withdrawn`, `stale`, `broken`,
-  `withdrawn_at_open`, `applied`, `stopped`) and `saved` changed meaning;
+  `withdrawn_at_open`, `unfinished_projection`, `stopped`) and `saved` changed
+  meaning;
   C_NODE `gc-assets` `data` is a report, not a list; `instances` answers -1 on
   failure; command comment texts of C_NODE and C_AUTHZ changed.
 
@@ -184,7 +228,9 @@ stated.
 - `default: {}` placeholders are dropped by save + apply, so a `required`
   column whose literal really declared `'default': {}` loses it.
 - An md2 whose last row was torn (size not whole rows) is still treated as
-  damage, although it is also an append that was never acknowledged. See TODO.
+  damage, although it is also an append that was never acknowledged; treedb.md
+  gives the repair (cut it back to whole rows with the yuno stopped).
+- A failed `open-treedb` withdraws the saved schema at once.
 - An md2 truncated to 0 rows behind the yuno's back loses its rows as it did in
   7.25.4 (ignored with a warning); check the `.json` size before repairing.
 
