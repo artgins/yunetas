@@ -142,9 +142,6 @@ once per `create-yuno`.
 The independent reviews of the 7.25.4 fixes and the fix round after each
 (`CHANGELOG.md`, Unreleased). What is still open:
 
-- `rmrdir()` (gobj-c helpers) uses `stat()`, which follows symlinks: a dangling
-  symlink makes it fail, and a symlink to a directory makes it walk into the
-  target and delete what is there. Use `lstat()` and never descend a link.
 - **The tm marker after a rollback**: a 7.25.4-or-earlier binary appends
   out-of-order tm without `.tm_unordered`; `mark-tm-order` re-marks the topic,
   but nothing does it on its own. A per-writer stamp would make it automatic.
@@ -171,8 +168,6 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
 - `import-db` keys its error-count stats on `gobj_log_last_message()`.
 - ***"Child node without fkey field"*** is logged as an ERROR at every open,
   once per node, when an fkey column is filled by no hook any more.
-- The agent's `audit/` directory grows ~0.6-1 GB a day with no retention
-  (19 GB on wattyzer, 90 GB on the dev machine).
 - `default: {}` placeholders are dropped by save + apply, so a `required`
   column whose literal really declared `'default': {}` loses it (as in 7.25.4).
 - A failed `open-treedb` withdraws the saved schema at once; it could wait for

@@ -370,6 +370,24 @@ side and run alternated (medians; ext4, laptop NVMe).
   (only when the shared columns change order); no false "behind the schema in
   use" line after a withdraw; precise warnings.
 
+### Agent and gobj-c
+
+- **The agent removes old audit files.** New attribute `audit_keep_days`
+  (default `7`; `0` keeps all, as 7.25.4 did) is the retention of
+  `/yuneta/realms/agent/agent/audit/`. At start and at each new audit file the
+  agent removes the audit files older than that (only names with the shape of
+  the audit mask, never a link) and logs one INFO *"Old audit files removed"*
+  with the names. Up to 7.25.4 nothing was removed (19 GB on wattyzer). An
+  existing large directory is swept at the first start: to keep more, set
+  `agent.audit_keep_days` in `yuneta_agent.json` before that start. New
+  `rotatory_remove_old_files()`, not on the write path.
+- `rmrdir()` and `rmrcontentdir()` no longer follow symbolic links: a link to a
+  directory inside the tree was walked into and the files of its TARGET were
+  deleted (outside the tree); a dangling link made the removal fail. A link is
+  removed as a link; their failures name the path, and `rmrcontentdir()` no
+  longer fails silently. `mkrdir()` over a path that exists and is not a
+  directory logs and returns -1 (it returned 0).
+
 ### C_NODE, C_AUTHZ, C_TRANGER, gobj-c
 
 - Every C_NODE and C_AUTHZ command comment starts with the yuno (except the "No
@@ -445,6 +463,8 @@ side and run alternated (medians; ext4, laptop NVMe).
 - treedb refuses creates of unloaded ids, snapshot ops with a partial
   `__snaps__`, `gc-assets` asset rows with a partial asset topic or an active
   snap.
+- The agent removes audit files older than `audit_keep_days` (default 7) at
+  its first start; `mkrdir()` returns -1 over a non-directory.
 - `tranger2_write_topic_var()` / `tranger2_write_topic_cols()` return -1 when
   the file cannot be written (7.25.4 ignored the write and returned 0); the
   three md2 flag rewriters return -1 on a non-master; a revive whose store
