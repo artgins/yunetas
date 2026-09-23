@@ -858,6 +858,17 @@ PRIVATE BOOL rt_id_is_confined(
     const char *caller
 )
 {
+    if(empty_string(id)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", caller,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Invalid rt id (empty)",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            NULL
+        );
+        gobj_log_set_last_message("Invalid rt id: empty");
+        return FALSE;
+    }
     if(name_escapes_its_directory(id)) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", caller,
@@ -4773,17 +4784,10 @@ PUBLIC json_t *tranger2_open_rt_disk(
         return NULL;
     }
 
-    if(empty_string(id)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "what id?",
-            NULL
-        );
-        JSON_DECREF(match_cond)
-        JSON_DECREF(extra)
-        return NULL;
-    }
+    /*
+     *  The id may come from a peer (C_TRANGER's open-rt / open-list): an
+     *  empty one is refused like any other bad id, with a warning.
+     */
     if(!rt_id_is_confined(gobj, topic, id, __FUNCTION__)) {
         // Error already logged
         JSON_DECREF(match_cond)
@@ -4793,37 +4797,29 @@ PUBLIC json_t *tranger2_open_rt_disk(
 
     json_t *disk = json_object();
 
-    if(tranger2_get_rt_disk_by_id(tranger, topic_name, id, creator)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Disk already exists",
-            "topic_name",   "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            "id",           "%s", id,
-            NULL
-        );
-        JSON_DECREF(match_cond)
-        JSON_DECREF(disk)
-        JSON_DECREF(extra)
-        return NULL;
-    }
-
     /*
      *  The directory `disks/<id>/` is keyed by the id ALONE, and an open
      *  rmrdir()s it before creating it: a second feed with the id of a live
      *  one, under another creator, took its directory over, and its close
      *  removed it -- the first feed (a treedb's, on a replica) stopped
      *  receiving for good, without a log. One id, one feed, whoever opens it.
+     *  The same creator opening it twice is the same refusal, and the same
+     *  warning: the id may come from a peer in both cases.
+     *
+     *  Per PROCESS: the list of feeds is this tranger's. Two processes that
+     *  follow one store with the same id still take each other's directory.
      */
     json_t *disks_ = kw_get_list(gobj, topic, "disks", 0, KW_REQUIRED);
     int idx_; json_t *disk_;
     json_array_foreach(disks_, idx_, disk_) {
         if(strcmp(kw_get_str(gobj, disk_, "id", "", 0), id)==0) {
+            BOOL same_creator = strcmp(kw_get_str(gobj, disk_, "creator", "", 0), creator)==0;
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "rt disk id already in use by another creator, refused",
+                "msg",          "%s", same_creator?
+                    "rt disk id already in use by the same creator, refused" :
+                    "rt disk id already in use by another creator, refused",
                 "topic_name",   "%s", tranger2_topic_name(topic),
                 "key",          "%s", key,
                 "id",           "%s", id,
@@ -7473,7 +7469,9 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
 
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
-        return 0;
+        JSON_DECREF(match_cond)     // Error already logged
+        JSON_DECREF(extra)
+        return NULL;
     }
 
     /*----------------------*

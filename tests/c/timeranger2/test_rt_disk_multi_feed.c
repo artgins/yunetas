@@ -497,6 +497,27 @@ PRIVATE int do_test(void)
     }
     result += test_json(NULL);
 
+    /*
+     *  The same creator opening a live id twice is the same refusal and
+     *  the same warning (it was an error with a stack): the id may come
+     *  from a peer either way.
+     */
+    set_expected_results("multi_feed: an id in use is refused to its own creator",
+        json_pack("[{s:s}]",
+            "msg", "rt disk id already in use by the same creator, refused"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *rt_twice = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, KEY_A, NULL, my_record_callback, "rtA", "", NULL
+    );
+    if(rt_twice) {
+        printf("%sERROR%s --> a feed opened twice by its creator\n", On_Red BWhite, Color_Off);
+        result += -1;
+        tranger2_close_rt_disk(tf, rt_twice);
+    }
+    result += test_json(NULL);
+
     tranger2_close_rt_disk(tf, rt_a);
     tranger2_close_rt_disk(tf, rt_b);
     tranger2_close_rt_disk(tf, rt_all);
