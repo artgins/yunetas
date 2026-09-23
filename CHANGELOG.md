@@ -451,6 +451,24 @@ side and run alternated (medians; ext4, laptop NVMe).
   existing large directory is swept at the first start: to keep more, set
   `agent.audit_keep_days` in `yuneta_agent.json` before that start. New
   `rotatory_remove_old_files()`, not on the write path.
+- **The agent's audit record is small and loses nothing.** A read-only command
+  (`list-*`, `view-*`, `get-*`, `info-*`, `dir-*`, help, stats, services,
+  nodes, treedb-info, topics, ...; the list is in DEBUGGING.md 5.5) is written
+  as `{command, date, user}` only. Any other command is written as
+  `{command, date, user, source, kw}`: `__md_iev__` is no longer written, and
+  `source` keeps the console purpose and each inter-yuno hop (role, yuno,
+  service, user, host). A `content64` is never written: it becomes
+  `<N bytes sha256:HEX>` of the decoded content (the `sha256sum` of the binary).
+  An `install-binary` of a 32 MB yuno went from 134 MB to 541 bytes (wattyzer
+  wrote 0.6-1.2 GB of audit on a deploy day). A day of audit that crosses
+  `max_megas_audit_file` continues in `.OLD.1`, `.OLD.2`, ...: up to 7.25.4 each
+  size rotation removed the previous `.OLD`, so a day that crossed the limit
+  twice lost its first part (wattyzer lost the mornings of 22 and 23 September
+  2026). New `rotatory_keep_all_old_files()` (off by default: the yuno logs keep
+  their one `.OLD`).
+- `gbuffer_base64_to_binary()` decodes `base64_len` chars instead of reading up
+  to a `'\0'`: a slice of a longer text (a `content64='...'` inside a command
+  line) failed to decode.
 - `rmrdir()` and `rmrcontentdir()` no longer follow symbolic links: a link to a
   directory inside the tree was walked into and the files of its TARGET were
   deleted (outside the tree); a dangling link made the removal fail. A link is
@@ -553,6 +571,9 @@ side and run alternated (medians; ext4, laptop NVMe).
 - treedb refuses creates of unloaded ids, snapshot ops with a partial
   `__snaps__`, `gc-assets` asset rows with a partial asset topic or an active
   snap.
+- The agent's audit record format changed (read-only commands minimal,
+  `source` instead of `__md_iev__`, no `content64`): tools that read the audit
+  must accept both formats (files written before the upgrade keep the old one).
 - The agent removes audit files older than `audit_keep_days` (default 7) at
   its first start; `mkrdir()` returns -1 over a non-directory.
 - `tranger2_write_topic_var()` / `tranger2_write_topic_cols()` return -1 when
