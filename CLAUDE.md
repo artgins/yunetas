@@ -1831,6 +1831,20 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   5. READMEs/docs scanned for stale content (old versions, removed features,
      renamed APIs).
   Surface gaps as a punch list before committing/tagging.
+- **Performance variations are studied, not assumed** (rule of 2026-09-23).
+  Every round of changes that touches a hot path (timeranger2 append/read/open,
+  tr_treedb writes, c_treedb, the event loop, protocols) and every release
+  compares speed against the last tag. `yunetas test` keeps each ctest run in
+  `build/<timestamp>.txt`: read the trend of the tests that time something
+  (`grep "timeranger2/test_topic_pkey_integer \.\.\.\.\." build/*.txt`) and list
+  every test whose time moved more than ~10%. A single run varies ±3-4%, so a
+  suspected loss gets a controlled A/B: build the last tag in a separate
+  `git worktree` with its own outputs, run both binaries ALTERNATED (8+
+  rounds), report mean and spread. A real loss is either the price of a named
+  correctness fix, said in the CHANGELOG with its figure, or it is fixed before
+  the tag. Why: eleven review rounds of 7.25.5 fixed correctness and nobody
+  measured speed; `test_topic_pkey_integer` had drifted from 1.94 s to
+  2.03-2.25 s on the fastest node before anybody looked.
 - **A submodule bump of `kernel/js/gobj-js` or `kernel/js/gobj-ui` means
   running `python3 scripts/verify_js_api_coverage.py --repin`, then `--write`.**
   Those two packages carry their own tags, so `check_doc_line_refs.py --repin`
