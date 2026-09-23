@@ -2084,14 +2084,18 @@ What the stop does:
   `_write_user_flag()`, `_set_user_flag()`, `_set_system_flag()`), **revives** it:
   the shutdown then closes what the revival opened, and a master takes its
   lock again BEFORE anything is written. If another process took the store in
-  the meantime, it is the startup's single-master conflict: the revival logs a
-  CRITICAL at `on_critical_error`, *"Master lock NOT retaken after a stop:
-  another process holds it, go on as not master"* (or, with the errno, that
-  the lock file cannot be opened or `flock()` failed). With a yuno's default
-  (`"on_critical_error": 2`, exit(0)) the process exits there and stays down,
-  as a second instance does at the startup. A tranger configured to survive a
-  critical (`"on_critical_error": 0`) goes on as a replica: it reads, every
-  write is refused, and its json says `"master": false, "master_lost": true`.
+  the meantime (`flock()` answers `EWOULDBLOCK`), it is the startup's
+  single-master conflict: the revival logs a CRITICAL at `on_critical_error`,
+  *"Master lock NOT retaken after a stop: another process holds it, go on as
+  not master"*. With a yuno's default (`"on_critical_error": 2`, exit(0)) the
+  process exits there and stays down, as a second instance does at the
+  startup. Any OTHER failure to take the lock says nothing of another master
+  and is an ERROR, not a critical, and the process goes on: *"Master lock NOT
+  retaken after a stop: cannot open the lock file, go on as not master"*
+  (`EMFILE`, `ENOENT`...) or *"... flock() FAILED, go on as not master"*
+  (`ENOLCK`, `EINTR`...). A tranger that did not take its lock back (and did
+  not exit) goes on as a replica: it reads, every write is refused, and its
+  json says `"master": false, "master_lost": true`.
   It never takes the lock again, not even once it is free -- its memory did
   not follow what the other master wrote; shut it down and start it again to
   be the master. Read `master` again after a restart: it is what the tranger

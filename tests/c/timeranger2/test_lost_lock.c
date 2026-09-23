@@ -12,7 +12,10 @@
  *
  *  Now every write path takes the lock again FIRST. One that cannot take
  *  it writes nothing: the tranger goes on as a replica, and says so in its
- *  json, `master` false and `master_lost` true.
+ *  json, `master` false and `master_lost` true. Only another process
+ *  holding the lock is the startup's conflict (a CRITICAL at
+ *  on_critical_error, exit(0) with a yuno's default); any other failure to
+ *  take it is an ERROR and the process goes on, a replica.
  *
  *  The three writes of a record's md2 row in place --
  *  tranger2_write_user_flag(), tranger2_set_user_flag() and
@@ -194,6 +197,100 @@ PRIVATE int test_revive_conflict(void)
     tranger2_write_topic_var(a, TOPIC_NAME, json_pack("{s:I}", "last_rowid_id", (json_int_t)2));
     result += expect_bool("the demoted master is still not the master",
         kw_get_bool(0, a, "master", 0, 0), FALSE);
+    tranger2_shutdown(a);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  A revive that fails for another reason than the store being TAKEN:
+ *  the lock file cannot be opened (here it is gone; EMFILE, ENOLCK, EINTR
+ *  are the same case). Nobody else owns the store, so it is not the
+ *  startup's single-master conflict: an ERROR, the tranger goes on as a
+ *  replica, and the process does NOT exit -- with a yuno's default
+ *  (LOG_OPT_EXIT_ZERO) it exited(0) and was not relaunched (independent
+ *  review of the third fix round).
+ ***************************************************************************/
+PRIVATE int test_revive_other_failure(void)
+{
+    int result = 0;
+    rmrdir(path_database);
+    char path_root[PATH_MAX];
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    char lock_file[PATH_MAX];
+    char lock_away[PATH_MAX];
+    build_path(lock_file, sizeof(lock_file), path_database, "__timeranger2__.json", NULL);
+    build_path(lock_away, sizeof(lock_away), path_database, "__timeranger2__.json.away", NULL);
+
+    /*-------------------------------------*
+     *  With the default of a yuno: it
+     *  must survive
+     *-------------------------------------*/
+    set_expected_results("lost lock: a revive that cannot open the lock, exit on critical", NULL, NULL, NULL, 1);
+    fflush(stdout);
+    pid_t pid = fork();
+    if(pid == 0) {
+        gobj_log_del_handler("test_capture");
+        json_t *x = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+            "path", path_root,
+            "database", DATABASE,
+            "master", 1,
+            "on_critical_error", LOG_OPT_EXIT_ZERO
+        ), 0);
+        if(!x || !create_topic(x, TOPIC_NAME, 1)) {
+            _exit(4);
+        }
+        tranger2_stop(x);
+        if(rename(lock_file, lock_away) < 0) {
+            _exit(5);
+        }
+        tranger2_write_topic_var(x, TOPIC_NAME, json_pack("{s:I}", "last_rowid_id", (json_int_t)1));
+        _exit(kw_get_bool(0, x, "master_lost", 0, 0)? 3: 6);   // survived, and demoted
+    }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    char how[32];
+    snprintf(how, sizeof(how), "%s %d",
+        WIFEXITED(status)? "exit": "signal",
+        WIFEXITED(status)? WEXITSTATUS(status): WTERMSIG(status));
+    result += expect("a revive that cannot open the lock survives, demoted", how, "exit 3");
+    if(rename(lock_away, lock_file) < 0) {
+        printf("%sERROR%s --> cannot put the lock file back\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  Without exit: an ERROR, not the
+     *  critical of the conflict, and a
+     *  replica
+     *-------------------------------------*/
+    rmrdir(path_database);
+    set_expected_results(
+        "lost lock: a revive that cannot open the lock",
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
+            "msg", "Master lock NOT retaken after a stop: cannot open the lock file, go on as not master",
+            "msg", "Only master can write"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *a = startup_master();
+    create_topic(a, TOPIC_NAME, 1);
+    tranger2_stop(a);
+    if(rename(lock_file, lock_away) < 0) {
+        printf("%sERROR%s --> cannot move the lock file away\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    tranger2_write_topic_var(a, TOPIC_NAME, json_pack("{s:I}", "last_rowid_id", (json_int_t)1));
+    result += expect_bool("it is not the master", kw_get_bool(0, a, "master", 0, 0), FALSE);
+    result += expect_bool("it says it lost the lock", kw_get_bool(0, a, "master_lost", 0, 0), TRUE);
+    if(rename(lock_away, lock_file) < 0) {
+        printf("%sERROR%s --> cannot put the lock file back\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
     tranger2_shutdown(a);
     result += test_json(NULL);
 
@@ -472,6 +569,7 @@ PRIVATE int do_test(void)
 
     result += test_md2_rewrites();
     result += test_revive_conflict();
+    result += test_revive_other_failure();
 
     return result;
 }

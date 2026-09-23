@@ -251,11 +251,15 @@ PUBLIC json_t *tranger2_startup(
    delete_key, delete_instance, write_user_flag, set_user_flag,
    set_system_flag) revives the handle (clears `__closed__`), and a
    master takes its lock again BEFORE anything is written. If another process
-   holds it, that is the startup's single-master conflict and it is answered
-   the same way: a CRITICAL at `on_critical_error`, so with a yuno's default
-   (LOG_OPT_EXIT_ZERO) the process exits(0) and stays down. A handle
-   configured to survive a critical goes on as a replica: it reads, every
-   write is refused, and its json says `"master": false, "master_lost": true`.
+   holds it (flock() answers EWOULDBLOCK), that is the startup's single-master
+   conflict and it is answered the same way: a CRITICAL at
+   `on_critical_error`, so with a yuno's default (LOG_OPT_EXIT_ZERO) the
+   process exits(0) and stays down. Any OTHER failure to take it (the lock
+   file cannot be opened: EMFILE, ENOENT...; flock() fails with ENOLCK,
+   EINTR...) is an ERROR, "Master lock NOT retaken after a stop: ...", and the
+   process goes on. A handle that did not take its lock back (and did not
+   exit) goes on as a replica: it reads, every write is refused, and its json
+   says `"master": false, "master_lost": true`.
    A demoted handle never takes the lock again, not even once it is free (its
    memory did not follow what the other master wrote): shut it down and start
    it again. The `master` of the handle is what it holds NOW: read it again

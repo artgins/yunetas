@@ -646,13 +646,17 @@ PUBLIC int tranger2_stop(json_t *tranger)
  *  at the stop, so it takes it again, or it is not the master any more --
  *  another process may have taken the store meanwhile.
  *
- *  That is the startup's single-master conflict, and it is answered the
- *  same way, with the same knob: a CRITICAL at `on_critical_error`. With a
- *  yuno's default (LOG_OPT_EXIT_ZERO) the process exits(0) inside the log
- *  and stays down, like a second instance at the startup; the other process
- *  owns the store. A tranger configured to survive a critical goes on as a
- *  replica: `master` false, and `master_lost` true to say why. It reads,
- *  and every write refuses (tranger_is_master).
+ *  When another process HOLDS the lock (flock() says EWOULDBLOCK), that is
+ *  the startup's single-master conflict, and it is answered the same way,
+ *  with the same knob: a CRITICAL at `on_critical_error`. With a yuno's
+ *  default (LOG_OPT_EXIT_ZERO) the process exits(0) inside the log and
+ *  stays down, like a second instance at the startup; the other process
+ *  owns the store. Any OTHER failure to take it -- the lock file cannot be
+ *  opened (EMFILE, ENOENT...), flock() fails otherwise (ENOLCK, EINTR) --
+ *  says nothing of another master: it is an ERROR and the process goes on.
+ *  Either way the tranger goes on as a replica: `master` false, and
+ *  `master_lost` true to say why. It reads, and every write refuses
+ *  (tranger_is_master).
  *
  *  A demoted master never takes the lock again, not even once it is free:
  *  what it holds in memory (the caches of its topics, the lists a treedb
@@ -682,7 +686,13 @@ PRIVATE void revive_stopped_tranger(hgobj gobj, json_t *tranger)
 
     int fd = open(path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
     if(fd < 0) {
-        gobj_log_critical(gobj, on_critical_error,
+        /*
+         *  Not a conflict: nobody is known to hold the store (EMFILE,
+         *  ENOENT, EACCES...). An ERROR, and a replica: exiting here, with
+         *  a yuno's default, left the store with no master and the yuno
+         *  down, not relaunched (independent review of the third fix round).
+         */
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TRANGER,
             "msg",          "%s", "Master lock NOT retaken after a stop: cannot open the lock file, go on as not master",
@@ -698,17 +708,33 @@ PRIVATE void revive_stopped_tranger(hgobj gobj, json_t *tranger)
     if(flock(fd, LOCK_EX|LOCK_NB) < 0) {
         int err = errno;
         close(fd);
-        gobj_log_critical(gobj, on_critical_error,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TRANGER,
-            "msg",          "%s", (err == EWOULDBLOCK)?
-                "Master lock NOT retaken after a stop: another process holds it, go on as not master" :
-                "Master lock NOT retaken after a stop: flock() FAILED, go on as not master",
-            "path",         "%s", path,
-            "errno",        "%d", err,
-            "serrno",       "%s", strerror(err),
-            NULL
-        );
+        if(err == EWOULDBLOCK || err == EAGAIN) {
+            /*
+             *  Another process holds the store: the startup's conflict
+             */
+            gobj_log_critical(gobj, on_critical_error,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "Master lock NOT retaken after a stop: another process holds it, go on as not master",
+                "path",         "%s", path,
+                "errno",        "%d", err,
+                "serrno",       "%s", strerror(err),
+                NULL
+            );
+        } else {
+            /*
+             *  ENOLCK, EINTR...: nobody is known to hold it, as above
+             */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "Master lock NOT retaken after a stop: flock() FAILED, go on as not master",
+                "path",         "%s", path,
+                "errno",        "%d", err,
+                "serrno",       "%s", strerror(err),
+                NULL
+            );
+        }
         json_object_set_new(tranger, "master", json_false());
         json_object_set_new(tranger, "master_lost", json_true());
         return;
