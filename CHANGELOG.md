@@ -184,7 +184,7 @@ listed under "No red test" in `TODO.md`.
 - `save_json_to_file()` checks `close()` -- a failed close is a CRITICAL at
   `on_critical_error` -- and logs a missing directory when it may not create it.
 
-### JS: gobj-ui 7.25.6 - 7.25.11, gui_agent 0.22.79 - 0.22.85, gui_treedb 0.17.58
+### JS: gobj-ui 7.25.6 - 7.25.12, gui_agent 0.22.79 - 0.22.86, gui_treedb 0.17.58 - 0.17.59
 
 - Deployed to artgins.yunetacontrol.com and .ovh (gui_agent) and
   artgins.ytreedb.com (gui_treedb); every deploy console-checked
@@ -201,13 +201,16 @@ listed under "No red test" in `TODO.md`.
   a late successful write reloads and keeps its marks. A reload that was
   refused is owed: the operator's next change runs it first (the change is
   refused with a toast and the operator does it again once the schemas are
-  in; a move is not refused). A confirmation that arrives with no model is refused as stale; the
+  in; a move, the editor's own or the host's, is not refused and reads there);
+  any load that lands clears the debt (a Refresh included), and an import plan
+  is dropped only by a load that lands. A confirmation that arrives with no model is refused as stale; the
   import plan lost to a reload is a warning and a toast.
 - Shell modals: every ✕ (toast, modal, confirmation), `MODAL_BACK` and every
   `CONFIRM_BTN` carry a translatable title and aria-label; the schema editor's export C/JSON switch is two buttons
-  (`aria-pressed`); its confirmations pass the keys `delete` / `cancel` (they
+  (`aria-pressed`), switched through the FSM (`EV_EXPORT_VIEW`); its
+  confirmations pass the keys `delete` / `cancel` (they
   rendered in English in every locale).
-- gui_treedb 0.17.58: only the gobj-ui range (^7.25.11).
+- gui_treedb 0.17.58 / 0.17.59: only the gobj-ui range (^7.25.12).
 - gui_agent: the link answers every pending request on a close; request ids
   are unique per page (two treedb views crossed answers and could fake a
   delete); the deadline counts from the dispatch ack and is scaled for uploads;
