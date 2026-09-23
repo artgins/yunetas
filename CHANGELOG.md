@@ -157,7 +157,17 @@ listed under "No red test" in `TODO.md`.
   never taken for an operator's draft nor reported as withdrawn work, a new
   `unfinished_projection` field says it in `treedbs` and `saved-schema`, and
   `save-schema` refuses (it would publish the removed topic again). A
-  projection that completes removes the record; so does `delete-treedb`.
+  projection that completes removes the record; so does `delete-treedb`. The
+  record is written whole (a `.new` file and a rename); one that cannot be
+  read still means "unfinished" (WARNING at each read, `save-schema` refused,
+  retried), and then what `__system__` holds over the file is reported as a
+  draft when the projection completes.
+- **A draft is reported once, by the open that replaces it in `__system__`**,
+  whether it was made before the projection failed or while it was
+  unfinished. The part of a draft a projection could not replace stays a draft
+  (in `draft_changed`), never a leftover.
+- A new `treedbs` node of `__system__` is created with its numbers at 0 and
+  stamped last, on full success, like an existing one.
 - **A second `open-treedb` of an open treedb is refused first** ("already open
   here: close-treedb first, nothing was changed"); 7.25.4 reconciled
   `__system__` first and then failed with "Internal error, tranger client
@@ -166,7 +176,16 @@ listed under "No red test" in `TODO.md`.
   created. When the treedb's schema is refused (`treedb_open_db()` fails) the
   answer is -1 ("did not open, its schema was refused (see the log):
   close-treedb it before opening it again"); 7.25.4 answered 0 "Treedb
-  opened!". Every `open-treedb` answer starts with the yuno.
+  opened!". Until `close-treedb`, a second open of it answers -1 ("did not open
+  at its last open-treedb...") and its `treedbs` row says `opened: false`.
+  Every answer of `open-treedb`, `close-treedb` and `delete-treedb` starts with
+  the yuno.
+- **The agent stops when its treedb does not open.** The agent opens
+  `treedb_agentdb` with its schema imposed and exits 0 on a -1 answer ("Cannot
+  start agent treedb: ..."); ydaemon does not relaunch an exit 0, so the main
+  agent stays down until started again, and `yuneta_agent22` (which opens no
+  treedb) stays up as the way in. 7.25.4 answered 0 when the schema was
+  refused, and the agent ran without its treedb.
 - **The client store decides.** If another process holds the client store's
   lock, the treedb opens as a replica and nothing is reconciled (INFO).
 - `apply-schema` records what it put in use in a new file,
@@ -267,7 +286,10 @@ listed under "No red test" in `TODO.md`.
   `saved_schemas/<treedb>.unfinished.json`); a failed create, update or link of
   the projection leaves it unfinished and retried; a second `open-treedb` is
   refused, and one whose schema is refused answers -1 (7.25.4: 0 "Treedb
-  opened!"), with new answer texts;
+  opened!") -- so a refused agent schema stops the agent (exit 0, not
+  relaunched); new answer texts for `open-treedb` / `close-treedb` /
+  `delete-treedb` ("Treedb closed!" -> "<yuno>: treedb closed: 'X'",
+  "Treedb_name not found" -> "<yuno>: treedb 'X' not found", ...);
   a client store locked by another process is not reconciled. The log order at
   open changed (the client tranger's logs come first).
 - msg2db: the pkey2s of an id that did not load whole whose newest message is
@@ -289,8 +311,8 @@ listed under "No red test" in `TODO.md`.
   you alert on them. A replica's rt_disk update makes no cache cell for an md2
   with no whole row yet.
 - C_TREEDB answers carry new fields (`withdrawn`, `stale`, `broken`,
-  `withdrawn_at_open`, `unfinished_projection`, `stopped`, and `master` in
-  `treedbs` rows) and `saved` changed meaning;
+  `withdrawn_at_open`, `unfinished_projection`, `stopped`, and `master` and
+  `opened` in `treedbs` rows) and `saved` changed meaning;
   C_NODE `gc-assets` `data` is a report, not a list; `instances` answers -1 on
   failure; command comment texts of C_NODE and C_AUTHZ changed.
 

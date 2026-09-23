@@ -183,6 +183,15 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
   reverted the fix).
 - A failed `open-treedb` withdraws the saved schema at once; it could wait for
   an open that succeeds.
+- C_TREEDB unfinished projection: if the FIRST write of its record fails, the
+  projection reads as complete; a column whose delete fails after its topic
+  was deleted is never retried; a store left "stamped with no topics" by an
+  older binary still takes the "projection is of this literal already" early
+  return.
+- `saved_schemas/<treedb>.applied.json` is still written in place, not
+  atomically (the unfinished record is).
+- The schema commands (`create-topic`, `delete-topic`, ...) still answer
+  without the yuno prefix ("Topic created!", "Treedb_name not found", -403).
 - msg2db consumers (the db_history alarms of wattyzer, yunovatios,
   estadodelaire, hidraulia) do not use `msg2db_id_incomplete()` yet: an alarm
   absent after a damaged load can be announced again as new
