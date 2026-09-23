@@ -1,5 +1,108 @@
 # **Changelog**
 
+## Unreleased
+
+### The independent review of 7.25.4, fixed
+
+An independent six-reviewer pass over the 7.25.4 fixes (none of them written
+by the reviewers) found one pre-existing high, about twelve mediums and a set
+of lows, several of them regressions or half-done fixes of 7.25.4. Each fix
+below has a test that fails on 7.25.4 and passes now.
+
+**Data loss**
+
+- C_AUTHZ `disable-user`, `enable-user` and `set-max-sessions` ERASED the
+  user's local password (since 55266cbb5, 2025-11): they read the user without
+  `show_hidden`, so the hidden `credentials` column came back `null`, and wrote
+  the whole view back. They write only `{id, <field>}` now. A disabled and
+  re-enabled local-password user could never log in again.
+- `treedb_delete_instance()` answered 0 when it could not read every row of the
+  key; the instance came back at the next open. It refuses (-1) now.
+- The asset snapshot guard failed OPEN: `gc-assets`, or deleting an
+  `__assets__` node, could remove a blob a snapshot needs when a tagged record
+  was unreadable. It refuses now; a keyless `tranger2_open_list()` returns NULL
+  when a key's history does not load.
+- A master that lost its lock after `tranger2_stop()` wrote into the other
+  master's store (`topic_var.json`, `topic_cols.json`, topic dirs) before it
+  noticed. Every write takes the lock back first; a lost lock fails closed and
+  the tranger reads as a replica (`master` false, `master_lost` true). C_TRANGER
+  and C_TREEDB report that effective state (`master` attr, `treedbs` rows).
+- `topic_var.json` (the rowid counter) is always replaced through a temporary
+  file and a rename, never rewritten in place; a topic_version change also
+  fsyncs. `tranger2_write_topic_var()` returns -1 on a failed write.
+
+**Scans**
+
+- A `tm` query across files left holes between segments: the plain iterator
+  (and list loading) logged a false *"next rowids not consecutive"* and lost the
+  rows after the hole. Holes are stepped over now.
+- A file whose `tm` is out of order is marked (`<file>.tm_unordered`) in topics
+  created from now on (`marks_tm_unordered` in `topic_desc.json`); its tm range
+  is read from all its rows, so a restart no longer hides rows. In files known
+  to be in tm order a row past the range ends the scan of that FILE again
+  (80 000-row file: ~50 ms -> ~0 ms). **Topics created by 7.25.4 or earlier
+  cannot be marked afterwards**: no file's tm range is trusted there, which is
+  correct and costs what 7.25.4 cost.
+- After `delete_key` the iterators of that key drop their segments (7.25.4's
+  segment stamp could miss a key deleted and written again with the same counts,
+  and page into freed files).
+
+**Schemas (C_TREEDB)**
+
+- A saved draft that the operator reverts is withdrawn by the next
+  `save-schema` (the saved file is removed, the answer says `withdrawn`): the
+  editor's marks cleared never, and Apply would have installed the reverted
+  change.
+- A C literal that takes over the file in use re-projects only the topics whose
+  `topic_version` it raised; the operator's drafts in other topics survive.
+  Its warnings are precise (a missing file in use; no warning for a list- vs
+  dict-shaped `cols` of the same schema).
+- `default: {}` is kept on a `required` column; `apply-schema` writes no
+  derived `fkey` mark into the file in use. `apply-schema` is all-or-none up to
+  the renames: a rename that fails, fails alone, and its row says `applied`
+  false (docs corrected).
+
+**C_NODE, C_TRANGER, gobj-c**
+
+- Link, unlink and delete on a replica are refused before memory moves (for
+  direct C callers; the commands already checked).
+- Answers of update-node, delete-node, activate-snap and deactivate-snap start
+  with the yuno; activate-snap no longer reads `gobj_log_last_message()`.
+- An activation that cannot save the new snap leaves the old one active.
+- A refused rt disk id (empty, too long, in use by any creator) is a warning
+  without stack; `tranger2_open_iterator()` no longer leaks on a bad topic.
+- `save_json_to_file()` checks `close()` and logs a missing directory.
+- The C_TRANGER comment on filtered multi-key parts and the forward paging
+  that can repeat a row after an append are documented exactly.
+
+**BREAKING**
+
+- `save-schema` with nothing to save answers `data {treedb_name, withdrawn,
+  schema_version, path, changes}` and can remove the saved file.
+- `tranger2_write_topic_var()` can return -1; a keyless `tranger2_open_list()`
+  returns NULL on a failed key load (tr_queue, tr2q_mqtt and mqtt_broker do not
+  check it, as before); after `delete_key` a filtered iterator pages an empty
+  index; any write on a stopped master can demote it to replica.
+- Comment texts of update-node, delete-node, activate/deactivate-snap and of
+  the rt id refusals changed; new topics carry `marks_tm_unordered`.
+
+### gobj-ui 7.25.6, yunos-js gui_agent 0.22.80
+
+- `kernel/js/gobj-ui` -> 7.25.6: the schema editor gets out of a transport drop
+  (a cut write or load ends, the reconnect reloads, stale answers are ignored);
+  package-lock resynced.
+- `yunos/js` -> gui_agent 0.22.80: the link answers every pending request when
+  it closes; the 60 s deadline counts from the controlcenter's dispatch ack and
+  is scaled for writes carrying `__files__`; a late successful write is echoed
+  and logged; saved-schema and save rounds carry an id; the apply deadline is a
+  `C_TIMER` per step; a Save answered "nothing to save" is explained, and a
+  reverted draft still saved on a 7.25.4 node keeps Apply off; a hosted view
+  hears a session edge after its transport (a startup `cannot route 'nodes'`
+  found by the console check).
+- Deployed to artgins.yunetacontrol.com and .ovh; console checked (login,
+  session, Schemas tab, forced reconnect): 0 errors.
+- docs: a paging example in data.md had swallowed the rest of the page.
+
 ## v7.25.4 (2026-09-23)
 
 ### The 2026-09-23 review of the 2026-09-22 treedb/timeranger work
