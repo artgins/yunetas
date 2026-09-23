@@ -215,6 +215,31 @@ echo "landing page installed at /landing (version ${VERSION})"
 cp errors/404.html "${ORIGIN}404.html"
 echo "404 page installed at /404.html"
 
+# /get-started leads to the root page (Get Started).  It is the first toc entry,
+# the root of the site, and myst builds it only as index.html.  On yuneta.io
+# (and the other hostnames sharing this docroot) "/" is the landing, so the
+# landing's "Start here", the 404 page and every older link to /get-started
+# need an address that reaches the documentation from any hostname: a redirect
+# to its absolute root.  A COPY of index.html does not work -- the theme's
+# client router does not know the path and renders "Application Error".
+mkdir -p "${ORIGIN}get-started"
+cat > "${ORIGIN}get-started/index.html" <<'HTML'
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Get Started - Yuneta</title>
+<meta http-equiv="refresh" content="0; url=https://doc.yuneta.io/">
+<link rel="canonical" href="https://doc.yuneta.io/">
+<script>location.replace("https://doc.yuneta.io/");</script>
+</head>
+<body>
+<p><a href="https://doc.yuneta.io/">Get Started</a></p>
+</body>
+</html>
+HTML
+echo "/get-started redirects to https://doc.yuneta.io/"
+
 # robots.txt, overwriting the one myst just built.  myst has no absolute
 # address for the site, so its Sitemap line named its own development server
 # (http://localhost:3000/sitemap.xml) and every crawler had to discard it --

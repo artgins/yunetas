@@ -443,6 +443,10 @@ site:
     base_url: /
     logo: _static/yuneta-label.svg
     logo_dark: _static/yuneta-label.svg
+    # The logo leads to the root of the DOCUMENTATION on every hostname. The
+    # same pages are served on yuneta.io and its siblings, where "/" is the
+    # landing, so a relative "/" took the reader out of the docs there.
+    logo_url: https://doc.yuneta.io/
     favicon: _static/yuneta-y.svg
     hide_toc: false
     hide_search_button: false
