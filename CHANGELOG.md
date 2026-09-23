@@ -112,7 +112,10 @@ listed under "No red test" in `TODO.md`.
   its md2 file cannot be checked now: the append is refused, the file is not
   flagged"*) and does not flag the file; the next append checks again. At an
   open the file is still flagged. A candidate range larger than the largest
-  memory block is not a record. A scan of ~21 500 md2 files on four stores
+  memory block of the reader is read in parts of 64 KiB, never allocated whole:
+  a NUL before its end still says it is not a record, and one whose only NUL
+  is its last byte is never cut on -- the file is flagged (it can be a record
+  written by a yuno with a larger `MEM_MAX_BLOCK`, which is set per yuno). A scan of ~21 500 md2 files on four stores
   (local, wattyzer, both yunovatios) found none; to check a node:
   `find /yuneta/store /yuneta/realms -name '*.md2' -printf '%s %p\n' | awk '$1 % 32'`.
   With that check, the cut removes only the part of a row after the last whole
@@ -127,6 +130,10 @@ listed under "No red test" in `TODO.md`.
   data, anystring2json() FAILED."*, `load_failed`). A read that fails now logs
   *"Bad data, the content of the record is not json"*, with the jansson `error`
   and `position`.
+- The repair of an md2 that 7.25.4 wrote after a torn row (treedb.md) is a
+  script that is linear (86 400 rows in 0.13 s) and runs in a `set -e`
+  subshell: it stops, with the `.md2` unchanged, when the backup copy fails;
+  when more than one boundary passes it writes nothing.
 - A read that returns fewer bytes than asked logs *"... short read"* with `read`
   / `expected` (it logged *"read FAILED"* with a stale errno); a short write
   likewise logs *"... short write"*. A read error or short read of an md2's
