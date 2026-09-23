@@ -254,6 +254,29 @@ listed under "No red test" in `TODO.md`.
   The topic rewrite runs before the columns are compared, so an attribute the
   literal no longer declares (e.g. `pkey2s`) is cleared also when columns
   change.
+- **A projection that dies half way invents no operator work.** Before its
+  first write a projection plans every write and records the plan (the record
+  of an unfinished projection, with `"in_progress": true`: `planned`,
+  `target_nodes`, `replaced_kinds`); the projection that completes removes it
+  after its WARNING. A process killed between two writes always leaves that
+  record: the next open takes a node that is as it was, or as the projection
+  writes it, for the projection's, completes the projection, and reports the
+  drafts it was replacing exactly once. Until then `unfinished_projection` lists
+  `planned` and `save-schema` refuses.
+- Which treedb a node of `__system__` belongs to is read from the node, never
+  from a prefix of its id (a treedb `m2` took the nodes of a treedb `m2.b`).
+  `delete-treedb` deletes only the nodes of its treedb: a node of another
+  treedb, or of another topic, linked into it is only unlinked.
+- A column the operator moved to another topic, or linked to a second one, is
+  put back where the literal declares it in ONE open. A column linked to a
+  topic that does not declare it is only unlinked when the literal declares it
+  elsewhere or it belongs to another treedb; a topic of another treedb linked
+  here is unlinked (INFO *"Topic of another treedb, not declared by the schema
+  from C: unlinked from the treedb in __system__"*).
+- A topic whose write or link fails leaves what it holds untouched: the columns
+  of a new topic whose link failed are not written under it, and a take-over or
+  create that fails deletes no orphan node of the declared topic and reports it
+  once.
 - `save-schema` refuses a draft with no topics and `apply-schema` a saved schema
   with no topics (WARNING, -1, the file in use unchanged): a treedb without
   topics does not open. `saved-schema` answers `can_apply: false`, with the
