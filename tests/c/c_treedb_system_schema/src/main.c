@@ -230,6 +230,10 @@ PRIVATE const char *expected_log_msgs[] = {
     "TreeDB schema from C is behind the schema in use, not applied",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
+    /*  Test 13b2: a saved draft taken back is withdrawn by the next save  */
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Schema saved",
+    "Saved schema withdrawn, the draft is the schema in use",
     /*  Test 13c: apply of all is all or none: A saved, B opened (+ its
      *  three), B's saved schema does not parse, then A alone applied  */
     "TreeDB schema from C is behind the schema in use, not applied",

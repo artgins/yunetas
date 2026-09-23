@@ -19,7 +19,8 @@
  *                             it opens with its schema from C and who decided it
  *          "save-schema"   -> publish the draft edited in __system__: the versions of
  *                             what differs from the file in use + 1, written to
- *                             saved_schemas/ under the __system__ tranger
+ *                             saved_schemas/ under the __system__ tranger. A draft
+ *                             that is the file in use again withdraws that file
  *          "saved-schema"  -> that saved schema, what it changes, whether it applies
  *          "apply-schema"  -> put it in place of the file in use (master, not imposed)
  *
@@ -1651,6 +1652,10 @@ PRIVATE BOOL system_is_written_here(hgobj gobj)
  *  __system__ tranger -- never over the file in use: apply-schema does that.
  *  A version is the one in use + 1, so a second save of the same draft
  *  publishes the same numbers.
+ *
+ *  A draft that is the file in use again (an edit taken back after a save)
+ *  has nothing to save, and WITHDRAWS a saved schema newer than the file in
+ *  use: the file is removed and the answer says `withdrawn`.
  ***************************************************************************/
 PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -1701,14 +1706,85 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *summary = diff_treedb_schema(gobj, treedb_name, in_use, rows);
     JSON_DECREF(summary)
     json_t *changed = draft_changed_from_rows(gobj, rows);
+
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char saved_path[PATH_MAX];
+    build_path(saved_path, sizeof(saved_path), saved_dir, filename, NULL);
+
     if(json_object_size(changed) == 0) {
+        /*
+         *  The draft IS the file in use. A saved schema newer than that
+         *  file is a save the operator has taken back in the editor, and it
+         *  is withdrawn: left in place, saved-schema went on diffing the
+         *  draft against it (the mark of an unsaved change that never
+         *  cleared) and apply-schema would have installed the change taken
+         *  back (M-A of the 2026-09-23 independent review). The versions
+         *  that save wrote into __system__ stay: a number there never goes
+         *  down, and the next save publishes the one in use + 1 anyway.
+         */
+        json_int_t in_use_version = schema_version_of(gobj, in_use);
+        json_int_t saved_version = 0;
+        if(file_exists(saved_dir, filename)) {
+            json_t *saved = load_json_from_file(gobj, saved_dir, filename, 0);
+            saved_version = schema_version_of(gobj, saved);
+            JSON_DECREF(saved)
+        }
+        BOOL withdraw = (saved_version > in_use_version)? TRUE: FALSE;
         JSON_DECREF(changed)
         JSON_DECREF(in_use)
+
+        if(withdraw && !dry_run) {
+            if(file_remove(saved_dir, filename) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_SYSTEM,
+                    "msg",              "%s", "Cannot remove the saved schema of a reverted draft",
+                    "treedb_name",      "%s", treedb_name,
+                    "path",             "%s", saved_path,
+                    "errno",            "%s", strerror(errno),
+                    NULL
+                );
+                JSON_DECREF(rows)
+                return msg_iev_build_response(gobj, -1,
+                    json_sprintf("%s: the draft of '%s' is the schema in use, but its saved "
+                        "schema_version %d could not be withdrawn from %s (see the log)",
+                        gobj_yuno_role_plus_name(), treedb_name, (int)saved_version, saved_path),
+                    0, 0, kw
+                );
+            }
+            gobj_log_info(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INFO,
+                "msg",              "%s", "Saved schema withdrawn, the draft is the schema in use",
+                "treedb_name",      "%s", treedb_name,
+                "schema_version",   "%d", (int)saved_version,
+                "in_use_version",   "%d", (int)in_use_version,
+                "path",             "%s", saved_path,
+                NULL
+            );
+        }
+
+        json_t *comment;
+        if(withdraw) {
+            comment = json_sprintf("%s: the draft of '%s' is the schema in use: the saved "
+                "schema_version %d %s withdrawn",
+                gobj_yuno_role_plus_name(), treedb_name, (int)saved_version,
+                dry_run? "would be": "is");
+        } else {
+            comment = json_sprintf("%s: nothing to save, the draft of '%s' is the schema in use",
+                gobj_yuno_role_plus_name(), treedb_name);
+        }
         return msg_iev_build_response(gobj, 0,
-            json_sprintf("%s: nothing to save, the draft of '%s' is the schema in use",
-                gobj_yuno_role_plus_name(), treedb_name),
+            comment,
             0,
-            json_pack("{s:s, s:o}", "treedb_name", treedb_name, "changes", rows),
+            json_pack("{s:s, s:b, s:I, s:s, s:o}",
+                "treedb_name", treedb_name,
+                "withdrawn", withdraw,
+                "schema_version", withdraw? saved_version : in_use_version,
+                "path", saved_path,
+                "changes", rows
+            ),
             kw
         );
     }
@@ -1756,11 +1832,6 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
     JSON_DECREF(changed)
     JSON_DECREF(in_use)
-
-    char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
-    char saved_path[PATH_MAX];
-    build_path(saved_path, sizeof(saved_path), saved_dir, filename, NULL);
 
     if(!dry_run) {
         /*

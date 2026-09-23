@@ -3488,6 +3488,134 @@ PRIVATE int check_save_and_apply(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A saved draft that is REVERTED in the editor is withdrawn by the next
+ *  save (M-A of the 2026-09-23 independent review).
+ *
+ *  saved-schema diffs the draft against the SAVED schema (it is the newer
+ *  one), save-schema against the file IN USE. So after "edit, save, edit
+ *  back" saved-schema said `users` was unsaved, save-schema answered
+ *  "nothing to save" and left the saved file in place: the mark never
+ *  cleared, and Apply would have installed the change the operator had
+ *  taken back. The draft is the file in use again, so the save withdraws
+ *  the saved schema: removed, logged, said in the answer.
+ ***************************************************************************/
+PRIVATE int set_draft_username_header(hgobj gobj, const char *header)
+{
+    json_t *ids = system_topic_cols(gobj, "users");
+    const char *username_id = json_string_value(json_object_get(ids, "username"));
+    json_t *edited = gobj_update_node(
+        gobj_find_service(SYSTEM_TREEDB, FALSE),
+        "cols",
+        json_pack("{s:s, s:s}", "id", username_id?username_id:"", "header", header),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    int ret = edited? 0 : -1;
+    JSON_DECREF(edited)
+    JSON_DECREF(ids)
+    return ret;
+}
+
+PRIVATE int check_reverted_draft_withdraws_the_save(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    json_t *jn_resp;
+
+    if(reopen_test_treedb(gobj, FALSE) < 0) {
+        return -1;  // Error already logged
+    }
+    char saved_dir[PATH_MAX];
+    build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    file_remove(saved_dir, TREEDB_NAME ".treedb_schema.json");   /*  a save of an earlier check  */
+
+    /*
+     *  The header the draft and the file in use agree on now
+     */
+    char original[NAME_MAX];
+    {
+        json_t *ids = system_topic_cols(gobj, "users");
+        snprintf(original, sizeof(original), "%s",
+            json_string_value(json_object_get(ids, "username__header"))?
+            json_string_value(json_object_get(ids, "username__header")) : "");
+        JSON_DECREF(ids)
+    }
+
+    /*
+     *  Edit and save: a saved schema newer than the file in use
+     */
+    if(set_draft_username_header(gobj, "Taken back") < 0) {
+        return result + save_fail(gobj, "TEST FAIL: the draft edit was refused", NULL);
+    }
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            !file_exists(saved_dir, TREEDB_NAME ".treedb_schema.json")) {
+        result += save_fail(gobj, "TEST FAIL: the draft was not saved", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  Edit back: the draft is the file in use again
+     */
+    if(set_draft_username_header(gobj, original) < 0) {
+        return result + save_fail(gobj, "TEST FAIL: the draft revert was refused", NULL);
+    }
+
+    /*
+     *  dry_run says it would withdraw the saved schema, and removes nothing
+     */
+    jn_resp = treedbs_command(gobj, "save-schema", json_pack("{s:b}", "dry_run", 1));
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            !kw_get_bool(gobj, jn_resp, "data`withdrawn", 0, 0) ||
+            !file_exists(saved_dir, TREEDB_NAME ".treedb_schema.json")) {
+        result += save_fail(gobj, "TEST FAIL: a dry_run save of a reverted draft", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  The save withdraws it
+     */
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            !kw_get_bool(gobj, jn_resp, "data`withdrawn", 0, 0) ||
+            file_exists(saved_dir, TREEDB_NAME ".treedb_schema.json")) {
+        result += save_fail(gobj, "TEST FAIL: the save of a reverted draft left the saved schema", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  Nothing is unsaved, nothing applies
+     */
+    jn_resp = treedbs_command(gobj, "saved-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            kw_get_bool(gobj, jn_resp, "data`can_apply", 1, 0) ||
+            kw_get_bool(gobj, jn_resp, "data`saved", 1, 0) ||
+            json_object_size(kw_get_dict(gobj, jn_resp, "data`draft_changed", 0, 0)) != 0) {
+        result += save_fail(gobj, "TEST FAIL: a withdrawn save still reads as saved or unsaved", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    json_int_t in_use_v = disk_schema_version(gobj);
+    jn_resp = treedbs_command(gobj, "apply-schema", json_object());
+    if(kw_get_bool(gobj, jn_resp, "data`applied", 0, 0) || disk_schema_version(gobj) != in_use_v) {
+        result += save_fail(gobj, "TEST FAIL: apply-schema installed a withdrawn save", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  With nothing saved, the answer is the plain one
+     */
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            kw_get_bool(gobj, jn_resp, "data`withdrawn", 1, 0)) {
+        result += save_fail(gobj, "TEST FAIL: a save with nothing to save or withdraw", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    return result;
+}
+
+/***************************************************************************
  *  A second treedb for the apply-schema of all of them
  ***************************************************************************/
 PRIVATE char schema_test_b[] = "\
@@ -4288,6 +4416,12 @@ PRIVATE int run_tests(hgobj gobj)
      *  not impose the schema.
      *-----------------------------------------------*/
     result += check_save_and_apply(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13b2: a saved draft taken back in the
+     *  editor is withdrawn by the next save
+     *-----------------------------------------------*/
+    result += check_reverted_draft_withdraws_the_save(gobj);
 
     /*-----------------------------------------------*
      *  Test 13c: apply-schema of every treedb is all
