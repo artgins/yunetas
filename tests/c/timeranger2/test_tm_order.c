@@ -670,6 +670,69 @@ PRIVATE int do_test(void)
     JSON_DECREF(report)
     result += test_json(NULL);
 
+    /*-------------------------------------*
+     *  A file name too long to take its
+     *  marker: the load checked no length,
+     *  looked for a truncated name, and
+     *  trusted the file's range
+     *-------------------------------------*/
+    set_expected_results_unordered(
+        "tm order: a file name too long for its marker",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating topic",
+            "msg", "Cannot mark md2 file, file_id too long"
+        ),
+        NULL, NULL, 1
+    );
+    char long_mask[256];
+    snprintf(long_mask, sizeof(long_mask), "%%Y-%%m-%%d");
+    size_t ln = strlen(long_mask);
+    memset(long_mask + ln, 'x', 244 - 10);
+    long_mask[ln + 244 - 10] = 0;       // file ids of 244 characters
+    json_t *long_topic = tranger2_create_topic(
+        tm, "topic_long_names", "id", "tm",
+        json_pack("{s:s}", "filename_mask", long_mask),
+        sf_string_key,
+        json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+        0
+    );
+    md2_record_ex_t md_long = {0};
+    tranger2_append_record(tm, "topic_long_names", DAY1 + 1, 0, &md_long,
+        json_pack("{s:s, s:I, s:s}", "id", "k", "tm", (json_int_t)150, "content", "G1"));
+    tranger2_append_record(tm, "topic_long_names", DAY1 + 2, 0, &md_long,
+        json_pack("{s:s, s:I, s:s}", "id", "k", "tm", (json_int_t)900, "content", "G2"));
+    tranger2_append_record(tm, "topic_long_names", DAY1 + 3, 0, &md_long,
+        json_pack("{s:s, s:I, s:s}", "id", "k", "tm", (json_int_t)120, "content", "G3"));
+    result += test_json(NULL);
+
+    set_expected_results_unordered(
+        "tm order: a file name too long for its marker, reloaded",
+        json_pack("[{s:s}]",
+            "msg", "Cannot look for the markers of a md2 file, its name is too long: read whole"
+        ),
+        NULL, NULL, 1
+    );
+    tranger2_shutdown(tm);
+    drain(10);
+    tm = startup_tranger(TRUE);
+    tranger2_open_topic(tm, "topic_long_names", TRUE);
+    json_t *data_long = json_array();
+    json_t *it_long = tranger2_open_iterator(tm, "topic_long_names", "k",
+        json_pack("{s:I}", "to_tm", (json_int_t)200), NULL, "long", "", data_long, NULL);
+    char long_got[64] = "";
+    int idx_long; json_t *rec_long;
+    json_array_foreach(data_long, idx_long, rec_long) {
+        add_content(long_got, sizeof(long_got), rec_long);
+    }
+    if(it_long) {
+        tranger2_close_iterator(tm, it_long);
+    }
+    JSON_DECREF(data_long)
+    result += expect("a file whose marker cannot exist is read whole", long_got, "G1 G3");
+    result += expect("the topic of long names", long_topic? "created": "refused", "created");
+    tranger2_open_topic(tm, TOPIC_NAME, TRUE);
+    result += test_json(NULL);
+
     set_expected_results(
         "tm order: a replica cannot mark",
         json_pack("[{s:s}]",

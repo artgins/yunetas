@@ -7003,12 +7003,32 @@ PRIVATE json_t *load_cache_cell_from_disk(
      */
     char marker[NAME_MAX];
     char tm_marker[NAME_MAX];
-    snprintf(marker, sizeof(marker), "%s.unordered", filename);
-    snprintf(tm_marker, sizeof(tm_marker), "%s.tm_unordered", filename);
-    char key_directory[PATH_MAX];
-    build_path(key_directory, sizeof(key_directory), topic_directory, "keys", key, NULL);
-    BOOL t_marked = file_exists(key_directory, marker);
-    BOOL tm_marked = file_exists(key_directory, tm_marker);
+    BOOL t_marked;
+    BOOL tm_marked;
+    if(snprintf(marker, sizeof(marker), "%s.unordered", filename) >= (int)sizeof(marker) ||
+            snprintf(tm_marker, sizeof(tm_marker), "%s.tm_unordered", filename) >= (int)sizeof(tm_marker)) {
+        /*
+         *  A marker of this file cannot exist (the master could not write
+         *  it either: "file_id too long"), and a truncated name was looked
+         *  for: the file is taken as marked, read whole, never trusted.
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot look for the markers of a md2 file, its name is too long: read whole",
+            "topic_directory", "%s", topic_directory,
+            "key",          "%s", key,
+            "file_id",      "%s", filename,
+            NULL
+        );
+        t_marked = TRUE;
+        tm_marked = TRUE;
+    } else {
+        char key_directory[PATH_MAX];
+        build_path(key_directory, sizeof(key_directory), topic_directory, "keys", key, NULL);
+        t_marked = file_exists(key_directory, marker);
+        tm_marked = file_exists(key_directory, tm_marker);
+    }
     if(t_marked || tm_marked) {
         /*
          *  The rows already read need no second reading: a follower wakes
