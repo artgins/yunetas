@@ -1331,9 +1331,16 @@ PRIVATE void prune_schema_node(json_t *jn) // not owned, MUTATED
              *  a value that is not a list, and dict/object/template/blob fill
              *  `{}` when there is no default at all (set_field_value() in
              *  tr_treedb.c). Kept, every list column of a saved schema read
-             *  as "default added" against the file in use.  */
+             *  as "default added" against the file in use.
+             *  But NOT on a `required` column: there `{}` is what fills a
+             *  record created without the field, and dropped, that create
+             *  is refused ("Field required"). The meta-schema cannot tell
+             *  that `{}` from "no default", so the one that keeps the
+             *  column working is kept (L-2 of the 2026-09-23 independent
+             *  review).  */
             if(strcmp(key, "default")==0) {
-                if(json_is_object(value) && json_object_size(value)==0) {
+                if(json_is_object(value) && json_object_size(value)==0 &&
+                        !kw_has_word(0, json_object_get(jn, "flag"), "required", 0)) {
                     json_object_del(jn, key);
                 }
                 continue;
@@ -1352,6 +1359,50 @@ PRIVATE void prune_schema_node(json_t *jn) // not owned, MUTATED
         size_t idx; json_t *value;
         json_array_foreach(jn, idx, value) {
             prune_schema_node(value);
+        }
+    }
+}
+
+/***************************************************************************
+ *  A column's `fkey` DICT is a mark parse_schema() derives from the hooks
+ *  that point at it, never written by an author: treedb_open_db() strips
+ *  it from the file in use. Left in, a literal that went through
+ *  parse_schema() read as another schema than its own file, and a file
+ *  written from a parsed schema carried it.
+ ***************************************************************************/
+PRIVATE void strip_derived_fkey_marks(json_t *jn_schema) // not owned, MUTATED
+{
+    int idx; json_t *topic;
+    json_t *topics = json_object_get(jn_schema, "topics");
+    if(json_is_object(topics)) {
+        const char *topic_name;
+        json_object_foreach(topics, topic_name, topic) {
+            json_t *cols = json_object_get(topic, "cols");
+            const char *col_name; json_t *col;
+            json_object_foreach(cols, col_name, col) {
+                if(json_is_object(json_object_get(col, "fkey"))) {
+                    json_object_del(col, "fkey");
+                }
+            }
+        }
+        return;
+    }
+    json_array_foreach(topics, idx, topic) {
+        json_t *cols = json_object_get(topic, "cols");
+        if(json_is_object(cols)) {
+            const char *col_name; json_t *col;
+            json_object_foreach(cols, col_name, col) {
+                if(json_is_object(json_object_get(col, "fkey"))) {
+                    json_object_del(col, "fkey");
+                }
+            }
+        } else if(json_is_array(cols)) {
+            int idx2; json_t *col;
+            json_array_foreach(cols, idx2, col) {
+                if(json_is_object(json_object_get(col, "fkey"))) {
+                    json_object_del(col, "fkey");
+                }
+            }
         }
     }
 }
@@ -1376,31 +1427,7 @@ PRIVATE void prune_schema(json_t *jn_schema) // not owned, MUTATED
         json_object_set_new(jn_schema, "topics", list);
     }
 
-    /*
-     *  A column's `fkey` DICT is a mark parse_schema() derives from the
-     *  hooks that point at it, never written by an author: treedb_open_db()
-     *  strips it from the file in use. Left in, a literal that went through
-     *  parse_schema() read as another schema than its own file.
-     */
-    int idx; json_t *topic;
-    json_array_foreach(json_object_get(jn_schema, "topics"), idx, topic) {
-        json_t *cols = json_object_get(topic, "cols");
-        if(json_is_object(cols)) {
-            const char *col_name; json_t *col;
-            json_object_foreach(cols, col_name, col) {
-                if(json_is_object(json_object_get(col, "fkey"))) {
-                    json_object_del(col, "fkey");
-                }
-            }
-        } else if(json_is_array(cols)) {
-            int idx2; json_t *col;
-            json_array_foreach(cols, idx2, col) {
-                if(json_is_object(json_object_get(col, "fkey"))) {
-                    json_object_del(col, "fkey");
-                }
-            }
-        }
-    }
+    strip_derived_fkey_marks(jn_schema);
 }
 
 /***************************************************************************
@@ -2130,7 +2157,16 @@ PRIVATE int write_schema_tmp(
         );
         return -1;
     }
-    if(json_dumpfd(jn_schema, fd, JSON_INDENT(4)) < 0 || fsync(fd) < 0) {
+    /*
+     *  What apply-schema hands here is PARSED (to validate it), and parsing
+     *  adds the derived `fkey` marks: written as it was, the file in use
+     *  carried them (L-3 of the 2026-09-23 independent review).
+     */
+    json_t *jn_file = json_deep_copy(jn_schema);
+    strip_derived_fkey_marks(jn_file);
+    int dumped = json_dumpfd(jn_file, fd, JSON_INDENT(4));
+    JSON_DECREF(jn_file)
+    if(dumped < 0 || fsync(fd) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,

@@ -3443,6 +3443,28 @@ PRIVATE int check_save_and_apply(hgobj gobj)
     JSON_DECREF(jn_resp)
 
     /*
+     *  The file in use carries no derived `fkey` mark: parse_schema() adds
+     *  one to every column a hook points at, apply-schema parsed the saved
+     *  schema to validate it and wrote the parsed copy (L-3 of the
+     *  2026-09-23 independent review); treedb_open_db() never writes them.
+     */
+    {
+        char in_use_dir[PATH_MAX];
+        build_path(in_use_dir, sizeof(in_use_dir), priv->path_database, TREEDB_NAME, NULL);
+        json_t *in_use = load_json_from_file(gobj, in_use_dir, TREEDB_NAME ".treedb_schema.json", 0);
+        int idx_t; json_t *jn_topic;
+        json_array_foreach(json_object_get(in_use, "topics"), idx_t, jn_topic) {
+            const char *col_name; json_t *col;
+            json_object_foreach(json_object_get(jn_topic, "cols"), col_name, col) {
+                if(json_is_object(json_object_get(col, "fkey"))) {
+                    result += save_fail(gobj, "TEST FAIL: apply-schema wrote a derived fkey mark", col);
+                }
+            }
+        }
+        JSON_DECREF(in_use)
+    }
+
+    /*
      *  Put in place by a rename of a flushed temporary: none is left behind,
      *  and the file keeps the mode the tranger gives it (0660, never 0440)
      */
@@ -3612,6 +3634,61 @@ PRIVATE int check_reverted_draft_withdraws_the_save(hgobj gobj)
     }
     JSON_DECREF(jn_resp)
 
+    return result;
+}
+
+/***************************************************************************
+ *  A `required` column keeps its `default: {}` in a saved schema (L-2 of
+ *  the 2026-09-23 independent review). `{}` is also what the meta-schema
+ *  stores for "no default", and it is pruned for that reason; but on a
+ *  required column it is what lets a record be created without the field
+ *  (the default fills it), and dropped the create is refused.
+ ***************************************************************************/
+PRIVATE int check_required_keeps_empty_default(hgobj gobj)
+{
+    int result = 0;
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    char users_topic_id[NAME_MAX];
+    system_topic_id(gobj, "users", users_topic_id, sizeof(users_topic_id));
+    char users_fkey[NAME_MAX + sizeof("topics^^cols")];
+    snprintf(users_fkey, sizeof(users_fkey), "topics^%s^cols", users_topic_id);
+
+    json_t *created = gobj_update_node(
+        gobj_node_system,
+        "cols",
+        json_pack("{s:s, s:s, s:s, s:[s,s], s:{}, s:s}",
+            "value", "required_dict", "header", "Required dict", "type", "dict",
+            "flag", "persistent", "required", "default", "topics", users_fkey),
+        json_pack("{s:b, s:b, s:b}", "create", 1, "autolink", 1, "refs", 1),
+        gobj
+    );
+    if(!created) {
+        return save_fail(gobj, "TEST FAIL: the required draft column was refused", NULL);
+    }
+    char col_id[NAME_MAX];
+    snprintf(col_id, sizeof(col_id), "%s", kw_get_str(gobj, created, "id", "", 0));
+    JSON_DECREF(created)
+
+    json_t *jn_resp = treedbs_command(gobj, "save-schema", json_pack("{s:b}", "dry_run", 1));
+    json_t *col = NULL;
+    int idx; json_t *topic;
+    json_array_foreach(kw_get_list(gobj, jn_resp, "data`schema`topics", 0, 0), idx, topic) {
+        if(strcmp(kw_get_str(gobj, topic, "id", "", 0), "users")==0) {
+            col = json_object_get(json_object_get(topic, "cols"), "required_dict");
+        }
+    }
+    json_t *def = json_object_get(col, "default");
+    if(!json_is_object(def) || json_object_size(def) != 0) {
+        result += save_fail(gobj, "TEST FAIL: a required column lost its default {} in the saved schema",
+            col? col : jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    if(gobj_delete_node(
+            gobj_node_system, "cols", json_pack("{s:s}", "id", col_id),
+            json_pack("{s:b}", "force", 1), gobj) < 0) {
+        result += save_fail(gobj, "TEST FAIL: the required draft column could not be removed", NULL);
+    }
     return result;
 }
 
@@ -4650,9 +4727,11 @@ PRIVATE int run_tests(hgobj gobj)
     result += check_reverted_draft_withdraws_the_save(gobj);
 
     /*-----------------------------------------------*
-     *  Test 13b2b: the same schema in another form is
+     *  Test 13b2b: a required column keeps its
+     *  default {}; the same schema in another form is
      *  not "another content"
      *-----------------------------------------------*/
+    result += check_required_keeps_empty_default(gobj);
     result += check_same_schema_other_form_is_quiet(gobj);
 
     /*-----------------------------------------------*
