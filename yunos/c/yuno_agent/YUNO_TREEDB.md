@@ -1938,6 +1938,16 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    is one newer than the file in use, against the file in use otherwise
    (until 7.25.3 always against the file in use, so a topic saved a moment ago
    still read as unsaved until an Apply -- for ever on an imposed treedb).
+   `saved` is `true` only for a save still PENDING: newer than the file in
+   use. A file in `saved_schemas/` that is not newer is `stale: true` (one
+   left by an older release, or a remove that failed): it is not diffed and
+   `can_apply` is `false`. Until 7.25.4 it answered `saved: true` with the diff
+   of a schema already in use.
+
+   ```json
+   {"treedb_name": "treedb_x", "saved": false, "stale": true, "can_apply": false,
+    "in_use_schema_version": 14, "saved_schema_version": 13, "diff": {}, "draft_changed": {}}
+   ```
 3. **`apply-schema treedb_name=X`** puts the saved schema in place of the file
    in use — only on the master, only when C does not impose that treedb's
    schema (the literal would overwrite it at the next open), and only when the
@@ -1950,6 +1960,21 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    file is written without the `fkey` marks `parse_schema()` derives (a dict on
    every column a hook points at), as `treedb_open_db()` writes it; until
    7.25.4 the apply wrote the parsed copy it had validated, marks included.
+   Once in place, the saved schema IS the file in use, and it is removed
+   from `saved_schemas/` (after 7.25.4; it stayed, and `saved-schema` went on
+   answering `saved: true` for it).
+
+**A saved schema lives only as long as the file it was saved against** (after
+7.25.4). It is published AGAINST the schema file in use, so when an open writes
+the literal over that file -- there is none, the literal is newer, or it is
+imposed over another -- the save is withdrawn, with a warning: *"Saved schema
+withdrawn: the schema from C replaces the file in use it was saved against"*
+(`saved_version`, `schema_version`, `in_use_version`). Left, it was applicable
+whenever its number was higher than the literal's (the take-over with no file
+in use), and Apply installed the operator's old drafts over the developer's
+change. Nothing is lost: the drafts of the topics the literal did not raise stay
+in `__system__`, and the next `save-schema` publishes them against the new file.
+`delete-treedb` removes the saved schema of the treedb too.
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=treedbs command=save-schema treedb_name=treedb_x'

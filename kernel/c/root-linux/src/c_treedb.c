@@ -128,6 +128,7 @@ PRIVATE json_t *apply_every_saved_schema(hgobj gobj, const char *cmd, json_t *kw
 PRIVATE BOOL treedb_is_written_here(hgobj gobj, const char *treedb_name);
 PRIVATE BOOL system_is_written_here(hgobj gobj);
 PRIVATE json_t *draft_changed_from_rows(hgobj gobj, json_t *rows);
+PRIVATE int remove_saved_schema(hgobj gobj, const char *treedb_name, json_int_t *p_version);
 PRIVATE int diff_node_attrs(
     hgobj gobj,
     json_t *rows,           // not owned
@@ -1045,12 +1046,22 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_object_del(priv->jn_c_schemas, treedb_name);
     json_object_del(priv->jn_forced_treedbs, treedb_name);
 
+    /*
+     *  Its saved schema goes with it: left in saved_schemas/, a treedb
+     *  created again under the name found a save of the one deleted.
+     */
+    if(ret == 0) {
+        json_int_t removed_version;
+        ret = remove_saved_schema(gobj, treedb_name, &removed_version);  // Error already logged
+    }
+
     if(ret < 0) {
         return msg_iev_build_response(gobj,
             ret,
             json_sprintf(
                 "%s: cannot delete the schema of '%s': not projected in "
-                "__system__, or one of its nodes refused the delete (see the log)",
+                "__system__, one of its nodes refused the delete, or its saved "
+                "schema could not be removed (see the log)",
                 gobj_yuno_role_plus_name(), treedb_name
             ),
             0,
@@ -2049,8 +2060,17 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     BOOL imposed = treedb_schema_imposed(gobj, treedb_name);
     BOOL master = treedb_is_written_here(gobj, treedb_name);
 
+    /*
+     *  A saved schema not newer than the file in use is not a pending save:
+     *  it is STALE (one left by an older release, or a remove that failed),
+     *  and it is neither diffed nor applicable. It used to answer `saved`
+     *  with the diff of a schema already in use.
+     */
+    BOOL pending = (saved && saved_version > in_use_version)? TRUE: FALSE;
+    BOOL stale = (file_exists(saved_dir, filename) && !pending)? TRUE: FALSE;
+
     json_t *diff = json_object();
-    if(in_use && saved) {
+    if(in_use && pending) {
         json_t *flat_in_use = schema_to_flat(in_use);
         json_t *flat_saved = schema_to_flat(saved);
         JSON_DECREF(diff)
@@ -2073,7 +2093,7 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *  treedb (M1 of the 2026-09-23 review). Saved but not in use is the
      *  other question, and `diff` / `can_apply` already answer it.
      */
-    json_t *draft_base = (saved && saved_version > in_use_version)? saved : in_use;
+    json_t *draft_base = pending? saved : in_use;
     json_t *draft_changed = json_object();
     if(draft_base) {
         json_t *rows = json_array();
@@ -2089,11 +2109,12 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     return msg_iev_build_response(gobj, 0,
         0,
         0,
-        json_pack("{s:s, s:b, s:b, s:b, s:I, s:I, s:b, s:s, s:o, s:o}",
+        json_pack("{s:s, s:b, s:b, s:b, s:b, s:I, s:I, s:b, s:s, s:o, s:o}",
             "treedb_name", treedb_name,
             "impose_c_schema", imposed,
             "master", master,
-            "saved", saved_version > 0,
+            "saved", pending,
+            "stale", stale,
             "in_use_schema_version", in_use_version,
             "saved_schema_version", saved_version,
             "can_apply", master && !imposed && saved_version > in_use_version,
@@ -2418,6 +2439,13 @@ PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         NULL
     );
 
+    /*
+     *  Applied, the saved schema IS the file in use. Kept, saved-schema
+     *  answered `saved` with a diff for a schema already in use.
+     */
+    json_int_t removed_version;
+    remove_saved_schema(gobj, treedb_name, &removed_version);  // Error already logged
+
     return msg_iev_build_response(gobj, 0,
         json_sprintf("%s: schema %d of '%s' in place, read at the next open of the treedb",
             gobj_yuno_role_plus_name(), (int)saved_version, treedb_name),
@@ -2564,6 +2592,8 @@ PRIVATE json_t *apply_every_saved_schema(hgobj gobj, const char *cmd, json_t *kw
                 );
                 comment = json_sprintf("%s: schema %d of '%s' in place, read at the next open of the treedb",
                     gobj_yuno_role_plus_name(), (int)saved_version, treedb_name);
+                json_int_t removed_version;
+                remove_saved_schema(gobj, treedb_name, &removed_version);  // Error already logged
             }
         }
         if(!applied) {
@@ -3679,10 +3709,11 @@ PRIVATE literal_verdict_t literal_against_file_in_use(
  *  ONLY THE MASTER WRITES __system__. A replica reads the treedb from disk as
  *  it is at that moment and reconciles nothing: the master's appends reach it
  *  through the store, and a projection written by two owners is a projection
- *  nobody can read. This is the only place __system__ is written from, the
- *  migration of legacy ids included, so the guard belongs here.
+ *  nobody can read. This is the only place __system__ is written from at an
+ *  open, the migration of legacy ids included; its one caller,
+ *  reconcile_treedb_schema(), holds the guard.
  ***************************************************************************/
-PRIVATE int reconcile_treedb_schema(
+PRIVATE int project_literal_into_system(
     hgobj gobj,
     const char *treedb_name,
     json_t *jn_schema,  // not owned
@@ -3690,15 +3721,6 @@ PRIVATE int reconcile_treedb_schema(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*
-     *  The tranger's own flag, not the attribute: a master that could not
-     *  take the store in exclusive opens as a replica (timeranger2.c), and
-     *  what decides whether a write lands is what it ended up being.
-     */
-    if(!kw_get_bool(gobj, priv->tranger_system_, "master", 0, KW_REQUIRED)) {
-        return 0;
-    }
 
     /*
      *  Ask with a list: it is silent when the treedb has no projection yet,
@@ -3892,6 +3914,105 @@ PRIVATE int reconcile_treedb_schema(
     JSON_DECREF(file_in_use)
     JSON_DECREF(current)
 
+    return ret;
+}
+
+/***************************************************************************
+ *  Remove the saved schema of a treedb, if there is one. `*p_version` is
+ *  the schema_version it had, 0 when there was none. -1 when it could not
+ *  be removed (logged).
+ ***************************************************************************/
+PRIVATE int remove_saved_schema(hgobj gobj, const char *treedb_name, json_int_t *p_version)
+{
+    *p_version = 0;
+
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
+    if(!file_exists(saved_dir, filename)) {
+        return 0;
+    }
+    json_t *saved = load_json_from_file(gobj, saved_dir, filename, 0);
+    *p_version = schema_version_of(gobj, saved);
+    JSON_DECREF(saved)
+
+    if(file_remove(saved_dir, filename) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_SYSTEM,
+            "msg",              "%s", "Cannot remove the saved schema",
+            "treedb_name",      "%s", treedb_name,
+            "directory",        "%s", saved_dir,
+            "filename",         "%s", filename,
+            "errno",            "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Keep the __system__ projection in step with the schema compiled in C
+ *  (project_literal_into_system), and retire the saved schema that the open
+ *  makes stale.
+ *
+ *  A saved schema is published AGAINST the schema file in use. When the
+ *  literal is about to be written over that file -- there is none, the
+ *  literal is newer, or it is imposed over another one: the rule of
+ *  treedb_open_db() -- the save was made against a file that is gone. It is
+ *  withdrawn: left, it was applicable over the literal whenever its number
+ *  was higher (a take-over with no file in use), and it installed the
+ *  operator's old drafts over the developer's change. Nothing is lost: the
+ *  drafts of the topics the literal did not raise stay in __system__, and
+ *  the next save publishes them against the new file (review of the second
+ *  fix round, 2026-09-23).
+ *
+ *  ONLY THE MASTER writes __system__ and saved_schemas/.
+ ***************************************************************************/
+PRIVATE int reconcile_treedb_schema(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_schema,  // not owned
+    BOOL imposing       // the treedb is being opened with the schema from C
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  The tranger's own flag, not the attribute: a master that could not
+     *  take the store in exclusive opens as a replica (timeranger2.c), and
+     *  what decides whether a write lands is what it ended up being.
+     */
+    if(!kw_get_bool(gobj, priv->tranger_system_, "master", 0, KW_REQUIRED)) {
+        return 0;
+    }
+
+    json_int_t new_version = kw_get_int(gobj, jn_schema, "schema_version", 1, KW_WILD_NUMBER);
+    json_t *file_in_use = load_schema_file_in_use(gobj, treedb_name);
+    json_int_t in_use_version = schema_version_of(gobj, file_in_use);
+    BOOL literal_replaces_file = (!file_in_use || new_version > in_use_version ||
+        (imposing && new_version < in_use_version))? TRUE: FALSE;
+    JSON_DECREF(file_in_use)
+
+    int ret = project_literal_into_system(gobj, treedb_name, jn_schema, imposing);
+
+    if(literal_replaces_file) {
+        json_int_t saved_version;
+        if(remove_saved_schema(gobj, treedb_name, &saved_version) == 0 && saved_version > 0) {
+            gobj_log_warning(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_TREEDB,
+                "msg",              "%s", "Saved schema withdrawn: the schema from C replaces the file in use it was saved against",
+                "treedb_name",      "%s", treedb_name,
+                "saved_version",    "%d", (int)saved_version,
+                "schema_version",   "%d", (int)new_version,
+                "in_use_version",   "%d", (int)in_use_version,
+                NULL
+            );
+        }
+    }
     return ret;
 }
 

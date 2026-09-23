@@ -2305,6 +2305,22 @@ PRIVATE int check_delete_treedb(hgobj gobj)
             JSON_DECREF(jn_resp)
         }
 
+        /*
+         *  A saved schema of the treedb goes with its schema: left in
+         *  saved_schemas/, a treedb created again under the name found a
+         *  save of the one deleted (review of the second fix round,
+         *  2026-09-23)
+         */
+        char saved_dir[PATH_MAX];
+        build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
+        if(close_first) {
+            mkrdir(saved_dir, 02770);
+            save_json_to_file(gobj, saved_dir, DELETE_TREEDB_NAME ".treedb_schema.json",
+                02770, 0660, 0, TRUE, FALSE,
+                json_pack("{s:s, s:i, s:[]}", "id", DELETE_TREEDB_NAME, "schema_version", 50, "topics")
+            );
+        }
+
         jn_resp = gobj_command(
             priv->gobj_treedbs,
             "delete-treedb",
@@ -2312,6 +2328,15 @@ PRIVATE int check_delete_treedb(hgobj gobj)
             gobj
         );
         int deleted = (int)kw_get_int(gobj, jn_resp, "result", -1, 0);
+        if(close_first && file_exists(saved_dir, DELETE_TREEDB_NAME ".treedb_schema.json")) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: delete-treedb left the saved schema of the treedb",
+                NULL
+            );
+            result += -1;
+        }
         if(close_first && deleted < 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -3443,6 +3468,45 @@ PRIVATE int check_save_and_apply(hgobj gobj)
     JSON_DECREF(jn_resp)
 
     /*
+     *  Applied, the saved schema IS the file in use: it goes from
+     *  saved_schemas/. Kept, saved-schema went on answering `saved: true`
+     *  with a diff for a schema that was already in use (review of the
+     *  second fix round, 2026-09-23).
+     */
+    jn_resp = treedbs_command(gobj, "saved-schema", json_object());
+    if(file_exists(saved_file, 0) ||
+            kw_get_bool(gobj, jn_resp, "data`saved", 1, 0) ||
+            kw_get_bool(gobj, jn_resp, "data`stale", 1, 0) ||
+            json_object_size(kw_get_dict(gobj, jn_resp, "data`diff`changed", 0, 0)) != 0) {
+        result += save_fail(gobj, "TEST FAIL: an applied saved schema is still there, or still reads as saved", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  A saved schema that is not newer than the file in use (one left by
+     *  an older release, or a remove that failed) is STALE: saved-schema
+     *  says so, and does not diff it as a pending save
+     */
+    {
+        char in_use_dir[PATH_MAX];
+        build_path(in_use_dir, sizeof(in_use_dir), priv->path_database, TREEDB_NAME, NULL);
+        json_t *stale = load_json_from_file(gobj, in_use_dir, TREEDB_NAME ".treedb_schema.json", 0);
+        json_object_set_new(stale, "schema_version", json_integer(expected_v - 1));
+        save_json_to_file(gobj, saved_dir, TREEDB_NAME ".treedb_schema.json",
+            02770, 0660, 0, TRUE, FALSE, stale  // owned
+        );
+        jn_resp = treedbs_command(gobj, "saved-schema", json_object());
+        if(kw_get_bool(gobj, jn_resp, "data`saved", 1, 0) ||
+                !kw_get_bool(gobj, jn_resp, "data`stale", 0, 0) ||
+                kw_get_bool(gobj, jn_resp, "data`can_apply", 1, 0) ||
+                json_object_size(kw_get_dict(gobj, jn_resp, "data`diff`changed", 0, 0)) != 0) {
+            result += save_fail(gobj, "TEST FAIL: saved-schema did not report a stale saved schema", jn_resp);
+        }
+        JSON_DECREF(jn_resp)
+        file_remove(saved_dir, TREEDB_NAME ".treedb_schema.json");
+    }
+
+    /*
      *  The file in use carries no derived `fkey` mark: parse_schema() adds
      *  one to every column a hook points at, apply-schema parsed the saved
      *  schema to validate it and wrote the parsed copy (L-3 of the
@@ -3955,6 +4019,10 @@ PRIVATE int check_takeover_projects_raised_topics_only(hgobj gobj)
         return result - 1;
     }
 
+    if(file_exists(saved_dir, TREEDB_NAME ".treedb_schema.json")) {
+        result += save_fail(gobj, "TEST FAIL: a literal that took over the file left the save made against it", NULL);
+    }
+
     json_t *users = system_topic_cols(gobj, "users");
     json_t *departments = system_topic_cols(gobj, "departments");
     const char *email_header = json_string_value(json_object_get(users, "email__header"));
@@ -4034,6 +4102,15 @@ PRIVATE int check_takeover_projects_raised_topics_only(hgobj gobj)
      *  the missing file over, it wrote ITS number into __system__, which
      *  never goes down (review of the second fix round, 2026-09-23)
      */
+    /*  ...and the save, newer than the literal, was made against the file
+     *  that is gone: withdrawn, never applicable over the literal  */
+    jn_resp = treedbs_command(gobj, "saved-schema", json_object());
+    if(file_exists(saved_dir, TREEDB_NAME ".treedb_schema.json") ||
+            kw_get_bool(gobj, jn_resp, "data`can_apply", 1, 0)) {
+        result += save_fail(gobj, "TEST FAIL: a save older than the missing file is still applicable over the literal", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
     json_int_t system_v = system_schema_version(gobj, "schema_version");
     if(saved_v <= in_use_v + 1 || system_v < saved_v) {
         gobj_log_error(gobj, 0,
@@ -4128,6 +4205,16 @@ PRIVATE int check_ordinary_literal_follows_the_file(hgobj gobj)
     JSON_DECREF(jn_resp)
     if(open_test_treedb(gobj, literal) < 0) {   // literal owned
         return result - 1;
+    }
+
+    /*
+     *  The file the operator's save was published against is gone: the save
+     *  is withdrawn. The drafts of the topics the literal did not raise are
+     *  still in __system__, and the next save publishes them against the new
+     *  file (review of the second fix round, 2026-09-23)
+     */
+    if(file_exists(saved_dir, TREEDB_NAME ".treedb_schema.json")) {
+        result += save_fail(gobj, "TEST FAIL: a literal installed over the file left the save made against it", NULL);
     }
 
     char running[NAME_MAX];
