@@ -1859,6 +1859,7 @@ a tagged record):
      cd <store>/items/keys/k2                  # topic, key and file: from the log
      f=2026-09-23.md2
      cp -p $f /root/$f.orig                    # keep the original
+     rm -f $f.new                              # no .new of an earlier try
      python3 - $f <<'EOF'
      import os, struct, sys
      md2 = sys.argv[1]
@@ -1878,15 +1879,15 @@ a tagged record):
      if len(found) == 1:
          open(md2 + '.new', 'wb').write(b[:found[0]] + b[found[0]+k:])
      EOF
-     cat $f.new > $f && rm $f.new              # 'torn row at [96] of 13 bytes'
+     [ -f $f.new ] && cat $f.new > $f && rm $f.new   # 'torn row at [96] of 13 bytes'
      stat -c %s $f                             # 160: 5 whole rows
      ```
 
-     The row whose append was refused is gone (it was never acknowledged);
-     its content stays in the `.json`, and no row names it. Every row that
-     7.25.4 acknowledged is read again. When the script prints no boundary,
-     or more than one, it writes nothing (and `cat` fails): put the key's
-     directory back from a backup copy.
+     The torn row is gone (its append was never acknowledged); its content
+     stays in the `.json`, and no row names it. Every row that 7.25.4
+     acknowledged is read again. When the script prints no boundary, or more
+     than one, it writes no `.new` file and the `.md2` does not change: put
+     the key's directory back from a backup copy.
 
    - anything else (a last whole row that is not valid, too): put the key's
      directory back from a backup copy of the store.

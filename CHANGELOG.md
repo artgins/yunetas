@@ -19,6 +19,11 @@ listed under "No red test" in `TODO.md`.
   while it runs (4 keys x 3 650 daily files: ~80 ms warm cache; 1 key x 30 files
   x 20 000 rows: ~16 ms). On that 30-file topic a tm query took ~13 ms on
   7.25.4, ~400 ms unmigrated and ~0.1 ms migrated. See `deploying-yunos.md`.
+- **Before upgrading a node, look for md2 files that are not whole rows:**
+  `find /yuneta/store /yuneta/realms -name '*.md2' -printf '%s %p\n' | awk '$1 % 32'`.
+  A file that 7.25.4 wrote after a torn row is not cut by this release: its key
+  fails every load (CRITICAL *"...not cut, repair it by hand"*) until it is
+  repaired (treedb.md, "A topic that did not load whole").
 - **If the main agent does not come back after the upgrade**, look for
   *"Cannot start agent treedb"* in its log: when its treedb's schema is
   refused, the agent now exits 0 and is not relaunched. Reach the node through
@@ -88,7 +93,9 @@ listed under "No red test" in `TODO.md`.
   that meets such an md2 cuts it back the same way before it writes its row,
   so a row always starts on a row boundary; if the cut fails, the append is
   refused with a CRITICAL (*"Cannot append record, its md2 file ends in a part
-  of a row that cannot be cut back: the append is refused"*). A tail is cut only
+  of a row that cannot be cut back: the append is refused"*). An append that
+  finds a tail it must not cut is refused the same way (*"...that must not be
+  cut back: the append is refused"*). A tail is cut only
   when it follows a valid last row and the end-aligned 32 bytes are not a
   whole row ending at the end of the content: an md2 that 7.25.4 kept
   appending into after a torn row (its later rows off the row boundary) is NOT
@@ -173,11 +180,13 @@ listed under "No red test" in `TODO.md`.
   projection that completes removes the record; so does `delete-treedb`. The
   record is written whole (a `.new` file and a rename); one that cannot be
   read still means "unfinished" (WARNING at each read, `save-schema` refused,
-  retried; one WARNING with its cause in `error`), and then what `__system__`
-  holds over the file is reported as a draft when the projection completes.
+  retried; one WARNING at each read, with its cause in `error`), and then what
+  `__system__` holds over the file is reported as an `unsaved` draft when the
+  projection completes.
   The record keeps `draft_kinds`, so the open that finally replaces a draft
   reports its kind (a saved draft is `saved`). A treedbs node never stamped
-  (`schema_version` 0, no record) is a seed that died: the next open completes
+  (`schema_version` 0, no record, a file in use at `schema_version` 1
+  or more) is a seed that died: the next open completes
   it and reports nothing.
 - **A draft is reported once, by the open that replaces it in `__system__`**,
   whether it was made before the projection failed or while it was
@@ -185,7 +194,8 @@ listed under "No red test" in `TODO.md`.
   (in `draft_changed`), never a leftover. A topic the operator deleted from
   `__system__` is a draft too: when a newer literal re-creates it, it is
   reported as `unsaved`, or `saved` when a pending save published the
-  deletion. An edit of a LEFTOVER is nobody's draft and is not reported.
+  deletion. An edit of a LEFTOVER is nobody's draft: the open that completes the
+  projection deletes it and reports nothing.
 - `save-schema` refuses a draft with no topics and `apply-schema` a saved
   schema with no topics (WARNING, -1, the file in use unchanged): a treedb
   without topics does not open.
@@ -311,7 +321,9 @@ listed under "No red test" in `TODO.md`.
   literal's content, with a warning. Seeding with no literal installed comes
   from the file, with `c_schema_version` 0 unless the file is the literal.
 - `apply-schema` writes a new record, `saved_schemas/<treedb>.applied.json`,
-  and refuses when it cannot write it; `save-schema`
+  and refuses when it cannot write it; `save-schema` refuses a draft with no
+  topics, and `apply-schema` a saved schema with no topics (without
+  `treedb_name`, that refuses every treedb); `save-schema`
   refuses while a projection is unfinished (new record
   `saved_schemas/<treedb>.unfinished.json`); a failed create, update or link of
   the projection leaves it unfinished and retried; a second `open-treedb` is
@@ -331,9 +343,17 @@ listed under "No red test" in `TODO.md`.
   read every pending message; `trq_check_backup()` / `tr2q_check_backup()`
   return -1 while the backup is refused.
 - timeranger2: an append into a file flagged unreadable returns -1. A master
-  cuts back an md2 that ends in a part of a row (it writes the store at open).
-  Log texts: *"Cannot read last record, md2 file corrupted"* is gone (a torn
-  md2 is cut back with a WARNING); *"Cannot read first/last record of md2
+  cuts back an md2 that ends in a torn row (it writes the store at open). An
+  md2 that 7.25.4 wrote after a torn row, or whose last whole row is not
+  valid, is not cut: its key fails every load, on a master and a replica. Log
+  texts: *"Cannot read last record, md2 file corrupted"* is gone. A torn md2 is
+  cut back with a WARNING; the other shapes log a CRITICAL (*"md2 file of the
+  key ends in a whole row that is not on a row boundary: written by 7.25.4
+  after a torn row; not cut, repair it by hand"* or *"md2 file of the key ends
+  in a part of a row after a last whole row that is not valid: not cut, repair
+  it by hand"*), and an append into such a file is refused (*"Cannot append
+  record, its md2 file ends in a part of a row that must not be cut back: the
+  append is refused"*); *"Cannot read first/last record of md2
   file"* are now *"Cannot read a record of md2 file, read FAILED"* or *"...,
   short read"* (with `row`: `first` / `last`); a truncated md2 or content logs
   *"... short read"* instead of *"read FAILED"*, and a write that stops part
