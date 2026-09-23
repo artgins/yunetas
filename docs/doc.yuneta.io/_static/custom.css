@@ -207,3 +207,10 @@ html.dark .myst-top-nav .myst-top-nav-item > a:hover {
     color: orange;
     font-weight: bold;
 }
+/* The root page is Get Started (the first toc entry), and the logo already
+   links to it. mystmd labels that entry with the project title, so the
+   sidebar opened with a "Yuneta Simplified" item that looked like a page of
+   its own. It is hidden; the landing is reached by "Overview" in the top bar. */
+nav.myst-primary-sidebar-toc .myst-toc > a.myst-toc-item[href="/"] {
+    display: none;
+}

@@ -33,12 +33,15 @@ project:
     - ../../outputs_ext/**
 
   toc:
+    # The first entry is the root of the site (where the logo links), and
+    # mystmd refuses a first entry with children: "First TOC item cannot have
+    # children". So Get Started stands alone and its pages follow it.
     - title: Get Started
       file: get_started.md
-      children:
-        - file: installation.md
-        - file: activating.md
-        - file: CHANGELOG.md
+
+    - file: installation.md
+    - file: activating.md
+    - file: CHANGELOG.md
 
     - title: The `yunetas` CLI
       file: yunetas-cli.md
