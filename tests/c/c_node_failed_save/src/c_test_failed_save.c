@@ -186,7 +186,7 @@ ssize_t __wrap_write(int fd, const void *buf, size_t count);
 ssize_t __wrap_write(int fd, const void *buf, size_t count)
 {
     if(fail_writes_key[0]) {
-        char link[64];
+        char link[PATH_MAX];
         char target[PATH_MAX];
         snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
         ssize_t ln = readlink(link, target, sizeof(target) - 1);

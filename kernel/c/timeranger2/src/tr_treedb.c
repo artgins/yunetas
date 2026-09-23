@@ -61,6 +61,9 @@ typedef struct node_write_s {
     json_t *fkeys;      // owned or NULL: {col: value before} of the other ones
     json_t *fields;     // owned or NULL: {key: value before} of the fields it replaces
     json_t *absent;     // owned or NULL: [key] of the fields it adds
+    char hook_ref[NAME_MAX];    // the first parent ref it unlinks, "" if none
+    size_t hook_pos;            // the place of the node in that parent's hook before
+    json_t *hook_positions;     // owned or NULL: {ref: place before} of the other ones
 } node_write_t;
 
 /***************************************************************
@@ -153,13 +156,23 @@ PRIVATE void release_treedb_events(json_t *tranger, events_hold_t *hold, BOOL te
 PRIVATE int clean_node_in_memory(
     json_t *tranger,
     json_t *node,       // NOT owned, pure node
-    BOOL *p_to_save
+    BOOL *p_to_save,
+    node_write_t *write // optional: keeps the places the unlinks free
 );
 PRIVATE int unlink_child_from_parent_ref(
     hgobj gobj,
     json_t *tranger,
     json_t *node,       // NOT owned, pure node: the child
-    const char *ref
+    const char *ref,
+    node_write_t *write // optional: keeps the fkey and the place the unlink frees
+);
+PRIVATE int link_child_to_parent_ref(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *node,       // NOT owned, pure node: the child
+    const char *col_name,
+    const char *ref,
+    node_write_t *write // optional
 );
 PRIVATE void clear_treedb_hooks(
     hgobj gobj,
@@ -223,7 +236,7 @@ PRIVATE int check_file_column(
 );
 PRIVATE BOOL link_col_type_is_valid(hgobj gobj, const char *col_name, json_t *col);
 PRIVATE int check_hook_fkey_columns(hgobj gobj, const char *topic_name, json_t *cols);
-PRIVATE int link_file_columns(hgobj gobj, json_t *tranger, json_t *node, json_t *kw, BOOL is_new, BOOL *moved);
+PRIVATE int link_file_columns(hgobj gobj, json_t *tranger, json_t *node, json_t *kw, BOOL is_new, BOOL *moved, node_write_t *write);
 PRIVATE int remove_blob(hgobj gobj, json_t *tranger, json_t *node);
 PRIVATE json_t *filtra_fkeys(const char *topic_name, const char *col_name, const char *type, json_t *value);
 PRIVATE const char *files_default_types[];
@@ -6358,7 +6371,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
          *  would be linked a second time -- a "Child already in parent
          *  hook" per column and an instance for nothing.
          */
-        if(link_file_columns(gobj, tranger, node, kw, !links_inherited, &moved)<0) {
+        if(link_file_columns(gobj, tranger, node, kw, !links_inherited, &moved, NULL)<0) {
             /*
              *  Error already logged. A create that could not link the
              *  `file` column it was handed is the failure §16.8 closed
@@ -6708,6 +6721,97 @@ PRIVATE void release_treedb_events(json_t *tranger, events_hold_t *hold, BOOL te
 }
 
 /***************************************************************************
+ *  Take out of the list the events held back since `hold` was opened
+ *  (hold_treedb_events), without telling them: a change that stays,
+ *  although the write that made it is dropped, is told apart
+ *  (tell_taken_events()). Return them, YOURS, or NULL when there are none.
+ ***************************************************************************/
+PRIVATE json_t *take_held_events(events_hold_t *hold)
+{
+    json_t *deferred = json_object_get(hold->treedb, "__deferred_events__");
+    size_t size = json_array_size(deferred);
+    if(size <= hold->mark) {
+        return NULL;
+    }
+    json_t *events = json_array();
+    for(size_t i = hold->mark; i < size; i++) {
+        json_array_append(events, json_array_get(deferred, i));
+    }
+    while(json_array_size(deferred) > hold->mark) {
+        json_array_remove(deferred, json_array_size(deferred) - 1);
+    }
+    return events;
+}
+
+/***************************************************************************
+ *  Tell the events take_held_events() took out, in their order, as any
+ *  event is told: now, or when the write open around this one lands.
+ ***************************************************************************/
+PRIVATE void tell_taken_events(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    json_t *events  // owned, may be NULL
+)
+{
+    for(size_t i = 0; i + 2 < json_array_size(events); i += 3) {
+        publish_treedb_event(
+            gobj,
+            tranger,
+            treedb_name,
+            json_string_value(json_array_get(events, i)),
+            deferred_operation_name(json_array_get(events, i+1)),
+            json_incref(json_array_get(events, i+2))
+        );
+    }
+    JSON_DECREF(events)
+}
+
+/***************************************************************************
+ *  Mark `node` as being deleted (`set`), or not any more. From the moment
+ *  its key is deleted until its delete returns, the events of the delete
+ *  are told, and a callback that saves the node would write a record into
+ *  the key just deleted: the node would come back from the disk. The save
+ *  refuses a node marked (node_is_being_deleted()). A treedb nobody listens
+ *  to tells nothing, and marks nothing.
+ ***************************************************************************/
+PRIVATE void mark_node_deleting(json_t *treedb, json_t *node, BOOL set)
+{
+    if(!treedb || !json_integer_value(json_object_get(treedb, "__treedb_callback__"))) {
+        return;
+    }
+    json_t *deleting = json_object_get(treedb, "__nodes_deleting__");
+    if(set) {
+        if(!deleting) {
+            deleting = json_array();
+            json_object_set_new(treedb, "__nodes_deleting__", deleting);
+        }
+        json_array_append_new(deleting, json_integer((json_int_t)(uintptr_t)node));
+        return;
+    }
+    for(size_t i = json_array_size(deleting); i-- > 0; ) {
+        if((json_t *)(uintptr_t)json_integer_value(json_array_get(deleting, i)) == node) {
+            json_array_remove(deleting, i);
+            break;
+        }
+    }
+}
+
+/***************************************************************************
+ *  Is `node` being deleted (mark_node_deleting())?
+ ***************************************************************************/
+PRIVATE BOOL node_is_being_deleted(json_t *tranger, const char *treedb_name, json_t *node)
+{
+    json_t *deleting = json_object_get(get_treedb(tranger, treedb_name), "__nodes_deleting__");
+    for(size_t i = json_array_size(deleting); i-- > 0; ) {
+        if((json_t *)(uintptr_t)json_integer_value(json_array_get(deleting, i)) == node) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  Open a WRITE of `node`: a change of it in memory that a save puts on
  *  disk. What a write moves in memory before its save -- its fields, and
  *  the links its fkeys make (the hooks of the parents move with them) --
@@ -6731,6 +6835,9 @@ PRIVATE void begin_node_write(hgobj gobj, json_t *tranger, json_t *node, node_wr
     write->fkeys = NULL;
     write->fields = NULL;
     write->absent = NULL;
+    write->hook_ref[0] = 0;
+    write->hook_pos = 0;
+    write->hook_positions = NULL;
     hold_treedb_events(
         tranger,
         json_string_value(json_object_get(json_object_get(node, "__md_treedb__"), "treedb_name")),
@@ -6842,14 +6949,119 @@ PRIVATE void keep_node_fields(node_write_t *write, json_t *node, json_t *updates
 }
 
 /***************************************************************************
+ *  Keep in the write (begin_node_write) the place `pos` of the node in the
+ *  hook of the parent that `ref` names, the first time the write unlinks
+ *  it from there: a take-back puts it back in that place
+ *  (put_child_in_hook_place()). Most writes unlink from one parent: it is
+ *  kept without a dict.
+ ***************************************************************************/
+PRIVATE void keep_hook_position(node_write_t *write, const char *ref, size_t pos)
+{
+    if(!write->hook_ref[0]) {
+        snprintf(write->hook_ref, sizeof(write->hook_ref), "%s", ref);
+        write->hook_pos = pos;
+        return;
+    }
+    if(strcmp(write->hook_ref, ref)==0 || json_object_get(write->hook_positions, ref)) {
+        return;
+    }
+    if(!write->hook_positions) {
+        write->hook_positions = json_object();
+    }
+    json_object_set_new(write->hook_positions, ref, json_integer((json_int_t)pos));
+}
+
+/***************************************************************************
+ *  The place the write kept for the parent `ref` (keep_hook_position()),
+ *  or -1 when the write did not unlink the node from it.
+ ***************************************************************************/
+PRIVATE json_int_t kept_hook_position(node_write_t *write, const char *ref)
+{
+    if(write->hook_ref[0] && strcmp(write->hook_ref, ref)==0) {
+        return (json_int_t)write->hook_pos;
+    }
+    json_t *jn_pos = json_object_get(write->hook_positions, ref);
+    return jn_pos? json_integer_value(jn_pos) : -1;
+}
+
+/***************************************************************************
+ *  Put `child_node` in the place `pos` of the hook `hook_name` of
+ *  `parent_node`. A take-back links a child again at the END of the hook:
+ *  moved to the place it had, the hook is the one it was before the write.
+ *  A dict hook keeps its keys in the order they were set, so it is set
+ *  again, in its order.
+ ***************************************************************************/
+PRIVATE void put_child_in_hook_place(
+    json_t *parent_node,    // NOT owned
+    const char *hook_name,
+    json_t *child_node,     // NOT owned
+    size_t pos
+)
+{
+    json_t *hook = json_object_get(parent_node, hook_name);
+    if(json_is_array(hook)) {
+        size_t size = json_array_size(hook);
+        size_t cur = size;
+        for(size_t i = size; i-- > 0; ) {
+            if(json_array_get(hook, i) == child_node) {
+                cur = i;
+                break;
+            }
+        }
+        if(cur == size || cur == pos || pos >= size) {
+            return;     // not in the hook, already in its place, or its place is gone
+        }
+        json_incref(child_node);
+        json_array_remove(hook, cur);
+        json_array_insert_new(hook, pos, child_node);
+        return;
+    }
+
+    if(!json_is_object(hook)) {
+        return;
+    }
+    const char *child_id = json_string_value(json_object_get(child_node, "id"));
+    if(!child_id || json_object_get(hook, child_id) != child_node) {
+        return;     // not in the hook: another instance of the parent holds it
+    }
+    json_t *items = json_array();
+    size_t cur = 0;
+    size_t idx = 0;
+    const char *key; json_t *v;
+    json_object_foreach(hook, key, v) {
+        if(strcmp(key, child_id)==0) {
+            cur = idx;
+        } else {
+            json_array_append_new(items, json_pack("[s,O]", key, v));
+        }
+        idx++;
+    }
+    if(cur != pos && pos < idx) {
+        json_array_insert_new(items, pos, json_pack("[s,O]", child_id, child_node));
+        json_object_clear(hook);
+        int i; json_t *item;
+        json_array_foreach(items, i, item) {
+            json_object_set(
+                hook,
+                json_string_value(json_array_get(item, 0)),
+                json_array_get(item, 1)
+            );
+        }
+    }
+    JSON_DECREF(items)
+}
+
+/***************************************************************************
  *  Take back the fkey field `col_name` of `node` to `before`, with the
- *  links it makes (see restore_node()). Return how many links could not be
- *  taken back (each one logged).
+ *  links it makes (see restore_node()): a link made again goes back to
+ *  its place in the hook of the parent. Return how many links could not
+ *  be taken back (each one logged).
  ***************************************************************************/
 PRIVATE int restore_node_fkey(
     hgobj gobj,
     json_t *tranger,
     json_t *node,
+    node_write_t *write,
     const char *treedb_name,
     const char *topic_name,
     const char *col_name,
@@ -6866,7 +7078,7 @@ PRIVATE int restore_node_fkey(
         if(json_list_str_index(old_refs, json_string_value(jn_ref), FALSE) >= 0) {
             continue;
         }
-        if(unlink_child_from_parent_ref(gobj, tranger, node, json_string_value(jn_ref))<0) {
+        if(unlink_child_from_parent_ref(gobj, tranger, node, json_string_value(jn_ref), NULL)<0) {
             failed++;   // Error already logged
         }
     }
@@ -6904,6 +7116,11 @@ PRIVATE int restore_node_fkey(
         }
         if(_link_nodes(gobj, tranger, hook_name, parent_node, node, NULL, NULL)<0) {
             failed++;   // Error already logged
+            continue;
+        }
+        json_int_t pos = kept_hook_position(write, ref);
+        if(pos >= 0) {
+            put_child_in_hook_place(parent_node, hook_name, node, (size_t)pos);
         }
     }
     JSON_DECREF(new_refs)
@@ -6918,18 +7135,18 @@ PRIVATE int restore_node_fkey(
 /***************************************************************************
  *  Take back in memory what a write of `node` changed (begin_node_write):
  *  its kept fields, and its kept fkey fields with the links they make. A
- *  ref the write added is unlinked, a ref it removed is linked again,
- *  then the field gets the very value it had. The primitives are the ones
- *  a link and an unlink use, so the hooks of the parents follow as they
- *  follow any link.
+ *  ref the write added is unlinked, a ref it removed is linked again, in
+ *  the place the node had in the hook of that parent, then the field gets
+ *  the very value it had. The primitives are the ones a link and an
+ *  unlink use, so the hooks of the parents follow as they follow any link.
  *
  *  A removed ref is linked again only when it WAS a link: its parent is in
  *  memory, and its hook fills this very column. A stale ref -- one whose
  *  hook no longer exists, or fills another column since a schema
  *  re-pointed it -- hung from nothing, and a write removes it from the
- *  field alone (search_and_remove_wrong_up_ref()): linking it again made a
- *  link that never existed, through the column the hook fills now. The
- *  field below gets it back, as a load of the disk leaves it.
+ *  field alone (search_and_remove_wrong_up_ref()). It is not linked
+ *  again, because that link never existed: it goes back into the field
+ *  alone, as a load of the disk leaves it.
  ***************************************************************************/
 PRIVATE void restore_node(hgobj gobj, json_t *tranger, json_t *node, node_write_t *write)
 {
@@ -6940,13 +7157,13 @@ PRIVATE void restore_node(hgobj gobj, json_t *tranger, json_t *node, node_write_
 
     if(write->fkey_before) {
         failed += restore_node_fkey(
-            gobj, tranger, node, treedb_name, topic_name, write->fkey_col, write->fkey_before
+            gobj, tranger, node, write, treedb_name, topic_name, write->fkey_col, write->fkey_before
         );
     }
     const char *col_name; json_t *before;
     json_object_foreach(write->fkeys, col_name, before) {
         failed += restore_node_fkey(
-            gobj, tranger, node, treedb_name, topic_name, col_name, before
+            gobj, tranger, node, write, treedb_name, topic_name, col_name, before
         );
     }
 
@@ -6985,6 +7202,7 @@ PRIVATE void close_node_write(hgobj gobj, json_t *tranger, node_write_t *write, 
     JSON_DECREF(write->fkeys)
     JSON_DECREF(write->fields)
     JSON_DECREF(write->absent)
+    JSON_DECREF(write->hook_positions)
 }
 
 /***************************************************************************
@@ -7060,6 +7278,22 @@ PUBLIC int treedb_save_node(
      *-------------------------------*/
     const char *treedb_name = node_md_str(node, "treedb_name");
     const char *topic_name = node_md_str(node, "topic_name");
+
+    /*-------------------------------*
+     *  Its key is gone: a record written now brings it back from the disk
+     *-------------------------------*/
+    if(node_is_being_deleted(tranger, treedb_name, node)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot save a node that is being deleted",
+            "treedb_name",  "%s", treedb_name? treedb_name: "",
+            "topic_name",   "%s", topic_name? topic_name: "",
+            "id",           "%s", kw_get_str(gobj, node, "id", "", 0),
+            NULL
+        );
+        return -1;
+    }
 
     /*-------------------------------------*
      *  Write to tranger (save, updating)
@@ -7238,9 +7472,8 @@ PRIVATE json_t *prepare_node_update(
 
     /*-------------------------------*
      *  The bytes of the 'file' columns: stored BEFORE the write opens.
-     *  Storing them may write an asset node, a write of its own that is
-     *  told when it lands: inside this one, its event waited for this
-     *  write and was dropped with it, although the asset was on disk.
+     *  Storing them may write an asset node, a write of its own: it is on
+     *  disk, and told, whatever this write does after.
      *-------------------------------*/
     if(treedb_store_files(tranger, treedb_name, topic_name, kw)<0) {
         return NULL;    // Error already logged
@@ -7406,7 +7639,7 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
     begin_node_write(gobj, tranger, node, &write);
     keep_node_fkeys(gobj, tranger, &write, node, kw);
     BOOL moved = FALSE;
-    if(link_file_columns(gobj, tranger, node, kw, FALSE, &moved)<0) {
+    if(link_file_columns(gobj, tranger, node, kw, FALSE, &moved, &write)<0) {
         // Error already logged
         end_node_write(gobj, tranger, node, &write, FALSE, FALSE);
         JSON_DECREF(updates)
@@ -7440,10 +7673,13 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
  *  Put back what a refused delete of `node` changed in its children: each
  *  child it had unlinked and saved (`pairs[i]` = [hook, child], `writes[i]`
  *  its write) goes back in memory to what it was (restore_node), and is
- *  saved again -- in the reverse order. A child that cannot be saved again
- *  stays unlinked, in memory as on disk, and is named in the log.
+ *  saved again -- in the reverse order, so every child goes back to its
+ *  place in the hooks. A child that cannot be saved again stays unlinked,
+ *  in memory as on disk, and is named in the log. Its unlink stays, so its
+ *  events are told: they are returned (YOURS, or NULL), to be told once
+ *  the events of the delete are dropped (tell_taken_events()).
  ***************************************************************************/
-PRIVATE void put_back_children(
+PRIVATE json_t *put_back_children(
     hgobj gobj,
     json_t *tranger,
     json_t *node,       // NOT owned, the parent
@@ -7452,6 +7688,7 @@ PRIVATE void put_back_children(
     size_t n_unlinked
 )
 {
+    json_t *stay = NULL;
     for(size_t i = n_unlinked; i-- > 0; ) {
         json_t *pair = json_array_get(pairs, i);
         const char *hook = json_string_value(json_array_get(pair, 0));
@@ -7475,9 +7712,20 @@ PRIVATE void put_back_children(
                 "child_id",     "%s", kw_get_str(gobj, child, "id", "", 0),
                 NULL
             );
+            json_t *events = take_held_events(&writes[i].events);
+            if(events) {
+                if(!stay) {
+                    stay = json_array();
+                }
+                for(size_t k = json_array_size(events); k-- > 0; ) {
+                    json_array_insert(stay, 0, json_array_get(events, k));
+                }
+                JSON_DECREF(events)
+            }
         }
         close_node_write(gobj, tranger, &writes[i], FALSE);
     }
+    return stay;
 }
 
 /***************************************************************************
@@ -7660,16 +7908,24 @@ PRIVATE int delete_node(
      *  cannot be saved unlinked, the node cannot be unlinked, or the key
      *  cannot be deleted, the node is linked again in memory and every
      *  child already unlinked is put back and saved again
-     *  (put_back_children). A refused delete used to leave the node
-     *  unlinked in memory and the children before the failing one
-     *  unlinked on disk. The events are held back for the whole delete:
-     *  told before EV_TREEDB_NODE_DELETED, or dropped with the delete.
+     *  (put_back_children), each one in its place in the hooks. 7.25.4
+     *  left the node unlinked in memory and the children before the
+     *  failing one unlinked on disk.
+     *
+     *  The events are held back for the whole delete. A delete that is
+     *  refused drops them (but the ones of a child that could not be put
+     *  back: its unlink stays, and is told). A delete that goes tells
+     *  them once the node has left the indexes, before
+     *  EV_TREEDB_NODE_DELETED: a subscriber that looks the node up finds
+     *  nothing, and one that saves it is refused (mark_node_deleting()),
+     *  because a record written into the key just deleted brings the node
+     *  back from the disk.
      *-------------------------------*/
     BOOL to_delete = TRUE;
     events_hold_t hold;
     hold_treedb_events(tranger, treedb_name, &hold);
 
-    json_t *pairs = json_array();   // [[hook, child], ...] of the children unlinked
+    json_t *pairs = NULL;           // [[hook, child], ...] of the children unlinked
     node_write_t *writes = NULL;    // their writes, in the same order
     size_t n_unlinked = 0;
     node_write_t node_write;
@@ -7681,6 +7937,7 @@ PRIVATE int delete_node(
     json_t *down_refs = get_node_down_refs(gobj, tranger, node);
     if(json_array_size(down_refs)>0) {
         if(force) {
+            pairs = json_array();
             json_t *jn_hooks = treedb_get_topic_hooks(
                 tranger,
                 treedb_name,
@@ -7784,7 +8041,7 @@ PRIVATE int delete_node(
                 node_write_open = TRUE;
                 keep_node_fkeys(gobj, tranger, &node_write, node, NULL);
                 BOOL to_save = FALSE;
-                if(clean_node_in_memory(tranger, node, &to_save)<0) {
+                if(clean_node_in_memory(tranger, node, &to_save, &node_write)<0) {
                     to_delete = FALSE;  // Error already logged
                 }
             }
@@ -7825,8 +8082,9 @@ PRIVATE int delete_node(
             restore_node(gobj, tranger, node, &node_write);
             close_node_write(gobj, tranger, &node_write, FALSE);
         }
-        put_back_children(gobj, tranger, node, pairs, writes, n_unlinked);
+        json_t *stay = put_back_children(gobj, tranger, node, pairs, writes, n_unlinked);
         release_treedb_events(tranger, &hold, FALSE);
+        tell_taken_events(gobj, tranger, treedb_name, stay);
         GBMEM_FREE(writes)
         JSON_DECREF(pairs)
         JSON_DECREF(jn_options)
@@ -7834,7 +8092,7 @@ PRIVATE int delete_node(
     }
 
     /*-------------------------------*
-     *  Deleted: the unlinks are told
+     *  Deleted: the unlinks stay held, told below
      *-------------------------------*/
     if(node_write_open) {
         close_node_write(gobj, tranger, &node_write, TRUE);
@@ -7842,7 +8100,6 @@ PRIVATE int delete_node(
     for(size_t i = 0; i < n_unlinked; i++) {
         close_node_write(gobj, tranger, &writes[i], TRUE);
     }
-    release_treedb_events(tranger, &hold, TRUE);
     GBMEM_FREE(writes)
     JSON_DECREF(pairs)
 
@@ -7957,28 +8214,28 @@ PRIVATE int delete_node(
     }
     JSON_DECREF(iter_pkey2s)
 
-    /*
-     *  Call Callback
-     */
-    json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
+    /*-------------------------------*
+     *  The node is out of the indexes: the unlinks are told, then the
+     *  delete. Until it returns, a save of the node is refused.
+     *-------------------------------*/
+    json_t *treedb = get_treedb(tranger, treedb_name);
+    mark_node_deleting(treedb, node, TRUE);
+    release_treedb_events(tranger, &hold, TRUE);
 
-    treedb_callback_t treedb_callback =
-        (treedb_callback_t)(size_t)kw_get_int(gobj,
-        treedb,
-        "__treedb_callback__",
-        0,
-        0
+    /*
+     *  Call Callback (a callback of the unlinks may have closed the treedb)
+     */
+    treedb = get_treedb(tranger, treedb_name);
+
+    treedb_callback_t treedb_callback = (treedb_callback_t)(uintptr_t)json_integer_value(
+        json_object_get(treedb, "__treedb_callback__")
     );
     if(treedb_callback) {
         /*
          *  Inform user in real time
          */
-        void *user_data =
-            (treedb_callback_t)(size_t)kw_get_int(gobj,
-            treedb,
-            "__treedb_callback_user_data__",
-            0,
-            0
+        void *user_data = (void *)(uintptr_t)json_integer_value(
+            json_object_get(treedb, "__treedb_callback_user_data__")
         );
         JSON_INCREF(node)
         treedb_callback(
@@ -7990,6 +8247,7 @@ PRIVATE int delete_node(
             node
         );
     }
+    mark_node_deleting(get_treedb(tranger, treedb_name), node, FALSE);
 
     /*-------------------------------*
      *  Kill the node
@@ -8908,7 +9166,7 @@ PRIVATE int _link_nodes(
         if(!empty_string(cur_ref) && strcmp(cur_ref, new_ref)!=0) {
             char old_ref[NAME_MAX];
             snprintf(old_ref, sizeof(old_ref), "%s", cur_ref);
-            if(unlink_child_from_parent_ref(gobj, tranger, child_node, old_ref)<0) {
+            if(unlink_child_from_parent_ref(gobj, tranger, child_node, old_ref, write)<0) {
                 return -1;  // Error already logged
             }
             changed = TRUE;
@@ -9450,11 +9708,14 @@ PRIVATE int _unlink_nodes(
     }
 
     /*--------------------------------------------------*
-     *  The column this unlink moves, kept for the write
-     *  that takes it back if its save fails
+     *  The column this unlink moves, and the place of the
+     *  child in the hook of the parent (below), kept for
+     *  the write that takes it back if its save fails
      *--------------------------------------------------*/
     if(write && !is_child_hook) {
         keep_node_fkey(write, child_node, child_field);
+    } else {
+        write = NULL;
     }
 
     /*--------------------------------------------------*
@@ -9494,6 +9755,9 @@ PRIVATE int _unlink_nodes(
                 int idx; json_t *data;
                 json_array_foreach(parent_hook_data, idx, data) {
                     if(child_node == data) {
+                        if(write) {
+                            keep_hook_position(write, pref, (size_t)idx);
+                        }
                         json_array_remove(parent_hook_data, idx);
                         found = TRUE;
                         break;
@@ -9527,6 +9791,17 @@ PRIVATE int _unlink_nodes(
                 );
                 json_object_del(parent_hook_data, pref);
             } else {
+                if(write) {
+                    size_t pos = 0;
+                    const char *key; json_t *v;
+                    json_object_foreach(parent_hook_data, key, v) {
+                        if(strcmp(key, child_id)==0) {
+                            keep_hook_position(write, pref, pos);
+                            break;
+                        }
+                        pos++;
+                    }
+                }
                 json_object_del(parent_hook_data, child_id);
             }
         }
@@ -9612,6 +9887,7 @@ PRIVATE int _unlink_nodes(
 
 /***************************************************************************
  *  Unlink the child from the parent that one of its fkey refs names.
+ *  `write` (optional) keeps what the unlink moves, to take it back.
  *
  *  A ref whose parent is nowhere is a stale ref: it is only removed from
  *  the child. Nothing is saved here. Return 0 or -1 (error logged).
@@ -9620,7 +9896,8 @@ PRIVATE int unlink_child_from_parent_ref(
     hgobj gobj,
     json_t *tranger,
     json_t *node,       // NOT owned, pure node: the child
-    const char *ref
+    const char *ref,
+    node_write_t *write // optional: keeps the fkey and the place the unlink frees
 )
 {
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0);
@@ -9768,7 +10045,7 @@ PRIVATE int unlink_child_from_parent_ref(
             hook_name,
             holder,         // NOT owned
             node,           // NOT owned
-            NULL
+            write
         );
     }
 
@@ -9784,12 +10061,14 @@ PRIVATE int unlink_child_from_parent_ref(
 
 /***************************************************************************
  *  The unlinks treedb_clean_node() makes, in memory only: `*p_to_save`
- *  says whether the node has to be saved.
+ *  says whether the node has to be saved. `write` (optional) keeps the
+ *  places the unlinks free in the hooks of the parents.
  ***************************************************************************/
 PRIVATE int clean_node_in_memory(
     json_t *tranger,
     json_t *node,       // NOT owned, pure node
-    BOOL *p_to_save
+    BOOL *p_to_save,
+    node_write_t *write // optional: keeps the places the unlinks free
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -9823,7 +10102,8 @@ PRIVATE int clean_node_in_memory(
                 gobj,
                 tranger,
                 node,
-                json_string_value(old_fkey)
+                json_string_value(old_fkey),
+                write
             );
         }
 
@@ -9870,19 +10150,26 @@ PUBLIC int treedb_clean_node(
     begin_node_write(gobj, tranger, node, &write);
     keep_node_fkeys(gobj, tranger, &write, node, NULL);
     BOOL to_save = FALSE;
-    int ret = clean_node_in_memory(tranger, node, &to_save);
+    int ret = clean_node_in_memory(tranger, node, &to_save, &write);
     return end_node_write(gobj, tranger, node, &write, ret==0, save && to_save);
 }
 
 /***************************************************************************
  *  The links treedb_autolink() makes, in memory only, on a pure node whose
  *  files are stored: `*p_to_save` says whether the node has to be saved.
+ *  `write` keeps what the links move, to take it back.
+ *
+ *  A ref is linked through the hook it names, and that hook must fill the
+ *  column the ref arrives in (link_child_to_parent_ref()), as
+ *  treedb_replace_links() asks: a ref whose hook fills ANOTHER column is
+ *  refused, and nothing moves for it.
  ***************************************************************************/
 PRIVATE int autolink_in_memory(
     json_t *tranger,
     json_t *node,           // NOT owned, pure node
     json_t *kw,             // owned
-    BOOL *p_to_save
+    BOOL *p_to_save,
+    node_write_t *write
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -9907,9 +10194,6 @@ PRIVATE int autolink_in_memory(
     }
 
     BOOL to_save = FALSE;
-    char parent_topic_name[NAME_MAX];
-    char parent_id[NAME_MAX];
-    char hook_name[NAME_MAX];
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
@@ -9957,72 +10241,21 @@ PRIVATE int autolink_in_memory(
         json_t *new_fkey;
         json_array_foreach(jn_fkeys, idx, new_fkey) {
             // **FKEY**
-            const char *ref = json_string_value(new_fkey);
-
-            /*
-             *  Get parent info
-             */
-            if(!decode_parent_ref(
-                ref,
-                parent_topic_name, sizeof(parent_topic_name),
-                parent_id, sizeof(parent_id),
-                hook_name, sizeof(hook_name)
-            )) {
-                // It's not a fkey
-                gobj_log_error(gobj, 0,
-                    "function",             "%s", __FUNCTION__,
-                    "msgset",               "%s", MSGSET_TREEDB,
-                    "msg",                  "%s", "Wrong parent reference: must be \"parent_topic_name^parent_id^hook_name\"",
-                    "treedb_name",          "%s", treedb_name,
-                    "topic_name",           "%s", topic_name,
-                    "ref",                  "%s", ref,
-                    NULL
-                );
-                json_decref(jn_fkeys);
-                json_decref(cols);
-                JSON_DECREF(kw)
-                return -1;
-            }
-
-            json_t *parent_node = treedb_get_node( // Return is NOT YOURS, pure node
-                tranger,
-                treedb_name,
-                parent_topic_name,
-                parent_id
-            );
-            if(!parent_node) {
-                gobj_log_error(gobj, 0,
-                    "function",             "%s", __FUNCTION__,
-                    "msgset",               "%s", MSGSET_TREEDB,
-                    "msg",                  "%s", "update_node, new link: parent node not found",
-                    "treedb_name",          "%s", treedb_name,
-                    "topic_name",           "%s", topic_name,
-                    "parent-ref",           "%s", ref,
-                    NULL
-                );
-                json_decref(jn_fkeys);
-                json_decref(cols);
-                JSON_DECREF(kw)
-                return -1;
-            }
-
-            if(_link_nodes(
+            if(link_child_to_parent_ref(
                 gobj,
                 tranger,
-                hook_name,
-                parent_node,    // NOT owned
                 node,           // NOT owned
-                NULL,           // the update saves the node anyway
-                NULL
-            )==0) {
-                to_save = TRUE;
-            } else {
+                col_name,
+                json_string_value(new_fkey),
+                write
+            )<0) {
                 // Error already logged
                 json_decref(jn_fkeys);
                 json_decref(cols);
                 JSON_DECREF(kw)
                 return -1;
             }
+            to_save = TRUE;
         }
         json_decref(jn_fkeys);
     }
@@ -10038,7 +10271,8 @@ PRIVATE int autolink_in_memory(
  *  Link the node to the parents its fkey fields in `kw` name, and save
  *  it (`save`). The links move in memory first: when one fails, or the
  *  save does, they are all taken back, and their events are never told
- *  (see begin_node_write).
+ *  (see begin_node_write). A ref whose hook fills another column than the
+ *  one it arrives in is refused (see autolink_in_memory()).
  ***************************************************************************/
 PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
     json_t *tranger,
@@ -10067,9 +10301,8 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
     /*
      *  A 'file' column may still hold a bare id here (idempotent
      *  otherwise). Stored BEFORE the write opens: storing may write an
-     *  asset node, a write of its own, told when it lands -- inside this
-     *  one its event was dropped with a failed autolink, although the
-     *  asset was on disk.
+     *  asset node, a write of its own, told when it lands, whatever the
+     *  autolink does after.
      */
     if(treedb_store_files(
         tranger,
@@ -10086,7 +10319,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
     begin_node_write(gobj, tranger, node, &write);
     keep_node_fkeys(gobj, tranger, &write, node, kw);
     BOOL to_save = FALSE;
-    int ret = autolink_in_memory(tranger, node, kw, &to_save);
+    int ret = autolink_in_memory(tranger, node, kw, &to_save, &write);
     return end_node_write(gobj, tranger, node, &write, ret==0, save && to_save);
 }
 
@@ -10097,14 +10330,16 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
  *  arrived in: a ref whose hook does not link this topic into this very
  *  column would land in another one, so it is refused.
  *
- *  Nothing is saved here. Return 0 or -1 (error logged).
+ *  Nothing is saved here. `write` (optional) keeps what the link moves,
+ *  to take it back. Return 0 or -1 (error logged).
  ***************************************************************************/
 PRIVATE int link_child_to_parent_ref(
     hgobj gobj,
     json_t *tranger,
     json_t *node,       // NOT owned, pure node: the child
     const char *col_name,
-    const char *ref
+    const char *ref,
+    node_write_t *write // optional
 )
 {
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0);
@@ -10183,7 +10418,7 @@ PRIVATE int link_child_to_parent_ref(
         parent_node,    // NOT owned
         node,           // NOT owned
         NULL,
-        NULL
+        write
     );
 }
 
@@ -10317,7 +10552,8 @@ PRIVATE BOOL link_can_be_made(
  *  links it has too.
  *
  *  In memory only, on a pure node whose files are stored: `*p_changed`
- *  says whether the node has to be saved.
+ *  says whether the node has to be saved. `write` keeps what the links
+ *  move, to take it back.
  *
  *  Return 0, or -1 if some link failed (every failure logged).
  ***************************************************************************/
@@ -10326,7 +10562,8 @@ PRIVATE int replace_links_in_memory(
     json_t *tranger,
     json_t *node,   // NOT owned, pure node
     json_t *kw,     // NOT owned
-    BOOL *p_changed
+    BOOL *p_changed,
+    node_write_t *write
 )
 {
     *p_changed = FALSE;
@@ -10429,7 +10666,7 @@ PRIVATE int replace_links_in_memory(
             if(json_str_in_list(gobj, new_refs, ref, FALSE)) {
                 continue;
             }
-            if(unlink_child_from_parent_ref(gobj, tranger, node, ref)<0) {
+            if(unlink_child_from_parent_ref(gobj, tranger, node, ref, write)<0) {
                 ret = -1;   // Error already logged
             } else {
                 changed = TRUE;
@@ -10444,7 +10681,7 @@ PRIVATE int replace_links_in_memory(
                 continue;
             }
             json_array_append(done, jn_ref);
-            if(link_child_to_parent_ref(gobj, tranger, node, col_name, ref)<0) {
+            if(link_child_to_parent_ref(gobj, tranger, node, col_name, ref, write)<0) {
                 ret = -1;   // Error already logged
             } else {
                 changed = TRUE;
@@ -10460,7 +10697,6 @@ PRIVATE int replace_links_in_memory(
     JSON_DECREF(cols)
     return ret;
 }
-
 
 /***************************************************************************
  *  Replace the node's links by the ones kw's fkey columns name (see
@@ -10514,7 +10750,7 @@ PUBLIC int treedb_replace_links(
     begin_node_write(gobj, tranger, node, &write);
     keep_node_fkeys(gobj, tranger, &write, node, NULL);
     BOOL changed = FALSE;
-    int ret = replace_links_in_memory(gobj, tranger, node, kw, &changed);
+    int ret = replace_links_in_memory(gobj, tranger, node, kw, &changed, &write);
     if(end_node_write(gobj, tranger, node, &write, TRUE, save && changed)<0) {
         ret = -1;   // Error already logged
     }
@@ -10529,11 +10765,11 @@ PUBLIC int treedb_replace_links(
  *  replaced by the ones its fkey columns name (treedb_replace_links()),
  *  and a save, always. It is what an update-node with `autolink` does.
  *
- *  Done as three calls -- an update without save, the links without save,
- *  a save -- each closed as a success before the save: a failed save
- *  took nothing back (memory kept the fields and the links, and the link
- *  events had been told). Now a failed save takes the whole write back,
- *  and none of its events is told.
+ *  A failed save takes the whole write back, and none of its events is
+ *  told. 7.25.4 (C_NODE) made three calls -- an update without save, the
+ *  links without save, a save -- and a failed save took nothing back:
+ *  memory kept the fields and the links, and the link events had been
+ *  told.
  *
  *  A link that cannot be made does not cost the record its save: a link
  *  can be repaired later, a lost record cannot. `*links_refused` says so.
@@ -10571,7 +10807,7 @@ PUBLIC json_t *treedb_update_node_and_links( // WARNING Return is NOT YOURS, pur
          *  The links of the 'file' columns, see treedb_update_node()
          */
         BOOL moved = FALSE;
-        if(link_file_columns(gobj, tranger, node, kw, FALSE, &moved)<0) {
+        if(link_file_columns(gobj, tranger, node, kw, FALSE, &moved, &write)<0) {
             // Error already logged
             end_node_write(gobj, tranger, node, &write, FALSE, FALSE);
             JSON_DECREF(updates)
@@ -10584,7 +10820,7 @@ PUBLIC json_t *treedb_update_node_and_links( // WARNING Return is NOT YOURS, pur
     JSON_DECREF(updates)
 
     BOOL changed = FALSE;
-    if(replace_links_in_memory(gobj, tranger, node, kw, &changed)<0) {
+    if(replace_links_in_memory(gobj, tranger, node, kw, &changed, &write)<0) {
         // Error already logged
         if(links_refused) {
             *links_refused = TRUE;
@@ -13186,7 +13422,8 @@ PRIVATE const char *file_col_id(const char *value, char *bf, size_t bflen)
 /***************************************************************************
  *  One end of a `file` link: link the node to the asset `ref` names, or
  *  unlink it from it. The parent is a node of __assets__, which has no
- *  pkey2s, so the primary is the holder. Nothing is saved here.
+ *  pkey2s, so the primary is the holder. Nothing is saved here. `write`
+ *  (optional) keeps what the link moves, to take it back.
  ***************************************************************************/
 PRIVATE int move_file_link(
     hgobj gobj,
@@ -13195,7 +13432,8 @@ PRIVATE int move_file_link(
     json_t *node,           // NOT owned, pure node
     const char *col_name,
     const char *ref,
-    BOOL link
+    BOOL link,
+    node_write_t *write     // optional
 )
 {
     char parent_topic_name[NAME_MAX];
@@ -13258,9 +13496,9 @@ PRIVATE int move_file_link(
     }
 
     if(link) {
-        return _link_nodes(gobj, tranger, hook_name, parent_node, node, NULL, NULL);
+        return _link_nodes(gobj, tranger, hook_name, parent_node, node, NULL, write);
     }
-    return _unlink_nodes(gobj, tranger, hook_name, parent_node, node, NULL);
+    return _unlink_nodes(gobj, tranger, hook_name, parent_node, node, write);
 }
 
 /***************************************************************************
@@ -13278,7 +13516,8 @@ PRIVATE int move_file_link(
  *  and says nothing about the parent's hook.
  *
  *  Nothing is saved here: the caller saves the child once. `*moved` says
- *  whether a link changed. Return 0 or -1 (error logged).
+ *  whether a link changed. `write` (optional) keeps what the links move,
+ *  to take it back. Return 0 or -1 (error logged).
  ***************************************************************************/
 PRIVATE int link_file_columns(
     hgobj gobj,
@@ -13286,7 +13525,8 @@ PRIVATE int link_file_columns(
     json_t *node,       // NOT owned, pure node
     json_t *kw,         // NOT owned
     BOOL is_new,
-    BOOL *moved
+    BOOL *moved,
+    node_write_t *write // optional
 )
 {
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0);
@@ -13329,13 +13569,13 @@ PRIVATE int link_file_columns(
             continue;
         }
         if(!empty_string(cur_ref)) {
-            if(move_file_link(gobj, tranger, treedb_name, node, col_name, cur_ref, FALSE)<0) {
+            if(move_file_link(gobj, tranger, treedb_name, node, col_name, cur_ref, FALSE, write)<0) {
                 ret = -1;   // Error already logged
                 break;
             }
         }
         if(!empty_string(new_ref)) {
-            if(move_file_link(gobj, tranger, treedb_name, node, col_name, new_ref, TRUE)<0) {
+            if(move_file_link(gobj, tranger, treedb_name, node, col_name, new_ref, TRUE, write)<0) {
                 ret = -1;   // Error already logged
                 break;
             }

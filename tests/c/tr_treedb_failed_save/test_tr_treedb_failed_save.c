@@ -33,8 +33,22 @@
  *          deactivation that cannot be saved leaves the snap active in
  *          memory as on disk, and a replica does not try.
  *
+ *          A take-back puts every child back in its place in the hooks
+ *          of its parents: the order of a hook is the one it had before
+ *          the write.
+ *
+ *          treedb_autolink() refuses a ref whose hook fills another
+ *          column than the one it arrives in, as treedb_replace_links()
+ *          does: nothing moves.
+ *
  *          A refused forced delete whose put-back of a child fails too
- *          leaves that child unlinked, in memory as on disk, and says so.
+ *          leaves that child unlinked, in memory as on disk, says so, and
+ *          tells the events of that unlink: it stays.
+ *
+ *          A forced delete tells its unlinks after the node left the
+ *          indexes: a subscriber that looks the node up finds nothing,
+ *          and a save of the node from a callback is refused, so the node
+ *          does not come back from the disk.
  *          A read-only file cannot make that second save fail (the first
  *          save opened the files of the key, and they stay open), so the
  *          test fails the writes of that key in its own __wrap_write()
@@ -70,7 +84,8 @@
 
 /*
  *  users.departments is a list fkey to departments.users;
- *  departments.department_id is a single fkey to departments.departments
+ *  departments.department_id is a single fkey to departments.departments;
+ *  departments.unit_of is a single fkey to departments.units
  */
 static char schema_failed_save[]= "\
 {                                                                   \n\
@@ -119,6 +134,19 @@ static char schema_failed_save[]= "\
                     'type': 'string',                               \n\
                     'flag': ['fkey']                                \n\
                 },                                                  \n\
+                'unit_of': {                                        \n\
+                    'header': 'Unit of',                            \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'units': {                                          \n\
+                    'header': 'Units',                              \n\
+                    'type': 'array',                                \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'departments': 'unit_of'                    \n\
+                    }                                               \n\
+                },                                                  \n\
                 'departments': {                                    \n\
                     'header': 'Departments',                        \n\
                     'type': 'object',                               \n\
@@ -145,6 +173,7 @@ static char schema_failed_save[]= "\
  *              Prototypes
  ***************************************************************/
 PRIVATE void yuno_catch_signals(void);
+PRIVATE int fail(const char *test, const char *what, json_t *seen);
 
 /***************************************************************************
  *      Data
@@ -154,6 +183,16 @@ PRIVATE char path_root[PATH_MAX];
 PRIVATE char path_database[PATH_MAX];
 
 PRIVATE int events_told = 0;
+PRIVATE json_t *events_seen = NULL;     // [[operation, topic, id], ...] when not NULL
+
+/*
+ *  A subscriber that works on the node a forced delete is deleting, from
+ *  the unlink it is told (see test_delete_told_after_it_is_gone())
+ */
+PRIVATE json_t *probe_node = NULL;
+PRIVATE char probe_id[NAME_MAX];
+PRIVATE int probe_found = 0;
+PRIVATE int probe_saved = 0;
 
 /*
  *  __wrap_write(): with `fail_writes_key` set (a key directory, ending in
@@ -186,7 +225,7 @@ ssize_t __wrap_write(int fd, const void *buf, size_t count);
 ssize_t __wrap_write(int fd, const void *buf, size_t count)
 {
     if(fail_writes_key[0]) {
-        char link[64];
+        char link[PATH_MAX];
         char target[PATH_MAX];
         snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
         ssize_t ln = readlink(link, target, sizeof(target) - 1);
@@ -237,8 +276,65 @@ PRIVATE int treedb_callback(
 )
 {
     events_told++;
+    if(events_seen) {
+        const char *id = json_is_string(json_object_get(node, "id"))?
+            json_string_value(json_object_get(node, "id")) :
+            kw_get_str(0, node, "child_id", "", 0);
+        json_array_append_new(events_seen, json_pack("[s,s,s]", operation, topic_name, id));
+    }
+    if(probe_node && operation == EV_TREEDB_NODE_UNLINKED) {
+        if(treedb_get_node(tranger, treedb_name, "departments", probe_id)) {
+            probe_found++;
+        }
+        if(treedb_update_node(tranger, probe_node, json_pack("{s:s}", "name", "TOUCHED"), TRUE)) {
+            probe_saved++;
+        }
+    }
     json_decref(node);
     return 0;
+}
+
+/***************************************************************************
+ *  The ids a hook of `parent` holds, in their order: yours
+ ***************************************************************************/
+PRIVATE json_t *hook_ids(json_t *parent, const char *hook_name)
+{
+    json_t *ids = json_array();
+    json_t *hook = json_object_get(parent, hook_name);
+    if(json_is_array(hook)) {
+        int idx; json_t *v;
+        json_array_foreach(hook, idx, v) {
+            json_array_append(ids, json_object_get(v, "id"));
+        }
+    } else if(json_is_object(hook)) {
+        const char *k; json_t *v;
+        json_object_foreach(hook, k, v) {
+            json_array_append_new(ids, json_string(k));
+        }
+    }
+    return ids;
+}
+
+/***************************************************************************
+ *  Does the hook `hook_name` of `parent` hold the ids `before` (owned), in
+ *  that order? A FAIL says what it holds.
+ ***************************************************************************/
+PRIVATE int check_hook_order(const char *test, json_t *parent, const char *hook_name, json_t *before)
+{
+    int result = 0;
+    json_t *ids = hook_ids(parent, hook_name);
+    if(!json_equal(ids, before)) {
+        char what[NAME_MAX];
+        snprintf(what, sizeof(what), "the order of %s.%s changed",
+            kw_get_str(0, parent, "id", "", 0), hook_name);
+        result = -1;
+        printf("%s  --> ERROR %s: %s%s\n", On_Red BWhite, test, what, Color_Off);
+        (void)fail(test, "before", before);
+        (void)fail(test, "after", ids);
+    }
+    JSON_DECREF(ids)
+    JSON_DECREF(before)
+    return result;
 }
 
 /***************************************************************************
@@ -385,8 +481,8 @@ PRIVATE int chmod_key_dir(const char *topic_name, const char *key, mode_t mode, 
 
 /***************************************************************************
  *  The nodes of the refused-delete case, as the disk has them: finance
- *  under board, with audit, bob and carol under it; bob in finance and
- *  sales, in that order; temp under board.
+ *  under board, with audit, anna, bob and carol under it; bob in finance
+ *  and sales, in that order; annex under board.
  ***************************************************************************/
 PRIVATE int check_delete_family(json_t *tranger, const char *test)
 {
@@ -394,19 +490,19 @@ PRIVATE int check_delete_family(json_t *tranger, const char *test)
     json_t *board = treedb_get_node(tranger, TREEDB_NAME, "departments", "board");
     json_t *finance = treedb_get_node(tranger, TREEDB_NAME, "departments", "finance");
     json_t *audit = treedb_get_node(tranger, TREEDB_NAME, "departments", "audit");
-    json_t *temp = treedb_get_node(tranger, TREEDB_NAME, "departments", "temp");
+    json_t *annex = treedb_get_node(tranger, TREEDB_NAME, "departments", "annex");
     json_t *bob = treedb_get_node(tranger, TREEDB_NAME, "users", "bob");
     json_t *carol = treedb_get_node(tranger, TREEDB_NAME, "users", "carol");
-    if(!board || !finance || !audit || !temp || !bob || !carol) {
+    if(!board || !finance || !audit || !annex || !bob || !carol) {
         return fail(test, "a node of the family is gone", NULL);
     }
     if(!field_is(finance, "department_id", json_string(REF_BOARD)) ||
             !hook_holds(board, "departments", finance)) {
         result += fail(test, "finance lost its parent", finance);
     }
-    if(!field_is(temp, "department_id", json_string(REF_BOARD)) ||
-            !hook_holds(board, "departments", temp)) {
-        result += fail(test, "temp lost its parent", temp);
+    if(!field_is(annex, "department_id", json_string(REF_BOARD)) ||
+            !hook_holds(board, "departments", annex)) {
+        result += fail(test, "annex lost its parent", annex);
     }
     if(!field_is(audit, "department_id", json_string(REF_FINANCE)) ||
             !hook_holds(finance, "departments", audit)) {
@@ -419,6 +515,11 @@ PRIVATE int check_delete_family(json_t *tranger, const char *test)
     if(!field_is(carol, "departments", json_pack("[s]", REF_FINANCE_U)) ||
             !hook_holds(finance, "users", carol)) {
         result += fail(test, "carol lost her parent", carol);
+    }
+    json_t *anna = treedb_get_node(tranger, TREEDB_NAME, "users", "anna");
+    if(!anna || !field_is(anna, "departments", json_pack("[s]", REF_FINANCE_U)) ||
+            !hook_holds(finance, "users", anna)) {
+        result += fail(test, "anna lost her parent", anna);
     }
     return result;
 }
@@ -481,10 +582,9 @@ PRIVATE int test_failed_update_and_links(json_t *tranger)
 }
 
 /***************************************************************************
- *  treedb_clean_node() whose save fails: every link comes back. A ref it
- *  removed as STALE (its hook no longer exists) comes back in the field
- *  alone: it was never a link, and linking it now fails ("hook field not
- *  found") and leaves the write not taken back whole.
+ *  treedb_clean_node() whose save fails: every link comes back, in its
+ *  place in the hook of the parent. A ref it removed as STALE (its hook no
+ *  longer exists) comes back in the field alone: it was never a link.
  ***************************************************************************/
 PRIVATE int test_failed_clean(json_t *tranger)
 {
@@ -526,6 +626,7 @@ PRIVATE int test_failed_clean(json_t *tranger)
         "msg", M_OPEN_WRITE
     ), NULL, NULL, 1);
     events_told = 0;
+    json_t *sales_users = hook_ids(sales, "users");     // erin is not the last one
     if(treedb_clean_node(tranger, erin, TRUE) >= 0) {
         result += fail(test, "the clean answered success", NULL);
     }
@@ -535,6 +636,7 @@ PRIVATE int test_failed_clean(json_t *tranger)
     if(!hook_holds(sales, "users", erin)) {
         result += fail(test, "the parent lost the child", NULL);
     }
+    result += check_hook_order(test, sales, "users", sales_users);
     if(hook_holds(direction, "users", erin)) {
         result += fail(test, "the stale ref made a link", NULL);
     }
@@ -554,8 +656,9 @@ PRIVATE int test_failed_deletes(json_t *tranger)
     const char *test;
 
     /*
-     *  A child cannot be saved unlinked (carol): audit and bob, unlinked
-     *  and saved before her, are put back, and finance keeps its parent
+     *  A child cannot be saved unlinked (carol): audit, anna and bob,
+     *  unlinked and saved before her, are put back in their places, and
+     *  finance keeps its parent
      */
     test = "refused delete, a child cannot be saved: nothing changes";
     set_expected_results(test, json_pack("[{s:s}, {s:s}, {s:s}]",
@@ -565,18 +668,20 @@ PRIVATE int test_failed_deletes(json_t *tranger)
     ), NULL, NULL, 1);
     events_told = 0;
     json_t *finance = treedb_get_node(tranger, TREEDB_NAME, "departments", "finance");
+    json_t *finance_users = hook_ids(finance, "users");
     if(treedb_delete_node(tranger, finance, json_pack("{s:b}", "force", 1)) >= 0) {
         result += fail(test, "the delete answered success", NULL);
     }
     result += check_delete_family(tranger, test);
+    result += check_hook_order(test, finance, "users", finance_users);
     if(events_told != 0) {
         result += fail(test, "an event was told", NULL);
     }
     result += test_json(NULL);
 
     /*
-     *  The key cannot be deleted (its directory is read-only): temp keeps
-     *  its parent
+     *  The key cannot be deleted (its directory is read-only): annex keeps
+     *  its parent, and its place in it
      */
     test = "refused delete, the key cannot be deleted: nothing changes";
     set_expected_results(test, json_pack("[{s:s}, {s:s}, {s:s}]",
@@ -585,14 +690,17 @@ PRIVATE int test_failed_deletes(json_t *tranger)
         "msg", "Cannot delete node"
     ), NULL, NULL, 1);
     events_told = 0;
-    json_t *temp = treedb_get_node(tranger, TREEDB_NAME, "departments", "temp");
+    json_t *annex = treedb_get_node(tranger, TREEDB_NAME, "departments", "annex");
+    json_t *board = treedb_get_node(tranger, TREEDB_NAME, "departments", "board");
+    json_t *board_departments = hook_ids(board, "departments");  // annex is not the last one
     mode_t mode = 0;
-    result += chmod_key_dir("departments", "temp", 0550, &mode);
-    if(treedb_delete_node(tranger, temp, json_pack("{s:b}", "force", 1)) >= 0) {
+    result += chmod_key_dir("departments", "annex", 0550, &mode);
+    if(treedb_delete_node(tranger, annex, json_pack("{s:b}", "force", 1)) >= 0) {
         result += fail(test, "the delete answered success", NULL);
     }
-    result += chmod_key_dir("departments", "temp", mode, NULL);
+    result += chmod_key_dir("departments", "annex", mode, NULL);
     result += check_delete_family(tranger, test);
+    result += check_hook_order(test, board, "departments", board_departments);
     if(events_told != 0) {
         result += fail(test, "an event was told", NULL);
     }
@@ -722,6 +830,36 @@ PRIVATE int test_failed_saves(json_t *tranger)
         }
         result += test_json(NULL);
     }
+
+    /*
+     *  treedb_autolink() with a ref whose hook fills ANOTHER column: the
+     *  ref arrives in department_id, and the hook `units` fills unit_of.
+     *  Refused before anything moves, as treedb_replace_links() refuses
+     *  it: before, the link moved unit_of, which the write had not kept,
+     *  and the failed save left it in memory.
+     */
+    test = "autolink refuses a ref whose hook fills another column";
+    set_expected_results(test, json_pack("[{s:s}]",
+        "msg", "fkey reference: its hook does not link into this column"
+    ), NULL, NULL, 1);
+    events_told = 0;
+    if(treedb_autolink(tranger, admin,
+            json_pack("{s:s}", "department_id", "departments^sales^units"), TRUE) >= 0) {
+        result += fail(test, "the autolink answered success", NULL);
+    }
+    if(!field_is(admin, "unit_of", json_string(""))) {
+        result += fail(test, "memory kept the column the hook fills", admin);
+    }
+    if(!field_is(admin, "department_id", json_string("departments^direction^departments"))) {
+        result += fail(test, "the column of the ref moved", admin);
+    }
+    if(hook_holds(sales, "units", admin)) {
+        result += fail(test, "memory kept the hook", NULL);
+    }
+    if(events_told != 0) {
+        result += fail(test, "an event was told", NULL);
+    }
+    result += test_json(NULL);
 
     /*
      *  An unlink: the link comes back
@@ -992,15 +1130,21 @@ PRIVATE int check_put_back_family(json_t *tranger, const char *test)
     if(!hook_holds(sales, "users", bob)) {
         result += fail(test, "sales lost bob", NULL);
     }
+    json_t *anna = treedb_get_node(tranger, TREEDB_NAME, "users", "anna");
+    if(!anna || !field_is(anna, "departments", json_pack("[s]", REF_FINANCE_U)) ||
+            !hook_holds(finance, "users", anna)) {
+        result += fail(test, "anna was not put back", anna);
+    }
     return result;
 }
 
 /***************************************************************************
  *  A refused forced delete whose put-back fails too. finance has audit,
- *  bob and carol: audit and bob are unlinked and saved, carol cannot be
- *  saved (read-only), so the delete is refused, and bob cannot be saved
- *  linked again (his writes fail after his unlink). bob stays unlinked, in
- *  memory as on disk, and the ERROR names him; audit is put back.
+ *  anna, bob and carol: audit, anna and bob are unlinked and saved, carol
+ *  cannot be saved (read-only), so the delete is refused, and bob cannot
+ *  be saved linked again (his writes fail after his unlink). bob stays
+ *  unlinked, in memory as on disk, the ERROR names him, and the events of
+ *  his unlink are told; audit and anna are put back, and told nothing.
  ***************************************************************************/
 PRIVATE int test_put_back_fails(json_t *tranger)
 {
@@ -1021,6 +1165,7 @@ PRIVATE int test_put_back_fails(json_t *tranger)
     }
 
     events_told = 0;
+    events_seen = json_array();
     fail_writes_of_key("users", "bob", 1);
     int ret = treedb_delete_node(tranger, finance, json_pack("{s:b}", "force", 1));
     fail_writes_of_key(NULL, NULL, 0);
@@ -1028,9 +1173,76 @@ PRIVATE int test_put_back_fails(json_t *tranger)
         result += fail(test, "the delete answered success", NULL);
     }
     result += check_put_back_family(tranger, test);
-    if(events_told != 0) {
-        result += fail(test, "an event was told", NULL);
+
+    /*
+     *  The unlink of bob stays: it is told. Nothing else is.
+     */
+    json_t *expected = json_pack("[[s,s,s],[s,s,s]]",
+        EV_TREEDB_NODE_UNLINKED, "departments", "bob",
+        EV_TREEDB_NODE_UPDATED, "users", "bob"
+    );
+    if(!json_equal(events_seen, expected)) {
+        result += fail(test, "the events told are not the unlink of bob", events_seen);
     }
+    JSON_DECREF(expected)
+    JSON_DECREF(events_seen)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  A forced delete tells the unlinks of its children after the node left
+ *  the indexes, and a save of it is refused until the delete ends: a
+ *  subscriber that saves the node from the unlink it is told wrote a
+ *  record into the key just deleted, and the node came back from the
+ *  disk.
+ ***************************************************************************/
+PRIVATE int test_delete_told_after_it_is_gone(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "a forced delete tells its unlinks after the node is gone";
+    set_expected_results(test, json_pack("[{s:s}]",
+        "msg", "Cannot save a node that is being deleted"
+    ), NULL, NULL, 1);
+
+    json_t *legal = treedb_create_node(tranger, TREEDB_NAME, "departments",
+        json_pack("{s:s, s:s}", "id", "legal", "name", "Legal"));
+    json_t *gina = treedb_create_node(tranger, TREEDB_NAME, "users",
+        json_pack("{s:s, s:s}", "id", "gina", "username", "gina"));
+    if(!legal || !gina || treedb_link_nodes(tranger, "users", legal, gina) < 0) {
+        return fail(test, "setup failed", NULL);
+    }
+
+    probe_node = legal;
+    snprintf(probe_id, sizeof(probe_id), "%s", "legal");
+    probe_found = 0;
+    probe_saved = 0;
+    events_told = 0;
+    events_seen = json_array();
+    int ret = treedb_delete_node(tranger, legal, json_pack("{s:b}", "force", 1));
+    probe_node = NULL;
+    if(ret < 0) {
+        result += fail(test, "the delete failed", NULL);
+    }
+    if(probe_found) {
+        result += fail(test, "the subscriber found the node it is told is being deleted", NULL);
+    }
+    if(probe_saved) {
+        result += fail(test, "the subscriber saved the node being deleted", NULL);
+    }
+    if(treedb_get_node(tranger, TREEDB_NAME, "departments", "legal")) {
+        result += fail(test, "the node is in memory", NULL);
+    }
+    json_t *expected = json_pack("[[s,s,s],[s,s,s],[s,s,s]]",
+        EV_TREEDB_NODE_UNLINKED, "departments", "gina",
+        EV_TREEDB_NODE_UPDATED, "users", "gina",
+        EV_TREEDB_NODE_DELETED, "departments", "legal"
+    );
+    if(!json_equal(events_seen, expected)) {
+        result += fail(test, "the events told are not the unlink and the delete", events_seen);
+    }
+    JSON_DECREF(expected)
+    JSON_DECREF(events_seen)
     result += test_json(NULL);
     return result;
 }
@@ -1150,13 +1362,13 @@ PRIVATE int do_test(void)
     }
 
     /*
-     *  The family of the refused deletes: finance under board, with audit,
-     *  bob and carol under it, bob in finance THEN sales; temp under board.
-     *  dave in direction, erin in sales with a stale ref (a hook that does
-     *  not exist) after it.
+     *  The family of the refused deletes: annex then finance under board;
+     *  audit, anna, bob and carol under finance, bob in finance THEN sales.
+     *  dave in direction; bob, erin and frank in sales, erin with a stale
+     *  ref (a hook that does not exist) after it.
      */
-    const char *departments_[] = {"board", "finance", "audit", "temp", NULL};
-    const char *users_[] = {"bob", "carol", "dave", "erin", NULL};
+    const char *departments_[] = {"board", "annex", "finance", "audit", NULL};
+    const char *users_[] = {"anna", "bob", "carol", "dave", "erin", "frank", NULL};
     for(int i = 0; departments_[i]; i++) {
         treedb_create_node(tranger, TREEDB_NAME, "departments",
             json_pack("{s:s, s:s}", "id", departments_[i], "name", departments_[i]));
@@ -1166,14 +1378,16 @@ PRIVATE int do_test(void)
             json_pack("{s:s, s:s}", "id", users_[i], "username", users_[i]));
     }
     #define NODE_(topic, id) treedb_get_node(tranger, TREEDB_NAME, topic, id)
-    if(treedb_link_nodes(tranger, "departments", NODE_("departments", "board"), NODE_("departments", "finance")) < 0 ||
+    if(treedb_link_nodes(tranger, "departments", NODE_("departments", "board"), NODE_("departments", "annex")) < 0 ||
+            treedb_link_nodes(tranger, "departments", NODE_("departments", "board"), NODE_("departments", "finance")) < 0 ||
             treedb_link_nodes(tranger, "departments", NODE_("departments", "finance"), NODE_("departments", "audit")) < 0 ||
-            treedb_link_nodes(tranger, "departments", NODE_("departments", "board"), NODE_("departments", "temp")) < 0 ||
             treedb_link_nodes(tranger, "users", NODE_("departments", "finance"), NODE_("users", "bob")) < 0 ||
             treedb_link_nodes(tranger, "users", sales, NODE_("users", "bob")) < 0 ||
+            treedb_link_nodes(tranger, "users", NODE_("departments", "finance"), NODE_("users", "anna")) < 0 ||
             treedb_link_nodes(tranger, "users", NODE_("departments", "finance"), NODE_("users", "carol")) < 0 ||
             treedb_link_nodes(tranger, "users", direction, NODE_("users", "dave")) < 0 ||
-            treedb_link_nodes(tranger, "users", sales, NODE_("users", "erin")) < 0) {
+            treedb_link_nodes(tranger, "users", sales, NODE_("users", "erin")) < 0 ||
+            treedb_link_nodes(tranger, "users", sales, NODE_("users", "frank")) < 0) {
         result += fail("create", "setup of the family failed", NULL);
     }
     json_t *erin = NODE_("users", "erin");
@@ -1251,6 +1465,28 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
     set_expected_results("the disk says what memory said after the put-back", NULL, NULL, NULL, 1);
     result += check_put_back_family(tranger, "the disk says what memory said after the put-back");
+    result += test_json(NULL);
+    close_all(tranger);
+
+    /*
+     *  A forced delete, and a subscriber that saves the node it deletes
+     */
+    tranger = open_all("reload, a delete and its subscriber", NULL);
+    result += test_json(NULL);
+    result += test_delete_told_after_it_is_gone(tranger);
+    json_check_refcounts(tranger, 1000, &result);
+    close_all(tranger);
+
+    tranger = open_all("reload after the delete", NULL);
+    result += test_json(NULL);
+    set_expected_results("the deleted node does not come back", NULL, NULL, NULL, 1);
+    if(treedb_get_node(tranger, TREEDB_NAME, "departments", "legal")) {
+        result += fail("the deleted node does not come back", "legal is on disk", NULL);
+    }
+    json_t *gina = treedb_get_node(tranger, TREEDB_NAME, "users", "gina");
+    if(!gina || !field_is(gina, "departments", json_array())) {
+        result += fail("the deleted node does not come back", "gina is not unlinked on disk", gina);
+    }
     result += test_json(NULL);
     close_all(tranger);
 
