@@ -2531,8 +2531,8 @@ PRIVATE json_t *cmd_import_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: cannot import: %s",
-                gobj_yuno_role_plus_name(), gobj_log_last_message()
+            json_sprintf("%s: cannot import the files of '%s' (see the log)",
+                gobj_yuno_role_plus_name(), kw_get_str(gobj, kw, "source_dir", "", 0)
             ),
             0,
             0,
@@ -2635,7 +2635,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2659,7 +2659,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("Invalid base64 in content64"),
+                json_sprintf("%s: Invalid base64 in content64", gobj_yuno_role_plus_name()),
                 0,
                 0,
                 kw  // owned
@@ -2672,7 +2672,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("Can't decode json content64"),
+                json_sprintf("%s: Can't decode json content64", gobj_yuno_role_plus_name()),
                 0,
                 0,
                 kw  // owned
@@ -2692,7 +2692,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What record?"),
+            json_sprintf("%s: What record?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2726,9 +2726,18 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         src
     );
 
+    /*
+     *  The cause of a refusal is in the log, where the treedb wrote it: the
+     *  comment used to be gobj_log_last_message(), the process-global buffer
+     *  of the last ERROR of anybody (C_NODE lows of the 2026-09-23 reviews).
+     */
     return msg_iev_build_response(gobj,
         node?0:-1,
-        json_sprintf("%s", node?"Node created!":gobj_log_last_message()),
+        node?
+            json_sprintf("%s: Node created, '%s' of topic '%s'",
+                gobj_yuno_role_plus_name(), kw_get_str(gobj, node, "id", "", 0), topic_name):
+            json_sprintf("%s: cannot create the node of topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
         gobj_topic_desc(gobj, topic_name),
         node,
         kw  // owned
@@ -2762,7 +2771,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2785,7 +2794,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("Invalid base64 in content64"),
+                json_sprintf("%s: Invalid base64 in content64", gobj_yuno_role_plus_name()),
                 0,
                 0,
                 kw  // owned
@@ -2798,7 +2807,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("Can't decode json content64"),
+                json_sprintf("%s: Can't decode json content64", gobj_yuno_role_plus_name()),
                 0,
                 0,
                 kw  // owned
@@ -2818,7 +2827,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What record?"),
+            json_sprintf("%s: What record?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2952,7 +2961,7 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -2963,7 +2972,7 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("field 'id' is required to delete nodes"),
+            json_sprintf("%s: field 'id' is required to delete nodes", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3010,7 +3019,7 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Node not found"),
+            json_sprintf("%s: Node not found", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3076,7 +3085,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What parent ref?"),
+            json_sprintf("%s: What parent ref?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3086,7 +3095,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What child ref?"),
+            json_sprintf("%s: What child ref?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3109,7 +3118,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Wrong parent ref"),
+            json_sprintf("%s: Wrong parent ref", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3128,7 +3137,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Wrong child ref"),
+            json_sprintf("%s: Wrong child ref", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3146,7 +3155,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Parent not found"),
+            json_sprintf("%s: Parent not found", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3194,7 +3203,13 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     return msg_iev_build_response(gobj,
         result,
-        result<0?json_sprintf("%s", gobj_log_last_message()):json_sprintf("Nodes linked!"),
+        result<0?
+            json_sprintf("%s: cannot link '%s^%s' to '%s^%s^%s' (see the log)",
+                gobj_yuno_role_plus_name(), child_topic_name, child_id,
+                parent_topic_name, parent_id, hook_name):
+            json_sprintf("%s: Nodes linked, '%s^%s' to '%s^%s^%s'",
+                gobj_yuno_role_plus_name(), child_topic_name, child_id,
+                parent_topic_name, parent_id, hook_name),
         gobj_topic_desc(gobj, child_topic_name),
         child_node,
         kw  // owned
@@ -3229,7 +3244,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What parent ref?"),
+            json_sprintf("%s: What parent ref?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3239,7 +3254,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What child ref?"),
+            json_sprintf("%s: What child ref?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3262,7 +3277,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Wrong parent ref"),
+            json_sprintf("%s: Wrong parent ref", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3281,7 +3296,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Wrong child ref"),
+            json_sprintf("%s: Wrong child ref", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3299,7 +3314,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Parent not found"),
+            json_sprintf("%s: Parent not found", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3347,7 +3362,13 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     return msg_iev_build_response(gobj,
         result,
-        result<0?json_sprintf("%s", gobj_log_last_message()):json_sprintf("Nodes unlinked!"),
+        result<0?
+            json_sprintf("%s: cannot unlink '%s^%s' from '%s^%s^%s' (see the log)",
+                gobj_yuno_role_plus_name(), child_topic_name, child_id,
+                parent_topic_name, parent_id, hook_name):
+            json_sprintf("%s: Nodes unlinked, '%s^%s' from '%s^%s^%s'",
+                gobj_yuno_role_plus_name(), child_topic_name, child_id,
+                parent_topic_name, parent_id, hook_name),
         gobj_topic_desc(gobj, child_topic_name),
         child_node,
         kw  // owned
@@ -3471,7 +3492,8 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     return msg_iev_build_response(gobj,
         topics?0:-1,
-        topics?0:json_string(gobj_log_last_message()),
+        topics?0:json_sprintf("%s: cannot list the topics of treedb '%s' (see the log)",
+            gobj_yuno_role_plus_name(), treedb_name),
         0,
         topics,
         kw  // owned
@@ -3505,7 +3527,7 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3515,7 +3537,7 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What hook?"),
+            json_sprintf("%s: What hook?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3561,7 +3583,7 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("What node_id?"),
+                json_sprintf("%s: What node_id?", gobj_yuno_role_plus_name()),
                 0,
                 0,
                 kw  // owned
@@ -3582,7 +3604,8 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     return msg_iev_build_response(gobj,
         jtree?0:-1,
-        jtree?0:json_string(gobj_log_last_message()),
+        jtree?0:json_sprintf("%s: cannot build the tree of '%s^%s' by hook '%s' (see the log)",
+            gobj_yuno_role_plus_name(), topic_name, node_id, hook),
         0,
         jtree,
         kw  // owned
@@ -3605,7 +3628,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("What topic_name?"),
+                json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
                 0,
                 0,
                 kw  // owned
@@ -3617,7 +3640,8 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     return msg_iev_build_response(gobj,
         desc?0:-1,
-        desc?0:json_string(gobj_log_last_message()),
+        desc?0:json_sprintf("%s: no desc of topic '%s' (see the log)",
+            gobj_yuno_role_plus_name(), topic_name),
         0,
         desc,
         kw  // owned
@@ -3749,7 +3773,7 @@ PRIVATE json_t *cmd_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Set trace %s", set?"on":"off"),
+        json_sprintf("%s: Set trace %s", gobj_yuno_role_plus_name(), set?"on":"off"),
         0,
         0,
         kw  // owned
@@ -3845,7 +3869,8 @@ PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     return msg_iev_build_response(gobj,
         links?0:-1,
-        links?0:json_string(gobj_log_last_message()),
+        links?0:json_sprintf("%s: cannot list the links of topic '%s' (see the log)",
+            gobj_yuno_role_plus_name(), topic_name),
         0,
         links,
         kw  // owned
@@ -3871,7 +3896,8 @@ PRIVATE json_t *cmd_hooks(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     return msg_iev_build_response(gobj,
         hooks?0:-1,
-        hooks?0:json_string(gobj_log_last_message()),
+        hooks?0:json_sprintf("%s: cannot list the hooks of topic '%s' (see the log)",
+            gobj_yuno_role_plus_name(), topic_name),
         0,
         hooks,
         kw  // owned
@@ -3898,7 +3924,7 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3908,7 +3934,7 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What node id?"),
+            json_sprintf("%s: What node id?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3927,7 +3953,8 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return msg_iev_build_response(
         gobj,
         parents?0:-1,
-        parents?0:json_string(gobj_log_last_message()),
+        parents?0:json_sprintf("%s: cannot list the parents of '%s^%s' (see the log)",
+            gobj_yuno_role_plus_name(), topic_name, node_id),
         0,
         parents,
         kw  // owned
@@ -3954,7 +3981,7 @@ PRIVATE json_t *cmd_children(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3964,7 +3991,7 @@ PRIVATE json_t *cmd_children(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What hook?"),
+            json_sprintf("%s: What hook?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3974,7 +4001,7 @@ PRIVATE json_t *cmd_children(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What node id?"),
+            json_sprintf("%s: What node id?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -3994,7 +4021,8 @@ PRIVATE json_t *cmd_children(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return msg_iev_build_response(
         gobj,
         children?0:-1,
-        children?0:json_string(gobj_log_last_message()),
+        children?0:json_sprintf("%s: cannot list the children of '%s^%s' by hook '%s' (see the log)",
+            gobj_yuno_role_plus_name(), topic_name, node_id, hook),
         0,
         children,
         kw  // owned
@@ -4015,7 +4043,7 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -4048,7 +4076,8 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_string(gobj_log_last_message()),
+            json_sprintf("%s: cannot list the nodes of topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -4135,7 +4164,7 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -4145,7 +4174,7 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What node id?"),
+            json_sprintf("%s: What node id?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -4163,7 +4192,7 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     return msg_iev_build_response(gobj,
         node?0:-1,
-        node?0:json_sprintf("Node not found"),
+        node?0:json_sprintf("%s: Node not found", gobj_yuno_role_plus_name()),
         node?tranger2_list_topic_desc_cols(priv->tranger, topic_name):0,
         node,
         kw  // owned
@@ -4192,7 +4221,7 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -4217,10 +4246,11 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
 
     return msg_iev_build_response(
         gobj,
-        0,
+        instances? 0 : -1,
         instances?
-            json_sprintf("%d instances", (int)json_array_size(instances)):
-            json_string(gobj_log_last_message()),
+            json_sprintf("%s: %d instances", gobj_yuno_role_plus_name(), (int)json_array_size(instances)):
+            json_sprintf("%s: cannot list the instances of '%s^%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name, node_id),
         instances?tranger2_list_topic_desc_cols(priv->tranger, topic_name):0,
         instances,
         kw  // owned
@@ -4244,7 +4274,7 @@ PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -4259,7 +4289,7 @@ PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("%d pkey2s", (int)json_array_size(pkey2s)),
+        json_sprintf("%s: %d pkey2s", gobj_yuno_role_plus_name(), (int)json_array_size(pkey2s)),
         0,
         pkey2s,
         kw  // owned
@@ -4359,7 +4389,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("Snap name not found: '%s'", snap_name),
+                json_sprintf("%s: Snap name not found: '%s'", gobj_yuno_role_plus_name(), snap_name),
                 0,
                 0,
                 kw  // owned
@@ -4370,7 +4400,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What snap? give snap_id/id (1..65534) or name"),
+            json_sprintf("%s: What snap? give snap_id/id (1..65534) or name", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -4428,8 +4458,8 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             gobj,
             0,
             json_sprintf(
-                "snap %lld spans %zu topic(s); add topic_name=<topic> to see the records",
-                (long long)snap_id, json_array_size(jn_data)
+                "%s: snap %lld spans %zu topic(s); add topic_name=<topic> to see the records",
+                gobj_yuno_role_plus_name(), (long long)snap_id, json_array_size(jn_data)
             ),
             0,
             jn_data,
@@ -4442,7 +4472,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Topic not found: '%s'", topic_name),
+            json_sprintf("%s: Topic not found: '%s'", gobj_yuno_role_plus_name(), topic_name),
             0,
             0,
             kw  // owned
@@ -4485,12 +4515,11 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     if(!rt) {
         // Error already logged
         JSON_DECREF(jn_data)
-        const char *last_msg = gobj_log_last_message();
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("snap-content failed: %s",
-                empty_string(last_msg)?"(see log)":last_msg),
+            json_sprintf("%s: cannot read the content of snap %lld in topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), (long long)snap_id, topic_name),
             0,
             0,
             kw  // owned
@@ -4501,7 +4530,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("snap %lld content for topic '%s' (%zu records)",
+        json_sprintf("%s: snap %lld content for topic '%s' (%zu records)", gobj_yuno_role_plus_name(),
             (long long)snap_id, topic_name, json_array_size(jn_data)),
         tranger2_list_topic_desc_cols(priv->tranger, topic_name),
         jn_data,
@@ -4560,7 +4589,7 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf(
-                "What snap name?"
+                "%s: What snap name?", gobj_yuno_role_plus_name()
             ),
             0,
             0,
@@ -4582,13 +4611,17 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
-    const char *last_msg = gobj_log_last_message();
+    /*
+     *  The cause is in the log: the comment used to be read from
+     *  gobj_log_last_message(), the process-global buffer of the last ERROR
+     *  of anybody (C_NODE lows of the 2026-09-23 reviews).
+     */
     return msg_iev_build_response(gobj,
         ret,
         ret==0
-            ? json_sprintf("Snap '%s' shot", name)
-            : json_sprintf("Cannot shoot snap '%s': %s",
-                name, empty_string(last_msg)?"(see log)":last_msg),
+            ? json_sprintf("%s: Snap '%s' shot", gobj_yuno_role_plus_name(), name)
+            : json_sprintf("%s: cannot shoot snap '%s' (see the log)", gobj_yuno_role_plus_name(),
+                name),
         ret==0?tranger2_list_topic_desc_cols(priv->tranger, "__snaps__"):0,
         jn_data,
         kw  // owned
@@ -4614,7 +4647,7 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf(
-                "What snap name?"
+                "%s: What snap name?", gobj_yuno_role_plus_name()
             ),
             0,
             0,
@@ -4798,7 +4831,7 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Invalid filename: '/' and '..' are not allowed"),
+            json_sprintf("%s: Invalid filename: '/' and '..' are not allowed", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -4839,7 +4872,7 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
             json_decref(jn_data);
             return msg_iev_build_response(gobj,
                 -1,
-                json_sprintf("File '%s' already exists. Use overwrite option", name),
+                json_sprintf("%s: File '%s' already exists. Use overwrite option", gobj_yuno_role_plus_name(), name),
                 0,
                 0,
                 kw  // owned
@@ -4854,7 +4887,7 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
      */
     return msg_iev_build_response(gobj,
         ret,
-        json_sprintf("Treedb exported %s", ret==0?"ok":"failed"),
+        json_sprintf("%s: Treedb exported %s", gobj_yuno_role_plus_name(), ret==0?"ok":"failed"),
         0,
         jn_data, // owned
         kw  // owned
@@ -4903,7 +4936,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What content64?"),
+            json_sprintf("%s: What content64?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -4916,7 +4949,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Invalid base64 in content64"),
+            json_sprintf("%s: Invalid base64 in content64", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -4930,7 +4963,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Bad json in content64"),
+            json_sprintf("%s: Bad json in content64", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned

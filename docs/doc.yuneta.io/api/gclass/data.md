@@ -220,7 +220,7 @@ tree nodes with linking, snapshots, and import/export.
 | `gc-assets` | Delete the assets that **no live node and no snapshot** links — row and bytes. Never automatic: `delete-node force=1` unlinks children rather than deleting them, so an unlinked asset is a normal intermediate state of a bulk operation. `dry_run=1` lists what it would take. |
 | `node` / `nodes` | Retrieve one node / list a topic's nodes (with filters). |
 | `instances` | List node instances. |
-| `link-nodes` / `unlink-nodes` | Manage parent-child relationships. |
+| `link-nodes` / `unlink-nodes` | Manage parent-child relationships: `command-yuno id=<id> service=<treedb> command=link-nodes parent_ref=items^item00^children child_ref=items^item01` answers `0: <role^name>: Nodes linked, 'items^item01' to 'items^item00^children'`, and a refused one `-1: <role^name>: cannot link 'items^item01' to 'items^item00^children' (see the log)`. On a REPLICA both answer `-1` READ-ONLY, **also for a pair that is already linked** (after 7.25.4; before, the treedb found the pair linked, wrote nothing and answered `0`): on a replica every write is refused, one that would change nothing included, because whether it would is read from the replica's memory, which lags the master's disk. A C caller of `gobj_link_nodes()` / `gobj_unlink_nodes()` on a replica gets `-1` and the log line *"Cannot link nodes on a READ-ONLY replica"*. |
 | `parents` / `children` | Navigate the graph. |
 | `hooks` / `links` | Inspect hook and fkey relationships. |
 | `jtree` | Get a node's full subtree as JSON. |
@@ -231,6 +231,19 @@ tree nodes with linking, snapshots, and import/export.
 | `desc` / `descs` | Describe one topic's schema / every topic's. |
 | `set-link-events` | Show (no `set`) or change (`set=1` / `set=0`) which events a link and an unlink publish, on the open treedb and at once: `1` publishes `EV_TREEDB_NODE_LINKED` / `UNLINKED` with the relationship (`hook_name`, `parent_topic_name`, `parent_id`, `child_topic_name`, `child_id`), `0` the parent's `EV_TREEDB_NODE_UPDATED` (what the v1 SPAs read). Either/or for every subscriber of the treedb. Needs the permission `update`. Not persistent: the next start takes the configured `with_link_events` again. Example: `ycommand -c 'command-yuno id=<id> service=<treedb> command=set-link-events set=1'`. |
 | `print-tranger` | Dump the tranger the treedb lives on as bounded JSON (`kw_collapse()`-truncated: unexpanded containers answer as `[[size]]`, and `lists_limit` and `dicts_limit` bound the expansion). Pass `path=` (backtick-delimited, `kw_find_path` style, arrays by numeric index) to lazily drill into one subtree — this is what feeds the gui_treedb "Raw JSON" viewer. |
+
+**Every comment starts with the yuno that answers** (`<role^name>: `), and a
+failure says its own cause and points at the log: `create-node` answers
+`<role^name>: Node created, 'item01' of topic 'items'` or `<role^name>: cannot
+create the node of topic 'items' (see the log)`; `shoot-snap`, `snap-content`,
+`nodes`, `instances`, `parents`, `children`, `jtree`, `desc`, `links`, `hooks`,
+`topics` and `import-assets` the same (after 7.25.4). Until then they answered
+`gobj_log_last_message()`, the process-global buffer of the last ERROR of
+anybody -- a stale or unrelated cause -- and most answers carried no yuno. The
+exception is the refusal of a permission, *"No permission to '<perm>' in
+service '<treedb>'"*, which names its service. `instances` answers `-1` when it
+cannot list (it answered `0`). The test walks C_NODE's command table
+(`tests/c/c_node_authz`), so a command added with a bare comment fails it.
 
 ### Permissions
 

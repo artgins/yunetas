@@ -304,6 +304,142 @@ PRIVATE int expect(
 PRIVATE int run_replica_tests(hgobj gobj);
 
 /***************************************************************************
+ *  Run `command` as `owner` with a stale last message planted, and check
+ *  the answer: `result`, a comment that starts with the yuno and says
+ *  `says`, and never the stale text. `kw` is owned.
+ ***************************************************************************/
+PRIVATE int expect_comment(
+    hgobj gobj,
+    const char *command,
+    json_t *kw,         // owned
+    int result,
+    const char *says
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_object_set_new(kw, "__username__", json_string("owner"));
+    gobj_log_set_last_message("a stale message of somebody else");
+    json_t *resp = gobj_command(priv->gobj_node, command, kw, gobj);
+    int ret = (int)kw_get_int(gobj, resp, "result", -99, 0);
+    const char *comment = kw_get_str(gobj, resp, "comment", "", 0);
+    const char *prefix = gobj_yuno_role_plus_name();
+    int failed = 0;
+    if(ret != result ||
+            strncmp(comment, prefix, strlen(prefix))!=0 ||
+            !strstr(comment, says) ||
+            strstr(comment, "stale")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a command comment without its yuno, or with a cause not its own",
+            "command",      "%s", command,
+            "result",       "%d", ret,
+            "comment",      "%s", comment,
+            NULL
+        );
+        failed = -1;
+    }
+    JSON_DECREF(resp)
+    return failed;
+}
+
+PRIVATE int check_comments_name_their_yuno(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *prefix = gobj_yuno_role_plus_name();
+
+    /*
+     *  The table, each command with nothing to act on. Left out: what
+     *  answers no comment (help, authzs) and what acts with an empty kw
+     *  (export-db writes a file, import-assets/gc-assets walk the store,
+     *  deactivate-snap, trace and set-link-events change state).
+     */
+    const char *skip[] = {
+        "help", "authzs", "export-db", "import-assets", "gc-assets",
+        "deactivate-snap", "trace", "set-link-events", NULL
+    };
+    const sdata_desc_t *cmds = gclass_command_desc(gclass_find_by_name(C_NODE), NULL, TRUE);
+    for(const sdata_desc_t *it = cmds; it && it->name; it++) {
+        BOOL skipped = FALSE;
+        for(int i = 0; skip[i]; i++) {
+            if(strcmp(it->name, skip[i])==0) {
+                skipped = TRUE;
+            }
+        }
+        if(skipped) {
+            continue;
+        }
+        gobj_log_set_last_message("a stale message of somebody else");
+        json_t *resp = gobj_command(priv->gobj_node, it->name,
+            json_pack("{s:s}", "__username__", "owner"), gobj);
+        const char *comment = kw_get_str(gobj, resp, "comment", "", 0);
+        if((!empty_string(comment) && strncmp(comment, prefix, strlen(prefix))!=0) ||
+                strstr(comment, "stale")) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a C_NODE comment does not start with its yuno",
+                "command",      "%s", it->name,
+                "comment",      "%s", comment,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(resp)
+    }
+
+    /*
+     *  The ones that failed with gobj_log_last_message(), both ways
+     */
+    result += expect_comment(gobj, "create-node",
+        json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "items",
+            "record", "id", "item-cmt", "name", "New"), 0, "Node created");
+    result += expect_comment(gobj, "create-node",
+        json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "items",
+            "record", "id", "item-cmt", "name", "New"), -1, "cannot create the node");
+    result += expect_comment(gobj, "link-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "items^item00^children", "child_ref", "items^item-cmt"),
+        0, "Nodes linked");
+    result += expect_comment(gobj, "link-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "items^item00^no_such_hook", "child_ref", "items^item-cmt"),
+        -1, "cannot link");
+    result += expect_comment(gobj, "unlink-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "items^item00^children", "child_ref", "items^item-cmt"),
+        0, "Nodes unlinked");
+    result += expect_comment(gobj, "unlink-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "items^item00^no_such_hook", "child_ref", "items^item-cmt"),
+        -1, "cannot unlink");
+    result += expect_comment(gobj, "shoot-snap",
+        json_pack("{s:s}", "name", "snap-msg"), 0, "shot");
+    result += expect_comment(gobj, "shoot-snap",
+        json_pack("{s:s}", "name", "snap-msg"), -1, "cannot shoot snap");
+    result += expect_comment(gobj, "desc",
+        json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "no desc of topic");
+    result += expect_comment(gobj, "nodes",
+        json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "cannot list the nodes");
+    result += expect_comment(gobj, "instances",
+        json_pack("{s:s, s:s}", "topic_name", "no_such_topic", "node_id", "x"), -1,
+        "cannot list the instances");
+    result += expect_comment(gobj, "parents",
+        json_pack("{s:s, s:s}", "topic_name", "items", "node_id", "no_such_node"), -1,
+        "cannot list the parents");
+    result += expect_comment(gobj, "children",
+        json_pack("{s:s, s:s, s:s}", "topic_name", "items", "node_id", "no_such_node",
+            "hook", "children"), -1, "cannot list the children");
+    result += expect_comment(gobj, "jtree",
+        json_pack("{s:s, s:s}", "topic_name", "items", "hook", "no_such_hook"), -1,
+        "cannot build the tree");
+    result += expect_comment(gobj, "links",
+        json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "cannot list the links");
+    result += expect_comment(gobj, "hooks",
+        json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "cannot list the hooks");
+
+    return result;
+}
+
+/***************************************************************************
  *  Run all tests -- called from the timer callback inside the event loop
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -683,6 +819,16 @@ PRIVATE int run_tests(hgobj gobj)
         }
     }
 
+    /*-----------------------------------------------*
+     *  EVERY comment of C_NODE starts with its yuno, walked from the
+     *  command table (with nothing to act on, each answers its first
+     *  refusal), and the commands that failed with the process-global last
+     *  message say their own cause (review of the second fix round,
+     *  2026-09-23: create-node, link-nodes, unlink-nodes, shoot-snap,
+     *  snap-content and the reads still did).
+     *-----------------------------------------------*/
+    result += check_comments_name_their_yuno(gobj);
+
     result += run_replica_tests(gobj);
 
     if(result == 0) {
@@ -874,6 +1020,34 @@ PRIVATE int run_replica_tests(hgobj gobj)
                 "delete",           "%d", r_delete,
                 "item01_parent",    "%j", item01_parent? item01_parent : json_null(),
                 "item_del_parent",  "%j", item_del_parent? item_del_parent : json_null(),
+                NULL
+            );
+            result += -1;
+        }
+    }
+
+    /*
+     *  A link that is ALREADY there is refused too: -1, and the log says
+     *  why. Before e2b49b06b the treedb found the pair linked, wrote nothing
+     *  and answered 0. Decided, not an accident: on a replica EVERY write is
+     *  refused, one that would change nothing included -- whether it would
+     *  is read from the replica's memory, which lags the master's disk, so
+     *  an answer that depends on it says 0 today and -1 tomorrow for the
+     *  same call (review of the second fix round, 2026-09-23).
+     */
+    {
+        int r_again = gobj_link_nodes(
+            priv->gobj_node, "children",
+            "items", json_pack("{s:s}", "id", "item00"),
+            "items", json_pack("{s:s}", "id", "item-link"),
+            gobj
+        );
+        if(r_again != -1) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a replica did not refuse a link that is already there",
+                "result",       "%d", r_again,
                 NULL
             );
             result += -1;

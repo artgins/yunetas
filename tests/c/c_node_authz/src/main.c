@@ -85,6 +85,7 @@ time_measure_t time_measure;
  *      creator     read, update, create
  *      deleter     read, delete
  *      keeper      read, delete, create
+ *      owner       every permission
  ***************************************************************************/
 static BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj src)
 {
@@ -103,6 +104,8 @@ static BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj 
     } else if(strcmp(username, "keeper")==0) {
         allow = (strcmp(authz, "read")==0 || strcmp(authz, "delete")==0 ||
             strcmp(authz, "create")==0)? TRUE: FALSE;
+    } else if(strcmp(username, "owner")==0) {
+        allow = TRUE;
     }
 
     KW_DECREF(kw)
@@ -136,7 +139,7 @@ static int register_yuno_and_more(void)
          *  for: the link the nested-update check refuses, the autolink
          *  update refused on the replica, and its link, unlink and forced
          *  delete refused before anything moves. */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -146,10 +149,25 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Playing yuno",
             "msg", "fkey reference: parent node not found",
+            /*  the failing commands of check_comments_name_their_yuno  */
+            "msg", "Node already exists",
+            "msg", "hook field not found",
+            "msg", "hook field not found",
+            "msg", "Snap already exists: 'snap-msg'",
+            "msg", "Topic name not found in treedbs",
+            "msg", "Topic name not found in treedbs",
+            "msg", "Topic name not found in treedbs",
+            "msg", "Node not found",
+            "msg", "Node not found",
+            "msg", "hook not found",
+            "msg", "Topic name not found in treedbs",
+            "msg", "Topic name not found in treedbs",
+            /*  the replica  */
             "msg", "Cannot write a node on a READ-ONLY replica",
             "msg", "Cannot link nodes on a READ-ONLY replica",
             "msg", "Cannot unlink nodes on a READ-ONLY replica",
             "msg", "Cannot delete a node on a READ-ONLY replica",
+            "msg", "Cannot link nodes on a READ-ONLY replica",
             "msg", "All c_node authz tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",
