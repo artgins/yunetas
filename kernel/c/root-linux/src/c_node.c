@@ -2924,7 +2924,8 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
     return msg_iev_build_response(gobj,
         0,
-        json_sprintf("Node update!"),
+        json_sprintf("%s: Node update! '%s' of topic '%s'",
+            gobj_yuno_role_plus_name(), kw_get_str(gobj, node, "id", "", 0), topic_name),
         gobj_topic_desc(gobj, topic_name),
         node,
         kw  // owned
@@ -3039,7 +3040,8 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Node deleted"),
+        json_sprintf("%s: Node deleted, '%s' of topic '%s'",
+            gobj_yuno_role_plus_name(), kw_get_str(gobj, node, "id", "", 0), topic_name),
         gobj_topic_desc(gobj, topic_name),
         node,
         kw  // owned
@@ -4619,6 +4621,26 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
             kw  // owned
         );
     }
+
+    /*
+     *  The cause is the command's own. It was read from
+     *  gobj_log_last_message(), a process-global buffer that says what the
+     *  last ERROR of anybody was: whatever wrote it last is what the answer
+     *  named (C_NODE lows of the 2026-09-23 independent review).
+     */
+    json_t *snaps = gobj_list_snaps(gobj, json_pack("{s:s}", "name", name), src);
+    BOOL exists = json_array_size(snaps) > 0 || strcmp(name, "__clear__")==0;
+    JSON_DECREF(snaps)
+    if(!exists) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: snap not found: '%s'", gobj_yuno_role_plus_name(), name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     int ret = gobj_activate_snap(
         gobj,
         name,
@@ -4630,13 +4652,12 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  the RESULT of the command, which is 0 on success -- ycommand takes
      *  its exit code from it, and a client testing for 0 read a failure.
      */
-    const char *last_msg = gobj_log_last_message();
     return msg_iev_build_response(gobj,
         ret>=0? 0 : ret,
         ret>=0
-            ? json_sprintf("Snap activated: '%s'", name)
-            : json_sprintf("Cannot activate snap '%s': %s",
-                name, empty_string(last_msg)?"(see log)":last_msg),
+            ? json_sprintf("%s: Snap activated: '%s'", gobj_yuno_role_plus_name(), name)
+            : json_sprintf("%s: cannot activate snap '%s' (see the log)",
+                gobj_yuno_role_plus_name(), name),
         0,
         0,
         kw  // owned
@@ -4673,7 +4694,8 @@ PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgo
         ret<0
             ? json_sprintf("%s: cannot deactivate the snap of treedb '%s', it is still active (see the log)",
                 gobj_yuno_role_plus_name(), gobj_read_str_attr(gobj, "treedb_name"))
-            : json_sprintf("Snap deactivated"),
+            : json_sprintf("%s: Snap deactivated, treedb '%s'",
+                gobj_yuno_role_plus_name(), gobj_read_str_attr(gobj, "treedb_name")),
         0,
         0,
         kw  // owned

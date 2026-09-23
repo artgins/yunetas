@@ -626,6 +626,63 @@ PRIVATE int run_tests(hgobj gobj)
         result += -1;
     }
 
+    /*-----------------------------------------------*
+     *  Every comment a command answers starts with the yuno that answers
+     *  it: "Node update!", "Node deleted" and "Snap deactivated" did not.
+     *  And the cause of a refused activate-snap is the command's own, not
+     *  the process-global last message (C_NODE lows of the 2026-09-23
+     *  independent review).
+     *-----------------------------------------------*/
+    {
+        treedb_create_node(priv->tranger, TREEDB_NAME, "items",
+            json_pack("{s:s, s:s}", "id", "item-msg", "name", "Messages"));
+        struct {
+            const char *user;
+            const char *command;
+            json_t *kw;
+            int result;
+            const char *says;
+        } asks[] = {
+            {"editor", "update-node",
+                json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "items",
+                    "record", "id", "item-msg", "name", "renamed"), 0, "Node update"},
+            {"deleter", "delete-node",
+                json_pack("{s:s, s:{s:s}}", "topic_name", "items",
+                    "record", "id", "item-msg"), 0, "Node deleted"},
+            {"editor", "deactivate-snap", json_object(), 0, "Snap deactivated"},
+            {"editor", "activate-snap",
+                json_pack("{s:s}", "name", "no-such-snap"), -1, "not found"},
+            {0}
+        };
+        /*  Empty in a yuno the agent did not launch: named, so the check
+         *  of the prefix is not a check of "".  */
+        gobj_write_str_attr(gobj_yuno(), "yuno_role_plus_name", "test_c_node_authz^messages");
+        const char *prefix = gobj_yuno_role_plus_name();
+        for(int i = 0; asks[i].command; i++) {
+            json_object_set_new(asks[i].kw, "__username__", json_string(asks[i].user));
+            gobj_log_set_last_message("a stale message of somebody else");
+            json_t *resp = gobj_command(priv->gobj_node, asks[i].command, asks[i].kw, gobj);
+            int ret = (int)kw_get_int(gobj, resp, "result", -99, 0);
+            const char *comment = kw_get_str(gobj, resp, "comment", "", 0);
+            if(ret != asks[i].result ||
+                    strncmp(comment, prefix, strlen(prefix))!=0 ||
+                    !strstr(comment, asks[i].says) ||
+                    strstr(comment, "stale")) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST FAIL: a command comment without its yuno, or with a cause not its own",
+                    "command",      "%s", asks[i].command,
+                    "result",       "%d", ret,
+                    "comment",      "%s", comment,
+                    NULL
+                );
+                result += -1;
+            }
+            JSON_DECREF(resp)
+        }
+    }
+
     result += run_replica_tests(gobj);
 
     if(result == 0) {
