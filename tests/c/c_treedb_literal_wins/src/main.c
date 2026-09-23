@@ -771,6 +771,47 @@ PRIVATE const char *expected_log_msgs[] = {
     M_WITHDREW,
     "Re-Creating TreeDB schema file",
 
+    /*  LE (tw_lec): departments is a leftover, the operator edits the
+     *  header of departments.name: a retry that cannot finish says
+     *  nothing; the open that removes it says it  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    M_COMPLETING,
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    M_COMPLETING,
+    M_REMOVED,
+    M_WITHDREW,
+
+    /*  LE (tw_let): the same, an attribute of the topic edited  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    M_COMPLETING,
+    M_REMOVED,
+    M_WITHDREW,
+
     /*  end  */
     "All treedb literal wins tests PASSED",
     "Exit to die",

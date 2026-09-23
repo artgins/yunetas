@@ -168,6 +168,7 @@ PRIVATE json_t *rows_without_leftovers(
     json_t *rows,       // owned
     json_t *leftovers   // not owned, ids of __system__, may be NULL
 );
+PRIVATE json_t *leftovers_as_left(hgobj gobj, const char *treedb_name, json_t *record);
 PRIVATE json_t *topic_versions_in_use(
     hgobj gobj,
     const char *treedb_name,
@@ -1915,7 +1916,8 @@ PRIVATE json_t *withdrawn_at_open(hgobj gobj, const char *treedb_name)
  *  What the projection of a treedb could NOT remove or write, as its record
  *  says (ids of __system__: a snapshot holds them, or an error was logged):
  *  [] when the projection is complete. Until it is, what __system__ shows
- *  of these over the file is nobody's draft. Return is YOURS.
+ *  of these over the file is nobody's draft, as long as it stays as the
+ *  projection left it (see leftovers_as_left). Return is YOURS.
  ***************************************************************************/
 PRIVATE json_t *unfinished_projection(hgobj gobj, const char *treedb_name)
 {
@@ -2582,13 +2584,13 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         JSON_DECREF(summary)
 
         /*
-         *  What an unfinished projection left is nobody's draft: it is what
-         *  the projection could not remove, not an edit of the operator
+         *  What an unfinished projection left, as it left it, is nobody's
+         *  draft: an edit of it is (see leftovers_as_left)
          */
         json_t *record = load_unfinished_record(gobj, treedb_name);
-        rows = rows_without_leftovers(
-            gobj, treedb_name, rows, record? json_object_get(record, "leftovers") : NULL
-        );
+        json_t *leftovers = leftovers_as_left(gobj, treedb_name, record);
+        rows = rows_without_leftovers(gobj, treedb_name, rows, leftovers);
+        JSON_DECREF(leftovers)
         JSON_DECREF(record)
 
         JSON_DECREF(draft_changed)
@@ -3914,14 +3916,18 @@ PRIVATE const char *draft_kind(
  *       "not_written": [],                     // writes that failed
  *       "leftovers": ["tw.departments", "tw.departments.id",
  *                     "tw.departments.name"],
- *       "draft_kinds": {"users": "saved"}}     // drafts it could not replace
+ *       "draft_kinds": {"users": "saved"},     // drafts it could not replace
+ *       "leftover_nodes": {"tw.departments": {...}, ...}}
  *
  *  `leftovers` is every id of __system__ the projection left unlike the
  *  schema: the ids of the two lists, and the columns of a topic that it
- *  could not remove or write. They are nobody's draft. An id that carries
- *  an operator's draft is NOT a leftover, although it is in a list: the
- *  projection could not replace the draft, so it is still one (see
- *  upsert_treedb_schema). `draft_kinds` keeps what kind of draft each of
+ *  could not remove or write. They are nobody's draft while they stay as
+ *  the projection left them: `leftover_nodes` keeps what was there (added
+ *  when the record is written, see keep_leftover_nodes), and an EDIT of a
+ *  leftover is the operator's work (see leftovers_as_left). An id that
+ *  carries an operator's draft is NOT a leftover, although it is in a
+ *  list: the projection could not replace the draft, so it is still one
+ *  (see upsert_treedb_schema). `draft_kinds` keeps what kind of draft each of
  *  those topics was ("saved" or "unsaved", see draft_kind), for the open
  *  that replaces it to say. Return is YOURS.
  ***************************************************************************/
@@ -4906,8 +4912,8 @@ PRIVATE json_t *read_apply_record(hgobj gobj, const char *treedb_name, json_int_
  *  The RECORD of an unfinished projection, `<treedb>.unfinished.json` in
  *  saved_schemas/ (what new_unfinished describes). It is written when a
  *  projection fails, and removed when one succeeds: while it is there,
- *  every open retries the projection, what it names is nobody's draft,
- *  and save-schema refuses.
+ *  every open retries the projection, what it left is nobody's draft
+ *  while it stays as it was left, and save-schema refuses.
  *
  *  It is what says a projection is unfinished, and nothing else can:
  *  c_schema_version 0 is also a projection seeded from a dynamic file, and
@@ -5339,11 +5345,135 @@ PRIVATE json_t *ids_as_dict(json_t *ids) // not owned, may be NULL
 }
 
 /***************************************************************************
+ *  What is at the id `id` of __system__, a topic or a column in `tree`
+ *  (the node tree of the treedb): the node without what says how it is
+ *  stored (its metadata, its editor geometry, the columns a topic hooks).
+ *  json null when nothing is there. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *leftover_node(hgobj gobj, json_t *tree, const char *id)
+{
+    json_t *topics = kw_get_dict(gobj, tree, "topics", 0, 0);
+    json_t *node = json_object_get(topics, id);
+    BOOL is_topic = node? TRUE: FALSE;
+    if(!node) {
+        const char *topic_id; json_t *topic;
+        json_object_foreach(topics, topic_id, topic) {
+            node = json_object_get(kw_get_dict(gobj, topic, "cols", 0, 0), id);
+            if(node) {
+                break;
+            }
+        }
+    }
+    if(!node) {
+        return json_null();
+    }
+    json_t *copy = json_deep_copy(node);
+    json_object_del(copy, "__md_treedb__");
+    json_object_del(copy, "_geometry");
+    if(is_topic) {
+        json_object_del(copy, "cols");
+    }
+    return copy;
+}
+
+/***************************************************************************
+ *  Keep in the record of an unfinished projection what it LEFT at each
+ *  leftover id (`leftover_nodes`, {id: node or null}, see leftover_node),
+ *  so a later open can tell the leftover from an operator's edit of it
+ *  (see leftovers_as_left). Without the tree of the treedb (logged) no
+ *  node is kept, and every leftover is then taken as left.
+ ***************************************************************************/
+PRIVATE void keep_leftover_nodes(hgobj gobj, const char *treedb_name, json_t *unfinished)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *nodes = json_object();
+    json_t *tree = gobj_node_tree(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        json_object(),
+        gobj
+    );
+    if(!tree) {
+        json_object_set_new(unfinished, "leftover_nodes", nodes);
+        return;     // Error already logged
+    }
+    int idx; json_t *jn_id;
+    json_array_foreach(json_object_get(unfinished, "leftovers"), idx, jn_id) {
+        const char *id = json_string_value(jn_id);
+        if(id) {
+            json_object_set_new(nodes, id, leftover_node(gobj, tree, id));
+        }
+    }
+    JSON_DECREF(tree)
+    json_object_set_new(unfinished, "leftover_nodes", nodes);
+}
+
+/***************************************************************************
+ *  The leftovers of an unfinished projection (`record`, see
+ *  load_unfinished_record) that are still as it LEFT them. An id whose
+ *  node in __system__ is not what the record kept (`leftover_nodes`) was
+ *  edited since -- changed, deleted, or created where the projection left
+ *  nothing -- and that edit is the operator's work: a draft like any
+ *  other, reported by the open that replaces it. An id the record kept no
+ *  node for is taken as left.
+ *
+ *  Return is YOURS, a list of ids, NULL when there is no record.
+ ***************************************************************************/
+PRIVATE json_t *leftovers_as_left(hgobj gobj, const char *treedb_name, json_t *record)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *leftovers = record? json_object_get(record, "leftovers") : NULL;
+    json_t *kept = record? json_object_get(record, "leftover_nodes") : NULL;
+    if(!json_is_array(leftovers)) {
+        return NULL;
+    }
+    if(!json_is_object(kept) || json_object_size(kept) == 0) {
+        return json_incref(leftovers);
+    }
+
+    json_t *tree = gobj_node_tree(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        json_object(),
+        gobj
+    );
+    if(!tree) {
+        return json_incref(leftovers);  // Error already logged
+    }
+
+    json_t *left = json_array();
+    int idx; json_t *jn_id;
+    json_array_foreach(leftovers, idx, jn_id) {
+        const char *id = json_string_value(jn_id);
+        if(!id) {
+            continue;
+        }
+        json_t *node_then = json_object_get(kept, id);
+        if(!node_then) {
+            json_array_append(left, jn_id);
+            continue;
+        }
+        json_t *node_now = leftover_node(gobj, tree, id);
+        if(json_equal(node_now, node_then)) {
+            json_array_append(left, jn_id);
+        }
+        JSON_DECREF(node_now)
+    }
+    JSON_DECREF(tree)
+    return left;
+}
+
+/***************************************************************************
  *  The rows of diff_treedb_schema() without the rows of what an unfinished
- *  projection LEFT (`leftovers`, ids of __system__, see new_unfinished):
- *  that is nobody's draft. Only those: a topic or column the operator
- *  added meanwhile is a draft like any other, and so is a leftover topic
- *  that holds a column the projection did not leave there.
+ *  projection LEFT (`leftovers`, ids of __system__, as leftovers_as_left()
+ *  answers them): that is nobody's draft. Only those: a topic or column
+ *  the operator added or edited meanwhile is a draft like any other, and
+ *  so is a leftover topic that holds a column the projection did not
+ *  leave there.
  ***************************************************************************/
 PRIVATE json_t *rows_without_leftovers(
     hgobj gobj,
@@ -5478,9 +5608,10 @@ PRIVATE json_t *drafts_over_file(
  *  at every open, whatever path the open takes: projected again from what
  *  RUNS when nothing newer is installed (the literal when the file IS the
  *  literal, the file otherwise: a seed from the file that failed), and
- *  from the literal when one is installed or imposed. What it left is
- *  nobody's draft on any path (see rows_without_leftovers); what the
- *  operator did meanwhile is, and a retry that replaces it says it.
+ *  from the literal when one is installed or imposed. What it left, as
+ *  it left it, is nobody's draft on any path (see leftovers_as_left); what
+ *  the operator did meanwhile is, an edit of a leftover included, and a
+ *  retry that replaces it says it.
  *
  *  With `imposing` the literal runs whatever the file says (unless it IS
  *  the file's version), and __system__ keeps the rule of the versions
@@ -5721,9 +5852,9 @@ PRIVATE int project_literal_into_system(
     json_t *draft_ids = NULL;
     json_t *saved = NULL;
     if(file_in_use && !never_stamped) {
-        drafts = drafts_over_file(gobj, treedb_name, file_in_use,
-            unfinished_before? json_object_get(unfinished_before, "leftovers") : NULL,
-            &draft_ids);
+        json_t *leftovers = leftovers_as_left(gobj, treedb_name, unfinished_before);
+        drafts = drafts_over_file(gobj, treedb_name, file_in_use, leftovers, &draft_ids);
+        JSON_DECREF(leftovers)
 
         char saved_dir[PATH_MAX];
         saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
@@ -5945,6 +6076,7 @@ PRIVATE int reconcile_treedb_schema(
     );
     if(projected) {
         if(ret < 0) {
+            keep_leftover_nodes(gobj, treedb_name, unfinished);
             write_unfinished_record(gobj, treedb_name, unfinished);    // Error already logged
         } else if(unfinished_before) {
             remove_unfinished_record(gobj, treedb_name);    // Error already logged

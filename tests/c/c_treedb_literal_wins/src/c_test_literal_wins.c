@@ -2710,6 +2710,114 @@ PRIVATE int scenario_added_topic_draft(hgobj gobj)
 }
 
 /***************************************************************************
+ *  LE: an EDIT of a leftover is the operator's work. A snapshot holds
+ *  `departments`, which the literal removes: the projection is unfinished
+ *  and `departments` is a leftover. The operator then edits it:
+ *
+ *      tw_lec  the header of the column `departments.name`;
+ *      tw_let  an attribute of the topic `departments` itself
+ *              (`main_topic`).
+ *
+ *  The edit is a draft: saved-schema shows it while the projection is
+ *  unfinished, a retry that cannot finish keeps it a draft (tw_lec: not a
+ *  leftover in the new record, its kind kept), and the open that removes
+ *  the topic reports it "unsaved". An unedited leftover is still nobody's
+ *  draft (scenario SNAP).
+ ***************************************************************************/
+PRIVATE int scenario_edited_leftover(hgobj gobj)
+{
+    int result = 0;
+
+    for(int on_topic=0; on_topic<2; on_topic++) {
+        const char *db = on_topic? "tw_let" : "tw_lec";
+
+        if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+            return result - 1;
+        }
+        result += shoot_system_snap(gobj, db, db);
+        close_db(gobj, db);
+
+        if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+            return result - 1;
+        }
+        if(on_topic) {
+            char topic_id[NAME_MAX];
+            snprintf(topic_id, sizeof(topic_id), "%s.departments", db);
+            json_t *edited = gobj_update_node(
+                gobj_find_service(SYSTEM_TREEDB, FALSE),
+                "topics",
+                json_pack("{s:s, s:b}", "id", topic_id, "main_topic", 1),
+                json_pack("{s:b}", "refs", 1),
+                gobj
+            );
+            if(!edited) {
+                result += test_fail(gobj, db, "TEST FAIL: LE, the operator edit of the topic was refused",
+                    NULL);
+            }
+            JSON_DECREF(edited)
+        } else {
+            result += edit_header(gobj, db, "departments", "name", "Operator name");
+        }
+        result += check_draft_changed(gobj, db,
+            "TEST FAIL: LE, an edited leftover is not a draft",
+            json_pack("{s:b}", "departments", 1));
+        close_db(gobj, db);
+
+        if(!on_topic) {
+            /*
+             *  A retry that cannot finish: the edit stays a draft
+             */
+            if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+                return result - 1;
+            }
+            result += check_withdrawn(gobj, db,
+                "TEST FAIL: LE, a retry that did not remove the edit reported it",
+                0, json_object());
+            result += check_draft_changed(gobj, db,
+                "TEST FAIL: LE, the edited leftover is no draft after a retry",
+                json_pack("{s:b}", "departments", 1));
+            json_t *record = unfinished_record(gobj, db);
+            json_t *expected_kinds = json_pack("{s:s}", "departments", "unsaved");
+            char col_id[NAME_MAX];
+            snprintf(col_id, sizeof(col_id), "%s.departments.name", db);
+            BOOL listed = FALSE;
+            int idx; json_t *jn_id;
+            json_array_foreach(json_object_get(record, "leftovers"), idx, jn_id) {
+                if(json_is_string(jn_id) && strcmp(json_string_value(jn_id), col_id)==0) {
+                    listed = TRUE;
+                }
+            }
+            json_t *nodes = json_object_get(record, "leftover_nodes");
+            if(json_object_size(nodes) != json_array_size(json_object_get(record, "leftovers")) ||
+                    json_object_get(json_object_get(nodes, col_id), "header")) {
+                result += test_fail(gobj, db,
+                    "TEST FAIL: LE, the record does not keep what the projection left",
+                    json_incref(record));
+            }
+            if(listed || !json_equal(json_object_get(record, "draft_kinds"), expected_kinds)) {
+                result += test_fail(gobj, db,
+                    "TEST FAIL: LE, the record takes the edited leftover for a leftover",
+                    json_incref(record));
+            }
+            JSON_DECREF(expected_kinds)
+            JSON_DECREF(record)
+            close_db(gobj, db);
+        }
+
+        result += delete_system_snap(gobj, db, db);
+        if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+            return result - 1;
+        }
+        result += check_agree(gobj, db, "TEST FAIL: LE, the projection was not completed");
+        result += check_withdrawn(gobj, db,
+            "TEST FAIL: LE, the edit of a leftover was deleted in silence",
+            0, json_pack("{s:s}", "departments", "unsaved"));
+        close_db(gobj, db);
+    }
+    return result;
+}
+
+/***************************************************************************
  *  Run every scenario
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -2746,6 +2854,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += scenario_seed_that_died(gobj);
     result += scenario_saved_draft_across_retries(gobj);
     result += scenario_added_topic_draft(gobj);
+    result += scenario_edited_leftover(gobj);
 
     if(result == 0) {
         gobj_log_info(gobj, 0,

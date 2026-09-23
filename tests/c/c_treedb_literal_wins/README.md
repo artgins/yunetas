@@ -52,6 +52,7 @@ places of the schema agree: what the store RUNS (the open topics, their
 | N7 | `tw_n7u`, `tw_n7s` | The operator deletes the topic `departments` in `__system__` (a draft). A newer literal declares it: the topic is created again, and the deletion is reported as `unsaved` (`tw_n7u`), or as `saved` with the withdrawn saved schema when `save-schema` published it (`tw_n7s`). |
 | N1 | `tw_n1` | After `delete-treedb`, a seed that died before its end is emulated: the `treedbs` node with `schema_version` and `c_schema_version` 0, and no record. The next open completes it (the file runs), reports nothing, and stamps `c_schema_version` 1. Then the operator deletes every topic: `save-schema` refuses a draft with no topics, and a saved schema with no topics (written by hand) is refused: `saved-schema` answers `can_apply` false and says why, and `apply-schema` refuses it; the file in use does not change. |
 | N4 | `tw_n4` | A SAVED draft on the topic that the literal removes, and a snapshot refuses the delete. The first open reports only the withdrawn saved schema, and the record keeps `draft_kinds: {"departments": "saved"}`. When the snapshot is gone, the open that completes the projection reports `departments` as `saved`. |
+| LE | `tw_lec`, `tw_let` | A snapshot holds `departments`, which the literal removes, so it is a leftover. The operator edits it: the header of `departments.name` (`tw_lec`), or the attribute `main_topic` of the topic (`tw_let`). The edit is a draft: `saved-schema` shows `departments` in `draft_changed`. A retry that cannot finish reports nothing, keeps the edit a draft (the edited column is not a leftover in the new record, `draft_kinds` keeps `"unsaved"`). The open that removes the topic reports `departments` as `unsaved`. |
 | AD | `tw_adu`, `tw_adl`, `tw_adr`, `tw_dlu`, `tw_ads` | A save of `users` is pending, and the operator adds a topic `groups` that is not saved. A newer literal reports `groups` as `unsaved`, not `saved`: when the literal does not declare it (`tw_adu`), when it does (`tw_adl`), and through a projection that a snapshot leaves unfinished, where the record keeps `draft_kinds: {"groups": "unsaved"}` (`tw_adr`). The cases next to it do not change: an unsaved deletion with another save pending is `unsaved` (`tw_dlu`), and an added topic that was saved is `saved` (`tw_ads`). |
 
 An unfinished projection is RECORDED in
@@ -60,9 +61,10 @@ record says which ids of `__system__` the projection left. Only these are
 not drafts, on every path. An operator's draft that the projection cannot
 replace is not a leftover: it stays a draft, the record keeps its kind
 (`draft_kinds`), and the open that replaces it reports it with that kind.
-An EDIT of a leftover is not a draft: the open that completes the
-projection deletes it and reports nothing (by design, see YUNO_TREEDB.md
-§3.11).
+The record also keeps what the projection left at each of those ids
+(`leftover_nodes`). A leftover that the operator EDITS afterwards is no
+longer as the projection left it: the edit is a draft like any other, and
+the open that replaces it reports it (see YUNO_TREEDB.md §3.11).
 
 The expected log list in `src/main.c` is strict FIFO: every line from INFO
 up, in order.
