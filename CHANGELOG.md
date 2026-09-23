@@ -211,6 +211,31 @@ listed under "No red test" in `TODO.md`.
   counts). The delete is announced only once its directory is gone.
 - A marker name that does not fit makes the file be read whole (logged).
 
+### Performance (timeranger2), against 7.25.4
+
+Measured with the tests and benchmarks of the tree, variants relinked side by
+side and run alternated (medians; ext4, laptop NVMe).
+
+- **An append is back to the speed of 7.25.4.** The tm marker made every
+  append search the cache cell of its file twice, each search building two file
+  names with `snprintf()`; it searches once now and `cmp_file_ids()` compares
+  in place (new test `timeranger2/test_cmp_file_ids`).
+  `test_topic_pkey_integer`, appends/s without / with an rt list: 7.25.4
+  209 535 / 158 040, now 208 910 / 160 967.
+- **A master opens a store 12% faster than 7.25.4** (2000 keys x 10 md2
+  files: 0.094 s -> 0.082 s): it finds the order markers in the listing of the
+  key directory it already reads, instead of a `stat()` per md2 file.
+- **Price kept, by decision:** a replica's open is ~12% slower than 7.25.4 (one
+  more `stat()` per md2 file): it looks for the markers on disk after reading
+  each file, because a listing taken before could miss a marker the master
+  writes during the open. Creating a topic makes 2 fsyncs and a
+  `topic_version` change 4 (7.25.4: none; ~5-7 ms each: 10 topics created in
+  115 ms against 6 ms, 10 version changes in 225 ms against 5 ms); opening an
+  existing store makes none. That is the price of durable topic files: a power
+  cut never leaves a new `topic_version` over a `topic_cols.json` that is not
+  on disk.
+- treedb writes: see "Data loss and integrity" (faster than 7.25.4).
+
 ### Schemas (C_TREEDB)
 
 - **A newer C literal wins whole** (dynamic-schema treedb, impose off). As in
