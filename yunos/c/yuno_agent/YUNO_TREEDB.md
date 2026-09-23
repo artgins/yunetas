@@ -1933,7 +1933,22 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    `schema_version` in use.
 2. **`saved-schema treedb_name=X`** answers what was saved, what it changes
    against the file in use (a `flat_diff` of the two: `added`, `removed`,
-   `changed`, one row per leaf), and `can_apply`. `draft_changed` names the
+   `changed`, one row per leaf), and `can_apply`. Topics and columns are keyed
+   by name, and their ORDER is a leaf of its own (after 7.25.4; a save that
+   only moved a column showed nothing but its versions):
+
+   ```json
+   "changed": {
+     "schema_version": {"from": 12, "to": 13},
+     "topics`users`topic_version": {"from": 3, "to": 4},
+     "topics`users`__cols_order__": {"from": "id, username, email, departments",
+                                     "to": "id, username, departments, email"}
+   }
+   ```
+
+   The same comparison decides whether a literal with the `schema_version` of
+   the file in use is *"another content"*, so a literal that only reorders
+   columns under the same number is told so too. `draft_changed` names the
    topics whose draft is NOT SAVED: diffed against the saved schema when there
    is one newer than the file in use, against the file in use otherwise
    (until 7.25.3 always against the file in use, so a topic saved a moment ago

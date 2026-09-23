@@ -3720,6 +3720,97 @@ PRIVATE int check_reverted_draft_withdraws_the_save(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A column MOVED in the draft reads as a change in saved-schema's diff
+ *  (review of the second fix round, 2026-09-23). The order of the columns
+ *  is part of a schema -- the order a table paints them in -- and the diff
+ *  keyed them by name: a save that only moved a column showed the versions
+ *  raised and nothing else.
+ ***************************************************************************/
+PRIVATE int set_draft_col_order(hgobj gobj, const char *col_name, json_t *order) // owned
+{
+    json_t *ids = system_topic_cols(gobj, "users");
+    const char *col_id = json_string_value(json_object_get(ids, col_name));
+    json_t *edited = gobj_update_node(
+        gobj_find_service(SYSTEM_TREEDB, FALSE),
+        "cols",
+        json_pack("{s:s, s:o}", "id", col_id?col_id:"", "order", order),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    int ret = edited? 0 : -1;
+    JSON_DECREF(edited)
+    JSON_DECREF(ids)
+    return ret;
+}
+
+PRIVATE int check_reorder_reads_as_a_change(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    json_t *jn_resp;
+
+    char saved_dir[PATH_MAX];
+    build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    file_remove(saved_dir, TREEDB_NAME ".treedb_schema.json");
+
+    /*
+     *  `email` is declared before `departments`; the draft swaps them, the
+     *  way an editor renumbers the columns it moves
+     */
+    json_int_t email_order = -1;
+    json_int_t departments_order = -1;
+    {
+        json_t *ids = system_topic_cols(gobj, "users");
+        json_t *col = gobj_get_node(gobj_find_service(SYSTEM_TREEDB, FALSE), "cols",
+            json_pack("{s:s}", "id", json_string_value(json_object_get(ids, "email"))), 0, gobj);
+        email_order = kw_get_int(gobj, col, "order", -1, KW_WILD_NUMBER);
+        JSON_DECREF(col)
+        col = gobj_get_node(gobj_find_service(SYSTEM_TREEDB, FALSE), "cols",
+            json_pack("{s:s}", "id", json_string_value(json_object_get(ids, "departments"))), 0, gobj);
+        departments_order = kw_get_int(gobj, col, "order", -1, KW_WILD_NUMBER);
+        JSON_DECREF(col)
+        JSON_DECREF(ids)
+    }
+    if(email_order < 0 || departments_order <= email_order ||
+            set_draft_col_order(gobj, "email", json_integer(departments_order)) < 0 ||
+            set_draft_col_order(gobj, "departments", json_integer(email_order)) < 0) {
+        return save_fail(gobj, "TEST FAIL: the draft reorder was refused", NULL);
+    }
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            !json_integer_value(json_object_get(kw_get_dict(gobj, jn_resp, "data`topic_versions", 0, 0), "users"))) {
+        result += save_fail(gobj, "TEST FAIL: a moved column was not saved", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    jn_resp = treedbs_command(gobj, "saved-schema", json_object());
+    if(json_object_size(kw_get_dict(gobj, jn_resp, "data`draft_changed", 0, 0)) != 0) {
+        result += save_fail(gobj, "TEST FAIL: a saved reorder reads as unsaved", jn_resp);
+    }
+    json_t *changed = kw_get_dict(gobj, jn_resp, "data`diff`changed", 0, 0);
+    json_t *order_row = json_object_get(changed, "topics`users`__cols_order__");
+    if(!order_row ||
+            !strstr(json_string_value(json_object_get(order_row, "to"))?
+                json_string_value(json_object_get(order_row, "to")) : "", "departments, email")) {
+        result += save_fail(gobj, "TEST FAIL: saved-schema's diff does not show the moved column", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  Moved back: the draft is the file in use, the save is withdrawn
+     */
+    set_draft_col_order(gobj, "email", json_integer(email_order));
+    set_draft_col_order(gobj, "departments", json_integer(departments_order));
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    if(!kw_get_bool(gobj, jn_resp, "data`withdrawn", 0, 0)) {
+        result += save_fail(gobj, "TEST FAIL: the column moved back did not withdraw the save", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    return result;
+}
+
+/***************************************************************************
  *  A `required` container column declared WITHOUT a default stays required
  *  through save + apply (review of the second fix round, 2026-09-23: revert
  *  of L-2, b6f66cdf8).
@@ -5169,6 +5260,7 @@ PRIVATE int run_tests(hgobj gobj)
      *  stays required through save + apply; the same
      *  schema in another form is not "another content"
      *-----------------------------------------------*/
+    result += check_reorder_reads_as_a_change(gobj);
     result += check_required_default_placeholder_dropped(gobj);
     result += check_same_schema_other_form_is_quiet(gobj);
 

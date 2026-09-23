@@ -1457,10 +1457,52 @@ PRIVATE void prune_schema(json_t *jn_schema) // not owned, MUTATED
  *  as every column of it changed. Pruned, and a `false` is the absence it
  *  stands for: a literal leaves `system_topic` out, a projection says it.
  ***************************************************************************/
+PRIVATE json_t *names_in_order(json_t *nodes) // not owned, a list of {id} or a dict
+{
+    json_t *joined = json_string("");
+    int n = 0;
+    if(json_is_array(nodes)) {
+        int idx; json_t *node;
+        json_array_foreach(nodes, idx, node) {
+            const char *name = json_string_value(json_object_get(node, "id"));
+            if(name) {
+                json_t *next = json_sprintf("%s%s%s", json_string_value(joined), n? ", " : "", name);
+                JSON_DECREF(joined)
+                joined = next;
+                n++;
+            }
+        }
+    } else if(json_is_object(nodes)) {
+        const char *name; json_t *node;
+        json_object_foreach(nodes, name, node) {
+            json_t *next = json_sprintf("%s%s%s", json_string_value(joined), n? ", " : "", name);
+            JSON_DECREF(joined)
+            joined = next;
+            n++;
+        }
+    }
+    return joined;
+}
+
 PRIVATE json_t *schema_to_flat(json_t *jn_schema) // not owned
 {
     json_t *copy = json_deep_copy(jn_schema);
     prune_schema(copy);
+
+    /*
+     *  Keyed by name, a MOVED topic or column is no difference at all, and
+     *  the order is part of a schema: it is what a table paints (review of
+     *  the second fix round, 2026-09-23: a save that only moved a column
+     *  showed its versions raised and nothing else). So the order is a leaf
+     *  of its own, the names joined as they come:
+     *
+     *      __topics_order__                "users, departments"
+     *      topics`users`__cols_order__     "id, username, email, departments"
+     *
+     *  Two underscores each side, as nothing a schema declares is named.
+     */
+    json_object_set_new(copy, "__topics_order__", names_in_order(json_object_get(copy, "topics")));
+
     json_t *topics = json_object_get(copy, "topics");
     if(json_is_array(topics)) {
         json_t *by_name = json_object();
@@ -1483,6 +1525,7 @@ PRIVATE json_t *schema_to_flat(json_t *jn_schema) // not owned
     const char *topic_name; json_t *topic;
     json_object_foreach(json_object_get(copy, "topics"), topic_name, topic) {
         json_t *cols = json_object_get(topic, "cols");
+        json_object_set_new(topic, "__cols_order__", names_in_order(cols));
         json_t *by_name = json_object();
         if(json_is_array(cols)) {
             int idx; json_t *col;

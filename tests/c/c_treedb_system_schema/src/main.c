@@ -233,6 +233,9 @@ PRIVATE const char *expected_log_msgs[] = {
     "Schema saved",
     "Saved schema withdrawn, the draft is the schema in use",
     /*  ...and reopened: the literal is the file in use, nothing is said  */
+    /*  Test 13b2a: a column moved in the draft, saved, moved back  */
+    "Schema saved",
+    "Saved schema withdrawn, the draft is the schema in use",
     /*  Test 13b2b: two required draft columns saved, applied and opened;
      *  the one with no default refuses a record without it; then removed,
      *  saved and applied again  */
