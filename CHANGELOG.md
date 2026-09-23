@@ -443,6 +443,14 @@ side and run alternated (medians; ext4, laptop NVMe).
   record is no longer split between two files at a size rotation. A log file
   RENAMED by another program is no longer noticed (a removed one still is); the
   free-disk check runs every 100 records instead of every 100 pieces.
+- rotatory: a full disk stops only the log file on it, and it writes again when
+  the space is back (checked every 100 records; one line on stdout/syslog when
+  it stops, one when it resumes with the number of dropped records). Up to
+  7.25.4 one full disk stopped EVERY file log and the agent audit of the
+  process until it was restarted. A handle closed by `rotatory_close()` /
+  `rotatory_end()` is never touched again (the logger keeps its handle): a
+  write, flush, truncate or second close through it does nothing; up to 7.25.4
+  it read freed memory and could close it twice.
 - The entry point closes the log files last: up to 7.25.4 they were closed
   before the final cleaning and the memory leak report, so *"system memory not
   free"* never reached the yuno's log file.
