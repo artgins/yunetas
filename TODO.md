@@ -182,6 +182,10 @@ The third review (of the 2026-09-16 and 2026-09-22 work) was fixed whole on
 
 Fixed whole on 2026-09-23 (`CHANGELOG.md`, Unreleased). Left:
 
+- **A rollback to 7.25.4 or earlier defeats the tm marker** of topics created
+  by 7.25.5 (the old binary writes out-of-order tm without `.tm_unordered`).
+  Derive the trust from a per-writer stamp instead of from who created the
+  topic, or ship a tool that re-marks a topic after a rollback.
 - **Legacy topics cannot be tm-marked.** Topics created by 7.25.4 or earlier
   trust no file's tm range (correct, and as slow as 7.25.4 for tm queries). A
   migration would have to scan each file once and write its marker.

@@ -23,6 +23,11 @@ lost its lock while stopped (another process took the store) is a replica, and
 `gobj_read_bool_attr(gobj_tranger, "master")` says `FALSE` (after 7.25.4; it
 answered the configuration). `open-rt` and `open-list` follow it: a replica's
 feed is an `rt_disk`, which the other master's appends reach through the disk.
+The flag moves when the tranger REVIVES, which happens at the first write or the
+first topic open after `tranger2_stop()`. Between the stop and that moment it
+still says what it was, so an `open-list` on a topic that is already open can
+still get an `rt_mem` feed. Read `master` again after the restart has opened its
+topics.
 
 ### Commands
 

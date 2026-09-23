@@ -6,8 +6,10 @@
 
 An independent six-reviewer pass over the 7.25.4 fixes (none of them written
 by the reviewers) found one pre-existing high, about twelve mediums and a set
-of lows, several of them regressions or half-done fixes of 7.25.4. Each fix
-below has a test that fails on 7.25.4 and passes now.
+of lows, several of them regressions or half-done fixes of 7.25.4. Every
+behaviour change below has a test that fails on 7.25.4 and passes now, except
+three: the `close()` check of `save_json_to_file()` (no local way to make it
+fail), and the comment-only and documentation-only items.
 
 **Data loss**
 
@@ -40,7 +42,7 @@ below has a test that fails on 7.25.4 and passes now.
   created from now on (`marks_tm_unordered` in `topic_desc.json`); its tm range
   is read from all its rows, so a restart no longer hides rows. In files known
   to be in tm order a row past the range ends the scan of that FILE again
-  (80 000-row file: ~50 ms -> ~0 ms). **Topics created by 7.25.4 or earlier
+  (one 80 000-row file: tens of milliseconds -> about 1 ms). **Topics created by 7.25.4 or earlier
   cannot be marked afterwards**: no file's tm range is trusted there, which is
   correct and costs what 7.25.4 cost.
 - After `delete_key` the iterators of that key drop their segments (7.25.4's
@@ -79,10 +81,22 @@ below has a test that fails on 7.25.4 and passes now.
 
 - `save-schema` with nothing to save answers `data {treedb_name, withdrawn,
   schema_version, path, changes}` and can remove the saved file.
-- `tranger2_write_topic_var()` can return -1; a keyless `tranger2_open_list()`
-  returns NULL on a failed key load (tr_queue, tr2q_mqtt and mqtt_broker do not
-  check it, as before); after `delete_key` a filtered iterator pages an empty
-  index; any write on a stopped master can demote it to replica.
+- `tranger2_write_topic_var()` can return -1.
+- A keyless `tranger2_open_list()` returns NULL when any key's history does not
+  load (one unreadable md2 row is enough), and then opens NO realtime feed
+  either. tr_queue and tr2q_mqtt log it; the wattyzer rt followers
+  (`agregador_wz`, `notifier_wz`, `automations_wz`, `scheduler_wz`,
+  `db_history_wz`) keep the NULL and run without live updates, with one error
+  line saying why. Nothing crashes.
+- After `delete_key` a filtered iterator pages an empty index; any write on a
+  stopped master can demote it to replica.
+- **Do not roll a node back to 7.25.4 or earlier for topics created by 7.25.5.**
+  `marks_tm_unordered` is written once, at the topic's creation, and from then
+  on every reader trusts the tm range of a file with no `.tm_unordered` marker.
+  An older binary appends out-of-order `tm` rows WITHOUT writing the marker, so
+  once the node moves forward again a tm scan can end such a file early and
+  hide rows. After a rollback, treat the topics it wrote as legacy (there is no
+  tool to do it yet: see TODO.md).
 - Comment texts of update-node, delete-node, activate/deactivate-snap and of
   the rt id refusals changed; new topics carry `marks_tm_unordered`.
 
