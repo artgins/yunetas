@@ -382,6 +382,41 @@ side and run alternated (medians; ext4, laptop NVMe).
   (only when the shared columns change order); no false "behind the schema in
   use" line after a withdraw; precise warnings.
 
+### C_TREEDB and yev_loop, last review
+
+- A leftover of an unfinished projection is compared with its PLACE too: a
+  leftover moved to another topic, linked to one more, or left in no topic is
+  the operator's draft, reported by the open that replaces it (a move reports
+  both topics); after a crash, an edit of a leftover column left in no topic is
+  no longer deleted in silence.
+- A column whose topic node is gone and that more than one treedb could own
+  (`m2` and `m2.b`) belongs to the treedb whose record or schema names it, or
+  to the treedb projected now when none does; only that treedb warns, once per
+  node; no node is left for ever.
+- `delete-treedb` deletes every node of its treedb, a column moved to another
+  of its topics and its nodes in no topic included.
+- A record of an unfinished projection that cannot be written no longer reads
+  as a complete projection: it is kept in memory and written again at every
+  open, and the treedb node says `c_schema_version: -1`; after a restart the
+  record is "lost" (a WARNING, `save-schema` refuses, and what `__system__`
+  holds over the file is reported, never deleted in silence).
+- A schema whose elements get one qualified id in `__system__` (a name with a
+  dot: the column `x.y` of `u` and the column `y` of `u.x`; the topic `b.c` of
+  `m` and the topic `c` of `m.b`) is refused with ONE ERROR naming both: the
+  treedb does not open, `save-schema` does not save it, `apply-schema` does not
+  apply it. No id changes.
+- A column delete that fails after its topic was removed keeps its draft. A
+  node stamped before its topics were written (7.25.4 and earlier) is completed,
+  not taken as done. The move of a rowid-keyed projection to qualified ids can
+  die at any write and completes at the next open.
+- The records in `saved_schemas/` (unfinished projection, and the record of an
+  apply, which was written in place) are written whole from one buffer, with
+  `.new` + fsync + rename: a 200 KB record takes 6.8 ms instead of 29.7 ms.
+- `io_uring_get_sqe()` returning NULL (a full submission queue) crashed 11
+  callers of yev_loop; the queue is flushed and the entry asked again, and a
+  submission that still cannot be made is logged (new test
+  `yev_events/test_yevent_sq_full`).
+
 ### Agent and gobj-c
 
 - **The agent removes old audit files.** New attribute `audit_keep_days`
@@ -550,6 +585,13 @@ side and run alternated (medians; ext4, laptop NVMe).
   events before it); new `treedb_update_node_and_links()`. New ERRORs: *"A
   write that did not reach the disk could not be taken back whole in memory:
   ..."*, *"A refused delete cannot put back a child it had unlinked: ..."*.
+- C_TREEDB: every answer of every command starts with the yuno (create-topic
+  "<role^name>: topic '<t>' created in treedb '<db>'", was "Topic created!";
+  delete-topic "...deleted from treedb '<db>'", was "Topic deleted!";
+  "<role^name>: treedb '<db>' not found", was "Treedb_name not found: '<db>'";
+  the -403 answers); a schema whose qualified ids collide (names with dots) is
+  refused at open, save and apply; a record write failure logs *"Cannot write a
+  record of saved_schemas/"*.
 - C_TREEDB answers carry new fields (`withdrawn`, `stale`, `broken`,
   `withdrawn_at_open`, `unfinished_projection`, `stopped`, and `master` and
   `opened` in `treedbs` rows) and `saved` changed meaning; C_NODE `gc-assets`

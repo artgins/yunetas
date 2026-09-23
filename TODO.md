@@ -172,18 +172,6 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
   column whose literal really declared `'default': {}` loses it (as in 7.25.4).
 - A failed `open-treedb` withdraws the saved schema at once; it could wait for
   an open that succeeds.
-- C_TREEDB unfinished projection: if its record cannot be written at all
-  (neither the in-progress one nor the one of a failure), the projection reads
-  as complete; a store left "stamped with no topics" by 7.25.4 or earlier still
-  takes the "projection is of this literal already" early return; a column
-  node whose topic node is gone and whose id more than one treedb could own
-  ("m2" and "m2.b") is left to none, with a WARNING at every open;
-  `migrate_schema_ids_to_qualified()` (stores from older meta-schemas) writes
-  before the in-progress record and is not crash-safe.
-- `saved_schemas/<treedb>.applied.json` is still written in place, not
-  atomically (the unfinished record is).
-- The schema commands (`create-topic`, `delete-topic`, ...) still answer
-  without the yuno prefix ("Topic created!", "Treedb_name not found", -403).
 - msg2db consumers (the db_history alarms of wattyzer, yunovatios,
   estadodelaire, hidraulia) do not use `msg2db_id_incomplete()` yet: an alarm
   absent after a damaged load can be announced again as new
