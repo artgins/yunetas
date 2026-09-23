@@ -3500,23 +3500,39 @@ PUBLIC int tranger2_append_record(
         /*-------------------------*
          *  Write record content
          *-------------------------*/
-        size_t ln = write( // write new (record content)
+        ssize_t ln = write( // write new (record content)
             content_fp,
             p,
             md_record.__size__
         );
-        if(ln != md_record.__size__) {
+        if(ln != (ssize_t)md_record.__size__) {
+            /*
+             *  A short write returns a count and leaves errno as it was:
+             *  errno says something only when write() returned -1
+             */
             int err = errno;
             cut_back_content(gobj, topic, key_value, file_id, __offset__);  // a part of it
-            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot append record, write FAILED",
-                "topic",        "%s", topic_name,
-                "errno",        "%d", err,
-                "serrno",       "%s", strerror(err),
-                NULL
-            );
+            if(ln < 0) {
+                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot append record, write FAILED",
+                    "topic",        "%s", topic_name,
+                    "errno",        "%d", err,
+                    "serrno",       "%s", strerror(err),
+                    NULL
+                );
+            } else {
+                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot append record, short write of its content: the file size limit or the disk is full",
+                    "topic",        "%s", topic_name,
+                    "written",      "%ld", (long)ln,
+                    "expected",     "%ld", (long)md_record.__size__,
+                    NULL
+                );
+            }
             gobj_trace_json(gobj, record, "Cannot append record, write FAILED");
             JSON_DECREF(record)
             jsonp_free(srecord);
@@ -3588,13 +3604,13 @@ PUBLIC int tranger2_append_record(
         big_endian.__offset__ = htonll(md_record.__offset__);
         big_endian.__size__ = htonll(md_record.__size__);
 
-        size_t ln = write( // write md
+        ssize_t ln = write( // write md
             md2_fd,
             &big_endian,
             sizeof(md2_record_t)
         );
-        if(ln != sizeof(md2_record_t)) {
-            int err = errno;
+        if(ln != (ssize_t)sizeof(md2_record_t)) {
+            int err = errno;    // only when ln < 0: a short write leaves errno as it was
             if(ftruncate(md2_fd, offset) < 0) {     // a part of a row
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -3609,15 +3625,27 @@ PUBLIC int tranger2_append_record(
                 );
             }
             cut_back_content(gobj, topic, key_value, file_id, __offset__);
-            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot save record metadata, write FAILED",
-                "topic",        "%s", tranger2_topic_name(topic),
-                "errno",        "%d", err,
-                "serrno",       "%s", strerror(err),
-                NULL
-            );
+            if(ln < 0) {
+                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot save record metadata, write FAILED",
+                    "topic",        "%s", tranger2_topic_name(topic),
+                    "errno",        "%d", err,
+                    "serrno",       "%s", strerror(err),
+                    NULL
+                );
+            } else {
+                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot save record metadata, short write: the file size limit or the disk is full",
+                    "topic",        "%s", tranger2_topic_name(topic),
+                    "written",      "%ld", (long)ln,
+                    "expected",     "%ld", (long)sizeof(md2_record_t),
+                    NULL
+                );
+            }
             JSON_DECREF(record)
             return -1;
         }
@@ -4220,12 +4248,12 @@ PRIVATE int rewrite_md_to_file(
     big_endian.__offset__ = htonll(md_record->__offset__);
     big_endian.__size__ = htonll(md_record->__size__);
 
-    size_t ln = write( // write md
+    ssize_t ln = write( // write md
         md2_fd,
         &big_endian,
         sizeof(md2_record_t)
     );
-    if(ln != sizeof(md2_record_t)) {
+    if(ln < 0) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -4233,6 +4261,18 @@ PRIVATE int rewrite_md_to_file(
             "topic",        "%s", tranger2_topic_name(topic),
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    if(ln != (ssize_t)sizeof(md2_record_t)) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot re-write record metadata, short write: the file size limit or the disk is full",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "written",      "%ld", (long)ln,
+            "expected",     "%ld", (long)sizeof(md2_record_t),
             NULL
         );
         return -1;
@@ -7848,7 +7888,7 @@ PRIVATE json_int_t load_first_and_last_record_md(
      *  Seek the last record
      */
     off_t offset = lseek(fd, 0, SEEK_END);
-    if(offset < 0 || (offset % sizeof(md2_record_t)!=0)) {
+    if(offset < 0) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
@@ -7857,6 +7897,23 @@ PRIVATE json_int_t load_first_and_last_record_md(
             "offset",       "%ld", (long)offset,
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        close(fd);
+        return -1;
+    }
+    if(offset % sizeof(md2_record_t) != 0) {
+        /*
+         *  A size, not a failed call: there is no errno to say
+         */
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot read last record, md2 file corrupted",
+            "path",         "%s", full_path,
+            "offset",       "%ld", (long)offset,
+            "cause",        "%s", "its size is not a whole number of rows",
+            "row_size",     "%ld", (long)sizeof(md2_record_t),
             NULL
         );
         close(fd);

@@ -33,6 +33,11 @@
  *      5. The rollback of 3 with the production default on_critical_error
  *         (LOG_OPT_EXIT_ZERO), in a child process: the process exits, and
  *         the content was cut back BEFORE it did.
+ *      6. A write that stops part way (RLIMIT_FSIZE, in a child process),
+ *         first of the content, then of the md2 row: a short write()
+ *         returns a count and does not set errno. It is logged as a short
+ *         write, with the bytes written and expected; it used to be logged
+ *         as "write FAILED" with a stale errno. The files are cut back.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -42,8 +47,10 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -63,6 +70,10 @@
 #define MSG_ITER    "The history of the key is not whole: a md2 file of it could not be read when its cache was built"
 #define MSG_LIST    "Cannot load the whole history of a key of the list: the records read before the failure were handed, the list goes on with the next key"
 #define MSG_REFUSED "Cannot append record, its file is flagged unreadable: its row would follow rows no cell counts"
+#define MSG_SHORT_CONTENT "Cannot append record, short write of its content: the file size limit or the disk is full"
+#define MSG_SHORT_MD2   "Cannot save record metadata, short write: the file size limit or the disk is full"
+#define SHORT_TOPIC     "topic_short_write"
+#define MD2_ROW_SIZE    32  // the on-disk md2 row: __t__, __tm__, __offset__, __size__ (uint64 each)
 #define MSG_READABLE "md2 file of the key readable again: it is counted, and the key is not flagged for it"
 
 /***************************************************************
@@ -549,6 +560,150 @@ PRIVATE int test_rollback_before_exit(void)
 }
 
 /***************************************************************************
+ *  6: a write that stops part way is logged as a short write.
+ *  A topic whose records are smaller than their md2 row (no tkey, only the
+ *  id), so that one limit can let the content through and cut the md2 row.
+ ***************************************************************************/
+PRIVATE json_t *create_short_topic(json_t *tranger)
+{
+    return tranger2_create_topic(
+        tranger, SHORT_TOPIC, "id", "", NULL, sf_string_key,
+        json_pack("{s:s}", "id", ""),
+        0
+    );
+}
+
+PRIVATE int append_short(json_t *tranger)
+{
+    md2_record_ex_t md = {0};
+    return tranger2_append_record(tranger, SHORT_TOPIC, (uint64_t)DAY1, 0, &md,
+        json_pack("{s:s}", "id", "A")
+    );
+}
+
+PRIVATE void file_of_short(char *bf, size_t bfsize, const char *ext)
+{
+    char name[NAME_MAX];
+    snprintf(name, sizeof(name), "2000-01-01.%s", ext);
+    build_path(bf, bfsize, path_database, SHORT_TOPIC, "keys", "A", name, NULL);
+}
+
+/*
+ *  In a child: the file size limit is `limit`, one append, and the log it
+ *  leaves must be `expected` (owned). Exit 0 when it is. The limit applies
+ *  to every file the child writes, stdout too when it is a file: run the
+ *  test with its output to a pipe, as ctest does.
+ */
+PRIVATE int short_write_in_child(const char *what, off_t limit, json_t *expected)
+{
+    fflush(stdout);
+    pid_t pid = fork();
+    if(pid < 0) {
+        printf("%sERROR%s --> %s: fork() failed\n", On_Red BWhite, Color_Off, what);
+        JSON_DECREF(expected)
+        return -1;
+    }
+    if(pid == 0) {
+        signal(SIGXFSZ, SIG_IGN);
+        json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i, s:s}",
+            "path", path_root,
+            "database", DATABASE,
+            "master", 1,
+            "on_critical_error", 0,
+            "filename_mask", "%Y-%m-%d"
+        ), 0);
+        create_short_topic(tranger);
+        struct rlimit rl = {(rlim_t)limit, (rlim_t)limit};
+        int result = 0;
+        if(setrlimit(RLIMIT_FSIZE, &rl) < 0) {
+            printf("%sERROR%s --> %s: setrlimit() failed\n", On_Red BWhite, Color_Off, what);
+            result = -1;
+        }
+        set_expected_results(what, expected, NULL, NULL, 1);
+        errno = ENOENT;     // a stale errno, that a short write does not change
+        if(append_short(tranger) == 0) {
+            printf("%sERROR%s --> %s: the append was acknowledged\n", On_Red BWhite, Color_Off, what);
+            result = -1;
+        }
+        result += test_json(NULL);
+        fflush(stdout);
+        _exit(result < 0? 1 : 0);
+    }
+
+    JSON_DECREF(expected)   // the child's copy is the one that is used
+    int status = 0;
+    waitpid(pid, &status, 0);
+    char bf[64];
+    snprintf(bf, sizeof(bf), "exit %d", WIFEXITED(status)? WEXITSTATUS(status): -1);
+    return expect(what, bf, "exit 0");
+}
+
+PRIVATE int test_short_write(void)
+{
+    int result = 0;
+    if(build_store() < 0) {
+        return -1;
+    }
+
+    set_expected_results("6. setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup();
+    create_short_topic(tranger);
+    for(int i = 0; i < 10; i++) {
+        append_short(tranger);
+    }
+    tranger2_shutdown(tranger);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    char md2_path[PATH_MAX];
+    char json_path[PATH_MAX];
+    file_of_short(md2_path, sizeof(md2_path), "md2");
+    file_of_short(json_path, sizeof(json_path), "json");
+    off_t md2_before = filesize(md2_path);
+    off_t json_before = filesize(json_path);
+    if(md2_before != 10*MD2_ROW_SIZE || json_before >= md2_before) {
+        printf("%sERROR%s --> 6: unexpected files, md2 %ld json %ld\n",
+            On_Red BWhite, Color_Off, (long)md2_before, (long)json_before);
+        return -1;
+    }
+    char expected_record[32];
+    snprintf(expected_record, sizeof(expected_record), "%ld", (long)(json_before / 10));
+
+    /*
+     *  The content: 5 bytes of the record are written
+     */
+    result += short_write_in_child("6. a short write of the content",
+        json_before + 5,
+        json_pack("[{s:s, s:s, s:s}]",
+            "msg", MSG_SHORT_CONTENT,
+            "written", "5",
+            "expected", expected_record
+        )
+    );
+
+    /*
+     *  The md2 row: the content goes whole, 16 bytes of the row are written
+     */
+    char expected_row[32];
+    snprintf(expected_row, sizeof(expected_row), "%d", MD2_ROW_SIZE);
+    result += short_write_in_child("6. a short write of the md2 row",
+        md2_before + 16,
+        json_pack("[{s:s, s:s, s:s}]",
+            "msg", MSG_SHORT_MD2,
+            "written", "16",
+            "expected", expected_row
+        )
+    );
+
+    char bf[64];
+    char expected[64];
+    snprintf(bf, sizeof(bf), "md2 %ld json %ld", (long)filesize(md2_path), (long)filesize(json_path));
+    snprintf(expected, sizeof(expected), "md2 %ld json %ld", (long)md2_before, (long)json_before);
+    result += expect("6. both files are cut back", bf, expected);
+
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -562,6 +717,7 @@ PRIVATE int do_test(void)
     result += test_rollback();
     result += test_flag_cleared();
     result += test_rollback_before_exit();
+    result += test_short_write();
 
     return result;
 }
