@@ -27,7 +27,12 @@
  *         flags the key; once it can be read, the next append into the
  *         file counts the file again and the flag goes. An append into a
  *         file still unreadable is refused: its row would follow rows no
- *         cell counts.
+ *         cell counts. A filtered iterator opened while the file was
+ *         flagged takes its index again at the recount: the rowids after
+ *         the file moved, and it used to be emptied for good.
+ *      5. The rollback of 3 with the production default on_critical_error
+ *         (LOG_OPT_EXIT_ZERO), in a child process: the process exits, and
+ *         the content was cut back BEFORE it did.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -38,6 +43,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -160,6 +166,28 @@ PRIVATE json_t *open_list(json_t *tranger, const char *key, BOOL backward)
         json_object_set_new(match_cond, "key", json_string(key));
     }
     return tranger2_open_list(tranger, TOPIC_NAME, match_cond, json_object(), "", FALSE, "");
+}
+
+/*
+ *  "<total_rows>: v.. v.." of the first page of an iterator
+ */
+PRIVATE const char *page_of(json_t *tranger, json_t *iterator)
+{
+    static char bf[256];
+    bf[0] = 0;
+    if(!iterator) {
+        snprintf(bf, sizeof(bf), "(no iterator)");
+        return bf;
+    }
+    json_t *page = tranger2_iterator_get_page(tranger, iterator, 1, 100, FALSE);
+    snprintf(bf, sizeof(bf), "%ld:", (long)kw_get_int(0, page, "total_rows", 0, 0));
+    int idx; json_t *record;
+    json_array_foreach(json_object_get(page, "data"), idx, record) {
+        size_t ln = strlen(bf);
+        snprintf(bf + ln, sizeof(bf) - ln, " v%d", (int)kw_get_int(0, record, "v", 0, 0));
+    }
+    JSON_DECREF(page)
+    return bf;
 }
 
 PRIVATE int expect(const char *what, const char *found, const char *expected)
@@ -307,9 +335,10 @@ PRIVATE int test_rollback(void)
     }
 
     set_expected_results_unordered("3. an append whose md2 cannot be created",
-        json_pack("[{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s}]",
             "msg", "Cannot create json file",
-            "msg", "Cannot open file to write"
+            "msg", "Cannot open file to write",
+            "msg", "Cannot append record, its md2 file cannot be opened: its content was cut back"
         ), NULL, NULL, 1
     );
     json_t *tranger = startup();
@@ -410,6 +439,21 @@ PRIVATE int test_flag_cleared(void)
     result += test_json(NULL);
 
     /*
+     *  A filtered iterator of A opened while the file is flagged: its
+     *  index names the rows of the other files
+     */
+    set_expected_results("4. a filtered iterator of the flagged key",
+        json_pack("[{s:s}]", "msg", MSG_ITER), NULL, NULL, 1
+    );
+    json_t *pager = tranger2_open_iterator(tranger, TOPIC_NAME, "A",
+        json_pack("{s:I}", "from_t", (json_int_t)DAY1),
+        NULL, "pager", "test", NULL, NULL
+    );
+    result += test_json(NULL);
+    result += expect("4. the filtered iterator while flagged", page_of(tranger, pager),
+        "3: v1 v3 v4");
+
+    /*
      *  Readable again: the next append counts the file, the flag goes
      */
     chmod(path, 0660);
@@ -423,10 +467,83 @@ PRIVATE int test_flag_cleared(void)
     }
     result += test_json(NULL);
 
+    /*
+     *  The recount moved the rowids after the file: the filtered iterator
+     *  takes its index again, as an open would have built it just before
+     *  the append (the rows of the file are in it; the append, like every
+     *  append after the open of a filtered iterator, is not). A recount is
+     *  not a delete -- its index was emptied for good.
+     */
+    set_expected_results("4. the filtered iterator after the recount", NULL, NULL, NULL, 1);
+    result += expect("4. the filtered iterator after the recount", page_of(tranger, pager),
+        "4: v1 v2 v3 v4");
+    tranger2_close_iterator(tranger, pager);
+    result += test_json(NULL);
+
     set_expected_results("4. the key is whole", NULL, NULL, NULL, 1);
     result += check_loads(tranger, "4", "A@1 A@2 A@9 A@3 A@4", "A@4 A@3 A@9 A@2 A@1", FALSE);
     tranger2_shutdown(tranger);
     result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  5: the rollback of 3 with the production default on_critical_error
+ *
+ *  C_TRANGER and C_TREEDB run their tranger with on_critical_error=2
+ *  (LOG_OPT_EXIT_ZERO): gobj_log_critical() exits inside the log call. The
+ *  rollback came after that call, so with the default it never ran and the
+ *  content of the refused append stayed on disk (independent review of the
+ *  fifth fix round, repro indep5_A/r_exit_rollback). It runs before now.
+ ***************************************************************************/
+PRIVATE int test_rollback_before_exit(void)
+{
+    int result = 0;
+    if(build_store() < 0) {
+        return -1;
+    }
+
+    char md2_path[PATH_MAX];
+    char json_path[PATH_MAX];
+    file_of_a(md2_path, sizeof(md2_path), "2000-01-06", "md2");
+    file_of_a(json_path, sizeof(json_path), "2000-01-06", "json");
+    if(mkdir(md2_path, 0770) < 0) {
+        printf("%sERROR%s --> cannot make %s\n", On_Red BWhite, Color_Off, md2_path);
+        return -1;
+    }
+
+    fflush(stdout);
+    pid_t pid = fork();
+    if(pid < 0) {
+        printf("%sERROR%s --> 5: fork() failed\n", On_Red BWhite, Color_Off);
+        rmdir(md2_path);
+        return -1;
+    }
+    if(pid == 0) {
+        json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i, s:s}",
+            "path", path_root,
+            "database", DATABASE,
+            "master", 1,
+            "on_critical_error", LOG_OPT_EXIT_ZERO,
+            "filename_mask", "%Y-%m-%d"
+        ), 0);
+        create_topic(tranger);
+        append(tranger, "A", 5, 6);
+        fflush(stdout);
+        _exit(3);   // the critical did not exit
+    }
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+    rmdir(md2_path);
+
+    char bf[64];
+    snprintf(bf, sizeof(bf), "exit %d", WIFEXITED(status)? WEXITSTATUS(status): -1);
+    result += expect("5. the append's critical exits the process", bf, "exit 0");
+
+    snprintf(bf, sizeof(bf), "%ld", (long)filesize(json_path));
+    result += expect("5. the content of the refused append is cut back before the exit", bf, "0");
 
     return result;
 }
@@ -444,6 +561,7 @@ PRIVATE int do_test(void)
     result += test_uncommitted_file();
     result += test_rollback();
     result += test_flag_cleared();
+    result += test_rollback_before_exit();
 
     return result;
 }

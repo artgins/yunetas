@@ -248,10 +248,17 @@ first and the md2 row after -- and it is ignored with a warning naming the file
 (*"md2 file of the key with no rows and a content file that is not empty: an
 append that was never acknowledged, the file is ignored"*), as until 7.25.4.
 Flagging it (200a1791e) hid the later files from a forward load and made a
-treedb node with good older rows disappear. A running tranger does not leave
-it: an append whose md2 fails answers -1 and cuts its content back. An append
-into a file still flagged unreadable is refused.
-`tests/c/timeranger2/test_uncommitted_append.c`.
+treedb node with good older rows disappear. An append whose md2 fails does not
+leave it: it answers -1 and cuts its content back, and the cut comes BEFORE the
+critical that reports the failure. With the exit bit of `on_critical_error`
+(`2`, the default of `C_TRANGER` and of `C_TREEDB`'s `exit_on_error`) that
+critical ends the process inside the log call; the first rollback cut after it
+and, with the default, never ran. A kill or a power cut between the two writes
+still leaves the shape, and the next open ignores it with the warning above.
+An append into a file still flagged unreadable is refused; one into a flagged
+file readable again counts it first, and a FILTERED iterator of the key takes
+its segments and its index again (the rowids after the file moved; its index
+used to be emptied). `tests/c/timeranger2/test_uncommitted_append.c`.
 
 `tranger2_open_list()` of ONE key answers `NULL` when the history of the key
 did not load whole. A KEYLESS list loads every key it can read, opens its

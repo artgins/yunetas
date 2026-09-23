@@ -224,6 +224,7 @@ PRIVATE void unflag_file_readable_again(
 );
 PRIVATE int count_flagged_file_again(
     hgobj gobj,
+    json_t *tranger,
     json_t *topic,
     const char *key,
     const char *file_id
@@ -344,6 +345,12 @@ PRIVATE BOOL segment_tm_ordered(json_t *topic, json_t *segment);
 PRIVATE json_int_t leave_segment_row(json_t *segment, BOOL backward);
 PRIVATE json_t *key_cache_stamp(json_t *topic, const char *key);
 PRIVATE void forget_segments_of_key(json_t *topic, const char *key);
+PRIVATE void retake_segments_of_key(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+);
 PRIVATE BOOL tranger2_match_metadata(
     json_t *match_cond,
     json_int_t total_rows,
@@ -2710,6 +2717,21 @@ PRIVATE char *get_t_filename(
 }
 
 /***************************************************************************
+ *  The critical of a file that cannot be created leaves the process when
+ *  the tranger's on_critical_error says so, except with `keep_running`:
+ *  then its exit bits are dropped, and the caller -- an append with content
+ *  to take back -- logs the critical that exits once it has done so.
+ ***************************************************************************/
+PRIVATE log_opt_t critical_opt(hgobj gobj, json_t *tranger, BOOL keep_running)
+{
+    log_opt_t opt = (log_opt_t)kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED);
+    if(keep_running) {
+        opt &= ~(LOG_OPT_EXIT_ZERO|LOG_OPT_EXIT_NEGATIVE|LOG_OPT_ABORT);
+    }
+    return opt;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int create_file(
@@ -2717,7 +2739,8 @@ PRIVATE int create_file(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *full_path
+    const char *full_path,
+    BOOL keep_running   // see critical_opt()
 )
 {
     BOOL master = json_boolean_value(json_object_get(tranger, "master"));
@@ -2756,7 +2779,7 @@ PRIVATE int create_file(
                 0
             );
             if(mkrdir(path_key, xpermission)<0) {
-                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                gobj_log_critical(gobj, critical_opt(gobj, tranger, keep_running),
                     "function",     "%s", __FUNCTION__,
                     "path",         "%s", path_key,
                     "msgset",       "%s", MSGSET_SYSTEM,
@@ -2806,7 +2829,7 @@ PRIVATE int create_file(
 
             fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
             if(fp < 0) {
-                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                gobj_log_critical(gobj, critical_opt(gobj, tranger, keep_running),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM,
                     "msg",          "%s", "Cannot create json file, after close files",
@@ -2818,7 +2841,7 @@ PRIVATE int create_file(
                 return -1;
             }
         } else {
-            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            gobj_log_critical(gobj, critical_opt(gobj, tranger, keep_running),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot create json file",
@@ -2843,7 +2866,8 @@ PRIVATE int get_topic_wr_fd( // optimized
     json_t *topic,
     const char *key,
     BOOL for_data,
-    const char *file_id     // get_file_id() of the record's __t__
+    const char *file_id,    // get_file_id() of the record's __t__
+    BOOL keep_running       // see critical_opt()
 )
 {
     char full_path[PATH_MAX];
@@ -2898,7 +2922,7 @@ PRIVATE int get_topic_wr_fd( // optimized
                     fd = open(full_path, O_RDWR|O_NOFOLLOW|O_CLOEXEC, 0);
                 }
                 if(fd < 0) {
-                    fd = create_file(gobj, tranger, topic, key, full_path);
+                    fd = create_file(gobj, tranger, topic, key, full_path, keep_running);
                 }
             }
         } else {
@@ -2907,7 +2931,7 @@ PRIVATE int get_topic_wr_fd( // optimized
 
         if(fd<0) {
             gobj_log_critical(gobj,
-                master?kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED):0,
+                master? critical_opt(gobj, tranger, keep_running) : 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot open file to write",
@@ -3391,7 +3415,7 @@ PUBLIC int tranger2_append_record(
     /*------------------------------------------------------*
      *  A file flagged unreadable is counted again first
      *------------------------------------------------------*/
-    if(count_flagged_file_again(gobj, topic, key_value, file_id) < 0) {
+    if(count_flagged_file_again(gobj, tranger, topic, key_value, file_id) < 0) {
         // Error already logged
         JSON_DECREF(record)
         return -1;
@@ -3400,7 +3424,7 @@ PUBLIC int tranger2_append_record(
     /*------------------------------------------------------*
      *  Save content, to file
      *------------------------------------------------------*/
-    int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, file_id);
+    int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, file_id, FALSE);
 
     // TEST performance 475000
 
@@ -3482,13 +3506,15 @@ PUBLIC int tranger2_append_record(
             md_record.__size__
         );
         if(ln != md_record.__size__) {
+            int err = errno;
+            cut_back_content(gobj, topic, key_value, file_id, __offset__);  // a part of it
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot append record, write FAILED",
                 "topic",        "%s", topic_name,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
+                "errno",        "%d", err,
+                "serrno",       "%s", strerror(err),
                 NULL
             );
             gobj_trace_json(gobj, record, "Cannot append record, write FAILED");
@@ -3515,27 +3541,32 @@ PUBLIC int tranger2_append_record(
     /*
      *  From here on a failure leaves the content without its row: the
      *  append is not acknowledged, and its content is cut back
-     *  (cut_back_content). A kill or a power cut here leaves the same
-     *  shape, which the cache build ignores with a warning.
+     *  (cut_back_content). The cut comes BEFORE the critical: with the
+     *  exit bit of on_critical_error -- the default of C_TRANGER and
+     *  C_TREEDB -- the process leaves inside the log call, and a cut after
+     *  it never ran (independent review of the fifth fix round, repro
+     *  indep5_A/r_exit_rollback). A kill or a power cut here leaves the
+     *  same shape, which the cache build ignores with a warning.
      */
     json_int_t g_rowid = 0;
     json_int_t i_rowid = 0;
-    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, file_id);
+    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, file_id, TRUE);
 
     if(md2_fd >= 0) {
         off_t offset = lseek(md2_fd, 0, SEEK_END);
         if(offset < 0) {
+            int err = errno;
+            cut_back_content(gobj, topic, key_value, file_id, __offset__);
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot append record, lseek() FAILED",
                 "topic",        "%s", topic_name,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
+                "errno",        "%d", err,
+                "serrno",       "%s", strerror(err),
                 NULL
             );
             gobj_trace_json(gobj, record, "Cannot append record, lseek() FAILED");
-            cut_back_content(gobj, topic, key_value, file_id, __offset__);
             JSON_DECREF(record)
             return -1;
         }
@@ -3563,15 +3594,7 @@ PUBLIC int tranger2_append_record(
             sizeof(md2_record_t)
         );
         if(ln != sizeof(md2_record_t)) {
-            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot save record metadata, write FAILED",
-                "topic",        "%s", tranger2_topic_name(topic),
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
+            int err = errno;
             if(ftruncate(md2_fd, offset) < 0) {     // a part of a row
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -3586,6 +3609,15 @@ PUBLIC int tranger2_append_record(
                 );
             }
             cut_back_content(gobj, topic, key_value, file_id, __offset__);
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot save record metadata, write FAILED",
+                "topic",        "%s", tranger2_topic_name(topic),
+                "errno",        "%d", err,
+                "serrno",       "%s", strerror(err),
+                NULL
+            );
             JSON_DECREF(record)
             return -1;
         }
@@ -3608,8 +3640,20 @@ PUBLIC int tranger2_append_record(
             }
         }
     } else {
-        // Error already logged by get_topic_wr_fd
+        /*
+         *  get_topic_wr_fd() logged the cause without leaving: the
+         *  content is cut back, THEN the critical that may exit
+         */
         cut_back_content(gobj, topic, key_value, file_id, __offset__);
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot append record, its md2 file cannot be opened: its content was cut back",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key_value,
+            "file_id",      "%s", file_id,
+            NULL
+        );
         JSON_DECREF(record)
         return -1;
     }
@@ -4073,7 +4117,7 @@ PRIVATE int get_md_record_for_wr(
         return -1;
     }
 
-    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key, FALSE, file_id);
+    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key, FALSE, file_id, FALSE);
     if(md2_fd < 0) {
         // Error already logged
         return -1;
@@ -4659,7 +4703,7 @@ PUBLIC int tranger2_delete_instance(
             // Error already logged
             return -1;
         }
-        int data_fd = get_topic_wr_fd(gobj, tranger, topic, key, TRUE, file_id);
+        int data_fd = get_topic_wr_fd(gobj, tranger, topic, key, TRUE, file_id, FALSE);
         if(data_fd < 0) {
             // Error already logged
             return -1;
@@ -7059,6 +7103,7 @@ PRIVATE void unflag_file_readable_again(
  ***************************************************************************/
 PRIVATE int count_flagged_file_again(
     hgobj gobj,
+    json_t *tranger,
     json_t *topic,
     const char *key,
     const char *file_id
@@ -7110,12 +7155,13 @@ PRIVATE int count_flagged_file_again(
         json_t *cache_files = json_object_get(get_key_cache(topic, key), "files");
         json_array_insert_new(cache_files, (size_t)insert_idx, cache_cell);
         update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
-        forget_segments_of_key(topic, key);             // the rowids after it moved
+        unflag_file_readable_again(gobj, topic, key, file_id);
+        retake_segments_of_key(gobj, tranger, topic, key);  // the rowids after it moved
     } else {
         JSON_DECREF(cache_cell)     // no rows: the append makes its first
+        unflag_file_readable_again(gobj, topic, key, file_id);
     }
 
-    unflag_file_readable_again(gobj, topic, key, file_id);
     return 0;
 }
 
@@ -9425,6 +9471,59 @@ PRIVATE void forget_segments_of_key(json_t *topic, const char *key)
         if(json_object_get(iterator, "index")) {
             json_object_set_new(iterator, "index", json_array());
         }
+    }
+}
+
+/***************************************************************************
+ *  A file of the key was counted again (count_flagged_file_again): its
+ *  rows got a cell in the MIDDLE of the key, and every rowid after it
+ *  moved. That is not a delete, and the iterators of the key must not
+ *  lose what they index: an unfiltered one loses its segments and takes
+ *  them again at its next page (the stamp), a filtered one takes its
+ *  segments and its index again now, as an open would build them. It used
+ *  to be emptied (forget_segments_of_key), and its pages came back with
+ *  total_rows 0 for the life of the iterator (independent review of the
+ *  fifth fix round, repro indep5_A/r_recount).
+ ***************************************************************************/
+PRIVATE void retake_segments_of_key(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+)
+{
+    json_t *iterators = json_object_get(topic, "iterators");
+    int idx; json_t *iterator;
+    json_array_foreach(iterators, idx, iterator) {
+        const char *key_ = json_string_value(json_object_get(iterator, "key"));
+        if(!key_ || strcmp(key_, key) != 0) {
+            continue;
+        }
+        if(!json_object_get(iterator, "index")) {
+            json_object_set_new(iterator, "segments", json_array());
+            json_object_set_new(iterator, "segments_stamp", json_null());
+            continue;
+        }
+
+        json_t *match_cond = json_object_get(iterator, "match_cond");
+        BOOL realtime;
+        json_t *segments = get_segments(gobj, tranger, topic, key, match_cond, &realtime);
+        json_t *index = build_iterator_index(gobj, tranger, topic, key, segments, match_cond);
+        if(!index) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "Cannot index the key again after a file of it was counted: the filtered iterator is empty",
+                "topic_name",   "%s", tranger2_topic_name(topic),
+                "key",          "%s", key,
+                "id",           "%s", json_string_value(json_object_get(iterator, "id")),
+                NULL
+            );
+            index = json_array();
+        }
+        json_object_set_new(iterator, "segments", segments);
+        json_object_set_new(iterator, "segments_stamp", key_cache_stamp(topic, key));
+        json_object_set_new(iterator, "index", index);
     }
 }
 
