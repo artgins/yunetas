@@ -168,7 +168,13 @@ PRIVATE json_t *rows_without_leftovers(
     json_t *rows,       // owned
     json_t *leftovers   // not owned, ids of __system__, may be NULL
 );
-PRIVATE json_t *leftovers_as_left(hgobj gobj, const char *treedb_name, json_t *record);
+PRIVATE json_t *leftovers_as_left(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *record,
+    json_t *edited
+);
+PRIVATE json_t *orphan_nodes(hgobj gobj, const char *treedb_name, json_t *tree);
 PRIVATE json_t *topic_versions_in_use(
     hgobj gobj,
     const char *treedb_name,
@@ -2585,10 +2591,12 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
         /*
          *  What an unfinished projection left, as it left it, is nobody's
-         *  draft: an edit of it is (see leftovers_as_left)
+         *  draft: an edit of it is (see leftovers_as_left), an unlink or a
+         *  delete included
          */
         json_t *record = load_unfinished_record(gobj, treedb_name);
-        json_t *leftovers = leftovers_as_left(gobj, treedb_name, record);
+        json_t *edited = json_object();
+        json_t *leftovers = leftovers_as_left(gobj, treedb_name, record, edited);
         rows = rows_without_leftovers(gobj, treedb_name, rows, leftovers);
         JSON_DECREF(leftovers)
         JSON_DECREF(record)
@@ -2596,6 +2604,12 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         JSON_DECREF(draft_changed)
         draft_changed = draft_changed_from_rows(gobj, rows);
         JSON_DECREF(rows)
+
+        const char *edited_id; json_t *jn_topic;
+        json_object_foreach(edited, edited_id, jn_topic) {
+            json_object_set_new(draft_changed, json_string_value(jn_topic), json_true());
+        }
+        JSON_DECREF(edited)
     }
     JSON_DECREF(in_use)
     JSON_DECREF(saved)
@@ -4013,7 +4027,11 @@ PRIVATE void add_unfinished_topic(
  *        included (projection_rewrites_node), and so is a topic whose
  *        topic_version moved;
  *      - a topic or column `kw` does not declare is DELETED, with force
- *        (it is linked), its columns with it.
+ *        (it is linked), its columns with it;
+ *      - a topic or column the tree of the treedb no longer reaches (an
+ *        unlink, see orphan_nodes) is TAKEN when `kw` declares it --
+ *        written as `kw` says and linked again -- and deleted when it
+ *        does not. Created anew, it failed at every open.
  *
  *  That is the rule the user decided on 2026-09-23 for a literal that wins
  *  (see reconcile_treedb_schema): it replaces the schema file whole, and
@@ -4116,6 +4134,16 @@ PRIVATE int upsert_treedb_schema(
     json_t *current_topics = current? kw_get_dict(gobj, current, "topics", 0, 0): NULL;
 
     /*
+     *  The nodes of the treedb its tree does not reach (orphan_nodes): one
+     *  the schema declares is TAKEN, written as the schema says and linked
+     *  again, and the rest go below, as anything else the schema does not
+     *  declare. Created anew, the node failed at every open ("Node already
+     *  exists"). One that is the operator's work (`draft_ids`) is said, as
+     *  "unsaved": no save carries a node that is in no topic.
+     */
+    json_t *orphans = orphan_nodes(gobj, treedb_name, current);
+
+    /*
      *  The version each topic is IN USE at, to tell a saved draft from an
      *  unsaved one (see draft_kind)
      */
@@ -4197,6 +4225,12 @@ PRIVATE int upsert_treedb_schema(
                 JSON_DECREF(kw_col)
                 continue;
             }
+            json_t *orphan = current_col? NULL : json_object_get(orphans, col_id);
+            if(orphan && !json_is_true(json_object_get(orphan, "is_topic"))) {
+                projection_rewrites_node(
+                    gobj, kw_col, json_object_get(orphan, "node"), schema_col_skip, cols_desc
+                );
+            }
             json_array_append_new(kw_cols, kw_col);
         }
         json_decref(jn_cols);
@@ -4219,9 +4253,18 @@ PRIVATE int upsert_treedb_schema(
             json_int_t stored_topic_version = kw_get_int(
                 gobj, current_topic, "topic_version", 0, KW_WILD_NUMBER
             );
+            /*
+             *  The rewrite is asked FIRST: it is what clears in `kw_topic`
+             *  an attribute the topic has and the schema does not declare,
+             *  and asked after the columns it was skipped whenever they
+             *  changed
+             */
+            BOOL topic_rewrites = projection_rewrites_node(
+                gobj, kw_topic, current_topic, schema_topic_skip, NULL
+            );
             BOOL topic_changes = (json_array_size(kw_cols) > 0 ||
                 json_array_size(removed_cols) > 0 ||
-                projection_rewrites_node(gobj, kw_topic, current_topic, schema_topic_skip, NULL)
+                topic_rewrites
             )? TRUE: FALSE;
 
             if(!topic_changes && stored_topic_version == topic_version) {
@@ -4247,6 +4290,7 @@ PRIVATE int upsert_treedb_schema(
          *  topic is said by the open that replaces it
          */
         BOOL draft_left = FALSE;
+        BOOL orphan_work = FALSE;   /*  an orphan of the operator taken over  */
 
         json_t *topic;
         if(current_topic) {
@@ -4266,13 +4310,33 @@ PRIVATE int upsert_treedb_schema(
                 continue;   /*  nothing of it replaced: not said  */
             }
         } else {
-            topic = gobj_create_node(
-                priv->gobj_node_system,
-                "topics",
-                kw_topic,
-                json_pack("{s:b}", "refs", 1),      // fkey,hook options
-                gobj
-            );
+            json_t *orphan = json_object_get(orphans, topic_id);
+            if(orphan && json_is_true(json_object_get(orphan, "is_topic"))) {
+                projection_rewrites_node(
+                    gobj, kw_topic, json_object_get(orphan, "node"), schema_topic_skip, NULL
+                );
+                topic = gobj_update_node(
+                    priv->gobj_node_system,
+                    "topics",
+                    kw_topic,
+                    json_pack("{s:b}", "refs", 1),      // fkey,hook options
+                    gobj
+                );
+                if(topic) {
+                    if(json_object_get(draft_ids, topic_id)) {
+                        orphan_work = TRUE;
+                    }
+                    json_object_del(orphans, topic_id);
+                }
+            } else {
+                topic = gobj_create_node(
+                    priv->gobj_node_system,
+                    "topics",
+                    kw_topic,
+                    json_pack("{s:b}", "refs", 1),      // fkey,hook options
+                    gobj
+                );
+            }
             if(!topic) {
                 failed++;   // Error already logged
                 add_unfinished_topic(gobj, unfinished, topic_id, kw_cols, removed_cols, draft_ids);
@@ -4304,7 +4368,55 @@ PRIVATE int upsert_treedb_schema(
             json_t *stored_col = current_cols? json_object_get(current_cols, col_id): NULL;
 
             json_t *col;
-            if(stored_col) {
+            json_t *orphan = stored_col? NULL : json_object_get(orphans, col_id);
+            if(orphan && json_is_true(json_object_get(orphan, "is_topic"))) {
+                orphan = NULL;
+            }
+            if(orphan) {
+                /*
+                 *  A column node no topic of the tree holds: taken, and
+                 *  linked to its topic unless it still is (the columns of
+                 *  a topic taken above)
+                 */
+                char ref[RECORD_KEY_VALUE_MAX + 16];
+                snprintf(ref, sizeof(ref), "topics^%s^cols", topic_id);
+                json_t *refs = json_object_get(json_object_get(orphan, "node"), "topics");
+                BOOL linked = (json_is_array(refs) && json_list_str_index(refs, ref, FALSE) >= 0)?
+                    TRUE : FALSE;
+                BOOL operator_work = json_object_get(draft_ids, col_id)? TRUE : FALSE;
+                json_object_del(orphans, col_id);   /*  `orphan` is not used below  */
+
+                col = gobj_update_node(
+                    priv->gobj_node_system,
+                    "cols",
+                    json_incref(kw_col),
+                    json_pack("{s:b}", "refs", 1),  // fkey,hook options
+                    gobj
+                );
+                if(!col) {
+                    failed++;   // Error already logged
+                    if(add_unfinished(unfinished, "not_written", col_id, draft_ids)) {
+                        draft_left = TRUE;
+                    }
+                    continue;
+                }
+                if(!linked && gobj_link_nodes(
+                        priv->gobj_node_system,
+                        "cols",                 // hook
+                        "topics",               // parent_topic_name,
+                        json_incref(topic),     // parent_record,owned
+                        "cols",                 // child_topic_name,
+                        json_incref(col),       // child_record,owned
+                        gobj
+                    ) < 0) {
+                    failed++;   // Error already logged
+                    if(add_unfinished(unfinished, "not_written", col_id, draft_ids)) {
+                        draft_left = TRUE;
+                    }
+                } else if(operator_work) {
+                    orphan_work = TRUE;
+                }
+            } else if(stored_col) {
                 col = gobj_update_node(
                     priv->gobj_node_system,
                     "cols",
@@ -4374,9 +4486,11 @@ PRIVATE int upsert_treedb_schema(
         }
 
         if(draft_left) {
-            keep_draft_kind(unfinished, topic_name, kind);
+            keep_draft_kind(unfinished, topic_name, kind? kind : (orphan_work? "unsaved" : NULL));
         } else if(kind && replaced) {
             json_object_set_new(replaced, topic_name, json_string(kind));
+        } else if(orphan_work && replaced) {
+            json_object_set_new(replaced, topic_name, json_string("unsaved"));
         }
 
         /*
@@ -4448,6 +4562,53 @@ PRIVATE int upsert_treedb_schema(
             }
         }
     }
+
+    /*
+     *  The orphans nobody declared go, as anything the schema does not
+     *  declare: the topics first (with force it unlinks their columns),
+     *  then the columns. One that is the operator's work is said as a
+     *  draft of its topic, "unsaved"; a delete refused keeps it a draft.
+     */
+    for(int pass = 0; pass < 2; pass++) {
+        const char *orphan_id; json_t *orphan;
+        json_object_foreach(orphans, orphan_id, orphan) {
+            BOOL is_topic = json_is_true(json_object_get(orphan, "is_topic"));
+            if(is_topic != (pass == 0)) {
+                continue;
+            }
+            const char *topic_name = kw_get_str(gobj, orphan, "topic", "", 0);
+            BOOL operator_work = json_object_get(draft_ids, orphan_id)? TRUE : FALSE;
+            if(gobj_delete_node(
+                    priv->gobj_node_system,
+                    is_topic? "topics" : "cols",
+                    json_pack("{s:s}", "id", orphan_id),
+                    json_pack("{s:b}", "force", 1),
+                    gobj
+                ) < 0) {
+                failed++;   // Error already logged
+                if(add_unfinished(unfinished, "not_removed", orphan_id, draft_ids) &&
+                        !json_object_get(json_object_get(unfinished, "draft_kinds"), topic_name)) {
+                    keep_draft_kind(unfinished, topic_name, "unsaved");
+                }
+                continue;
+            }
+
+            gobj_log_info(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INFO,
+                "msg",              "%s", "Node of the treedb that its tree does not reach: removed from __system__",
+                "treedb_name",      "%s", treedb_name,
+                "id",               "%s", orphan_id,
+                "topic_name",       "%s", topic_name,
+                "operator_work",    "%d", (int)operator_work,
+                NULL
+            );
+            if(operator_work && replaced && !json_object_get(replaced, topic_name)) {
+                json_object_set_new(replaced, topic_name, json_string("unsaved"));
+            }
+        }
+    }
+    JSON_DECREF(orphans)
 
     /*
      *  The numbers, LAST: only a whole projection says which schema it came
@@ -5347,6 +5508,139 @@ PRIVATE json_t *ids_as_dict(json_t *ids) // not owned, may be NULL
 }
 
 /***************************************************************************
+ *  The topic of `treedb_name` a node of __system__ belongs to, read from
+ *  its id, which is its parent's id and its name (`value`, see
+ *  build_schema_node_id): "<treedb>.<topic>" for a topic (`is_topic`),
+ *  and "<treedb>.<topic>.<column>" for a column. NULL when the id is not
+ *  of that treedb.
+ ***************************************************************************/
+PRIVATE const char *topic_of_schema_id(
+    const char *treedb_name,
+    const char *id,
+    const char *value,
+    BOOL is_topic,
+    char *bf,
+    size_t bfsize
+)
+{
+    size_t tlen = strlen(treedb_name);
+    if(empty_string(value) || strncmp(id, treedb_name, tlen)!=0 || id[tlen] != '.') {
+        return NULL;
+    }
+    const char *rest = id + tlen + 1;
+    if(is_topic) {
+        if(strcmp(rest, value)!=0 || strlen(rest) >= bfsize) {
+            return NULL;
+        }
+        snprintf(bf, bfsize, "%s", rest);
+        return bf;
+    }
+    size_t rlen = strlen(rest);
+    size_t vlen = strlen(value);
+    if(rlen < vlen + 2 || rest[rlen - vlen - 1] != '.' || strcmp(rest + rlen - vlen, value)!=0) {
+        return NULL;
+    }
+    if(rlen - vlen - 1 >= bfsize) {
+        return NULL;
+    }
+    snprintf(bf, bfsize, "%.*s", (int)(rlen - vlen - 1), rest);
+    return bf;
+}
+
+/***************************************************************************
+ *  The nodes of a treedb in __system__ that its tree (`tree`, the node
+ *  tree of the treedb, NULL when it has no node) does not reach: a topic
+ *  unlinked from the treedb, a column unlinked from its topic, and the
+ *  columns of such a topic. An unlink by the operator leaves them, and so
+ *  does a link of a projection that failed. They are still nodes, with
+ *  their id: a projection that creates one of those ids fails on it
+ *  ("Node already exists"), at every open.
+ *
+ *  Return is YOURS, {id: {"topic": <topic name>, "is_topic": bool,
+ *  "node": <the node>}}.
+ ***************************************************************************/
+PRIVATE json_t *orphan_nodes(hgobj gobj, const char *treedb_name, json_t *tree)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *reached = json_object();
+    const char *topic_id; json_t *topic;
+    json_t *tree_topics = tree? kw_get_dict(gobj, tree, "topics", 0, 0) : NULL;
+    json_object_foreach(tree_topics, topic_id, topic) {
+        json_object_set_new(reached, topic_id, json_true());
+        const char *col_id; json_t *col;
+        json_object_foreach(kw_get_dict(gobj, topic, "cols", 0, 0), col_id, col) {
+            json_object_set_new(reached, col_id, json_true());
+        }
+    }
+
+    json_t *orphans = json_object();
+    const char *system_topics[] = {"topics", "cols", NULL};
+    for(int i = 0; system_topics[i]; i++) {
+        BOOL is_topic = (i == 0)? TRUE : FALSE;
+        json_t *nodes = gobj_list_nodes(
+            priv->gobj_node_system,
+            system_topics[i],
+            json_object(),
+            json_pack("{s:b}", "refs", 1),
+            gobj
+        );
+        int idx; json_t *node;
+        json_array_foreach(nodes, idx, node) {
+            const char *id = kw_get_str(gobj, node, "id", "", 0);
+            if(json_object_get(reached, id)) {
+                continue;
+            }
+            char topic_name_[NAME_MAX];
+            const char *topic_name = topic_of_schema_id(
+                treedb_name, id, kw_get_str(gobj, node, "value", "", 0), is_topic,
+                topic_name_, sizeof(topic_name_)
+            );
+            if(!topic_name) {
+                continue;   /*  of another treedb  */
+            }
+            json_object_set_new(orphans, id, json_pack("{s:s, s:b, s:O}",
+                "topic", topic_name,
+                "is_topic", is_topic,
+                "node", node
+            ));
+        }
+        JSON_DECREF(nodes)
+    }
+    JSON_DECREF(reached)
+    return orphans;
+}
+
+/***************************************************************************
+ *  The node tree of a treedb in __system__, or NULL when the treedb has
+ *  no node there (a treedb never projected: not an error). Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *system_tree_of(hgobj gobj, const char *treedb_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *nodes = gobj_list_nodes(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        json_object(),
+        gobj
+    );
+    BOOL exists = json_array_size(nodes) > 0? TRUE : FALSE;
+    JSON_DECREF(nodes)
+    if(!exists) {
+        return NULL;
+    }
+    return gobj_node_tree(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        json_object(),
+        gobj
+    );
+}
+
+/***************************************************************************
  *  The attributes a projection WRITES in a topic (`is_topic`) or in a
  *  column of __system__, {attr: true}: the fields a schema declares. They
  *  are read from build_topic_projection() and build_col_projection()
@@ -5515,9 +5809,19 @@ PRIVATE void keep_leftover_nodes(hgobj gobj, const char *treedb_name, json_t *un
  *  That is said, as a WARNING: an operator's edit of a leftover made
  *  meanwhile is not told apart any more.
  *
+ *  The ids that are NOT as left -- edited, unlinked, deleted -- go into
+ *  `edited` (when given) as {id: topic name}: each is a draft of its
+ *  topic. An unlinked column shows nowhere else: it is in no topic of
+ *  the tree, and a topic the literal removes is one row of the diff.
+ *
  *  Return is YOURS, a list of ids, NULL when there is no record.
  ***************************************************************************/
-PRIVATE json_t *leftovers_as_left(hgobj gobj, const char *treedb_name, json_t *record)
+PRIVATE json_t *leftovers_as_left(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *record,
+    json_t *edited  // not owned, may be NULL: {id: topic} of the leftovers edited
+)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -5584,6 +5888,31 @@ PRIVATE json_t *leftovers_as_left(hgobj gobj, const char *treedb_name, json_t *r
         json_t *node_now = leftover_node(gobj, tree, id, topic_attrs, col_attrs);
         if(json_equal(node_now, node_then)) {
             json_array_append(left, jn_id);
+        } else if(edited) {
+            const char *value = kw_get_str(gobj,
+                json_is_object(node_then)? node_then : node_now, "value", "", 0
+            );
+            char topic_name_[NAME_MAX];
+            const char *topic_name = topic_of_schema_id(
+                treedb_name, id, value, TRUE, topic_name_, sizeof(topic_name_)
+            );
+            if(!topic_name) {
+                topic_name = topic_of_schema_id(
+                    treedb_name, id, value, FALSE, topic_name_, sizeof(topic_name_)
+                );
+            }
+            if(topic_name) {
+                json_object_set_new(edited, id, json_string(topic_name));
+            } else {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "Edited leftover whose id names no topic of the treedb: not a draft of any topic",
+                    "treedb_name",  "%s", treedb_name,
+                    "id",           "%s", id,
+                    NULL
+                );
+            }
         }
         JSON_DECREF(node_now)
     }
@@ -5639,13 +5968,18 @@ PRIVATE json_t *rows_without_leftovers(
 
 /***************************************************************************
  *  The topics of __system__ that differ from the schema file in use: the
- *  operator's drafts, {topic: true}. What an unfinished projection left
- *  (`leftovers`) is not counted: it is nobody's work.
+ *  operator's drafts, {topic: true}. What an unfinished projection
+ *  (`record`, may be NULL) left, as it left it, is not counted: it is
+ *  nobody's work. A leftover edited since (see leftovers_as_left) is a
+ *  draft of its topic.
  *
  *  `*p_draft_ids` is where those drafts ARE, {id: true}: the ids of
  *  __system__ that carry them, a leftover never among them. A projection
  *  that cannot replace one of these does not make it a leftover: it stays
- *  a draft, and the open that replaces it says it (see upsert).
+ *  a draft, and the open that replaces it says it (see upsert). The nodes
+ *  the tree does not reach (orphan_nodes) are among them too, unless the
+ *  projection left them: an unlink the operator made, which the
+ *  projection removes or takes over, and says.
  *
  *  Return is YOURS, and so is `*p_draft_ids`.
  ***************************************************************************/
@@ -5653,10 +5987,13 @@ PRIVATE json_t *drafts_over_file(
     hgobj gobj,
     const char *treedb_name,
     json_t *file_in_use,    // not owned
-    json_t *leftovers,      // not owned, ids of __system__, may be NULL
+    json_t *record,         // not owned, the record of an unfinished projection, may be NULL
     json_t **p_draft_ids
 )
 {
+    json_t *edited = json_object();
+    json_t *leftovers = leftovers_as_left(gobj, treedb_name, record, edited);
+
     json_t *rows = json_array();
     json_t *summary = diff_treedb_schema(gobj, treedb_name, file_in_use, rows);
     JSON_DECREF(summary)
@@ -5708,8 +6045,28 @@ PRIVATE json_t *drafts_over_file(
         }
     }
     JSON_DECREF(tree)
+
+    const char *edited_id; json_t *jn_topic;
+    json_object_foreach(edited, edited_id, jn_topic) {
+        json_object_set_new(drafts, json_string_value(jn_topic), json_true());
+        json_object_set_new(*p_draft_ids, edited_id, json_true());
+    }
+
+    json_t *system_tree = system_tree_of(gobj, treedb_name);
+    json_t *orphans = orphan_nodes(gobj, treedb_name, system_tree);
+    const char *orphan_id; json_t *orphan;
+    json_object_foreach(orphans, orphan_id, orphan) {
+        if(!json_object_get(leftover_ids, orphan_id)) {
+            json_object_set_new(*p_draft_ids, orphan_id, json_true());
+        }
+    }
+    JSON_DECREF(orphans)
+    JSON_DECREF(system_tree)
+
     JSON_DECREF(leftover_ids)
     JSON_DECREF(rows)
+    JSON_DECREF(leftovers)
+    JSON_DECREF(edited)
     return drafts;
 }
 
@@ -5980,9 +6337,7 @@ PRIVATE int project_literal_into_system(
     json_t *draft_ids = NULL;
     json_t *saved = NULL;
     if(file_in_use && !never_stamped) {
-        json_t *leftovers = leftovers_as_left(gobj, treedb_name, unfinished_before);
-        drafts = drafts_over_file(gobj, treedb_name, file_in_use, leftovers, &draft_ids);
-        JSON_DECREF(leftovers)
+        drafts = drafts_over_file(gobj, treedb_name, file_in_use, unfinished_before, &draft_ids);
 
         char saved_dir[PATH_MAX];
         saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));

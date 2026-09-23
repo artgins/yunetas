@@ -2938,6 +2938,226 @@ PRIVATE int scenario_failed_write_then_restart(hgobj gobj)
 }
 
 /***************************************************************************
+ *  FWS: the same failed write, retried by the SAME process (no restart in
+ *  between). The failed update was taken back in memory, so the retry
+ *  finds the column to write and writes it: after a restart the disk says
+ *  what the literal says, and nothing is a draft. The update stayed in
+ *  memory: the retry found nothing to write, took the projection as done,
+ *  and after a restart the disk still said "User" -- a draft of `users`
+ *  that nobody made.
+ ***************************************************************************/
+PRIVATE int scenario_failed_write_retried_in_process(hgobj gobj)
+{
+    const char *db = "tw_fws";
+    const char *key = "tw_fws.users.username";
+    int result = 0;
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    close_db(gobj, db);
+    restart_system(gobj);
+
+    result += chmod_system_col_key(gobj, db, key, 0440);
+    if(open_db(gobj, db, users_v1b(db), FALSE) < 0) {
+        return result - 1;
+    }
+    close_db(gobj, db);
+    result += chmod_system_col_key(gobj, db, key, 0660);
+
+    if(open_db(gobj, db, users_v1b(db), FALSE) < 0) {
+        return result - 1;
+    }
+    json_t *record = unfinished_record(gobj, db);
+    if(record) {
+        result += test_fail(gobj, db, "TEST FAIL: FWS, the retry did not complete the projection",
+            json_incref(record));
+    }
+    JSON_DECREF(record)
+    close_db(gobj, db);
+
+    restart_system(gobj);
+    if(open_db(gobj, db, users_v1b(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_agree(gobj, db, "TEST FAIL: FWS, the retry did not write what it said it wrote");
+    result += check_header(gobj, db, "TEST FAIL: FWS, the header on disk after the retry",
+        "users", "username", "User v1b", "User v1b", "User v1b");
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: FWS, the open after the retry reported something",
+        0, json_object());
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  UL: the operator UNLINKS a leftover column from its topic. A snapshot
+ *  holds `departments`, which the literal removes, so it and its columns
+ *  are leftovers; `departments.name` is unlinked. The column is still a
+ *  node of __system__, in no topic. That is an edit of the leftover:
+ *  saved-schema shows `departments` in `draft_changed`, and the open that
+ *  completes the projection removes the column with its topic and reports
+ *  `departments` as "unsaved". A later literal that declares the column
+ *  again creates it. The unlink was not seen, the column stayed in
+ *  __system__ for ever, and that literal failed on it at every open
+ *  ("Node already exists").
+ ***************************************************************************/
+PRIVATE int scenario_unlinked_leftover_col(hgobj gobj)
+{
+    const char *db = "tw_ul";
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    result += shoot_system_snap(gobj, db, db);
+    close_db(gobj, db);
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        return result - 1;
+    }
+    if(gobj_unlink_nodes(sys, "cols",
+            "topics", json_pack("{s:s}", "id", "tw_ul.departments"),
+            "cols", json_pack("{s:s}", "id", "tw_ul.departments.name"), gobj) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: UL, the operator's unlink was refused", NULL);
+    }
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: UL, an unlinked leftover column is not a draft",
+        json_pack("{s:b}", "departments", 1));
+    close_db(gobj, db);
+
+    result += delete_system_snap(gobj, db, db);
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_agree(gobj, db, "TEST FAIL: UL, the projection was not completed");
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: UL, the unlink of a leftover column was withdrawn in silence",
+        0, json_pack("{s:s}", "departments", "unsaved"));
+    if(system_has_col(gobj, db, "departments", "name")) {
+        result += test_fail(gobj, db, "TEST FAIL: UL, the unlinked column is still in __system__", NULL);
+    }
+    close_db(gobj, db);
+
+    json_t *v3 = schema_of(db, 3, json_pack("[o,o]",
+        topic_of("users", 2, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User"))),
+        topic_of("departments", 2, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name v3")))
+    ));
+    if(open_db(gobj, db, v3, FALSE) < 0) {
+        return result - 1;
+    }
+    json_t *record = unfinished_record(gobj, db);
+    if(record) {
+        result += test_fail(gobj, db,
+            "TEST FAIL: UL, a literal that declares the column again did not complete",
+            json_incref(record));
+    }
+    JSON_DECREF(record)
+    result += check_agree(gobj, db, "TEST FAIL: UL, the column declared again is not projected");
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  OA: a column node that no topic holds is in __system__ with the id a
+ *  newer literal declares (the operator created it and never linked it;
+ *  a link of a projection that failed leaves the same). The projection
+ *  takes that node for the column -- written as the literal says and
+ *  linked to its topic -- instead of failing on it at every open ("Node
+ *  already exists"). The node is in no topic, so it changes no schema:
+ *  saved-schema shows no draft. It is the operator's work all the same,
+ *  and what the projection does to it is said: `users`, "unsaved" (no
+ *  save carries a node that is in no topic).
+ ***************************************************************************/
+PRIVATE int scenario_orphan_col_adopted(hgobj gobj)
+{
+    const char *db = "tw_oa";
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        return -1;
+    }
+    json_t *col = gobj_create_node(sys, "cols",
+        json_pack("{s:s, s:s, s:s, s:s, s:i, s:[s]}",
+            "id", "tw_oa.users.email", "value", "email", "header", "Operator email",
+            "type", "string", "fillspace", 10, "flag", "persistent"),
+        json_pack("{s:b}", "refs", 1), gobj);
+    if(!col) {
+        result += test_fail(gobj, db, "TEST FAIL: OA, the operator's column was refused", NULL);
+    }
+    JSON_DECREF(col)
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: OA, a column that no topic holds is taken for a change of the schema",
+        json_object());
+    close_db(gobj, db);
+
+    json_t *v3 = schema_of(db, 3, json_pack("[o]",
+        topic_of("users", 3, json_pack("{s:o, s:o, s:o}",
+            "id", col_id(), "username", col_str("User"), "email", col_str("Email")))
+    ));
+    if(open_db(gobj, db, v3, FALSE) < 0) {
+        return result - 1;
+    }
+    json_t *record = unfinished_record(gobj, db);
+    if(record) {
+        result += test_fail(gobj, db, "TEST FAIL: OA, the projection failed on the column node",
+            json_incref(record));
+    }
+    JSON_DECREF(record)
+    result += check_agree(gobj, db, "TEST FAIL: OA, the column is not projected");
+    result += check_header(gobj, db, "TEST FAIL: OA, the column is not what the literal says",
+        "users", "email", "Email", "Email", "Email");
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: OA, the operator's column was replaced in silence",
+        0, json_pack("{s:s}", "users", "unsaved"));
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  OT: the operator unlinks a whole TOPIC from its treedb node: the topic
+ *  and its columns stay in __system__, held by nothing the treedb reaches.
+ *  A newer literal that declares the topic takes those nodes for it,
+ *  instead of failing on them at every open, and reports the topic.
+ ***************************************************************************/
+PRIVATE int scenario_orphan_topic_adopted(hgobj gobj)
+{
+    const char *db = "tw_ot";
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    if(gobj_unlink_nodes(sys, "topics",
+            "treedbs", json_pack("{s:s}", "id", db),
+            "topics", json_pack("{s:s}", "id", "tw_ot.departments"), gobj) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: OT, the operator's unlink was refused", NULL);
+    }
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: OT, an unlinked topic is not a draft",
+        json_pack("{s:b}", "departments", 1));
+    close_db(gobj, db);
+
+    if(open_db(gobj, db, users_departments_v3(db, FALSE), FALSE) < 0) {
+        return result - 1;
+    }
+    json_t *record = unfinished_record(gobj, db);
+    if(record) {
+        result += test_fail(gobj, db, "TEST FAIL: OT, the projection failed on the topic node",
+            json_incref(record));
+    }
+    JSON_DECREF(record)
+    result += check_agree(gobj, db, "TEST FAIL: OT, the topic is not projected");
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: OT, the operator's unlink of a topic was replaced in silence",
+        0, json_pack("{s:s}", "departments", "unsaved"));
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
  *  MS: the leftovers were kept under an OLDER meta-schema (the record says
  *  a lower `system_schema_version`), and the newer one added a field to
  *  `cols`: every node loaded from disk now carries it with its default,
@@ -3049,6 +3269,10 @@ PRIVATE int run_tests(hgobj gobj)
     result += scenario_added_topic_draft(gobj);
     result += scenario_edited_leftover(gobj);
     result += scenario_failed_write_then_restart(gobj);
+    result += scenario_failed_write_retried_in_process(gobj);
+    result += scenario_unlinked_leftover_col(gobj);
+    result += scenario_orphan_col_adopted(gobj);
+    result += scenario_orphan_topic_adopted(gobj);
     result += scenario_leftovers_under_older_meta_schema(gobj);
 
     if(result == 0) {
