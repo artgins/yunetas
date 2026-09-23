@@ -1370,16 +1370,14 @@ and no content fails it.
 
 **After a restart too.** The cache of a topic is built from disk when it is
 opened. A `.md2` file of a key that it cannot count flags the key: one that
-cannot be opened or read, or one whose size is not a whole number of 32-byte
-rows. It
-logs *"md2 file of the key unreadable when its cache was built: every load of
+cannot be opened or read. It logs *"md2 file of the key unreadable when its cache was built: every load of
 the key says load_failed"* once, at the open, and then every iterator of the
 key -- paging ones too -- logs *"The history of the key is not whole: a md2
 file of it could not be read when its cache was built"* and says
 `load_failed`. A loading stops where the first flagged file is in its
 direction, the place a running tranger stops when the damage happens behind
-its back. Key `A` with the files of days 1, 2 and 3, 5 bytes of garbage after
-the `.md2` of day 2 while the yuno was down:
+its back. Key `A` with the files of days 1, 2 and 3, and the `.md2` of day 2
+made unreadable (mode `0000`) while the yuno was down:
 
 ```text
 forward load   -> the rows of day 1, then load_failed
@@ -1406,6 +1404,39 @@ warning goes. A `.md2` cut to 0 bytes behind the yuno's back has the same
 shape, and loses the rows of its file the same way it did until 7.25.4: a
 `.json` much larger than one record is the sign; put the pair back from a
 backup.
+
+**A `.md2` whose last row is torn is not damage either.** Its size is not a
+whole number of 32-byte rows: a power cut came during the write of a row. The
+md2 row is the commit point of an append, and an append is acknowledged only
+after the whole row is written, so a torn row is an append that was never
+acknowledged. A MASTER cuts the `.md2` back to its whole rows (to
+`floor(size / 32) * 32` bytes) when it first reads the file, logs one warning,
+and the key loads whole. The next append goes into the same file:
+
+```text
+WARNING: md2 file of the key ends in a part of a row: an append that was never
+         acknowledged was cut back
+         topic=devices key=A file_id=2000-01-02
+         path=<store>/devices/keys/A/2000-01-02.md2 old_size=109 new_size=96
+forward load   -> the rows of days 1, 2 (3 rows) and 3, load_failed false
+```
+
+The cut removes fewer than 32 bytes, all after the last whole row, so it
+never removes a row that was acknowledged. The `.json` is left as it is: its
+bytes after the last row belong to no row, and the next append writes at its
+end. If the cut itself fails, that is damage: the file is flagged as above
+(*"Cannot cut back a md2 file that ends in a part of a row: the file is
+damaged"*). A torn first row (a `.md2` of fewer than 32 bytes) is cut to 0
+bytes, and the file is then a `.md2` of 0 rows, ignored with the warning
+above.
+
+A REPLICA never writes. It reads only the whole rows of such a file, and logs
+nothing: a replica also sees a torn row while a live master is writing it, and
+counts the row when the master's next notification of the file comes. When the
+master opens the store, it cuts the file back. In the unreleased work after
+7.25.4 a torn row flagged the key, on a master and on a replica: every load
+said `load_failed` and every append into the file was refused until the md2
+was cut by hand or the period changed.
 
 The flag of a file goes once a cell counts it again: an append into the file
 that finds it readable (see [`tranger2_append_record()`](#tranger2_append_record)),

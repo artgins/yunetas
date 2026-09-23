@@ -1719,9 +1719,25 @@ opened. A key fails:
   yuno's back;
 - after a RESTART, when the topic's cache, built from disk at the open,
   could not count a `.md2` file of the key: one that cannot be opened or
-  read, or one whose size is not a whole number of 32-byte rows. Up to
-  7.25.4 the cache build dropped such a file and nothing failed: after a
-  restart the guards below never fired.
+  read. Up to 7.25.4 the cache build dropped such a file and nothing
+  failed: after a restart the guards below never fired.
+
+A `.md2` whose size is not a whole number of 32-byte rows does not fail the
+key. Its last row is torn: a power cut during the write of the row, an
+append that was never acknowledged. The master cuts the `.md2` back to its
+whole rows at the open, with one warning, and the key loads whole:
+
+```text
+WARNING load_first_and_last_record_md: md2 file of the key ends in a part of a row: an append that
+      was never acknowledged was cut back
+      topic=items key=k2 file_id=2026-09-23 path=<store>/items/keys/k2/2026-09-23.md2
+      old_size=1285 new_size=1280
+```
+
+The cut never removes a whole row. A replica does not cut: it reads the
+whole rows, and the master cuts the file when it opens the store. (In the
+unreleased work after 7.25.4 a torn row failed the key, and every append
+into the file was refused.)
 
 A `.md2` of 0 bytes whose `.json` is NOT empty does not fail the key. It is
 the shape an append that was never acknowledged leaves: the content is
@@ -1780,18 +1796,20 @@ a tagged record):
 
 1. Read the log: the read error names the file (`path`, `file_id`, `rowid`),
    the lines above name the treedb, the topic and the keys.
-2. Look at the key's directory, `<store>/<topic>/keys/<key>/`: a `.md2` whose
-   size is not a multiple of 32 bytes, or shorter than what was written (the
-   rows past its end fail); a `.json` that was cut (a row's content past its
-   end fails); a file the yuno's user cannot read.
+2. Look at the key's directory, `<store>/<topic>/keys/<key>/`: a `.md2`
+   shorter than what was written (the rows past its end fail); a `.json`
+   that was cut (a row's content past its end fails); a file the yuno's user
+   cannot read. (A `.md2` whose size is not a multiple of 32 bytes is not on
+   this list: the master cuts it back itself, see above.)
 3. Repair it with the yuno STOPPED (the running yuno caches the store and
    writes it), with the least that brings the file back, in this order:
    - a file the yuno's user cannot read: give it back its owner and mode;
-   - a `.md2` whose size is not a multiple of 32 bytes (a torn tail: a row
-     written in part at its end, or bytes added after it): cut it back to
-     whole rows. The part of a row that is cut was never a readable row, and
-     every whole row before it stays. Content that no row names any more can
-     stay in the `.json`: nothing reads it.
+   - a `.md2` whose size is not a multiple of 32 bytes, when the master
+     logged *"Cannot cut back a md2 file that ends in a part of a row: the
+     file is damaged"* (the cut itself failed, for example on a read-only
+     file system): cut it back to whole rows by hand. The part of a row that
+     is cut was never a readable row, and every whole row before it stays.
+     This is the same cut the master does:
 
      ```bash
      cd <store>/items/keys/k2                  # topic, key and file: from the log
@@ -1801,9 +1819,6 @@ a tagged record):
      stat -c %s $f                             # 1280
      ```
 
-     When the file is shorter than what was written (rows lost from its end,
-     not a torn row), the cut only makes it readable again: the lost rows need
-     the backup;
    - anything else: put the key's directory back from a backup copy of the
      store.
 

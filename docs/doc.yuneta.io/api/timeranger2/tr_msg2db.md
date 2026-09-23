@@ -285,7 +285,7 @@ The load is forward, oldest first, and msg2db keeps per `id` and `pkey2` the
 LAST message it loaded.
 
 **An id whose history does not load whole** (a md2 file of it that cannot be
-read, see [`tranger2_open_list()`](<timeranger2.md#tranger2_open_list>)). The
+opened or read, see [`tranger2_open_list()`](<timeranger2.md#tranger2_open_list>)). The
 forward load stops before the damage, so the last message it read of a
 `pkey2` may be an OLD one. msg2db does not serve that: it loads the id again
 BACKWARD, newest first, and keeps the FIRST message of each `pkey2`. That load
@@ -320,6 +320,29 @@ msg2db_get_message(tranger, "msg2db_alarms", "alarms", "dev2", "X");   // served
 msg2db_id_incomplete(tranger, "msg2db_alarms", "alarms", "dev2");      // FALSE
 ```
 
+**A md2 whose last row is torn is NOT damage.** Its size is not a whole
+number of 32-byte rows: a power cut came during the write of a row, so that
+append was never acknowledged. A master tranger cuts the md2 back to its
+whole rows at the open, with one WARNING, and the id loads whole: nothing
+is absent, the id is not incomplete, and its next message is stored and
+served as usual. In the unreleased work after 7.25.4 a torn row was taken
+for damage, and every new message of the id was refused as described below.
+
+```text
+WARNING: {..., "function": "load_first_and_last_record_md", "msgset": "Tranger",
+    "msg": "md2 file of the key ends in a part of a row: an append that was never acknowledged was cut back",
+    "topic": "alarms", "key": "dev1", "file_id": "2026",
+    "path": "<store>/alarms/keys/dev1/2026.md2", "old_size": 45, "new_size": 32}
+```
+
+```C
+/*  dev1: OLD (2000-01-01), NEW (the current file, its md2 has 32 + 13 bytes) */
+msg2db_open_db(tranger, "msg2db_alarms", jn_schema, "");  // one WARNING, md2 cut to 32
+msg2db_get_message(tranger, "msg2db_alarms", "alarms", "dev1", "X");   // NEW
+msg2db_id_incomplete(tranger, "msg2db_alarms", "alarms", "dev1");      // FALSE
+msg2db_append_message(tranger, "msg2db_alarms", "alarms", jn_next, ""); // stored, served
+```
+
 **The next message of the id** goes to the file of the current period:
 [`msg2db_append_message()`](<#msg2db_append_message>) appends it with the time
 of now. What happens to it depends on which file is damaged:
@@ -327,7 +350,7 @@ of now. What happens to it depends on which file is damaged:
 - the damaged file is an OLDER file: the next message of a `pkey2` is stored,
   and it is served as it arrives. It is current.
 - the damaged file IS the file of the current period: tranger refuses every
-  append into a file it could not read
+  append into a file it could not open or read
   (*"Cannot append record, its file is flagged unreadable: its row would follow rows no cell counts"*),
   and `msg2db_append_message()` returns `NULL`. So NO new message of the id is
   stored or served, for every `pkey2` of it, the absent ones and the served
@@ -366,10 +389,12 @@ alarm. No new alarm message of the device is recorded, and no alarm of it is
 announced as new or as ended. The msg2db of the alarms uses the tranger of the
 project's treedb, whose `filename_mask` is `"%Y"`: one file per device and
 YEAR. So the damaged file is usually the current one, and the refusal
-continues until the file is repaired or the year changes. Repair it at once:
-with the yuno stopped, cut the torn `.md2` back to whole rows
+continues until the file is repaired or the year changes. Repair it at once,
+with the yuno stopped
 ([what the operator does](<treedb.md#treedb-topic-not-loaded-whole>)), then
-start the yuno.
+start the yuno. This is for real damage only (a md2 that cannot be opened or
+read). A torn last row does not refuse anything: the master cuts it back at
+the open, as said above.
 
 Up to 7.25.4 the forward load served the OLD message as current, with nothing
 logged: a cleared alarm could come back active, or an active one be taken as

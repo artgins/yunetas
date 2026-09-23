@@ -233,8 +233,8 @@ the load's direction, were handed to the callback (forward: the oldest,
 backward: the newest). Up to 7.25.4 a content that could not be read reached
 the callback as `NULL` and the load went on (treedb made a node of it with id
 `""`). The same holds after a RESTART: a `.md2` file the topic's cache could
-not count when it was built at the open -- one that cannot be opened or read,
-or whose size is not a whole number of rows -- flags its key
+not count when it was built at the open -- one that cannot be opened or read
+-- flags its key
 (`"unreadable": [file_id, ...]` in its cache, logged once), every iterator of
 the key says `load_failed`, and a load stops where the first such file is in
 its direction. Up to 7.25.4 the cache build dropped such a file and nothing
@@ -259,6 +259,30 @@ An append into a file still flagged unreadable is refused; one into a flagged
 file readable again counts it first, and a FILTERED iterator of the key takes
 its segments and its index again (the rowids after the file moved; its index
 used to be emptied). `tests/c/timeranger2/test_uncommitted_append.c`.
+
+A `.md2` whose size is not a whole number of 32-byte rows is not damage
+either. Its last row is torn: a power cut came during the write of the row,
+and the md2 row is the commit point of an append, so that append was never
+acknowledged. A MASTER cuts the `.md2` back to its whole rows
+(`floor(size / 32) * 32`) when it first reads the file -- the cache build at
+the open, or the count of a flagged file -- logs ONE warning, and the key
+loads whole. The next append goes into the same file. The `.json` is left as
+it is: its bytes after the last row belong to no row.
+
+```text
+WARNING: {"function": "load_first_and_last_record_md", "msgset": "Tranger",
+    "msg": "md2 file of the key ends in a part of a row: an append that was never acknowledged was cut back",
+    "topic": "alarms", "key": "dev1", "file_id": "2026",
+    "path": "<store>/alarms/keys/dev1/2026.md2", "old_size": 109, "new_size": 96}
+```
+
+The cut removes fewer than 32 bytes, all after the last whole row, so it never
+removes an acknowledged row. A cut that fails is damage (the file is flagged).
+A REPLICA never writes: it reads the whole rows and logs nothing, because it
+also sees a torn row while a live master writes it. In the unreleased work
+after 7.25.4 a torn row flagged the key, on a master and on a replica, and
+every append into the file was refused until the period changed -- a year for
+a `"%Y"` tranger. `tests/c/timeranger2/test_torn_md2_tail.c`.
 
 `tranger2_open_list()` of ONE key answers `NULL` when the history of the key
 did not load whole. A KEYLESS list loads every key it can read, opens its
