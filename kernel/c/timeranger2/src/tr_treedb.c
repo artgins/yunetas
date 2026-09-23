@@ -210,6 +210,93 @@ PUBLIC int current_snap_tag(json_t *tranger, const char *treedb_name)
 }
 
 /***************************************************************************
+ *  The keys of a treedb topic whose records could not be loaded.
+ *
+ *  A topic is loaded with keyless tranger2_open_list()s, which load every
+ *  key they can read and name the others in `load_failed_keys`. The nodes
+ *  of those keys are not in memory, and memory is all treedb looks at: a
+ *  create of such an id would write a new record over one it never read,
+ *  a guard that asks "is anything linking this?" would answer from half of
+ *  the topic. So the keys are remembered here, per treedb and topic, until
+ *  the topic is closed, and asked by:
+ *      - treedb_create_node(): refuses an id that is one of them.
+ *      - treedb_shoot_snap(), treedb_activate_snap(): refuse when __snaps__
+ *        has any (which snap is active, or exists, is unknown).
+ *      - assets_held_by_snaps(), treedb_gc_files(): fail closed.
+ *
+ *  tranger["treedbs_load_failed"][treedb_name][topic_name] = {key: true}
+ ***************************************************************************/
+PRIVATE json_t *keys_not_loaded(json_t *tranger, const char *treedb_name, const char *topic_name)
+{
+    json_t *registry = json_object_get(tranger, "treedbs_load_failed");
+    return json_object_get(json_object_get(registry, treedb_name), topic_name);
+}
+
+PRIVATE BOOL topic_loaded_whole(json_t *tranger, const char *treedb_name, const char *topic_name)
+{
+    return json_object_size(keys_not_loaded(tranger, treedb_name, topic_name)) == 0? TRUE: FALSE;
+}
+
+PRIVATE void forget_keys_not_loaded(json_t *tranger, const char *treedb_name, const char *topic_name)
+{
+    json_t *registry = json_object_get(tranger, "treedbs_load_failed");
+    if(empty_string(topic_name)) {
+        json_object_del(registry, treedb_name);
+        return;
+    }
+    json_object_del(json_object_get(registry, treedb_name), topic_name);
+}
+
+PRIVATE void note_keys_not_loaded(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *list    // NOT owned, what tranger2_open_list() returned
+)
+{
+    if(!json_is_true(json_object_get(list, "load_failed"))) {
+        return;
+    }
+    json_t *registry = json_object_get(tranger, "treedbs_load_failed");
+    if(!registry) {
+        registry = json_object();
+        json_object_set_new(tranger, "treedbs_load_failed", registry);
+    }
+    json_t *per_treedb = json_object_get(registry, treedb_name);
+    if(!per_treedb) {
+        per_treedb = json_object();
+        json_object_set_new(registry, treedb_name, per_treedb);
+    }
+    json_t *per_topic = json_object_get(per_treedb, topic_name);
+    if(!per_topic) {
+        per_topic = json_object();
+        json_object_set_new(per_treedb, topic_name, per_topic);
+    }
+    json_t *keys = json_object_get(list, "load_failed_keys");
+    int idx; json_t *jn_key;
+    json_array_foreach(keys, idx, jn_key) {
+        const char *key = json_string_value(jn_key);
+        if(key) {
+            json_object_set_new(per_topic, key, json_true());
+        }
+    }
+
+    char *s = json2uglystr(keys);
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TREEDB,
+        "msg",          "%s", "treedb topic loaded WITHOUT the records of keys that cannot be read: "
+                              "their nodes are not in memory and a create of those ids is refused",
+        "treedb_name",  "%s", treedb_name,
+        "topic_name",   "%s", topic_name,
+        "keys",         "%s", s? s: "",
+        NULL
+    );
+    GBMEM_FREE(s)
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC json_t *treedb_topic_pkey2s( // Return list with pkey2s
@@ -1049,7 +1136,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         json_t *jn_extra = json_pack("{s:s}",
             "treedb_name", treedb_name
         );
-        if(!tranger2_open_list(
+        forget_keys_not_loaded(tranger, treedb_name, snaps_topic_name);
+        json_t *snaps_list = tranger2_open_list(
             tranger,
             snaps_topic_name,
             match_cond,     // owned
@@ -1057,13 +1145,30 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             rt_id,          // rt_id
             !master,        // rt_by_disk
             treedb_name     // creator
-        )) {
+        );
+        if(!snaps_list) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "tranger2_open_list() failed",
                 "treedb_name",  "%s", treedb_name,
                 "topic_name",   "%s", "__snaps__",
+                NULL
+            );
+        } else if(json_is_true(json_object_get(snaps_list, "load_failed"))) {
+            /*
+             *  A snap that did not load may be the ACTIVE one: the treedb
+             *  is then loaded from the live records, not from the photo.
+             *  Nothing here can tell; shoot, activate and the gc of the
+             *  assets refuse until __snaps__ loads whole.
+             */
+            note_keys_not_loaded(gobj, tranger, treedb_name, snaps_topic_name, snaps_list);
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "__snaps__ loaded without some snaps: the active snap is unknown, "
+                                      "shoot-snap, activate-snap and gc-files refuse",
+                "treedb_name",  "%s", treedb_name,
                 NULL
             );
         }
@@ -1139,7 +1244,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "snap_tag", (int)snap_tag,
             "treedb_name", treedb_name
         );
-        if(!tranger2_open_list(
+        forget_keys_not_loaded(tranger, treedb_name, graphs_topic_name);
+        json_t *graphs_list = tranger2_open_list(
             tranger,
             graphs_topic_name,
             match_cond,     // owned
@@ -1147,7 +1253,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             rt_id,          // rt_id
             !master,        // rt_by_disk
             treedb_name     // creator
-        )) {
+        );
+        if(!graphs_list) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
@@ -1156,6 +1263,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                 "topic_name",    "%s", "__graphs__",
                 NULL
             );
+        } else {
+            note_keys_not_loaded(gobj, tranger, treedb_name, graphs_topic_name, graphs_list);
         }
     }
 
@@ -1411,6 +1520,7 @@ PUBLIC int treedb_close_db(
      *------------------------------*/
     json_t *treedb = kw_get_subdict_value(gobj, tranger, "treedbs", treedb_name, 0, KW_EXTRACT);
     json_object_del(kw_get_dict(gobj, tranger, "treedbs_files", 0, 0), treedb_name);
+    forget_keys_not_loaded(tranger, treedb_name, NULL);
     json_decref(treedb);  // Don't use JSON_DECREF
 
     // HACK incref/decref by each treedb_open_db/treedb_close_db
@@ -1829,6 +1939,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         "snap_tag", (int)snap_tag,
         "treedb_name", treedb_name
     );
+    forget_keys_not_loaded(tranger, treedb_name, topic_name);
     json_t *rt = tranger2_open_list(
         tranger,
         topic_name,
@@ -1847,6 +1958,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             "topic_name",   "%s", topic_name,
             NULL
         );
+    } else {
+        note_keys_not_loaded(gobj, tranger, treedb_name, topic_name, rt);
     }
 
     /*----------------------*
@@ -1903,7 +2016,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             "pkey2_name", pkey2_name
         );
 
-        if(!tranger2_open_list(
+        json_t *rt2 = tranger2_open_list(
             tranger,
             topic_name,
             match_cond2,    // owned
@@ -1911,7 +2024,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             rt_id,          // rt_id
             !master,        // rt_by_disk
             treedb_name     // creator
-        )) {
+        );
+        if(!rt2) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
@@ -1920,6 +2034,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
                 "topic_name",   "%s", topic_name,
                 NULL
             );
+        } else {
+            note_keys_not_loaded(gobj, tranger, treedb_name, topic_name, rt2);
         }
     }
     JSON_DECREF(jn_topic_var)
@@ -1969,6 +2085,7 @@ PUBLIC int treedb_close_topic(
         treedb_name,    // creator
         ""              // rt_id
     );
+    forget_keys_not_loaded(tranger, treedb_name, topic_name);
 
     /*----------------------*
      *  Remove topic data
@@ -5791,6 +5908,31 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             "topic_name",   "%s", topic_name,
             "id",           "%s", id,
             NULL
+        );
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    /*-----------------------------------------------*
+     *  An id whose records are on disk and did not
+     *  load is not in memory: the create would go on
+     *  as for a new node and its record would become
+     *  the newest of the key, over records nobody read
+     *  (independent review of the second fix round).
+     *-----------------------------------------------*/
+    if(json_object_get(keys_not_loaded(tranger, treedb_name, topic_name), id)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot create node, its id has records on disk that could not be loaded",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", id,
+            NULL
+        );
+        gobj_log_set_last_message(
+            "Cannot create node in '%s': id '%s' has records on disk that could not be loaded",
+            topic_name, id
         );
         JSON_DECREF(kw)
         return 0;
@@ -13225,9 +13367,11 @@ PRIVATE json_t *assets_held_by_snaps(
     const char *treedb_name
 )
 {
-    json_t *held = json_object();
-
     json_t *snaps = existing_snap_tags(gobj, tranger);
+    if(!snaps) {
+        return NULL;    // Error already logged
+    }
+    json_t *held = json_object();
     if(json_object_size(snaps)==0) {
         JSON_DECREF(snaps)
         return held;    // No snapshot: nothing to walk
@@ -13333,13 +13477,30 @@ PRIVATE json_t *assets_held_by_snaps(
 /***************************************************************************
  *  The snaps that EXIST, of every treedb of the tranger, as a set of tags
  *  {tag: true}: __snaps__ is the tranger's and a tag is its row id, unique
- *  across all of them. YOURS, never NULL.
+ *  across all of them. YOURS. NULL (logged) when the __snaps__ of a treedb
+ *  did not load whole: the callers cannot tell a snap that is gone from
+ *  one that did not load, and fail closed.
  ***************************************************************************/
 PRIVATE json_t *existing_snap_tags(hgobj gobj, json_t *tranger)
 {
     json_t *snaps = json_object();
     const char *any_name; json_t *any_treedb;
     json_object_foreach(json_object_get(tranger, "treedbs"), any_name, any_treedb) {
+        if(!topic_loaded_whole(tranger, any_name, "__snaps__")) {
+            /*
+             *  A snap that did not load holds records all the same: a tag
+             *  it names would read as "a snap that is gone, holds nothing".
+             */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "cannot tell which snaps exist: __snaps__ did not load whole",
+                "treedb_name",  "%s", any_name,
+                NULL
+            );
+            JSON_DECREF(snaps)
+            return NULL;
+        }
         json_t *snaps_indexx = treedb_get_id_index(tranger, any_name, "__snaps__");
         const char *snap_id; json_t *snap;
         json_object_foreach(snaps_indexx, snap_id, snap) {
@@ -13402,6 +13563,9 @@ PRIVATE int node_held_by_a_snap(
 )
 {
     json_t *snaps = existing_snap_tags(gobj, tranger);
+    if(!snaps) {
+        return -1;  // Error already logged: a guard that cannot tell closes
+    }
     if(json_object_size(snaps)==0) {
         JSON_DECREF(snaps)
         return FALSE;
@@ -13543,6 +13707,9 @@ PRIVATE int instance_held_by_a_snap(
 )
 {
     json_t *snaps = existing_snap_tags(gobj, tranger);
+    if(!snaps) {
+        return -1;  // Error already logged: a guard that cannot tell closes
+    }
     if(json_object_size(snaps)==0) {
         JSON_DECREF(snaps)
         return FALSE;
@@ -13794,6 +13961,55 @@ PRIVATE BOOL blob_sweep_cb(
 }
 
 /***************************************************************************
+ *  Did every topic that links an asset load whole, in every treedb of the
+ *  tranger? A node that did not load links its asset all the same: the
+ *  asset would read as linked by nobody. `__assets__` itself counts too
+ *  (its rows are what asset_linked_by_other_treedb() reads). Logged when
+ *  not.
+ ***************************************************************************/
+PRIVATE BOOL file_topics_loaded_whole(hgobj gobj, json_t *tranger)
+{
+    json_t *topics = json_array();
+    json_array_append_new(topics, json_string(TREEDB_ASSETS_TOPIC));
+    json_t *assets_cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
+    const char *hook_name; json_t *hook_col;
+    json_object_foreach(assets_cols, hook_name, hook_col) {
+        json_t *desc_flag = kw_get_dict_value(gobj, hook_col, "flag", 0, 0);
+        if(!kw_has_word(gobj, desc_flag, "hook", 0)) {
+            continue;
+        }
+        json_t *hook = kw_get_dict(gobj, hook_col, "hook", 0, 0);
+        const char *child_topic; json_t *jn_child_col;
+        json_object_foreach(hook, child_topic, jn_child_col) {
+            json_array_append_new(topics, json_string(child_topic));
+        }
+    }
+    JSON_DECREF(assets_cols)
+
+    BOOL whole = TRUE;
+    const char *any_name; json_t *any_treedb;
+    json_object_foreach(json_object_get(tranger, "treedbs"), any_name, any_treedb) {
+        int idx; json_t *jn_topic;
+        json_array_foreach(topics, idx, jn_topic) {
+            const char *topic_name = json_string_value(jn_topic);
+            if(!topic_loaded_whole(tranger, any_name, topic_name)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "a topic that links assets did not load whole",
+                    "treedb_name",  "%s", any_name,
+                    "topic_name",   "%s", topic_name,
+                    NULL
+                );
+                whole = FALSE;
+            }
+        }
+    }
+    JSON_DECREF(topics)
+    return whole;
+}
+
+/***************************************************************************
  *  The bytes with NO row, which the rows can never lead anybody to.
  *
  *  The blob is written before the index node on purpose (a node pointing
@@ -13823,8 +14039,25 @@ PRIVATE int sweep_orphan_blobs(
         return 0;   // No bytes were ever stored
     }
 
-    json_t *known = json_object();
     const char *any_name; json_t *any_treedb;
+    json_object_foreach(json_object_get(tranger, "treedbs"), any_name, any_treedb) {
+        if(!topic_loaded_whole(tranger, any_name, TREEDB_ASSETS_TOPIC)) {
+            /*
+             *  A row that did not load names bytes all the same: they would
+             *  read as bytes no row names.
+             */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "gc: the blobs are not swept, __assets__ did not load whole",
+                "treedb_name",  "%s", any_name,
+                NULL
+            );
+            return -1;
+        }
+    }
+
+    json_t *known = json_object();
     json_object_foreach(json_object_get(tranger, "treedbs"), any_name, any_treedb) {
         json_t *indexx = treedb_get_id_index(tranger, any_name, TREEDB_ASSETS_TOPIC);
         const char *id; json_t *node;
@@ -13892,18 +14125,50 @@ PUBLIC json_t *treedb_gc_files(
     }
 
     /*--------------------------------------------*
-     *  What the snapshots still point at
+     *  What the snapshots still point at, and
+     *  whether the live links are all in memory
      *--------------------------------------------*/
+    const char *refused = NULL;
     json_t *held = assets_held_by_snaps(gobj, tranger, treedb_name);
     if(!held) {
+        refused = "gc refused: cannot tell which assets a snapshot links (see the log)";
+    } else if(!file_topics_loaded_whole(gobj, tranger)) {
+        refused = "gc refused: a topic that links assets did not load whole, the live links are unknown (see the log)";
+    }
+    if(refused) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "gc refused: cannot tell which assets a snapshot links (see the log)",
+            "msg",          "%s", refused,
             "treedb_name",  "%s", treedb_name,
             NULL
         );
-        gobj_log_set_last_message("gc refused: cannot tell which assets a snapshot links");
+        JSON_DECREF(held)
+
+        /*
+         *  The bytes no row names need neither answer: no link nor snapshot
+         *  can lead to them. They are swept all the same (it refuses on its
+         *  own when __assets__ did not load whole), and said here, since the
+         *  answer is the refusal.
+         */
+        json_t *swept = json_array();
+        sweep_orphan_blobs(gobj, tranger, swept, dry_run);   // Errors already logged
+        if(json_array_size(swept) > 0) {
+            char *s = json2uglystr(swept);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", dry_run?
+                    "gc: the asset rows were refused; blobs no row names would be taken" :
+                    "gc: the asset rows were refused; blobs no row names were taken",
+                "treedb_name",  "%s", treedb_name,
+                "ids",          "%s", s? s: "",
+                NULL
+            );
+            GBMEM_FREE(s)
+        }
+        JSON_DECREF(swept)
+        gobj_log_set_last_message("%s", refused);
         return NULL;
     }
 
@@ -14391,6 +14656,23 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
         return -1;
     }
 
+    /*
+     *  A snap that did not load may be the active one, or have this name:
+     *  both checks below would answer from what DID load.
+     */
+    if(!topic_loaded_whole(tranger, treedb_name, "__snaps__")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot shoot a snap: __snaps__ did not load whole, the active snap is unknown",
+            "treedb_name",  "%s", treedb_name,
+            "snap",         "%s", snap_name,
+            NULL
+        );
+        gobj_log_set_last_message("Cannot shoot a snap: __snaps__ did not load whole, the active snap is unknown");
+        return -1;
+    }
+
     /*-----------------------------------*
      *  Check if the tag already exists
      *-----------------------------------*/
@@ -14641,6 +14923,23 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
             "snap",         "%s", snap_name,
             NULL
         );
+        return -1;
+    }
+
+    /*
+     *  The snap to deactivate first may be one that did not load: two
+     *  would be active on disk.
+     */
+    if(!topic_loaded_whole(tranger, treedb_name, "__snaps__")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot activate a snap: __snaps__ did not load whole, the active snap is unknown",
+            "treedb_name",  "%s", treedb_name,
+            "snap",         "%s", snap_name,
+            NULL
+        );
+        gobj_log_set_last_message("Cannot activate a snap: __snaps__ did not load whole, the active snap is unknown");
         return -1;
     }
 

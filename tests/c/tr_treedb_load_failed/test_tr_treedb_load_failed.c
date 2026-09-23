@@ -1,0 +1,326 @@
+/****************************************************************************
+ *          test_tr_treedb_load_failed.c
+ *
+ *  A treedb topic whose keys cannot all be read.
+ *
+ *  treedb loads every topic with keyless tranger2_open_list()s. When one of
+ *  them refused the whole list at the first key it could not load
+ *  (6d5760377), the topic came up with the keys before it only, no realtime
+ *  feed was opened, a master accepted a create that shadowed a stored
+ *  record, and an active snap was ignored (independent review of the second
+ *  fix round, repro indep2_B/blast). The list loads every readable key again
+ *  and names the others; treedb remembers them:
+ *
+ *      1. the topic loads every key it can read, and its feed is open.
+ *      2. a create of an id that did not load is refused; others are not.
+ *      3. a __snaps__ that did not load whole: shoot-snap, activate-snap and
+ *         the delete of a node refuse (which snap is active, or holds the
+ *         node, is unknown).
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ****************************************************************************/
+#include <string.h>
+#include <signal.h>
+#include <limits.h>
+#include <unistd.h>
+
+#include <gobj.h>
+#include <kwid.h>
+#include <timeranger2.h>
+#include <tr_treedb.h>
+#include <helpers.h>
+#include <yev_loop.h>
+#include <testing.h>
+
+#include "schema_sample.c"
+
+#define APP         "test_tr_treedb_load_failed"
+#define DATABASE    "tr_treedb_load_failed"
+#define DATABASE2   "tr_treedb_load_failed_snaps"
+#define TREEDB_NAME "treedb_load_failed"
+#define TOPIC_NAME  "items"
+
+/***************************************************************
+ *              Data
+ ***************************************************************/
+PRIVATE yev_loop_h yev_loop;
+
+/***************************************************************
+ *              Helpers
+ ***************************************************************/
+PRIVATE json_t *open_tranger(const char *path_root, const char *database)
+{
+    return tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", database,
+        "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK
+    ), 0);
+}
+
+PRIVATE json_t *open_treedb(json_t *tranger)
+{
+    return treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
+}
+
+PRIVATE json_t *create_item(json_t *tranger, const char *id, const char *payload)
+{
+    return treedb_create_node(tranger, TREEDB_NAME, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", id, "version", "v1", "payload", payload)
+    );
+}
+
+/*
+ *  Cut every md2 of a key to 0 rows, behind the tranger's back: its cache
+ *  still counts the rows, and a load of the key fails at the first.
+ */
+PRIVATE int cut_key(const char *path_database, const char *topic_name, const char *key)
+{
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_database, topic_name, "keys", key, NULL);
+    dir_array_t da;
+    get_ordered_filename_array(0, key_dir, ".*\\.md2", WD_MATCH_REGULAR_FILE, &da);
+    int cut = 0;
+    for(int i = 0; i < da.count; i++) {
+        if(truncate(da.items[i], 0) == 0) {
+            cut++;
+        }
+    }
+    dir_array_free(&da);
+    if(cut == 0) {
+        printf("%sERROR%s --> cannot cut the md2 of %s/%s\n", On_Red BWhite, Color_Off, topic_name, key);
+        return -1;
+    }
+    return 0;
+}
+
+PRIVATE char *ids_in_memory(json_t *tranger, char *bf, size_t bfsize)
+{
+    bf[0] = 0;
+    json_t *nodes = treedb_list_nodes(tranger, TREEDB_NAME, TOPIC_NAME, 0, 0);
+    size_t idx; json_t *node;
+    json_array_foreach(nodes, idx, node) {
+        size_t ln = strlen(bf);
+        snprintf(bf + ln, bfsize - ln, "%s%s", ln? " ": "", kw_get_str(0, node, "id", "", 0));
+    }
+    JSON_DECREF(nodes)
+    return bf;
+}
+
+/***************************************************************************
+ *  1 and 2: a topic with a key that cannot be read
+ ***************************************************************************/
+PRIVATE int test_topic_with_an_unreadable_key(const char *path_root)
+{
+    int result = 0;
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
+    rmrdir(path_database);
+
+    set_expected_results("load failed: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = open_tranger(path_root, DATABASE);
+    open_treedb(tranger);
+    const char *ids[] = {"k1", "k2", "k3", "k4", "k5", "k6", NULL};
+    for(int i = 0; ids[i]; i++) {
+        create_item(tranger, ids[i], "a");
+    }
+    treedb_close_db(tranger, TREEDB_NAME);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    /*-------------------------------------*
+     *  1. The md2 of k2 cut: the topic
+     *  loads the other five and its feed
+     *-------------------------------------*/
+    const char *test = "1. a topic with an unreadable key loads every other key";
+    set_expected_results_unordered(test,
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "Cannot read record metadata, read FAILED",
+            "msg", "Cannot load the history of a key of the list, the list goes on without it",
+            "msg", "treedb topic loaded WITHOUT the records of keys that cannot be read: "
+                   "their nodes are not in memory and a create of those ids is refused"
+        ),
+        NULL, NULL, 1
+    );
+    result += cut_key(path_database, TOPIC_NAME, "k2");
+    open_treedb(tranger);
+
+    char bf[256];
+    ids_in_memory(tranger, bf, sizeof(bf));
+    if(strcmp(bf, "k1 k3 k4 k5 k6") != 0) {
+        printf("%sERROR%s --> nodes in memory: [%s], expected [k1 k3 k4 k5 k6]\n",
+            On_Red BWhite, Color_Off, bf);
+        result += -1;
+    }
+    json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
+    size_t rt_lists = json_array_size(json_object_get(topic, "lists"));
+    if(rt_lists != 2) {
+        printf("%sERROR%s --> %d realtime lists on the topic, expected 2 (id and pkey2)\n",
+            On_Red BWhite, Color_Off, (int)rt_lists);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  2. A create of k2 is refused, one
+     *  of k7 is not and the feed has it
+     *-------------------------------------*/
+    test = "2. a create of an id that did not load is refused";
+    set_expected_results(test,
+        json_pack("[{s:s}]",
+            "msg", "Cannot create node, its id has records on disk that could not be loaded"
+        ),
+        NULL, NULL, 1
+    );
+    if(create_item(tranger, "k2", "OVERWRITTEN")) {
+        printf("%sERROR%s --> create of k2 ACCEPTED: its records on disk did not load\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!create_item(tranger, "k7", "a") ||
+            !treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, "k7")) {
+        printf("%sERROR%s --> create of k7 refused\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("load failed: close", NULL, NULL, NULL, 1);
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  3: a __snaps__ that did not load whole
+ ***************************************************************************/
+PRIVATE int test_snaps_that_did_not_load(const char *path_root)
+{
+    int result = 0;
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database), path_root, DATABASE2, NULL);
+    rmrdir(path_database);
+
+    set_expected_results("load failed snaps: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = open_tranger(path_root, DATABASE2);
+    open_treedb(tranger);
+    create_item(tranger, "k1", "a");
+    create_item(tranger, "k2", "a");
+    int ret = treedb_shoot_snap(tranger, TREEDB_NAME, "s1", "first");
+    ret += treedb_activate_snap(tranger, TREEDB_NAME, "s1") > 0? 0: -1;
+    treedb_close_db(tranger, TREEDB_NAME);
+    test_json(NULL);    // the setup logs are not what is tested
+    if(ret < 0) {
+        printf("%sERROR%s --> cannot shoot and activate s1\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    const char *test = "3. a __snaps__ that did not load whole: shoot, activate and delete refuse";
+    set_expected_results_unordered(test,
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Cannot read record metadata, read FAILED",
+            "msg", "Cannot load the history of a key of the list, the list goes on without it",
+            "msg", "treedb topic loaded WITHOUT the records of keys that cannot be read: "
+                   "their nodes are not in memory and a create of those ids is refused",
+            "msg", "__snaps__ loaded without some snaps: the active snap is unknown, "
+                   "shoot-snap, activate-snap and gc-files refuse",
+            "msg", "Cannot shoot a snap: __snaps__ did not load whole, the active snap is unknown",
+            "msg", "Cannot activate a snap: __snaps__ did not load whole, the active snap is unknown",
+            "msg", "cannot tell which snaps exist: __snaps__ did not load whole",
+            "msg", "cannot delete node, cannot tell whether a snapshot holds it (see the log)"
+        ),
+        NULL, NULL, 1
+    );
+    result += cut_key(path_database, "__snaps__", "1");     // s1: rowid id 1
+    open_treedb(tranger);
+
+    if(treedb_shoot_snap(tranger, TREEDB_NAME, "s2", "second") == 0) {
+        printf("%sERROR%s --> shoot-snap ACCEPTED with the active snap unknown\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_activate_snap(tranger, TREEDB_NAME, "s1") >= 0) {
+        printf("%sERROR%s --> activate-snap ACCEPTED with the active snap unknown\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *k1 = treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, "k1");
+    if(!k1 || treedb_delete_node(tranger, k1, 0) == 0) {
+        printf("%sERROR%s --> delete of k1 %s with the snaps unknown\n",
+            On_Red BWhite, Color_Off, k1? "ACCEPTED": "not tried (k1 not in memory)");
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("load failed snaps: close", NULL, NULL, NULL, 1);
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  do_test
+ ***************************************************************************/
+PRIVATE int do_test(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX];
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    mkrdir(path_root, 02770);
+    helper_quote2doublequote(schema_sample);
+
+    result += test_topic_with_an_unreadable_key(path_root);
+    result += test_snaps_that_did_not_load(path_root);
+
+    return result;
+}
+
+/***************************************************************************
+ *              Main
+ ***************************************************************************/
+int main(int argc, char *argv[])
+{
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
+    gbmem_get_allocators(&malloc_func, &realloc_func, &calloc_func, &free_func);
+    json_set_alloc_funcs(malloc_func, free_func);
+
+    unsigned long memory_check_list[] = {0, 0};
+    set_memory_check_list(memory_check_list);
+
+    init_backtrace_with_backtrace(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_backtrace);
+
+    gobj_start_up(argc, argv, NULL, NULL, NULL, NULL, NULL, NULL);
+
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+    gobj_log_register_handler("testing", 0, capture_log_write, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+
+    yev_loop_create(0, 2024, 10, NULL, &yev_loop);
+
+    int result = do_test();
+
+    yev_loop_stop(yev_loop);
+    yev_loop_destroy(yev_loop);
+
+    gobj_end();
+
+    if(get_cur_system_memory() != 0) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
+        print_track_mem();
+        result += -1;
+    }
+
+    if(result < 0) {
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+    } else {
+        printf("<-- %sTEST OK%s: %s\n", On_Green BWhite, Color_Off, APP);
+    }
+    return result < 0? -1 : 0;
+}
