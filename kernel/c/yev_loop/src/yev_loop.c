@@ -83,14 +83,34 @@ int multishot_available = 0; // Available since kernel 5.19 NOT TESTED!! DONT'US
  ***************************************************************/
 typedef struct yev_loop_s yev_loop_t;
 
+/*
+ *  A completion made by the loop itself, delivered at the next cycle as if
+ *  the kernel had posted it (see drop_kept_submissions)
+ */
+typedef struct {
+    uint64_t user_data;
+    int res;
+} kept_cqe_t;
+
 struct yev_loop_s {
-    struct io_uring ring;
+    struct io_uring ring;   // HACK first member: the tests reach it
     unsigned entries;
     hgobj yuno;
     int keep_alive;
     volatile int running;
     volatile int stopping;
     yev_callback_t callback; // if return -1 the loop in yev_loop_run will break;
+
+    /*
+     *  Submissions the kernel did not take (see get_sqe), in order, and
+     *  the completions of those that were stopped before it took them
+     */
+    struct io_uring_sqe *kept_sqes;
+    unsigned kept_sqes_size;
+    unsigned kept_sqes_max;
+    kept_cqe_t *kept_cqes;
+    unsigned kept_cqes_size;
+    unsigned kept_cqes_max;
 };
 
 /***************************************************************
@@ -98,6 +118,7 @@ struct yev_loop_s {
  ***************************************************************/
 PRIVATE yev_state_t yev_set_state(yev_event_t *yev_event, yev_state_t new_state);
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
+PRIVATE void forget_kept(yev_loop_t *yev_loop, yev_event_t *yev_event);
 
 /***************************************************************
  *              Data
@@ -294,6 +315,8 @@ PUBLIC void yev_loop_destroy(yev_loop_h yev_loop_)
 {
     yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
     io_uring_queue_exit(&yev_loop->ring);
+    GBMEM_FREE(yev_loop->kept_sqes)
+    GBMEM_FREE(yev_loop->kept_cqes)
     GBMEM_FREE(yev_loop)
 }
 
@@ -308,6 +331,8 @@ PRIVATE void really_free_yev_event(yev_event_t *yev_event)
 {
     yev_loop_t *yev_loop = yev_event->yev_loop;
     hgobj gobj = yev_loop->yuno?yev_event->gobj:0;
+
+    forget_kept(yev_loop, yev_event);
 
     GBUFFER_DECREF(yev_event->gbuf)
     GBMEM_FREE(yev_event->sock_info)
@@ -357,24 +382,181 @@ PRIVATE void track_submit(yev_event_t *yev_event, struct io_uring_sqe *sqe)
 }
 
 /***************************************************************************
- *  A free submission queue entry, or NULL when the queue is full.
+ *  Hand the kept submissions to the kernel, in their order, as far as the
+ *  queue takes them. The ones it does not take stay kept. Return what the
+ *  last io_uring_submit() answered (0 when none was made).
+ ***************************************************************************/
+PRIVATE int submit_kept(yev_loop_t *yev_loop)
+{
+    int ret = 0;
+    unsigned done = 0;
+    while(done < yev_loop->kept_sqes_size) {
+        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+        if(!sqe) {
+            ret = io_uring_submit(&yev_loop->ring);
+            sqe = io_uring_get_sqe(&yev_loop->ring);
+            if(!sqe) {
+                break;
+            }
+        }
+        *sqe = yev_loop->kept_sqes[done];
+        done++;
+    }
+    if(done == 0) {
+        return ret;
+    }
+    yev_loop->kept_sqes_size -= done;
+    if(yev_loop->kept_sqes_size > 0) {
+        memmove(
+            yev_loop->kept_sqes,
+            yev_loop->kept_sqes + done,
+            yev_loop->kept_sqes_size * sizeof(struct io_uring_sqe)
+        );
+    }
+    return io_uring_submit(&yev_loop->ring);
+}
+
+/***************************************************************************
+ *  A free submission queue entry. NULL only without memory (logged).
  *
  *  Every entry is submitted right after it is prepared, so a full queue
  *  holds entries that a submit did not hand to the kernel: they are
- *  flushed (io_uring_submit) and the entry is asked for once more.
- *  io_uring_get_sqe() answers NULL for a full queue, and every caller used
- *  that NULL as an entry: a segfault. NULL is not logged here: the caller
- *  logs it, with what it could not submit, and does not change the state
- *  of its event.
+ *  flushed (io_uring_submit) and the entry is asked for once more. When
+ *  the kernel still takes nothing -- io_uring_enter() failed: a CQ
+ *  overflow answers EBUSY on older kernels until the completions are
+ *  reaped, and they are reaped only when the callback that is submitting
+ *  returns -- the entry is one KEPT by the loop: the caller prepares it
+ *  as any other, and the loop hands it to the kernel at its next cycle
+ *  (submit_kept), when the completions have made room. Waiting here for
+ *  room would wait for completions that only this loop reaps.
+ *
+ *  While anything is kept, a new entry is kept after it: the kernel
+ *  receives the submissions in the order they were made (two writes of
+ *  one socket).
  ***************************************************************************/
 PRIVATE struct io_uring_sqe *get_sqe(yev_loop_t *yev_loop)
 {
-    struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-    if(!sqe) {
-        io_uring_submit(&yev_loop->ring);
+    struct io_uring_sqe *sqe;
+    int ret;
+    if(yev_loop->kept_sqes_size == 0) {
         sqe = io_uring_get_sqe(&yev_loop->ring);
+        if(sqe) {
+            return sqe;
+        }
+        ret = io_uring_submit(&yev_loop->ring);
+    } else {
+        ret = submit_kept(yev_loop);
     }
+    if(yev_loop->kept_sqes_size == 0) {
+        sqe = io_uring_get_sqe(&yev_loop->ring);
+        if(sqe) {
+            return sqe;
+        }
+        /*
+         *  Said once, when the loop starts keeping: not per submission
+         */
+        gobj_log_warning(yev_loop->yuno, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBURING,
+            "msg",          "%s", "Submission queue full and the kernel takes nothing: kept for the next cycle",
+            "entries",      "%d", (int)yev_loop->entries,
+            "ret",          "%d", ret,
+            "sret",         "%s", (ret<0)? strerror(-ret):"",
+            NULL
+        );
+    }
+
+    if(yev_loop->kept_sqes_size >= yev_loop->kept_sqes_max) {
+        unsigned new_max = yev_loop->kept_sqes_max? yev_loop->kept_sqes_max*2 : 16;
+        struct io_uring_sqe *new_sqes = gbmem_realloc(
+            yev_loop->kept_sqes, new_max * sizeof(struct io_uring_sqe)
+        );
+        if(!new_sqes) {
+            gobj_log_critical(yev_loop->yuno, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "No memory to keep a submission",
+                "kept",         "%d", (int)yev_loop->kept_sqes_size,
+                NULL
+            );
+            return NULL;
+        }
+        yev_loop->kept_sqes = new_sqes;
+        yev_loop->kept_sqes_max = new_max;
+    }
+    sqe = &yev_loop->kept_sqes[yev_loop->kept_sqes_size++];
+    memset(sqe, 0, sizeof(*sqe));
     return sqe;
+}
+
+/***************************************************************************
+ *  A stop of an event whose submission is still KEPT: the kernel never
+ *  saw it, so there is nothing to cancel there -- and handed over later
+ *  it would run on an fd the stop has closed, maybe reused by then. It is
+ *  taken out, and its completion is made here instead, as a cancel makes
+ *  it (-ECANCELED), delivered at the next cycle of the loop: the event
+ *  reaches its callback STOPPED, as after any cancel. TRUE when there was
+ *  one.
+ ***************************************************************************/
+PRIVATE BOOL drop_kept_submissions(yev_loop_t *yev_loop, yev_event_t *yev_event)
+{
+    BOOL dropped = FALSE;
+    unsigned j = 0;
+    for(unsigned i = 0; i < yev_loop->kept_sqes_size; i++) {
+        if(yev_loop->kept_sqes[i].user_data == (uint64_t)(uintptr_t)yev_event) {
+            if(yev_loop->kept_cqes_size >= yev_loop->kept_cqes_max) {
+                unsigned new_max = yev_loop->kept_cqes_max? yev_loop->kept_cqes_max*2 : 16;
+                kept_cqe_t *new_cqes = gbmem_realloc(
+                    yev_loop->kept_cqes, new_max * sizeof(kept_cqe_t)
+                );
+                if(!new_cqes) {
+                    gobj_log_critical(yev_loop->yuno, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MEMORY,
+                        "msg",          "%s", "No memory to keep a completion: submission handed over as it is",
+                        NULL
+                    );
+                    yev_loop->kept_sqes[j++] = yev_loop->kept_sqes[i];
+                    continue;
+                }
+                yev_loop->kept_cqes = new_cqes;
+                yev_loop->kept_cqes_max = new_max;
+            }
+            yev_loop->kept_cqes[yev_loop->kept_cqes_size].user_data = yev_loop->kept_sqes[i].user_data;
+            yev_loop->kept_cqes[yev_loop->kept_cqes_size].res = -ECANCELED;
+            yev_loop->kept_cqes_size++;
+            dropped = TRUE;
+            continue;
+        }
+        if(j != i) {
+            yev_loop->kept_sqes[j] = yev_loop->kept_sqes[i];
+        }
+        j++;
+    }
+    yev_loop->kept_sqes_size = j;
+    return dropped;
+}
+
+/***************************************************************************
+ *  An event freed for real takes with it what the loop keeps of it
+ ***************************************************************************/
+PRIVATE void forget_kept(yev_loop_t *yev_loop, yev_event_t *yev_event)
+{
+    uint64_t user_data = (uint64_t)(uintptr_t)yev_event;
+    unsigned j = 0;
+    for(unsigned i = 0; i < yev_loop->kept_sqes_size; i++) {
+        if(yev_loop->kept_sqes[i].user_data != user_data) {
+            yev_loop->kept_sqes[j++] = yev_loop->kept_sqes[i];
+        }
+    }
+    yev_loop->kept_sqes_size = j;
+    j = 0;
+    for(unsigned i = 0; i < yev_loop->kept_cqes_size; i++) {
+        if(yev_loop->kept_cqes[i].user_data != user_data) {
+            yev_loop->kept_cqes[j++] = yev_loop->kept_cqes[i];
+        }
+    }
+    yev_loop->kept_cqes_size = j;
 }
 
 PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
@@ -835,6 +1017,34 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 }
 
 /***************************************************************************
+ *  Deliver the completions the loop made itself (drop_kept_submissions),
+ *  oldest first, as the kernel's are: through callback_cqe(). -1 when a
+ *  callback asks to break the loop: the rest wait for the next cycle.
+ ***************************************************************************/
+PRIVATE int deliver_kept_cqes(yev_loop_t *yev_loop)
+{
+    while(yev_loop->kept_cqes_size > 0) {
+        kept_cqe_t kept = yev_loop->kept_cqes[0];
+        yev_loop->kept_cqes_size--;
+        if(yev_loop->kept_cqes_size > 0) {
+            memmove(
+                yev_loop->kept_cqes,
+                yev_loop->kept_cqes + 1,
+                yev_loop->kept_cqes_size * sizeof(kept_cqe_t)
+            );
+        }
+        struct io_uring_cqe cqe;
+        memset(&cqe, 0, sizeof(cqe));
+        cqe.user_data = kept.user_data;
+        cqe.res = kept.res;
+        if(callback_cqe(yev_loop, &cqe) < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
@@ -877,6 +1087,21 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         int err;
 
         /*
+         *  What the kernel did not take when it was submitted (get_sqe),
+         *  now that the completions of the last cycle made room, and the
+         *  completions of what was stopped before it took them
+         */
+        if(yev_loop->kept_sqes_size > 0) {
+            submit_kept(yev_loop);
+        }
+        if(yev_loop->kept_cqes_size > 0) {
+            if(deliver_kept_cqes(yev_loop) < 0) {
+                yev_loop->running = false;
+                break;
+            }
+        }
+
+        /*
          *  Deliver what was posted with gobj_post_event().
          *
          *  Here, at the top of the cycle, and not after the completions: a
@@ -902,6 +1127,18 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
              */
             err = io_uring_peek_cqe(&yev_loop->ring, &cqe);
             if(err == -EAGAIN) {
+                continue;
+            }
+        } else if(yev_loop->kept_sqes_size > 0) {
+            /*
+             *  Submissions are still kept: the kernel takes them once
+             *  completions are reaped, and if none comes, a short wait
+             *  tries again. Not the timeout of the loop: its callback is
+             *  not called.
+             */
+            struct __kernel_timespec retry = { .tv_sec = 0, .tv_nsec = 10*1000*1000 };
+            err = io_uring_wait_cqe_timeout(&yev_loop->ring, &cqe, &retry);
+            if(err == -ETIME) {
                 continue;
             }
         } else if(timeout_in_seconds > 0) {
@@ -1050,11 +1287,23 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
      *  One turn of the loop also means one delivery of what was posted:
      *  the callers of this function (service management, shutdown) use it
      *  to let pending work settle, and a posted event IS pending work.
+     *  So is a submission the kernel did not take (get_sqe), and the
+     *  completion of one stopped before it took it.
      */
     gobj_deliver_posted_events();
 
+    BOOL broken = FALSE;
+    if(yev_loop->kept_sqes_size > 0) {
+        submit_kept(yev_loop);
+    }
+    if(yev_loop->kept_cqes_size > 0) {
+        if(deliver_kept_cqes(yev_loop) < 0 && yev_loop->stopping) {
+            broken = TRUE;
+        }
+    }
+
     cqe = 0;
-    while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
+    while(!broken && io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
         #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
         int yev_event_type = yev_event? yev_event->type:0;
@@ -2120,6 +2369,15 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
     yev_state_t cur_state = yev_get_state(yev_event);
     switch(cur_state) {
         case YEV_ST_RUNNING:
+            /*
+             *  Its submission may still be kept by the loop (get_sqe): the
+             *  kernel never saw it, so it is not canceled there, it is
+             *  taken back, and the loop completes it as a cancel
+             */
+            if(yev_loop->kept_sqes_size > 0 && drop_kept_submissions(yev_loop, yev_event)) {
+                yev_set_state(yev_event, YEV_ST_CANCELING);
+                break;
+            }
             sqe = get_sqe(yev_loop);
             if(!sqe) {
                 /*

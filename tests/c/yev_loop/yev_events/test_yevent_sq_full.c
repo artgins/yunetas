@@ -5,14 +5,20 @@
  *
  *          io_uring_get_sqe() answers NULL when every entry of the
  *          submission queue holds something not handed to the kernel yet,
- *          and yev_loop used that NULL as an entry (a segfault). It now
- *          flushes the queue (io_uring_submit) and asks once more.
+ *          and yev_loop used that NULL as an entry (a segfault). It
+ *          flushes the queue (io_uring_submit) and asks once more; when the
+ *          kernel takes nothing (io_uring_enter() fails: a CQ overflow on
+ *          an older kernel answers EBUSY until completions are reaped), the
+ *          submission is KEPT and made at the next cycle of the loop. It
+ *          used to be logged and lost.
  *
  *          Setup
  *          -----
  *          A loop of 8 entries. Before each call, the queue is filled with
  *          NOPs that are NOT submitted (IOSQE_CQE_SKIP_SUCCESS: they
- *          complete with no CQE).
+ *          complete with no CQE). To make the kernel take nothing, the fd
+ *          of the ring is made invalid for the call (io_uring_enter()
+ *          answers EBADF), and restored after it.
  *
  *          Process
  *          -------
@@ -20,12 +26,21 @@
  *             fires.
  *          2. Start a timer of 10 s, fill the queue, stop the timer while
  *             it RUNS: the cancel is submitted, the timer is stopped.
- *          3. Fill the queue and stop the loop: it stops.
+ *          3. Queue full and not flushable: a timer of 100 ms starts (kept),
+ *             and fires once the kernel takes submissions again.
+ *          4. Queue full and not flushable: a timer of 10 s starts (kept)
+ *             and is stopped before its read reached the kernel: the stop
+ *             reaches the callback as a cancel (STOPPED, -ECANCELED).
+ *          5. Fill the queue and stop the loop: it stops.
+ *          6. Queue full and not flushable, in a second loop: the loop
+ *             is stopped (kept), and stops once the kernel takes
+ *             submissions again.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <errno.h>
 #include <signal.h>
 #include <liburing.h>
 #include <gobj.h>
@@ -41,6 +56,7 @@
  ***************************************************************/
 PRIVATE void yuno_catch_signals(void);
 PRIVATE int yev_callback(yev_event_h yev_event);
+PRIVATE int loop_timeout_callback(yev_event_h yev_event);
 
 /***************************************************************
  *              Data
@@ -48,10 +64,15 @@ PRIVATE int yev_callback(yev_event_h yev_event);
 yev_loop_h yev_loop;
 int times_counter = 0;
 int stopped_counter = 0;
+int stopped_result = 0;
 int result = 0;
+int loop_timeouts = 0;
+int saved_ring_fd = -1;
+int saved_enter_ring_fd = -1;
 
 /***************************************************************************
- *  Fill the submission queue of the loop with NOPs, not submitted.
+ *  Fill the submission queue of the loop with NOPs, not submitted (the
+ *  NOPs an earlier step left there are submitted first).
  *  HACK the ring is the first member of the loop (yev_loop.c): a test
  *  reaches it to leave the queue full, nothing else touches it.
  *  Return how many entries were taken.
@@ -59,6 +80,7 @@ int result = 0;
 PRIVATE int fill_submission_queue(void)
 {
     struct io_uring *ring = (struct io_uring *)yev_loop;
+    io_uring_submit(ring);  /*  what an earlier step left in the queue  */
     int n = 0;
     struct io_uring_sqe *sqe;
     while((sqe = io_uring_get_sqe(ring)) != NULL) {
@@ -68,6 +90,39 @@ PRIVATE int fill_submission_queue(void)
         n++;
     }
     return n;
+}
+
+/***************************************************************************
+ *  Make the kernel take NOTHING from the queue: io_uring_enter() on an
+ *  invalid fd answers EBADF, so a flush leaves the queue full. HACK the
+ *  ring is the first member of the loop.
+ ***************************************************************************/
+PRIVATE void block_submissions(void)
+{
+    struct io_uring *ring = (struct io_uring *)yev_loop;
+    saved_ring_fd = ring->ring_fd;
+    saved_enter_ring_fd = ring->enter_ring_fd;
+    ring->ring_fd = -1;
+    ring->enter_ring_fd = -1;
+}
+
+PRIVATE void unblock_submissions(void)
+{
+    struct io_uring *ring = (struct io_uring *)yev_loop;
+    ring->ring_fd = saved_ring_fd;
+    ring->enter_ring_fd = saved_enter_ring_fd;
+}
+
+/***************************************************************************
+ *  The timeout of a loop run: the loop was not stopped
+ ***************************************************************************/
+PRIVATE int loop_timeout_callback(yev_event_h yev_event)
+{
+    if(yev_event) {
+        return 0;
+    }
+    loop_timeouts++;
+    return -1;  // break the loop
 }
 
 /***************************************************************************
@@ -93,6 +148,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     snprintf(msg, sizeof(msg), "timeout got %d", times_counter);
                 } else if(yev_state == YEV_ST_STOPPED) {
                     stopped_counter++;
+                    stopped_result = yev_get_result(yev_event);
                     snprintf(msg, sizeof(msg), "timeout stopped");
                 } else {
                     snprintf(msg, sizeof(msg), "BAD state %s", yev_get_state_name(yev_event));
@@ -133,7 +189,7 @@ PRIVATE int do_test(void)
         0,
         8,
         10,
-        NULL,
+        loop_timeout_callback,  // a run that times out: what it waited for did not happen
         &yev_loop
     );
 
@@ -179,7 +235,49 @@ PRIVATE int do_test(void)
     }
 
     /*--------------------------------*
-     *  3. Stop the loop, queue full
+     *  3. Start a timer, queue full
+     *     and NOT flushable: kept,
+     *     submitted at the next cycle
+     *--------------------------------*/
+    yev_event_h yev_event_kept = yev_create_timer_event(yev_loop, yev_callback, NULL);
+    fill_submission_queue();
+    block_submissions();
+    if(yev_start_timer_event(yev_event_kept, 100, FALSE) < 0) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "timer not started with the queue full and not flushable");
+        result += -1;
+    }
+    unblock_submissions();
+    yev_loop_run(yev_loop, 2);
+    if(times_counter != 2) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "the kept timer did not fire");
+        result += -1;
+    }
+
+    /*--------------------------------*
+     *  4. Stop a timer whose start
+     *     is still kept: a cancel
+     *--------------------------------*/
+    fill_submission_queue();
+    block_submissions();
+    if(yev_start_timer_event(yev_event_kept, 10*1000, FALSE) < 0) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "timer of 10 s not started with the queue not flushable");
+        result += -1;
+    }
+    if(yev_stop_event(yev_event_kept) < 0) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "kept timer not stopped");
+        result += -1;
+    }
+    unblock_submissions();
+    yev_loop_run(yev_loop, 2);
+    if(stopped_counter != 2 || stopped_result != -ECANCELED) {
+        printf("%sERROR%s <-- %s (stopped %d, result %d)\n", On_Red BWhite, Color_Off,
+            "the stop of the kept timer did not reach the callback as a cancel",
+            stopped_counter, stopped_result);
+        result += -1;
+    }
+
+    /*--------------------------------*
+     *  5. Stop the loop, queue full
      *--------------------------------*/
     if(fill_submission_queue() <= 0) {
         printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "the queue could not be filled a third time");
@@ -192,9 +290,40 @@ PRIVATE int do_test(void)
     yev_loop_run_once(yev_loop);
 
     /*--------------------------------*
-     *  Destroy the event
+     *  6. Stop a loop, queue full and
+     *     NOT flushable: kept, and the
+     *     loop stops (a timeout of its
+     *     run says it did not)
+     *--------------------------------*/
+    yev_loop_h yev_loop_main = yev_loop;
+    yev_loop_create(
+        0,
+        8,
+        10,
+        loop_timeout_callback,
+        &yev_loop
+    );
+    fill_submission_queue();
+    block_submissions();
+    if(yev_loop_stop(yev_loop) < 0) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "loop not stopped with the queue not flushable");
+        result += -1;
+    }
+    unblock_submissions();
+    int timeouts_before = loop_timeouts;
+    yev_loop_run(yev_loop, 1);
+    if(loop_timeouts != timeouts_before) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "the kept stop did not stop the loop");
+        result += -1;
+    }
+    yev_loop_destroy(yev_loop);
+    yev_loop = yev_loop_main;
+
+    /*--------------------------------*
+     *  Destroy the events
      *--------------------------------*/
     yev_destroy_event(yev_event_once);
+    yev_destroy_event(yev_event_kept);
 
     yev_loop_destroy(yev_loop);
 
@@ -262,9 +391,14 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("[{s:s}, {s:s}]",  // error_list
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "timeout got 1",
-        "msg", "timeout stopped"
+        "msg", "timeout stopped",
+        "msg", "Submission queue full and the kernel takes nothing: kept for the next cycle",
+        "msg", "timeout got 2",
+        "msg", "Submission queue full and the kernel takes nothing: kept for the next cycle",
+        "msg", "timeout stopped",
+        "msg", "Submission queue full and the kernel takes nothing: kept for the next cycle"
     );
 
     set_expected_results( // Check that no other logs happen

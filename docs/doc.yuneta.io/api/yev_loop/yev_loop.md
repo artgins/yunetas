@@ -21,6 +21,47 @@ There is **no threading**. Scaling is achieved by running one yuno per
 CPU core and exchanging events between them.
 :::
 
+## A full submission queue
+
+Every operation is submitted to the kernel as soon as it is prepared. When
+the submission queue has no free entry, the loop first flushes it
+(`io_uring_submit()`) and asks again. When the kernel still takes nothing
+(`io_uring_enter()` fails; on an older kernel a CQ overflow answers
+`EBUSY` until the completions are reaped), the submission is **kept** by
+the loop, and one WARNING says it: *"Submission queue full and the kernel
+takes nothing: kept for the next cycle"* (with `ret` and `sret`, the
+error of the flush). The loop hands the kept submissions to the kernel at
+its next cycle, in the order they were made, after the completions of the
+cycle have made room. A submission made while others are kept is kept
+after them, so the kernel receives them in order (two writes of one
+socket).
+
+For the caller nothing changes: [`yev_start_event()`](<#yev_start_event>),
+[`yev_start_timer_event()`](<#yev_start_timer_event>),
+[`yev_stop_event()`](<#yev_stop_event>) and
+[`yev_loop_stop()`](<#yev_loop_stop>) answer `0`, and the event is
+`RUNNING` (or `CANCELING`) as after any submission. A stop of an event
+whose submission is still kept takes it back (the kernel never saw it,
+and handed over later it would run on an fd the stop closed): the loop
+completes it as a cancel does, and the callback gets the event `STOPPED`
+with result `-ECANCELED` at the next cycle. Until 7.25.5 such a submission
+was logged (*"io_uring_get_sqe() FAILED, the submission queue is full"*)
+and LOST: a start answered `-1`, and a stop left the event `RUNNING`. The
+answer is `-1` now only when there is no memory to keep the submission
+(a CRITICAL *"No memory to keep a submission"*).
+
+```C
+/*
+ *  A timer started while the kernel takes no submission: kept, and armed
+ *  at the next cycle of the loop. yev_start_timer_event() answers 0.
+ */
+yev_event_h timer = yev_create_timer_event(yev_loop, callback, gobj);
+yev_start_timer_event(timer, 100, FALSE);   // 0, the event is RUNNING
+yev_loop_run(yev_loop, 1);                  // submitted here; the callback gets it IDLE
+```
+
+The test is `tests/c/yev_loop/yev_events/test_yevent_sq_full.c`.
+
 ## Static-build helpers
 
 `yev_loop.c` also exposes `yuneta_getaddrinfo()` /
@@ -524,6 +565,7 @@ Returns 0 on success, or a negative value on failure.
 **Notes**
 
 Stopping the event loop using [`yev_loop_stop()`](<#yev_loop_stop>) will cause it to exit its execution cycle, but it can be restarted using [`yev_loop_run()`](<#yev_loop_run>).
+With a full submission queue that the kernel does not take, the stop is kept and made at the next cycle of the loop (see [A full submission queue](#a-full-submission-queue)).
 
 ---
 
@@ -607,6 +649,7 @@ Returns 0 on success, or a negative value on failure.
 **Notes**
 
 For timer events, use [`yev_start_timer_event()`](<#yev_start_timer_event>) instead.
+With a full submission queue that the kernel does not take, the submission is kept and made at the next cycle of the loop, and the answer is `0` (see [A full submission queue](#a-full-submission-queue)).
 
 ---
 
@@ -667,6 +710,7 @@ Returns `0` on success, or `-1` if an error occurs.
 
 If the event is a `connect`, `timer`, or `accept` event, the associated socket will be closed.
 If the event is in an idle state, it can be reused. Otherwise, a new event must be created.
+A `RUNNING` event whose submission the loop still keeps (see [A full submission queue](#a-full-submission-queue)) is not canceled in the kernel: the submission is taken back, and the callback gets the event `STOPPED` with result `-ECANCELED` at the next cycle, as after a cancel.
 
 ---
 
