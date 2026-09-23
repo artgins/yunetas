@@ -127,14 +127,10 @@ The second review (read at 7.24.1) shipped in 7.25.0 and in gobj-ui
 - **A1-A3:** C_NODE's `snap-content` does not ask
   `treedb_is_treedbs_topic()` -- it can no longer leave the database, but it
   can read a topic of the tranger that is not a topic of that treedb.
-- **M16-M18:** the `tm` range of a cell is read from the first and last rows,
-  and `tm` is out of order whenever a device uploads a buffered batch; only the
-  `t` disorder marks a file (`<file>.unordered`). And a crash between the md2
-  write and the marker leaves an unmarked unordered file. (The scan of a
-  marked file no longer ends at the first row past the range, in either
-  direction, and a `tm` condition never ends a scan: fixed 2026-09-23. The
-  per-file `tm` range that decides which files are read is still taken from
-  the first and last rows.)
+- **M16-M18:** closed after 7.25.4: `tm` disorder is marked
+  (`.tm_unordered`, written before the row) in topics created or migrated
+  (`mark-tm-order`) from then on. Legacy topics trust no tm range until
+  migrated.
 - **M36:** every in-tree yuno forces `impose_c_schema`, so gui_agent's Apply
   is off on all of them until one stops forcing it.
 
@@ -143,8 +139,7 @@ verifiers):
 the `EV_TREEDB_NODE_*` feed is outside the `read` permission, because the subscription authz is commented out
 (`c_ievent_srv.c:1373`, `gobj.c:8754`); a refused `__graphs__` write is
 recorded as saved and never retried (`c_g6_nodes_tree.js:3282`);
-`tranger2_write_topic_var()` answers 0 whatever
-`save_json_to_file()` did; refs `topic^id^hook` are written with `snprintf`
+refs `topic^id^hook` are written with `snprintf`
 into `char[NAME_MAX]` and truncate silently; hook membership is tested by bare
 id, so two children of different topics with one id collide; an id holding `^`
 is accepted and makes every ref to the node undecodable; JS `kw_get_str()`
@@ -154,72 +149,56 @@ the warning *"Parent
 ref already in child fkey"* still fires in the legitimate case of 4e4dcdc00,
 once per `create-yuno`.
 
-## TreeDB / timeranger2: what the 2026-09-23 round left open
+## TreeDB / timeranger2: what the reviews of 2026-09-23 left open
 
-The third review (of the 2026-09-16 and 2026-09-22 work) was fixed whole on
-2026-09-23 (`CHANGELOG.md`, Unreleased). What it left:
+Three independent reviews of the 7.25.4 fixes and four fix rounds
+(`CHANGELOG.md`, Unreleased). What is still open:
 
-- **No red test** for `deactivate-snap` answering -1 when its save fails (no
-  way was found to make a save fail on a master), nor for the fs_watcher root
-  (reachable only by a race). The N1 traversal test is red for the long id and
-  the log level; its path guard is checked by path arithmetic only.
-- **A C literal against an operator's saved draft** of the same treedb: the
-  literal wins and a warning says so. The two changes are not merged.
-- **A multi-key (`rkey`) iterator** does not see keys created after it opened
-  (documented: reopen it). The `key_deleted` mark reaches only the process
-  that deleted the key; a replica's page now names the likely cause. Both are
-  single-node conveniences by design: treedb scales by spreading KEYS over
-  nodes (philosophy.md, "the key").
-- **`gobj_log_last_message()`** is still read by C_NODE's reads, link/unlink
-  and `import-db` answers.
+- `rmrdir()` (gobj-c helpers) uses `stat()`, which follows symlinks: a dangling
+  symlink makes it fail, and a symlink to a directory makes it walk into the
+  target and delete what is there. Use `lstat()` and never descend a link.
+- **The tm marker after a rollback**: a 7.25.4-or-earlier binary appends
+  out-of-order tm without `.tm_unordered`; `mark-tm-order` re-marks the topic,
+  but nothing does it on its own. A per-writer stamp would make it automatic.
+- A marker that cannot be written is retried only by the next append to the
+  same FILE; a file never appended again keeps it missing (logged) until
+  `mark-tm-order` runs.
+- `mark-tm-order` runs synchronously and blocks the yuno (linear; ~80 ms for
+  4 keys x 3 650 files on a warm cache).
+- A demoted master never takes its lock back while the process lives; it needs
+  a restart (documented).
+- treedb deletes of a parent do not see links from children that did not load
+  (a topic with `load_failed` keys); in a partial topic, operations on other
+  ids are allowed.
+- **`treedb_delete_instance()`**: a tombstone write that fails partway still
+  logs and answers 0.
+- A C literal and an operator's saved draft of the same topic are not merged:
+  the literal wins (said as `withdrawn_at_open`).
+- A store whose schema file is already behind what runs (written whole by an
+  older release) stays inconsistent for that topic (the running definition is
+  only in `topic_cols.json`).
+- A draft column whose `order` is not its position (e.g. 99) reads as unsaved
+  right after a save.
+- **A multi-key (`rkey`) iterator** does not see keys created after it opened;
+  the `key_deleted` mark reaches only the process that deleted the key. Both
+  are single-node conveniences by design (philosophy.md, "the key").
+- `import-db` keys its error-count stats on `gobj_log_last_message()`.
 - ***"Child node without fkey field"*** is logged as an ERROR at every open,
   once per node, when an fkey column is filled by no hook any more.
-- **Not exercised live:** a form Save through a real websocket drop (the
-  wiring tests cover it; a live run would write production data), and
-  gui_agent's Schemas tab, which the Playwright harness cannot open.
-
-## TreeDB / timeranger2: what the independent review of 7.25.4 left open
-
-Fixed whole on 2026-09-23 (`CHANGELOG.md`, Unreleased). Left:
-
-- **A rollback to 7.25.4 or earlier defeats the tm marker** of topics created
-  by 7.25.5 (the old binary writes out-of-order tm without `.tm_unordered`).
-  Derive the trust from a per-writer stamp instead of from who created the
-  topic, or ship a tool that re-marks a topic after a rollback.
-- **Legacy topics cannot be tm-marked.** Topics created by 7.25.4 or earlier
-  trust no file's tm range (correct, and as slow as 7.25.4 for tm queries). A
-  migration would have to scan each file once and write its marker.
-- **`treedb_delete_instance()`**: a tombstone write that fails partway still
-  logs and answers 0 (pre-existing).
-- Reopening a treedb whose record content is unreadable logs *"kw must be list
-  or dict"* noise from the loader.
-- `shoot-snap`, `link-nodes`, `unlink-nodes` (C_NODE) still read
-  `gobj_log_last_message()`.
 - gobj-ui `C_YUI_TREEDB_TOPICS`: a topic-table write in flight when the session
   drops refreshes the topic after the failure, and the adapter logs
-  *"cannot route 'nodes' -- not in session"* (rare, pre-existing).
+  *"cannot route 'nodes' -- not in session"* (rare).
 - gui_agent: an apply that times out with one owner applied and another silent
   ends with no restart.
-- No test for `save_json_to_file()`'s `close()` failure (no local way to make
-  it fail).
 - The agent's `audit/` directory grows ~0.6-1 GB a day with no retention
   (19 GB on wattyzer, 90 GB on the dev machine).
 - Every agent upgrade (`find-new-yunos create=1`) logs *"Parent ref already in
   child fkey, skipping duplicate"* twice per yuno, which contradicts "linking a
   pair already linked writes nothing and says nothing".
-
-## TreeDB / timeranger2: what the second independent review left open
-
-- `rmrdir()` (gobj-c helpers) uses `stat()`, which follows symlinks: a dangling
-  symlink makes it fail, and a symlink to a directory makes it walk into the
-  target and delete what is there. Use `lstat()` and never descend a link.
-- treedb deletes of a parent do not see links from children that did not load
-  (a topic with `load_failed` keys).
-- A draft column whose `order` is not its position (e.g. 99) reads as unsaved
-  right after a save.
-- A demoted master never takes its lock back while the process lives; it needs
-  a restart (documented).
-- The crash window between a marker and its md2 row is not covered by a test.
+- **No red test** for: `deactivate-snap` -1 on a failed save, the fs_watcher
+  root, `save_json_to_file()`'s `close()` failure, the crash window between a
+  marker and its md2 row. Not exercised live: a form Save through a real
+  websocket drop.
 - A test binary is not relinked by `cmake --build build` after `make install`
   of a library it links by name: a per-module test run can execute the old
   library. `yunetas clean && yunetas build && yunetas test` is not affected.

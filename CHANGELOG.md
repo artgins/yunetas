@@ -2,188 +2,167 @@
 
 ## Unreleased
 
-### The second independent review, fixed
+Everything below is net against 7.25.4. It comes from three independent reviews
+of the 7.25.4 fixes (none written by their reviewers) and four fix rounds; each
+behaviour change has a test that fails on the code before it, except where
+stated.
 
-A second independent review (five reviewers) of the fixes above found two
-regressions of this same round, one of them deployed, and a few mediums. All
-fixed with a test that fails before the fix.
+### Upgrade steps (operators, read first)
 
-- **Regression, keyless `tranger2_open_list()`**: making it stop at the first
-  unreadable key (for the asset guard) made treedb load a topic only up to that
-  key, open no realtime feed, and let a master accept a create that shadowed a
-  stored record. A keyless list loads every readable key again, opens its feed,
-  and returns flagged `load_failed` with `load_failed_keys` (a list of ONE key
-  still returns NULL). treedb remembers the keys that did not load and refuses
-  what memory would answer wrong: a create of such an id; shoot/activate and the
-  snapshot-guarded deletes when `__snaps__` is partial; `gc-assets` when a topic
-  with a `file` column or `__assets__` is partial. The orphan-blob sweep still
-  runs when the asset rows are refused. Recovery procedure in treedb.md.
-- **Regression, tm marker**: a `.tm_unordered` marker that could not be written
-  left the file trusted as tm-ordered, and the early end hid rows 7.25.4 served.
-  The markers are written BEFORE the md2 row, the in-memory flag is always set,
-  and a failed marker is retried at the next append.
-- `tranger2_write_user_flag()`, `tranger2_set_user_flag()` and
-  `tranger2_set_system_flag()` refuse on a non-master ("Only master can write").
-  On a demoted master or a replica they logged a CRITICAL and, with the default
-  `on_critical_error`, EXITED the process.
-- **Legacy topics can be migrated**: `tranger2_mark_tm_order(tranger, topic)`
-  and the C_TRANGER command `mark-tm-order topic_name=<t>` (master only,
-  permission `write`) read every file of the topic once, write the missing
-  markers and set `marks_tm_unordered`. Topics created by 7.25.4 or earlier do
-  tm queries much slower than 7.25.4 until migrated (30 files x 20 000 rows:
-  7.25.4 ~13 ms, unmigrated ~400 ms, migrated ~0.1 ms; the migration took
-  ~16 ms). Running it again re-marks a topic after a rollback.
-- C_TREEDB: a literal that raises a topic past the file in use replaces the
-  operator's saved draft of that topic in `__system__` on BOTH paths (it was so
-  only on the take-over path), with a warning, so `__system__` shows what the
-  treedb runs; a topic the literal does not raise keeps its draft.
-  `default: {}` is dropped again on every column, `required` included (keeping
-  it turned `required` off for every required container column).
-- C_TREEDB lows: no false "behind" log after a withdraw; a take-over never
-  lowers `schema_version`; an applied, withdrawn or superseded saved schema is
-  removed (`saved-schema` answers `saved` only for a save waiting to be applied,
-  and `stale` for an old file); prechecks answer "STOPPED" while a tranger is
-  stopped; the diff shows a column reorder.
+- **Migrate the timeranger2 topics once, after upgrading.** Topics created by
+  7.25.4 or earlier do `tm` queries (`from_tm` / `to_tm`) much slower than
+  7.25.4 did until they are migrated, because no file's tm range is trusted in
+  them. Run on each tranger service, on the master:
+  `command-yuno id=<id> service=<tranger> command=mark-tm-order all=1`. It reads
+  every md2 file once, is linear in the number of files, and blocks the yuno
+  while it runs (4 keys x 3 650 daily files: ~80 ms warm cache; 1 key x 30 files
+  x 20 000 rows: ~16 ms). Measured, before -> unmigrated -> migrated, on that
+  30-file topic: ~13 ms -> ~400 ms -> ~0.1 ms per tm query. See
+  `deploying-yunos.md`.
+- **Do not roll a node back to 7.25.4 or earlier** for topics created or
+  migrated by this release without running `mark-tm-order` again after coming
+  forward: an older binary appends out-of-order `tm` rows without writing the
+  marker, and a tm scan can then hide rows.
+
+### Data loss and integrity
+
+- C_AUTHZ `disable-user`, `enable-user` and `set-max-sessions` ERASED the user's
+  local password (since 55266cbb5, 2025-11): they read the user without the
+  hidden `credentials` column and wrote the whole view back. They write only
+  `{id, <field>}`.
+- `gc-assets` with a snap ACTIVE took the assets of live nodes written after the
+  snap (since 7.18.1): memory holds the snap's photo. The gc refuses while any
+  snap is active; a refused gc takes nothing.
+- A key damaged on disk (an md2 that cannot be read, a size that is not whole
+  rows, a 0-row md2 with a non-empty `.json`, a record whose content cannot be
+  read) is flagged, at runtime and at startup, and reported by a keyless
+  `tranger2_open_list()` as `load_failed` / `load_failed_keys` (the list still
+  loads every readable key and opens its realtime feed). treedb remembers those
+  keys and refuses what memory would answer wrong: a create of such an id (it
+  would shadow the stored record); shoot/activate and the snapshot-guarded
+  deletes when `__snaps__` is partial; `gc-assets` when a topic with a `file`
+  column or `__assets__` is partial. `treedb_delete_instance()` refuses when it
+  cannot read every row of the key. Recovery procedure in treedb.md ("A topic
+  that did not load whole").
+- The asset snapshot guard fails closed when it cannot read.
+- A master that lost its lock while stopped (another process took the store)
+  writes nothing: every write path, including the three md2 flag rewriters,
+  retakes the lock first or refuses. If another process holds the lock the
+  revive is a CRITICAL at `on_critical_error`, as at startup; any other lock
+  failure demotes the tranger to replica (`master` false, `master_lost` true)
+  with an error. C_TRANGER and C_TREEDB report the effective state.
+- `tranger2_stop()` no longer leaves fds that a shutdown closed again (they
+  could belong to someone else by then).
+- `topic_var.json` (the rowid counter) and `topic_cols.json` are replaced through
+  a fresh `.new` file (`O_EXCL|O_NOFOLLOW`) and a rename, never rewritten in
+  place; a topic_version change fsyncs and writes cols before var, and a failed
+  write leaves the version on disk unchanged.
+- tr_queue and tr2q_mqtt: a queue whose key did not load no longer saves a
+  `first_rowid` past the pending messages (they were skipped for ever, even after
+  the md2 was repaired).
+- `apply-schema` writes the file in use through a temporary file, fsync and
+  rename; `save_json_to_file()` closes its fd on failure and checks `close()`.
+- A replica refuses a saved `treedb_update_node()`, a create and a file store
+  before anything moves (a blob used to be written into the master's store);
+  C_NODE link, unlink and delete are refused on a replica before memory moves.
+- C_AUTHZ `ac_reject_user` drops the user's sessions even when the write of
+  `disabled` fails; C_AUTHZ event doors refuse on a replica.
+- `EV_TREEDB_UPDATE_NODE` is no longer a PUBLIC event: a peer could inject it
+  through C_IEVENT_CLI and write with no permission.
+- An rt_disk feed id already used by a live feed of the topic is refused (a
+  client could take over, and remove, a replica treedb's feed directory).
+
+### Scans (timeranger2)
+
+- `tm` order is marked: in topics created from now on (or migrated), a file
+  that receives a record out of `tm` order gets a `<file>.tm_unordered` marker,
+  written BEFORE the md2 row (a failed marker is retried at the next append to
+  that file). A marked file's tm range is read from all its rows; in a file
+  known to be in tm order a row past the range ends the scan of that FILE.
+- A scan steps over the holes a tm filter leaves between files (it used to log
+  a false "next rowids not consecutive" and lose the rows after the hole).
+- A `t` condition does not end a scan inside a file marked `.unordered`.
+- After `delete_key` the iterators of that key drop their segments; an unfiltered
+  iterator re-reads its segments only when the key's cache changed.
+
+### Schemas (C_TREEDB)
+
+- One rule, on every open path: a C literal replaces a topic only when it raises
+  that topic's `topic_version` past the version in use (the higher of the file's
+  and the store's); every other topic keeps the file's version, including an
+  applied topic that has not run yet. What runs, the file and `__system__`
+  agree. A literal no longer overwrites the whole schema file.
+- A draft the literal replaces is said (warning) and exposed as
+  `withdrawn_at_open` (`applied` / `saved` / `unsaved`) in `treedbs` rows and
+  `saved-schema`, until the next open.
+- `saved-schema` diffs the draft against the SAVED schema when one is pending;
+  a saved draft that is reverted is withdrawn by the next `save-schema`
+  (`withdrawn` in the answer). A saved schema lives only as long as the file it
+  was saved against: applied, withdrawn or superseded files are removed;
+  `saved` means "waiting to be applied", `stale` marks an old file, `broken` an
+  unreadable one (left out of an apply of every treedb).
+- `apply-schema` asks `create-delete` and `save-schema` `write` (7.25.3 had them
+  inverted). An unnamed apply is all-or-none up to the renames: a failed rename
+  fails alone and its row says `applied` false.
+- `schema_version` in `__system__` never goes down; `default: {}` placeholders
+  are dropped (a required column that really declared `{}` loses it through
+  save + apply); apply writes no derived `fkey` marks; a column reorder is a
+  difference (only when the shared columns change order); precise warnings.
+
+### C_NODE, C_AUTHZ, C_TRANGER
+
 - Every C_NODE and C_AUTHZ command comment starts with the yuno and none reads
   `gobj_log_last_message()` (import-db still keys its error stats on it).
-- timeranger2 lows: `topic_var.json` and `topic_cols.json` are replaced through
-  a `.new` created `O_EXCL|O_NOFOLLOW` (a leftover or a symlink is not reused);
-  `tranger2_write_topic_cols()` returns -1 on failure and updates memory after
-  the write; `delete_key` removes the directory before announcing the delete; a
-  marker name that does not fit is logged and the file read whole.
-- gobj-ui 7.25.7, gui_agent 0.22.81 (deployed, console checked): **a regression
-  of gobj-ui 7.25.6 that was live** -- navigating in the schema editor during a
-  reload dropped the reload and the next write emptied the model; the editor now
-  stays loading until the load ends. The link's request ids are unique per page
-  (two treedb views crossed answers and could fake a delete); a late upload is
-  not kept in memory; the editor reloads after a late successful write; one
-  toast per message; a withdrawn saved schema is said as such.
+- `delete-node` with `ignore_snaps` asks `create` as well as `delete`.
+- `activate-snap` keeps the old snap active when the new one cannot be saved.
+- C_TRANGER: `mark-tm-order [topic_name=<t> | all=1]` (master, `write`); a
+  no_rt list is freed with its topic; the keys watch has its own creator; a
+  multi-key iterator counts its unfiltered parts live per page; `open-rt`
+  refuses an id longer than `NAME_MAX`; explicit failure comments.
+- `gc-assets` answers a report (`dry_run`, `assets`, `blobs`, `refused`,
+  `blobs_refused`) and says what it swept even when the asset rows were
+  refused; new library `treedb_gc_files2()`.
 
-**BREAKING (second review)**
+### JS: gobj-ui 7.25.5 -> 7.25.8, gui_agent 0.22.78 -> 0.22.82
 
-- A C_TRANGER stopped and started while another process took its store now
-  logs a CRITICAL at `on_critical_error` (exit with the default), as at startup.
-- A keyless `tranger2_open_list()` returns a flagged list instead of NULL.
-- The treedb refusals above; `tranger2_write_topic_cols()` can return -1; the
-  three flag writers return -1 on a non-master.
-- C_TREEDB `saved-schema`: `saved` means "waiting to be applied" (new `stale`);
-  applied/withdrawn saved files are removed. C_NODE `instances` answers -1 on
-  failure. Command comment texts of C_NODE and C_AUTHZ changed.
+- Deployed to artgins.yunetacontrol.com and .ovh; every deploy console-checked
+  (login, session, Schemas editor, forced reconnect, navigation during loads):
+  0 errors. Includes the fix of a regression of gobj-ui 7.25.6 that was live
+  (navigating in the schema editor during a reload emptied the model).
+- Schema editor: the loading screen is honest (body cleared, toolbar disabled,
+  navigation waits for the load, an open form keeps what was typed); a
+  transport drop ends the cut load or write and the reconnect reloads; stale
+  answers are ignored by round; a late successful write reloads and keeps its
+  marks.
+- gui_agent: the link answers every pending request on a close; request ids
+  are unique per page (two treedb views crossed answers); the deadline counts
+  from the dispatch ack and is scaled for uploads; late answers are logged and
+  a late successful write is echoed; Apply is counted per treedb; drafts and
+  withdrawn schemas are said; apply deadlines are `C_TIMER` children.
+- gui_treedb 0.17.56-0.17.57: discovery runs once per old connection (0.17.55
+  re-ran it every session and logged an error at the end of each scan).
+- One toast per message on screen (each repeat keeps its own handle and timer).
 
-### The independent review of 7.25.4, fixed
+### BREAKING
 
-An independent six-reviewer pass over the 7.25.4 fixes (none of them written
-by the reviewers) found one pre-existing high, about twelve mediums and a set
-of lows, several of them regressions or half-done fixes of 7.25.4. Every
-behaviour change below has a test that fails on 7.25.4 and passes now, except
-three: the `close()` check of `save_json_to_file()` (no local way to make it
-fail), and the comment-only and documentation-only items.
-
-**Data loss**
-
-- C_AUTHZ `disable-user`, `enable-user` and `set-max-sessions` ERASED the
-  user's local password (since 55266cbb5, 2025-11): they read the user without
-  `show_hidden`, so the hidden `credentials` column came back `null`, and wrote
-  the whole view back. They write only `{id, <field>}` now. A disabled and
-  re-enabled local-password user could never log in again.
-- `treedb_delete_instance()` answered 0 when it could not read every row of the
-  key; the instance came back at the next open. It refuses (-1) now.
-- The asset snapshot guard failed OPEN: `gc-assets`, or deleting an
-  `__assets__` node, could remove a blob a snapshot needs when a tagged record
-  was unreadable. It refuses now; a keyless `tranger2_open_list()` returns NULL
-  when a key's history does not load.
-- A master that lost its lock after `tranger2_stop()` wrote into the other
-  master's store (`topic_var.json`, `topic_cols.json`, topic dirs) before it
-  noticed. Every write takes the lock back first; a lost lock fails closed and
-  the tranger reads as a replica (`master` false, `master_lost` true). C_TRANGER
-  and C_TREEDB report that effective state (`master` attr, `treedbs` rows).
-- `topic_var.json` (the rowid counter) is always replaced through a temporary
-  file and a rename, never rewritten in place; a topic_version change also
-  fsyncs. `tranger2_write_topic_var()` returns -1 on a failed write.
-
-**Scans**
-
-- A `tm` query across files left holes between segments: the plain iterator
-  (and list loading) logged a false *"next rowids not consecutive"* and lost the
-  rows after the hole. Holes are stepped over now.
-- A file whose `tm` is out of order is marked (`<file>.tm_unordered`) in topics
-  created from now on (`marks_tm_unordered` in `topic_desc.json`); its tm range
-  is read from all its rows, so a restart no longer hides rows. In files known
-  to be in tm order a row past the range ends the scan of that FILE again
-  (one 80 000-row file: tens of milliseconds -> about 1 ms). **Topics created by 7.25.4 or earlier
-  cannot be marked afterwards**: no file's tm range is trusted there, which is
-  correct and costs what 7.25.4 cost.
-- After `delete_key` the iterators of that key drop their segments (7.25.4's
-  segment stamp could miss a key deleted and written again with the same counts,
-  and page into freed files).
-
-**Schemas (C_TREEDB)**
-
-- A saved draft that the operator reverts is withdrawn by the next
-  `save-schema` (the saved file is removed, the answer says `withdrawn`): the
-  editor's marks cleared never, and Apply would have installed the reverted
-  change.
-- A C literal that takes over the file in use re-projects only the topics whose
-  `topic_version` it raised; the operator's drafts in other topics survive.
-  Its warnings are precise (a missing file in use; no warning for a list- vs
-  dict-shaped `cols` of the same schema).
-- `default: {}` is kept on a `required` column; `apply-schema` writes no
-  derived `fkey` mark into the file in use. `apply-schema` is all-or-none up to
-  the renames: a rename that fails, fails alone, and its row says `applied`
-  false (docs corrected).
-
-**C_NODE, C_TRANGER, gobj-c**
-
-- Link, unlink and delete on a replica are refused before memory moves (for
-  direct C callers; the commands already checked).
-- Answers of update-node, delete-node, activate-snap and deactivate-snap start
-  with the yuno; activate-snap no longer reads `gobj_log_last_message()`.
-- An activation that cannot save the new snap leaves the old one active.
-- A refused rt disk id (empty, too long, in use by any creator) is a warning
-  without stack; `tranger2_open_iterator()` no longer leaks on a bad topic.
-- `save_json_to_file()` checks `close()` and logs a missing directory.
-- The C_TRANGER comment on filtered multi-key parts and the forward paging
-  that can repeat a row after an append are documented exactly.
-
-**BREAKING**
-
-- `save-schema` with nothing to save answers `data {treedb_name, withdrawn,
-  schema_version, path, changes}` and can remove the saved file.
-- `tranger2_write_topic_var()` can return -1.
-- A keyless `tranger2_open_list()` returns NULL when any key's history does not
-  load (one unreadable md2 row is enough), and then opens NO realtime feed
-  either. tr_queue and tr2q_mqtt log it; the wattyzer rt followers
-  (`agregador_wz`, `notifier_wz`, `automations_wz`, `scheduler_wz`,
-  `db_history_wz`) keep the NULL and run without live updates, with one error
-  line saying why. Nothing crashes.
-- After `delete_key` a filtered iterator pages an empty index; any write on a
-  stopped master can demote it to replica.
-- **Do not roll a node back to 7.25.4 or earlier for topics created by 7.25.5.**
-  `marks_tm_unordered` is written once, at the topic's creation, and from then
-  on every reader trusts the tm range of a file with no `.tm_unordered` marker.
-  An older binary appends out-of-order `tm` rows WITHOUT writing the marker, so
-  once the node moves forward again a tm scan can end such a file early and
-  hide rows. After a rollback, treat the topics it wrote as legacy (there is no
-  tool to do it yet: see TODO.md).
-- Comment texts of update-node, delete-node, activate/deactivate-snap and of
-  the rt id refusals changed; new topics carry `marks_tm_unordered`.
-
-### gobj-ui 7.25.6, yunos-js gui_agent 0.22.80
-
-- `kernel/js/gobj-ui` -> 7.25.6: the schema editor gets out of a transport drop
-  (a cut write or load ends, the reconnect reloads, stale answers are ignored);
-  package-lock resynced.
-- `yunos/js` -> gui_agent 0.22.80: the link answers every pending request when
-  it closes; the 60 s deadline counts from the controlcenter's dispatch ack and
-  is scaled for writes carrying `__files__`; a late successful write is echoed
-  and logged; saved-schema and save rounds carry an id; the apply deadline is a
-  `C_TIMER` per step; a Save answered "nothing to save" is explained, and a
-  reverted draft still saved on a 7.25.4 node keeps Apply off; a hosted view
-  hears a session edge after its transport (a startup `cannot route 'nodes'`
-  found by the console check).
-- Deployed to artgins.yunetacontrol.com and .ovh; console checked (login,
-  session, Schemas tab, forced reconnect): 0 errors.
-- docs: a paging example in data.md had swallowed the rest of the page.
+- Keyless `tranger2_open_list()` returns a flagged list (`load_failed`,
+  `load_failed_keys`); a one-key list returns NULL on a failed load; a record
+  whose content cannot be read ends a load with `load_failed`.
+- treedb refuses creates of unloaded ids, snapshot ops with a partial
+  `__snaps__`, `gc-assets` with a partial asset topic or an active snap.
+- `tranger2_write_topic_var()` / `tranger2_write_topic_cols()` can return -1;
+  the three md2 flag rewriters return -1 on a non-master; a revive whose store
+  another process holds exits at `on_critical_error` (default: exit).
+- New topics carry `marks_tm_unordered` in `topic_desc.json`.
+- A dynamic-schema treedb (impose off) no longer lets a newer literal replace
+  the whole schema file (see Schemas).
+- C_TREEDB `save-schema` / `saved-schema` / `apply-schema` answers carry new
+  fields (`withdrawn`, `stale`, `broken`, `withdrawn_at_open`, `applied`) and
+  `saved` changed meaning; C_NODE `gc-assets` `data` is a report, not a list;
+  `instances` answers -1 on failure; command comment texts of C_NODE and C_AUTHZ
+  changed; `mark-tm-order` without `topic_name` asks for it.
+- `delete-node ignore_snaps` needs `create`; `EV_TREEDB_UPDATE_NODE` is not
+  public.
 
 ## v7.25.4 (2026-09-23)
 
