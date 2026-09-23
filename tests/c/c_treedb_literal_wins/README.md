@@ -65,6 +65,16 @@ places of the schema agree: what the store RUNS (the open topics, their
 | DN | `tw_dn`, `tw_dn.b` | Two treedbs whose names start the same. A newer literal of `tw_dn` leaves the nodes of `tw_dn.b` alone, linked or not, and reports nothing. A column of `tw_dn.b` that the operator linked into `tw_dn.users` is only unlinked (and `users` is reported). `delete-treedb` of `tw_dn` deletes its own topic and no node of `tw_dn.b`. A newer literal of `tw_dn.b` takes its own orphan column and reports `c`. |
 | MV, NP | `tw_mv`, `tw_np` | The operator moves `departments.name` to `users` (`tw_mv`), or links it to `users` too (`tw_np`). A newer literal puts it back where it declares it in ONE open, with no record left, and reports it once: `departments` and `users` (`tw_mv`), `users` (`tw_np`). The node is never deleted. |
 | CR | `tw_crn_*`, `tw_crd_*` | The process DIES half way through a projection. A child process opens a newer literal (a header changed, a column and a topic added, a topic removed) and is killed (SIGKILL) at the k-th write of `__system__`, for every k (23 writes, 26 with drafts). It always leaves a record with `in_progress: true`. The next open completes the projection with no error, reports nothing that nobody did, and reports the operator's drafts (a header edited in `users`, a column added to `groups`, in `tw_crd_*`) exactly once. The open after that reports nothing. The log of this scenario is not compared line by line (where the process dies decides what the retry logs); each retry counts its errors and warnings. |
+| LM | `tw_lm` | A snapshot holds `departments` (a leftover). The operator MOVES its column `name` to `users`: the place of a leftover is part of "as left", so the move is a draft of both topics (`draft_changed`). The open after the snapshot is deleted removes the column and reports `departments` and `users` as `unsaved`. |
+| OE | `tw_oe0_*`, `tw_oe1_*` | A process dies between the delete of `departments` and the delete of its columns: `departments.name` is in NO topic. The operator edits its header (`tw_oe0_*`) or links it to `users` (`tw_oe1_*`). A node in no topic is still compared: the edit is a draft, and the open that completes the projection deletes the column and reports it (`departments`; and `users` for the link). |
+| AMB | `tw_am`, `tw_am.b`, `tw_zz` | The operator deletes the topic node `tw_am.b.departments` with force; its columns could be of `tw_am` or `tw_am.b`. The schema file of `tw_am.b` declares them: an unrelated treedb and `tw_am` say nothing and leave them; the newer literal of `tw_am.b` takes them (ONE WARNING each), deletes them and reports `departments`. A later open says nothing. |
+| AC | `tw_cx`, `tw_cx.b*` | The same ambiguity left by a process that dies between the delete of `departments` and of its columns: the record of the projection in progress names them, so the retry takes them (one WARNING each), deletes them and reports nothing. |
+| DTM | `tw_dtm` | `delete-treedb` deletes every node of its treedb: a column the operator moved to another of its topics, and a column the operator left in no topic. |
+| RU, RL | `tw_ru`, `tw_rl` | The record of an unfinished projection cannot be written (`saved_schemas/` read-only) and a snapshot refuses a delete. The node says `c_schema_version: -1`, the record is kept in memory (no draft, `save-schema` refuses) and written at the next open; the open that completes reports nothing (`tw_ru`). When the process that kept it is gone (a child), the record is LOST: one WARNING, `save-schema` refuses, and the open that completes reports what `__system__` held over the file, as `unsaved` (`tw_rl`). |
+| DD | `tw_dd`, `tw_dx`, `tw_dx.b`, `tw_ds` | Names with a dot give two elements one id. A literal whose columns collide (`tw_dd`), and one whose topic collides with another treedb's (`tw_dx.b` against `tw_dx`), are refused: the treedb does not open, one ERROR, nothing projected. A draft that collides is not saved, and a saved schema that collides is not applied (`tw_ds`). |
+| L8 | `tw_l8` | The literal removes `departments`, which holds a column the operator added. The topic is deleted and the deletes of its columns fail: the draft is still in `__system__`, so it is not reported, and the record keeps its kind. The open that removes the columns reports it. |
+| SE | `tw_se` | A node stamped with the literal 2 and no topic and no schema file, as a crash of 7.25.4 left it (it wrote the numbers first). The open with the literal 2 completes the projection and reports nothing. |
+| LG | `tw_lg*` | A projection keyed by rowid (an older meta-schema) moves to qualified ids, and the process is killed at each write of the move. The next open completes it: no legacy id is left, every node is at its qualified id, linked, with its content (an operator's column included), and no error is logged. |
 
 An unfinished projection is RECORDED in
 `saved_schemas/<treedb>.unfinished.json` under the `__system__` tranger. The
@@ -94,7 +104,12 @@ projection writes it, is the projection's: only a node that is neither can
 be the operator's work (scenario CR).
 
 The expected log list in `src/main.c` is strict FIFO: every line from INFO
-up, in order.
+up, in order. The scenarios from LM on are not in it: each runs in its own
+timeout (the event loop runs between two, and completes what the treedbs
+a step closed cancelled), and counts the errors and warnings of each open
+instead. A forked child takes an io_uring ring of its own before it does
+anything: the rings of the parent are mapped shared, and a child that
+submits on them breaks every later submission of the parent.
 
 ## Run
 

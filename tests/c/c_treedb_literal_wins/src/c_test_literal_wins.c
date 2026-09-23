@@ -33,6 +33,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <dirent.h>
+#include <liburing.h>
 
 #include "c_test_literal_wins.h"
 
@@ -113,6 +114,12 @@ typedef struct _PRIVATE_DATA {
     int kill_at_write;          // SIGKILL the process at this write (0: never)
     char break_writes_of[NAME_MAX]; // the node of `topics` whose next writes fail, once created
     int broken_fds;             // descriptors of that node made read-only
+
+    /*
+     *  The scenarios run one per timeout (see ac_timeout)
+     */
+    int step;                   // 0: run_tests(), then late_scenarios[step - 1]
+    int result;
 } PRIVATE_DATA;
 
 
@@ -3375,6 +3382,26 @@ PRIVATE BOOL system_node_links(hgobj gobj, const char *system_topic, const char 
 }
 
 /***************************************************************************
+ *  A forked child has the io_uring rings of its parent mapped SHARED, and
+ *  its own copy of their head and tail: a child that submits moves the
+ *  kernel's head under the parent, whose next submissions all answer that
+ *  the queue is full (yev_loop logs "io_uring_get_sqe() FAILED"), and the
+ *  completions of the child's operations reach the parent with pointers
+ *  into memory that is not the parent's. So the child takes a ring of its
+ *  own before anything else: the parent's operations in flight stay the
+ *  parent's. HACK the ring is the first member of the loop (yev_loop.c).
+ ***************************************************************************/
+PRIVATE void child_takes_its_own_ring(void)
+{
+    struct io_uring *ring = (struct io_uring *)yuno_event_loop();
+    unsigned entries = ring->sq.ring_entries;
+    io_uring_queue_exit(ring);
+    if(io_uring_queue_init(entries, ring, 0) < 0) {
+        _exit(4);
+    }
+}
+
+/***************************************************************************
  *  CR: the process DIES half way through a projection. v1 is projected;
  *  v2 changes a header and adds a column to `users`, adds the topic
  *  `roles`, keeps `groups` and removes `departments`: updates, creates,
@@ -3440,6 +3467,7 @@ PRIVATE int cr_open_killed(hgobj gobj, const char *db, int kill_at)
         return test_fail(gobj, db, "TEST FAIL: CR, fork() failed", json_string(strerror(errno)));
     }
     if(pid == 0) {
+        child_takes_its_own_ring();
         priv->system_writes = 0;
         priv->kill_at_write = kill_at;
         watch_system_writes(gobj, TRUE);
@@ -3943,6 +3971,919 @@ PRIVATE int scenario_column_moved_by_the_operator(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The errors and warnings logged since the counting handler was added
+ *  (see run_tests), to count what one open says with the capture off.
+ *  A watcher of the disk that cannot be created is not counted: a step of
+ *  the test runs inside ONE callback of the event loop, so the watchers
+ *  of the treedbs it closes are freed only when the loop runs again, and
+ *  the inotify instances of the user run out (every test process of the
+ *  machine shares them). That is the test, not the code under test.
+ ***************************************************************************/
+PRIVATE json_int_t counted_errors = 0;
+PRIVATE json_int_t counted_warnings = 0;
+
+PRIVATE int counting_log_write(void *h, int priority, const char *bf, size_t len)
+{
+    if(strstr(bf, "\"inotify_init1() FAILED\"") ||
+            strstr(bf, "\"fs_create_watcher_event FAILED\"")) {
+        return 0;
+    }
+    if(priority <= LOG_ERR) {
+        counted_errors++;
+    } else if(priority == LOG_WARNING) {
+        counted_warnings++;
+    }
+    return 0;
+}
+
+PRIVATE json_int_t log_count(hgobj gobj, const char *level)
+{
+    return strcmp(level, "error")==0? counted_errors : counted_warnings;
+}
+
+/***************************************************************************
+ *  A node of __system__ that must be gone
+ ***************************************************************************/
+PRIVATE int check_absent(hgobj gobj, const char *treedb_name, const char *label,
+    const char *system_topic, const char *id)
+{
+    json_t *node = system_node(gobj, system_topic, id);
+    int result = 0;
+    if(node) {
+        result = test_fail(gobj, treedb_name, label, json_pack("{s:s, s:O}", "id", id, "node", node));
+    }
+    JSON_DECREF(node)
+    return result;
+}
+
+/***************************************************************************
+ *  What one open of a treedb logs, as {"errors": n, "warnings": n}, with
+ *  what it answers: compared with what is expected
+ ***************************************************************************/
+PRIVATE int open_counting(hgobj gobj, const char *treedb_name, json_t *jn_schema, // owned
+    const char *label, int errors, int warnings)
+{
+    json_int_t e0 = log_count(gobj, "error");
+    json_int_t w0 = log_count(gobj, "warning");
+    json_t *jn_resp = open_db_resp(gobj, treedb_name, jn_schema);
+    json_int_t e = log_count(gobj, "error") - e0;
+    json_int_t w = log_count(gobj, "warning") - w0;
+    int result = 0;
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 || e != errors || w != warnings) {
+        result = test_fail(gobj, treedb_name, label, json_pack("{s:O, s:I, s:i, s:I, s:i}",
+            "answer", jn_resp,
+            "errors", e, "expected_errors", errors,
+            "warnings", w, "expected_warnings", warnings
+        ));
+    }
+    JSON_DECREF(jn_resp)
+    return result;
+}
+
+/***************************************************************************
+ *  LM: a snapshot holds `departments`, which the literal removes, so it is
+ *  a leftover. The operator MOVES its column `name` to `users` (unlinks it
+ *  from `departments`, links it to `users`): the place of a leftover is
+ *  part of "as left", so the move is a draft of both topics. The open that
+ *  completes the projection deletes the column and says both. Before, the
+ *  column was found wherever it was and compared by its attributes only:
+ *  the move was nobody's work, and the column was deleted in silence.
+ ***************************************************************************/
+PRIVATE int scenario_leftover_moved(hgobj gobj)
+{
+    const char *db = "tw_lm";
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    result += shoot_system_snap(gobj, db, db);
+    close_db(gobj, db);
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_draft_changed(gobj, db, "TEST FAIL: LM, the leftover reads as a draft",
+        json_object());
+    if(gobj_unlink_nodes(sys, "cols", "topics", json_pack("{s:s}", "id", "tw_lm.departments"),
+            "cols", json_pack("{s:s}", "id", "tw_lm.departments.name"), gobj) < 0 ||
+        gobj_link_nodes(sys, "cols", "topics", json_pack("{s:s}", "id", "tw_lm.users"),
+            "cols", json_pack("{s:s}", "id", "tw_lm.departments.name"), gobj) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: LM, the operator's move was refused", NULL);
+    }
+    result += check_draft_changed(gobj, db, "TEST FAIL: LM, the move of a leftover is not a draft",
+        json_pack("{s:b, s:b}", "departments", 1, "users", 1));
+    close_db(gobj, db);
+
+    result += delete_system_snap(gobj, db, db);
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_withdrawn(gobj, db, "TEST FAIL: LM, the move of a leftover was withdrawn in silence",
+        0, json_pack("{s:s, s:s}", "departments", "unsaved", "users", "unsaved"));
+    result += check_agree(gobj, db, "TEST FAIL: LM, the projection was not completed");
+    result += check_absent(gobj, db, "TEST FAIL: LM, the moved leftover stayed",
+        "cols", "tw_lm.departments.name");
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  OE: a process dies between the delete of `departments` and the delete
+ *  of its columns, so `departments.name` is left in NO topic, and the
+ *  record of the projection in progress plans its delete. The operator
+ *  edits that column before the next open: its header (`variant` 0), or
+ *  a link to `users` (1). A node in no topic is still there, and it is
+ *  compared: the edit is a draft, and the open that completes the
+ *  projection deletes the column and says it. Before, a node in no topic
+ *  read as "nothing", which is what a delete leaves: the edit was deleted
+ *  in silence.
+ ***************************************************************************/
+PRIVATE int scenario_orphaned_leftover_edited(hgobj gobj, int variant)
+{
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    for(int k = 1; k <= 40; k++) {
+        char db[64];
+        snprintf(db, sizeof(db), "tw_oe%d_%d", variant, k);
+        if(cr_prepare(gobj, db, FALSE) < 0) {
+            return result - 1;
+        }
+        int killed = cr_open_killed(gobj, db, k);
+        if(killed < 0) {
+            return result - 1;
+        }
+        if(killed == 0) {
+            break;
+        }
+        restart_system(gobj);
+
+        char dep_id[NAME_MAX], col[NAME_MAX], users_id[NAME_MAX];
+        snprintf(dep_id, sizeof(dep_id), "%s.departments", db);
+        snprintf(col, sizeof(col), "%s.departments.name", db);
+        snprintf(users_id, sizeof(users_id), "%s.users", db);
+        json_t *t = system_node(gobj, "topics", dep_id);
+        json_t *c = system_node(gobj, "cols", col);
+        BOOL hit = (!t && c)? TRUE : FALSE;
+        JSON_DECREF(t)
+        JSON_DECREF(c)
+        if(!hit) {
+            continue;
+        }
+
+        if(variant == 0) {
+            json_t *ed = gobj_update_node(sys, "cols",
+                json_pack("{s:s, s:s}", "id", col, "header", "Operator header"),
+                json_pack("{s:b}", "refs", 1), gobj);
+            if(!ed) {
+                result += test_fail(gobj, db, "TEST FAIL: OE, the operator's edit was refused", NULL);
+            }
+            JSON_DECREF(ed)
+        } else if(gobj_link_nodes(sys, "cols", "topics", json_pack("{s:s}", "id", users_id),
+                "cols", json_pack("{s:s}", "id", col), gobj) < 0) {
+            result += test_fail(gobj, db, "TEST FAIL: OE, the operator's link was refused", NULL);
+        }
+
+        if(open_db(gobj, db, cr_v2(db), FALSE) < 0) {
+            return result - 1;
+        }
+        result += check_withdrawn(gobj, db,
+            "TEST FAIL: OE, the edit of a leftover in no topic was deleted in silence", 0,
+            variant == 0?
+                json_pack("{s:s}", "departments", "unsaved") :
+                json_pack("{s:s, s:s}", "departments", "unsaved", "users", "unsaved"));
+        result += check_agree(gobj, db, "TEST FAIL: OE, the projection was not completed");
+        result += check_absent(gobj, db, "TEST FAIL: OE, the edited leftover stayed", "cols", col);
+        close_db(gobj, db);
+        return result;
+    }
+    return result + test_fail(gobj, "tw_oe",
+        "TEST FAIL: OE, no write leaves departments deleted and its column in no topic", NULL);
+}
+
+/***************************************************************************
+ *  AMB: treedbs `tw_am` and `tw_am.b`. The operator deletes the topic node
+ *  `tw_am.b.departments` with force: its columns are left in no topic,
+ *  and `tw_am.b.departments.name` could be the column `name` of the topic
+ *  `b.departments` of `tw_am`, or of the topic `departments` of `tw_am.b`.
+ *  The owner is read from what each says: the schema file of `tw_am.b`
+ *  declares `departments.name`. An unrelated treedb and `tw_am` say
+ *  nothing; the newer literal of `tw_am.b` takes the columns (ONE WARNING
+ *  each, naming it) and deletes them, and says the operator's delete.
+ *  Before, every projection of every treedb warned for each node, naming
+ *  itself, and the nodes were left to none, for ever.
+ ***************************************************************************/
+PRIVATE json_t *users_only(const char *db, int v)
+{
+    return schema_of(db, v, json_pack("[o]",
+        topic_of("users", v, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User")))));
+}
+
+PRIVATE int scenario_ambiguous_owner(hgobj gobj)
+{
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, "tw_am", users_departments_v1("tw_am"), FALSE) < 0 ||
+            open_db(gobj, "tw_am.b", users_departments_v1("tw_am.b"), FALSE) < 0) {
+        return -1;
+    }
+    close_db(gobj, "tw_am");
+    close_db(gobj, "tw_am.b");
+    if(gobj_delete_node(sys, "topics", json_pack("{s:s}", "id", "tw_am.b.departments"),
+            json_pack("{s:b}", "force", 1), gobj) < 0) {
+        result += test_fail(gobj, "tw_am.b", "TEST FAIL: AMB, the operator's delete was refused", NULL);
+    }
+
+    result += open_counting(gobj, "tw_zz", users_departments_v1("tw_zz"),
+        "TEST FAIL: AMB, an unrelated treedb said the nodes of others", 0, 0);
+    close_db(gobj, "tw_zz");
+    result += open_counting(gobj, "tw_zz", users_only("tw_zz", 2),
+        "TEST FAIL: AMB, an unrelated treedb said the nodes of others", 0, 0);
+    close_db(gobj, "tw_zz");
+    result += open_counting(gobj, "tw_am", users_only("tw_am", 2),
+        "TEST FAIL: AMB, a treedb took the nodes that another one's schema declares", 0, 0);
+    result += check_withdrawn(gobj, "tw_am", "TEST FAIL: AMB, tw_am said nodes of tw_am.b",
+        0, json_object());
+    close_db(gobj, "tw_am");
+    json_t *orphan = system_node(gobj, "cols", "tw_am.b.departments.name");
+    if(!orphan) {
+        result += test_fail(gobj, "tw_am", "TEST FAIL: AMB, tw_am deleted a node of tw_am.b", NULL);
+    }
+    JSON_DECREF(orphan)
+
+    result += open_counting(gobj, "tw_am.b", users_only("tw_am.b", 2),
+        "TEST FAIL: AMB, the owner did not say once each node it took", 0, 3);
+    result += check_withdrawn(gobj, "tw_am.b", "TEST FAIL: AMB, the operator's delete was not said",
+        0, json_pack("{s:s}", "departments", "unsaved"));
+    result += check_agree(gobj, "tw_am.b", "TEST FAIL: AMB, the projection was not completed");
+    close_db(gobj, "tw_am.b");
+    result += check_absent(gobj, "tw_am.b", "TEST FAIL: AMB, a node was left to none",
+        "cols", "tw_am.b.departments.name");
+    result += check_absent(gobj, "tw_am.b", "TEST FAIL: AMB, a node was left to none",
+        "cols", "tw_am.b.departments.id");
+    result += open_counting(gobj, "tw_am.b", users_only("tw_am.b", 3),
+        "TEST FAIL: AMB, a later open said something", 0, 0);
+    close_db(gobj, "tw_am.b");
+    return result;
+}
+
+/***************************************************************************
+ *  AC: the same ambiguity left by a CRASH: treedbs `tw_cx` and `tw_cx.bK`,
+ *  and the projection of `tw_cx.bK` dies between the delete of
+ *  `departments` and the delete of its columns. Its record plans them:
+ *  that settles the owner. The next open completes the projection, deletes
+ *  the columns, says nothing of them as the operator's work, and warns
+ *  once per column that it took it; the one after says nothing. Before,
+ *  the record was removed and the columns stayed for ever.
+ ***************************************************************************/
+PRIVATE int scenario_ambiguous_after_crash(hgobj gobj)
+{
+    int result = 0;
+    if(open_db(gobj, "tw_cx", users_departments_v1("tw_cx"), FALSE) < 0) {
+        return -1;
+    }
+    close_db(gobj, "tw_cx");
+    for(int k = 1; k <= 40; k++) {
+        char db[64];
+        snprintf(db, sizeof(db), "tw_cx.b%d", k);
+        if(cr_prepare(gobj, db, FALSE) < 0) {
+            return result - 1;
+        }
+        int killed = cr_open_killed(gobj, db, k);
+        if(killed < 0) {
+            return result - 1;
+        }
+        if(killed == 0) {
+            break;
+        }
+        restart_system(gobj);
+        char dep_id[NAME_MAX], col[NAME_MAX];
+        snprintf(dep_id, sizeof(dep_id), "%s.departments", db);
+        snprintf(col, sizeof(col), "%s.departments.name", db);
+        json_t *t = system_node(gobj, "topics", dep_id);
+        json_t *c = system_node(gobj, "cols", col);
+        BOOL hit = (!t && c)? TRUE : FALSE;
+        JSON_DECREF(t)
+        JSON_DECREF(c)
+        if(!hit) {
+            continue;
+        }
+        result += open_counting(gobj, db, cr_v2(db),
+            "TEST FAIL: AC, the completing open did not take the columns, or said more", 0, 2);
+        result += check_withdrawn(gobj, db, "TEST FAIL: AC, the projection's own nodes were said",
+            0, json_object());
+        result += check_agree(gobj, db, "TEST FAIL: AC, the projection was not completed");
+        close_db(gobj, db);
+        result += check_absent(gobj, db, "TEST FAIL: AC, a column was left for ever", "cols", col);
+        result += open_counting(gobj, db, cr_v2(db),
+            "TEST FAIL: AC, a later open said something", 0, 0);
+        close_db(gobj, db);
+        return result;
+    }
+    return result + test_fail(gobj, "tw_cx",
+        "TEST FAIL: AC, no write leaves departments deleted and its columns in no topic", NULL);
+}
+
+/***************************************************************************
+ *  DTM: delete-treedb deletes EVERY node of its treedb: a column the
+ *  operator moved to another of its topics, and a column the operator
+ *  left in no topic. Before, a column whose id names another topic was
+ *  skipped, even of the same treedb, and a node in no topic was not seen.
+ ***************************************************************************/
+PRIVATE int scenario_delete_treedb_every_node(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *db = "tw_dtm";
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, db, schema_of(db, 1, json_pack("[o,o]",
+            topic_of("users", 1, json_pack("{s:o, s:o, s:o}",
+                "id", col_id(), "username", col_str("User"), "email", col_str("Email"))),
+            topic_of("departments", 1, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name")))
+        )), FALSE) < 0) {
+        return -1;
+    }
+    if(gobj_unlink_nodes(sys, "cols", "topics", json_pack("{s:s}", "id", "tw_dtm.departments"),
+            "cols", json_pack("{s:s}", "id", "tw_dtm.departments.name"), gobj) < 0 ||
+        gobj_link_nodes(sys, "cols", "topics", json_pack("{s:s}", "id", "tw_dtm.users"),
+            "cols", json_pack("{s:s}", "id", "tw_dtm.departments.name"), gobj) < 0 ||
+        gobj_unlink_nodes(sys, "cols", "topics", json_pack("{s:s}", "id", "tw_dtm.users"),
+            "cols", json_pack("{s:s}", "id", "tw_dtm.users.email"), gobj) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: DTM, the operator's move or unlink was refused", NULL);
+    }
+    close_db(gobj, db);
+
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "delete-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", db, "force", 1), gobj);
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: DTM, delete-treedb failed", json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+
+    static const char *nodes[][2] = {
+        {"treedbs", "tw_dtm"},
+        {"topics", "tw_dtm.users"},
+        {"topics", "tw_dtm.departments"},
+        {"cols", "tw_dtm.users.id"},
+        {"cols", "tw_dtm.users.username"},
+        {"cols", "tw_dtm.users.email"},
+        {"cols", "tw_dtm.departments.id"},
+        {"cols", "tw_dtm.departments.name"},
+        {NULL, NULL}
+    };
+    for(int i = 0; nodes[i][0]; i++) {
+        result += check_absent(gobj, db, "TEST FAIL: DTM, delete-treedb left a node of its treedb",
+            nodes[i][0], nodes[i][1]);
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  RU: the record of an unfinished projection CANNOT BE WRITTEN
+ *  (saved_schemas/ read-only) while a snapshot refuses a delete. The
+ *  projection does not read as complete for that: the node of the treedb
+ *  says it (`c_schema_version` -1), the record is kept in memory, the
+ *  leftover is not a draft, `save-schema` refuses, and every open writes
+ *  the record again. The open that completes the projection says nothing.
+ *  Before, the next open read the projection as complete, showed the
+ *  leftover as a draft, and a save published it.
+ *
+ *  RL: the same, and the process that kept the record in memory is gone
+ *  (a child that dies). The node still says unfinished: the record is
+ *  LOST, a WARNING says it, `save-schema` refuses, and what __system__
+ *  holds over the file is taken for drafts, reported as withdrawn (never
+ *  deleted in silence) by the open that completes the projection.
+ ***************************************************************************/
+PRIVATE int check_unfinished(hgobj gobj, const char *treedb_name, const char *label,
+    json_t *expected) // owned
+{
+    json_t *jn_resp = treedb_cmd(gobj, treedb_name, "saved-schema", json_object());
+    json_t *ids = kw_get_list(gobj, jn_resp, "data`unfinished_projection", 0, 0);
+    int result = 0;
+    if(!ids || !json_equal(ids, expected)) {
+        result = test_fail(gobj, treedb_name, label, json_pack("{s:O, s:O}",
+            "expected", expected, "saved_schema", jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    JSON_DECREF(expected)
+    return result;
+}
+
+PRIVATE int check_save_refused(hgobj gobj, const char *treedb_name, const char *label)
+{
+    json_t *jn_resp = treedb_cmd(gobj, treedb_name, "save-schema", json_object());
+    int result = 0;
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0) {
+        result = test_fail(gobj, treedb_name, label, json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    return result;
+}
+
+PRIVATE int scenario_record_unwritable(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *db = "tw_ru";
+    int result = 0;
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, "__system__", "saved_schemas", NULL);
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    result += shoot_system_snap(gobj, db, db);
+    close_db(gobj, db);
+
+    mkrdir(dir, 02770);
+    chmod(dir, 0550);
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        chmod(dir, 02770);
+        return result - 1;
+    }
+    json_t *record = unfinished_record(gobj, db);
+    if(record) {
+        result += test_fail(gobj, db, "TEST FAIL: RU, a record was written in a read-only directory",
+            json_incref(record));
+    }
+    JSON_DECREF(record)
+    if(system_c_schema_version(gobj, db) != -1) {
+        result += test_fail(gobj, db, "TEST FAIL: RU, the node does not say the projection is unfinished",
+            json_integer(system_c_schema_version(gobj, db)));
+    }
+    result += check_unfinished(gobj, db, "TEST FAIL: RU, the projection reads as complete",
+        json_pack("[s]", "tw_ru.departments"));
+    result += check_draft_changed(gobj, db, "TEST FAIL: RU, the leftover reads as a draft",
+        json_object());
+    result += check_save_refused(gobj, db, "TEST FAIL: RU, save-schema published a leftover");
+    close_db(gobj, db);
+
+    chmod(dir, 02770);
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        return result - 1;
+    }
+    record = unfinished_record(gobj, db);
+    if(!json_is_object(record)) {
+        result += test_fail(gobj, db, "TEST FAIL: RU, the record was not written again", NULL);
+    }
+    JSON_DECREF(record)
+    result += check_draft_changed(gobj, db, "TEST FAIL: RU, the leftover reads as a draft (2)",
+        json_object());
+    result += check_save_refused(gobj, db, "TEST FAIL: RU, save-schema published a leftover (2)");
+    close_db(gobj, db);
+
+    result += delete_system_snap(gobj, db, db);
+    if(open_db(gobj, db, users_only(db, 3), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_withdrawn(gobj, db, "TEST FAIL: RU, the leftover was said as the operator's work",
+        0, json_object());
+    result += check_agree(gobj, db, "TEST FAIL: RU, the projection was not completed");
+    if(system_c_schema_version(gobj, db) != 3) {
+        result += test_fail(gobj, db, "TEST FAIL: RU, the completed projection is not stamped",
+            json_integer(system_c_schema_version(gobj, db)));
+    }
+    close_db(gobj, db);
+    return result;
+}
+
+PRIVATE int scenario_record_lost(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *db = "tw_rl";
+    int result = 0;
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, "__system__", "saved_schemas", NULL);
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    result += shoot_system_snap(gobj, db, db);
+    close_db(gobj, db);
+
+    mkrdir(dir, 02770);
+    chmod(dir, 0550);
+    fflush(stdout);
+    fflush(stderr);
+    pid_t pid = fork();
+    if(pid < 0) {
+        chmod(dir, 02770);
+        return test_fail(gobj, db, "TEST FAIL: RL, fork() failed", json_string(strerror(errno)));
+    }
+    if(pid == 0) {
+        child_takes_its_own_ring();
+        open_db(gobj, db, users_only_v2(db), FALSE);
+        _exit(3);
+    }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    chmod(dir, 02770);
+    restart_system(gobj);
+
+    /*
+     *  The node says unfinished and there is no record: the WARNING of the
+     *  lost record, the retry that the snapshot still refuses (its ERROR
+     *  and its WARNING), and the record written this time
+     */
+    result += open_counting(gobj, db, users_only_v2(db),
+        "TEST FAIL: RL, a lost record read as a complete projection", 1, 2);
+    result += check_unfinished(gobj, db, "TEST FAIL: RL, a lost record reads as complete",
+        json_pack("[s]", "tw_rl.departments"));
+    result += check_save_refused(gobj, db, "TEST FAIL: RL, save-schema published over a lost record");
+    close_db(gobj, db);
+
+    result += delete_system_snap(gobj, db, db);
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: RL, what a lost record left was deleted in silence",
+        0, json_pack("{s:s}", "departments", "unsaved"));
+    result += check_agree(gobj, db, "TEST FAIL: RL, the projection was not completed");
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  DD: names with a dot give two elements ONE qualified id in __system__.
+ *  (a) one treedb: the column `x.y` of the topic `u` and the column `y` of
+ *      the topic `u.x` are both `tw_dd.u.x.y`;
+ *  (b) two treedbs: the topic `b.c` of `tw_dx` and the topic `c` of
+ *      `tw_dx.b` are both `tw_dx.b.c`.
+ *  Such a schema is refused, loudly, naming both: the treedb does not
+ *  open, and nothing is written in __system__. A draft that collides is
+ *  not saved, and a saved schema that collides is not applied. Before, the
+ *  two were one node with no error ((a)), or the second treedb failed at
+ *  every open with "Cannot update node: it does not exist" ((b)).
+ ***************************************************************************/
+PRIVATE int open_refused(hgobj gobj, const char *treedb_name, json_t *jn_schema, // owned
+    const char *label)
+{
+    json_int_t e0 = log_count(gobj, "error");
+    json_t *jn_resp = open_db_resp(gobj, treedb_name, jn_schema);
+    int result = 0;
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 || log_count(gobj, "error") - e0 != 1) {
+        result = test_fail(gobj, treedb_name, label, json_pack("{s:O, s:I}",
+            "answer", jn_resp, "errors", log_count(gobj, "error") - e0));
+    }
+    JSON_DECREF(jn_resp)
+    close_db(gobj, treedb_name);
+    return result;
+}
+
+PRIVATE int scenario_colliding_ids(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    result += open_refused(gobj, "tw_dd", schema_of("tw_dd", 1, json_pack("[o,o]",
+            topic_of("u", 1, json_pack("{s:o, s:o}", "id", col_id(), "x.y", col_str("XY"))),
+            topic_of("u.x", 1, json_pack("{s:o, s:o}", "id", col_id(), "y", col_str("Y")))
+        )), "TEST FAIL: DD, a schema whose columns collide was not refused");
+    result += check_absent(gobj, "tw_dd", "TEST FAIL: DD, a refused schema was projected",
+        "treedbs", "tw_dd");
+    result += check_absent(gobj, "tw_dd", "TEST FAIL: DD, a refused schema was projected",
+        "cols", "tw_dd.u.x.y");
+
+    if(open_db(gobj, "tw_dx", schema_of("tw_dx", 1, json_pack("[o]",
+            topic_of("b.c", 1, json_pack("{s:o, s:o}", "id", col_id(), "n", col_str("N"))))), FALSE) < 0) {
+        return result - 1;
+    }
+    close_db(gobj, "tw_dx");
+    for(int i = 0; i < 2; i++) {
+        result += open_refused(gobj, "tw_dx.b", schema_of("tw_dx.b", 1, json_pack("[o]",
+                topic_of("c", 1, json_pack("{s:o, s:o}", "id", col_id(), "n", col_str("N b"))))),
+            "TEST FAIL: DD, a topic colliding with another treedb's was not refused");
+    }
+    if(!system_node_links(gobj, "topics", "tw_dx.b.c", "treedbs", "treedbs^tw_dx^topics")) {
+        result += test_fail(gobj, "tw_dx", "TEST FAIL: DD, the node of tw_dx was touched", NULL);
+    }
+    result += check_absent(gobj, "tw_dx.b", "TEST FAIL: DD, a refused schema was projected",
+        "treedbs", "tw_dx.b");
+
+    /*
+     *  A draft that collides: the operator adds the topic `u.x` next to
+     *  the column `x` of `u` (both `tw_ds.u.x`)
+     */
+    const char *db = "tw_ds";
+    if(open_db(gobj, db, schema_of(db, 1, json_pack("[o]",
+            topic_of("u", 1, json_pack("{s:o, s:o}", "id", col_id(), "x", col_str("X"))))), FALSE) < 0) {
+        return result - 1;
+    }
+    json_t *topic = gobj_create_node(sys, "topics",
+        json_pack("{s:s, s:s, s:s, s:s, s:i}",
+            "id", "tw_ds.u.x", "value", "u.x", "pkey", "id", "system_flag", "sf_string_key",
+            "topic_version", 1),
+        json_pack("{s:b}", "refs", 1), gobj);
+    if(!topic || gobj_link_nodes(sys, "topics", "treedbs", json_pack("{s:s}", "id", db),
+            "topics", json_incref(topic), gobj) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: DD, the operator's topic was refused", NULL);
+    }
+    JSON_DECREF(topic)
+    if(add_draft_col(gobj, db, "u.x", "id") < 0) {
+        result += -1;
+    }
+    json_int_t e0 = log_count(gobj, "error");
+    json_t *jn_resp = treedb_cmd(gobj, db, "save-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 || log_count(gobj, "error") - e0 != 1 ||
+            has_saved_schema(gobj, db)) {
+        result += test_fail(gobj, db, "TEST FAIL: DD, a draft whose ids collide was saved",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  A saved schema that collides, written by hand: not applied
+     */
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    mkrdir(dir, 02770);
+    save_json_to_file(gobj, dir, "tw_ds.treedb_schema.json", 02770, 0660, 0, TRUE, FALSE,
+        schema_of(db, 2, json_pack("[o,o]",
+            topic_of("u", 2, json_pack("{s:o, s:o}", "id", col_id(), "x", col_str("X")))  ,
+            topic_of("u.x", 1, json_pack("{s:o}", "id", col_id()))
+        )));
+    e0 = log_count(gobj, "error");
+    jn_resp = treedb_cmd(gobj, db, "apply-schema", json_object());
+    json_t *file = load_schema_file(gobj, db);
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 || log_count(gobj, "error") - e0 != 1 ||
+            kw_get_int(gobj, file, "schema_version", 0, KW_WILD_NUMBER) != 1) {
+        result += test_fail(gobj, db, "TEST FAIL: DD, a saved schema whose ids collide was applied",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(file)
+    JSON_DECREF(jn_resp)
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  L8: the literal removes `departments`; the operator had added the
+ *  column `budget` to it (a draft). The topic is deleted, and the deletes
+ *  of its columns FAIL (the directory of the keys of `cols` is read-only).
+ *  The draft is still in __system__, so it is not said at that open: the
+ *  record keeps its kind. The open that removes the columns says it.
+ *  Before, the topic was said at the open that left part of its draft.
+ ***************************************************************************/
+PRIVATE int scenario_gone_topic_col_undeletable(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *db = "tw_l8";
+    int result = 0;
+    char keys[PATH_MAX];
+    build_path(keys, sizeof(keys), priv->path_database, "__system__", "cols", "keys", NULL);
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    result += add_draft_col(gobj, db, "departments", "budget");
+    close_db(gobj, db);
+
+    chmod(keys, 0550);
+    json_t *jn_resp = open_db_resp(gobj, db, users_only_v2(db));
+    chmod(keys, 02770);
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: L8, open-treedb failed", json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    result += check_withdrawn(gobj, db, "TEST FAIL: L8, a draft still in __system__ was said",
+        0, json_object());
+    json_t *record = unfinished_record(gobj, db);
+    json_t *expected_kinds = json_pack("{s:s}", "departments", "unsaved");
+    if(!json_equal(json_object_get(record, "draft_kinds"), expected_kinds)) {
+        result += test_fail(gobj, db, "TEST FAIL: L8, the record does not keep the kind of the draft",
+            json_incref(record));
+    }
+    JSON_DECREF(expected_kinds)
+    JSON_DECREF(record)
+    close_db(gobj, db);
+
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_withdrawn(gobj, db, "TEST FAIL: L8, the open that removed the draft did not say it",
+        0, json_pack("{s:s}", "departments", "unsaved"));
+    result += check_agree(gobj, db, "TEST FAIL: L8, the projection was not completed");
+    result += check_absent(gobj, db, "TEST FAIL: L8, a column stayed", "cols", "tw_l8.departments.budget");
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  SE: a projection STAMPED BEFORE ITS TOPICS were written, as 7.25.4 and
+ *  earlier wrote it and a crash of its first open left it: the node of the
+ *  treedb says the literal 2 (schema_version and c_schema_version 2), it
+ *  holds no topic, and there is no schema file. The open with the literal
+ *  2 does not take it as done: it completes the projection, and says
+ *  nothing (what is missing is the projection's, not the operator's).
+ *  Before, it returned early ("the projection is of this literal
+ *  already"), at every open.
+ ***************************************************************************/
+PRIVATE int scenario_stamped_before_its_topics(hgobj gobj)
+{
+    const char *db = "tw_se";
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, "tw_se0", users_departments_v1("tw_se0"), FALSE) < 0) {
+        return -1;
+    }
+    close_db(gobj, "tw_se0");
+    json_t *meta = gobj_list_nodes(sys, "treedbs", json_pack("{s:s}", "id", "tw_se0"), 0, gobj);
+    json_int_t meta_version = kw_get_int(gobj, json_array_get(meta, 0), "system_schema_version",
+        0, KW_WILD_NUMBER);
+    JSON_DECREF(meta)
+    json_t *node = gobj_create_node(sys, "treedbs",
+        json_pack("{s:s, s:i, s:i, s:I}", "id", db, "schema_version", 2, "c_schema_version", 2,
+            "system_schema_version", meta_version),
+        json_pack("{s:b}", "refs", 1), gobj);
+    if(!node) {
+        result += test_fail(gobj, db, "TEST FAIL: SE, the stamped node could not be made", NULL);
+    }
+    JSON_DECREF(node)
+
+    json_t *v2 = schema_of(db, 2, json_pack("[o,o]",
+        topic_of("users", 2, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User v2"))),
+        topic_of("departments", 1, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name")))
+    ));
+    result += open_counting(gobj, db, v2,
+        "TEST FAIL: SE, the open said something of a projection that died", 0, 0);
+    result += check_withdrawn(gobj, db, "TEST FAIL: SE, the projection's own gaps were said",
+        0, json_object());
+    result += check_agree(gobj, db, "TEST FAIL: SE, a projection stamped before its topics was taken as done");
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  LG: the move of a projection keyed by rowid (an older meta-schema) to
+ *  qualified ids DIES at each of its writes. The next open completes the
+ *  move: no legacy id is left, every node is at its qualified id, linked
+ *  where it belongs, with its content (the operator's column included),
+ *  and nothing is logged as an error. Before, a move that died left a
+ *  qualified copy that the next move failed to create ("Node already
+ *  exists"), and the legacy node stayed.
+ ***************************************************************************/
+PRIVATE int build_legacy_projection(hgobj gobj, const char *db)
+{
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    char topic_rowid[NAME_MAX];
+    snprintf(topic_rowid, sizeof(topic_rowid), "%s-7", db);
+
+    json_t *treedb = gobj_create_node(sys, "treedbs",
+        json_pack("{s:s, s:i, s:i, s:i}", "id", db, "schema_version", 1, "c_schema_version", 1,
+            "system_schema_version", 1),
+        json_pack("{s:b}", "refs", 1), gobj);
+    json_t *topic = gobj_create_node(sys, "topics",
+        json_pack("{s:s, s:s, s:s, s:s, s:i}", "id", topic_rowid, "value", "users", "pkey", "id",
+            "system_flag", "sf_string_key", "topic_version", 1),
+        json_pack("{s:b}", "refs", 1), gobj);
+    if(!treedb || !topic ||
+            gobj_link_nodes(sys, "topics", "treedbs", json_incref(treedb), "topics",
+                json_incref(topic), gobj) < 0) {
+        JSON_DECREF(treedb)
+        JSON_DECREF(topic)
+        return test_fail(gobj, db, "TEST FAIL: LG, the legacy projection could not be made", NULL);
+    }
+    static const char *cols[][4] = {
+        {"70", "id",           "Id",       "required"},
+        {"71", "username",     "Login",    ""},
+        {"72", "operator_col", "Operator", ""},
+        {NULL, NULL, NULL, NULL}
+    };
+    int result = 0;
+    for(int i = 0; cols[i][0]; i++) {
+        char rowid[NAME_MAX];
+        snprintf(rowid, sizeof(rowid), "%s-%s", db, cols[i][0]);
+        json_t *flag = empty_string(cols[i][3])?
+            json_pack("[s]", "persistent") : json_pack("[s,s]", "persistent", cols[i][3]);
+        json_t *col = gobj_create_node(sys, "cols",
+            json_pack("{s:s, s:s, s:s, s:s, s:i, s:o}", "id", rowid, "value", cols[i][1],
+                "header", cols[i][2], "type", "string", "fillspace", 10, "flag", flag),
+            json_pack("{s:b}", "refs", 1), gobj);
+        if(!col || gobj_link_nodes(sys, "cols", "topics", json_incref(topic), "cols",
+                json_incref(col), gobj) < 0) {
+            result += test_fail(gobj, db, "TEST FAIL: LG, a legacy column could not be made", NULL);
+        }
+        JSON_DECREF(col)
+    }
+    JSON_DECREF(treedb)
+    JSON_DECREF(topic)
+    return result;
+}
+
+PRIVATE json_t *lg_literal(const char *db)
+{
+    return schema_of(db, 1, json_pack("[o]",
+        topic_of("users", 1, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("Login")))));
+}
+
+PRIVATE int open_with_killed(hgobj gobj, const char *db, json_t *jn_schema, int kill_at) // owned
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    fflush(stdout);
+    fflush(stderr);
+    pid_t pid = fork();
+    if(pid < 0) {
+        JSON_DECREF(jn_schema)
+        return test_fail(gobj, db, "TEST FAIL: LG, fork() failed", json_string(strerror(errno)));
+    }
+    if(pid == 0) {
+        child_takes_its_own_ring();
+        priv->system_writes = 0;
+        priv->kill_at_write = kill_at;
+        watch_system_writes(gobj, TRUE);
+        open_db(gobj, db, jn_schema, FALSE);
+        _exit(3);
+    }
+    JSON_DECREF(jn_schema)
+    int status = 0;
+    if(waitpid(pid, &status, 0) < 0) {
+        return test_fail(gobj, db, "TEST FAIL: LG, waitpid() failed", json_string(strerror(errno)));
+    }
+    if(WIFSIGNALED(status) && WTERMSIG(status) == SIGKILL) {
+        return 1;
+    }
+    if(WIFEXITED(status) && WEXITSTATUS(status) == 3) {
+        return 0;
+    }
+    return test_fail(gobj, db, "TEST FAIL: LG, the child process ended some other way",
+        json_integer(status));
+}
+
+PRIVATE int scenario_legacy_move_killed(hgobj gobj)
+{
+    int result = 0;
+    int kills = 0;
+    for(int k = 1; k <= 40; k++) {
+        char db[64];
+        snprintf(db, sizeof(db), "tw_lg%d", k);
+        if(build_legacy_projection(gobj, db) < 0) {
+            return result - 1;
+        }
+        int killed = open_with_killed(gobj, db, lg_literal(db), k);
+        if(killed < 0) {
+            return result - 1;
+        }
+        restart_system(gobj);
+
+        json_int_t e0 = log_count(gobj, "error");
+        if(open_db(gobj, db, lg_literal(db), FALSE) < 0) {
+            return result - 1;
+        }
+        if(log_count(gobj, "error") - e0 != 0) {
+            result += test_fail(gobj, db, "TEST FAIL: LG, the move that completes logged an error",
+                json_integer(k));
+        }
+        static const char *legacy[][2] = {
+            {"topics", "-7"}, {"cols", "-70"}, {"cols", "-71"}, {"cols", "-72"}, {NULL, NULL}
+        };
+        for(int i = 0; legacy[i][0]; i++) {
+            char id[NAME_MAX];
+            snprintf(id, sizeof(id), "%s%s", db, legacy[i][1]);
+            result += check_absent(gobj, db, "TEST FAIL: LG, a legacy node stayed", legacy[i][0], id);
+        }
+        char topic_id[NAME_MAX], ref[NAME_MAX + 16];
+        snprintf(topic_id, sizeof(topic_id), "%s.users", db);
+        snprintf(ref, sizeof(ref), "treedbs^%s^topics", db);
+        if(!system_node_links(gobj, "topics", topic_id, "treedbs", ref)) {
+            result += test_fail(gobj, db, "TEST FAIL: LG, the topic is not at its qualified id, linked",
+                json_integer(k));
+        }
+        static const char *names[][2] = {
+            {"id", "Id"}, {"username", "Login"}, {"operator_col", "Operator"}, {NULL, NULL}
+        };
+        for(int i = 0; names[i][0]; i++) {
+            char col_id_[NAME_MAX];
+            snprintf(col_id_, sizeof(col_id_), "%s.users.%s", db, names[i][0]);
+            snprintf(ref, sizeof(ref), "topics^%s^cols", topic_id);
+            json_t *col = system_node(gobj, "cols", col_id_);
+            if(!col || !system_node_links(gobj, "cols", col_id_, "topics", ref) ||
+                    strcmp(kw_get_str(gobj, col, "header", "", 0), names[i][1])!=0) {
+                result += test_fail(gobj, db,
+                    "TEST FAIL: LG, a column is not at its qualified id, linked, with its content",
+                    json_pack("{s:s, s:i, s:O}", "col", col_id_, "k", k, "node", col? col : json_null()));
+            }
+            JSON_DECREF(col)
+        }
+        close_db(gobj, db);
+        if(killed == 0) {
+            break;
+        }
+        kills++;
+    }
+    if(kills < 5) {
+        result += test_fail(gobj, "tw_lg", "TEST FAIL: LG, the move was killed at too few writes",
+            json_integer(kills));
+    }
+    return result;
+}
+
+/***************************************************************************
  *  Run every scenario
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -3999,18 +4940,43 @@ PRIVATE int run_tests(hgobj gobj)
     gobj_log_del_handler("test_capture");
     result += scenario_crash_at_every_write(gobj, FALSE);
     result += scenario_crash_at_every_write(gobj, TRUE);
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
 
-    if(result == 0) {
-        gobj_log_info(gobj, 0,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "All treedb literal wins tests PASSED",
-            NULL
-        );
-    }
-
+    /*
+     *  The capture stays off: the late scenarios count what each open
+     *  says (see ac_timeout)
+     */
     return result;
 }
+
+/***************************************************************************
+ *  The scenarios of the 13th review, one per timeout (see ac_timeout).
+ *  They count the errors and warnings of each open instead of comparing
+ *  the log line by line (open_counting): several of them fork, or kill.
+ ***************************************************************************/
+PRIVATE int scenario_orphaned_leftover_edited_0(hgobj gobj)
+{
+    return scenario_orphaned_leftover_edited(gobj, 0);
+}
+PRIVATE int scenario_orphaned_leftover_edited_1(hgobj gobj)
+{
+    return scenario_orphaned_leftover_edited(gobj, 1);
+}
+
+PRIVATE int (*late_scenarios[])(hgobj gobj) = {
+    scenario_leftover_moved,
+    scenario_orphaned_leftover_edited_0,
+    scenario_orphaned_leftover_edited_1,
+    scenario_ambiguous_owner,
+    scenario_ambiguous_after_crash,
+    scenario_delete_treedb_every_node,
+    scenario_record_unwritable,
+    scenario_record_lost,
+    scenario_colliding_ids,
+    scenario_gone_topic_col_undeletable,
+    scenario_stamped_before_its_topics,
+    scenario_legacy_move_killed,
+    NULL
+};
 
 
 
@@ -4056,8 +5022,37 @@ PRIVATE int ac_system_write(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    run_tests(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  ONE step per timeout: the loop runs between two, and completes what
+     *  the treedbs closed in a step cancelled. The whole test in one
+     *  callback filled the completion queue of io_uring, and nothing more
+     *  could be submitted (yev_loop says so, "the submission queue is full")
+     */
+    if(priv->step == 0) {
+        priv->result += run_tests(gobj);
+        gobj_log_register_handler("counting", 0, counting_log_write, 0);
+        gobj_log_add_handler("test_counting", "counting", LOG_OPT_UP_WARNING, 0);
+    } else {
+        priv->result += late_scenarios[priv->step - 1](gobj);
+    }
+    priv->step++;
+    if(late_scenarios[priv->step - 1]) {
+        set_timeout(priv->timer, 10);
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    gobj_log_del_handler("test_counting");
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+    if(priv->result == 0) {
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "All treedb literal wins tests PASSED",
+            NULL
+        );
+    }
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_INFO,
         "msg",          "%s", "Exit to die",

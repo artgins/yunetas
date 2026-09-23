@@ -357,7 +357,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Schema saved",
-    "Cannot create json file",
+    "Cannot write a record of saved_schemas/",
     "Schema applied",
 
     /*  M1: a snapshot holds departments; v2 leaves it (unfinished), the
