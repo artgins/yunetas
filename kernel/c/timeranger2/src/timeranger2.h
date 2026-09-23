@@ -292,9 +292,11 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
    and an existing topic is opened read-only, nothing written. On the master it
    writes topic_desc.json (with "marks_tm_unordered": true) / topic_cols.json /
    topic_var.json plus the keys/ and disks/ subdirs. If `jn_var`'s topic_version
-   is greater than the on-disk one, topic_cols.json is regenerated and
-   topic_var.json REPLACED (temporary file + rename, fsync'ed; the treedb
-   counter `last_rowid_id` is carried over).
+   is greater than the on-disk one, topic_cols.json is REPLACED and then
+   topic_var.json (temporary file + rename each, topic_var.json fsync'ed; the
+   treedb counter `last_rowid_id` is carried over). When either cannot be
+   written the call returns NULL (logged) and the topic is not opened: the
+   version on disk has not moved, and the next create tries again.
 
    Key type: if `system_flag` carries no key-type bit it defaults to
         sf_string_key   if pkey is defined

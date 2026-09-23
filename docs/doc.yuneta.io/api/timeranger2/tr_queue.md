@@ -180,7 +180,7 @@ The returned JSON object is a reference and must not be altered or deallocated b
 (trq_load)=
 ## [`trq_load()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/timeranger2/src/tr_queue.c#L217)
 
-`trq_load()` loads pending messages from the queue and returns an iterator for traversal.
+`trq_load()` loads the pending messages of the queue (the records flagged `TRQ_MSG_PENDING`) into memory, metadata only: the content is read when a message asks for it ([`trq_msg_json()`](<#trq_msg_json>)). The load starts at the queue's `first_rowid`, saved in `topic_var.json` by the previous load, and saves the rowid of the first pending message it finds as the new one (the size of the topic when none is pending).
 
 ```C
 int trq_load(
@@ -196,7 +196,20 @@ int trq_load(
 
 **Returns**
 
-Returns an iterator for traversing the loaded messages.
+`0` when every pending message was read. `-1` when the queue is `NULL`, or when the load could not read every pending message (a row of the queue's md2 that cannot be read: the list says `load_failed`, and the log *"Queue loaded without some of its messages: its first_rowid is not moved nor saved"*). The messages it read ARE in the queue; `first_rowid` is kept as it was, so a load after the store is repaired finds the ones this one missed. Up to 7.25.4 such a load saved the size of the topic as `first_rowid`, and those messages were skipped for ever. The same holds for `tr2q_load()` of the mqtt queues.
+
+**Example**
+
+```C
+tr_queue_t *trq = trq_open(tranger, "emails", "tm", 0, 0);
+if(trq_load(trq) < 0) {
+    /* some pending messages are not in memory (see the log); the rest are */
+}
+q_msg_t *msg;
+qmsg_foreach_forward(trq, msg) {
+    /* deliver it, then trq_unload_msg(msg, 0) */
+}
+```
 
 **Notes**
 

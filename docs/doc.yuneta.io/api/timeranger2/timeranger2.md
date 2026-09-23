@@ -459,9 +459,17 @@ migration.
 }
 ```
 
-**A new `topic_version` replaces `topic_var.json`** through a temporary file
-and a `rename()`, fsync'ed; the `last_rowid_id` counter of treedb is carried
-over. *"Re-Creating topic_var.json"* is logged only when the file was written.
+**A new `topic_version` replaces `topic_cols.json`, then `topic_var.json`**,
+each through a temporary file and a `rename()` (`topic_var.json` fsync'ed); the
+`last_rowid_id` counter of treedb is carried over. The cols go first because
+the version is what says they moved. A file that cannot be written refuses the
+topic: the call answers `NULL`, logs *"Cannot re-create topic_cols.json for a
+new topic_version: the topic keeps its version, and is not opened"* (or the
+error of `topic_var.json`), and the next create tries again -- the version on
+disk has not moved. *"Re-Creating topic_var.json"* and *"Re-Creating
+topic_cols.json"* are logged only for a file written. Up to 7.25.4
+`topic_cols.json` was REMOVED first and a failed write went unnoticed: the
+topic opened with no cols file under the new version.
 
 (timeranger2-topic-name-rule)=
 **Topic names.** A topic name is ONE directory under the database, and a segment of the backtick kw paths (`` topics`<name>`cols ``). Every call that takes a topic name — create, open, delete, backup, `tranger2_topic_path()`, `tranger2_write_topic_var()` / `_cols()` — refuses, with the error *"Invalid topic name (path metacharacters not allowed)"*:
@@ -1151,7 +1159,23 @@ A dict, yours:
 wrote. `NULL` (logged, and in `gobj_log_last_message()`) when the handle is
 not the master (*"Only master can write"*), the topic does not exist, a md2
 file cannot be read, or a marker or `topic_desc.json` cannot be written. The
-topic is then left as it was; the markers already written stay.
+keys are walked in the order of the topic's cache and the call stops at the
+first failure. What it leaves:
+
+- the topic is NOT marked: `"marks_tm_unordered"` is unchanged, in
+  `topic_desc.json` and in memory, so no file's `tm` range is trusted, as
+  before the call;
+- the markers written before the failure stay on disk;
+- the cells of the files read before the failure keep, in memory, the flags
+  and the whole-file ranges the call gave them, and the totals of their keys
+  follow them (the key that failed too). Those ranges are what the disk
+  holds: they only make the answers exact.
+
+Run it again once the cause is fixed. A file that needs a marker and whose
+name leaves no room for one (`<file_id>.tm_unordered` longer than `NAME_MAX`)
+is not a failure: it is skipped and logged (*"Cannot mark a md2 file, its name
+leaves no room for a marker: skipped, every load reads it whole"*), since
+every load reads such a file whole already.
 
 **Notes**
 
@@ -1164,9 +1188,19 @@ did not mark, it sets `"marks_tm_unordered": true` in `topic_desc.json`
 0440 as before) and in memory. The next page of an open iterator takes its
 segments again.
 
-It is synchronous and costs one sequential read of the topic's md2 files, 32
-bytes a row: 16 ms for 600000 rows with a warm page cache. Run it on a quiet
-node.
+It is synchronous -- the yuno's event loop is blocked while it runs -- and
+costs a listing of each key's directory and one sequential read of every md2
+file, 32 bytes a row: linear in the rows and in the files. Measured with a
+warm page cache:
+
+| Store | Time |
+|---|---|
+| 1 key, 30 files x 20000 rows (600000 rows) | 16 ms |
+| 4 keys, 365 daily files of one row each | 21-32 ms |
+| 4 keys, 3650 daily files of one row each (14600 files) | 72-88 ms |
+
+(Its first version, never released, found each file's cell by walking the
+cells from the first: 2.5 s for those 14600 files.) Run it on a quiet node.
 
 Run it again on a topic that marks to re-mark it after a rollback to a binary
 that appends without markers (every release up to 7.25.4), or after a crash
@@ -1247,12 +1281,39 @@ cannot be built.
 The iterator supports real-time data loading and filtering based on various conditions. Use [`tranger2_close_iterator()`](<#tranger2_close_iterator>) to release resources when done.
 
 **A load that stops half way says so.** When the LOADING (a callback, or
-`data`) meets a row whose metadata cannot be read, it stops there, logs it, and
-leaves `"load_failed": true` in the iterator. What the callback saw, and what
-`data` holds, is then NOT the whole history: a caller that asks the history a
-question (is any record of this key frozen by a snapshot?) must read the flag
-before it takes a "no". A record whose CONTENT cannot be read is handed to the
-callback as `NULL` (and is not added to `data`): check for it too.
+`data`) meets a row whose metadata or whose CONTENT cannot be read, it stops
+there, logs it, and leaves `"load_failed": true` in the iterator. The rows
+before it, in the load's direction, were handed (forward: the oldest,
+backward: the newest). What the callback saw, and what `data` holds, is then
+NOT the whole history: a caller that asks the history a question (is any
+record of this key frozen by a snapshot?) must read the flag before it takes a
+"no". Up to 7.25.4 a record whose content could not be read was handed to the
+callback as `NULL` and the load went on; an `only_md` load reads no content,
+and no content fails it.
+
+**After a restart too.** The cache of a topic is built from disk when it is
+opened. A `.md2` file of a key that it cannot count flags the key: one that
+cannot be opened or read, one whose size is not a whole number of 32-byte
+rows, or one of 0 bytes whose `.json` is not empty (its rows are gone). It
+logs *"md2 file of the key unreadable when its cache was built: every load of
+the key says load_failed"* once, at the open, and then every iterator of the
+key -- paging ones too -- logs *"The history of the key is not whole: a md2
+file of it could not be read when its cache was built"* and says
+`load_failed`. A loading stops where the first flagged file is in its
+direction, the place a running tranger stops when the damage happens behind
+its back. Key `A` with the files of days 1, 2 and 3, day 2 cut to 0 bytes
+while the yuno was down:
+
+```text
+forward load   -> the rows of day 1, then load_failed
+backward load  -> the rows of day 3, then load_failed
+```
+
+A `.md2` of 0 rows with an EMPTY `.json` loses nothing: it gets no cell and
+flags nothing. [`tranger2_delete_key()`](#tranger2_delete_key) clears the flag
+with the key. Up to 7.25.4 the cache build dropped an unreadable file (or
+counted a cut one as 0 rows) and nothing failed: the key read as a shorter
+key.
 
 ```C
 json_t *data = json_array();
@@ -1326,7 +1387,9 @@ The two axes are not ordered the same way, and the scan knows it:
   the last row of each file, and so could miss rows), 408 ms on such a topic
   now, 0.09 ms once the topic is marked. Mark it with
   [`tranger2_mark_tm_order()`](<#tranger2_mark_tm_order>) (the `mark-tm-order`
-  command of `C_TRANGER`): 16 ms for those 600000 rows.
+  command of `C_TRANGER`): 16 ms for those 600000 rows in 30 files; its
+  cost is linear in the rows and in the files, and it blocks the yuno while
+  it runs.
 - **The marker goes down before the row.** The master writes the marker of a
   record whose `t` or `tm` goes back BEFORE its md2 row, so a process that dies
   between the two leaves a marker with no row behind it (one whole read of the
@@ -1446,9 +1509,10 @@ one key (`key` set) could not be loaded whole (the `load_failed` of
 [`tranger2_open_iterator()`](#tranger2_open_iterator)).
 
 **A keyless list with a key that cannot be loaded** logs the key (*"Cannot
-load the history of a key of the list, the list goes on without it"*), loads
-every other key, opens its real-time feed, and says what it lacks in the
-handle it returns:
+load the whole history of a key of the list: the records read before the
+failure were handed, the list goes on with the next key"*), loads every other
+key, opens its real-time feed, and says what it lacks in the handle it
+returns:
 
 ```json
 {
@@ -1458,9 +1522,10 @@ handle it returns:
 }
 ```
 
-The records already handed to the callback stay handed. A caller that answers
-a question from the list must read the flag, or it takes "not in the list" for
-"not on disk":
+The records already handed to the callback stay handed: of a failed key, the
+ones read before the failure (forward: its oldest, backward: its newest). A
+caller that answers a question from the list must read the flag, or it takes
+"not in the list" for "not on disk":
 
 ```C
 json_t *list = tranger2_open_list(tranger, "devices", match_cond, extra, "", FALSE, "");
@@ -1476,7 +1541,7 @@ What the callers in the SDK do with it:
 |---|---|
 | treedb (every topic, `__snaps__`, `__graphs__`) | remembers the keys; refuses a create of such an id, refuses shoot/activate of a snap when `__snaps__` has any, and its asset guards fail closed (see [TreeDB](treedb.md)). |
 | treedb's snapshot guard of the assets | a walk that did not load everything fails closed: the gc and the delete of an asset refuse. |
-| `tr_queue` / `tr2q_mqtt` (`trq_open`) | nothing more than the library's log: the pending messages of a row that cannot be read are not in memory and are not delivered. |
+| `tr_queue` / `tr2q_mqtt` (`trq_load()`, `tr2q_load()`) | the pending messages read are in memory; those of a row that cannot be read are not, and are not delivered. The load returns -1 and does NOT move nor save the queue's `first_rowid`, so the next load, once the store is repaired, finds them (up to 7.25.4 it saved the size of the topic, and they were skipped for ever). |
 | msg2db | nothing more than the library's log: the messages of that key are not in the index. |
 
 Until 7.25.4 such a list was handed over silently, with the key missing; the

@@ -1190,8 +1190,9 @@ bytes of an asset a shot record names.
 
 - `treedb_delete_instance()` refuses, before it tombstones or drops anything,
   when it cannot read every row of the key: *"Cannot delete instance, cannot
-  read every row of its key"* (a row's metadata) or *"..., a row of its key
-  cannot be read"* (a row's content, which cannot say whose instance it is).
+  read every row of its key"* (a row's metadata or content cannot be read,
+  which ends the walk) or *"..., a row of its key cannot be read"* (a row
+  whose content is not an object, which cannot say whose instance it is).
   Until 7.25.4 it tombstoned the rows it had read, dropped the slot, answered
   0, and the instance came back at the next open.
 - The asset guard (`treedb_gc_files()`, and `treedb_delete_node()` of an
@@ -1201,6 +1202,12 @@ bytes of an asset a shot record names.
   cannot tell which assets a snapshot links"*, and `gc-assets` answers -1), the
   delete answers -1 (*"cannot delete asset, cannot tell whether a snapshot
   links it"*). Until 7.25.4 the gc took the blob a snapshot needed.
+- The gc also refuses while a snap is ACTIVE in any treedb of the tranger:
+  the nodes in memory are the snap's photo, and the asset of a node written
+  after the snap read as linked by nobody (*"gc refused: a snap is active,
+  ... (deactivate it first)"*). A refused `treedb_gc_files()` takes nothing
+  at all; `treedb_gc_files2()` answers a report that says the refusal AND
+  the blobs no row names it swept all the same.
 
 ```C
 json_t *taken = treedb_gc_files(tranger, "treedb_files", FALSE);

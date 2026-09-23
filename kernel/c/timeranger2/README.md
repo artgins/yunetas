@@ -64,8 +64,10 @@ Such a topic reads every md2 row of the key on a `tm` query, so its cost grows
 with the files of the key: on one key of 30 files x 20000 rows, a query of 26
 rows took 13.6 ms in 7.25.4, 408 ms now, and 0.09 ms once the topic is marked.
 Mark it, once, with `tranger2_mark_tm_order()` (the `mark-tm-order` command of
-`C_TRANGER`): it reads every md2 file once (16 ms for those 600000 rows),
-writes the markers the files need, and sets `"marks_tm_unordered": true`.
+`C_TRANGER`): it reads every md2 file once, writes the markers the files
+need, and sets `"marks_tm_unordered": true`. Its cost is linear in the rows
+and in the files, and it blocks the yuno while it runs: 16 ms for those 30
+files x 20000 rows, 72-88 ms for 4 keys of 3650 daily files (warm page cache).
 Run it again after a rollback to a binary that appends without markers.
 
 ```C
@@ -214,11 +216,25 @@ the new cols only when the file did (it returns -1 otherwise).
 
 ### A history that cannot be read whole says so
 
-A load that meets a row whose metadata cannot be read stops and leaves
-`"load_failed": true` in the iterator; a record whose content cannot be read
-reaches the callback as `NULL`. `tranger2_open_list()` of ONE key answers
-`NULL` when the history of the key did not load whole. A KEYLESS list loads
-every key it can read, opens its feed, and names the others in the handle:
+A load that meets a row whose metadata or whose content cannot be read stops
+there and leaves `"load_failed": true` in the iterator; the rows before it, in
+the load's direction, were handed to the callback (forward: the oldest,
+backward: the newest). Up to 7.25.4 a content that could not be read reached
+the callback as `NULL` and the load went on (treedb made a node of it with id
+`""`). The same holds after a RESTART: a `.md2` file the topic's cache could
+not count when it was built at the open -- one that cannot be opened or read,
+whose size is not a whole number of rows, or of 0 bytes with a `.json` that is
+not empty -- flags its key (`"unreadable": [file_id, ...]` in its cache,
+logged once), every iterator of the key says `load_failed`, and a load stops
+where the first such file is in its direction. Up to 7.25.4 the cache build
+dropped such a file, or counted it as 0 rows, and nothing failed. A `.md2` of
+0 rows with an empty `.json` loses nothing and flags nothing.
+`tranger2_delete_key()` clears the flag with the key.
+`tests/c/timeranger2/test_unreadable_at_open.c`.
+
+`tranger2_open_list()` of ONE key answers `NULL` when the history of the key
+did not load whole. A KEYLESS list loads every key it can read, opens its
+feed, and names the others in the handle:
 
 ```C
 json_t *list = tranger2_open_list(tranger, "items", match_cond, extra, "", FALSE, "");

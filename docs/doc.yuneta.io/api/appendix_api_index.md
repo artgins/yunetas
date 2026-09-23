@@ -1765,7 +1765,7 @@ it by hand, run the script.
 
 17. [**`trq_check_backup`**](timeranger2/tr_queue.md#trq_check_backup) — `PUBLIC int trq_check_backup(tr_queue_t * trq)`
 
-### `tr_treedb.h` — 61 functions
+### `tr_treedb.h` — 62 functions
 
 **Source:** `kernel/c/timeranger2/src/tr_treedb.h`
 
@@ -1883,15 +1883,17 @@ it by hand, run the script.
 
 57. [**`treedb_gc_files`**](timeranger2/treedb.md#treedb_gc_files) — `PUBLIC json_t *treedb_gc_files( json_t *tranger, const char *treedb_name, BOOL dry_run )`
 
-58. [**`treedb_shoot_snap`**](timeranger2/treedb.md#treedb_shoot_snap) — `PUBLIC int treedb_shoot_snap( json_t *tranger, const char *treedb_name, const char *snap_name, const char *description )`
+58. [**`treedb_gc_files2`**](timeranger2/treedb.md#treedb_gc_files2) — `PUBLIC json_t *treedb_gc_files2( json_t *tranger, const char *treedb_name, BOOL dry_run )`
 
-59. [**`treedb_activate_snap`**](timeranger2/treedb.md#treedb_activate_snap) — `PUBLIC int treedb_activate_snap( json_t *tranger, const char *treedb_name, const char *snap_name )`
+59. [**`treedb_shoot_snap`**](timeranger2/treedb.md#treedb_shoot_snap) — `PUBLIC int treedb_shoot_snap( json_t *tranger, const char *treedb_name, const char *snap_name, const char *description )`
 
-60. [**`treedb_list_snaps`**](timeranger2/treedb.md#treedb_list_snaps) — `PUBLIC json_t *treedb_list_snaps( json_t *tranger, const char *treedb_name, json_t *filter )`
+60. [**`treedb_activate_snap`**](timeranger2/treedb.md#treedb_activate_snap) — `PUBLIC int treedb_activate_snap( json_t *tranger, const char *treedb_name, const char *snap_name )`
 
-61. [**`create_template_record`**](timeranger2/treedb.md#create_template_record) — `PUBLIC json_t *create_template_record( const char *template_name, json_t *cols, json_t *kw )`
+61. [**`treedb_list_snaps`**](timeranger2/treedb.md#treedb_list_snaps) — `PUBLIC json_t *treedb_list_snaps( json_t *tranger, const char *treedb_name, json_t *filter )`
 
-**Total: 156 functions**
+62. [**`create_template_record`**](timeranger2/treedb.md#create_template_record) — `PUBLIC json_t *create_template_record( const char *template_name, json_t *cols, json_t *kw )`
+
+**Total: 157 functions**
 
 ## root-linux (Runtime GClasses)
 
@@ -2312,7 +2314,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1000 functions** sorted alphabetically with their source header.
+All **1001 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -3172,6 +3174,7 @@ All **1000 functions** sorted alphabetically with their source header.
 | [**`treedb_delete_topic`**](timeranger2/treedb.md#treedb_delete_topic) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_file_ext`**](timeranger2/treedb.md#treedb_file_ext) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_gc_files`**](timeranger2/treedb.md#treedb_gc_files) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
+| [**`treedb_gc_files2`**](timeranger2/treedb.md#treedb_gc_files2) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_get_id_index`**](timeranger2/treedb.md#treedb_get_id_index) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_get_instance`**](timeranger2/treedb.md#treedb_get_instance) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_get_node`**](timeranger2/treedb.md#treedb_get_node) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
