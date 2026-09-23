@@ -312,23 +312,42 @@ int ret = gobj_delete_node(gobj_node, "items",
     json_pack("{s:s}", "id", "item00"), json_pack("{s:b}", "force", 1), src);
 ```
 
-**An autolink write that fails at its save is PARTIAL.** `update-node` (or
-`gobj_update_node()`) with `autolink` answers `NULL` / `-1` when the append
-after the links fails (a full disk, a store gone), and what it leaves is not
-"nothing":
+**An autolink write that fails at its save changes nothing it wrote.**
+`update-node` (or `gobj_update_node()`) with `autolink` writes the fields, the
+links and the save as ONE write
+([`treedb_update_node_and_links()`](#treedb_update_node_and_links)). When the
+append fails (a full disk, a store gone), it answers `NULL` / `-1`. The fields
+and the links go back in memory to what the disk has, and none of the events
+of the write is told (`EV_TREEDB_NODE_LINKED`, `EV_TREEDB_NODE_UPDATED`):
 
-- **create + autolink**: the record was appended by the create with its
-  ordinary fkeys EMPTY (a create stores none: only its `file` columns, which it
-  links itself, and, for a secondary instance, the links it inherits from the
-  primary); the links were then made in memory and their save failed. On disk
-  the node exists without those parents; in memory it has them until the next
-  reload.
-- **update + autolink**: the fields and the links were changed in memory, and
-  nothing reached the disk. Memory and disk differ until the next reload,
-  which brings back the old record.
+- **create + autolink**: the create is on disk, with its ordinary fkeys EMPTY
+  (a create stores none: only its `file` columns, which it links itself, and,
+  for a secondary instance, the links it inherits from the primary). Its links
+  are taken back, so memory and disk both have the node without them. The
+  create was told (`EV_TREEDB_NODE_CREATED`), and an ERROR says what is left:
+  *"Node created, but its links cannot be saved (autolink): the node stays
+  without them"*.
+- **update + autolink**: nothing moved, in memory or on disk.
 
-Write it again once the cause is fixed: the same `update-node` with `autolink`
-converges.
+In 7.25.4 this write was three calls, and a failed save took nothing back:
+memory kept the fields and the links until the next reload, and
+`EV_TREEDB_NODE_LINKED` had been told. Write it again once the cause is fixed:
+the same `update-node` with `autolink` converges.
+
+```C
+/*  the store of `users` cannot be written (a full disk)  */
+json_t *node = gobj_update_node(gobj_node, "users",
+    json_pack("{s:s, s:s, s:[s]}",
+        "id", "alice",
+        "username", "ALICE-NEW",
+        "departments", "departments^direction^users"
+    ),
+    json_pack("{s:b}", "autolink", 1),
+    src
+);
+/*  node == NULL; alice keeps her old username and links, in memory as on
+ *  disk; direction does not hook her; no event was published            */
+```
 
 `EV_TREEDB_UPDATE_NODE` is an input event for gobjs of the SAME yuno
 (`gobj_send_event()`), with no permission asked. It is not a public event since

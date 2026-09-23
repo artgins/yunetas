@@ -399,6 +399,25 @@ if(treedb_activate_snap(tranger, "treedb_agent", "__clear__") < 0) {
 }
 ```
 
+Only one snap can be active. When the treedb finds two or more snaps marked
+active (at open, and when a snap is shot or activated), it logs *"Too much
+actives tags"*, keeps the last one active, and deactivates and saves the
+others. A deactivation that cannot be saved puts the flag back: that snap
+stays active in memory, as on disk, and an ERROR says so (*"Cannot deactivate
+a snap of too many active ones, it stays active on disk"*). A replica does
+not repair: it uses the last one, as the master does, and leaves the repair
+to the master. 7.25.4 marked the snap inactive in memory whatever the save
+said, and the next open found it active again.
+
+```C
+/*  __snaps__ on disk: s1 and s2 both "active": true;
+ *  the files of the key of s1 are read-only                               */
+treedb_open_db(tranger, "treedb_agent", jn_schema, "persistent");
+/*  ERROR "Too much actives tags", then "Cannot deactivate a snap of too
+ *  many active ones, it stays active on disk"; the treedb loads under s2,
+ *  and s1 still says "active": true in memory                            */
+```
+
 **Behavior**
 
 This call only toggles the `active` flag on the snap node. The primary index of every topic is **not** refreshed in memory. The new visibility takes effect on the next `treedb_open_db()`:
@@ -480,7 +499,25 @@ fails, or a link fails, every link of the call is taken back in memory and no
 event is told (see [`treedb_link_nodes()`](<#treedb_link_nodes>)).
 The `node` parameter must be a valid pure node object.
 
-It only ADDS links, and it stops at the first ref it cannot link. To make the links of a node equal to the ones a record names, use [`treedb_replace_links()`](<#treedb_replace_links>): it does not touch the links that do not change, and a bad ref does not stop the others. `C_NODE`'s `update-node` with `autolink` uses `treedb_replace_links()`, not `treedb_clean_node()` + `treedb_autolink()`.
+The bytes of the `file` columns of `kw` are stored BEFORE any link moves.
+Storing them can write an asset node (a new name of an asset is an update of
+that node). That is a write of its own: it is on disk, and its event is told,
+whatever the autolink does after. Before, the bytes were stored inside the
+write of the autolink, and a failed autolink dropped the event of an asset
+that was on disk.
+
+It only ADDS links, and it stops at the first ref it cannot link. To make the links of a node equal to the ones a record names, use [`treedb_replace_links()`](<#treedb_replace_links>): it does not touch the links that do not change, and a bad ref does not stop the others. `C_NODE`'s `update-node` with `autolink` uses [`treedb_update_node_and_links()`](<#treedb_update_node_and_links>), which replaces the links as `treedb_replace_links()` does, not `treedb_clean_node()` + `treedb_autolink()`.
+
+```C
+/*  alice hangs from nobody: link her to direction, and save her  */
+json_t *kw = json_pack("{s:s, s:[s]}",
+    "id", "alice",
+    "departments", "departments^direction^users"
+);
+if(treedb_autolink(tranger, alice, kw, TRUE) < 0) {
+    // Error already logged: alice hangs from nobody, and no event was told
+}
+```
 
 ---
 
@@ -845,7 +882,7 @@ The `treedb_delete_node()` function deletes a node from the tree database. If th
 int treedb_delete_node(
     json_t *tranger,
     json_t *node,       // NOT owned: borrowed from the index, whose reference goes on success
-    json_t *jn_options  // bool "force"
+    json_t *jn_options  // bool "force" (unlink children), bool "ignore_snaps"
 );
 ```
 
@@ -855,7 +892,7 @@ int treedb_delete_node(
 |---|---|---|
 | `tranger` | `json_t *` | A reference to the tranger database instance. |
 | `node` | `json_t *` | The node to be deleted: the pure node as the index holds it. It is **borrowed**, never the caller's own reference: do not decref it, before or after. On success the index's reference is released with the key; on a refusal the node is left as it was, still indexed. |
-| `jn_options` | `json_t *` | A JSON object containing options for deletion. The 'force' boolean option determines whether to forcibly delete linked nodes. |
+| `jn_options` | `json_t *` | A JSON object containing options for deletion. `force` unlinks the children and the parents first (without it a node with links is refused); `ignore_snaps` deletes a node a snapshot holds a record of. |
 
 **Returns**
 
@@ -865,8 +902,33 @@ Returns 0 on success, or a negative error code if the deletion fails.
 
 If the node has existing links and 'force' is not enabled, [`treedb_delete_node()`](<#treedb_delete_node>) will fail.
 
-With `force`, a child whose unlink cannot be saved stays linked, and the
-delete is refused (see [`treedb_link_nodes()`](<#treedb_link_nodes>)).
+**With `force`, a delete that is refused changes nothing.** A child whose
+unlink cannot be saved stays linked, and the delete is refused (*"Cannot
+delete node: still has down links"*). A key that cannot be deleted refuses it
+too (*"Cannot delete node"*). Then the children that were unlinked and saved
+before the refusal are put back as they were (a list fkey keeps its order),
+and saved again. The node keeps its parents in memory, and no event of the
+delete is told. When the delete goes through, the events of its unlinks are
+told before `EV_TREEDB_NODE_DELETED`.
+
+In 7.25.4 a child whose unlink could not be saved did not stop the delete:
+its record on disk kept naming the deleted node. And a key that could not be
+deleted left the node unlinked from its parents in memory, and every child
+unlinked on disk.
+
+A child that cannot be saved again stays unlinked, in memory as on disk, and
+an ERROR names it: *"A refused delete cannot put back a child it had
+unlinked: the child stays unlinked, in memory as on disk"*. The delete
+answers `-1` all the same.
+
+```C
+/*  finance hangs from board; audit, bob and carol hang from finance;
+ *  the files of the key of carol are read-only                            */
+treedb_delete_node(tranger, finance, json_pack("{s:b}", "force", 1));    // -1
+/*  audit and bob were unlinked and saved before carol failed: both are
+ *  linked to finance again, on disk too, and bob's fkey keeps its order.
+ *  finance still hangs from board. No event was told.                     */
+```
 
 A node that a snapshot holds a record of is refused (*"cannot delete node, a
 snapshot still holds it"*) unless `ignore_snaps` is given. **`force` does not
@@ -1364,9 +1426,10 @@ parent), the call answers `-1`, and no event is told: the events of a link
 are told only once the child is on disk, `EV_TREEDB_NODE_UPDATED` of the
 child last. The same holds for [`treedb_unlink_nodes()`](<#treedb_unlink_nodes>),
 [`treedb_autolink()`](<#treedb_autolink>), [`treedb_clean_node()`](<#treedb_clean_node>),
-[`treedb_replace_links()`](<#treedb_replace_links>) and the unlinks of a forced
-[`treedb_delete_node()`](<#treedb_delete_node>) (a child that cannot be saved
-unlinked stays linked, and the delete is refused):
+[`treedb_replace_links()`](<#treedb_replace_links>),
+[`treedb_update_node_and_links()`](<#treedb_update_node_and_links>) and the
+unlinks of a forced [`treedb_delete_node()`](<#treedb_delete_node>) (a refused
+forced delete changes nothing, see there):
 
 ```C
 /*  the files of the key of `admin` are read-only; admin hangs from direction  */
@@ -1389,6 +1452,21 @@ When memory cannot be taken back whole (a parent hook cannot be restored),
 an ERROR says so: *"A write that did not reach the disk could not be taken
 back whole in memory: the links in memory differ from the disk until the
 treedb is opened again"*.
+
+A ref that was never a link is not linked again when a write is taken back.
+A stale ref (its hook no longer exists, or the hook fills another column since
+a schema re-pointed it) and a ref whose parent is not in memory go back into
+the field alone, as a load of the disk leaves them. Before, a take-back linked
+every ref the write had removed: a stale one made a link that never existed,
+or failed with *"hook field not found"* and the ERROR above.
+
+```C
+/*  erin: departments ["departments^sales^users", "departments^direction^nohook"]
+ *  (no hook `nohook`); the files of the key of erin are read-only         */
+treedb_clean_node(tranger, erin, TRUE);     // -1
+/*  erin["departments"] is the same two refs, sales hooks erin,
+ *  direction does not                                                     */
+```
 
 ---
 
@@ -2089,7 +2167,7 @@ The function supports multiple formatting options for the returned references, i
 (treedb_replace_links)=
 ## [`treedb_replace_links()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/timeranger2/src/tr_treedb.c#L9366)
 
-`treedb_replace_links()` replaces the links of a node by the ones the fkey columns of `kw` name, and touches only what differs. It is what [`C_NODE`](#gclass-c-node) runs for an `update-node` with `autolink`.
+`treedb_replace_links()` replaces the links of a node by the ones the fkey columns of `kw` name, and touches only what differs. [`C_NODE`](#gclass-c-node) runs the same replace for an `update-node` with `autolink`, inside [`treedb_update_node_and_links()`](<#treedb_update_node_and_links>), together with the fields and the save.
 
 ```C
 int treedb_replace_links(
@@ -2777,6 +2855,87 @@ treedb_update_node(tranger, layout,
     json_pack("{s:o}", "properties", json_pack("{s:{s:i,s:i}}",
         "dev-a", "x", 30, "y", 40)),
     TRUE);
+```
+
+---
+
+(treedb_update_node_and_links)=
+## [`treedb_update_node_and_links()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/timeranger2/src/tr_treedb.c#L10544)
+
+`treedb_update_node_and_links()` writes a record over a node as ONE write: its fields (as [`treedb_update_node()`](<#treedb_update_node>) does), its links replaced by the ones the fkey columns of the record name (as [`treedb_replace_links()`](<#treedb_replace_links>) does), and a save. It is what [`C_NODE`](#gclass-c-node) runs for an `update-node` with `autolink`.
+
+```C
+json_t *treedb_update_node_and_links(
+    json_t  *tranger,
+    json_t  *node,          // NOT owned, pure node
+    json_t  *kw,            // owned
+    BOOL    with_fields,    // FALSE: the links alone
+    BOOL    *links_refused  // optional
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | Pointer to the tranger database instance. |
+| `node` | `json_t *` | The node to write. Must be a pure node. Not owned. |
+| `kw` | `json_t *` | The record: its fields, and in its fkey columns the parents the node must have. Owned. |
+| `with_fields` | `BOOL` | `TRUE`: write the fields and the links. `FALSE`: write the links alone, for a node just created from the same record (the create wrote its fields). |
+| `links_refused` | `BOOL *` | Optional. Set to `TRUE` when a link could not be made, else `FALSE`. |
+
+**Returns**
+
+The node (NOT yours), or `NULL` when the update is refused (for the same causes as [`treedb_update_node()`](<#treedb_update_node>): a replica, a field the schema refuses, a changed pkey2 value) or the save fails. Every failure is logged, and after a `NULL` nothing moved.
+
+**Notes**
+
+A link that cannot be made is logged and skipped, `*links_refused` is set, and
+the record is saved all the same: a link can be repaired later, a lost record
+cannot. The causes of a refused link are the ones of
+[`treedb_replace_links()`](<#treedb_replace_links>), and its column keeps the
+links it had.
+
+The node is saved always, also when no field and no link changed.
+
+**A save that fails takes the whole write back.** The fields, the links and
+the hooks of the parents go back in memory to what the disk has, and none of
+the events of the write is told. When the save goes through, the events are
+told in their order, `EV_TREEDB_NODE_UPDATED` last.
+
+In 7.25.4 `C_NODE` made this write with three calls: `treedb_update_node()`
+without save, `treedb_replace_links()` without save, and
+[`treedb_save_node()`](<#treedb_save_node>). The first two closed as
+successes, so a failed save took nothing back: memory kept the fields and the
+links until the next load, and `EV_TREEDB_NODE_LINKED` had been told.
+
+**Example**
+
+```C
+/*  alice hangs from nobody; `ghost` is not a department  */
+BOOL links_refused = FALSE;
+json_t *n = treedb_update_node_and_links(
+    tranger,
+    alice,
+    json_pack("{s:s, s:s, s:[s, s]}",
+        "id", "alice",
+        "username", "Alice",
+        "departments",
+            "departments^direction^users",
+            "departments^ghost^users"
+    ),
+    TRUE,
+    &links_refused
+);
+/*  n == alice, saved once with username "Alice"; links_refused is TRUE,
+ *  the column is replaced whole or not at all, so alice still hangs from
+ *  nobody, direction included ("fkey reference: parent node not found")  */
+```
+
+```C
+/*  the same call, with the files of the key of alice read-only  */
+/*  n == NULL, the CRITICALs of the write logged, alice as the disk has
+ *  her (username and links), direction does not hook her, no event        */
 ```
 
 ---
