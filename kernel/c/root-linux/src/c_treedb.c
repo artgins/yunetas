@@ -132,6 +132,13 @@ PRIVATE BOOL treedb_is_written_here(hgobj gobj, const char *treedb_name);
 PRIVATE BOOL system_is_written_here(hgobj gobj);
 PRIVATE json_t *draft_changed_from_rows(hgobj gobj, json_t *rows);
 PRIVATE int remove_saved_schema(hgobj gobj, const char *treedb_name, json_int_t *p_version);
+PRIVATE json_t *topic_versions_in_use(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *file_in_use,    // not owned, may be NULL
+    json_t *jn_schema       // not owned, the literal, may be NULL
+);
+PRIVATE json_int_t topic_version_in_use(json_t *in_use, const char *topic_name);
 PRIVATE int diff_node_attrs(
     hgobj gobj,
     json_t *rows,           // not owned
@@ -3312,14 +3319,16 @@ PRIVATE BOOL projection_changes_node(
  *  Otherwise ONE rule, whether the literal is newer than __system__ (the
  *  ordinary way) or only newer than the file (it takes the file over, see
  *  literal_against_file_in_use): a topic is projected when the literal
- *  RAISES it past the schema file IN USE (`file_in_use`), whatever version a
- *  save gave it in __system__. That is the topic the treedb runs from the
- *  literal (treedb_open_db() installs a literal newer than the file, and
- *  tranger2 a topic only over a lower topic_version), and __system__ must
- *  say what runs: kept, the draft was published by the next save over the
- *  developer's change, reverting it with no word. A topic the literal does
- *  not raise past the file goes on running from the file, and its draft in
- *  __system__ -- an operator's edit included -- is left alone.
+ *  RAISES it past the version IN USE -- the schema file's (`file_in_use`),
+ *  or the store's when it runs a higher one -- whatever version a save gave
+ *  it in __system__. That is the topic the treedb runs from the literal
+ *  (literal_over_file_in_use() hands treedb_open_db() the literal's topic,
+ *  and tranger2 installs it over a lower topic_version), and __system__
+ *  must say what runs: kept, the draft was published by the next save over
+ *  the developer's change, reverting it with no word. A topic the literal
+ *  does not raise keeps the file's own topic, which the treedb runs -- an
+ *  applied one not opened yet included -- and its draft in __system__, an
+ *  operator's edit included, is left alone.
  *
  *  The two paths had two rules until the review of the second fix round
  *  (2026-09-23): the ordinary one compared the literal with the version in
@@ -3390,6 +3399,12 @@ PRIVATE int upsert_treedb_schema(
     }
 
     json_t *current_topics = current? kw_get_dict(gobj, current, "topics", 0, 0): NULL;
+
+    /*
+     *  The version each topic is IN USE at: the file's, or the store's when
+     *  it runs another one (see topic_versions_in_use)
+     */
+    json_t *in_use = topic_versions_in_use(gobj, treedb_name, file_in_use, kw);
 
     /*
      *  What a column may declare, read once for the whole projection
@@ -3495,19 +3510,24 @@ PRIVATE int upsert_treedb_schema(
             }
 
             if(!imposing) {
-                json_int_t file_topic_version = schema_topic_version(
-                    gobj, file_in_use, topic_name
+                json_int_t file_topic_version = json_integer_value(
+                    json_object_get(json_object_get(in_use, "file"), topic_name)
                 );
-                if(topic_version <= file_topic_version) {
+                json_int_t running_version = json_integer_value(
+                    json_object_get(json_object_get(in_use, "running"), topic_name)
+                );
+                json_int_t in_use_version = topic_version_in_use(in_use, topic_name);
+                if(topic_version <= in_use_version) {
                     if(topic_changes) {
                         gobj_log_info(gobj, 0,
                             "function",         "%s", __FUNCTION__,
                             "msgset",           "%s", MSGSET_INFO,
-                            "msg",              "%s", "Topic from C differs from __system__ but does not raise its topic_version past the file in use: not applied, the topic runs from the file",
+                            "msg",              "%s", "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
                             "treedb_name",      "%s", treedb_name,
                             "topic_name",       "%s", topic_name,
                             "topic_version",    "%d", (int)topic_version,
                             "file_version",     "%d", (int)file_topic_version,
+                            "running_version",  "%d", (int)running_version,
                             "stored_version",   "%d", (int)stored_topic_version,
                             NULL
                         );
@@ -3521,7 +3541,20 @@ PRIVATE int upsert_treedb_schema(
                     json_decref(kw_topic);
                     continue;   /*  raised, and __system__ already says it  */
                 }
-                if(topic_changes && stored_topic_version > file_topic_version) {
+                if(topic_changes && file_topic_version > running_version) {
+                    gobj_log_warning(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_TREEDB,
+                        "msg",              "%s", "Topic from C raised past an applied schema that never ran: it replaces the applied topic, in the file and in __system__",
+                        "treedb_name",      "%s", treedb_name,
+                        "topic_name",       "%s", topic_name,
+                        "topic_version",    "%d", (int)topic_version,
+                        "file_version",     "%d", (int)file_topic_version,
+                        "running_version",  "%d", (int)running_version,
+                        "stored_version",   "%d", (int)stored_topic_version,
+                        NULL
+                    );
+                } else if(topic_changes && stored_topic_version > in_use_version) {
                     gobj_log_warning(gobj, 0,
                         "function",         "%s", __FUNCTION__,
                         "msgset",           "%s", MSGSET_TREEDB,
@@ -3630,6 +3663,7 @@ PRIVATE int upsert_treedb_schema(
     /*
      *  free
      */
+    JSON_DECREF(in_use)
     JSON_DECREF(cols_desc)
     json_decref(treedb);
 
@@ -3651,6 +3685,162 @@ PRIVATE json_t *load_schema_file_in_use(hgobj gobj, const char *treedb_name)
         return NULL;
     }
     return load_json_from_file(gobj, directory, filename, 0);
+}
+
+/***************************************************************************
+ *  The topic_version a topic RUNS with: the one of its `topic_var.json` in
+ *  the store, which tranger2 rewrites only when a schema raises it. 0 when
+ *  the topic has never been opened. Read from disk, as reconcile asks
+ *  before the treedb is open.
+ ***************************************************************************/
+PRIVATE json_int_t running_topic_version(hgobj gobj, const char *treedb_name, const char *topic_name)
+{
+    char directory[PATH_MAX];
+    build_path(directory, sizeof(directory),
+        gobj_read_str_attr(gobj, "path"), treedb_name, topic_name, NULL);
+    if(!file_exists(directory, "topic_var.json")) {
+        return 0;
+    }
+    json_t *topic_var = load_json_from_file(gobj, directory, "topic_var.json", 0);
+    json_int_t v = kw_get_int(gobj, topic_var, "topic_version", 0, KW_WILD_NUMBER);
+    JSON_DECREF(topic_var)
+    return v;
+}
+
+/***************************************************************************
+ *  The versions IN USE of every topic of the schema file, and of every
+ *  topic of `jn_schema` (the literal): what the file says (`file`) and what
+ *  the store runs (`running`), which part ways in two cases:
+ *
+ *    file > running   an APPLIED schema not opened yet: apply-schema wrote
+ *                     the file, the next open installs it;
+ *    file < running   a file a literal wrote whole over topics the store
+ *                     had ahead of it (before the third independent review,
+ *                     2026-09-23): tranger2 kept its own.
+ *
+ *  A topic is in use at the higher of the two. Return is YOURS:
+ *      {"file": {topic: v}, "running": {topic: v}}
+ ***************************************************************************/
+PRIVATE json_t *topic_versions_in_use(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *file_in_use,    // not owned, may be NULL
+    json_t *jn_schema       // not owned, the literal, may be NULL
+)
+{
+    json_t *file = json_object();
+    json_t *running = json_object();
+
+    json_t *file_topics = file_in_use? schema_topics_as_list(gobj, file_in_use) : json_array();
+    json_t *literal_topics = jn_schema? schema_topics_as_list(gobj, jn_schema) : json_array();
+    json_t *all[] = {file_topics, literal_topics};
+    for(size_t i = 0; i < sizeof(all)/sizeof(all[0]); i++) {
+        int idx; json_t *topic;
+        json_array_foreach(all[i], idx, topic) {
+            const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
+            if(empty_string(topic_name)) {
+                topic_name = kw_get_str(gobj, topic, "topic_name", "", 0);
+            }
+            if(empty_string(topic_name) || json_object_get(running, topic_name)) {
+                continue;
+            }
+            json_object_set_new(file, topic_name,
+                json_integer(file_in_use? schema_topic_version(gobj, file_in_use, topic_name) : 0));
+            json_object_set_new(running, topic_name,
+                json_integer(running_topic_version(gobj, treedb_name, topic_name)));
+        }
+    }
+    JSON_DECREF(file_topics)
+    JSON_DECREF(literal_topics)
+
+    return json_pack("{s:o, s:o}", "file", file, "running", running);
+}
+
+PRIVATE json_int_t topic_version_in_use(json_t *in_use, const char *topic_name) // not owned
+{
+    json_int_t f = json_integer_value(json_object_get(json_object_get(in_use, "file"), topic_name));
+    json_int_t r = json_integer_value(json_object_get(json_object_get(in_use, "running"), topic_name));
+    return (f > r)? f : r;
+}
+
+/***************************************************************************
+ *  The schema a treedb opens with when its literal TAKES OVER the file in
+ *  use (impose off, the literal newer than the file): treedb_open_db()
+ *  writes what it is handed over the WHOLE file, so it is handed the
+ *  literal topic by topic.
+ *
+ *    - a topic the literal raises past the one in use: the literal's, and
+ *      it runs (tranger2 installs it);
+ *    - any other topic of the file: the FILE's, as it is. An applied topic
+ *      that has not been opened yet runs now, as applied; one in use goes
+ *      on running. Handed the literal whole, the file lost an apply nobody
+ *      had opened yet with no word, and a topic the literal did not raise
+ *      ran one version while the file said another and __system__ a third
+ *      (M-1 of the third independent review, 2026-09-23);
+ *    - a topic only the file declares stays in it: removing a topic is a
+ *      deliberate act, never a side effect of an upgrade, and the
+ *      projection keeps it too.
+ *
+ *  The schema_version, and everything the schema says outside its topics,
+ *  is the literal's. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *literal_over_file_in_use(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_schema,      // not owned, the literal
+    json_t *file_in_use     // not owned
+)
+{
+    json_t *in_use = topic_versions_in_use(gobj, treedb_name, file_in_use, jn_schema);
+    json_t *file_topics = schema_topics_as_list(gobj, file_in_use);
+    json_t *literal_topics = schema_topics_as_list(gobj, jn_schema);
+
+    json_t *merged = json_deep_copy(jn_schema);
+    json_t *topics = json_array();
+    json_t *seen = json_object();
+
+    int idx; json_t *topic;
+    json_array_foreach(literal_topics, idx, topic) {
+        const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
+        if(empty_string(topic_name)) {
+            topic_name = kw_get_str(gobj, topic, "topic_name", "", 0);
+        }
+        json_t *file_topic = NULL;
+        int idx2; json_t *ft;
+        json_array_foreach(file_topics, idx2, ft) {
+            const char *name = kw_get_str(gobj, ft, "id", "", 0);
+            if(empty_string(name)) {
+                name = kw_get_str(gobj, ft, "topic_name", "", 0);
+            }
+            if(strcmp(name, topic_name)==0) {
+                file_topic = ft;
+                break;
+            }
+        }
+        json_int_t topic_version = kw_get_int(gobj, topic, "topic_version", 1, KW_WILD_NUMBER);
+        if(file_topic && topic_version <= topic_version_in_use(in_use, topic_name)) {
+            json_array_append_new(topics, json_deep_copy(file_topic));
+        } else {
+            json_array_append_new(topics, json_deep_copy(topic));
+        }
+        json_object_set_new(seen, topic_name, json_true());
+    }
+    json_array_foreach(file_topics, idx, topic) {
+        const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
+        if(empty_string(topic_name)) {
+            topic_name = kw_get_str(gobj, topic, "topic_name", "", 0);
+        }
+        if(!json_object_get(seen, topic_name)) {
+            json_array_append_new(topics, json_deep_copy(topic));
+        }
+    }
+    json_object_set_new(merged, "topics", topics);
+
+    JSON_DECREF(seen)
+    JSON_DECREF(file_topics)
+    JSON_DECREF(literal_topics)
+    JSON_DECREF(in_use)
+    return merged;
 }
 
 /***************************************************************************
@@ -4476,13 +4666,34 @@ PRIVATE json_t *get_client_treedb_schema(
      *  file). The literal is handed to treedb_open_db() without `impose`, so
      *  it is installed only when it is newer than the file: the file wins
      *  on ties and when it is ahead -- which is what apply-schema makes it.
+     *  And installed, it replaces only the topics it raises past the ones in
+     *  use (literal_over_file_in_use).
      *
      *  __system__ is not read here. It is where a schema is EDITED: a draft
      *  there reaches a treedb only through save-schema + apply-schema (the
      *  owner's design of M36, 2026-09-21 review). It used to be the source,
      *  so every edit, half made or not, was the schema of the next start.
      */
-    json_t *client_treedb_schema = json_incref(jn_client_treedb_schema);
+    json_t *client_treedb_schema = NULL;
+
+    /*
+     *  A literal newer than the file in use takes the file over -- topic by
+     *  topic: see literal_over_file_in_use(). Only a master writes the file;
+     *  a replica reads it as it is, whatever it is handed.
+     */
+    if(input_schema_ok && gobj_read_bool_attr(gobj, "master")) {
+        json_t *file_in_use = load_schema_file_in_use(gobj, treedb_name);
+        if(file_in_use &&
+                schema_version_of(gobj, jn_client_treedb_schema) > schema_version_of(gobj, file_in_use)) {
+            client_treedb_schema = literal_over_file_in_use(
+                gobj, treedb_name, jn_client_treedb_schema, file_in_use
+            );
+        }
+        JSON_DECREF(file_in_use)
+    }
+    if(!client_treedb_schema) {
+        client_treedb_schema = json_incref(jn_client_treedb_schema);
+    }
 
     if(parse_schema(client_treedb_schema)<0) {
         gobj_log_error(gobj, 0,

@@ -1563,11 +1563,13 @@ at every open after a withdraw). An imposed literal behind `__system__` says
 is kept"*. A new installation that must carry the dynamic changes takes them
 into the literal. Inside a projection,
 a topic is written only if it is new or the literal raised its
-`topic_version` **past the schema file in use** (see *One rule for a raised
-topic*, below). A topic that the literal changed without raising it past the
-file is left as it is, with a log line: *"Topic from C differs from __system__
-but does not raise its topic_version past the file in use: not applied, the
-topic runs from the file"*. A literal newer than `__system__` but NOT newer
+`topic_version` **past the one in use** (see *One rule for a raised topic*,
+below). A topic that the literal changed without raising it past the one in
+use is left as it is, with a log line: *"Topic from C differs from __system__
+but does not raise its topic_version past the one in use: not applied, the
+file in use keeps its topic and the treedb runs it"* (until 7.25.4 it said
+"past the file in use ... the topic runs from the file", and the file did not
+keep it: see *A literal takes the file over topic by topic*, below). A literal newer than `__system__` but NOT newer
 than the file in use is not installed by `treedb_open_db()` (the file wins),
 so nothing of it is projected either: *"TreeDB schema from C is newer than
 __system__ but not than the file in use: not applied, the treedb opens from
@@ -1589,17 +1591,49 @@ literal's change with no word.
 **One rule for a raised topic, whichever way the literal arrives** (after
 7.25.4). Newer than `__system__` (the ordinary way) or only newer than the file
 (the take-over above), a literal installed over the file in use projects a
-topic when it raises that topic's `topic_version` **past the file in use** --
-whatever number a save gave the draft in `__system__`. That is the topic the
-treedb runs from the literal (tranger2 installs a topic only over a lower
-`topic_version`), and `__system__` must say what runs: a draft kept there is
-what the next `save-schema` publishes, over the developer's change, with no
-word. When the topic carried a SAVED draft (its version in `__system__` above
-the file's), the log names it: *"Topic from C raised past the file in use
-replaces its saved draft in __system__"*. A topic the literal does not raise
-past the file goes on running from the file, and its draft in `__system__` --
-an operator's edit included -- is kept, with the log line of the paragraph
-above.
+topic when it raises that topic's `topic_version` **past the one in use** --
+whatever number a save gave the draft in `__system__`. The version in use is
+the file's, or the store's (`topic_var.json` of the topic) when the store runs
+a higher one. That is the topic the treedb runs from the literal (tranger2
+installs a topic only over a lower `topic_version`), and `__system__` must say
+what runs: a draft kept there is what the next `save-schema` publishes, over
+the developer's change, with no word. When the topic carried a SAVED draft
+(its version in `__system__` above the one in use), the log names it: *"Topic
+from C raised past the file in use replaces its saved draft in __system__"*. A
+topic the literal does not raise past the one in use keeps the file's own
+topic, which the treedb runs, and its draft in `__system__` -- an operator's
+edit included -- is kept, with the log line of the paragraph above.
+
+**A literal takes the file over topic by topic** (after 7.25.4).
+`treedb_open_db()` writes what it is handed over the WHOLE file, so `C_TREEDB`
+does not hand it the literal as it is when the literal is newer than the file
+(impose off, master). It hands the literal's schema with, per topic:
+
+| Topic | Goes into the file, and runs |
+|---|---|
+| raised by the literal past the one in use | the literal's |
+| not raised | the FILE's, as it is |
+| declared only by the file | the file's: a literal does not remove a topic by leaving it out |
+
+The `schema_version` and everything outside the topics are the literal's.
+
+This is what keeps an **apply that has not been opened yet**. `apply-schema`
+writes the file, and the treedb reads it at its next open; until then the file
+is AHEAD of what runs (its `topic_version` above the store's). When that open
+brings a newer literal -- `apply-schema` and then `upgrade-yunos`, the path of
+`db_history_wz` and `db_history_ce` -- the literal was written over the whole
+file: the apply was gone with no word, `__system__` kept the operator's value,
+and a topic the literal did not raise ran a third version. Now the applied
+topic runs at that open, and the three agree:
+
+| File in use | Store runs | Literal | What runs, what the file and `__system__` say |
+|---|---|---|---|
+| 21, `users` 9 (applied, not opened) | `users` 8 | 22, `users` 9, another header | the applied `users` (a tie goes to the file); the literal's change is not applied (*"does not raise its topic_version past the one in use"*) |
+| 21, `users` 9 (applied, not opened) | `users` 8 | 22, raises only `departments` | the applied `users`, the literal's `departments` |
+| 21, `users` 9 (applied, not opened) | `users` 8 | 22, `users` 10 | the literal's `users`, with the warning *"Topic from C raised past an applied schema that never ran: it replaces the applied topic, in the file and in __system__"* |
+
+To publish a change of a topic that an operator applied, the literal raises
+that topic past the applied `topic_version`, as for any change.
 
 Until 7.25.4 the two ways had two rules. The ordinary one compared the literal
 with the version in `__system__`: an operator saves an edit of `users` (4 in
@@ -1640,7 +1674,7 @@ projection already there.
 |---|---|---|---|
 | 3, saved, not applied (from 2) | 2 | 3, raises `users` | literal runs; `users` projected over its draft, the other topics' drafts kept; warning |
 | 3, `users` saved at 5, not applied | 2, `users` 4 | 4, raises `users` to 5 | literal runs; `users` projected over the saved draft (*"replaces its saved draft"*), the other topics' drafts kept |
-| 3, saved, not applied | 2, `users` 4 | 4, `users` changed but left at 4 | literal runs, `users` runs from the file; `users` not projected (*"does not raise its topic_version past the file in use"*) |
+| 3, saved, not applied | 2, `users` 4 | 4, `users` changed but left at 4 | literal runs, but the file keeps its `users` and the treedb runs it; `users` not projected (*"does not raise its topic_version past the one in use"*) |
 | 3, saved, not applied | none | 3 | literal runs, projected whole; warning |
 | 3, saved and applied | 3 | 3, other content | file runs, `__system__` kept, warning |
 | 3, saved and applied | 3 | 3, the applied content (any form) | file runs, nothing said |

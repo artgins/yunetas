@@ -138,7 +138,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Updating TreeDB schema in __system__",
     "Re-Creating TreeDB schema file",
     "Updating TreeDB schema in __system__",
-    "Topic from C differs from __system__ but does not raise its topic_version past the file in use: not applied, the topic runs from the file",
+    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
     "Re-Creating TreeDB schema file",
     /*  Test 5: the refused writes  */
     "Value not in enum",
@@ -268,7 +268,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Schema saved",
     "Schema from C is newer than the file in use but not than __system__: it takes over the file, and replaces in __system__ the drafts of the topics it raises past the file",
     "Updating TreeDB schema in __system__",
-    "Topic from C differs from __system__ but does not raise its topic_version past the file in use: not applied, the topic runs from the file",
+    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
     "Saved schema withdrawn: the schema from C replaces the file in use it was saved against",
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
@@ -278,6 +278,27 @@ PRIVATE const char *expected_log_msgs[] = {
     "Updating TreeDB schema in __system__",
     "Saved schema withdrawn: the schema from C replaces the file in use it was saved against",
     "Creating TreeDB schema file",
+    /*  Test 13b4: an apply not opened yet survives the literal of the next
+     *  open. C: the literal gives `users` the apply's number (the file keeps
+     *  its topic, the apply runs). D: the literal raises only `departments`
+     *  (the applied `users` runs, and the literal's `departments`)  */
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Schema saved",
+    "Schema applied",
+    "Updating TreeDB schema in __system__",
+    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Schema saved",
+    "Schema applied",
+    "Updating TreeDB schema in __system__",
+    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
     /*  Test 13c: apply of all is all or none: A saved, B opened (+ its
      *  three), B's saved schema does not parse, then A alone applied  */
     "TreeDB schema from C is behind the schema in use, not applied",
