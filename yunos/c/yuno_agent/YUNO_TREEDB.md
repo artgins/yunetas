@@ -1575,6 +1575,38 @@ longer declares, and DELETES a topic or a column that the literal does not
 declare (a topic with its columns). The number of `__system__` does not go
 down (see below), and `c_schema_version` records the literal.
 
+"Whole" is about the nodes of THIS treedb. Which treedb a node belongs to is
+read from the node, never from the start of its id: a topic's id is
+`<treedb>.<topic>` (its name is `value`), and a column's id is its topic's id
+and its name, so the topic node says the treedb. A treedb called `m2.b` has a
+topic `c` whose id is `m2.b.c`, and that is not a topic `b.c` of a treedb
+`m2`. The projection of `m2` does not touch it, and `delete-treedb` of `m2`
+deletes no node of `m2.b`. When the topic node of a column is gone too, the
+treedb is the one of the known treedbs that the id names; when more than one
+could own it, no treedb takes it, and a WARNING says so (*"Node of
+__system__ that no tree reaches and more than one treedb could own: left as
+it is, delete it by hand if nobody needs it"*).
+
+What the operator LINKED differently is replaced in the same open:
+
+- A node of the treedb that the schema declares and that exists already is
+  TAKEN: written as the schema says and linked where the schema declares
+  it. For example, the operator moves `treedb_x.departments.name` to
+  `users` (unlinks it from `departments`, links it to `users`). A newer
+  literal that declares `departments.name` links the node to `departments`
+  again, unlinks it from `users`, and reports both topics:
+  `withdrawn_at_open: {"topics": {"departments": "unsaved", "users":
+  "unsaved"}, ...}`. It is never created again (*"Node already exists"*).
+- A column linked to a topic that does not declare it is only UNLINKED from
+  that topic when the schema declares it elsewhere, or when it is a node of
+  another treedb. It is deleted only when it is a node of this treedb that
+  the schema declares nowhere. For example, the operator links
+  `treedb_x.departments.name` to `users` too; a newer literal unlinks it
+  from `users`, keeps it in `departments`, and reports `users`.
+- A topic of ANOTHER treedb linked to this treedb's node is unlinked from
+  it, never deleted (INFO *"Topic of another treedb, not declared by the
+  schema from C: unlinked from the treedb in __system__"*).
+
 A literal that is not higher is not installed. The log tells why:
 
 - lower: *"TreeDB schema from C is behind the schema in use, not applied"*.
@@ -1668,9 +1700,8 @@ it unfinished in the same way.
   for a column, `value`, `order` and every attribute of the column
   descriptor (`header`, `type`, `flag`, `enum`, `default`, ...). The links
   (`topics`, `cols`, `treedbs`), the editor geometry and the metadata are not
-  kept. No node is kept for an id in `not_written`: the write updated the
-  node in memory before its save failed, so the record cannot say what the
-  disk has there, and the id is taken as left. `system_schema_version` is
+  kept. No node is kept for an id in `not_written`: its write failed, and
+  the id is taken as left. `system_schema_version` is
   the version of the meta-schema that says what those nodes hold. A
   projection that succeeds removes the record. The record is written
   whole: to `<treedb>.unfinished.json.new` (created `O_EXCL|O_NOFOLLOW`,
@@ -1756,9 +1787,10 @@ While the record is there:
   (*"Leftovers of an unfinished projection were kept under another
   meta-schema: every leftover is taken as left, an edit of one made
   meanwhile is not told apart"*).
-- A topic or column of the treedb that its tree no longer reaches (the
-  operator unlinked it, or a link of a projection failed) is still a node
-  of `__system__`. A projection whose schema declares its id TAKES it:
+- A topic or column of the treedb that no tree reaches (the operator
+  unlinked it, or a link of a projection failed) is still a node of
+  `__system__`. A node linked to another topic or treedb is reached: it is
+  not one of these (the operator's links are replaced as said above, under *A literal wins whole*). A projection whose schema declares its id TAKES it:
   writes it as the schema says and links it again. A projection whose
   schema does not declare it removes it (INFO *"Node of the treedb that its
   tree does not reach: removed from __system__"*). When it is the
@@ -1770,7 +1802,8 @@ While the record is there:
   declares `users.email` takes that node for the column and answers
   `withdrawn_at_open: {"topics": {"users": "unsaved"}, ...}`.
 - `treedbs` and `saved-schema` answer `unfinished_projection`: the ids of
-  `not_removed` and `not_written` (`[]` when the projection is complete).
+  `not_removed` and `not_written`, and of `planned` when the process died
+  half way (`[]` when the projection is complete).
 - `save-schema` refuses: `-1` *"<role^name>: the projection of 'treedb_x'
   into __system__ is not complete, 2 node(s) could not be removed or
   written (see the log): a save would publish them"*, with `data:
@@ -1824,8 +1857,70 @@ the old topics, said at every open. For a write that failed, fix its cause
 dynamic file whose column has a `flag` that the meta-schema refuses
 (*"Value not in enum"*) is retried at every open, until the file is fixed.
 
+A topic whose write or link fails leaves what it holds as it is. When the
+LINK of a new topic to its treedb fails, the topic node is there, linked to
+nothing, and no column is written under it: the record names the topic in
+`not_written`, it is the projection's, and the open that completes it takes
+the topic and writes its columns without reporting anything. When the write
+that TAKES a topic that no tree reaches fails (the operator unlinked it), or
+the create of a new topic fails while a column the operator made for it is in
+no topic, those nodes are not deleted: they stay the operator's draft, the
+record keeps its kind, and the open that takes them reports the topic once.
+
 (In 7.25.4 a projection only created and updated, and nothing recorded a
 write that failed.)
+
+**A projection that dies half way is completed, and invents nothing.** Before
+its first write, a projection PLANS every write (it only reads) and records
+the plan: the record of an unfinished projection, with `"in_progress":
+true`. Then it writes. The projection that completes removes the record,
+after the WARNING of what it withdrew; one that fails writes over it the
+record of what it could not do. So a process that dies between two writes --
+a column created and not linked, a topic deleted and not its columns --
+always leaves a record, and the next open knows which projection was under
+way:
+
+- `planned`: every id it was going to write, link, unlink or delete, drafts
+  included. `unfinished_projection` answers them until the projection is
+  complete, and `save-schema` refuses.
+- `leftovers` and `leftover_nodes`: the planned ids that carry no draft, and
+  what was at each of them BEFORE (the leftovers of the record before it,
+  still as left, stay leftovers).
+- `target_nodes`: what the projection writes at each of those ids, the node
+  it projects, or `null` for a node it deletes or unlinks.
+- `replaced_kinds`: the drafts it was going to replace, `{topic: kind}`.
+
+At the next open, a node at a planned id that is as it was, or as the
+projection writes it, is the projection's: nobody's draft, never reported.
+Only a node that is NEITHER can be the operator's work. The open completes
+the projection and reports the kinds of `replaced_kinds` once, whether the
+process that died had replaced those drafts already or not. For example,
+the literal 2 changes the header of `users.username`, adds `users.email`,
+adds the topic `roles` and removes `departments`, and the process is killed
+after `treedb_x.users.email` is created and before it is linked. The next
+open with the literal 2 takes the column node, links it, deletes
+`departments`, stamps the projection and answers `withdrawn_at_open: {}`.
+Had the operator edited the header of `users.username` before, it answers
+`{"topics": {"users": "unsaved"}, ...}`, once, at that open.
+
+```json
+{"schema_version": 2, "in_progress": true,
+ "not_removed": [], "not_written": [],
+ "planned": ["treedb_x.users", "treedb_x.users.username", "treedb_x.users.email",
+             "treedb_x.departments", "treedb_x.departments.id", "treedb_x.departments.name"],
+ "leftovers": ["treedb_x.users", "treedb_x.users.username", "treedb_x.users.email",
+               "treedb_x.departments", "treedb_x.departments.id", "treedb_x.departments.name"],
+ "leftover_nodes": {"treedb_x.users.email": null,
+                    "treedb_x.users.username": {"value": "username", "header": "User", ...}, ...},
+ "target_nodes": {"treedb_x.users.email": {"value": "email", "header": "Email", ...},
+                  "treedb_x.departments": null, ...},
+ "draft_kinds": {}, "replaced_kinds": {},
+ "system_schema_version": 18}
+```
+
+A projection with nothing to write records nothing. A record that cannot be
+written is an ERROR, and the projection goes on: refused, it would leave
+`__system__` unlike the file, and every open would read that as drafts.
 
 **A seed that died is completed too.** The node of a new treedb is created
 with `schema_version: 0, c_schema_version: 0`, and it is stamped when the
@@ -2545,8 +2640,11 @@ Round-trip coverage:
 
 **`delete-treedb` deletes the schema, and only of a CLOSED treedb.** It
 removes the projection in `__system__` (`delete_client_treedb_schema()`: the
-`treedbs` node with `force`, which unlinks its `topics` and `cols` itself) and
-never touches the client treedb's store on disk. `force=1` is required and
+`treedbs` node with `force`, which unlinks its `topics` and `cols` itself,
+then the topics and columns OF the treedb) and never touches the client
+treedb's store on disk. A node of another treedb, or of another topic, that
+somebody linked into it is only unlinked: deleted, it would be taken from the
+schema it belongs to. `force=1` is required and
 means "yes, delete the schema"; it does not lift the refusal of an OPEN
 treedb, because an open one goes on answering from its copy in memory with a
 schema that exists nowhere, and the next `open-treedb` dies on the C_TRANGER

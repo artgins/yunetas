@@ -923,6 +923,119 @@ PRIVATE const char *expected_log_msgs[] = {
     M_OTHER_META,
     M_REMOVED,
 
+    /*  LF (tw_lf): the link of a new topic to its treedb fails; the open
+     *  that completes it says nothing  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    "Cannot append record, write FAILED",
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Creating topic",
+    M_COMPLETING,
+
+    /*  FT (tw_ft): the take of an unlinked topic fails: nothing deleted,
+     *  nothing said; the open that takes it says it once  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    "Cannot create json file",
+    "Cannot open file to write",
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    M_COMPLETING,
+    M_WITHDREW,
+
+    /*  FC (tw_fc): the create of a new topic fails while the operator's
+     *  column for it is in no topic: the column stays; the open that
+     *  creates the topic takes it and says it once  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    "newdir() FAILED",
+    "Cannot create subdir. mkrdir() FAILED",
+    "Cannot create json file",
+    "Cannot open file to write",
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Creating topic",
+    M_COMPLETING,
+    M_WITHDREW,
+
+    /*  DN (tw_dn, tw_dn.b): two treedbs whose names start the same: the
+     *  literal of one leaves the nodes of the other alone, only unlinks
+     *  the other's column linked into it, and delete-treedb deletes none
+     *  of them; the other takes its own orphan  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Updating TreeDB schema in __system__",
+    M_WITHDREW,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Updating TreeDB schema in __system__",
+    M_WITHDREW,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+
+    /*  MV (tw_mv): a column the operator moved to another topic is taken
+     *  where the literal declares it, in one open, said once  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_WITHDREW,
+    "Re-Creating TreeDB schema file",
+
+    /*  NP (tw_np): a column the operator linked to a second topic is
+     *  unlinked from it, in one open, said once  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_WITHDREW,
+    "Re-Creating TreeDB schema file",
+
+    /*  CR (tw_crn_*, tw_crd_*): a projection killed at each of its
+     *  writes. Its log is not compared line by line: the capture is off
+     *  while it runs (see scenario_crash_at_every_write)  */
+
     /*  end  */
     "All treedb literal wins tests PASSED",
     "Exit to die",
