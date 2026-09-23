@@ -157,7 +157,7 @@ listed under "No red test" in `TODO.md`.
   and the children already unlinked are put back and saved again while the
   node keeps its parents; in 7.25.4 the parent was deleted while a child on
   disk still named it, and a delete refused by its key left the node unlinked
-  in memory. A stale fkey ref a write removed (its hook gone, or re-pointed to
+  in memory and every child unlinked on disk. A stale fkey ref a write removed (its hook gone, or re-pointed to
   another column) goes back into its field alone when the write is taken back,
   never linked. When memory cannot be taken
   back whole, an ERROR says so: *"A write that did not reach the disk could not
