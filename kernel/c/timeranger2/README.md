@@ -60,6 +60,25 @@ of that FILE, not of the key. In a marked file, and in every file of a topic
 created by 7.25.4 or earlier (no file's `tm` range can be trusted there), a
 `tm` condition skips rows and ends nothing.
 
+Such a topic reads every md2 row of the key on a `tm` query, so its cost grows
+with the files of the key: on one key of 30 files x 20000 rows, a query of 26
+rows took 13.6 ms in 7.25.4, 408 ms now, and 0.09 ms once the topic is marked.
+Mark it, once, with `tranger2_mark_tm_order()` (the `mark-tm-order` command of
+`C_TRANGER`): it reads every md2 file once (16 ms for those 600000 rows),
+writes the markers the files need, and sets `"marks_tm_unordered": true`.
+Run it again after a rollback to a binary that appends without markers.
+
+```C
+json_t *report = tranger2_mark_tm_order(tranger, "readings");  // master only
+// {"files": 30, "rows": 600000, "tm_unordered_marked": 2, "marks_tm_unordered": true, ...}
+JSON_DECREF(report)
+```
+
+The master writes a marker BEFORE the md2 row of the record that needs it, so
+a crash leaves at worst a marker with no row (a whole read of that file), never
+a row with no marker. A marker that cannot be written is logged, the master
+still reads the file whole, and the next append to the file writes it.
+
 ```C
 /*  E1 t=100, E2 t=50000, E3 t=200 (late) in one file: [150, 250] gives E3  */
 json_t *it = tranger2_open_iterator(tranger, "readings", key,
@@ -183,17 +202,31 @@ written on every create of a rowid-key node. Every write goes through
 `topic_var.json.new` and a `rename()`: a process that dies half way leaves the
 old file or the new one, never an empty one. The hot path does not `fsync()`
 (safe against the death of the process, not against a power cut); a
-`topic_version` change does. `tests/c/timeranger2/test_topic_var_replace.c`.
+`topic_version` change does. The `.new` is removed first and created
+`O_EXCL|O_NOFOLLOW` with the tranger's `rpermission`, so a leftover lends the
+file neither its mode nor, as a symlink, its target. `topic_cols.json`
+(`tranger2_write_topic_cols()`) is replaced the same way, and the memory takes
+the new cols only when the file did (it returns -1 otherwise).
+`tests/c/timeranger2/test_topic_var_replace.c`.
 
 ### A history that cannot be read whole says so
 
 A load that meets a row whose metadata cannot be read stops and leaves
 `"load_failed": true` in the iterator; a record whose content cannot be read
-reaches the callback as `NULL`. `tranger2_open_list()` answers `NULL` when the
-history of its key -- or of ANY key of a keyless list -- did not load whole,
-and its one-shot iterators have a creator of their own, so an iterator the
-caller keeps open on a key does not block the load.
-`tests/c/timeranger2/test_open_list_history.c`.
+reaches the callback as `NULL`. `tranger2_open_list()` of ONE key answers
+`NULL` when the history of the key did not load whole. A KEYLESS list loads
+every key it can read, opens its feed, and names the others in the handle:
+
+```C
+json_t *list = tranger2_open_list(tranger, "items", match_cond, extra, "", FALSE, "");
+// list: {"list_type": "rt_mem", "load_failed": true, "load_failed_keys": ["k2"], ...}
+```
+
+A caller that answers a question from the list reads `load_failed` (treedb
+does: see "A topic that did not load whole" in the TreeDB doc page,
+`docs/doc.yuneta.io/api/timeranger2/treedb.md`). Its one-shot iterators have a creator of
+their own, so an iterator the caller keeps open on a key does not block the
+load. `tests/c/timeranger2/test_open_list_history.c`.
 
 ### Subscriber propagation on `tranger2_delete_key`
 

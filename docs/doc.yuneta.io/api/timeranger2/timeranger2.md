@@ -445,7 +445,9 @@ carries `"marks_tm_unordered": true`, and the master leaves
 `<file>.tm_unordered` beside an md2 file when a record's `tm` is below the
 file's highest one. What a `tm` condition does with it is in
 [`tranger2_open_iterator()`](#tranger2_open_iterator). A topic created by
-7.25.4 or earlier has no such key, and cannot get it afterwards.
+7.25.4 or earlier has no such key; it gets it from
+[`tranger2_mark_tm_order()`](<#tranger2_mark_tm_order>), the operator's
+migration.
 
 ```json
 {
@@ -1106,6 +1108,97 @@ disk — including ones not yet opened — use
 
 ---
 
+(tranger2_mark_tm_order)=
+## `tranger2_mark_tm_order()`
+
+Marks the md2 files of a topic whose `__t__` or `__tm__` goes back, and makes
+the topic one that marks (`"marks_tm_unordered": true`). The migration of a
+topic created by 7.25.4 or earlier, asked by an operator: see the cost of such
+a topic in [`tranger2_open_iterator()`](<#tranger2_open_iterator>).
+
+```C
+json_t *tranger2_mark_tm_order(
+    json_t *tranger,
+    const char *topic_name
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | The TimeRanger database instance. It must be the master. |
+| `topic_name` | `const char *` | The topic to mark. |
+
+**Returns**
+
+A dict, yours:
+
+```json
+{
+    "topic_name": "readings",
+    "was_marking": false,
+    "keys": 1,
+    "files": 30,
+    "rows": 600000,
+    "t_unordered_marked": 0,
+    "tm_unordered_marked": 2,
+    "marks_tm_unordered": true
+}
+```
+
+`t_unordered_marked` / `tm_unordered_marked` count the markers THIS call
+wrote. `NULL` (logged, and in `gobj_log_last_message()`) when the handle is
+not the master (*"Only master can write"*), the topic does not exist, a md2
+file cannot be read, or a marker or `topic_desc.json` cannot be written. The
+topic is then left as it was; the markers already written stay.
+
+**Notes**
+
+For every key of the topic and every md2 file of the key, it reads the file
+whole once, writes `<file>.tm_unordered` where a `__tm__` goes back and
+`<file>.unordered` where a `__t__` does (unless the marker is there), and gives
+the file's cell in memory its whole ranges and those flags. Then, if the topic
+did not mark, it sets `"marks_tm_unordered": true` in `topic_desc.json`
+(through a temporary file, fsync'ed, renamed, the directory fsync'ed; mode
+0440 as before) and in memory. The next page of an open iterator takes its
+segments again.
+
+It is synchronous and costs one sequential read of the topic's md2 files, 32
+bytes a row: 16 ms for 600000 rows with a warm page cache. Run it on a quiet
+node.
+
+Run it again on a topic that marks to re-mark it after a rollback to a binary
+that appends without markers (every release up to 7.25.4), or after a crash
+that lost one. It is idempotent, and it never removes a marker (a marker on a
+file in order costs a whole read of that file, nothing more).
+
+A replica that has the topic open reads it as before (no file's `tm` range
+trusted) until it opens the topic again.
+
+From a yuno, the `mark-tm-order` command of `C_TRANGER`:
+
+```bash
+ycommand -c 'command-yuno id=<id> service=<tranger service> command=mark-tm-order topic_name=readings'
+```
+
+From C, every topic of a store:
+
+```C
+json_t *names = tranger2_list_topic_names(tranger);
+size_t i; json_t *jn_name;
+json_array_foreach(names, i, jn_name) {
+    json_t *report = tranger2_mark_tm_order(tranger, json_string_value(jn_name));
+    if(!report) {
+        break;  // logged; the topics already marked stay marked
+    }
+    JSON_DECREF(report)
+}
+JSON_DECREF(names)
+```
+
+---
+
 (tranger2_open_iterator)=
 ## [`tranger2_open_iterator()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/timeranger2/src/timeranger2.c#L7382)
 
@@ -1226,9 +1319,24 @@ The two axes are not ordered the same way, and the scan knows it:
   condition skips rows and ends nothing.
 - **A topic created by 7.25.4 or earlier** cannot tell which of its files are
   in `tm` order, and no file's `tm` range is trusted: a `tm` condition leaves
-  no file out and ends no scan, it skips rows. Correct, and as costly as a
-  full read of the selected files (an 80000-row file: 60-80 ms for the first
-  100 seconds, against ~1 ms in a marking topic).
+  no file out and ends no scan, it skips rows. Correct, and it reads every
+  md2 row of the key, so the cost grows with the files of the key. Measured on
+  one key of 30 day files x 20000 rows, a `from_tm`..`to_tm` query of 26 rows
+  (best of 5, warm page cache): 13.6 ms in 7.25.4 (which trusted the first and
+  the last row of each file, and so could miss rows), 408 ms on such a topic
+  now, 0.09 ms once the topic is marked. Mark it with
+  [`tranger2_mark_tm_order()`](<#tranger2_mark_tm_order>) (the `mark-tm-order`
+  command of `C_TRANGER`): 16 ms for those 600000 rows.
+- **The marker goes down before the row.** The master writes the marker of a
+  record whose `t` or `tm` goes back BEFORE its md2 row, so a process that dies
+  between the two leaves a marker with no row behind it (one whole read of the
+  file at the next load), never a row with no marker. A marker that cannot be
+  written is logged (*"Cannot mark md2 file, a reload will misread its time
+  range"*); the master still reads that file whole, and writes the marker at
+  the next append to the file (*"md2 file marked, the marker missed earlier is
+  written"*). Neither is fsync'ed, like the append itself. A marker lost all
+  the same (a crash, a power cut, a rollback to a binary that appends without
+  markers) is written again by `tranger2_mark_tm_order()`.
 - A file left out by `tm` is a **hole** in the rowids the scan walks: the
   scan steps over it, and a `from_rowid` / `to_rowid` that falls in it begins
   at the next row the scan can read.
@@ -1333,11 +1441,48 @@ or, when real-time is disabled (`to_rowid` set), the `extra` given, tagged
 
 `NULL` (logged; `match_cond` and `extra` are consumed) on error: no topic, no
 `load_record_callback`, a bad `rkey`, a real-time feed that cannot be opened,
-no `extra` for a `no_rt` list -- and when the history of the key, or of ANY
-key of a keyless list, could not be loaded whole (the `load_failed` of
-[`tranger2_open_iterator()`](#tranger2_open_iterator)). In that last case the
-records already handed to the callback stay handed: a caller that builds its
-own list from them must drop it.
+no `extra` for a `no_rt` list -- and when the history of THE key of a list of
+one key (`key` set) could not be loaded whole (the `load_failed` of
+[`tranger2_open_iterator()`](#tranger2_open_iterator)).
+
+**A keyless list with a key that cannot be loaded** logs the key (*"Cannot
+load the history of a key of the list, the list goes on without it"*), loads
+every other key, opens its real-time feed, and says what it lacks in the
+handle it returns:
+
+```json
+{
+    "list_type": "rt_mem",
+    "load_failed": true,
+    "load_failed_keys": ["B"]
+}
+```
+
+The records already handed to the callback stay handed. A caller that answers
+a question from the list must read the flag, or it takes "not in the list" for
+"not on disk":
+
+```C
+json_t *list = tranger2_open_list(tranger, "devices", match_cond, extra, "", FALSE, "");
+if(list && json_is_true(json_object_get(list, "load_failed"))) {
+    json_t *keys = json_object_get(list, "load_failed_keys");
+    // these keys are on disk and not in what the callback saw
+}
+```
+
+What the callers in the SDK do with it:
+
+| Caller | With `load_failed` |
+|---|---|
+| treedb (every topic, `__snaps__`, `__graphs__`) | remembers the keys; refuses a create of such an id, refuses shoot/activate of a snap when `__snaps__` has any, and its asset guards fail closed (see [TreeDB](treedb.md)). |
+| treedb's snapshot guard of the assets | a walk that did not load everything fails closed: the gc and the delete of an asset refuse. |
+| `tr_queue` / `tr2q_mqtt` (`trq_open`) | nothing more than the library's log: the pending messages of a row that cannot be read are not in memory and are not delivered. |
+| msg2db | nothing more than the library's log: the messages of that key are not in the index. |
+
+Until 7.25.4 such a list was handed over silently, with the key missing; the
+first fix (6d5760377) refused the whole list at the first bad key, so the keys
+after it were not loaded and no feed was opened -- a treedb topic came up with
+1 node of 6 and a replica stopped following it.
 
 **Notes**
 
@@ -2295,6 +2440,22 @@ Returns `0` on success, or a negative error code on failure.
 must bump the topic's `topic_version` (and `schema_version` for structural
 changes), otherwise the persisted `topic_cols.json` masks the new schema on the
 next reload.
+
+The file is replaced, never written in place: `topic_cols.json.new` is removed
+if a process left it, created `O_EXCL|O_NOFOLLOW` with the tranger's
+`rpermission`, written and renamed over the old file. The memory takes the new
+columns only when the file did; otherwise the call logs (*"Cannot replace
+topic_cols.json, ..."*) and returns `-1` with the old file and the old columns in
+place. Until the review of the second fix round after 7.25.4 it wrote in place,
+put the columns in memory before writing, and returned `0` whatever happened.
+`tranger2_write_topic_var()` replaces `topic_var.json` the same way.
+
+```C
+json_t *cols = json_pack("{s:s, s:s, s:s}", "id", "", "content", "", "extra", "");
+if(tranger2_write_topic_cols(tranger, "readings", cols) < 0) {  // cols consumed either way
+    // not written: topic_cols.json and topic["cols"] are the old ones
+}
+```
 
 One change does not wait for the bump. When the incoming schema holds the same
 columns saying the same things and only their **order** differs,

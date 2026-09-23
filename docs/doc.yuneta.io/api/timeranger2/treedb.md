@@ -974,7 +974,11 @@ json_t *treedb_gc_files(
 
 The list of asset ids taken (or that would be taken), **yours** to decref. `NULL` with *"__assets__ index not found"* logged when the treedb has no `__assets__` topic.
 
-`NULL`, nothing taken, when what the snapshots hold cannot be read whole: a tagged record of an existing snap whose content cannot be read, or a topic with a `file` column whose records do not load. The log says *"cannot read a tagged record: the assets a snapshot holds are unknown"* (or which topic) and *"gc refused: cannot tell which assets a snapshot links"*. Such a record may name any blob, so none is taken; until 7.25.4 the gc took the ones it could not see held. [`treedb_delete_node()`](<#treedb_delete_node>) of an `__assets__` node refuses in the same case: *"cannot delete asset, cannot tell whether a snapshot links it"*.
+`NULL`, no asset row taken, when what the snapshots hold cannot be read whole: a tagged record of an existing snap whose content cannot be read, a key of a topic with a `file` column whose records do not load (*"cannot read every instance of a topic: the assets a snapshot holds are unknown"*), or a `__snaps__` that did not load whole. The log says *"cannot read a tagged record: the assets a snapshot holds are unknown"* (or which topic) and *"gc refused: cannot tell which assets a snapshot links"*. Such a record may name any blob, so no asset is taken; until 7.25.4 the gc took the ones it could not see held. [`treedb_delete_node()`](<#treedb_delete_node>) of an `__assets__` node refuses in the same case: *"cannot delete asset, cannot tell whether a snapshot links it"*.
+
+`NULL` too when a topic that links assets, or `__assets__`, in any treedb of the tranger, did not load whole (see [A topic that did not load whole](<#treedb-topic-not-loaded-whole>)): a node that did not load links its asset all the same, so the live links are unknown (*"gc refused: a topic that links assets did not load whole, the live links are unknown"*).
+
+A refusal of the asset rows does not stop the sweep of the blobs NO row names: no link and no snapshot can lead to them. They are swept (or listed, `dry_run`) all the same and logged as info, *"gc: the asset rows were refused; blobs no row names were taken"* with their ids, since the answer is the refusal. The sweep refuses on its own when an `__assets__` did not load whole (*"gc: the blobs are not swept, __assets__ did not load whole"*): the bytes of a row that did not load would read as bytes no row names. What to do after a refusal: see *What the operator does* under [`treedb_open_db()`](<#treedb_open_db>).
 
 **Example**
 
@@ -1643,6 +1647,58 @@ through the fkey `parent_realm_id`
                 },                                                  \n\
 ```
 
+
+
+(treedb-topic-not-loaded-whole)=
+**A topic that did not load whole.** A topic is loaded with keyless
+[`tranger2_open_list()`](<timeranger2.md#tranger2_open_list>)s (one for the
+`id` index, one per `pkey2`). A key whose records cannot be read (an md2 file
+cut or unreadable) is left out: every other key is loaded, the realtime feed
+is opened, and the list names the keys it lacks. treedb logs them:
+
+```text
+ERROR tranger2_open_list: Cannot load the history of a key of the list, the list goes on without it
+      topic_name=items key=k2
+ERROR note_keys_not_loaded: treedb topic loaded WITHOUT the records of keys that cannot be read:
+      their nodes are not in memory and a create of those ids is refused
+      treedb_name=treedb_items topic_name=items keys=["k2"]
+```
+
+Those nodes are not in memory, and memory is what treedb answers from, so it
+refuses what it would answer wrong, until the topic is opened again:
+
+| What | With a topic that did not load whole |
+|---|---|
+| [`treedb_create_node()`](<#treedb_create_node>) of such an id | refused: *"Cannot create node, its id has records on disk that could not be loaded"*. Its record would become the newest of the key, over records nobody read. Other ids are created as usual. |
+| `__snaps__` | also logs *"__snaps__ loaded without some snaps: the active snap is unknown, ..."*. The treedb is loaded from the live records (the active snap may be the one that did not load). [`treedb_shoot_snap()`](<#treedb_shoot_snap>) and [`treedb_activate_snap()`](<#treedb_activate_snap>) refuse; [`treedb_delete_node()`](<#treedb_delete_node>), `treedb_delete_instance()` and the delete of an asset refuse too, because which snap holds a record is unknown (*"cannot tell which snaps exist: __snaps__ did not load whole"*). `ignore_snaps` still overrides the node and instance deletes. |
+| a topic that links assets (a `file` column), or `__assets__`, in ANY treedb of the tranger | [`treedb_gc_files()`](<#treedb_gc_files>) refuses the asset rows: *"gc refused: a topic that links assets did not load whole, the live links are unknown"*. |
+| `__assets__`, in any treedb of the tranger | the sweep of the blobs no row names refuses too: *"gc: the blobs are not swept, __assets__ did not load whole"*. |
+
+Until 7.25.4 such a topic loaded without the key and nothing said so; the
+first fix after it (6d5760377) refused the whole list, so a topic came up
+with the keys BEFORE the bad one only, its feed was not opened, a create
+shadowed stored records, and an active snap was ignored.
+
+**What the operator does** when a guard fails closed (this refusal, or the
+snapshot guard of [`treedb_gc_files()`](<#treedb_gc_files>) that cannot read
+a tagged record):
+
+1. Read the log: the read error names the file (`path`, `rowid`), the lines
+   above name the treedb, the topic and the keys.
+2. Look at the key's directory, `<store>/<topic>/keys/<key>/`: a `.md2` whose
+   size is not a multiple of 32 bytes or is shorter than what was written, a
+   `.json` that was cut, a permission.
+3. Repair it with the yuno STOPPED (the running yuno caches the store and
+   writes it): put the key's directory back from a backup copy of the store.
+   When the records of the key are lost for good and that is acceptable,
+   remove the key instead, on the master, with the `delete-key` command of
+   `C_TRANGER` (`force=1` when the key still holds rows):
+
+   ```bash
+   ycommand -c 'command-yuno id=<id> service=<tranger service> command=delete-key topic_name=items key=k2 force=1'
+   ```
+4. Open the treedb again (restart the yuno): the keys a topic could not load
+   are forgotten only when the topic is closed, and the next load is whole.
 
 ---
 
