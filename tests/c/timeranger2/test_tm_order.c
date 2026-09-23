@@ -25,6 +25,14 @@
  *  it marks a late __t__ (`<file>.unordered`); a topic that marks says so in
  *  its topic_desc.json (`marks_tm_unordered`).
  *
+ *  A marker that cannot be written (independent review of the second fix
+ *  round, M-A): the cell of the file was not flagged in memory either, so
+ *  the master itself took the file for one in tm order and its early end
+ *  hid the rows 7.25.4 served; and nothing wrote the marker later, so a
+ *  reload hid them too. The cell is flagged whatever the disk says, the
+ *  marker is written BEFORE the md2 row, and the next append to the file
+ *  writes a marker that is still missing.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -384,6 +392,44 @@ PRIVATE int do_test(void)
     result += expect_the_answers(tm, "master");
     result += test_json(NULL);
 
+    /*-------------------------------------*
+     *  A marker that cannot be written:
+     *  the key directory made read-only
+     *  when the tm goes back
+     *-------------------------------------*/
+    set_expected_results(
+        "tm order: a marker that cannot be written",
+        json_pack("[{s:s}]",
+            "msg", "Cannot mark md2 file, a reload will misread its time range"
+        ),
+        NULL, NULL, 1
+    );
+    append_tm(tm, "nomark", DAY1 + 1, 500, "N1");
+    char nomark_dir[PATH_MAX];
+    build_path(nomark_dir, sizeof(nomark_dir), path_database, TOPIC_NAME, "keys", "nomark", NULL);
+    chmod(nomark_dir, 0500);
+    append_tm(tm, "nomark", DAY1 + 2, 100, "N2");
+    chmod(nomark_dir, 02770);
+    result += expect_file("the marker could not be written",
+        "nomark", "2000-01-01.tm_unordered", FALSE);
+    result += expect_cond(tm, "master (marker not written)", "nomark",
+        json_pack("{s:I}", "to_tm", (json_int_t)200),
+        "N2", "N2"
+    );
+    result += test_json(NULL);
+
+    set_expected_results(
+        "tm order: the next append writes the missing marker",
+        json_pack("[{s:s}]",
+            "msg", "md2 file marked, the marker missed earlier is written"
+        ),
+        NULL, NULL, 1
+    );
+    append_tm(tm, "nomark", DAY1 + 3, 600, "N3");
+    result += expect_file("the next append to the file writes the marker",
+        "nomark", "2000-01-01.tm_unordered", TRUE);
+    result += test_json(NULL);
+
     set_expected_results("tm order: a replica", NULL, NULL, NULL, 1);
     json_t *tf = startup_tranger(FALSE);
     if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
@@ -442,6 +488,10 @@ PRIVATE int do_test(void)
         return -1;
     }
     result += expect_the_answers(tm, "reloaded");
+    result += expect_cond(tm, "reloaded (marker written late)", "nomark",
+        json_pack("{s:I}", "to_tm", (json_int_t)200),
+        "N2", "N2"
+    );
     result += test_json(NULL);
 
     /*-------------------------------------*

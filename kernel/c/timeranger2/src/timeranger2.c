@@ -155,6 +155,13 @@ PRIVATE void mark_file_unordered(
     json_t *cache_cell,
     const char *mark
 );
+PRIVATE void mark_file_before_append(
+    hgobj gobj,
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    md2_record_t *md_record
+);
 PRIVATE int widen_cell_from_rows(
     hgobj gobj,
     const char *topic_directory,
@@ -3337,6 +3344,12 @@ PUBLIC int tranger2_append_record(
         }
 
         i_rowid = (json_int_t)(offset/sizeof(md2_record_t)) + 1;
+
+        /*--------------------------------------------*
+         *  The marker of an out-of-order record goes
+         *  down BEFORE its row (see the function)
+         *--------------------------------------------*/
+        mark_file_before_append(gobj, topic, key_value, file_id, &md_record);
 
         /*--------------------------------------------*
          *  write md2 in big endian
@@ -7024,6 +7037,21 @@ PRIVATE int widen_cell_from_rows(
  *      "tm_unordered"  a __tm__ below the file's to_tm (only in a topic that
  *                      marks tm, see topic_marks_tm)
  *  The marker is `<file>.<mark>`. Once per file: the cell remembers.
+ *
+ *  The cell is flagged WHATEVER the disk says: this process then reads the
+ *  file whole. A marker that cannot be written is logged, and the cell says
+ *  so (`<mark>_not_on_disk`): every later append to the file tries it again
+ *  (mark_file_before_append), because until it is there a reload -- or a
+ *  replica -- misreads the file's range. It used to return with the cell
+ *  unflagged, and the master itself took the file for one in order: the
+ *  early end of a tm scan hid rows 7.25.4 served (M-A of the independent
+ *  review of the second fix round).
+ *
+ *  No fsync: an append is not fsync'ed either. Written before the md2 row
+ *  (mark_file_before_append), the marker is never behind the row it
+ *  describes for a process that dies; after a power cut the order holds on
+ *  a journaled filesystem that commits its metadata in order (ext4), and
+ *  a lost marker is what tranger2_mark_tm_order() writes again.
  ***************************************************************************/
 PRIVATE void mark_file_unordered(
     hgobj gobj,
@@ -7034,22 +7062,29 @@ PRIVATE void mark_file_unordered(
     const char *mark
 )
 {
-    if(json_is_true(json_object_get(cache_cell, mark))) {
+    char not_on_disk[NAME_MAX];
+    snprintf(not_on_disk, sizeof(not_on_disk), "%s_not_on_disk", mark);
+    BOOL retry = json_is_true(json_object_get(cache_cell, not_on_disk));
+    if(json_is_true(json_object_get(cache_cell, mark)) && !retry) {
         return;
     }
+    json_object_set_new(cache_cell, mark, json_true());
+
     char marker[NAME_MAX];
     if(snprintf(marker, sizeof(marker), "%s.%s", file_id, mark) >= (int)sizeof(marker)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Cannot mark md2 file, file_id too long",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            "file_id",      "%s", file_id,
-            "mark",         "%s", mark,
-            NULL
-        );
-        json_object_set_new(cache_cell, mark, json_true());
+        if(!retry) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Cannot mark md2 file, file_id too long",
+                "topic",        "%s", tranger2_topic_name(topic),
+                "key",          "%s", key,
+                "file_id",      "%s", file_id,
+                "mark",         "%s", mark,
+                NULL
+            );
+        }
+        json_object_set_new(cache_cell, not_on_disk, json_true());
         return;
     }
     char path[PATH_MAX];
@@ -7058,21 +7093,67 @@ PRIVATE void mark_file_unordered(
     );
     int fd = newfile(path, (int)json_integer_value(json_object_get(topic, "rpermission")), FALSE);
     if(fd < 0 && !is_regular_file(path)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot mark md2 file, a reload will misread its time range",
-            "path",         "%s", path,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
+        if(!retry) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot mark md2 file, a reload will misread its time range",
+                "path",         "%s", path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
+        // else: Error already logged when the marker was first missed
+        json_object_set_new(cache_cell, not_on_disk, json_true());
         return;
     }
     if(fd >= 0) {
         close(fd);
     }
-    json_object_set_new(cache_cell, mark, json_true());
+    if(retry) {
+        json_object_del(cache_cell, not_on_disk);
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "md2 file marked, the marker missed earlier is written",
+            "path",         "%s", path,
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
+ *  Mark the record's file BEFORE its md2 row is written, when the record
+ *  is one the first and the last row of the file do not bound (see
+ *  mark_file_unordered). A process that dies between the two leaves a
+ *  marker with no row behind it -- which costs a whole read of the file
+ *  at the next load -- and never a row with no marker, which hid rows.
+ *  A marker still missing is tried again here, on any append to the file.
+ ***************************************************************************/
+PRIVATE void mark_file_before_append(
+    hgobj gobj,
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    md2_record_t *md_record
+)
+{
+    json_int_t file_base = 0;
+    int insert_idx = 0;
+    json_t *cell = find_cache_cell(topic, key, file_id, &file_base, &insert_idx);
+    if(!cell) {
+        return;     // The first row of the file: nothing to be out of order with
+    }
+    if(get_time_t(md_record) < (uint64_t)json_integer_value(json_object_get(cell, "to_t")) ||
+            json_is_true(json_object_get(cell, "unordered_not_on_disk"))) {
+        mark_file_unordered(gobj, topic, key, file_id, cell, "unordered");
+    }
+    if(topic_marks_tm(topic) && (
+            get_time_tm(md_record) < (uint64_t)json_integer_value(json_object_get(cell, "to_tm")) ||
+            json_is_true(json_object_get(cell, "tm_unordered_not_on_disk")))) {
+        mark_file_unordered(gobj, topic, key, file_id, cell, "tm_unordered");
+    }
 }
 
 /***************************************************************************
@@ -7290,14 +7371,7 @@ PRIVATE json_int_t update_new_record_from_mem(
         json_array_insert_new(cache_files, (size_t)insert_idx, cur_cache_cell);
 
     } else {
-        if(get_time_t(md_record) <
-                (uint64_t)json_integer_value(json_object_get(cur_cache_cell, "to_t"))) {
-            mark_file_unordered(gobj, topic, key, file_id, cur_cache_cell, "unordered");
-        }
-        if(topic_marks_tm(topic) && get_time_tm(md_record) <
-                (uint64_t)json_integer_value(json_object_get(cur_cache_cell, "to_tm"))) {
-            mark_file_unordered(gobj, topic, key, file_id, cur_cache_cell, "tm_unordered");
-        }
+        // The file was marked before its row was written (mark_file_before_append)
         update_cache_cell(cur_cache_cell, file_id, md_record, 1, 1);
     }
 
