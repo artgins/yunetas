@@ -36,12 +36,13 @@ listed under "No red test" in `TODO.md`.
   `gc-assets` still sweeps (and reports) orphan blobs, the bytes no asset row
   names. The library's `treedb_gc_files()` takes nothing on a refusal;
   `treedb_gc_files2()` returns the report.
-- **Damaged keys.** A key damaged on disk (an md2 that cannot be read, a size
-  that is not whole rows, a record whose content cannot be read) makes every
+- **Damaged keys.** A key damaged on disk (an md2 that cannot be opened or
+  read, a record whose content cannot be read) makes every
   load of the key fail (`load_failed`): a row or content that cannot be read
   fails the load that meets it, and an md2 the cache build cannot count flags
   the key at the open, also after a restart. The flag of a file is cleared when
-  the file reads again (an append into a file still unreadable is refused). A keyless
+  the file reads again (an append into a file still unreadable is refused). A
+  keyless
   `tranger2_open_list()` still loads every readable key and opens its realtime
   feed, and reports the failure as `load_failed` / `load_failed_keys`. treedb
   remembers those keys and refuses what memory would answer wrong: a create of
@@ -57,9 +58,11 @@ listed under "No red test" in `TODO.md`.
   pkey2 whose newest message comes after the damage is served as before; one
   whose newest message is in the damage or before it is ABSENT (its state is
   unknown) until its next message -- unless the damaged file is the one new
-  messages go to (the current period's file): then every new message of that
-  id is refused until the file is repaired (treedb.md) or the period changes. An ERROR names the id with `served=N`, and
-  the new `msg2db_id_incomplete()` tells "unknown" from "none" while the msg2db
+  messages go to (the current period's file; the db_history trangers use one
+  file per YEAR): then every new message of that id is refused until the file
+  is repaired (treedb.md) or the period changes, and a second ERROR says so. A
+  torn last md2 row is not damage (next bullet). An ERROR names the id with
+  `served=N`, and the new `msg2db_id_incomplete()` tells "unknown" from "none" while the msg2db
   stays open. For the db_history alarms of the projects (wattyzer, yunovatios,
   estadodelaire, hidraulia), until an absent alarm's next message: a device
   that reports it active gets it announced as new (a notification may repeat),
@@ -73,7 +76,20 @@ listed under "No red test" in `TODO.md`.
   and 7.25.4 left the bytes behind); an md2
   with 0 rows beside a non-empty `.json` (a kill or a power cut between the two
   writes) is ignored with a warning, and its key loads (7.25.4 ignored its rows
-  too, without a warning).
+  too, without a warning). **An md2 that ends in a part of a row** (a power cut
+  during the 32-byte row write) is cut back to whole rows by the master when
+  the file is first examined, with one WARNING (*"md2 file of the key ends in a
+  part of a row: an append that was never acknowledged was cut back"*, with
+  `old_size` / `new_size`); the key loads whole and appends go on. The cut
+  removes fewer than 32 bytes after the last whole row, so it can never remove
+  an acknowledged row. A replica reads only the whole rows and writes nothing
+  (it used to flag the file, or log a critical on its rt_disk path, when it
+  caught a live master mid-write).
+- A read that returns fewer bytes than asked logs *"... short read"* with
+  `read` / `expected` (it logged *"read FAILED"* with a stale errno); a short
+  write likewise logs *"... short write"*. A read error or short read of an
+  md2's first or last row at the cache build flags the file (it went on with a
+  zeroed row).
 - **Lost lock.** A master that lost its lock while stopped (another process
   took the store) writes nothing: every write path, including the three md2
   flag rewriters (`tranger2_write_user_flag`, `tranger2_set_user_flag`,
@@ -256,7 +272,12 @@ listed under "No red test" in `TODO.md`.
   their users); `trq_load()` / `tr2q_load()` return -1 when the load did not
   read every pending message; `trq_check_backup()` / `tr2q_check_backup()`
   return -1 while the backup is refused.
-- timeranger2: an append into a file flagged unreadable returns -1.
+- timeranger2: an append into a file flagged unreadable returns -1. A master
+  cuts back an md2 that ends in a part of a row (it writes the store at open).
+  Log texts: *"Cannot read last record, md2 file corrupted"* is gone; a
+  truncated md2 or content logs *"... short read"* instead of *"read FAILED"*
+  (match on it if you alert on it); a replica's rt_disk update makes no cache
+  cell for an md2 with no whole row yet.
 - C_TREEDB answers carry new fields (`withdrawn`, `stale`, `broken`,
   `withdrawn_at_open`, `unfinished_projection`, `stopped`, and `master` in
   `treedbs` rows) and `saved` changed meaning;
@@ -267,9 +288,6 @@ listed under "No red test" in `TODO.md`.
 
 - `default: {}` placeholders are dropped by save + apply, so a `required`
   column whose literal really declared `'default': {}` loses it.
-- An md2 whose last row was torn (size not whole rows) is still treated as
-  damage, although it is also an append that was never acknowledged; treedb.md
-  gives the repair (cut it back to whole rows with the yuno stopped).
 - A failed `open-treedb` withdraws the saved schema at once.
 - An md2 truncated to 0 rows behind the yuno's back loses its rows as it did in
   7.25.4 (ignored with a warning); check the `.json` size before repairing.
