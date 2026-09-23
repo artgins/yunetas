@@ -80,7 +80,11 @@ listed under "No red test" in `TODO.md`.
   during the 32-byte row write) is cut back to whole rows by the master when
   the file is first examined, with one WARNING (*"md2 file of the key ends in a
   part of a row: an append that was never acknowledged was cut back"*, with
-  `old_size` / `new_size`); the key loads whole and appends go on. The cut
+  `old_size` / `new_size`); the key loads whole and appends go on. An append
+  that meets such an md2 cuts it back the same way before it writes its row,
+  so a row always starts on a row boundary; if the cut fails, the append is
+  refused with a CRITICAL (*"Cannot append record, its md2 file ends in a part
+  of a row that cannot be cut back: the append is refused"*). The cut
   removes fewer than 32 bytes after the last whole row, so it can never remove
   an acknowledged row. A replica reads only the whole rows and writes nothing.
   7.25.4 logged a CRITICAL (*"Cannot read last record, md2 file corrupted"*)
