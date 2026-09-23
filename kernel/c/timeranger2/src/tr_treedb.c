@@ -157,7 +157,7 @@ PRIVATE int clean_node_in_memory(
     json_t *tranger,
     json_t *node,       // NOT owned, pure node
     BOOL *p_to_save,
-    node_write_t *write // optional: keeps the places the unlinks free
+    node_write_t *write // optional: keeps what the unlinks move
 );
 PRIVATE int unlink_child_from_parent_ref(
     hgobj gobj,
@@ -252,6 +252,13 @@ PRIVATE json_t *_list_children(
  ***************************************************************/
 PRIVATE json_t *topic_cols_desc = 0; // HACK incref/decref by each treedb_open_db/treedb_close_db
 PRIVATE BOOL treedb_trace = 0;
+
+/*
+ *  The nodes whose delete tells its events: a save of them is refused
+ *  (mark_node_deleting()). NOT owned: each delete removes its own.
+ */
+PRIVATE json_t *nodes_deleting[256];
+PRIVATE size_t n_nodes_deleting = 0;
 
 /***************************************************************************
  *
@@ -6772,39 +6779,47 @@ PRIVATE void tell_taken_events(
  *  its key is deleted until its delete returns, the events of the delete
  *  are told, and a callback that saves the node would write a record into
  *  the key just deleted: the node would come back from the disk. The save
- *  refuses a node marked (node_is_being_deleted()). A treedb nobody listens
- *  to tells nothing, and marks nothing.
+ *  refuses a node marked (node_is_being_deleted()).
+ *
+ *  The marks are a stack of pointers: a delete marks one node, and only a
+ *  callback of a delete opens another one inside it. Return whether the
+ *  node was marked.
  ***************************************************************************/
-PRIVATE void mark_node_deleting(json_t *treedb, json_t *node, BOOL set)
+PRIVATE BOOL mark_node_deleting(json_t *node, BOOL set)
 {
-    if(!treedb || !json_integer_value(json_object_get(treedb, "__treedb_callback__"))) {
-        return;
-    }
-    json_t *deleting = json_object_get(treedb, "__nodes_deleting__");
     if(set) {
-        if(!deleting) {
-            deleting = json_array();
-            json_object_set_new(treedb, "__nodes_deleting__", deleting);
+        if(n_nodes_deleting >= ARRAY_SIZE(nodes_deleting)) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Too many deletes open inside the callbacks of a delete: a save of this node is not refused while its delete is told",
+                "id",           "%s", kw_get_str(0, node, "id", "", 0),
+                "max",          "%d", (int)ARRAY_SIZE(nodes_deleting),
+                NULL
+            );
+            return FALSE;
         }
-        json_array_append_new(deleting, json_integer((json_int_t)(uintptr_t)node));
-        return;
+        nodes_deleting[n_nodes_deleting++] = node;
+        return TRUE;
     }
-    for(size_t i = json_array_size(deleting); i-- > 0; ) {
-        if((json_t *)(uintptr_t)json_integer_value(json_array_get(deleting, i)) == node) {
-            json_array_remove(deleting, i);
-            break;
+    for(size_t i = n_nodes_deleting; i-- > 0; ) {
+        if(nodes_deleting[i] == node) {
+            memmove(&nodes_deleting[i], &nodes_deleting[i+1],
+                (n_nodes_deleting - i - 1) * sizeof(nodes_deleting[0]));
+            n_nodes_deleting--;
+            return TRUE;
         }
     }
+    return FALSE;
 }
 
 /***************************************************************************
  *  Is `node` being deleted (mark_node_deleting())?
  ***************************************************************************/
-PRIVATE BOOL node_is_being_deleted(json_t *tranger, const char *treedb_name, json_t *node)
+PRIVATE BOOL node_is_being_deleted(json_t *node)
 {
-    json_t *deleting = json_object_get(get_treedb(tranger, treedb_name), "__nodes_deleting__");
-    for(size_t i = json_array_size(deleting); i-- > 0; ) {
-        if((json_t *)(uintptr_t)json_integer_value(json_array_get(deleting, i)) == node) {
+    for(size_t i = n_nodes_deleting; i-- > 0; ) {
+        if(nodes_deleting[i] == node) {
             return TRUE;
         }
     }
@@ -7282,7 +7297,7 @@ PUBLIC int treedb_save_node(
     /*-------------------------------*
      *  Its key is gone: a record written now brings it back from the disk
      *-------------------------------*/
-    if(node_is_being_deleted(tranger, treedb_name, node)) {
+    if(node_is_being_deleted(node)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -8039,8 +8054,7 @@ PRIVATE int delete_node(
             if(to_delete) {
                 begin_node_write(gobj, tranger, node, &node_write);
                 node_write_open = TRUE;
-                keep_node_fkeys(gobj, tranger, &node_write, node, NULL);
-                BOOL to_save = FALSE;
+                BOOL to_save = FALSE;   // clean_node_in_memory() keeps what it moves
                 if(clean_node_in_memory(tranger, node, &to_save, &node_write)<0) {
                     to_delete = FALSE;  // Error already logged
                 }
@@ -8218,14 +8232,13 @@ PRIVATE int delete_node(
      *  The node is out of the indexes: the unlinks are told, then the
      *  delete. Until it returns, a save of the node is refused.
      *-------------------------------*/
-    json_t *treedb = get_treedb(tranger, treedb_name);
-    mark_node_deleting(treedb, node, TRUE);
+    BOOL marked = mark_node_deleting(node, TRUE);
     release_treedb_events(tranger, &hold, TRUE);
 
     /*
      *  Call Callback (a callback of the unlinks may have closed the treedb)
      */
-    treedb = get_treedb(tranger, treedb_name);
+    json_t *treedb = get_treedb(tranger, treedb_name);
 
     treedb_callback_t treedb_callback = (treedb_callback_t)(uintptr_t)json_integer_value(
         json_object_get(treedb, "__treedb_callback__")
@@ -8247,7 +8260,9 @@ PRIVATE int delete_node(
             node
         );
     }
-    mark_node_deleting(get_treedb(tranger, treedb_name), node, FALSE);
+    if(marked) {
+        mark_node_deleting(node, FALSE);
+    }
 
     /*-------------------------------*
      *  Kill the node
@@ -9887,7 +9902,9 @@ PRIVATE int _unlink_nodes(
 
 /***************************************************************************
  *  Unlink the child from the parent that one of its fkey refs names.
- *  `write` (optional) keeps what the unlink moves, to take it back.
+ *  `write` (optional) keeps what the unlink moves, to take it back: the
+ *  column of the link, or every fkey column when a stale ref goes (it may
+ *  be in any of them).
  *
  *  A ref whose parent is nowhere is a stale ref: it is only removed from
  *  the child. Nothing is saved here. Return 0 or -1 (error logged).
@@ -9950,6 +9967,9 @@ PRIVATE int unlink_child_from_parent_ref(
             "ref",                  "%s", ref,
             NULL
         );
+        if(write) {
+            keep_node_fkeys(gobj, tranger, write, node, NULL);
+        }
         search_and_remove_wrong_up_ref(
             gobj,
             tranger,
@@ -9992,6 +10012,9 @@ PRIVATE int unlink_child_from_parent_ref(
             "ref",                  "%s", ref,
             NULL
         );
+        if(write) {
+            keep_node_fkeys(gobj, tranger, write, node, NULL);
+        }
         search_and_remove_wrong_up_ref(
             gobj,
             tranger,
@@ -10049,6 +10072,9 @@ PRIVATE int unlink_child_from_parent_ref(
         );
     }
 
+    if(write) {
+        keep_node_fkeys(gobj, tranger, write, node, NULL);
+    }
     search_and_remove_wrong_up_ref(
         gobj,
         tranger,
@@ -10061,14 +10087,15 @@ PRIVATE int unlink_child_from_parent_ref(
 
 /***************************************************************************
  *  The unlinks treedb_clean_node() makes, in memory only: `*p_to_save`
- *  says whether the node has to be saved. `write` (optional) keeps the
- *  places the unlinks free in the hooks of the parents.
+ *  says whether the node has to be saved. `write` (optional) keeps what
+ *  the unlinks move, as they move it: the fkey columns, and the places
+ *  they free in the hooks of the parents. Nothing is copied up front.
  ***************************************************************************/
 PRIVATE int clean_node_in_memory(
     json_t *tranger,
     json_t *node,       // NOT owned, pure node
     BOOL *p_to_save,
-    node_write_t *write // optional: keeps the places the unlinks free
+    node_write_t *write // optional: keeps what the unlinks move
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -10148,7 +10175,6 @@ PUBLIC int treedb_clean_node(
 
     node_write_t write;
     begin_node_write(gobj, tranger, node, &write);
-    keep_node_fkeys(gobj, tranger, &write, node, NULL);
     BOOL to_save = FALSE;
     int ret = clean_node_in_memory(tranger, node, &to_save, &write);
     return end_node_write(gobj, tranger, node, &write, ret==0, save && to_save);
