@@ -9,8 +9,14 @@
  *        not be loaded gave the caller a list, and the caller took what it
  *        got for the whole topic. treedb's snapshot guard of the assets
  *        read "held by nothing" from such a list (M2 of the 2026-09-23
- *        independent review of 7.25.4). It is refused now, like the list
- *        of one key already was.
+ *        independent review of 7.25.4).
+ *      - Refusing that list (6d5760377) was worse: the first unreadable
+ *        key stopped the load, the keys after it were not loaded and no
+ *        realtime feed was opened, so a treedb topic came up with 1 node
+ *        of 6 and a replica stopped following it (independent review of
+ *        the second fix round). The list is handed over again, with every
+ *        readable key loaded and the feed open, and it SAYS what it lacks:
+ *        `"load_failed": true` and `"load_failed_keys": [...]`.
  *      - The one-shot iterators took the caller's default identity (the
  *        key as the id, creator ""): an iterator the caller kept open on
  *        the key made the load's one "already exist", and the list of that
@@ -70,6 +76,41 @@ PRIVATE json_t *open_history(json_t *tranger, const char *key)
         json_object_set_new(match_cond, "key", json_string(key));
     }
     return tranger2_open_list(tranger, TOPIC_NAME, match_cond, json_object(), "", FALSE, "");
+}
+
+/***************************************************************************
+ *  A list with the key B unreadable: handed over, of `list_type`, with
+ *  `loaded` records, and saying which key it lacks.
+ ***************************************************************************/
+PRIVATE int check_failed_list(json_t *list, const char *list_type, int expected)
+{
+    int result = 0;
+    if(!list) {
+        printf("%sERROR%s --> a keyless list with an unreadable key was REFUSED (%d records loaded)\n",
+            On_Red BWhite, Color_Off, loaded);
+        return -1;
+    }
+    const char *type = json_string_value(json_object_get(list, "list_type"));
+    if(!type || strcmp(type, list_type) != 0) {
+        printf("%sERROR%s --> list_type %s, expected %s\n",
+            On_Red BWhite, Color_Off, type? type: "(none)", list_type);
+        result += -1;
+    }
+    if(loaded != expected) {
+        printf("%sERROR%s --> %d records loaded, expected %d (every readable one)\n",
+            On_Red BWhite, Color_Off, loaded, expected);
+        result += -1;
+    }
+    if(!json_is_true(json_object_get(list, "load_failed"))) {
+        printf("%sERROR%s --> the list does not say load_failed\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *keys = json_object_get(list, "load_failed_keys");
+    if(json_array_size(keys) != 1 || !json_str_in_list(0, keys, "B", 0)) {
+        printf("%sERROR%s --> load_failed_keys does not name B alone\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    return result;
 }
 
 /***************************************************************************
@@ -145,13 +186,16 @@ PRIVATE int do_test(void)
     /*-------------------------------------*
      *  A keyless list with a key whose
      *  history cannot be read: the md2 of
-     *  B is cut behind the tranger's back
+     *  B is cut behind the tranger's back.
+     *  Every readable key is loaded, the
+     *  list is handed over, and it says
+     *  which key it lacks.
      *-------------------------------------*/
     set_expected_results(
         "open_list history: a keyless list with a key that cannot be loaded",
         json_pack("[{s:s},{s:s}]",
             "msg", "Cannot read record metadata, read FAILED",
-            "msg", "Cannot load the history of a key of the list"
+            "msg", "Cannot load the history of a key of the list, the list goes on without it"
         ),
         NULL, NULL, 1
     );
@@ -163,10 +207,40 @@ PRIVATE int do_test(void)
     }
     loaded = 0;
     list = open_history(tranger, NULL);
+    result += check_failed_list(list, "no_rt", 5);
     if(list) {
-        printf("%sERROR%s --> a keyless list was handed over with %d records of 6\n",
+        tranger2_close_list(tranger, list);
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  The same, open-ended: the realtime
+     *  feed is opened too, and it feeds
+     *-------------------------------------*/
+    set_expected_results(
+        "open_list history: a keyless realtime list with a key that cannot be loaded",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot read record metadata, read FAILED",
+            "msg", "Cannot load the history of a key of the list, the list goes on without it"
+        ),
+        NULL, NULL, 1
+    );
+    loaded = 0;
+    json_t *match_cond = json_pack("{s:I}",
+        "load_record_callback", (json_int_t)(uintptr_t)on_record
+    );
+    list = tranger2_open_list(tranger, TOPIC_NAME, match_cond, json_object(), "rt-history", FALSE, "");
+    result += check_failed_list(list, "rt_mem", 5);
+    md2_record_ex_t md = {0};
+    tranger2_append_record(tranger, TOPIC_NAME, DAY1 + 10, 0, &md,
+        json_pack("{s:s, s:I, s:s}", "id", "A", "tm", (json_int_t)(DAY1 + 10), "content", "live")
+    );
+    if(loaded != 6) {
+        printf("%sERROR%s --> the realtime feed of a list with an unreadable key did not feed: %d records, expected 6\n",
             On_Red BWhite, Color_Off, loaded);
         result += -1;
+    }
+    if(list) {
         tranger2_close_list(tranger, list);
     }
     result += test_json(NULL);

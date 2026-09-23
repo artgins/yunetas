@@ -812,7 +812,8 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     it, and leaves `"load_failed": true` in the returned iterator: the history
     the callback saw is incomplete. (A record whose CONTENT cannot be read is
     handed to the callback as NULL.) tranger2_open_list() answers NULL for such
-    a load, of one key or of any key of a keyless list.
+    a load of its one key; a keyless list goes on with the other keys and
+    names the failed ones in the handle it returns (see tranger2_open_list).
 
     `tm` is written by the producer and the md2 files are cut by `t`, so the
     segments of a tm condition can leave out a file in the middle: the scan
@@ -1032,11 +1033,22 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
     ("__tranger2_open_list__"), so an iterator the caller keeps open on a key
     does not get in the way.
 
+    A key whose history cannot be loaded whole (see `load_failed` of
+    tranger2_open_iterator()):
+        - a list of ONE key (`key` set) is refused: NULL, error logged.
+        - a KEYLESS list logs the key ("Cannot load the history of a key of
+          the list, the list goes on without it"), loads every other key,
+          opens its realtime feed, and says what it lacks in the handle:
+              "load_failed": true,
+              "load_failed_keys": ["B", ...]
+          A caller that must not act on a partial history reads it, e.g.:
+              json_t *list = tranger2_open_list(tranger, "devices", match_cond, extra, "", FALSE, "");
+              if(json_is_true(json_object_get(list, "load_failed"))) {
+                  // do not take "not found in the list" as "not on disk"
+              }
+    The records already handed to the callback stay handed in both cases.
+
     Return: the realtime handle (rt_mem / rt_disk) or the no_rt `extra`, NULL on error.
-    NULL too when the history of the key -- or of ANY key of a keyless list --
-    could not be loaded whole (see `load_failed` in the iterator match_cond):
-    the records already handed to the callback stay handed, and the caller
-    must not take them for the whole history.
     Both `match_cond` and `extra` are owned (consumed) by this call.
 */
 PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications

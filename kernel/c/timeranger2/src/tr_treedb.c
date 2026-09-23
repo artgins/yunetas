@@ -13280,6 +13280,23 @@ PRIVATE json_t *assets_held_by_snaps(
                 json_object_set_new(walk_state, "failed", json_true());
                 continue;
             }
+            /*
+             *  A key of the topic whose instances could not be loaded may
+             *  hold the tagged instance a snapshot needs: the list is handed
+             *  over with the others loaded, and says so (see
+             *  tranger2_open_list).
+             */
+            if(json_is_true(json_object_get(list, "load_failed"))) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "cannot read every instance of a topic: the assets a snapshot holds are unknown",
+                    "treedb_name",  "%s", treedb_name,
+                    "topic_name",   "%s", child_topic,
+                    NULL
+                );
+                json_object_set_new(walk_state, "failed", json_true());
+            }
             tranger2_close_list(tranger, list);
         }
     }

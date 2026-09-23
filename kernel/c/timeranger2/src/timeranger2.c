@@ -10047,6 +10047,11 @@ PRIVATE json_t *read_record_content(
         0 do nothing (the callback may build its own list, or not),
         -1 break the load
 
+    A key whose history cannot be loaded whole: the list of ONE key is
+    refused (NULL). A keyless list logs the key, goes on with the others and
+    opens its feed; the handle it returns says `"load_failed": true` and
+    names the keys in `"load_failed_keys"`.
+
     Return: realtime handle (rt_mem / rt_disk) or the no_rt `extra`, NULL on error.
     Both match_cond and extra are owned (consumed).
 
@@ -10106,6 +10111,8 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
      *  "already exist", and the load did not happen.
      */
     const char *load_creator = "__tranger2_open_list__";
+
+    json_t *load_failed_keys = NULL;    // keys of a keyless list whose history did not load
 
     const char *key = kw_get_str(gobj, match_cond, "key", "", 0);
     if(!empty_string(key)) {
@@ -10179,13 +10186,22 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         }
 
         /*
-         *  Every key's history, and all of it: a key that cannot be loaded
-         *  refuses the list, like the list of one key does. It was closed
-         *  with its load_failed unread, and the caller took what it got for
-         *  the whole topic (M2 of the 2026-09-23 independent review: the
-         *  snapshot guard of the assets read "held by nothing").
+         *  Every key's history, as much of it as can be read. A key that
+         *  cannot be loaded is logged and NAMED in the list
+         *  (`load_failed_keys`), and the load goes on with the next key:
+         *  the list is handed over with every readable key loaded and its
+         *  realtime feed open.
+         *
+         *  It used to be closed with its load_failed unread, and the caller
+         *  took what it got for the whole topic (M2 of the 2026-09-23
+         *  independent review: the snapshot guard of the assets read "held
+         *  by nothing"). Refusing the whole list instead (6d5760377) was
+         *  worse: the keys after the bad one were not loaded and no feed was
+         *  opened, so a treedb topic came up with 1 node of 6 and a replica
+         *  stopped following it. A caller that must not act on a partial
+         *  history reads `load_failed`.
          */
-        const char *failed_key = NULL;
+        json_t *failed_keys = json_array();
         json_t *jn_keys = tranger2_list_keys(tranger, topic_name);
         if(json_array_size(jn_keys)>0) {
             /*
@@ -10223,21 +10239,17 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                     tranger2_close_iterator(tranger, ll);
                 }
                 if(load_failed) {
-                    failed_key = key_;
-                    break;
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_TRANGER,
+                        "msg",          "%s", "Cannot load the history of a key of the list, the list goes on without it",
+                        "topic_name",   "%s", topic_name,
+                        "key",          "%s", key_,
+                        NULL
+                    );
+                    json_array_append_new(failed_keys, json_string(key_));
                 }
             }
-        }
-
-        if(failed_key) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TRANGER,
-                "msg",          "%s", "Cannot load the history of a key of the list",
-                "topic_name",   "%s", topic_name,
-                "key",          "%s", failed_key,
-                NULL
-            );
         }
         json_decref(jn_keys);
 
@@ -10245,10 +10257,10 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             pcre2_match_data_free(md);
             pcre2_code_free(re);
         }
-        if(failed_key) {
-            JSON_DECREF(match_cond)
-            JSON_DECREF(extra)
-            return NULL;
+        if(json_array_size(failed_keys) > 0) {
+            load_failed_keys = failed_keys;
+        } else {
+            JSON_DECREF(failed_keys)
         }
     }
 
@@ -10286,9 +10298,14 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
              *  Error already logged, with its cause: an error with a stack
              *  here said "internal" of what is often a peer's bad rt id.
              */
+            JSON_DECREF(load_failed_keys)
             JSON_DECREF(match_cond)
             JSON_DECREF(extra)
             return NULL;
+        }
+        if(load_failed_keys) {
+            json_object_set_new(rt, "load_failed", json_true());
+            json_object_set_new(rt, "load_failed_keys", load_failed_keys);
         }
 
         JSON_DECREF(match_cond)
@@ -10304,11 +10321,16 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 "topic_name",   "%s", topic_name,
                 NULL
             );
+            JSON_DECREF(load_failed_keys)
             JSON_DECREF(match_cond)
             JSON_DECREF(extra)
             return NULL;
         }
         json_object_set_new(extra, "list_type", json_string("no_rt"));
+        if(load_failed_keys) {
+            json_object_set_new(extra, "load_failed", json_true());
+            json_object_set_new(extra, "load_failed_keys", load_failed_keys);
+        }
 
         JSON_DECREF(match_cond)
 
