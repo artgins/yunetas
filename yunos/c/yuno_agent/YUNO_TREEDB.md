@@ -1526,11 +1526,12 @@ reader can tell a key that is not the plain name (its column carries the
 `rowid`, `uuid` or `qualified` flag) from one that is, and label by the
 secondary key instead. The id stays the address; it is not the label.
 
-**Who fills it, and who wins.** `C_TREEDB`'s `open-treedb` projects the C
-literal into `__system__` the first time it sees a treedb, and afterwards only
-when the literal is **strictly newer**, exactly as `schema_version` already
-decides between the literal and the persisted schema file (§3.5). Raising the
-version is how either side publishes a change.
+**Who fills it, and who wins.** `C_TREEDB`'s `open-treedb` projects into
+`__system__` what the treedb RUNS. The first time it sees a treedb, it seeds
+the projection. After that, it projects again only when the literal is
+installed over the schema file in use, and `schema_version` decides that, as
+it decides between the literal and the persisted schema file (§3.5). Raising
+the version is how either side publishes a change.
 
 The `treedbs` node carries **three** numbers, and they are not
 interchangeable:
@@ -1556,119 +1557,161 @@ invents one.** There are two ways to change a schema:
   both versions on save, the change reaches the disk, and the yuno works
   with it.
 
-Reconciliation compares the literal's `schema_version` with the stored one.
-A higher literal is projected, with its own numbers. A literal that is
-behind a dynamic schema is **not applied** — the schema is now changed
-dynamically, which is a decision — and the log says so: *"TreeDB schema from
-C is behind the schema in use, not applied"*. It says it only when the literal
-is behind the FILE in use, the schema the treedb runs (after 7.25.4). A literal
-that IS the file in use but is behind `__system__` -- whose number a
-`save-schema` raises past the file, and a withdraw leaves there -- is behind
-nothing that runs, and nothing is said (it was told "behind the schema in use"
-at every open after a withdraw). An imposed literal behind `__system__` says
-*"TreeDB schema from C is imposed, but it is behind __system__: the projection
-is kept"*. A new installation that must carry the dynamic changes takes them
-into the literal. Inside a projection,
-a topic is written only if it is new or the literal raised its
-`topic_version` **past the one in use** (see *One rule for a raised topic*,
-below). A topic that the literal changed without raising it past the one in
-use is left as it is, with a log line: *"Topic from C differs from __system__
-but does not raise its topic_version past the one in use: not applied, the
-file in use keeps its topic and the treedb runs it"* (until 7.25.4 it said
-"past the file in use ... the topic runs from the file", and the file did not
-keep it: see *A literal takes the file over topic by topic*, below). A literal newer than `__system__` but NOT newer
-than the file in use is not installed by `treedb_open_db()` (the file wins),
-so nothing of it is projected either: *"TreeDB schema from C is newer than
-__system__ but not than the file in use: not applied, the treedb opens from
-the file"*. `c_schema_version` only records which literal the projection came
-from, for `diff-schema`.
+**A literal wins whole, or not at all** (the user's decision of 2026-09-23,
+the rule of 7.25.4). With `impose_c_schema` off, the open compares the
+literal's `schema_version` with the one of the schema FILE in use, the file
+the treedb runs:
 
-**"Behind" is judged against the FILE in use too** (after 7.25.3), because
-`save-schema` writes the same number into `__system__` that a literal author
-writes into the literal. When `__system__` holds a save that was never applied
-(its `schema_version` is the file's + 1) and a literal arrives that is newer
-than the FILE, `treedb_open_db()` installs the literal -- it is what the treedb
-runs -- so it is projected too, with a warning: *"Schema from C is newer than
-the file in use but not than __system__: it takes over the file, and replaces
-in __system__ the drafts of the topics it raises past the file"*. Judged by
-`__system__`'s number alone, that literal was "behind", was never projected,
-and the next `save-schema` published the old draft over it, reverting the
-literal's change with no word.
-
-**One rule for a raised topic, whichever way the literal arrives** (after
-7.25.4). Newer than `__system__` (the ordinary way) or only newer than the file
-(the take-over above), a literal installed over the file in use projects a
-topic when it raises that topic's `topic_version` **past the one in use** --
-whatever number a save gave the draft in `__system__`. The version in use is
-the file's, or the store's (`topic_var.json` of the topic) when the store runs
-a higher one. That is the topic the treedb runs from the literal (tranger2
-installs a topic only over a lower `topic_version`), and `__system__` must say
-what runs: a draft kept there is what the next `save-schema` publishes, over
-the developer's change, with no word. When the topic carried a SAVED draft
-(its version in `__system__` above the one in use), the log names it: *"Topic
-from C raised past the file in use replaces its saved draft in __system__"*. A
-topic the literal does not raise past the one in use keeps the file's own
-topic, which the treedb runs, and its draft in `__system__` -- an operator's
-edit included -- is kept, with the log line of the paragraph above.
-
-**A literal takes the file over topic by topic** (after 7.25.4).
-`treedb_open_db()` writes what it is handed over the WHOLE file, so `C_TREEDB`
-does not hand it the literal as it is when the literal is newer than the file
-(impose off, master). It hands the literal's schema with, per topic:
-
-| Topic | Goes into the file, and runs |
-|---|---|
-| raised by the literal past the one in use | the literal's |
-| not raised | the FILE's, as it is |
-| declared only by the file | the file's: a literal does not remove a topic by leaving it out |
-
-The `schema_version` and everything outside the topics are the literal's.
-
-This is what keeps an **apply that has not been opened yet**. `apply-schema`
-writes the file, and the treedb reads it at its next open; until then the file
-is AHEAD of what runs (its `topic_version` above the store's). When that open
-brings a newer literal -- `apply-schema` and then `upgrade-yunos`, the path of
-`db_history_wz` and `db_history_ce` -- the literal was written over the whole
-file: the apply was gone with no word, `__system__` kept the operator's value,
-and a topic the literal did not raise ran a third version. Now the applied
-topic runs at that open, and the three agree:
-
-| File in use | Store runs | Literal | What runs, what the file and `__system__` say |
+| Literal against the file in use | What runs | The file | `__system__` |
 |---|---|---|---|
-| 21, `users` 9 (applied, not opened) | `users` 8 | 22, `users` 9, another header | the applied `users` (a tie goes to the file); the literal's change is not applied (*"does not raise its topic_version past the one in use"*) |
-| 21, `users` 9 (applied, not opened) | `users` 8 | 22, raises only `departments` | the applied `users`, the literal's `departments` |
-| 21, `users` 9 (applied, not opened) | `users` 8 | 22, `users` 10 | the literal's `users`, with the warning *"Topic from C raised past an applied schema that never ran: it replaces the applied topic, in the file and in __system__"* |
+| higher, or there is no file | the literal | the literal, WHOLE | projected from the literal, WHOLE |
+| equal | the file | kept | kept |
+| lower | the file | kept | kept |
 
-To publish a change of a topic that an operator applied, the literal raises
-that topic past the applied `topic_version`, as for any change.
+"Whole" means that nothing of the old schema stays. `treedb_open_db()` writes
+the literal over the whole file. The projection writes every topic and
+column that differs, writes back empty an attribute that the literal no
+longer declares, and DELETES a topic or a column that the literal does not
+declare (a topic with its columns). The number of `__system__` does not go
+down (see below), and `c_schema_version` records the literal.
 
-Until 7.25.4 the two ways had two rules. The ordinary one compared the literal
-with the version in `__system__`: an operator saves an edit of `users` (4 in
-the file, 5 in `__system__`), the developer ships a literal two versions ahead
-raising `users` to 5, and the treedb ran the developer's `users` while
-`__system__` kept the operator's and logged *"not applied"*. Taken over (one
-version ahead), the same edit was replaced. Before that, the take-over re-wrote
-every topic that differed, and an operator's edit of a topic the developer
-never touched was lost. With NO file in use at all, the treedb opens from the
-literal and every topic is projected: *"No schema file in use: the treedb
-opens with the schema from C, projected whole over __system__"*.
+A literal that is not higher is not installed. The log tells why:
 
-**`__system__`'s `schema_version` never goes down** (after 7.25.4). A literal
-that takes over is older than `__system__` by definition -- a save raised
-`__system__` past the file -- and it used to write its own number there, below
-the save. Now the treedb node keeps the higher number and `c_schema_version`
-records the literal: with `__system__` at 18 after a save, the file missing,
-and a literal 17, `__system__` reads `schema_version: 18, c_schema_version:
-17` after the open.
+- lower: *"TreeDB schema from C is behind the schema in use, not applied"*.
+  The schema is now changed dynamically, which is a decision. A new
+  installation that must carry the dynamic changes takes them into the
+  literal.
+- equal, with another content: *"Schema from C has the schema_version of the
+  dynamic schema in use but another content: NOT applied, raise its
+  schema_version to publish it"*, with the flat diff, at every open until the
+  literal moves on. The comparison is of CONTENT: cols listed or keyed by
+  name, each carrying its `id` or not, are the same schema.
 
-A literal that carries the SAME `schema_version` as a dynamic file in use but
-another content is two schemas under one number: the file wins, as ties always
-do, and the log says *"Schema from C has the schema_version of the dynamic
-schema in use but another content: NOT applied, raise its schema_version to
-publish it"* (with the flat diff), at every open until the literal moves on.
-The comparison is of CONTENT: cols listed or keyed by name, each carrying its
-`id` or not, are the same schema (until 7.25.4 a literal with its cols as a
-list warned at every open against the file `apply-schema` wrote).
+For example, the developer removes the topic `departments` and the fkey of
+`users` to it, and raises the versions:
+
+```c
+static char treedb_schema_x[] = "\
+{                                                                   \n\
+    'id': 'treedb_x',                                               \n\
+    'schema_version': 2,                                            \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'users',                                          \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': 2,                                     \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                },                                                  \n\
+                'username': {                                       \n\
+                    'header': 'User',                               \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent']                          \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+```
+
+At the next open (the file in use is at `schema_version` 1), the file holds
+only `users`, the treedb opens `users` at `topic_version` 2 without the
+fkey, and `__system__` loses `treedb_x.departments` and
+`treedb_x.users.departments`. The log says *"Topic not declared by the schema
+from C: removed from __system__"* (`treedb_name`, `topic_name`). The store
+directory `departments/` stays on disk with its records; nothing opens it.
+A renamed topic is the same thing: the old name goes, the new one is created.
+
+**What the literal withdraws is said.** A literal that wins replaces the
+operator's work over the old file. The open logs ONE warning, *"Schema from C
+withdrew work on the schema at open"*, with `treedb_name`, `schema_version`
+(the literal), `in_use_version` (the old file), `saved_schema_version` (the
+saved schema it withdrew, `0` when none) and `topics`. `treedbs` (each row)
+and `saved-schema` answer the same as `withdrawn_at_open`, until the next
+open of that treedb:
+
+| Kind in `topics` | The literal replaced, or removed |
+|---|---|
+| `"applied"` | a topic of an apply that never ran: `apply-schema` wrote the file, and no open read it |
+| `"saved"` | the draft of a topic that a pending `save-schema` published |
+| `"unsaved"` | a draft never saved: a topic of `__system__` that differs from the file |
+
+```bash
+ycommand -c 'command-yuno id=<id> service=treedbs command=saved-schema treedb_name=treedb_x'
+# data: {..., "withdrawn_at_open": {"schema_version": 3, "saved_schema_version": 2,
+#                                   "topics": {"users": "saved", "departments": "unsaved"}}}
+```
+
+Nothing withdrawn answers `{}`. A save taken back (the draft is the file
+again, see *A draft taken back is withdrawn by the next save*) is no draft,
+and a topic that only the developer changed is no work of the operator's:
+neither is in `topics`. To keep an operator's change across a new literal,
+take it into the literal.
+
+An apply that never ran is RECORDED, not guessed. `apply-schema` writes
+`saved_schemas/<treedb>.applied.json` under the `__system__` tranger, with
+the version it put in use and the topics whose `topic_version` it raised:
+
+```json
+{"schema_version": 13, "topics": ["users"]}
+```
+
+The next open reads it and removes it: the apply runs (the literal is not
+higher), or the literal withdraws it (the literal is higher), and a topic of
+the record that the literal says otherwise is `"applied"`. Until after 7.25.4
+it was inferred from the file's `topic_version` being above the store's
+`topic_var.json`, and a topic whose store directory was gone read as
+`"applied"`.
+
+**What runs of each topic is decided by tranger2.** A literal installed over
+the file hands every topic to tranger2, and tranger2 replaces
+`topic_cols.json` only when the `topic_version` goes UP (or, imposing, when it
+is another one). So a literal that changes a topic and does not raise its
+`topic_version` past the one the store runs is in the file and in
+`__system__`, and the store goes on running its own columns. The open says it,
+per topic: *"Topic from C declares other columns than the store runs, without
+raising its topic_version past it: the store keeps running its own"*
+(`treedb_name`, `topic_name`, `topic_version`, `running_version`). Raise the
+`topic_version` of every topic you change.
+
+The whole matrix, with `impose_c_schema` off on a master:
+
+| File in use | Store runs | Literal | Result |
+|---|---|---|---|
+| 2 | `users` 1 | 3, `users` 2 | the literal runs, whole; the file and `__system__` are the literal |
+| 2, an apply of `users` 2 not opened | `users` 1 | 3, `users` 2 with another content | the literal runs; the apply is withdrawn: `"applied"` |
+| 2 | `users` 1 | 3, `users` 2 with a new fkey, and a new topic `groups` that hooks it | the literal runs; `groups` is created |
+| 2; `__system__` 3 (saved, not applied) | as the file | 3 | the literal runs; the saved schema and its drafts are withdrawn: `"saved"` |
+| 2; an unsaved draft of `departments` | as the file | 3 | the literal runs; the draft is withdrawn: `"unsaved"` |
+| 2 | as the file | 3, without `departments` | `departments` goes from the file and `__system__`, and does not open |
+| 2 | as the file | 3, `departments` renamed `sections` | `sections` is created; `departments` goes |
+| 2 | `users` 1 | 3, `users` changed at 1 | the file and `__system__` say the literal; the store runs its own `users`; warning |
+| none | anything | any | the literal runs, whole; *"No schema file in use: the treedb opens with the schema from C, projected whole over __system__"* |
+| 3 | as the file | 3, same content | the file runs; nothing said |
+| 3 | as the file | 3, another content | the file runs; warning, not applied |
+| 2, an apply not opened | `users` 1 | 2 or lower | the file runs: the apply runs at this open |
+| 3 | as the file | 2 | the file runs; *"behind the schema in use"* |
+
+With `impose_c_schema` on, the literal runs whatever the file says (see
+below), and `__system__` follows the versions against itself: it is seeded
+when it has no projection, re-made WHOLE when the literal is higher than
+`__system__`, and left as it is otherwise. On a replica, nothing is
+projected and nothing is withdrawn: the replica runs the file as it is.
+
+A treedb with no projection yet is seeded with what runs: the literal when it
+is installed or imposed, the FILE otherwise.
+
+**`__system__`'s `schema_version` never goes down** (after 7.25.4). A
+literal can be higher than the file and lower than `__system__`, where a
+save raised the number. The treedb node keeps the higher number and
+`c_schema_version` records the literal: with `__system__` at 18 after a
+save, the file at 16 and a literal 17, `__system__` reads `schema_version: 18,
+c_schema_version: 17` after the open.
 
 This all assumes the CLIENT treedb opens as a master. The projection is
 decided before its tranger exists, with the `master` of `C_TREEDB`, which
@@ -1677,16 +1720,14 @@ process, the client opens as a replica and runs its file while `__system__`
 says the literal; the next open as master installs the literal, and finds its
 projection already there.
 
-| `__system__` | File in use | Literal | What happens at open (impose off) |
-|---|---|---|---|
-| 3, saved, not applied (from 2) | 2 | 3, raises `users` | literal runs; `users` projected over its draft, the other topics' drafts kept; warning |
-| 3, `users` saved at 5, not applied | 2, `users` 4 | 4, raises `users` to 5 | literal runs; `users` projected over the saved draft (*"replaces its saved draft"*), the other topics' drafts kept |
-| 3, saved, not applied | 2, `users` 4 | 4, `users` changed but left at 4 | literal runs, but the file keeps its `users` and the treedb runs it; `users` not projected (*"does not raise its topic_version past the one in use"*) |
-| 3, saved, not applied | none | 3 | literal runs, projected whole; warning |
-| 3, saved and applied | 3 | 3, other content | file runs, `__system__` kept, warning |
-| 3, saved and applied | 3 | 3, the applied content (any form) | file runs, nothing said |
-| 3, saved and applied | 3 | 2 | file runs, *"behind the schema in use"* |
-| 4, saved then withdrawn | 3 | 3, the file's content | file runs, nothing said |
+**History.** For three fix rounds after 7.25.4 the rule was written again per
+topic: a literal projected only the topics it raised past the one in use,
+then it was merged with the file topic by topic, and a tie went to the file.
+Each version broke another case. The merge built schemas that nobody wrote: a
+parent topic removed from the literal kept its hook to a column that no
+longer existed, `parse_schema()` failed, and the treedb never opened again.
+The user chose the rule that never builds a schema nobody wrote, and the
+reports of what it withdraws stayed.
 
 Up to 7.19.0 the projector did otherwise, and both halves were wrong. It
 compared the literal with `c_schema_version`, so a new literal overwrote a
@@ -1740,11 +1781,9 @@ reach it through the store, and a projection written by two owners is a
 projection nobody can read. This is true of an ordinary open too, not only of
 an imposed one.
 
-Inside a projection that IS being re-made, `impose` does apply at topic level:
-a topic is written because it DIFFERS, not because its `topic_version` is
-higher — the same thing the disk gets. Written under the ordinary rule
-instead, the projection would say a topic the store no longer holds, in the
-one case `impose` exists to repair.
+A projection that IS re-made under `impose` is whole, as any other: a topic
+is written because it DIFFERS, not because its `topic_version` is higher,
+and a topic the literal does not declare is deleted.
 
 Turn it off (`0`) to let a user or a customer change the schema dynamically
 (gui_agent, ytreedb). Turn it back on to impose the code again — because
@@ -1825,21 +1864,23 @@ This parameter takes the place of `use_internal_schema`, an option of
 too, but the persisted schema file still won when it was newer, so it did not
 revert anything.
 
-**Reconciling is an upsert — nothing is ever deleted.** A delete is the one
-destructive primitive of the store: it drops the schema's own history (the
-reason to keep a schema in a treedb at all) and refuses a snapshot-tagged
-node. An update appends a new version instead, so what a column used to
-declare stays readable with `instances`. What exists in `__system__` and not
-in the incoming schema is left alone: it is indistinguishable from an operator
-addition, and removing a topic or a column is a deliberate action, never a
-side effect of an upgrade. The one exception is the move to qualified ids,
-which has to retire an address the store can no longer reach a node by, and
-runs once per store.
+**A projection is whole: it deletes what the literal does not declare**
+(after 7.25.4). A topic or a column of `__system__` that the literal does not
+declare is deleted with `force` (it is linked), a topic with its columns, and
+an attribute the literal no longer declares is written back empty (its
+declared default, or the empty value of its type). Until 7.25.4 the
+projection was an upsert that deleted nothing: a topic the developer removed
+stayed in `__system__`, and the next `save-schema` published it again. A
+delete drops the history of the node (`instances`), and it is refused on a
+node that a snapshot tags (logged). That is the price of a projection that
+says what the file says. The move to qualified ids also retires nodes, once
+per store.
 
 **A published topic writes only the columns that changed.** A column node is
-written only if it is new or the literal changes it. The comparison is the
-one `diff-schema` uses: an attribute that exists only in `__system__` does
-not count, because an update does not remove it.
+written only if it is new or the literal changes it, and deleted when the
+literal does not declare it. The comparison is the one `diff-schema` uses, and
+an attribute that exists only in `__system__` counts: it is written back
+empty.
 
 **`diff-schema` says what the projection holds that C does not.** Nothing
 deletes, and a version says that *something* was published, never *what*: a
@@ -1867,7 +1908,7 @@ the running yuno has, and the count:
 | `kind` | Means |
 |---|---|
 | `changed` | both sides declare the attribute, with different values |
-| `only_in_stored` | in `__system__` and not in the schema from C: an operator addition, or something a later schema dropped and the upsert kept |
+| `only_in_stored` | in `__system__` and not in the schema from C: an operator's draft (a literal that wins deletes what it does not declare) |
 | `only_in_c` | declared in C and missing from the projection: it never took |
 | `version` | the projection came from another release of the schema than the one running, or a topic's stored version is BEHIND it |
 
@@ -1905,11 +1946,11 @@ depends on `impose_c_schema`:
 | `impose_c_schema` | Opens with |
 |---|---|
 | on (the default; every in-tree yuno forces it from its code) | the literal, **over** a newer file (a dynamic change being reverted) |
-| off | the FILE: the literal is installed only when it is newer, and the file wins on ties and when it is ahead |
+| off | the FILE: the literal is installed only when it is newer, and then WHOLE; the file wins on ties and when it is ahead |
 
-`__system__` is where a schema is **edited**: the master projects each literal
-into it (seeded, and re-made when the literal moves ahead), and an operator
-edits it there. Until after 7.24.1 it was also the source of an open with the
+`__system__` is where a schema is **edited**: the master projects into it what
+the treedb runs (seeded, and re-made whole when a literal wins), and an
+operator edits it there. Until after 7.24.1 it was also the source of an open with the
 flag off, so every edit — half made or not — was the schema of the next start.
 
 **An edit is a draft; `save-schema` publishes it; `apply-schema` puts it in
@@ -2039,40 +2080,14 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
 **A saved schema lives only as long as the file it was saved against** (after
 7.25.4). It is published AGAINST the schema file in use, so when an open writes
 the literal over that file -- there is none, the literal is newer, or it is
-imposed over another -- the save is withdrawn, with a warning: *"Saved schema
-withdrawn: the schema from C replaces the file in use it was saved against"*
-(`saved_version`, `schema_version`, `in_use_version`). Left, it was applicable
-whenever its number was higher than the literal's (the take-over with no file
-in use), and Apply installed the operator's old drafts over the developer's
-change. Nothing is lost: the drafts of the topics the literal did not raise stay
-in `__system__`, and the next `save-schema` publishes them against the new file.
-`delete-treedb` removes the saved schema of the treedb too.
-
-**What an open withdrew is answered by the API, not only logged** (after
-7.25.4). An open that replaces the operator's work says it with one warning
-per topic, and `treedbs` (each row) and `saved-schema` answer it as
-`withdrawn_at_open` until the next open of that treedb:
-
-| `topics` value | The literal replaced | Warning |
-|---|---|---|
-| `"applied"` | an applied topic that never ran | *"Topic from C raised past an applied schema that never ran: it replaces the applied topic, in the file and in __system__"* |
-| `"saved"` | the draft of a pending save | *"Topic from C raised past the file in use replaces its saved draft in __system__"* |
-| `"unsaved"` | a draft never saved | *"Topic from C replaces an unsaved draft of the topic in __system__"* |
-
-A draft is a topic of `__system__` that differs from the file in use. A save
-taken back (the draft is the file again, see *A draft taken back is withdrawn
-by the next save*) replaces nothing and says nothing; it used to be told
-"replaces its saved draft". Until 7.25.4 an unsaved draft was dropped with no
-word, and a withdrawn saved schema was in the log only.
-
-```bash
-ycommand -c 'command-yuno id=<id> service=treedbs command=saved-schema treedb_name=treedb_x'
-# data: {..., "withdrawn_at_open": {"schema_version": 22, "saved_schema_version": 21,
-#                                   "topics": {"users": "saved"}}}
-```
-
-`schema_version` is the literal that did it, `saved_schema_version` the saved
-schema it withdrew (`0`: none). Nothing withdrawn answers `{}`.
+imposed over another -- the save is withdrawn, and the open says so in its one
+warning (*"Schema from C withdrew work on the schema at open"*,
+`saved_schema_version`) and in `withdrawn_at_open` (see *What the literal
+withdraws is said*, above). Left, it was applicable whenever its number was
+higher than the literal's (a literal with no file in use), and Apply installed
+the operator's old drafts over the developer's change. `delete-treedb`
+removes the saved schema of the treedb too, and the record of an apply that
+never ran.
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=treedbs command=save-schema treedb_name=treedb_x'
