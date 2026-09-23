@@ -1880,10 +1880,26 @@ PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj
      */
     json_t *names = tranger2_list_topic_names(priv->tranger);
     json_t *rows = json_array();
-    int marked = 0, already = 0, failed = 0;
+    int marked = 0, already = 0, failed = 0, topics = 0;
     int idx; json_t *jn_name;
     json_array_foreach(names, idx, jn_name) {
         const char *name = json_string_value(jn_name);
+
+        /*
+         *  A directory of the store is a topic only when it has its
+         *  topic_desc.json. C_TREEDB keeps `saved_schemas/` in the store
+         *  of __system__: listed as a topic it failed, and the upgrade step
+         *  answered -1 on every node that ran save-schema (M-2 of the
+         *  fourth independent review, 2026-09-23).
+         */
+        char topic_dir[PATH_MAX];
+        build_path(topic_dir, sizeof(topic_dir),
+            kw_get_str(gobj, priv->tranger, "directory", "", KW_REQUIRED), name, NULL);
+        if(!file_exists(topic_dir, "topic_desc.json")) {
+            continue;
+        }
+        topics++;
+
         int result;
         json_t *comment;
         json_t *report = mark_tm_order_of_topic(gobj, name, &result, &comment);
@@ -1901,7 +1917,7 @@ PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj
             "data", report? report : json_null()
         ));
     }
-    int total = (int)json_array_size(names);
+    int total = topics;
     JSON_DECREF(names)
 
     return msg_iev_build_response(

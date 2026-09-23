@@ -2309,22 +2309,51 @@ PRIVATE int do_test(void)
         save_json_to_file(0, topic_dir, "topic_desc.json", 02770, 0660, 0, TRUE, FALSE, desc);
         json_object_del(tranger2_topic(tranger, TOPIC_NAME), "marks_tm_unordered");
 
+        /*
+         *  A directory of the store that is not a topic -- C_TREEDB keeps
+         *  `saved_schemas/` in the store of __system__ -- is not a topic
+         *  to migrate. It was listed as one, it failed, and the documented
+         *  upgrade step answered -1 on every node that ran save-schema
+         *  (M-2 of the fourth independent review, 2026-09-23).
+         */
+        char not_a_topic[PATH_MAX];
+        build_path(not_a_topic, sizeof(not_a_topic), path_database, "saved_schemas", NULL);
+        mkrdir(not_a_topic, 02770);
+        save_json_to_file(0, not_a_topic, "treedb_x.treedb_schema.json", 02770, 0660, 0, TRUE, FALSE,
+            json_pack("{s:s, s:i}", "id", "treedb_x", "schema_version", 2));
+
         r = gobj_command(yuno, "mark-tm-order", json_pack("{s:b}", "all", 1), yuno);
         check_int("mark-tm-order all=1 result", kw_get_int(0, r, "result", -999, 0), 0);
         json_t *names = tranger2_list_topic_names(tranger);
+        json_int_t topics_on_disk = 0;
+        int idx; json_t *jn_name;
+        json_array_foreach(names, idx, jn_name) {
+            char dir[PATH_MAX];
+            build_path(dir, sizeof(dir), path_database, json_string_value(jn_name), NULL);
+            if(file_exists(dir, "topic_desc.json")) {
+                topics_on_disk++;
+            }
+        }
+        JSON_DECREF(names)
         json_t *rows = kw_get_list(0, r, "data", 0, 0);
         check_int("mark-tm-order all=1: one row per topic on disk",
-            (json_int_t)json_array_size(rows), (json_int_t)json_array_size(names));
-        JSON_DECREF(names)
+            (json_int_t)json_array_size(rows), topics_on_disk);
         BOOL seen = FALSE;
-        int idx; json_t *row;
+        BOOL not_a_topic_row = FALSE;
+        json_t *row;
         json_array_foreach(rows, idx, row) {
             if(strcmp(kw_get_str(0, row, "topic_name", "", 0), TOPIC_NAME)==0) {
                 seen = kw_get_int(0, row, "result", -1, 0) == 0 &&
                     !kw_get_bool(0, row, "data`was_marking", 1, 0) &&
                     kw_get_bool(0, row, "data`marks_tm_unordered", 0, 0);
             }
+            if(strcmp(kw_get_str(0, row, "topic_name", "", 0), "saved_schemas")==0) {
+                not_a_topic_row = TRUE;
+            }
         }
+        check_bool("mark-tm-order all=1: a directory that is not a topic has no row",
+            not_a_topic_row, FALSE);
+        rmrdir(not_a_topic);
         check_bool("mark-tm-order all=1: the legacy topic's row says it marks now", seen, TRUE);
         check_bool("mark-tm-order all=1: the comment says every topic",
             strstr(kw_get_str(0, r, "comment", "", 0), "every topic") != NULL, TRUE);
