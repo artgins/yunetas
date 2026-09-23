@@ -121,7 +121,9 @@ command-yuno id=<id> service=<tranger> command=get-page iterator_id=ij from_rowi
 #   (a row is appended to I)
 command-yuno id=<id> service=<tranger> command=get-page iterator_id=ij from_rowid=5 limit=4
 #   J#1 J#2         <- J#1 again
-``` Bound it anyway: a negative `from_rowid` reads the last
+```
+
+Bound the reading of a large topic anyway: a negative `from_rowid` reads the last
 N records of EACH key, and is what gui_treedb's whole-topic card starts with:
 
 ```
