@@ -2018,8 +2018,12 @@ Had the operator edited the header of `users.username` before, it answers
 ```
 
 A projection with nothing to write records nothing. A record that cannot be
-written is an ERROR, and the projection goes on: refused, it would leave
-`__system__` unlike the file, and every open would read that as drafts.
+written is an ERROR (*"Cannot write a record of saved_schemas/"*, with
+`record: "unfinished projection"`), and the projection goes on: refused, it
+would leave `__system__` unlike the file, and every open would read that as
+drafts. The record is kept in memory, and the node of the treedb is marked
+`c_schema_version: -1` before the first write (see *A record that cannot be
+WRITTEN*, above).
 
 **A seed that died is completed too.** The node of a new treedb is created
 with `schema_version: 0, c_schema_version: 0`, and it is stamped when the
