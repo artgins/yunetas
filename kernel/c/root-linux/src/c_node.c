@@ -519,7 +519,11 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     IF_EQ_SET_PRIV(tranger,     gobj_read_pointer_attr)
     END_EQ_SET_PRIV()
 
-    if(strcmp(path, "with_link_events")==0 && gobj_is_running(gobj)) {
+    /*
+     *  Only an open treedb has a callback to change: before the open (or
+     *  when it failed) mt_start reads the attribute when it opens.
+     */
+    if(strcmp(path, "with_link_events")==0 && gobj_is_running(gobj) && priv->opened) {
         set_treedb_callback(gobj);
     }
 }

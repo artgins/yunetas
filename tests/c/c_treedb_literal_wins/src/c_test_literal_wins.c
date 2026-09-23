@@ -2220,6 +2220,18 @@ PRIVATE int scenario_failed_open_says_so(hgobj gobj)
     }
     JSON_DECREF(jn_resp)
 
+    /*
+     *  with_link_events written on the C_NODE of a treedb that did not
+     *  open: nothing to hand the callback to, and nothing is logged (see
+     *  the expected log list)
+     */
+    hgobj gobj_node = gobj_find_service(db, FALSE);
+    if(!gobj_node) {
+        result += test_fail(gobj, db, "TEST FAIL: L3b, no C_NODE after the failed open", NULL);
+    } else {
+        gobj_write_bool_attr(gobj_node, "with_link_events", TRUE);
+    }
+
     jn_resp = open_db_resp(gobj, db, users_only_v2(db));
     if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0) {
         result += test_fail(gobj, db, "TEST FAIL: L3b, a second open was accepted",
@@ -2442,6 +2454,15 @@ PRIVATE int scenario_seed_that_died(hgobj gobj)
             json_pack("{s:s, s:i, s:[]}", "id", db, "schema_version", 5, "topics")) < 0) {
         result += test_fail(gobj, db, "TEST FAIL: N1, cannot write the saved schema", NULL);
     }
+    jn_resp = treedb_cmd(gobj, db, "saved-schema", json_object());
+    if(!kw_get_bool(gobj, jn_resp, "data`saved", 0, 0) ||
+            kw_get_bool(gobj, jn_resp, "data`can_apply", 1, 0) ||
+            !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "no topics")) {
+        result += test_fail(gobj, db,
+            "TEST FAIL: N1, saved-schema says a saved schema with no topics can be applied",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
     jn_resp = treedb_cmd(gobj, db, "apply-schema", json_object());
     if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 ||
             kw_get_bool(gobj, jn_resp, "data`applied", 0, 0) ||
@@ -2512,6 +2533,183 @@ PRIVATE int scenario_saved_draft_across_retries(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The operator adds a whole topic in __system__ (a draft), with its `id`
+ *  column, at topic_version `topic_version` (the editor makes it 1)
+ ***************************************************************************/
+PRIVATE int add_system_topic(hgobj gobj, const char *treedb_name, const char *topic_name,
+    int topic_version)
+{
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    char topic_id[NAME_MAX];
+    snprintf(topic_id, sizeof(topic_id), "%s.%s", treedb_name, topic_name);
+
+    json_t *topic = gobj_create_node(sys, "topics",
+        json_pack("{s:s, s:s, s:s, s:s, s:s, s:i, s:b, s:b}",
+            "id", topic_id,
+            "value", topic_name,
+            "pkey", "id",
+            "system_flag", "sf_string_key",
+            "tkey", "",
+            "topic_version", topic_version,
+            "system_topic", 0,
+            "main_topic", 0
+        ),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    if(!topic) {
+        return test_fail(gobj, treedb_name, "TEST FAIL: the operator's new topic was refused",
+            json_string(topic_id));
+    }
+    JSON_DECREF(topic)
+    if(gobj_link_nodes(sys, "topics", "treedbs", json_pack("{s:s}", "id", treedb_name),
+            "topics", json_pack("{s:s}", "id", topic_id), gobj) < 0) {
+        return test_fail(gobj, treedb_name, "TEST FAIL: the operator's new topic was not linked",
+            json_string(topic_id));
+    }
+    return add_draft_col(gobj, treedb_name, topic_name, "id");
+}
+
+/***************************************************************************
+ *  A newer literal v3: users + departments, and `groups` when asked
+ ***************************************************************************/
+PRIVATE json_t *users_departments_v3(const char *db, BOOL with_groups)
+{
+    json_t *topics = json_pack("[o,o]",
+        topic_of("users", 1, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User"))),
+        topic_of("departments", 1, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name")))
+    );
+    if(with_groups) {
+        json_array_append_new(topics,
+            topic_of("groups", 1, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name"))));
+    }
+    return schema_of(db, 3, topics);
+}
+
+/***************************************************************************
+ *  AD: a topic the operator ADDED in __system__ and did not save, while a
+ *  save of ANOTHER topic is pending. The added topic has topic_version 1
+ *  and the file in use has none of it (0): that is not "a version raised
+ *  by save-schema", the saved schema does not declare it. A newer literal
+ *  reports it "unsaved":
+ *
+ *      tw_adu  the literal does not declare `groups` (it is removed);
+ *      tw_adl  the literal declares `groups` (it is rewritten);
+ *      tw_adr  a snapshot holds `departments` and `groups`: the first
+ *              open is unfinished and the record keeps `groups` as
+ *              "unsaved"; the open that completes says it so.
+ *
+ *  And the two cases next to it stay as they were: an unsaved DELETION of
+ *  a topic with another save pending is "unsaved" (tw_dlu), and an added
+ *  topic that was SAVED is "saved" (tw_ads).
+ ***************************************************************************/
+PRIVATE int scenario_added_topic_draft(hgobj gobj)
+{
+    int result = 0;
+
+    for(int declared=0; declared<2; declared++) {
+        const char *db = declared? "tw_adl" : "tw_adu";
+        if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+            return result - 1;
+        }
+        result += edit_header(gobj, db, "users", "username", "Operator user");
+        result += save_schema(gobj, db);
+        result += add_system_topic(gobj, db, "groups", 1);
+        result += check_draft_changed(gobj, db,
+            "TEST FAIL: AD, the added topic is not a draft",
+            json_pack("{s:b}", "groups", 1));
+        close_db(gobj, db);
+
+        if(open_db(gobj, db, users_departments_v3(db, declared? TRUE : FALSE), FALSE) < 0) {
+            return result - 1;
+        }
+        result += check_agree(gobj, db, "TEST FAIL: AD, the projection is not the literal");
+        result += check_withdrawn(gobj, db,
+            "TEST FAIL: AD, an unsaved added topic was reported as saved",
+            2, json_pack("{s:s, s:s}", "users", "saved", "groups", "unsaved"));
+        close_db(gobj, db);
+    }
+
+    /*
+     *  tw_adr: the retry path, the kind kept in the record
+     */
+    const char *db = "tw_adr";
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += edit_header(gobj, db, "users", "username", "Operator user");
+    result += save_schema(gobj, db);
+    result += add_system_topic(gobj, db, "groups", 1);
+    result += shoot_system_snap(gobj, db, "adr");
+    close_db(gobj, db);
+
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: AD, the unfinished open did not say only the saved users",
+        2, json_pack("{s:s}", "users", "saved"));
+    json_t *record = unfinished_record(gobj, db);
+    json_t *expected_kinds = json_pack("{s:s}", "groups", "unsaved");
+    if(!json_equal(json_object_get(record, "draft_kinds"), expected_kinds)) {
+        result += test_fail(gobj, db, "TEST FAIL: AD, the record keeps a wrong kind for the added topic",
+            json_incref(record));
+    }
+    JSON_DECREF(expected_kinds)
+    JSON_DECREF(record)
+    close_db(gobj, db);
+
+    result += delete_system_snap(gobj, db, "adr");
+    if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_agree(gobj, db, "TEST FAIL: AD, the projection was not completed");
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: AD, the completing open reported the added topic as saved",
+        0, json_pack("{s:s}", "groups", "unsaved"));
+    close_db(gobj, db);
+
+    /*
+     *  tw_dlu: an unsaved deletion, another topic saved
+     */
+    db = "tw_dlu";
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += edit_header(gobj, db, "users", "username", "Operator user");
+    result += save_schema(gobj, db);
+    result += delete_system_topic(gobj, db, "departments");
+    close_db(gobj, db);
+    if(open_db(gobj, db, users_departments_v3(db, FALSE), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: AD, an unsaved deletion with another save pending",
+        2, json_pack("{s:s, s:s}", "users", "saved", "departments", "unsaved"));
+    close_db(gobj, db);
+
+    /*
+     *  tw_ads: an added topic that was saved
+     */
+    db = "tw_ads";
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += add_system_topic(gobj, db, "groups", 1);
+    result += save_schema(gobj, db);
+    close_db(gobj, db);
+    if(open_db(gobj, db, users_departments_v3(db, FALSE), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: AD, a saved added topic",
+        2, json_pack("{s:s}", "groups", "saved"));
+    close_db(gobj, db);
+
+    return result;
+}
+
+/***************************************************************************
  *  Run every scenario
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -2547,6 +2745,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += scenario_deleted_topic_draft(gobj);
     result += scenario_seed_that_died(gobj);
     result += scenario_saved_draft_across_retries(gobj);
+    result += scenario_added_topic_draft(gobj);
 
     if(result == 0) {
         gobj_log_info(gobj, 0,

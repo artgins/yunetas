@@ -2550,6 +2550,13 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     BOOL broken = (!saved && file_exists(saved_dir, filename))? TRUE: FALSE;
     BOOL stale = (file_exists(saved_dir, filename) && !pending && !broken)? TRUE: FALSE;
 
+    /*
+     *  A pending save with no topics is refused by apply-schema (a treedb
+     *  without topics does not open): it cannot be applied, and the answer
+     *  says why.
+     */
+    BOOL no_topics = (pending && !schema_has_topics(saved))? TRUE: FALSE;
+
     json_t *diff = json_object();
     if(in_use && pending) {
         JSON_DECREF(diff)
@@ -2595,11 +2602,19 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     JSON_DECREF(in_use)
     JSON_DECREF(saved)
 
+    json_t *comment = 0;
+    if(broken) {
+        comment = json_sprintf("%s: the saved schema of '%s' cannot be read (see the log): "
+            "it is left out of apply-schema, save again to replace it",
+            gobj_yuno_role_plus_name(), treedb_name);
+    } else if(no_topics) {
+        comment = json_sprintf("%s: the saved schema of '%s' has no topics: apply-schema "
+            "refuses it, a treedb without topics does not open",
+            gobj_yuno_role_plus_name(), treedb_name);
+    }
+
     return msg_iev_build_response(gobj, 0,
-        broken?
-            json_sprintf("%s: the saved schema of '%s' cannot be read (see the log): "
-                "it is left out of apply-schema, save again to replace it",
-                gobj_yuno_role_plus_name(), treedb_name) : 0,
+        comment,
         0,
         json_pack("{s:s, s:b, s:b, s:b, s:b, s:b, s:I, s:I, s:b, s:s, s:o, s:o, s:o, s:o}",
             "treedb_name", treedb_name,
@@ -2610,7 +2625,7 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             "broken", broken,
             "in_use_schema_version", in_use_version,
             "saved_schema_version", saved_version,
-            "can_apply", master && !imposed && saved_version > in_use_version,
+            "can_apply", master && !imposed && saved_version > in_use_version && !no_topics,
             "path", saved_path,
             "diff", diff,
             "draft_changed", draft_changed,
@@ -3847,8 +3862,12 @@ PRIVATE BOOL projection_rewrites_node(
  *  differs from the schema file in use (`drafts`). It is "saved" when a
  *  pending save published it, "unsaved" otherwise:
  *
- *      - a topic still in __system__ was saved when its version there is
- *        above the one in use (save-schema raises it);
+ *      - a topic still in __system__ was saved when the pending saved
+ *        schema declares it and its version there is above the one in use
+ *        (save-schema raises it). A topic the saved schema does not
+ *        declare is in __system__ against that save (added after it, or
+ *        deleted by it and made again): it is unsaved. Its version says
+ *        nothing there: a topic new to the file is above its version 0;
  *      - a topic the draft DELETED from __system__ was saved when the
  *        pending saved schema does not declare it either;
  *      - a draft that an earlier open could not replace keeps the kind it
@@ -3880,6 +3899,9 @@ PRIVATE const char *draft_kind(
     }
     if(!stored_topic) {
         return schema_topic(saved, topic_name)? "unsaved" : "saved";
+    }
+    if(!schema_topic(saved, topic_name)) {
+        return "unsaved";
     }
     json_int_t stored_topic_version = kw_get_int(
         gobj, stored_topic, "topic_version", 0, KW_WILD_NUMBER
