@@ -210,8 +210,11 @@ old file or the new one, never an empty one. The hot path does not `fsync()`
 `topic_version` change does. The `.new` is removed first and created
 `O_EXCL|O_NOFOLLOW` with the tranger's `rpermission`, so a leftover lends the
 file neither its mode nor, as a symlink, its target. `topic_cols.json`
-(`tranger2_write_topic_cols()`) is replaced the same way, and the memory takes
-the new cols only when the file did (it returns -1 otherwise).
+(`tranger2_write_topic_cols()`) is replaced the same way, always fsync'ed with
+its directory (it is written rarely, and a `topic_version` change writes it
+before the version: the version must not survive a power cut the cols did
+not), and the memory takes the new cols only when the file did (it returns -1
+otherwise).
 `tests/c/timeranger2/test_topic_var_replace.c`.
 
 ### A history that cannot be read whole says so

@@ -2523,9 +2523,14 @@ PUBLIC int tranger2_write_topic_cols(
      *  Replaced, never written in place, and the memory takes the new cols
      *  only when the file did: it took them BEFORE the write, whose result
      *  was ignored, and answered 0 (independent review of the second fix
-     *  round). Not fsync'ed: see replace_json_file().
+     *  round). Durable (fsync of the file and of its directory, see
+     *  replace_json_file()): a topic_version change writes these cols and
+     *  THEN a durable topic_var.json with the new version, and the version
+     *  must never survive a power cut that the cols did not (independent
+     *  review of the fourth fix round). The cols are written when a topic
+     *  is created, re-versioned or re-ordered: rarely, never per record.
      */
-    if(replace_json_file(gobj, tranger, directory, "topic_cols.json", jn_topic_cols, FALSE, FALSE) < 0) {
+    if(replace_json_file(gobj, tranger, directory, "topic_cols.json", jn_topic_cols, TRUE, FALSE) < 0) {
         JSON_DECREF(jn_topic_cols)
         return -1;  // Error already logged
     }

@@ -460,7 +460,8 @@ migration.
 ```
 
 **A new `topic_version` replaces `topic_cols.json`, then `topic_var.json`**,
-each through a temporary file and a `rename()` (`topic_var.json` fsync'ed); the
+each through a temporary file and a `rename()`, both fsync'ed with their
+directory, so the new version never survives a power cut its cols did not; the
 `last_rowid_id` counter of treedb is carried over. The cols go first because
 the version is what says they moved. A file that cannot be written refuses the
 topic: the call answers `NULL`, logs *"Cannot re-create topic_cols.json for a
@@ -2512,7 +2513,11 @@ next reload.
 
 The file is replaced, never written in place: `topic_cols.json.new` is removed
 if a process left it, created `O_EXCL|O_NOFOLLOW` with the tranger's
-`rpermission`, written and renamed over the old file. The memory takes the new
+`rpermission`, written, fsync'ed, renamed over the old file, and the directory
+fsync'ed: it survives a power cut too (it is written when a topic is created,
+re-versioned or re-ordered, never per record; until the fourth fix round after
+7.25.4 it was not fsync'ed, and a `topic_version` change could leave the new
+version on disk over cols lost with the power). The memory takes the new
 columns only when the file did; otherwise the call logs (*"Cannot replace
 topic_cols.json, ..."*) and returns `-1` with the old file and the old columns in
 place. Until the review of the second fix round after 7.25.4 it wrote in place,

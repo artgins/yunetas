@@ -293,8 +293,8 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
    writes topic_desc.json (with "marks_tm_unordered": true) / topic_cols.json /
    topic_var.json plus the keys/ and disks/ subdirs. If `jn_var`'s topic_version
    is greater than the on-disk one, topic_cols.json is REPLACED and then
-   topic_var.json (temporary file + rename each, topic_var.json fsync'ed; the
-   treedb counter `last_rowid_id` is carried over). When either cannot be
+   topic_var.json (temporary file + rename each, both fsync'ed with their
+   directory; the treedb counter `last_rowid_id` is carried over). When either cannot be
    written the call returns NULL (logged) and the topic is not opened: the
    version on disk has not moved, and the next create tries again.
 
@@ -521,8 +521,10 @@ PUBLIC int tranger2_write_topic_var(
    in-memory topic["cols"] and topic_cols.json (not a merge). `jn_cols` (a dict or
    a list) is owned (consumed, even on error). Returns 0, or -1 if it is NULL/not
    dict|list, the handle is not master, or the file cannot be written: the file
-   is replaced through `topic_cols.json.new` and a rename(), and the memory takes
-   the new cols only when the file did.
+   is replaced through `topic_cols.json.new` and a rename(), fsync'ed with its
+   directory (safe against a power cut: a topic_version change writes these
+   cols before the version), and the memory takes the new cols only when the
+   file did.
    NOTE: a cols change must bump the topic's topic_version (and schema_version for
    structural changes) or the persisted topic_cols.json masks the new schema.
 */
