@@ -33,6 +33,14 @@
  *  marker is written BEFORE the md2 row, and the next append to the file
  *  writes a marker that is still missing.
  *
+ *  A legacy topic (every topic created by 7.25.4 or earlier) trusts no tm
+ *  range, so a tm query reads every file of the key: ~30x slower than
+ *  7.25.4 on 30 files (M-C). tranger2_mark_tm_order() is the migration an
+ *  operator asks for: it reads every md2 file once, writes the markers,
+ *  and makes the topic one that marks. Run again, it re-marks a topic whose
+ *  markers were lost (a crash, a rollback binary that appends without
+ *  them).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -545,6 +553,138 @@ PRIVATE int do_test(void)
         result += -1;
     }
     result += expect_the_answers(tm, "legacy");
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  The migration: the legacy topic is
+     *  marked, and answers the same
+     *-------------------------------------*/
+    set_expected_results(
+        "tm order: a legacy topic marked",
+        json_pack("[{s:s}]",
+            "msg", "Topic marked: its md2 files out of order have their markers"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *report = tranger2_mark_tm_order(tm, TOPIC_NAME);
+    char *s_report = json_dumps(report, JSON_COMPACT|JSON_SORT_KEYS);
+    printf("  mark_tm_order: %s\n", s_report? s_report: "NULL");
+    jsonp_free(s_report);
+    result += expect("the migration answers",
+        report && json_is_true(json_object_get(report, "marks_tm_unordered"))? "marked": "refused",
+        "marked"
+    );
+    /*  make_it_legacy() removed the one tm marker, of "infile"  */
+    result += expect("the migration writes the tm marker that was missing",
+        json_integer_value(json_object_get(report, "tm_unordered_marked")) == 1? "1": "other", "1"
+    );
+    JSON_DECREF(report)
+    result += expect_file("the legacy file whose tm goes back is marked",
+        "infile", "2000-01-01.tm_unordered", TRUE);
+    result += expect("the topic in memory marks",
+        json_is_true(json_object_get(tranger2_topic(tm, TOPIC_NAME), "marks_tm_unordered"))?
+            "marks": "legacy", "marks");
+    char path_desc[PATH_MAX];
+    build_path(path_desc, sizeof(path_desc), path_database, TOPIC_NAME, "topic_desc.json", NULL);
+    json_t *desc = json_load_file(path_desc, 0, 0);
+    result += expect("topic_desc.json says it marks",
+        json_is_true(json_object_get(desc, "marks_tm_unordered"))? "marks": "legacy", "marks");
+    JSON_DECREF(desc)
+    result += expect_the_answers(tm, "migrated");
+    result += expect_cond(tm, "migrated", "nomark",
+        json_pack("{s:I}", "to_tm", (json_int_t)200),
+        "N2", "N2"
+    );
+    result += expect_cond(tm, "migrated", "live",
+        json_pack("{s:I}", "to_tm", (json_int_t)200),
+        "L1 L3", "L3 L1"
+    );
+    result += test_json(NULL);
+
+    set_expected_results("tm order: a marked topic reloaded", NULL, NULL, NULL, 1);
+    tranger2_shutdown(tm);
+    drain(10);
+    tm = startup_tranger(TRUE);
+    if(!tm || !tranger2_open_topic(tm, TOPIC_NAME, TRUE)) {
+        printf("%sERROR%s --> cannot reopen the marked master\n", On_Red BWhite, Color_Off);
+        if(tm) {
+            tranger2_shutdown(tm);
+        }
+        return -1;
+    }
+    result += expect_the_answers(tm, "migrated, reloaded");
+    result += expect_cond(tm, "migrated, reloaded", "live",
+        json_pack("{s:I}", "to_tm", (json_int_t)200),
+        "L1 L3", "L3 L1"
+    );
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  Markers lost (a rollback binary, a
+     *  crash): marked again
+     *-------------------------------------*/
+    set_expected_results(
+        "tm order: markers lost, marked again",
+        json_pack("[{s:s}]",
+            "msg", "Topic marked: its md2 files out of order have their markers"
+        ),
+        NULL, NULL, 1
+    );
+    tranger2_shutdown(tm);
+    drain(10);
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_database, TOPIC_NAME, "keys", "live", NULL);
+    dir_array_t da;
+    get_ordered_filename_array(0, key_dir, ".*\\.tm_unordered", WD_MATCH_REGULAR_FILE, &da);
+    int lost = da.count;
+    for(int i = 0; i < da.count; i++) {
+        unlink(da.items[i]);
+    }
+    dir_array_free(&da);
+    result += expect("a marker of \"live\" to lose", lost == 1? "1": "other", "1");
+    tm = startup_tranger(TRUE);
+    tranger2_open_topic(tm, TOPIC_NAME, TRUE);
+    report = tranger2_mark_tm_order(tm, TOPIC_NAME);
+    result += expect("the lost marker is written again",
+        json_integer_value(json_object_get(report, "tm_unordered_marked")) == 1? "1": "other", "1"
+    );
+    JSON_DECREF(report)
+    result += expect_cond(tm, "re-marked", "live",
+        json_pack("{s:I}", "to_tm", (json_int_t)200),
+        "L1 L3", "L3 L1"
+    );
+    result += test_json(NULL);
+
+    set_expected_results(
+        "tm order: marking twice writes nothing",
+        json_pack("[{s:s}]",
+            "msg", "Topic marked: its md2 files out of order have their markers"
+        ),
+        NULL, NULL, 1
+    );
+    report = tranger2_mark_tm_order(tm, TOPIC_NAME);
+    result += expect("a second migration writes no marker",
+        json_integer_value(json_object_get(report, "tm_unordered_marked")) == 0 &&
+        json_integer_value(json_object_get(report, "t_unordered_marked")) == 0? "0": "other", "0"
+    );
+    JSON_DECREF(report)
+    result += test_json(NULL);
+
+    set_expected_results(
+        "tm order: a replica cannot mark",
+        json_pack("[{s:s}]",
+            "msg", "Only master can write"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *replica = startup_tranger(FALSE);
+    if(replica) {
+        tranger2_open_topic(replica, TOPIC_NAME, TRUE);
+        report = tranger2_mark_tm_order(replica, TOPIC_NAME);
+        result += expect("a replica cannot mark", report? "marked": "refused", "refused");
+        JSON_DECREF(report)
+        tranger2_shutdown(replica);
+    }
     result += test_json(NULL);
 
     set_expected_results("tm order: shutdown", NULL, NULL, NULL, 1);

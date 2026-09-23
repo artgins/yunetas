@@ -7675,6 +7675,337 @@ PRIVATE json_int_t update_totals_of_key_cache2(
 }
 
 /***************************************************************************
+ *  Read one md2 file whole: its t and tm ranges, and whether its t or its
+ *  tm goes back somewhere. Return the rows read, -1 on error (logged).
+ ***************************************************************************/
+PRIVATE json_int_t scan_md2_order(
+    hgobj gobj,
+    const char *full_path,
+    uint64_t *fr_t, uint64_t *to_t,
+    uint64_t *fr_tm, uint64_t *to_tm,
+    BOOL *t_back,
+    BOOL *tm_back
+)
+{
+    *fr_t = (uint64_t)-1;
+    *to_t = 0;
+    *fr_tm = (uint64_t)-1;
+    *to_tm = 0;
+    *t_back = FALSE;
+    *tm_back = FALSE;
+
+    int fd = open(full_path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC, 0);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot open md2 file to read its order",
+            "path",         "%s", full_path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    json_int_t n_rows = 0;
+    md2_record_t rows[1024];
+    ssize_t ln;
+    while((ln = read(fd, rows, sizeof(rows))) > 0) {
+        size_t n = (size_t)ln / sizeof(md2_record_t);
+        for(size_t i = 0; i < n; i++) {
+            uint64_t t = (ntohll(rows[i].__t__)) & TIME_FLAG_MASK;
+            uint64_t tm = (ntohll(rows[i].__tm__)) & TIME_FLAG_MASK;
+            if(n_rows > 0 && t < *to_t) {
+                *t_back = TRUE;
+            }
+            if(n_rows > 0 && tm < *to_tm) {
+                *tm_back = TRUE;
+            }
+            if(t < *fr_t) {
+                *fr_t = t;
+            }
+            if(t > *to_t) {
+                *to_t = t;
+            }
+            if(tm < *fr_tm) {
+                *fr_tm = tm;
+            }
+            if(tm > *to_tm) {
+                *to_tm = tm;
+            }
+            n_rows++;
+        }
+    }
+    int err = errno;
+    close(fd);
+    if(ln < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read md2 file to read its order",
+            "path",         "%s", full_path,
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
+            NULL
+        );
+        return -1;
+    }
+    return n_rows;
+}
+
+/***************************************************************************
+ *  Write the marker `<file_id>.<mark>` of a md2 file, if it is not there.
+ *  Return 1 written, 0 already there, -1 error (logged).
+ ***************************************************************************/
+PRIVATE int write_order_marker(
+    hgobj gobj,
+    const char *key_directory,
+    const char *file_id,
+    const char *mark,
+    int rpermission
+)
+{
+    char marker[NAME_MAX];
+    if(snprintf(marker, sizeof(marker), "%s.%s", file_id, mark) >= (int)sizeof(marker)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot mark md2 file, file_id too long",
+            "directory",    "%s", key_directory,
+            "file_id",      "%s", file_id,
+            "mark",         "%s", mark,
+            NULL
+        );
+        return -1;
+    }
+    char path[PATH_MAX];
+    if(!build_path(path, sizeof(path), key_directory, marker, NULL)) {
+        return -1;  // Error already logged
+    }
+    if(is_regular_file(path)) {
+        return 0;
+    }
+    int fd = newfile(path, rpermission, FALSE);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot mark md2 file",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    close(fd);
+    return 1;
+}
+
+/***************************************************************************
+ *  See timeranger2.h
+ ***************************************************************************/
+PUBLIC json_t *tranger2_mark_tm_order(
+    json_t *tranger,
+    const char *topic_name
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(!tranger_is_master(gobj, tranger)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Only master can write",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        gobj_log_set_last_message("Only master can write");
+        return NULL;
+    }
+
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot mark a topic, topic not found",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        gobj_log_set_last_message("Topic not found: '%s'", topic_name);
+        return NULL;
+    }
+
+    const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
+    int rpermission = (int)json_integer_value(json_object_get(topic, "rpermission"));
+    BOOL was_marking = topic_marks_tm(topic);
+
+    json_int_t n_keys = 0;
+    json_int_t n_files = 0;
+    json_int_t n_rows = 0;
+    json_int_t t_marked = 0;
+    json_int_t tm_marked = 0;
+    BOOL failed = FALSE;
+
+    const char *key; json_t *key_cache;
+    json_object_foreach(json_object_get(topic, "cache"), key, key_cache) {
+        n_keys++;
+        char key_directory[PATH_MAX];
+        if(!build_path(key_directory, sizeof(key_directory), topic_directory, "keys", key, NULL)) {
+            failed = TRUE;  // Error already logged
+            break;
+        }
+
+        dir_array_t da;
+        find_files_with_suffix_array(gobj, key_directory, ".md2", &da);
+        dir_array_sort(&da);
+        for(int i = 0; i < da.count && !failed; i++) {
+            char file_id[NAME_MAX];
+            snprintf(file_id, sizeof(file_id), "%s", da.items[i]);
+            char *dot = strrchr(file_id, '.');
+            if(dot) {
+                *dot = 0;
+            }
+            char full_path[PATH_MAX];
+            build_path(full_path, sizeof(full_path), key_directory, da.items[i], NULL);
+
+            uint64_t fr_t, to_t, fr_tm, to_tm;
+            BOOL t_back, tm_back;
+            json_int_t rows = scan_md2_order(
+                gobj, full_path, &fr_t, &to_t, &fr_tm, &to_tm, &t_back, &tm_back
+            );
+            if(rows < 0) {
+                failed = TRUE;  // Error already logged
+                break;
+            }
+            n_files++;
+            n_rows += rows;
+            if(rows == 0) {
+                continue;
+            }
+
+            int w_t = t_back? write_order_marker(gobj, key_directory, file_id, "unordered", rpermission): 0;
+            int w_tm = tm_back? write_order_marker(gobj, key_directory, file_id, "tm_unordered", rpermission): 0;
+            if(w_t < 0 || w_tm < 0) {
+                failed = TRUE;  // Error already logged
+                break;
+            }
+            t_marked += w_t;
+            tm_marked += w_tm;
+
+            /*
+             *  The cell in memory: its range is the whole file's, and its
+             *  flags what the disk says now
+             */
+            json_int_t file_base = 0;
+            int insert_idx = 0;
+            json_t *cell = find_cache_cell(topic, key, file_id, &file_base, &insert_idx);
+            if(cell) {
+                if(t_back) {
+                    json_object_set_new(cell, "unordered", json_true());
+                    json_object_del(cell, "unordered_not_on_disk");
+                }
+                if(tm_back) {
+                    json_object_set_new(cell, "tm_unordered", json_true());
+                    json_object_del(cell, "tm_unordered_not_on_disk");
+                }
+                if((json_int_t)fr_t < json_integer_value(json_object_get(cell, "fr_t"))) {
+                    set_cache_int(cell, "fr_t", (json_int_t)fr_t);
+                }
+                if((json_int_t)to_t > json_integer_value(json_object_get(cell, "to_t"))) {
+                    set_cache_int(cell, "to_t", (json_int_t)to_t);
+                }
+                if((json_int_t)fr_tm < json_integer_value(json_object_get(cell, "fr_tm"))) {
+                    set_cache_int(cell, "fr_tm", (json_int_t)fr_tm);
+                }
+                if((json_int_t)to_tm > json_integer_value(json_object_get(cell, "to_tm"))) {
+                    set_cache_int(cell, "to_tm", (json_int_t)to_tm);
+                }
+            }
+        }
+        dir_array_free(&da);
+        if(failed) {
+            break;
+        }
+        update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
+    }
+
+    /*
+     *  The segments an iterator took carry the flags of their moment: its
+     *  next page takes them again (the stamp alone does not move, no row
+     *  was added).
+     */
+    int idx; json_t *iterator;
+    json_array_foreach(json_object_get(topic, "iterators"), idx, iterator) {
+        json_object_set_new(iterator, "segments_stamp", json_null());
+    }
+
+    if(failed) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Cannot mark the topic: it stays as it was (the markers written stay, a marker only costs a whole read)",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        gobj_log_set_last_message("Cannot mark topic '%s' (see the log)", topic_name);
+        return NULL;
+    }
+
+    if(!was_marking) {
+        char topic_dir[PATH_MAX];
+        snprintf(topic_dir, sizeof(topic_dir), "%s", topic_directory);
+        json_t *topic_desc = load_json_from_file(gobj, topic_dir, "topic_desc.json", 0);
+        if(!topic_desc) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "Cannot mark the topic, cannot read topic_desc.json",
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
+            gobj_log_set_last_message("Cannot mark topic '%s': cannot read topic_desc.json", topic_name);
+            return NULL;
+        }
+        json_object_set_new(topic_desc, "marks_tm_unordered", json_true());
+        int ret = replace_json_file(gobj, tranger, topic_dir, "topic_desc.json", topic_desc, TRUE, TRUE);
+        JSON_DECREF(topic_desc)
+        if(ret < 0) {
+            gobj_log_set_last_message("Cannot mark topic '%s': cannot write topic_desc.json", topic_name);
+            return NULL;    // Error already logged
+        }
+        json_object_set_new(topic, "marks_tm_unordered", json_true());
+    }
+
+    json_t *report = json_pack("{s:s, s:b, s:I, s:I, s:I, s:I, s:I, s:b}",
+        "topic_name", topic_name,
+        "was_marking", was_marking,
+        "keys", n_keys,
+        "files", n_files,
+        "rows", n_rows,
+        "t_unordered_marked", t_marked,
+        "tm_unordered_marked", tm_marked,
+        "marks_tm_unordered", 1
+    );
+    gobj_log_info(gobj, 0,
+        "function",             "%s", __FUNCTION__,
+        "msgset",               "%s", MSGSET_INFO,
+        "msg",                  "%s", "Topic marked: its md2 files out of order have their markers",
+        "topic_name",           "%s", topic_name,
+        "was_marking",          "%d", (int)was_marking,
+        "keys",                 "%ld", (long)n_keys,
+        "files",                "%ld", (long)n_files,
+        "rows",                 "%ld", (long)n_rows,
+        "t_unordered_marked",   "%ld", (long)t_marked,
+        "tm_unordered_marked",  "%ld", (long)tm_marked,
+        NULL
+    );
+    return report;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDING: add real time data

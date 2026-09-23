@@ -508,7 +508,9 @@ PUBLIC int tranger2_write_topic_var(
    Write topic cols. MASTER-ONLY. REPLACES the topic's cols WHOLESALE — both the
    in-memory topic["cols"] and topic_cols.json (not a merge). `jn_cols` (a dict or
    a list) is owned (consumed, even on error). Returns 0, or -1 if it is NULL/not
-   dict|list or the handle is not master.
+   dict|list, the handle is not master, or the file cannot be written: the file
+   is replaced through `topic_cols.json.new` and a rename(), and the memory takes
+   the new cols only when the file did.
    NOTE: a cols change must bump the topic's topic_version (and schema_version for
    structural changes) or the persisted topic_cols.json masks the new schema.
 */
@@ -516,6 +518,71 @@ PUBLIC int tranger2_write_topic_cols(
     json_t *tranger,
     const char *topic_name,
     json_t *jn_cols  // owned
+);
+
+/*
+   Mark the md2 files of a topic whose __t__ or __tm__ goes back, and make the
+   topic one that MARKS: the operator's migration of a topic written before the
+   markers existed. MASTER-ONLY, synchronous, on demand.
+
+   Why: a topic created by 7.25.4 or earlier has no "marks_tm_unordered" in its
+   topic_desc.json. Its files were never marked, so no file's tm range can be
+   trusted, and a tm query (`from_tm` / `to_tm`) leaves out no file and ends no
+   scan early: it reads every md2 row of the key, 32 bytes a row. The cost
+   grows with the files of the key -- 13 ms in 7.25.4 against ~400 ms after
+   b237e0af4 on one key of 30 files x 20000 rows (the review's repro r_perf).
+   A marked topic reads only the files whose tm range meets the query.
+
+   What it does, for every key of the topic (the keys of its cache), every md2
+   file of the key on disk:
+       - reads the file whole, once;
+       - writes `<file>.tm_unordered` where a __tm__ goes back, and
+         `<file>.unordered` where a __t__ does, unless it is there;
+       - gives the cell in memory the file's whole ranges and those flags;
+   then, if the topic did not mark yet, sets "marks_tm_unordered": true in
+   topic_desc.json (a temporary file, fsync, rename, fsync of the directory)
+   and in memory. The next page of an open iterator takes its segments again.
+
+   Run it again on a topic that marks to re-mark it: after a rollback to a
+   binary that appends without markers (every release up to 7.25.4), or after
+   a crash that lost a marker. It is idempotent: a file already marked is left
+   as it is, and a marker is never removed (a marker on a file in order only
+   costs a whole read of that file).
+
+   Replicas: a replica that has the topic open keeps reading it as a legacy
+   topic (no file left out) until it opens it again; the markers it meets on
+   disk are right for either.
+
+   Return a dict, YOURS:
+       {
+           "topic_name": "...",
+           "was_marking": false,       // the topic marked before the call
+           "keys": 1, "files": 30, "rows": 600000,
+           "t_unordered_marked": 0,    // markers written by this call
+           "tm_unordered_marked": 2,
+           "marks_tm_unordered": true
+       }
+   NULL (logged, and in gobj_log_last_message()) when the handle is not the
+   master ("Only master can write"), the topic does not exist, a md2 file
+   cannot be read, a marker or topic_desc.json cannot be written. The topic
+   is then left as it was ("marks_tm_unordered" unchanged); the markers already
+   written stay.
+
+   Example, the whole store of a yuno, key by key reported:
+       json_t *names = tranger2_list_topic_names(tranger);
+       size_t i; json_t *jn_name;
+       json_array_foreach(names, i, jn_name) {
+           json_t *report = tranger2_mark_tm_order(tranger, json_string_value(jn_name));
+           if(!report) {
+               break;  // logged; the topics already marked stay marked
+           }
+           JSON_DECREF(report)
+       }
+       JSON_DECREF(names)
+*/
+PUBLIC json_t *tranger2_mark_tm_order(
+    json_t *tranger,
+    const char *topic_name
 );
 
 /*
