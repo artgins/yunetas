@@ -755,7 +755,7 @@ it by hand, run the script.
 
 15. [**`mkrdir`**](helpers/file_system.md#mkrdir) — `PUBLIC int mkrdir(const char *path, int xpermission)`
 
-16. [**`rmrdir`**](helpers/file_system.md#rmrdir) — `PUBLIC int rmrdir(const char *root_dir)`
+16. [**`rmrdir`**](helpers/file_system.md#rmrdir) — `PUBLIC int rmrdir(const char *path)`
 
 17. [**`rmrcontentdir`**](helpers/file_system.md#rmrcontentdir) — `PUBLIC int rmrcontentdir(const char *root_dir)`
 

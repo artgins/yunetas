@@ -5,6 +5,7 @@
  *          Includes a reentrancy regression: split2() must NOT clobber a
  *          caller's in-progress strtok() parse (the strtok -> strtok_r fix).
  *          And save_json_to_file(): a failure is never silent.
+ *          And rmrdir() / rmrcontentdir() / mkrdir() with symbolic links.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -14,6 +15,8 @@
 #include <string.h>
 #include <inttypes.h>
 #include <signal.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include <yunetas.h>
 
 #define APP "test_helpers"
@@ -292,9 +295,166 @@ PRIVATE void test_save_json_to_file(void)
     rmrdir("/tmp/test_helpers_no_such_dir");
 }
 
+/***************************************************************************
+ *  rmrdir() / rmrcontentdir() never walk through a symbolic link.
+ *
+ *  Up to 7.25.4 both used stat(), which follows the link: a link to a
+ *  directory was walked into and the TARGET's files were deleted (outside
+ *  the tree being removed), and a dangling link made the walk fail.
+ *  A link is removed as a link, never descended.
+ ***************************************************************************/
+#define RMR_BASE "/tmp/test_helpers_rmrdir"
+
+PRIVATE void write_small_file(const char *path)
+{
+    FILE *f = fopen(path, "w");
+    if(f) {
+        fputs("keep me\n", f);
+        fclose(f);
+    }
+}
+
+PRIVATE int build_tree_with_links(const char *tree)
+{
+    char path[PATH_MAX];
+
+    mkrdir(RMR_BASE "/outside", 02775);
+    write_small_file(RMR_BASE "/outside/keep.txt");
+
+    build_path(path, sizeof(path), tree, "sub", NULL);
+    mkrdir(path, 02775);
+    build_path(path, sizeof(path), tree, "sub", "file.txt", NULL);
+    write_small_file(path);
+
+    int ret = 0;
+    build_path(path, sizeof(path), tree, "link_to_outside_dir", NULL);
+    ret += symlink(RMR_BASE "/outside", path);
+    build_path(path, sizeof(path), tree, "sub", "link_to_outside_file", NULL);
+    ret += symlink(RMR_BASE "/outside/keep.txt", path);
+    build_path(path, sizeof(path), tree, "dangling", NULL);
+    ret += symlink(RMR_BASE "/no/such/target", path);
+    return ret;
+}
+
+PRIVATE void check_outside_intact(const char *name)
+{
+    if(is_regular_file(RMR_BASE "/outside/keep.txt")) {
+        printf("ok   %-40s\n", name);
+    } else {
+        printf("FAIL %-40s the file OUTSIDE the tree was deleted\n", name);
+        global_result += -1;
+    }
+}
+
+PRIVATE void test_rmrdir_symlinks(void)
+{
+    char tree[PATH_MAX];
+    struct stat st;
+
+    /*
+     *  rmrdir() of a tree holding links
+     */
+    rmrdir(RMR_BASE);
+    build_path(tree, sizeof(tree), RMR_BASE, "store", NULL);
+    if(build_tree_with_links(tree) != 0) {
+        printf("FAIL %-40s cannot build the tree\n", "rmrdir: tree with links");
+        global_result += -1;
+        return;
+    }
+    int errors_before = s_errors;
+    int ret = rmrdir(tree);
+    if(ret == 0 && lstat(tree, &st) != 0 && s_errors == errors_before) {
+        printf("ok   %-40s\n", "rmrdir: tree with links removed");
+    } else {
+        printf("FAIL %-40s ret=%d errors=%d\n", "rmrdir: tree with links removed",
+            ret, s_errors - errors_before);
+        global_result += -1;
+    }
+    check_outside_intact("rmrdir: link target untouched");
+
+    /*
+     *  rmrdir() of a path that IS a link to a directory: the link goes
+     */
+    char link_path[PATH_MAX];
+    build_path(link_path, sizeof(link_path), RMR_BASE, "link_itself", NULL);
+    if(symlink(RMR_BASE "/outside", link_path) == 0) {
+        ret = rmrdir(link_path);
+        if(ret == 0 && lstat(link_path, &st) != 0 && is_directory(RMR_BASE "/outside")) {
+            printf("ok   %-40s\n", "rmrdir: a link path removes the link");
+        } else {
+            printf("FAIL %-40s ret=%d\n", "rmrdir: a link path removes the link", ret);
+            global_result += -1;
+        }
+        check_outside_intact("rmrdir: link path target untouched");
+    }
+
+    /*
+     *  rmrcontentdir() of a tree holding links
+     */
+    build_tree_with_links(tree);
+    errors_before = s_errors;
+    ret = rmrcontentdir(tree);
+    if(ret == 0 && is_directory(tree) && s_errors == errors_before) {
+        char path[PATH_MAX];
+        build_path(path, sizeof(path), tree, "dangling", NULL);
+        if(lstat(path, &st) != 0) {
+            printf("ok   %-40s\n", "rmrcontentdir: content with links removed");
+        } else {
+            printf("FAIL %-40s dangling link left\n", "rmrcontentdir: content with links removed");
+            global_result += -1;
+        }
+    } else {
+        printf("FAIL %-40s ret=%d errors=%d\n", "rmrcontentdir: content with links removed",
+            ret, s_errors - errors_before);
+        global_result += -1;
+    }
+    check_outside_intact("rmrcontentdir: link target untouched");
+
+    rmrdir(RMR_BASE);
+}
+
+/***************************************************************************
+ *  mkrdir() over a path that exists and is not a directory must fail,
+ *  and say so. Up to 7.25.4 the check was `stat() != 0 && !S_ISDIR()`,
+ *  which is never true, so it answered 0 with no directory there.
+ ***************************************************************************/
+PRIVATE void test_mkrdir_not_a_directory(void)
+{
+    rmrdir(RMR_BASE);
+    mkrdir(RMR_BASE, 02775);
+    write_small_file(RMR_BASE "/a_file");
+
+    int errors_before = s_errors;
+    int ret = mkrdir(RMR_BASE "/a_file", 02775);
+    if(ret == -1 && s_errors - errors_before == 1) {
+        printf("ok   %-40s\n", "mkrdir: a file in place of the dir");
+    } else {
+        printf("FAIL %-40s ret=%d errors=%d\n", "mkrdir: a file in place of the dir",
+            ret, s_errors - errors_before);
+        global_result += -1;
+    }
+
+    /*  a link to a directory is a directory for mkdir -p  */
+    if(symlink(RMR_BASE, RMR_BASE "/link_to_base") != 0) {
+        printf("FAIL %-40s cannot create the link\n", "mkrdir: through a link to a dir");
+        global_result += -1;
+    }
+    errors_before = s_errors;
+    ret = mkrdir(RMR_BASE "/link_to_base/sub", 02775);
+    if(ret == 0 && is_directory(RMR_BASE "/sub") && s_errors == errors_before) {
+        printf("ok   %-40s\n", "mkrdir: through a link to a dir");
+    } else {
+        printf("FAIL %-40s ret=%d\n", "mkrdir: through a link to a dir", ret);
+        global_result += -1;
+    }
+    rmrdir(RMR_BASE);
+}
+
 PRIVATE int do_test(void)
 {
     test_save_json_to_file();
+    test_rmrdir_symlinks();
+    test_mkrdir_not_a_directory();
     test_split_basic();
     test_split_empties_excluded();
     test_split_null_size_arg();

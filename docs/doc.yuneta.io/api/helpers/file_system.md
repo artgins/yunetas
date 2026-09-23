@@ -267,6 +267,19 @@ Returns `0` on success, or `-1` if an error occurs.
 
 If a directory in the path already exists, it is not modified. The function makes sure that all parent directories are created as needed.
 
+A symbolic link to a directory counts as a directory, as in `mkdir -p`. A path component that exists and is not a directory is an error: the function logs *"Not a directory"* and returns `-1`. Up to 7.25.4 this check was never true, and the function returned `0` with no directory there.
+
+**Example**
+
+```C
+char path[PATH_MAX];
+build_path(path, sizeof(path), yuneta_root_dir(), "store", "my_topic", NULL);
+if(mkrdir(path, yuneta_xpermission()) < 0) {
+    // Error already logged
+    return -1;
+}
+```
+
 ---
 
 (newdir)=
@@ -383,6 +396,17 @@ Returns 0 on success, or -1 if an error occurs.
 
 This function does not remove the root directory itself, only its contents. It skips special entries like `.` and `..` and handles both files and subdirectories recursively.
 
+A symbolic link inside the directory is removed as a link. The function never goes into it, so the files of the link target stay (see [`rmrdir()`](#rmrdir)). Every failure is logged.
+
+**Example**
+
+```C
+// Empty the cache directory, keep the directory
+if(rmrcontentdir("/yuneta/store/cache") < 0) {
+    // Error already logged
+}
+```
+
 ---
 
 (rmrdir)=
@@ -392,7 +416,7 @@ This function does not remove the root directory itself, only its contents. It s
 
 ```C
 int rmrdir(
-    const char *root_dir
+    const char *path
 );
 ```
 
@@ -409,6 +433,28 @@ Returns 0 on success, or -1 if an error occurs.
 **Notes**
 
 This function removes all files and subdirectories within the specified directory before deleting the directory itself.
+
+A symbolic link is removed as a link and is never followed:
+
+- A link to a directory is removed. The files of the target stay.
+- A dangling link is removed. It does not make the removal fail.
+- If `path` itself is a symbolic link, the function removes the link, not the target.
+
+Up to 7.25.4 the function used `stat()`, which follows links. A link to a directory made it go into the target and delete the files there, outside the tree. A dangling link made it fail.
+
+A `path` that does not exist returns `-1` without a log, because callers use `rmrdir()` to make sure that a directory is gone. Every other failure is logged.
+
+**Example**
+
+```C
+char path[PATH_MAX];
+build_path(path, sizeof(path), "/yuneta/store", "old_topic", NULL);
+if(is_directory(path)) {
+    if(rmrdir(path) < 0) {
+        // Error already logged
+    }
+}
+```
 
 ---
 

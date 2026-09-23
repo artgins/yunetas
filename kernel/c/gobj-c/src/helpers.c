@@ -330,6 +330,9 @@ PUBLIC int file_remove(const char *directory, const char *filename)
 
 /***************************************************************************
  *  Function to create directories recursively like "mkdir -p path"
+ *  A symbolic link to a directory counts as a directory, as in mkdir -p.
+ *  A component that exists and is not a directory is an error (up to
+ *  7.25.4 the check could never be true, and it answered 0).
  ***************************************************************************/
 PUBLIC int mkrdir(const char *path, int xpermission)
 {
@@ -367,7 +370,7 @@ PUBLIC int mkrdir(const char *path, int xpermission)
                         return -1;
                     }
                 }
-            } else if(stat(tmp, &st) != 0 && !S_ISDIR(st.st_mode)) {
+            } else if(stat(tmp, &st) != 0 || !S_ISDIR(st.st_mode)) {
                 // If it's not a directory, return an error
                 gobj_log_error(0, 0,
                     "function",     "%s", __FUNCTION__,
@@ -400,7 +403,7 @@ PUBLIC int mkrdir(const char *path, int xpermission)
                 return -1;
             }
         }
-    } else if(stat(tmp, &st) != 0 && !S_ISDIR(st.st_mode)) {
+    } else if(stat(tmp, &st) != 0 || !S_ISDIR(st.st_mode)) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -417,7 +420,47 @@ PUBLIC int mkrdir(const char *path, int xpermission)
 }
 
 /****************************************************************************
+ *  stat() of the path itself: a symbolic link is not followed.
+ ****************************************************************************/
+PRIVATE int stat_no_follow(const char *path, struct stat *st)
+{
+#ifdef ESP_PLATFORM
+    return stat(path, st);  // the ESP32 filesystems have no symbolic links
+#else
+    return lstat(path, st);
+#endif
+}
+
+/****************************************************************************
+ *  Remove one entry that is not a directory (a file, a symbolic link, ...)
+ *  remove() of a symbolic link removes the link, never its target.
+ ****************************************************************************/
+PRIVATE int remove_non_directory(const char *path)
+{
+    if(remove(path) != 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "remove() FAILED",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/****************************************************************************
  *  Function to recursively remove a directory and its contents
+ *
+ *  A symbolic link is removed as a link and NEVER descended: up to 7.25.4
+ *  this used stat(), which follows the link, so a link to a directory
+ *  was walked into and the files of its target were deleted (outside the
+ *  tree), and a dangling link made the whole removal fail.
+ *  A path that does not exist returns -1 without a log: callers use
+ *  rmrdir() to make sure a directory is gone.
  ****************************************************************************/
 PUBLIC int rmrdir(const char *path)
 {
@@ -426,71 +469,66 @@ PUBLIC int rmrdir(const char *path)
     DIR *dir;
     char full_path[PATH_MAX];
 
-    // Check if the path exists
-    if (stat(path, &statbuf) != 0) {
+    if(stat_no_follow(path, &statbuf) != 0) {
+        if(errno == ENOENT) {
+            return -1;  // Nothing to remove, see the header
+        }
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "lstat() FAILED",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
         return -1;
     }
 
-    // If it's a regular file or symbolic link, remove it
-    if (S_ISREG(statbuf.st_mode) || S_ISLNK(statbuf.st_mode)) {
-        if (remove(path) != 0) {
-            gobj_log_error(0, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "remove() FAILED",
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
-            return -1;
+    if(!S_ISDIR(statbuf.st_mode)) {
+        return remove_non_directory(path);
+    }
+
+    dir = opendir(path);
+    if(dir == NULL) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot open directory",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    while((dir_entry = readdir(dir)) != NULL) {
+        if(strcmp(dir_entry->d_name, ".") == 0 || strcmp(dir_entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        build_path(full_path, sizeof(full_path), path, dir_entry->d_name, NULL);
+
+        if(rmrdir(full_path) != 0) {
+            closedir(dir);
+            return -1;  // Error already logged
         }
     }
-        // If it's a directory, remove its contents recursively
-    else if (S_ISDIR(statbuf.st_mode)) {
-        dir = opendir(path);
-        if (dir == NULL) {
-            gobj_log_error(0, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot open directory",
-                "path",         "%s", path,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
-            return -1;
-        }
 
-        while ((dir_entry = readdir(dir)) != NULL) {
-            // Skip the special entries "." and ".."
-            if (strcmp(dir_entry->d_name, ".") == 0 || strcmp(dir_entry->d_name, "..") == 0) {
-                continue;
-            }
+    closedir(dir);
 
-            // Build the full path for the entry
-            snprintf(full_path, sizeof(full_path), "%s/%s", path, dir_entry->d_name);
-
-            // Recursively remove the entry
-            if (rmrdir(full_path) != 0) {
-                closedir(dir);
-                return -1;
-            }
-        }
-
-        closedir(dir);
-
-        // Finally, remove the directory itself
-        if (rmdir(path) != 0) {
-            gobj_log_error(0, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "rmdir() FAILED",
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
-            return -1;
-        }
+    if(rmdir(path) != 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "rmdir() FAILED",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
     }
 
     return 0;
@@ -498,6 +536,7 @@ PUBLIC int rmrdir(const char *path)
 
 /****************************************************************************
  *  Recursively remove the content of a directory
+ *  A symbolic link is removed as a link and never descended (see rmrdir()).
  ****************************************************************************/
 PUBLIC int rmrcontentdir(const char *root_dir)
 {
@@ -520,26 +559,35 @@ PUBLIC int rmrcontentdir(const char *root_dir)
 
     while ((dent = readdir(dir))) {
         char *dname = dent->d_name;
-        if (!strcmp(dname, ".") || !strcmp(dname, ".."))
+        if (!strcmp(dname, ".") || !strcmp(dname, "..")) {
             continue;
+        }
         char path[PATH_MAX];
         build_path(path, sizeof(path), root_dir, dname, NULL);
 
-        if(stat(path, &st) == -1) {
+        if(stat_no_follow(path, &st) == -1) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "lstat() FAILED",
+                "path",         "%s", path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
             closedir(dir);
             return -1;
         }
 
         if(S_ISDIR(st.st_mode)) {
-            /* recursively follow dirs */
             if(rmrdir(path)<0) {
                 closedir(dir);
-                return -1;
+                return -1;  // Error already logged
             }
         } else {
-            if(unlink(path) < 0) {
+            if(remove_non_directory(path) < 0) {
                 closedir(dir);
-                return -1;
+                return -1;  // Error already logged
             }
         }
     }
