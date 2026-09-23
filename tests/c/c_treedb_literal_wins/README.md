@@ -11,7 +11,8 @@ file in use. The rule is the user's decision of 2026-09-23:
 - The operator work that this discards is reported: one WARNING *"Schema
   from C withdrew work on the schema at open"* that names the treedb and the
   topics, and `withdrawn_at_open` in `treedbs` and `saved-schema`, per topic
-  `applied` (an apply that never ran), `saved` or `unsaved`.
+  `applied` (an apply that never ran), `in_use` (an apply that ran),
+  `saved` or `unsaved`.
 - A literal that is **not** higher is not installed: the file runs, and
   `__system__` keeps what it holds.
 
@@ -31,6 +32,12 @@ places of the schema agree: what the store RUNS (the open topics, their
 | NR | `tw_nr` | A topic is changed without a higher `topic_version`. The file and `__system__` show the literal. The store keeps its own columns, and a warning says so. |
 | IMP | `tw_imp` | With `impose_c_schema` forced by the code, a newer literal also re-makes `__system__` whole. |
 | L-2 | `tw_l2` | A topic whose store directory is gone is not reported as `applied`. An apply is recorded when it is made (`saved_schemas/<treedb>.applied.json`), not guessed from a missing `topic_var.json`. |
+| SNAP | `tw_snap` | A snapshot of `__system__` holds the topic the literal removes. The projection is unfinished and says so: warning, `c_schema_version` 0, `unfinished_projection`, `save-schema` refused, retried at every open. Once the snapshot is deleted, the next open completes it. |
+| TWICE | `tw_twice` | A second `open-treedb` of a treedb that is open is refused as "already open" before anything is reconciled: `__system__`, the saved schema and the file stay as they were. |
+| RAN | `tw_ran` | An apply that ran (an open read it), then a newer literal: the running dynamic `users` is reported as `in_use`; `departments`, changed only by the developer, is not reported. |
+| SEED | `tw_seed` | After `delete-treedb`, a projection seeded from a dynamic file has `c_schema_version` 0, and the tie with a literal of the same number is said at every open. |
+| LOCK | `tw_lock` | The store of the treedb is locked (as by another process): it opens as a replica and `__system__` is not reconciled. When the lock is free, the literal is installed and projected. |
+| REC | `tw_rec` | The record of an apply cannot be written: the apply is refused and the file in use does not change. |
 
 The expected log list in `src/main.c` is strict FIFO: every line from INFO
 up, in order.

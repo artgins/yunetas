@@ -1539,7 +1539,7 @@ interchangeable:
 | | Written by | Means |
 |---|---|---|
 | `schema_version` | whoever edits the schema (an editor raises it on save) | what this schema is worth to `treedb_open_db` |
-| `c_schema_version` | only the projection | which version of the C literal this projection came from |
+| `c_schema_version` | only the projection | which version of the C literal this projection came from; `0` when it came from none: seeded from a dynamic schema file, or left unfinished |
 | `system_schema_version` | only the projection | which version of the **meta-schema** produced it |
 
 A change of the meta-schema re-projects **nothing**. The schema in use can be
@@ -1627,6 +1627,46 @@ from C: removed from __system__"* (`treedb_name`, `topic_name`). The store
 directory `departments/` stays on disk with its records; nothing opens it.
 A renamed topic is the same thing: the old name goes, the new one is created.
 
+The DELETE is new after 7.25.4. In 7.25.4 the literal replaced the whole file
+too, but the projection only created and updated: a topic the developer
+removed stayed in `__system__`, and the next `save-schema` published it
+again.
+
+**A snapshot of `__system__` can refuse the delete.** A delete erases the key,
+so `treedb_delete_node()` refuses a node that a snapshot holds (*"cannot
+delete node, a snapshot still holds it"*, an ERROR). The projection is then
+UNFINISHED, and it says so; it is never passed off as done:
+
+- ONE warning, *"Schema projected into __system__ only in part: its version
+  is not recorded, and every open of the treedb retries it"*, with
+  `not_removed` (the ids of `__system__`) and `how` (what to do).
+- The numbers of the `treedbs` node are written LAST, and only on full
+  success. An unfinished projection writes `c_schema_version: 0` and keeps
+  its `schema_version`.
+- Every open retries it: *"Completing the projection of the schema from C
+  into __system__, left unfinished by an earlier open"*. It is retried when
+  the file in use IS the literal and `c_schema_version` is 0.
+- `treedbs` and `saved-schema` answer `unfinished_projection` (the ids,
+  `[]` when complete). What the projection could not remove is no draft of
+  anybody's: it is not withdrawn.
+- `save-schema` refuses until the projection completes. A save would
+  publish the removed topic again, and the next apply would bring it back.
+
+A topic that cannot go keeps its columns (half a topic helps nobody). To
+finish, delete the snapshot and open the treedb again. There is no
+`delete-snap` command: delete the row of the snapshot in `__snaps__`:
+
+```bash
+ycommand -c 'command-yuno id=<id> service=treedb_system_schema command=delete-node topic_name=__snaps__ record={"id":"<snap id>"}'
+```
+
+Deleting the snapshot also deletes that rollback point of the schemas.
+If you keep the snapshot, the treedb runs the literal and `__system__` keeps
+the old topics, said at every open. (Until after 7.25.4 the numbers were
+written FIRST and the failed deletes were ignored. The next open was silent,
+the editor showed the leftovers as drafts, and save + apply brought the
+removed topic back.)
+
 **What the literal withdraws is said.** A literal that wins replaces the
 operator's work over the old file. The open logs ONE warning, *"Schema from C
 withdrew work on the schema at open"*, with `treedb_name`, `schema_version`
@@ -1638,6 +1678,7 @@ open of that treedb:
 | Kind in `topics` | The literal replaced, or removed |
 |---|---|
 | `"applied"` | a topic of an apply that never ran: `apply-schema` wrote the file, and no open read it |
+| `"in_use"` | a topic of an apply that RAN: an open read it, and the treedb was running that dynamic schema (after 7.25.4) |
 | `"saved"` | the draft of a topic that a pending `save-schema` published |
 | `"unsaved"` | a draft never saved: a topic of `__system__` that differs from the file |
 
@@ -1653,20 +1694,35 @@ and a topic that only the developer changed is no work of the operator's:
 neither is in `topics`. To keep an operator's change across a new literal,
 take it into the literal.
 
-An apply that never ran is RECORDED, not guessed. `apply-schema` writes
+An apply is RECORDED, not guessed. `apply-schema` writes
 `saved_schemas/<treedb>.applied.json` under the `__system__` tranger, with
 the version it put in use and the topics whose `topic_version` it raised:
 
 ```json
-{"schema_version": 13, "topics": ["users"]}
+{"schema_version": 13, "topics": {"users": "applied"}}
 ```
 
-The next open reads it and removes it: the apply runs (the literal is not
-higher), or the literal withdraws it (the literal is higher), and a topic of
-the record that the literal says otherwise is `"applied"`. Until after 7.25.4
-it was inferred from the file's `topic_version` being above the store's
+The record lives while that file is in use:
+
+1. `apply-schema` writes it BEFORE the file is renamed in place. If the
+   record cannot be written, the apply is refused and the file in use does
+   not change. If the rename fails, the previous record is written back.
+   The new record keeps the record it replaces in `previous`: when the
+   process dies between the record and the rename, the next open reads
+   `previous`, the record of the file that is still in use.
+2. The open that reads the apply (the literal is not higher) marks its
+   topics `"in_use"`.
+3. The open where the literal wins reports every topic of the record that
+   the literal says otherwise, as `"applied"` or `"in_use"`, and removes the
+   record.
+
+Steps 2 and 3 happen only once the open has OPENED. Before, an open that
+failed used the record up. A record of another file than the one in use is
+dropped, with an INFO. A record written as a list of topics (before
+`"in_use"`) reads as all `"applied"`. Until after 7.25.4 an apply was
+inferred from the file's `topic_version` being above the store's
 `topic_var.json`, and a topic whose store directory was gone read as
-`"applied"`.
+`"applied"`. An apply that ran was not reported at all.
 
 **What runs of each topic is decided by tranger2.** A literal installed over
 the file hands every topic to tranger2, and tranger2 replaces
@@ -1688,7 +1744,9 @@ The whole matrix, with `impose_c_schema` off on a master:
 | 2 | `users` 1 | 3, `users` 2 with a new fkey, and a new topic `groups` that hooks it | the literal runs; `groups` is created |
 | 2; `__system__` 3 (saved, not applied) | as the file | 3 | the literal runs; the saved schema and its drafts are withdrawn: `"saved"` |
 | 2; an unsaved draft of `departments` | as the file | 3 | the literal runs; the draft is withdrawn: `"unsaved"` |
+| 2, an apply of `users` that ran | as the file | 3, `users` with another content | the literal runs; the running dynamic `users` is withdrawn: `"in_use"` |
 | 2 | as the file | 3, without `departments` | `departments` goes from the file and `__system__`, and does not open |
+| 2 | as the file | 3, without `departments`, a snapshot of `__system__` holds it | the literal runs; `__system__` keeps `departments` (unfinished, warning, `c_schema_version` 0, retried at every open, `save-schema` refuses) |
 | 2 | as the file | 3, `departments` renamed `sections` | `sections` is created; `departments` goes |
 | 2 | `users` 1 | 3, `users` changed at 1 | the file and `__system__` say the literal; the store runs its own `users`; warning |
 | none | anything | any | the literal runs, whole; *"No schema file in use: the treedb opens with the schema from C, projected whole over __system__"* |
@@ -1704,7 +1762,12 @@ when it has no projection, re-made WHOLE when the literal is higher than
 projected and nothing is withdrawn: the replica runs the file as it is.
 
 A treedb with no projection yet is seeded with what runs: the literal when it
-is installed or imposed, the FILE otherwise.
+is installed or imposed, the FILE otherwise. Seeded from the file,
+`c_schema_version` is the literal's version only when the file IS the
+literal, and `0` otherwise, and that open says the tie or *"behind"* as any
+other open does. (Until after 7.25.4 it was the file's number, so after a
+`delete-treedb` of a treedb running a dynamic schema, the tie with a literal
+of the same number was never said.)
 
 **`__system__`'s `schema_version` never goes down** (after 7.25.4). A
 literal can be higher than the file and lower than `__system__`, where a
@@ -1713,12 +1776,20 @@ save raised the number. The treedb node keeps the higher number and
 save, the file at 16 and a literal 17, `__system__` reads `schema_version: 18,
 c_schema_version: 17` after the open.
 
-This all assumes the CLIENT treedb opens as a master. The projection is
-decided before its tranger exists, with the `master` of `C_TREEDB`, which
-`__system__` also has. If the lock of the client store is held by another
-process, the client opens as a replica and runs its file while `__system__`
-says the literal; the next open as master installs the literal, and finds its
-projection already there.
+The CLIENT store decides, not `__system__`. `open-treedb` creates the
+treedb's tranger BEFORE it decides the schema. If another process holds the
+lock of the client store, the treedb opens as a replica: it runs its file,
+and nothing is projected or withdrawn (INFO *"The store of the treedb is not
+written here: it opens as a replica and runs its schema file, __system__ is
+not reconciled"*). The next open as master installs the literal and projects
+it. (Until after 7.25.4 this was decided with the lock of `__system__`, so
+`__system__` said a literal that the treedb did not run.)
+
+**A treedb already open here is refused first.** A second `open-treedb` of
+it answers `-1` *"treedb '<name>' is already open here: close-treedb first,
+nothing was changed"* before anything is reconciled. Before, it deleted
+topics from `__system__`, withdrew the saved schema and used up the record
+of an apply, and then failed on the name of its tranger.
 
 **History.** For three fix rounds after 7.25.4 the rule was written again per
 topic: a literal projected only the topics it raised past the one in use,
@@ -1737,8 +1808,8 @@ those numbers reached `topic_var.json` and `topic_cols.json`, and a store
 drifted from its literal although nobody had edited anything.
 
 **`impose_c_schema` takes the schema back from whoever changed it
-dynamically.** It is an attribute of `C_TREEDB` (`SDF_RD|SDF_PERSIST`,
-default `1`). With it on, `open-treedb` opens every treedb with its schema
+dynamically.** It is an attribute of `C_TREEDB` (`SDF_RD`,
+default `1`, not persistent: see below). With it on, `open-treedb` opens every treedb with its schema
 from C, and does not read `__system__`. Against the disk the rule of the
 versions still applies, with one more case, at both levels (the treedb's
 `schema_version` and each `topic_version`):
