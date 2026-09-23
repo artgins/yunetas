@@ -3,9 +3,10 @@
  *
  *          A write of treedb whose SAVE fails is taken back in memory.
  *
- *          treedb_update_node(), treedb_link_nodes() and
- *          treedb_unlink_nodes() change the node in memory first (its
- *          fields, its fkey and the hooks of its parents), then save it.
+ *          treedb_update_node(), treedb_link_nodes(),
+ *          treedb_unlink_nodes(), treedb_replace_links() and
+ *          treedb_autolink() change the node in memory first (its
+ *          fields, its fkeys and the hooks of its parents), then save it.
  *          When the save fails (here the files of the key are read-only),
  *          the node in memory must go back to what the disk has, and no
  *          event of the write is told: a node that kept the update
@@ -352,6 +353,39 @@ PRIVATE int test_failed_saves(json_t *tranger)
         result += fail(test, "an event was told", NULL);
     }
     result += test_json(NULL);
+
+    /*
+     *  The links a record names (treedb_replace_links(), what C_NODE's
+     *  update-node with autolink uses) and treedb_autolink(): taken back
+     */
+    const char *link_writers[] = {"replace_links", "autolink", NULL};
+    for(int i = 0; link_writers[i]; i++) {
+        char test_[80];
+        snprintf(test_, sizeof(test_), "failed %s is taken back", link_writers[i]);
+        test = test_;
+        set_expected_results(test, json_pack("[{s:s}, {s:s}]",
+            "msg", M_CREATE_JSON,
+            "msg", M_OPEN_WRITE
+        ), NULL, NULL, 1);
+        events_told = 0;
+        json_t *kw = json_pack("{s:[s]}", "departments", "departments^direction^users");
+        int r = (i == 0)?
+            treedb_replace_links(tranger, alice, kw, TRUE) :
+            treedb_autolink(tranger, alice, kw, TRUE);
+        if(r >= 0) {
+            result += fail(test, "the write answered success", NULL);
+        }
+        if(json_array_size(json_object_get(alice, "departments")) != 0) {
+            result += fail(test, "memory kept the fkey", alice);
+        }
+        if(hook_holds(direction, "users", alice)) {
+            result += fail(test, "memory kept the hook", NULL);
+        }
+        if(events_told != 0) {
+            result += fail(test, "an event was told", NULL);
+        }
+        result += test_json(NULL);
+    }
 
     /*
      *  An unlink: the link comes back

@@ -9909,6 +9909,12 @@ PUBLIC int treedb_replace_links(
     int ret = 0;
     BOOL changed = FALSE;
 
+    /*
+     *  A save that fails takes every link of this call back, and tells
+     *  none of them (see begin_node_write)
+     */
+    json_t *write = begin_node_write(gobj, tranger, node);
+
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
@@ -10013,8 +10019,8 @@ PUBLIC int treedb_replace_links(
         JSON_DECREF(new_refs)
     }
 
-    if(save && changed) {
-        treedb_save_node(tranger, node);
+    if(end_node_write(gobj, tranger, node, write, TRUE, save && changed)<0) {
+        ret = -1;   // Error already logged
     }
 
     JSON_DECREF(cols)
