@@ -39,9 +39,12 @@
  *          made was the schema of the next start.
  *
  *          A projection is written whole or it says it is not: a delete that
- *          a snapshot of __system__ refuses leaves it UNFINISHED, said in a
- *          warning and in `unfinished_projection`, with c_schema_version 0,
- *          and every open retries it; save-schema refuses meanwhile.
+ *          a snapshot of __system__ refuses (or a write that fails) leaves it
+ *          UNFINISHED, said in a warning and in `unfinished_projection`, with
+ *          c_schema_version 0. What it could not do is RECORDED in
+ *          saved_schemas/<treedb>.unfinished.json: while the record is there
+ *          every open retries the projection, what it names is nobody's
+ *          draft on any path, and save-schema refuses.
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -154,6 +157,14 @@ PRIVATE int record_apply(
 PRIVATE void restore_apply_record(hgobj gobj, const char *treedb_name, json_t *previous);
 PRIVATE void remove_apply_record(hgobj gobj, const char *treedb_name);
 PRIVATE void settle_apply_record(hgobj gobj, const char *treedb_name);
+PRIVATE json_t *load_unfinished_record(hgobj gobj, const char *treedb_name);
+PRIVATE void remove_unfinished_record(hgobj gobj, const char *treedb_name);
+PRIVATE json_t *rows_without_leftovers(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *rows,       // owned
+    json_t *leftovers   // not owned, ids of __system__, may be NULL
+);
 PRIVATE json_t *topic_versions_in_use(
     hgobj gobj,
     const char *treedb_name,
@@ -365,7 +376,6 @@ typedef struct _PRIVATE_DATA {
     json_t *jn_c_schemas;               // schema from C by treedb_name, see diff-schema
     json_t *jn_forced_treedbs;          // treedbs whose yuno's code imposes the schema from C
     json_t *jn_withdrawn_at_open;       // what the last open of each treedb withdrew, see reconcile
-    json_t *jn_unfinished_projection;   // {treedb: [ids]} a projection could not remove, see upsert
     json_t *jn_apply_record_at_open;    // {treedb: "remove"|"ran"} done once the open succeeds
     json_int_t system_schema_version;   // of treedb_system_schema, see reconcile
     int32_t exit_on_error;
@@ -403,7 +413,6 @@ PRIVATE void mt_create(hgobj gobj)
     priv->jn_c_schemas = json_object();
     priv->jn_forced_treedbs = json_object();
     priv->jn_withdrawn_at_open = json_object();
-    priv->jn_unfinished_projection = json_object();
     priv->jn_apply_record_at_open = json_object();
 
     /*-----------------------------------*
@@ -527,7 +536,6 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->jn_c_schemas)
     JSON_DECREF(priv->jn_forced_treedbs)
     JSON_DECREF(priv->jn_withdrawn_at_open)
-    JSON_DECREF(priv->jn_unfinished_projection)
     JSON_DECREF(priv->jn_apply_record_at_open)
 }
 
@@ -776,7 +784,8 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Internal error, tranger client NULL"),
+            json_sprintf("%s: cannot open treedb '%s': its tranger could not be created "
+                "(see the log)", gobj_yuno_role_plus_name(), treedb_name),
             0,
             0,
             kw  // owned
@@ -807,7 +816,8 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("treedb_schema not found: '%s'", treedb_name),
+            json_sprintf("%s: cannot open treedb '%s': no valid treedb_schema (see the log)",
+                gobj_yuno_role_plus_name(), treedb_name),
             0,
             0,
             kw  // owned
@@ -891,12 +901,27 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_object_del(priv->jn_forced_treedbs, treedb_name);
     }
 
+    /*
+     *  A treedb whose start failed (treedb_open_db() refused it) is not
+     *  open, whatever services were created: it answered "Treedb opened!"
+     *  (L6 of the sixth independent review, 2026-09-23). Its services stay,
+     *  as they are after any open, for close-treedb to take away.
+     */
+    json_t *comment;
+    if(!gobj_client_node) {
+        comment = json_sprintf("%s: cannot open treedb '%s' (see the log)",
+            gobj_yuno_role_plus_name(), treedb_name);
+    } else if(started < 0) {
+        comment = json_sprintf("%s: treedb '%s' did not open, its schema was refused "
+            "(see the log): close-treedb it before opening it again",
+            gobj_yuno_role_plus_name(), treedb_name);
+    } else {
+        comment = json_sprintf("%s: treedb opened: '%s'",
+            gobj_yuno_role_plus_name(), treedb_name);
+    }
     return msg_iev_build_response(gobj,
-        gobj_client_node?0:-1,
-        gobj_client_node?
-            json_sprintf("Treedb opened!"):
-            json_sprintf("%s: cannot open treedb '%s' (see the log)",
-                gobj_yuno_role_plus_name(), treedb_name),
+        (gobj_client_node && started == 0)? 0 : -1,
+        comment,
         0,
         0,
         kw  // owned
@@ -1142,15 +1167,15 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_object_del(priv->jn_forced_treedbs, treedb_name);
 
     /*
-     *  Its saved schema goes with it, and the record of an apply not
-     *  opened yet: left in saved_schemas/, a treedb created again under
-     *  the name found a save of the one deleted.
+     *  Its saved schema goes with it, the record of an apply not opened
+     *  yet, and the record of an unfinished projection: left in
+     *  saved_schemas/, a treedb created again under the name found them.
      */
     if(ret == 0) {
         json_int_t removed_version;
         ret = remove_saved_schema(gobj, treedb_name, &removed_version);  // Error already logged
         remove_apply_record(gobj, treedb_name);     // Error already logged
-        json_object_del(priv->jn_unfinished_projection, treedb_name);
+        remove_unfinished_record(gobj, treedb_name);    // Error already logged
     }
 
     if(ret < 0) {
@@ -1817,7 +1842,7 @@ PRIVATE json_int_t schema_topic_version(hgobj gobj, json_t *jn_schema, const cha
  *
  *      {"schema_version": 22,          // the literal that did it
  *       "saved_schema_version": 21,    // the saved schema it withdrew, 0: none
- *       "topics": {"users": "saved"}}  // "applied" | "saved" | "unsaved"
+ *       "topics": {"users": "saved"}}  // "applied" | "in_use" | "saved" | "unsaved"
  ***************************************************************************/
 PRIVATE json_t *withdrawn_at_open(hgobj gobj, const char *treedb_name)
 {
@@ -1828,17 +1853,21 @@ PRIVATE json_t *withdrawn_at_open(hgobj gobj, const char *treedb_name)
 }
 
 /***************************************************************************
- *  What the last open of a treedb could NOT remove from its projection
- *  (ids of __system__, a snapshot holds them): [] when the projection is
- *  complete. Until it is, what __system__ shows over the file is these,
- *  not anybody's draft. Return is YOURS.
+ *  What the projection of a treedb could NOT remove or write, as its record
+ *  says (ids of __system__: a snapshot holds them, or an error was logged):
+ *  [] when the projection is complete. Until it is, what __system__ shows
+ *  of these over the file is nobody's draft. Return is YOURS.
  ***************************************************************************/
 PRIVATE json_t *unfinished_projection(hgobj gobj, const char *treedb_name)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *u = json_object_get(priv->jn_unfinished_projection, treedb_name);
-    return u? json_deep_copy(u) : json_array();
+    json_t *ids = json_array();
+    json_t *record = load_unfinished_record(gobj, treedb_name);
+    if(record) {
+        json_array_extend(ids, kw_get_list(gobj, record, "not_removed", 0, 0));
+        json_array_extend(ids, kw_get_list(gobj, record, "not_written", 0, 0));
+    }
+    JSON_DECREF(record)
+    return ids;
 }
 
 /***************************************************************************
@@ -2114,22 +2143,23 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     /*
-     *  What an unfinished projection could not remove is still in
-     *  __system__, and a save would publish it again: the removed topic
-     *  came back with the next apply (fifth independent review)
+     *  What an unfinished projection could not remove or write is still
+     *  in __system__ as it was, and a save would publish it: the removed
+     *  topic came back with the next apply (fifth independent review)
      */
-    json_t *not_removed = json_object_get(priv->jn_unfinished_projection, treedb_name);
-    if(not_removed) {
+    json_t *unfinished = unfinished_projection(gobj, treedb_name);
+    if(json_array_size(unfinished) > 0) {
         return msg_iev_build_response(gobj, -1,
-            json_sprintf("%s: the projection of the schema from C of '%s' into __system__ is "
-                "not complete, %d node(s) could not be removed (a snapshot of __system__ holds "
-                "them, see the log): a save would publish them again",
-                gobj_yuno_role_plus_name(), treedb_name, (int)json_array_size(not_removed)),
+            json_sprintf("%s: the projection of '%s' into __system__ is not complete, "
+                "%d node(s) could not be removed or written (see the log): a save would "
+                "publish them",
+                gobj_yuno_role_plus_name(), treedb_name, (int)json_array_size(unfinished)),
             0,
-            json_pack("{s:s, s:O}", "treedb_name", treedb_name, "not_removed", not_removed),
+            json_pack("{s:s, s:o}", "treedb_name", treedb_name, "unfinished_projection", unfinished),
             kw
         );
     }
+    JSON_DECREF(unfinished)
 
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
@@ -2456,6 +2486,18 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_t *rows = json_array();
         json_t *summary = diff_treedb_schema(gobj, treedb_name, draft_base, rows);
         JSON_DECREF(summary)
+
+        /*
+         *  What an unfinished projection left is nobody's draft: the editor
+         *  showed a draft of the removed topic that nobody had made (L2 of
+         *  the sixth independent review, 2026-09-23)
+         */
+        json_t *record = load_unfinished_record(gobj, treedb_name);
+        rows = rows_without_leftovers(
+            gobj, treedb_name, rows, record? json_object_get(record, "leftovers") : NULL
+        );
+        JSON_DECREF(record)
+
         JSON_DECREF(draft_changed)
         draft_changed = draft_changed_from_rows(gobj, rows);
         JSON_DECREF(rows)
@@ -3721,6 +3763,64 @@ PRIVATE const char *draft_kind(
 }
 
 /***************************************************************************
+ *  What a projection could not do, as the record of an unfinished
+ *  projection keeps it (see reconcile_treedb_schema):
+ *
+ *      {"schema_version": 2,                   // of the schema projected
+ *       "not_removed": ["tw.departments"],     // deletes refused
+ *       "not_written": [],                     // writes that failed
+ *       "leftovers": ["tw.departments", "tw.departments.id",
+ *                     "tw.departments.name"]}
+ *
+ *  `leftovers` is every id of __system__ the projection left unlike the
+ *  schema: the ids of the two lists, and the columns of a topic that it
+ *  could not remove or write. They are nobody's draft. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *new_unfinished(json_int_t schema_version)
+{
+    return json_pack("{s:I, s:[], s:[], s:[]}",
+        "schema_version", schema_version,
+        "not_removed",
+        "not_written",
+        "leftovers"
+    );
+}
+
+/***************************************************************************
+ *  Add an id of __system__ to what a projection could not do: to `list`
+ *  ("not_removed" or "not_written", NULL for none) and to the leftovers
+ ***************************************************************************/
+PRIVATE void add_unfinished(json_t *unfinished, const char *list, const char *id)
+{
+    if(list) {
+        json_array_append_new(json_object_get(unfinished, list), json_string(id));
+    }
+    json_array_append_new(json_object_get(unfinished, "leftovers"), json_string(id));
+}
+
+/***************************************************************************
+ *  A topic could not be written: it, and the columns it would have
+ *  written or removed with it, are leftovers
+ ***************************************************************************/
+PRIVATE void add_unfinished_topic(
+    hgobj gobj,
+    json_t *unfinished,
+    const char *topic_id,
+    json_t *kw_cols,        // not owned, [col projection]
+    json_t *removed_cols    // not owned, [col id]
+)
+{
+    add_unfinished(unfinished, "not_written", topic_id);
+    int idx; json_t *jn;
+    json_array_foreach(kw_cols, idx, jn) {
+        add_unfinished(unfinished, NULL, kw_get_str(gobj, jn, "id", "", 0));
+    }
+    json_array_foreach(removed_cols, idx, jn) {
+        add_unfinished(unfinished, NULL, json_string_value(jn));
+    }
+}
+
+/***************************************************************************
  *  Project a schema into the __system__ treedb, WHOLE: afterwards the
  *  projection of the treedb says what `kw` says, and nothing else.
  *
@@ -3738,10 +3838,12 @@ PRIVATE const char *draft_kind(
  *  published it again; a per-topic merge built schemas nobody had written.
  *  A delete drops the history of the node, and it is refused on a node a
  *  snapshot holds (logged by the delete). The projection is then NOT
- *  complete, and it is not passed off as one: the ids it could not remove
- *  go into `not_removed`, it says so in a WARNING (what, why, how to
- *  finish), it answers -1, and it leaves the numbers of the treedb node
- *  as they were, so the next open retries it. The numbers are written
+ *  complete, and it is not passed off as one: what it could not remove
+ *  (or write: a create, update or link that failed, logged) goes into
+ *  `unfinished` (see new_unfinished), it says so in a WARNING (what, why,
+ *  how to finish), it answers -1, and it leaves the numbers of the treedb
+ *  node as they were. The caller records `unfinished`, and the next open
+ *  retries the projection. The numbers are written
  *  LAST, on full success. They were written FIRST, and every delete was
  *  ignored: the next open was silent, the editor showed as drafts what
  *  the projection had left, and save-schema published the removed topic
@@ -3768,12 +3870,13 @@ PRIVATE int upsert_treedb_schema(
     json_t *drafts, // not owned, {topic: true} whose draft differs from the file, or NULL
     BOOL saved_pending, // a saved schema newer than the file in use exists
     json_t *replaced, // not owned, {topic: kind} the projection replaced is added here, or NULL
-    json_t *not_removed // not owned, the ids the projection could not remove are appended
+    json_t *unfinished  // not owned, what the projection could not do is added (new_unfinished)
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_int_t kw_version = kw_get_int(gobj, kw, "schema_version", 1, KW_WILD_NUMBER);
+    json_object_set_new(unfinished, "schema_version", json_integer(kw_version));
     json_int_t schema_version = kw_version;
     if(current) {
         json_int_t stored_version = kw_get_int(gobj, current, "schema_version", 0, KW_WILD_NUMBER);
@@ -3813,6 +3916,7 @@ PRIVATE int upsert_treedb_schema(
         );
     }
     if(!treedb) {
+        add_unfinished(unfinished, "not_written", treedb_name);
         return -1;  // Error already logged
     }
 
@@ -3949,6 +4053,7 @@ PRIVATE int upsert_treedb_schema(
             );
             if(!topic) {
                 failed++;
+                add_unfinished_topic(gobj, unfinished, topic_id, kw_cols, removed_cols);
                 JSON_DECREF(removed_cols)
                 JSON_DECREF(kw_cols)
                 continue;   // Error already logged
@@ -3963,6 +4068,7 @@ PRIVATE int upsert_treedb_schema(
             );
             if(!topic) {
                 failed++;
+                add_unfinished_topic(gobj, unfinished, topic_id, kw_cols, removed_cols);
                 JSON_DECREF(removed_cols)
                 JSON_DECREF(kw_cols)
                 continue;   // Error already logged
@@ -3978,6 +4084,7 @@ PRIVATE int upsert_treedb_schema(
                     gobj
                 ) < 0) {
                 failed++;   // Error already logged
+                add_unfinished(unfinished, "not_written", topic_id);
             }
         }
 
@@ -3997,6 +4104,7 @@ PRIVATE int upsert_treedb_schema(
                 );
                 if(!col) {
                     failed++;
+                    add_unfinished(unfinished, "not_written", col_id);
                     continue;   // Error already logged
                 }
             } else {
@@ -4009,6 +4117,7 @@ PRIVATE int upsert_treedb_schema(
                 );
                 if(!col) {
                     failed++;
+                    add_unfinished(unfinished, "not_written", col_id);
                     continue;   // Error already logged
                 }
 
@@ -4022,6 +4131,7 @@ PRIVATE int upsert_treedb_schema(
                         gobj
                     ) < 0) {
                     failed++;   // Error already logged
+                    add_unfinished(unfinished, "not_written", col_id);
                 }
             }
 
@@ -4041,7 +4151,7 @@ PRIVATE int upsert_treedb_schema(
                     gobj
                 ) < 0) {
                 failed++;   // Error already logged
-                json_array_append(not_removed, jn_col_id);
+                add_unfinished(unfinished, "not_removed", json_string_value(jn_col_id));
             }
         }
 
@@ -4074,7 +4184,11 @@ PRIVATE int upsert_treedb_schema(
                 gobj
             ) < 0) {
             failed++;   // Error already logged
-            json_array_append_new(not_removed, json_string(current_topic_id));
+            add_unfinished(unfinished, "not_removed", current_topic_id);
+            const char *col_id; json_t *col;
+            json_object_foreach(kw_get_dict(gobj, current_topic, "cols", 0, 0), col_id, col) {
+                add_unfinished(unfinished, NULL, col_id);
+            }
             continue;
         }
 
@@ -4106,7 +4220,7 @@ PRIVATE int upsert_treedb_schema(
                     gobj
                 ) < 0) {
                 failed++;   // Error already logged
-                json_array_append_new(not_removed, json_string(col_id));
+                add_unfinished(unfinished, "not_removed", col_id);
             }
         }
     }
@@ -4132,6 +4246,7 @@ PRIVATE int upsert_treedb_schema(
         );
         if(!stamped) {
             failed++;   // Error already logged
+            add_unfinished(unfinished, "not_written", treedb_name);
         }
         JSON_DECREF(stamped)
     } else if(failed > 0) {
@@ -4154,6 +4269,7 @@ PRIVATE int upsert_treedb_schema(
     }
 
     if(failed > 0) {
+        json_t *not_removed = json_object_get(unfinished, "not_removed");
         gobj_log_warning(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_TREEDB,
@@ -4162,11 +4278,13 @@ PRIVATE int upsert_treedb_schema(
             "schema_version",   "%d", (int)kw_version,
             "failed",           "%d", failed,
             "not_removed",      "%j", not_removed,
+            "not_written",      "%j", json_object_get(unfinished, "not_written"),
             "how",              "%s", json_array_size(not_removed) > 0?
                 "a node a snapshot of __system__ holds cannot be deleted (see the error before): "
                 "delete that snapshot (delete-node of its row in __snaps__ of treedb_system_schema) "
                 "and open the treedb again; until then save-schema refuses, it would publish them again" :
-                "see the errors logged before this",
+                "see the errors logged before this, fix their cause and open the treedb again; "
+                "until then save-schema refuses",
             NULL
         );
     }
@@ -4465,7 +4583,12 @@ PRIVATE void remove_apply_record(hgobj gobj, const char *treedb_name)
  *  when the rename fails. -1 when the record could not be written (logged).
  *
  *  The topics of the record of the file it replaces go on: that file is
- *  still under this one, so what it applied is part of what runs.
+ *  still under this one, so what it applied is part of what runs. That
+ *  record is the one on disk, or its `previous` when the one on disk is of
+ *  an apply whose rename never happened (the process died between the two):
+ *  looking only at the one on disk, the topics of the file in use were
+ *  lost, and a later literal did not report them (L3 of the sixth
+ *  independent review, 2026-09-23). It is also what goes into `previous`.
  ***************************************************************************/
 PRIVATE int record_apply(
     hgobj gobj,
@@ -4477,13 +4600,17 @@ PRIVATE int record_apply(
 {
     *p_previous = load_apply_record(gobj, treedb_name);
 
-    json_t *topics = NULL;
-    if(*p_previous && replaced_file &&
-            schema_version_of(gobj, *p_previous) == schema_version_of(gobj, replaced_file)) {
-        topics = apply_record_topics(*p_previous);
-    } else {
-        topics = json_object();
+    json_t *of_replaced = NULL;     // the record of the file replaced, not owned
+    if(*p_previous && replaced_file) {
+        json_int_t replaced_version = schema_version_of(gobj, replaced_file);
+        json_t *older = json_object_get(*p_previous, "previous");
+        if(schema_version_of(gobj, *p_previous) == replaced_version) {
+            of_replaced = *p_previous;
+        } else if(older && schema_version_of(gobj, older) == replaced_version) {
+            of_replaced = older;
+        }
     }
+    json_t *topics = of_replaced? apply_record_topics(of_replaced) : json_object();
 
     json_t *applied_topics = schema_topics_as_list(gobj, applied);
     int idx; json_t *topic;
@@ -4506,8 +4633,8 @@ PRIVATE int record_apply(
         "schema_version", schema_version_of(gobj, applied),
         "topics", topics
     );
-    if(*p_previous) {
-        json_t *previous = json_deep_copy(*p_previous);
+    if(of_replaced) {
+        json_t *previous = json_deep_copy(of_replaced);
         json_object_del(previous, "previous");
         json_object_set_new(record, "previous", previous);
     }
@@ -4563,6 +4690,100 @@ PRIVATE json_t *read_apply_record(hgobj gobj, const char *treedb_name, json_int_
     }
     JSON_DECREF(record)
     return topics;
+}
+
+/***************************************************************************
+ *  The RECORD of an unfinished projection, `<treedb>.unfinished.json` in
+ *  saved_schemas/ (what new_unfinished describes). It is written when a
+ *  projection fails, and removed when one succeeds: while it is there,
+ *  every open retries the projection, what it names is nobody's draft,
+ *  and save-schema refuses.
+ *
+ *  It is what says a projection is unfinished. That was guessed, from
+ *  c_schema_version 0 and "__system__ holds it and the file does not":
+ *  a column the operator added meanwhile was taken for a leftover and
+ *  deleted in silence, a leftover was reported as withdrawn work when a
+ *  newer literal (or an imposed one) finished the projection, and a
+ *  projection seeded from a dynamic file (c_schema_version 0 too) was
+ *  "completed" over the operator's drafts (sixth independent review,
+ *  2026-09-23).
+ ***************************************************************************/
+PRIVATE void unfinished_record_filename(const char *treedb_name, char *bf, size_t bfsize)
+{
+    snprintf(bf, bfsize, "%s.unfinished.json", treedb_name);
+}
+
+/***************************************************************************
+ *  The record of an unfinished projection, or NULL. Return is YOURS
+ ***************************************************************************/
+PRIVATE json_t *load_unfinished_record(hgobj gobj, const char *treedb_name)
+{
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char filename[NAME_MAX];
+    unfinished_record_filename(treedb_name, filename, sizeof(filename));
+    if(!file_exists(saved_dir, filename)) {
+        return NULL;
+    }
+    json_t *record = load_json_from_file(gobj, saved_dir, filename, 0);
+    if(!record) {
+        /*
+         *  Unfinished it is, whatever it cannot say: an empty record keeps
+         *  the retry and the refusal of save-schema
+         */
+        record = new_unfinished(0);     // Error already logged
+    }
+    return record;
+}
+
+/***************************************************************************
+ *  Write the record of an unfinished projection (a failure is logged)
+ ***************************************************************************/
+PRIVATE void write_unfinished_record(hgobj gobj, const char *treedb_name, json_t *record) // not owned
+{
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char filename[NAME_MAX];
+    unfinished_record_filename(treedb_name, filename, sizeof(filename));
+
+    save_json_to_file(  // Error already logged
+        gobj,
+        saved_dir,
+        filename,
+        (int)gobj_read_integer_attr(gobj, "xpermission"),
+        (int)gobj_read_integer_attr(gobj, "rpermission"),
+        0,
+        TRUE,   // Create file if not exists or overwrite.
+        FALSE,  // only_read
+        json_incref(record)
+    );
+}
+
+/***************************************************************************
+ *  Remove the record of an unfinished projection, if there is one (a
+ *  failure is logged)
+ ***************************************************************************/
+PRIVATE void remove_unfinished_record(hgobj gobj, const char *treedb_name)
+{
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char filename[NAME_MAX];
+    unfinished_record_filename(treedb_name, filename, sizeof(filename));
+    if(!file_exists(saved_dir, filename)) {
+        return;
+    }
+    if(file_remove(saved_dir, filename) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_SYSTEM,
+            "msg",              "%s", "Cannot remove the record of an unfinished projection",
+            "treedb_name",      "%s", treedb_name,
+            "directory",        "%s", saved_dir,
+            "filename",         "%s", filename,
+            "errno",            "%s", strerror(errno),
+            NULL
+        );
+    }
 }
 
 /***************************************************************************
@@ -4675,35 +4896,115 @@ PRIVATE void say_literal_not_installed(
 }
 
 /***************************************************************************
+ *  Does a topic of __system__ hold a column that is not a leftover? Then
+ *  somebody added it after the projection that left the topic.
+ ***************************************************************************/
+PRIVATE BOOL topic_holds_other_cols(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_id,
+    json_t *leftover_ids    // not owned, {id: true}
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *tree = gobj_node_tree(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        json_object(),
+        gobj
+    );
+    if(!tree) {
+        return FALSE;   // Error already logged
+    }
+    BOOL holds = FALSE;
+    json_t *topic = json_object_get(kw_get_dict(gobj, tree, "topics", 0, 0), topic_id);
+    const char *col_id; json_t *col;
+    json_object_foreach(kw_get_dict(gobj, topic, "cols", 0, 0), col_id, col) {
+        if(!json_object_get(leftover_ids, col_id)) {
+            holds = TRUE;
+            break;
+        }
+    }
+    JSON_DECREF(tree)
+    return holds;
+}
+
+/***************************************************************************
+ *  The rows of diff_treedb_schema() without the rows of what an unfinished
+ *  projection LEFT (`leftovers`, ids of __system__, see new_unfinished):
+ *  that is nobody's draft. Only those: a topic or column the operator
+ *  added meanwhile is a draft like any other, and so is a leftover topic
+ *  that holds a column the projection did not leave there.
+ ***************************************************************************/
+PRIVATE json_t *rows_without_leftovers(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *rows,       // owned
+    json_t *leftovers   // not owned, ids of __system__, may be NULL
+)
+{
+    if(json_array_size(leftovers) == 0) {
+        return rows;
+    }
+
+    json_t *leftover_ids = json_object();
+    int idx; json_t *jn_id;
+    json_array_foreach(leftovers, idx, jn_id) {
+        if(json_is_string(jn_id)) {
+            json_object_set_new(leftover_ids, json_string_value(jn_id), json_true());
+        }
+    }
+
+    json_t *kept = json_array();
+    json_t *row;
+    json_array_foreach(rows, idx, row) {
+        const char *topic_name = kw_get_str(gobj, row, "topic", "", 0);
+        const char *col_name = kw_get_str(gobj, row, "col", "", 0);
+
+        char topic_id[RECORD_KEY_VALUE_MAX];
+        char col_id_[RECORD_KEY_VALUE_MAX];
+        const char *id = NULL;
+        if(!empty_string(topic_name) &&
+                build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
+            id = topic_id;
+            if(!empty_string(col_name)) {
+                id = build_schema_node_id(gobj, col_id_, sizeof(col_id_), topic_id, col_name);
+            }
+        }
+        if(!id || !json_object_get(leftover_ids, id)) {
+            json_array_append(kept, row);
+            continue;
+        }
+        if(empty_string(col_name) &&
+                strcmp(kw_get_str(gobj, row, "kind", "", 0), "only_in_stored")==0 &&
+                topic_holds_other_cols(gobj, treedb_name, topic_id, leftover_ids)) {
+            json_array_append(kept, row);
+        }
+    }
+
+    JSON_DECREF(leftover_ids)
+    JSON_DECREF(rows)
+    return kept;
+}
+
+/***************************************************************************
  *  The topics of __system__ that differ from the schema file in use: the
- *  operator's drafts, {topic: true}. With `leftovers_are_not_drafts`, a
- *  topic or column that __system__ holds and the file does not is not
- *  counted: what an unfinished projection could not remove is nobody's
- *  work. Return is YOURS.
+ *  operator's drafts, {topic: true}. What an unfinished projection left
+ *  (`leftovers`) is not counted: it is nobody's work. Return is YOURS.
  ***************************************************************************/
 PRIVATE json_t *drafts_over_file(
     hgobj gobj,
     const char *treedb_name,
     json_t *file_in_use,    // not owned
-    BOOL leftovers_are_not_drafts
+    json_t *leftovers       // not owned, ids of __system__, may be NULL
 )
 {
     json_t *rows = json_array();
     json_t *summary = diff_treedb_schema(gobj, treedb_name, file_in_use, rows);
     JSON_DECREF(summary)
-    if(leftovers_are_not_drafts) {
-        json_t *kept = json_array();
-        int idx; json_t *row;
-        json_array_foreach(rows, idx, row) {
-            if(strcmp(kw_get_str(gobj, row, "kind", "", 0), "only_in_stored")==0 &&
-                    empty_string(kw_get_str(gobj, row, "attr", "", 0))) {
-                continue;
-            }
-            json_array_append(kept, row);
-        }
-        JSON_DECREF(rows)
-        rows = kept;
-    }
+    rows = rows_without_leftovers(gobj, treedb_name, rows, leftovers);
     json_t *drafts = draft_changed_from_rows(gobj, rows);
     JSON_DECREF(rows)
     return drafts;
@@ -4722,17 +5023,19 @@ PRIVATE json_t *drafts_over_file(
  *                  declare included, whatever version a save gave
  *                  __system__. What that replaces of the operator's
  *                  drafts goes into `replaced`, said by the caller.
- *      literal equal to the file
+ *      literal equal to the file, or behind it
  *                  the file runs, nothing is projected. Another content
- *                  under the same number is said, loudly. The same
- *                  content with c_schema_version 0 is a projection an
- *                  earlier open left UNFINISHED (a delete refused, see
- *                  upsert): it is completed now. (Not any c_schema_version
- *                  behind: an imposed open keeps a __system__ that a save
- *                  took ahead, and its c_schema_version stays behind the
- *                  file on purpose.)
- *      literal behind the file
- *                  the file runs, nothing is projected; said.
+ *                  under the same number is said, loudly; a literal
+ *                  behind is said.
+ *
+ *  An UNFINISHED projection -- one that failed, and whose record
+ *  (`unfinished_before`, see load_unfinished_record) says so -- is retried
+ *  at every open, whatever path the open takes: projected again from what
+ *  RUNS when nothing newer is installed (the literal when the file IS the
+ *  literal, the file otherwise: a seed from the file that failed), and
+ *  from the literal when one is installed or imposed. What it left is
+ *  nobody's draft on any path (see rows_without_leftovers); what the
+ *  operator did meanwhile is, and a retry that replaces it says it.
  *
  *  Three fix rounds replaced this with rules per topic, and each broke a
  *  different case; the last one merged the literal with the file and built
@@ -4742,17 +5045,17 @@ PRIVATE json_t *drafts_over_file(
  *  With `imposing` the literal runs whatever the file says (unless it IS
  *  the file's version), and __system__ keeps the rule of the versions
  *  against itself: seeded when the treedb has none, re-made WHOLE when the
- *  literal is newer than __system__, left as it is when it is not -- a
- *  dynamic change published there stays readable with diff-schema, and
- *  turning the flag off takes it back.
+ *  literal is newer than __system__ (or the projection is unfinished),
+ *  left as it is when it is not -- a dynamic change published there stays
+ *  readable with diff-schema, and turning the flag off takes it back.
  *
  *  A treedb with no projection yet is seeded with what runs: the literal
  *  when it is installed or imposed, the FILE otherwise -- and then
  *  c_schema_version says the literal only when the file IS the literal,
  *  0 otherwise: the projection did not come from C.
  *
- *  -1 when the projection is not complete; the ids it could not remove
- *  are in `not_removed`.
+ *  `*p_projected` says whether a projection was written (upsert). -1 when
+ *  it is not complete; what it could not do is in `unfinished`.
  *
  *  ONLY THE MASTER WRITES __system__, and its one caller,
  *  reconcile_treedb_schema(), holds the guard.
@@ -4764,11 +5067,15 @@ PRIVATE int project_literal_into_system(
     BOOL imposing,      // the treedb is being opened with the schema from C
     json_t *file_in_use,// not owned, the schema file in use before this open, or NULL
     BOOL installed,     // treedb_open_db() writes the literal over the file
+    json_t *unfinished_before, // not owned, the record of an unfinished projection, or NULL
     json_t *replaced,   // not owned, {topic: kind} of the drafts the literal replaced
-    json_t *not_removed // not owned, the ids the projection could not remove
+    json_t *unfinished, // not owned, what the projection could not do (new_unfinished)
+    BOOL *p_projected
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    *p_projected = FALSE;
 
     json_int_t new_version = schema_version_of(gobj, jn_schema);
     json_int_t in_use_version = schema_version_of(gobj, file_in_use);
@@ -4792,8 +5099,9 @@ PRIVATE int project_literal_into_system(
         if(from_file && (in_use_version != new_version || schemas_differ(file_in_use, jn_schema))) {
             c_stamp = 0;
         }
+        *p_projected = TRUE;
         int ret = upsert_treedb_schema(
-            gobj, treedb_name, seed, c_stamp, NULL, file_in_use, NULL, FALSE, replaced, not_removed
+            gobj, treedb_name, seed, c_stamp, NULL, file_in_use, NULL, FALSE, replaced, unfinished
         );
         if(from_file) {
             say_literal_not_installed(gobj, treedb_name, jn_schema, file_in_use, 0, c_stamp);
@@ -4851,9 +5159,16 @@ PRIVATE int project_literal_into_system(
         }
     }
 
+    /*
+     *  What is projected: the literal, unless an unfinished projection is
+     *  completed from the file that runs
+     */
+    json_t *source = jn_schema;
+    json_int_t source_c_version = new_version;
     BOOL completing = FALSE;
+
     if(imposing) {
-        if(new_version <= stored_version) {
+        if(new_version <= stored_version && !unfinished_before) {
             if(new_version < stored_version) {
                 gobj_log_info(gobj, 0,
                     "function",         "%s", __FUNCTION__,
@@ -4871,29 +5186,33 @@ PRIVATE int project_literal_into_system(
     } else if(!installed) {
         /*
          *  The file runs. __system__ keeps what it holds: the file, and
-         *  the operator's drafts over it -- unless the file IS this
-         *  literal and the projection of it was left unfinished
+         *  the operator's drafts over it -- unless its projection was
+         *  left unfinished, and then it is completed from what runs
          */
-        if(new_version == in_use_version && stored_c_version == 0 &&
-                !schemas_differ(file_in_use, jn_schema)) {
-            completing = TRUE;
-            gobj_log_info(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_INFO,
-                "msg",              "%s", "Completing the projection of the schema from C into __system__, left unfinished by an earlier open",
-                "treedb_name",      "%s", treedb_name,
-                "schema_version",   "%d", (int)new_version,
-                "c_schema_version", "%d", (int)stored_c_version,
-                NULL
-            );
-        } else {
+        if(!unfinished_before) {
             say_literal_not_installed(
                 gobj, treedb_name, jn_schema, file_in_use, stored_version, stored_c_version
             );
             return 0;
         }
+        completing = TRUE;
+        if(new_version != in_use_version || schemas_differ(file_in_use, jn_schema)) {
+            source = file_in_use;
+            source_c_version = 0;
+        }
+        gobj_log_info(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INFO,
+            "msg",              "%s", "Completing the projection into __system__, left unfinished by an earlier open",
+            "treedb_name",      "%s", treedb_name,
+            "source",           "%s", source == jn_schema? "schema from C" : "schema file in use",
+            "schema_version",   "%d", (int)schema_version_of(gobj, source),
+            "stored_version",   "%d", (int)stored_version,
+            NULL
+        );
 
-    } else if(stored_c_version == new_version && stored_version == new_version) {
+    } else if(stored_c_version == new_version && stored_version == new_version &&
+            !unfinished_before) {
         /*
          *  The projection is of this literal already: a schema file that
          *  was missing is written again from it, and the drafts over it
@@ -4940,13 +5259,14 @@ PRIVATE int project_literal_into_system(
     /*
      *  The drafts: the topics of __system__ that differ from the schema
      *  file in use, which the projection replaces (said, see upsert), and
-     *  whether a save of them is pending. Completing, what the file does
-     *  not declare is the unfinished projection's, no draft.
+     *  whether a save of them is pending. What an unfinished projection
+     *  left is no draft.
      */
     json_t *drafts = NULL;
     BOOL saved_pending = FALSE;
     if(file_in_use) {
-        drafts = drafts_over_file(gobj, treedb_name, file_in_use, completing);
+        drafts = drafts_over_file(gobj, treedb_name, file_in_use,
+            unfinished_before? json_object_get(unfinished_before, "leftovers") : NULL);
 
         char saved_dir[PATH_MAX];
         saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
@@ -4959,16 +5279,23 @@ PRIVATE int project_literal_into_system(
         }
     }
 
+    *p_projected = TRUE;
     int ret = upsert_treedb_schema(
-        gobj, treedb_name, jn_schema, new_version, current,
+        gobj, treedb_name, source, source_c_version, current,
         file_in_use,
         drafts,
         saved_pending,
         replaced,
-        not_removed
+        unfinished
     );
     JSON_DECREF(drafts)
     JSON_DECREF(current)
+
+    if(completing && source != jn_schema) {
+        say_literal_not_installed(
+            gobj, treedb_name, jn_schema, file_in_use, stored_version, source_c_version
+        );
+    }
 
     return ret;
 }
@@ -5142,17 +5469,27 @@ PRIVATE int reconcile_treedb_schema(
      */
     json_t *record_topics = read_apply_record(gobj, treedb_name, in_use_version);
 
+    /*
+     *  The record of an unfinished projection: written when this one fails,
+     *  removed when it succeeds; kept when nothing is projected
+     */
+    json_t *unfinished_before = load_unfinished_record(gobj, treedb_name);
     json_t *replaced = json_object();
-    json_t *not_removed = json_array();
+    json_t *unfinished = new_unfinished(0);
+    BOOL projected = FALSE;
     int ret = project_literal_into_system(
-        gobj, treedb_name, jn_schema, imposing, file_in_use, installed, replaced, not_removed
+        gobj, treedb_name, jn_schema, imposing, file_in_use, installed,
+        unfinished_before, replaced, unfinished, &projected
     );
-    if(ret < 0 && json_array_size(not_removed) > 0) {
-        json_object_set(priv->jn_unfinished_projection, treedb_name, not_removed);
-    } else {
-        json_object_del(priv->jn_unfinished_projection, treedb_name);
+    if(projected) {
+        if(ret < 0) {
+            write_unfinished_record(gobj, treedb_name, unfinished);    // Error already logged
+        } else if(unfinished_before) {
+            remove_unfinished_record(gobj, treedb_name);    // Error already logged
+        }
     }
-    JSON_DECREF(not_removed)
+    JSON_DECREF(unfinished)
+    JSON_DECREF(unfinished_before)
 
     json_int_t saved_version = 0;
     if(installed) {

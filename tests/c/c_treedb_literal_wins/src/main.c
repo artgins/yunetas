@@ -96,9 +96,10 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
 #define M_NOT_RAISED    "Topic from C declares other columns than the store runs, without raising its topic_version past it: the store keeps running its own"
 #define M_SNAP_HOLDS    "cannot delete node, a snapshot still holds it"
 #define M_IN_PART       "Schema projected into __system__ only in part: its version is not recorded, and every open of the treedb retries it"
-#define M_COMPLETING    "Completing the projection of the schema from C into __system__, left unfinished by an earlier open"
+#define M_COMPLETING    "Completing the projection into __system__, left unfinished by an earlier open"
 #define M_TIE           "Schema from C has the schema_version of the dynamic schema in use but another content: NOT applied, raise its schema_version to publish it"
 #define M_BEHIND        "TreeDB schema from C is behind the schema in use, not applied"
+#define M_ENUM          "Value not in enum"
 #define M_REPLICA       "The store of the treedb is not written here: it opens as a replica and runs its schema file, __system__ is not reconciled"
 
 /*
@@ -353,6 +354,158 @@ PRIVATE const char *expected_log_msgs[] = {
     "Schema saved",
     "Cannot create json file",
     "Schema applied",
+
+    /*  M1: a snapshot holds departments; v2 leaves it (unfinished), the
+     *  operator adds users.email; the retry replaces it and SAYS so; once
+     *  the snapshot is gone the projection completes, saying nothing  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    M_COMPLETING,
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    M_WITHDREW,
+    M_COMPLETING,
+    M_REMOVED,
+
+    /*  M2 imposed: v1 with groups, a snapshot, v2 without (unfinished),
+     *  snapshot gone, v2 again: completed, groups not reported  */
+    "Creating __timeranger2__.json",
+    "impose_c_schema forced by the code of the yuno, over the attribute",
+    "Opening TreeDB with the schema from C, __system__ not read",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "impose_c_schema forced by the code of the yuno, over the attribute",
+    "Opening TreeDB with the schema from C, __system__ not read",
+    "Updating TreeDB schema in __system__",
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "impose_c_schema forced by the code of the yuno, over the attribute",
+    "Opening TreeDB with the schema from C, __system__ not read",
+    "Updating TreeDB schema in __system__",
+    M_REMOVED,
+
+    /*  M2 dynamic: the same, then a NEWER literal v3 once the snapshot is
+     *  gone: groups goes, not reported  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Updating TreeDB schema in __system__",
+    M_REMOVED,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+
+    /*  L1: users applied, delete-treedb, seeded from the file (behind),
+     *  drafts, then the file itself as the literal: nothing projected  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Schema saved",
+    "Schema applied",
+    M_BEHIND,
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+
+    /*  L3: users applied and run, a crashed record, departments applied,
+     *  v4: users "in_use", departments "applied"  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Schema saved",
+    "Schema applied",
+    M_BEHIND,
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    M_BEHIND,
+    "Schema saved",
+    "Schema applied",
+    "Updating TreeDB schema in __system__",
+    M_WITHDREW,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+
+    /*  L4: delete-treedb, a file whose column has a flag the meta-schema
+     *  refuses (the store refuses the topic too): the seed fails, is
+     *  recorded, retried at the next open; the file fixed, completed  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    M_ENUM,
+    M_IN_PART,
+    M_BEHIND,
+    "Wrong enum type",
+    "Topic refused: bad columns",
+    "Cannot create topic of the schema",
+    M_COMPLETING,
+    M_ENUM,
+    M_IN_PART,
+    M_BEHIND,
+    "Wrong enum type",
+    "Topic refused: bad columns",
+    "Cannot create topic of the schema",
+    M_COMPLETING,
+    M_BEHIND,
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+
+    /*  L6: a literal refused by C_TREEDB (hook and fkey), then a schema
+     *  file with no topics: treedb_open_db() fails, the open answers -1
+     *  (C_NODE's callback and close on a treedb that never opened)  */
+    "Creating __timeranger2__.json",
+    "A column cannot be both 'hook' and 'fkey'",
+    "Input Schema fails",
+    "A column cannot be both 'hook' and 'fkey'",
+    "Schema fails",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "No topics found",
+    "TreeDB not found",
+    "TreeDB not found",
+    "TreeDB not found",
 
     /*  end  */
     "All treedb literal wins tests PASSED",

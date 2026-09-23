@@ -38,6 +38,17 @@ places of the schema agree: what the store RUNS (the open topics, their
 | SEED | `tw_seed` | After `delete-treedb`, a projection seeded from a dynamic file has `c_schema_version` 0, and the tie with a literal of the same number is said at every open. |
 | LOCK | `tw_lock` | The store of the treedb is locked (as by another process): it opens as a replica and `__system__` is not reconciled. When the lock is free, the literal is installed and projected. |
 | REC | `tw_rec` | The record of an apply cannot be written: the apply is refused and the file in use does not change. |
+| M1 | `tw_m1` | A projection is unfinished (a snapshot holds `departments`). `saved-schema` does not show the leftover as a draft. The operator adds a column to `users`: it is the only draft. The retry of the projection replaces that column and reports `users` as `unsaved`. When the snapshot is gone, the projection completes and reports nothing. |
+| M2 | `tw_m2i`, `tw_m2d` | The leftover of an unfinished projection is not reported as withdrawn work when the projection completes: on the imposed retry, and when a newer literal arrives. |
+| L1 | `tw_l1` | A projection seeded from a dynamic file (`c_schema_version` 0) is not unfinished. The file itself, as the literal, projects nothing: the operator's column and header draft stay, nothing is reported. |
+| L3 | `tw_l3` | The process died between the record of an apply and its rename (the record is written by hand). The next apply keeps the topics of the apply that ran, from the record's `previous`: a newer literal reports `users` as `in_use` and `departments` as `applied`. |
+| L4 | `tw_l4` | A projection seeded from the file fails (a column flag that the meta-schema refuses). It is recorded, retried at every open, its partial projection is no draft, and `save-schema` refuses. When the file is fixed, the next open completes it. |
+| L6 | `tw_l6` | An open that fails answers `-1` and names the yuno: a literal that C_TREEDB refuses, and a schema file that `treedb_open_db()` refuses (no topics). The second answer tells to `close-treedb` first. |
+
+An unfinished projection is RECORDED in
+`saved_schemas/<treedb>.unfinished.json` under the `__system__` tranger. The
+record says which ids of `__system__` the projection left. Only these are
+not drafts, on every path.
 
 The expected log list in `src/main.c` is strict FIFO: every line from INFO
 up, in order.
