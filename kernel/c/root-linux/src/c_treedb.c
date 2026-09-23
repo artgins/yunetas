@@ -711,12 +711,12 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*-----------------------------------*
      *  A treedb already open here is refused
      *  BEFORE anything else: the open that
-     *  follows reconciles __system__ (removes
-     *  topics, withdraws a saved schema, uses
-     *  up the record of an apply), and it did
-     *  all that and then failed on the name of
-     *  its tranger, taken by the open one
-     *  (fifth independent review, 2026-09-23).
+     *  follows reconciles __system__, and a
+     *  second open must change nothing. 7.25.4
+     *  reconciled it first (creates, updates)
+     *  and then failed on the name of its
+     *  tranger, taken by the open one ("Internal
+     *  error, tranger client NULL").
      *-----------------------------------*/
     char tranger_name[NAME_MAX];
     snprintf(tranger_name, sizeof(tranger_name), "tranger_%s", treedb_name);
@@ -902,7 +902,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*
      *  The record of an apply is settled only by an open that OPENED:
      *  removed when the literal replaced the apply, marked "in_use" when
-     *  the apply runs now. Used up before, an open that then failed lost it.
+     *  the apply runs now. An open that failed leaves it as it is.
      */
     if(started == 0) {
         settle_apply_record(gobj, treedb_name);
@@ -1199,8 +1199,7 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     /*
      *  What __system__'s tranger IS, not the attribute: a master that lost
-     *  its lock goes on as a replica (M3 of the 2026-09-23 independent
-     *  review), and this deletes nodes of __system__.
+     *  its lock goes on as a replica, and this deletes nodes of __system__.
      */
     if(!system_is_written_here(gobj)) {
         return build_readonly_response(gobj, gobj_name(priv->gobj_node_system), priv->tranger_system_, kw);
@@ -1655,10 +1654,10 @@ PRIVATE json_t *schema_to_flat(json_t *jn_schema) // not owned
 
     /*
      *  Keyed by name, a MOVED topic or column is no difference at all, and
-     *  the order is part of a schema: it is what a table paints (review of
-     *  the second fix round, 2026-09-23: a save that only moved a column
-     *  showed its versions raised and nothing else). So the order is a leaf
-     *  of its own, the names joined as they come:
+     *  the order is part of a schema: it is what a table paints (in 7.25.4
+     *  a save that only moved a column showed its versions raised and
+     *  nothing else). So the order is a leaf of its own, the names joined
+     *  as they come:
      *
      *      __topics_order__                "users, departments"
      *      topics`users`__cols_order__     "id, username, email, departments"
@@ -1684,7 +1683,7 @@ PRIVATE json_t *schema_to_flat(json_t *jn_schema) // not owned
      *  The cols too: a literal may list them, a file written from __system__
      *  keys them by name, and each col of the dict form carries its name as
      *  `id` or not. The same schema in two forms read as "another content"
-     *  at every open (L-6 of the 2026-09-23 independent review).
+     *  at every open in 7.25.4.
      */
     const char *topic_name; json_t *topic;
     json_object_foreach(json_object_get(copy, "topics"), topic_name, topic) {
@@ -1822,10 +1821,9 @@ PRIVATE json_t *schema_topic(json_t *jn_schema, const char *topic_name) // not o
  *  two schema_to_flat(), with ONE rule about the order leaves
  *  (`__topics_order__`, `topics`<topic>`__cols_order__`): an order leaf is a
  *  difference only when the names BOTH sides declare come in another order.
- *  Compared as strings, every column added or removed read as a moved one
- *  too (L4 of the third independent review, 2026-09-23). When it is a
- *  difference, the row carries the whole of both orders, added and removed
- *  names included. Return is YOURS.
+ *  Compared as plain strings, a column added or removed would read as a
+ *  moved one too. When it is a difference, the row carries the whole of
+ *  both orders, added and removed names included. Return is YOURS.
  ***************************************************************************/
 PRIVATE json_t *schema_diff(json_t *from_schema, json_t *to_schema) // not owned
 {
@@ -2136,9 +2134,8 @@ PRIVATE BOOL tranger_is_stopped(json_t *tranger)
  *  May `tranger` write NOW? Its `master` flag -- except while it is
  *  STOPPED: it holds no lock then, and its `master` still says what it
  *  was before the stop, TRUE even when another process takes the store
- *  meanwhile (review of the second fix round, 2026-09-23: the prechecks of
- *  treedbs, save-schema and delete-treedb read that stale TRUE, and went on
- *  to a __system__ whose treedb was closed).
+ *  meanwhile: a precheck that read that stale TRUE would go on to a
+ *  __system__ whose treedb is closed.
  ***************************************************************************/
 PRIVATE BOOL tranger_writes_now(hgobj gobj, json_t *tranger)
 {
@@ -2211,8 +2208,8 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     /*
      *  What an unfinished projection could not remove or write is still
-     *  in __system__ as it was, and a save would publish it: the removed
-     *  topic came back with the next apply (fifth independent review)
+     *  in __system__ as it was, and a save would publish it: a topic the
+     *  projection could not remove would come back with the next apply
      */
     json_t *unfinished = unfinished_projection(gobj, treedb_name);
     if(json_array_size(unfinished) > 0) {
@@ -2255,10 +2252,10 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         /*
          *  The draft IS the file in use. A saved schema newer than that
          *  file is a save the operator has taken back in the editor, and it
-         *  is withdrawn: left in place, saved-schema went on diffing the
-         *  draft against it (the mark of an unsaved change that never
-         *  cleared) and apply-schema would have installed the change taken
-         *  back (M-A of the 2026-09-23 independent review). The versions
+         *  is withdrawn. 7.25.4 left it in place: saved-schema went on
+         *  diffing the draft against it (the mark of an unsaved change that
+         *  never cleared) and apply-schema would have installed the change
+         *  taken back. The versions
          *  that save wrote into __system__ stay: a number there never goes
          *  down, and the next save publishes the one in use + 1 anyway.
          */
@@ -2585,9 +2582,8 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         JSON_DECREF(summary)
 
         /*
-         *  What an unfinished projection left is nobody's draft: the editor
-         *  showed a draft of the removed topic that nobody had made (L2 of
-         *  the sixth independent review, 2026-09-23)
+         *  What an unfinished projection left is nobody's draft: it is what
+         *  the projection could not remove, not an edit of the operator
          */
         json_t *record = load_unfinished_record(gobj, treedb_name);
         rows = rows_without_leftovers(
@@ -2703,8 +2699,8 @@ PRIVATE int write_schema_tmp(
     }
     /*
      *  What apply-schema hands here is PARSED (to validate it), and parsing
-     *  adds the derived `fkey` marks: written as it was, the file in use
-     *  carried them (L-3 of the 2026-09-23 independent review).
+     *  adds the derived `fkey` marks: written as it was (7.25.4 did), the
+     *  file in use carried them.
      */
     json_t *jn_file = json_deep_copy(jn_schema);
     strip_derived_fkey_marks(jn_file);
@@ -3007,8 +3003,8 @@ PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 /***************************************************************************
  *  apply-schema with no `treedb_name`: every treedb opened here whose saved
  *  schema can be applied, ALL OR NONE UP TO THE RENAMES (M2 of the
- *  2026-09-23 review; L-1 of the independent one: phase 3 below can be
- *  partial, and each row's `applied` is what says so).
+ *  2026-09-23 review). Phase 3 below can be partial, and each row's
+ *  `applied` is what says so.
  *
  *  It applied them one by one: A replaced, B refused, answer -1 -- and a
  *  console that reads -1 as "nothing happened" did not restart, so A went
@@ -4013,21 +4009,18 @@ PRIVATE void add_unfinished_topic(
  *
  *  That is the rule the user decided on 2026-09-23 for a literal that wins
  *  (see reconcile_treedb_schema): it replaces the schema file whole, and
- *  __system__ is projected from it whole. The upsert that never deleted
- *  kept a topic the developer had removed, and the next save-schema
- *  published it again; a per-topic merge built schemas nobody had written.
- *  A delete drops the history of the node, and it is refused on a node a
- *  snapshot holds (logged by the delete). The projection is then NOT
- *  complete, and it is not passed off as one: what it could not remove
- *  (or write: a create, update or link that failed, logged) goes into
- *  `unfinished` (see new_unfinished), it says so in a WARNING (what, why,
- *  how to finish), it answers -1, and it leaves the numbers of the treedb
- *  node as they were. The caller records `unfinished`, and the next open
- *  retries the projection. The numbers are written
- *  LAST, on full success. They were written FIRST, and every delete was
- *  ignored: the next open was silent, the editor showed as drafts what
- *  the projection had left, and save-schema published the removed topic
- *  again (fifth independent review, 2026-09-23).
+ *  __system__ is projected from it whole. The upsert of 7.25.4 never
+ *  deleted: it kept a topic the developer had removed, and the next
+ *  save-schema published it again. A delete drops the history of the
+ *  node, and it is refused on a node a snapshot holds (logged by the
+ *  delete). The projection is then NOT complete, and it is not passed off
+ *  as one: what it could not remove (or write: a create, update or link
+ *  that failed, logged) goes into `unfinished` (see new_unfinished), it
+ *  says so in a WARNING (what, why, how to finish), it answers -1, and it
+ *  leaves the numbers of the treedb node as they were. The caller records
+ *  `unfinished`, and the next open retries the projection. The numbers are written LAST, on full success
+ *  (7.25.4 wrote them first): a projection that did not finish must not
+ *  look like one that did.
  *
  *  What that replaces of the operator's work -- a draft of a topic, saved
  *  or not (`drafts`, `saved`, see draft_kind), a topic the draft deleted
@@ -4565,8 +4558,8 @@ PRIVATE json_int_t running_topic_version(hgobj gobj, const char *treedb_name, co
  *    file > running   an APPLIED schema not opened yet: apply-schema wrote
  *                     the file, the next open installs it;
  *    file < running   a file a literal wrote whole over topics the store
- *                     had ahead of it (before the third independent review,
- *                     2026-09-23): tranger2 kept its own.
+ *                     had ahead of it (7.25.4 did): tranger2 kept its
+ *                     own.
  *
  *  A topic is in use at the higher of the two. Return is YOURS:
  *      {"file": {topic: v}, "running": {topic: v}}
@@ -4803,9 +4796,9 @@ PRIVATE void remove_apply_record(hgobj gobj, const char *treedb_name)
  *  still under this one, so what it applied is part of what runs. That
  *  record is the one on disk, or its `previous` when the one on disk is of
  *  an apply whose rename never happened (the process died between the two):
- *  looking only at the one on disk, the topics of the file in use were
- *  lost, and a later literal did not report them (L3 of the sixth
- *  independent review, 2026-09-23). It is also what goes into `previous`.
+ *  the one on disk alone does not name the topics of the file in use, and
+ *  a later literal would not report them. It is also what goes into
+ *  `previous`.
  ***************************************************************************/
 PRIVATE int record_apply(
     hgobj gobj,
@@ -4916,14 +4909,12 @@ PRIVATE json_t *read_apply_record(hgobj gobj, const char *treedb_name, json_int_
  *  every open retries the projection, what it names is nobody's draft,
  *  and save-schema refuses.
  *
- *  It is what says a projection is unfinished. That was guessed, from
- *  c_schema_version 0 and "__system__ holds it and the file does not":
- *  a column the operator added meanwhile was taken for a leftover and
- *  deleted in silence, a leftover was reported as withdrawn work when a
- *  newer literal (or an imposed one) finished the projection, and a
- *  projection seeded from a dynamic file (c_schema_version 0 too) was
- *  "completed" over the operator's drafts (sixth independent review,
- *  2026-09-23).
+ *  It is what says a projection is unfinished, and nothing else can:
+ *  c_schema_version 0 is also a projection seeded from a dynamic file, and
+ *  "__system__ holds it and the file does not" is also a column the
+ *  operator added. Guessed from those, a draft would be taken for a
+ *  leftover and deleted in silence, and a leftover would be reported as
+ *  withdrawn work.
  ***************************************************************************/
 PRIVATE void unfinished_record_filename(const char *treedb_name, char *bf, size_t bfsize)
 {

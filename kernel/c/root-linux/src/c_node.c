@@ -1063,8 +1063,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             /*
              *  Its own cause: the library logged why before this line. It
              *  logged gobj_log_last_message(), the process-global buffer of
-             *  the last ERROR of anybody (L7 of the third independent
-             *  review, 2026-09-23).
+             *  the last ERROR of anybody.
              */
             const char *msg = create?
                 "Cannot update node: it does not exist and it cannot be created (see the previous log)" :
@@ -1242,8 +1241,8 @@ PRIVATE int mt_delete_node(
      *  A replica cannot write, and this is the one question to ask BEFORE
      *  anything moves: the treedb moves the links in memory first and
      *  meets the refused save last, so a direct C caller got -1 over a
-     *  replica whose memory said what its disk did not (C_NODE lows of the
-     *  2026-09-23 independent review). The commands ask it already.
+     *  replica whose memory said what its disk did not. The commands ask
+     *  it already.
      */
     if(!treedb_is_master(gobj)) {
         gobj_log_error(gobj, 0,
@@ -1423,8 +1422,8 @@ PRIVATE int mt_link_nodes(
      *  A replica cannot write, and this is the one question to ask BEFORE
      *  anything moves: the treedb moves the links in memory first and
      *  meets the refused save last, so a direct C caller got -1 over a
-     *  replica whose memory said what its disk did not (C_NODE lows of the
-     *  2026-09-23 independent review). The commands ask it already.
+     *  replica whose memory said what its disk did not. The commands ask
+     *  it already.
      */
     if(!treedb_is_master(gobj)) {
         gobj_log_error(gobj, 0,
@@ -1595,8 +1594,8 @@ PRIVATE int mt_unlink_nodes(
      *  A replica cannot write, and this is the one question to ask BEFORE
      *  anything moves: the treedb moves the links in memory first and
      *  meets the refused save last, so a direct C caller got -1 over a
-     *  replica whose memory said what its disk did not (C_NODE lows of the
-     *  2026-09-23 independent review). The commands ask it already.
+     *  replica whose memory said what its disk did not. The commands ask
+     *  it already.
      */
     if(!treedb_is_master(gobj)) {
         gobj_log_error(gobj, 0,
@@ -2607,8 +2606,7 @@ PRIVATE json_t *cmd_gc_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *  rows (a snap active, what the snapshots hold not readable whole, ...)
      *  still sweeps the blobs no row names, since no link nor snapshot can
      *  lead to them. It answered "gc refused, see the log" of a gc that had
-     *  deleted files (independent review of the third fix round, 2026-09-23;
-     *  treedb_gc_files2() in tr_treedb.h).
+     *  deleted files (see treedb_gc_files2() in tr_treedb.h).
      */
     BOOL dry_run = kw_get_bool(gobj, kw, "dry_run", 0, KW_WILD_NUMBER);
     json_t *report = treedb_gc_files2(priv->tranger, priv->treedb_name, dry_run);
@@ -2771,7 +2769,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*
      *  The cause of a refusal is in the log, where the treedb wrote it: the
      *  comment used to be gobj_log_last_message(), the process-global buffer
-     *  of the last ERROR of anybody (C_NODE lows of the 2026-09-23 reviews).
+     *  of the last ERROR of anybody.
      */
     return msg_iev_build_response(gobj,
         node?0:-1,
@@ -4271,8 +4269,7 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
 
     /*
      *  The reference is taken only once the command goes on: taken before
-     *  the "What topic_name?" above, it leaked (L7 of the third independent
-     *  review, 2026-09-23)
+     *  the "What topic_name?" above (7.25.4), it leaked.
      */
     json_t *jn_filter = json_incref(kw_get_dict(gobj, kw, "filter", 0, 0));
     if(!empty_string(node_id)) {
@@ -4662,7 +4659,7 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     /*
      *  The cause is in the log: the comment used to be read from
      *  gobj_log_last_message(), the process-global buffer of the last ERROR
-     *  of anybody (C_NODE lows of the 2026-09-23 reviews).
+     *  of anybody.
      */
     return msg_iev_build_response(gobj,
         ret,
@@ -4707,7 +4704,7 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  The cause is the command's own. It was read from
      *  gobj_log_last_message(), a process-global buffer that says what the
      *  last ERROR of anybody was: whatever wrote it last is what the answer
-     *  named (C_NODE lows of the 2026-09-23 independent review).
+     *  named.
      */
     json_t *snaps = gobj_list_snaps(gobj, json_pack("{s:s}", "name", name), src);
     BOOL exists = json_array_size(snaps) > 0 || strcmp(name, "__clear__")==0;
