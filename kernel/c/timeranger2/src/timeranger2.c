@@ -3780,23 +3780,19 @@ PUBLIC int tranger2_delete_key(
     close_fd_opened_files(gobj, topic, key);
 
     /*
-     *  Propagate the delete to external followers first (rmrdir of
-     *  topic/disks/<rt_id>/<key>/ — inotify fan-out on their side),
-     *  then to local in-process subscribers.
-     */
-    mirror_key_delete_to_disks(gobj, tranger, topic, key);
-    fire_key_deleted_locally(gobj, tranger, topic, key);  // in-process non-watcher subs
-
-    /*
-     *  Remove directory of topic's key
+     *  Remove directory of topic's key FIRST: the delete is announced only
+     *  once it is done. It was announced before the rmrdir(), so a key whose
+     *  directory could not be removed was heard deleted by every follower
+     *  and subscriber while it was still on disk, and still in this cache
+     *  (independent review of the second fix round).
      */
     const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+    json_t *topic_cache = json_object_get(topic, "cache");
 
     char path_key[PATH_MAX];
-    snprintf(path_key, sizeof(path_key), "%s/keys/%s",
-        topic_dir,
-        key
-    );
+    if(!build_path(path_key, sizeof(path_key), topic_dir, "keys", key, NULL)) {
+        return -1;  // Error already logged
+    }
     if(is_directory(path_key)) {
         if(rmrdir(path_key)<0) {
             gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
@@ -3808,7 +3804,20 @@ PUBLIC int tranger2_delete_key(
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
-            // If cannot remove dir, don't remove from memory
+            /*
+             *  Some of its files may be gone: the cache of the key is read
+             *  again from what is left, and the iterators take their
+             *  segments again from it. Nothing is announced.
+             */
+            json_t *key_cache = load_key_cache_from_disk(gobj, topic_dir, key);
+            if(json_array_size(json_object_get(key_cache, "files")) > 0) {
+                json_object_set_new(topic_cache, key, key_cache);
+                update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
+            } else {
+                JSON_DECREF(key_cache)
+                json_object_del(topic_cache, key);
+            }
+            forget_segments_of_key(topic, key);
             return -1;
         }
     } else {
@@ -3825,9 +3834,16 @@ PUBLIC int tranger2_delete_key(
     /*
      *  Remove key from topic_cache
      */
-    json_t *topic_cache = json_object_get(topic, "cache");
     json_object_del(topic_cache, key);
     forget_segments_of_key(topic, key);
+
+    /*
+     *  Propagate the delete to external followers first (rmrdir of
+     *  topic/disks/<rt_id>/<key>/ — inotify fan-out on their side),
+     *  then to local in-process subscribers.
+     */
+    mirror_key_delete_to_disks(gobj, tranger, topic, key);
+    fire_key_deleted_locally(gobj, tranger, topic, key);  // in-process non-watcher subs
 
     return 0;
 }

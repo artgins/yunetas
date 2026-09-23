@@ -14,11 +14,15 @@
  *        delete exactly once, with and without records since it opened, its
  *        cache loses the key, and a feed may close itself from the callback.
  *      - do_test_cache_cleared:       topic.cache rollup loses the entry.
+ *      - do_test_rmrdir_fails:        a key whose directory cannot be removed
+ *        is NOT announced deleted: the notices went out before the rmrdir
+ *        (independent review of the second fix round).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <sys/stat.h>
 #include <signal.h>
 #include <limits.h>
 #include <errno.h>
@@ -178,6 +182,89 @@ PRIVATE int append_to(json_t *tranger, json_int_t id, int n)
         }
     }
     return 0;
+}
+
+/***************************************************************************
+ *  do_test_rmrdir_fails
+ *  The key directory holds a directory that cannot be emptied: the delete
+ *  fails, and nobody hears it as done. Once it can be removed, the delete
+ *  goes through and is heard once.
+ ***************************************************************************/
+PRIVATE int do_test_rmrdir_fails(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+    reset_callback_state();
+
+    set_expected_results(
+        "rmrdir_fails: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tranger = startup_master(path_root, FALSE);
+    if(!tranger || create_topic(tranger) < 0 || append_to(tranger, 1, 3) < 0) {
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        return -1;
+    }
+    json_t *rt = tranger2_open_rt_mem(
+        tranger, TOPIC_NAME, KEY_A, NULL, my_record_callback, "rmrdir", "", NULL
+    );
+    tranger2_set_rt_key_deleted_callback(rt, my_key_deleted_callback, NULL);
+    result += test_json(NULL);
+
+    set_expected_results_unordered(
+        "rmrdir_fails: a delete that cannot remove the directory is not announced",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "remove() FAILED",
+            "msg", "Cannot delete subdir key. rmrdir() FAILED"
+        ),
+        NULL, NULL, 1
+    );
+    char blocker[PATH_MAX];
+    char blocked[PATH_MAX];
+    build_path(blocker, sizeof(blocker), path_topic, "keys", KEY_A, "blocker", NULL);
+    build_path(blocked, sizeof(blocked), blocker, "file", NULL);
+    mkdir(blocker, 0700);
+    FILE *f = fopen(blocked, "w");
+    if(f) {
+        fclose(f);
+    }
+    chmod(blocker, 0500);
+    if(tranger2_delete_key(tranger, TOPIC_NAME, KEY_A) == 0) {
+        printf("%sERROR%s --> rmrdir_fails: the delete answered done\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(deleted_callback_count != 0) {
+        printf("%sERROR%s --> rmrdir_fails: a failed delete was announced %zu time(s)\n",
+            On_Red BWhite, Color_Off, deleted_callback_count);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("rmrdir_fails: the delete once it can be done", NULL, NULL, NULL, 1);
+    chmod(blocker, 0700);
+    if(tranger2_delete_key(tranger, TOPIC_NAME, KEY_A) < 0) {
+        printf("%sERROR%s --> rmrdir_fails: the second delete failed\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(deleted_callback_count != 1) {
+        printf("%sERROR%s --> rmrdir_fails: expected 1 fire, got %zu\n",
+            On_Red BWhite, Color_Off, deleted_callback_count);
+        result += -1;
+    }
+    tranger2_close_rt_mem(tranger, rt);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+    return result;
 }
 
 /***************************************************************************
@@ -844,6 +931,7 @@ int main(int argc, char *argv[])
     result += do_test_rt_disk_in_process();
     result += do_test_follower();
     result += do_test_cache_cleared();
+    result += do_test_rmrdir_fails();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
