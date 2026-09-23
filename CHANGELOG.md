@@ -159,7 +159,17 @@ listed under "No red test" in `TODO.md`.
   disk still named it, and a delete refused by its key left the node unlinked
   in memory and every child unlinked on disk. A stale fkey ref a write removed (its hook gone, or re-pointed to
   another column) goes back into its field alone when the write is taken back,
-  never linked. When memory cannot be taken
+  never linked. A write that is taken back puts every child back in its
+  place in the hooks of its parents (list and dict hooks). A forced delete
+  tells the events of its unlinks after the node has left the indexes and
+  before `EV_TREEDB_NODE_DELETED`, and until it returns `treedb_save_node()`
+  refuses the node (*"Cannot save a node that is being deleted"*): a subscriber
+  that saved it from one of those events could bring it back on disk. A refused
+  delete that cannot put a child back tells that child's unlink events (the
+  unlink stays). `treedb_autolink()` refuses a ref whose hook fills another
+  column than the one the ref arrives in (*"fkey reference: its hook does not
+  link into this column"*), as `treedb_replace_links()` does; 7.25.4 linked it
+  through the other column. When memory cannot be taken
   back whole, an ERROR says so: *"A write that did not reach the disk could not
   be taken back whole in memory: the links in memory differ from the disk
   until the treedb is opened again"*.
@@ -175,7 +185,9 @@ listed under "No red test" in `TODO.md`.
   memory-only update 3.96 -> 2.88 us/op, saved update 12.15 -> 10.95,
   link+unlink 11.81 -> 11.37. An update deep-copied the node, with every child
   its hooks hold, for the system schema's check on every treedb; now only on
-  the system schema.
+  the system schema. A forced delete costs ~0.3-0.5 us more CPU than
+  7.25.4 (under 1% of ~70 us): the hold of its events and the write of a node
+  that has parents, the price of a refused delete changing nothing.
 - **Lost lock.** A master that lost its lock while stopped (another process took
   the store) writes nothing: every write path, including the three md2 flag
   rewriters (`tranger2_write_user_flag`, `tranger2_set_user_flag`,
