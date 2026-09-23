@@ -84,6 +84,7 @@ set(SRCS
     test_md2_read_error
     test_md2_short_write
     test_nul_escape_record
+    test_torn_tail_check_fails
     test_testing
 )
 
@@ -118,6 +119,10 @@ foreach(test ${SRCS})
         # The test writes a md2 row short and fails its cut back, in its own
         # __wrap_write() and __wrap_ftruncate()
         target_link_options(${binary} PRIVATE "-Wl,--wrap=write,--wrap=ftruncate")
+    endif()
+    if(test STREQUAL "test_torn_tail_check_fails")
+        # The test fails the open of a content file in its own __wrap_open()
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=open")
     endif()
 
     add_test("${current_directory_name}/${test}" ${binary})

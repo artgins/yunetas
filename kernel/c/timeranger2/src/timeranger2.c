@@ -102,6 +102,12 @@ typedef struct { // Size: 32 bytes — fields are big-endian on disk
  */
 #define RECORD_LOAD_FLAGS   (JSON_DECODE_ANY|JSON_ALLOW_NUL)
 
+/*
+ *  What check_torn_md2_tail() returns when the tail is not cut
+ */
+#define TORN_TAIL_NOT_CUT       (-1)    // the check found a tail that must not be cut
+#define TORN_TAIL_NOT_CHECKED   (-2)    // the check could not run: a file or memory failure
+
 static inline uint16_t get_user_flag(const md2_record_t *md_record) {
     return (uint16_t )((md_record->__t__ & USER_FLAG_MASK) >> 44);
 }
@@ -3624,21 +3630,41 @@ PUBLIC int tranger2_append_record(
          *  a torn row after good rows (check_torn_md2_tail). If the tail
          *  must not be cut, the append is refused and the file is flagged,
          *  as the open flags it (flag_file_unreadable_at_append). If the
-         *  cut fails, the append is refused; the whole rows stay readable,
-         *  and the next append tries the cut again.
+         *  check cannot run (a file or memory failure), the append is
+         *  refused and the file is NOT flagged: the check found nothing,
+         *  and the next append checks again. If the cut fails, the append
+         *  is refused; the whole rows stay readable, and the next append
+         *  tries the cut again.
          */
         off_t torn = offset % (off_t)sizeof(md2_record_t);
         if(torn != 0) {
             off_t whole = offset - torn;
-            if(check_torn_md2_tail(
-                    gobj,
-                    json_string_value(json_object_get(topic, "directory")),
-                    key_value,
-                    file_id,
-                    md2_fd,
-                    offset,
-                    __offset__
-                ) < 0) {
+            int checked = check_torn_md2_tail(
+                gobj,
+                json_string_value(json_object_get(topic, "directory")),
+                key_value,
+                file_id,
+                md2_fd,
+                offset,
+                __offset__
+            );
+            if(checked == TORN_TAIL_NOT_CHECKED) {
+                // The cause is already logged
+                cut_back_content(gobj, topic, key_value, file_id, __offset__);
+                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TRANGER,
+                    "msg",          "%s", "Cannot append record, the torn tail of its md2 file cannot be checked now: the append is refused, the file is not flagged",
+                    "topic",        "%s", topic_name,
+                    "key",          "%s", key_value,
+                    "file_id",      "%s", file_id,
+                    "md2_size",     "%ld", (long)offset,
+                    NULL
+                );
+                JSON_DECREF(record)
+                return -1;
+            }
+            if(checked < 0) {
                 // The cause is already logged
                 cut_back_content(gobj, topic, key_value, file_id, __offset__);
                 flag_file_unreadable_at_append(gobj, tranger, topic, key_value, file_id);
@@ -8078,6 +8104,9 @@ PRIVATE int read_md2_row(
  *  tranger2_append_record: json_dumps() and __size__ = its length + 1), so
  *  the content is whole when:
  *    - it is inside the content file (up to `content_size`), and
+ *    - it is not larger than the largest memory block: json_dumps() makes
+ *      the text of a record in one block, so no append of this process
+ *      wrote a larger one, and no read of it could read one, and
  *    - its last byte is the NUL, no other byte is a NUL, and the bytes
  *      before the NUL are one json value, read with the flags of a read
  *      of a record (RECORD_LOAD_FLAGS), or
@@ -8087,8 +8116,8 @@ PRIVATE int read_md2_row(
  *  writes no other content. If they are implemented, this check must know
  *  their content too.
  *
- *  Return 1 when whole, 0 when not, -1 (a CRITICAL logged) when the content
- *  file cannot be read.
+ *  Return 1 when whole, 0 when not, -1 (a CRITICAL logged) when the check
+ *  cannot run: the content file cannot be read, or no memory.
  ***************************************************************************/
 PRIVATE int md2_row_content_is_whole(
     hgobj gobj,
@@ -8101,7 +8130,8 @@ PRIVATE int md2_row_content_is_whole(
 {
     if(row->__size__ < 2 ||
             row->__offset__ > content_size ||
-            row->__size__ > content_size - row->__offset__) {
+            row->__size__ > content_size - row->__offset__ ||
+            row->__size__ > gbmem_get_maximum_block()) {
         return 0;
     }
 
@@ -8182,8 +8212,9 @@ PRIVATE int md2_row_content_is_whole(
 
 /***************************************************************************
  *  The rules of check_torn_md2_tail(), with the md2 (`fd`) and its content
- *  file (`content_fd`) open. Return 0 when the tail can be cut, -1 (a
- *  CRITICAL logged) when not.
+ *  file (`content_fd`) open. Return 0 when the tail can be cut, or (a
+ *  CRITICAL logged) TORN_TAIL_NOT_CUT when it must not be cut, or
+ *  TORN_TAIL_NOT_CHECKED when a row or a content cannot be read.
  ***************************************************************************/
 PRIVATE int check_torn_md2_rows(
     hgobj gobj,
@@ -8207,7 +8238,7 @@ PRIVATE int check_torn_md2_rows(
     md2_record_t end_row;
     uint16_t end_flag;
     if(read_md2_row(gobj, fd, md2_path, end_at, &end_row, &end_flag, "end") < 0) {
-        return -1;  // Error already logged
+        return TORN_TAIL_NOT_CHECKED;  // Error already logged
     }
     const char *end_cause = NULL;
     if(end_row.__size__ > 0 &&
@@ -8219,7 +8250,7 @@ PRIVATE int check_torn_md2_rows(
             gobj, content_fd, content_path, &end_row, end_flag, content_size
         );
         if(whole < 0) {
-            return -1;  // Error already logged
+            return TORN_TAIL_NOT_CHECKED;  // Error already logged
         }
         if(whole) {
             end_cause = "its content is a whole record of the content file";
@@ -8242,7 +8273,7 @@ PRIVATE int check_torn_md2_rows(
             "__size__",     "%lu", (unsigned long)end_row.__size__,
             NULL
         );
-        return -1;
+        return TORN_TAIL_NOT_CUT;
     }
 
     /*
@@ -8252,7 +8283,7 @@ PRIVATE int check_torn_md2_rows(
     md2_record_t last_row;
     uint16_t last_flag;
     if(read_md2_row(gobj, fd, md2_path, last_at, &last_row, &last_flag, "last") < 0) {
-        return -1;  // Error already logged
+        return TORN_TAIL_NOT_CHECKED;  // Error already logged
     }
     const char *cause = NULL;
     off_t bad_at = last_at;
@@ -8262,7 +8293,7 @@ PRIVATE int check_torn_md2_rows(
         gobj, content_fd, content_path, &last_row, last_flag, content_size
     );
     if(whole < 0) {
-        return -1;  // Error already logged
+        return TORN_TAIL_NOT_CHECKED;  // Error already logged
     }
     if(!whole) {
         if(last_row.__size__ == 0 ||
@@ -8276,13 +8307,13 @@ PRIVATE int check_torn_md2_rows(
         uint16_t prev_flag;
         if(read_md2_row(gobj, fd, md2_path, last_at - row_size, &prev_row, &prev_flag,
                 "before last") < 0) {
-            return -1;  // Error already logged
+            return TORN_TAIL_NOT_CHECKED;  // Error already logged
         }
         whole = md2_row_content_is_whole(
             gobj, content_fd, content_path, &prev_row, prev_flag, content_size
         );
         if(whole < 0) {
-            return -1;  // Error already logged
+            return TORN_TAIL_NOT_CHECKED;  // Error already logged
         }
         if(!whole) {
             cause = "the whole row before it is not a good row";
@@ -8309,7 +8340,7 @@ PRIVATE int check_torn_md2_rows(
             "__size__",     "%lu", (unsigned long)bad_row->__size__,
             NULL
         );
-        return -1;
+        return TORN_TAIL_NOT_CUT;
     }
 
     return 0;
@@ -8317,8 +8348,12 @@ PRIVATE int check_torn_md2_rows(
 
 /***************************************************************************
  *  A md2 whose size is not a whole number of rows: can its tail be taken
- *  for a torn row, and cut back? Return 0 when yes, -1 (a CRITICAL logged)
- *  when not. `fd` is the md2, open for reading. `content_end` is where
+ *  for a torn row, and cut back? Return 0 when yes. When not, a CRITICAL
+ *  is logged and the return says why:
+ *    - TORN_TAIL_NOT_CUT: the check found a tail that must not be cut.
+ *    - TORN_TAIL_NOT_CHECKED: the check could not run (a file that cannot
+ *      be opened or read, no memory). That says nothing about the file.
+ *  `fd` is the md2, open for reading. `content_end` is where
  *  the content the md2 describes ends: an append passes the offset of its
  *  own record, which it already wrote to the content file; -1 takes the
  *  size of the content file.
@@ -8405,11 +8440,11 @@ PRIVATE int check_torn_md2_tail(
     char content_path[PATH_MAX];
     snprintf(name, sizeof(name), "%s.md2", file_id);
     if(!build_path(md2_path, sizeof(md2_path), topic_directory, "keys", key, name, NULL)) {
-        return -1;  // Error already logged
+        return TORN_TAIL_NOT_CHECKED;  // Error already logged
     }
     snprintf(name, sizeof(name), "%s.json", file_id);
     if(!build_path(content_path, sizeof(content_path), topic_directory, "keys", key, name, NULL)) {
-        return -1;  // Error already logged
+        return TORN_TAIL_NOT_CHECKED;  // Error already logged
     }
     const char *topic_name = strrchr(topic_directory, '/');
     topic_name = topic_name? topic_name + 1: topic_directory;
@@ -8432,7 +8467,7 @@ PRIVATE int check_torn_md2_tail(
         if(content_fd >= 0) {
             close(content_fd);
         }
-        return -1;
+        return TORN_TAIL_NOT_CHECKED;
     }
     uint64_t content_size = (uint64_t)(content_end < 0? content_st.st_size: content_end);
 
@@ -8544,6 +8579,12 @@ PRIVATE json_int_t load_first_and_last_record_md(
         if(dot) {
             *dot = 0;
         }
+        /*
+         *  A check that could not run (TORN_TAIL_NOT_CHECKED) flags the
+         *  file too: without the check, the whole rows can be the rows of
+         *  the shape 7.25.4 left, which are not rows. A master's next
+         *  append into the file counts it again (count_flagged_file_again).
+         */
         if(check_torn_md2_tail(gobj, topic_directory, key, file_id, fd, size, -1) < 0) {
             // Error already logged
             close(fd);
