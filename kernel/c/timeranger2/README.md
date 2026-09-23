@@ -279,30 +279,52 @@ WARNING: {"function": "load_first_and_last_record_md", "msgset": "Tranger",
 The cut removes fewer than 32 bytes, all after the last whole row. An append
 writes its row on a row boundary: if the md2 of a running master ends in a torn
 row (a row written in part whose cut back failed), the next append cuts it back
-first, with the same warning, and a cut that fails refuses that append. A cut
-that fails at the open is damage (the file is flagged).
+first, with the same warning, and a cut that fails refuses that append (the
+next append tries again). A cut that fails at the open is damage (the file is
+flagged).
 
 7.25.4 did not cut a torn row back: the next appends wrote their rows after the
 torn bytes, on no row boundary, and those rows were acknowledged. A cut of
 such a file removes the end of its last acknowledged row. So every cut (open,
 flagged count, delete-key read, append) first checks that the tail is a torn
-row after a valid last row: the last 32 bytes are NOT a row whose content ends
-exactly at the end of the `.json`, and the last whole row IS a valid row. If
-not, the file is not cut and its bytes do not change: a CRITICAL names the
-shape, the cache build flags the file (every load of the key says
-`load_failed`), and an append into it is refused. The file is repaired by
-hand (the repair is in the treedb docs, *A topic that did not load whole*):
+row after good rows. A row is good when its content is WHOLE: inside the
+`.json`, one json value and one NUL byte after it, as an append writes it (or
+only zero bytes, for an instance deleted with its content zeroed). The rules:
+
+1. the last 32 bytes, read as a row, are NOT a row of their own: their content
+   does not end exactly at the end of the `.json`, and it is not whole;
+2. the last whole row is good, and so is the whole row before it, whose content
+   ends at or before the start of the content of the last one.
+
+Rule 1 finds every file 7.25.4 left, also with content after the last row in
+the `.json` (an append killed between its two writes, which 7.25.4 did not cut
+back). The last 32 bytes of a torn row are bytes moved out of their fields,
+and name a whole record to the byte only by a coincidence of 64-bit values: the
+file is then flagged, not cut. The content is read only for a `.md2` that is
+not a whole number of rows, at most three records.
+
+If a rule fails, the file is not cut and its bytes do not change: a CRITICAL
+names the shape and its `cause`, the file is flagged (every load of the key
+says `load_failed`), and an append into it is refused. An append that finds
+such a tail flags the file in memory the same way (*"md2 file of the key
+flagged unreadable at an append: every load of the key says load_failed"*).
+The file is repaired by hand (the repair is in the treedb docs, *A topic that
+did not load whole*):
 
 ```text
-CRITICAL: {"function": "check_torn_md2_tail", "msgset": "Tranger",
+CRITICAL: {"function": "check_torn_md2_rows", "msgset": "Tranger",
     "msg": "md2 file of the key ends in a whole row that is not on a row boundary: written by 7.25.4 after a torn row; not cut, repair it by hand",
+    "cause": "its content is a whole record of the content file",
     "topic": "alarms", "key": "dev1", "file_id": "2026",
     "path": "<store>/alarms/keys/dev1/2026.md2", "md2_size": 173,
-    "content_size": 192, "row_at": 141, "__offset__": 160, "__size__": 32}
+    "content_size": 242, "row_at": 141, "__offset__": 160, "__size__": 32}
 ```
 
 The other shape is *"md2 file of the key ends in a part of a row after a last
-whole row that is not valid: not cut, repair it by hand"*. A REPLICA never
+whole row that is not valid: not cut, repair it by hand"*, with the `cause`
+*"its content is not inside the content file"*, *"its content is not a
+record"*, *"the whole row before it is not a good row"* or *"its content
+starts before the end of the content of the row before it"*. A REPLICA never
 writes: it reads the whole rows and logs nothing for a torn row, because it
 also sees a torn row while a live master writes it. It makes the same check,
 so it does not read the rows of a file that 7.25.4 wrote on no row boundary. The exception is a file with no whole row: for the

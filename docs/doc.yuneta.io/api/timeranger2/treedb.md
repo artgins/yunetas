@@ -1848,32 +1848,42 @@ a tagged record):
      torn row; not cut, repair it by hand"*): remove the bytes of the torn
      row, not the end of the file. They are `size % 32` bytes (13 in the log
      above) and they start on a row boundary. The script below tries each
-     row boundary, and keeps the one where, with those bytes removed, every
-     row is valid (`__size__ > 0`, content inside the `.json`), each row's
-     content comes after the content of the row before, and the last row
-     ends the `.json`. It writes the result only when exactly one boundary
-     passes. Keep a copy, and write the result back into the same file
-     (`cat >` keeps its owner and mode):
+     row boundary, and keeps the one where, with those bytes removed, the
+     content of every row is whole (inside the `.json`, its last byte a NUL
+     and no other NUL; only zero bytes for an instance deleted with its
+     content zeroed), and each row's content comes after the content of the
+     row before. The `.json` can have content after the last row (an append
+     killed between its two writes): the script accepts it. It writes the
+     result only when exactly one boundary passes. Keep a copy, and write
+     the result back into the same file (`cat >` keeps its owner and mode):
 
      ```bash
      cd <store>/items/keys/k2                  # topic, key and file: from the log
      f=2026-09-23.md2
-     cp -p $f /root/$f.orig                    # keep the original
+     cp -p $f ~/$f.orig                        # keep the original: STOP if this fails
      rm -f $f.new                              # no .new of an earlier try
      python3 - $f <<'EOF'
      import os, struct, sys
      md2 = sys.argv[1]
-     content = os.path.getsize(md2[:-4] + '.json')
+     c = open(md2[:-4] + '.json', 'rb').read()
      b = open(md2, 'rb').read()
      k = len(b) % 32                           # the bytes of the torn row
+     def whole(tm, offset, size):              # the content an append wrote
+         if size < 2 or offset + size > len(c):
+             return False
+         seg = c[offset:offset + size]
+         if seg[-1] != 0:
+             return False
+         zeros = seg.count(0)                  # a NUL at the end, no other
+         return zeros == 1 or (zeros == size and ((tm >> 44) & 0x400) != 0)
      def good(rows):
          end = 0                               # where the content of the row before ends
          for at in range(0, len(rows), 32):
-             offset, size = struct.unpack('>QQ', rows[at+16:at+32])
-             if size == 0 or offset < end or offset + size > content:
+             t, tm, offset, size = struct.unpack('>QQQQ', rows[at:at+32])
+             if offset < end or not whole(tm, offset, size):
                  return False
              end = offset + size
-         return end == content
+         return True
      found = [at for at in range(0, len(b) - k, 32) if good(b[:at] + b[at+k:])]
      print('torn row at', found, 'of', k, 'bytes')
      if len(found) == 1:

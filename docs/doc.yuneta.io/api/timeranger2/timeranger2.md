@@ -223,15 +223,28 @@ WARNING tranger2_append_record: md2 file of the key ends in a part of a row: an 
 
 If that cut fails, the append is refused with `-1` and its content is cut back
 (*"Cannot append record, its md2 file ends in a part of a row that cannot be
-cut back: the append is refused"*). The append cuts only a tail that is a torn
-row after a valid last row, the same check as the open (see
+cut back: the append is refused"*); the whole rows stay readable, and the next
+append tries the cut again. The append cuts only a tail that is a torn row
+after good rows, the same check as the open (see
 [`tranger2_open_iterator()`](#tranger2_open_iterator)). For any other tail it
-does not cut: it is refused with `-1`, its content is cut back, and the md2
-does not change (*"Cannot append record, its md2 file ends in a part of a row
-that must not be cut back: the append is refused"*, after the CRITICAL that
-names the shape). Up to 7.25.4 nothing cut a torn row back: an append wrote
-its row after the torn bytes, and the cache build left the whole file out of
-the key, so no read found that row.
+does not cut: it is refused with `-1`, its content is cut back, the md2 does
+not change, and the file is flagged as the open flags it. Every load of the
+key in the same process says `load_failed`, and the next append into the file
+counts it again first, so it is refused too (see below) until the file is
+repaired. The logs, after the CRITICAL that names the shape:
+
+```text
+ERROR    flag_file_unreadable_at_append: md2 file of the key flagged unreadable at
+         an append: every load of the key says load_failed
+         topic=items key=A file_id=2000-01-02
+CRITICAL tranger2_append_record: Cannot append record, its md2 file ends in a part
+         of a row that must not be cut back: the append is refused
+         topic=items key=A file_id=2000-01-02 md2_size=161
+```
+
+Up to 7.25.4 nothing cut a torn row back: an append wrote its row after the
+torn bytes, and the cache build left the whole file out of the key, so no read
+found that row.
 
 **An append into a file flagged unreadable** (a `.md2` the cache build could
 not count, see the same section) counts the file again first. If it can be read
@@ -1475,33 +1488,58 @@ with the warning above.
 row back: the next appends wrote their rows after the torn bytes, on no row
 boundary, and those rows were acknowledged. In such a file the last 32 bytes
 are a whole row, and a cut removes the end of it. So the tail is cut only when
-it is a torn row after a valid last row:
+it is a torn row after good rows. A row is good when its content is WHOLE:
+inside the `.json`, one json value and one NUL byte after it, as an append
+writes it (or only zero bytes, for an instance deleted with its content
+zeroed, see [`tranger2_delete_instance()`](#tranger2_delete_instance)). The
+rules:
 
-1. the last 32 bytes of the `.md2` are NOT a row whose content ends exactly at
-   the end of the `.json` (`__size__ > 0` and `__offset__ + __size__` equal to
-   the size of the `.json`), and
-2. the last whole row IS a valid row (`__size__ > 0`, its content inside the
-   `.json`).
+1. the last 32 bytes of the `.md2`, read as a row, are NOT a row of their own:
+   their content does not end exactly at the end of the `.json`
+   (`__offset__ + __size__` equal to its size), and it is not whole; and
+2. the last whole row is good, and so is the whole row before it, whose
+   content ends at or before the start of the content of the last one.
 
-For a torn row, the last 32 bytes are the end of the last whole row and the
-start of the torn one: read as a row, their `__offset__` and `__size__` are
-bytes moved out of their fields, and their sum is the size of the `.json`
-only by a coincidence of 64-bit values. When a rule fails, the file is NOT
-cut: a CRITICAL names the shape, the file is flagged as above, and the key
-says `load_failed` until the file is repaired by hand (see
+Rule 1 finds every file that 7.25.4 left, also when the `.json` has content
+after the last row (an append killed between its content and its md2 row;
+7.25.4 did not cut that content back): the last row is a real row, and its
+content is whole wherever the `.json` ends. For a torn row, the last 32 bytes
+are the end of the last whole row and the start of the torn one: read as a
+row, their `__offset__` and `__size__` are bytes moved out of their fields.
+They name a whole record of the `.json`, to the byte, only by a coincidence
+of 64-bit values, and then the file is flagged, not cut. Rule 2 stops a cut
+when the rows before the tail are not good. Example: a topic with no `tkey`
+(its `__tm__` is 0, as in a treedb topic) and records of 256 bytes, so every
+`__offset__` is a multiple of 256. There, a row moved by one byte names a
+range INSIDE the `.json` (the real one divided by 256). A test of the range
+only takes it for a good row. It is not whole: it does not start where a
+record starts.
+
+When a rule fails, the file is NOT cut: a CRITICAL names the shape and the
+`cause`, the file is flagged as above, and the key says `load_failed` until
+the file is repaired by hand (see
 [the repair in treedb](<treedb.md#treedb-topic-not-loaded-whole>)). The
 bytes of the file do not change:
 
 ```text
 CRITICAL: md2 file of the key ends in a whole row that is not on a row boundary:
           written by 7.25.4 after a torn row; not cut, repair it by hand
+          cause="its content is a whole record of the content file"
           topic=devices key=A file_id=2000-01-02
           path=<store>/devices/keys/A/2000-01-02.md2 md2_size=173
-          content_size=192 row_at=141 __offset__=160 __size__=32
+          content_size=242 row_at=141 __offset__=160 __size__=32
 CRITICAL: md2 file of the key ends in a part of a row after a last whole row
           that is not valid: not cut, repair it by hand
+          cause="its content is not a record"
           topic=devices key=A file_id=2000-01-02 ... row_at=64
 ```
+
+The `cause` of the first is *"its content ends the content file"* or *"its
+content is a whole record of the content file"*. The `cause` of the second is
+one of *"its content is not inside the content file"*, *"its content is not a
+record"*, *"the whole row before it is not a good row"* (then `row_at` is that
+row) and *"its content starts before the end of the content of the row before
+it"*.
 
 A replica makes the same check, and flags the file the same way: it does not
 read rows that are not on a row boundary.
