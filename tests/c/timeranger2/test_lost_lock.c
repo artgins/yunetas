@@ -14,6 +14,13 @@
  *  it writes nothing: the tranger goes on as a replica, and says so in its
  *  json, `master` false and `master_lost` true.
  *
+ *  The three writes of a record's md2 row in place --
+ *  tranger2_write_user_flag(), tranger2_set_user_flag() and
+ *  tranger2_set_system_flag() -- asked nothing (M-B of the independent
+ *  review of the second fix round): on a demoted master, and on any
+ *  replica, they reached the write of a read-only fd, logged a CRITICAL,
+ *  and with the default on_critical_error the process exited(0).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -21,6 +28,7 @@
 #include <signal.h>
 #include <limits.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -32,6 +40,7 @@
 #define APP         "test_lost_lock"
 #define DATABASE    "tr_lost_lock"
 #define TOPIC_NAME  "topic_lost_lock"
+#define DAY1        946684800   // 2000-01-01
 
 extern void jsonp_free(void *ptr);
 
@@ -109,6 +118,153 @@ PRIVATE int expect_bool(const char *what, BOOL got, BOOL expected)
 /***************************************************************************
  *  do_test
  ***************************************************************************/
+/***************************************************************************
+ *  The three rewrites of a md2 row, by one that is not the master
+ ***************************************************************************/
+PRIVATE int try_md2_rewrites(json_t *tranger, const char *who)
+{
+    int result = 0;
+    char what[128];
+    snprintf(what, sizeof(what), "%s: tranger2_set_user_flag() is refused", who);
+    result += expect(what,
+        tranger2_set_user_flag(tranger, TOPIC_NAME, "k", DAY1, 1, 0x1, TRUE) < 0? "refused": "written",
+        "refused"
+    );
+    snprintf(what, sizeof(what), "%s: tranger2_write_user_flag() is refused", who);
+    result += expect(what,
+        tranger2_write_user_flag(tranger, TOPIC_NAME, "k", DAY1, 1, 0x7) < 0? "refused": "written",
+        "refused"
+    );
+    snprintf(what, sizeof(what), "%s: tranger2_set_system_flag() is refused", who);
+    result += expect(what,
+        tranger2_set_system_flag(tranger, TOPIC_NAME, "k", DAY1, 1, sf_immutable_record, TRUE) < 0?
+            "refused": "written",
+        "refused"
+    );
+    return result;
+}
+
+PRIVATE int test_md2_rewrites(void)
+{
+    int result = 0;
+    rmrdir(path_database);
+
+    /*-------------------------------------*
+     *  D writes a record, stops, E takes
+     *  the store
+     *-------------------------------------*/
+    set_expected_results(
+        "lost lock: md2 rewrites, setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *d = startup_master();
+    if(!d || !create_topic(d, TOPIC_NAME, 1)) {
+        printf("%sERROR%s --> cannot create the store\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    md2_record_ex_t md = {0};
+    tranger2_append_record(d, TOPIC_NAME, DAY1, 0, &md,
+        json_pack("{s:s, s:I, s:s}", "id", "k", "tm", (json_int_t)DAY1, "content", "R1")
+    );
+    tranger2_stop(d);
+    json_t *e = startup_master();
+    result += expect_bool("E is the master", kw_get_bool(0, e, "master", 0, 0), TRUE);
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  D, demoted: every rewrite refused
+     *-------------------------------------*/
+    set_expected_results(
+        "lost lock: md2 rewrites of a demoted master",
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Master lock NOT retaken after a stop: another process holds it, go on as not master",
+            "msg", "Only master can write",
+            "msg", "Only master can write",
+            "msg", "Only master can write"
+        ),
+        NULL, NULL, 1
+    );
+    result += try_md2_rewrites(d, "demoted master");
+    tranger2_shutdown(d);
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A replica of E's store: the same
+     *-------------------------------------*/
+    set_expected_results(
+        "lost lock: md2 rewrites of a replica",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "Only master can write",
+            "msg", "Only master can write",
+            "msg", "Only master can write"
+        ),
+        NULL, NULL, 1
+    );
+    char path_root[PATH_MAX];
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    json_t *r = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 0,
+        "on_critical_error", LOG_OPT_TRACE_STACK
+    ), 0);
+    if(!r || !tranger2_open_topic(r, TOPIC_NAME, FALSE)) {
+        printf("%sERROR%s --> cannot open the replica\n", On_Red BWhite, Color_Off);
+        result += -1;
+    } else {
+        result += try_md2_rewrites(r, "replica");
+    }
+    char flag[16];
+    snprintf(flag, sizeof(flag), "%u",
+        (unsigned)tranger2_read_user_flag(e, TOPIC_NAME, "k", DAY1, 1));
+    result += expect("the user_flag on disk is untouched", flag, "0");
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  And a replica configured with the
+     *  default of a yuno, exit(0) on a
+     *  critical: it must survive the call
+     *-------------------------------------*/
+    set_expected_results("lost lock: a replica with exit on critical", NULL, NULL, NULL, 1);
+    fflush(stdout);
+    pid_t pid = fork();
+    if(pid == 0) {
+        gobj_log_del_handler("test_capture");
+        json_t *x = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+            "path", path_root,
+            "database", DATABASE,
+            "master", 0,
+            "on_critical_error", LOG_OPT_EXIT_ZERO
+        ), 0);
+        if(x && tranger2_open_topic(x, TOPIC_NAME, FALSE)) {
+            tranger2_set_user_flag(x, TOPIC_NAME, "k", DAY1, 1, 0x1, TRUE);
+            _exit(3);   // survived the call
+        }
+        _exit(4);
+    }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    char how[32];
+    snprintf(how, sizeof(how), "%s %d",
+        WIFEXITED(status)? "exit": "signal",
+        WIFEXITED(status)? WEXITSTATUS(status): WTERMSIG(status));
+    result += expect("a replica with exit on critical survives set_user_flag", how, "exit 3");
+    result += test_json(NULL);
+
+    set_expected_results("lost lock: md2 rewrites, shutdown", NULL, NULL, NULL, 1);
+    if(r) {
+        tranger2_shutdown(r);
+    }
+    tranger2_shutdown(e);
+    result += test_json(NULL);
+
+    return result;
+}
+
 PRIVATE int do_test(void)
 {
     int result = 0;
@@ -231,6 +387,8 @@ PRIVATE int do_test(void)
         file_of(TOPIC_NAME, "topic_var.json"), "{\"topic_version\":3}");
     tranger2_shutdown(c);
     result += test_json(NULL);
+
+    result += test_md2_rewrites();
 
     return result;
 }

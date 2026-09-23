@@ -1780,6 +1780,13 @@ Only the bits in `mask` are touched. The system flag is framework-owned. User
 code normally goes through higher-level treedb helpers rather than setting system
 bits directly.
 
+Master only: on a replica, or on a master that lost its lock (see
+[`tranger2_stop()`](<#tranger2_stop>)), it writes nothing, logs *"Only master
+can write"* and returns `-1`. Until the independent review of the second fix
+round after 7.25.4 it asked nothing: the write of the read-only md2 fd failed,
+which is a CRITICAL, and with the default `on_critical_error` the process
+exited(0).
+
 ---
 
 (tranger2_set_user_flag)=
@@ -1816,6 +1823,20 @@ Returns `0` on success, or a negative error code on failure.
 **Notes**
 
 This function modifies only the bits specified in `mask`. This leaves other bits in the user flag unchanged.
+
+```C
+// Mark row 3 of key "dev-1" (its __t__ is 1731601280) as pending, keep the other bits
+if(tranger2_set_user_flag(tranger, "messages", "dev-1", 1731601280, 3, 0x0001, TRUE) < 0) {
+    // not the master, or the row is not there: logged
+}
+```
+
+Master only: on a replica, or on a master that lost its lock (see
+[`tranger2_stop()`](<#tranger2_stop>)), it writes nothing, logs *"Only master
+can write"* and returns `-1`. Until the independent review of the second fix
+round after 7.25.4 it asked nothing: the write of the read-only md2 fd failed,
+which is a CRITICAL, and with the default `on_critical_error` the process
+exited(0).
 
 ---
 
@@ -1914,7 +1935,8 @@ What the stop does:
 - A tranger stays usable after the stop. The first call that opens a topic
   again, or that WRITES (`tranger2_create_topic()`, `_delete_topic()`,
   `_backup_topic()`, `_write_topic_var()`, `_write_topic_cols()`,
-  `_append_record()`, `_delete_key()`, `_delete_instance()`), **revives** it:
+  `_append_record()`, `_delete_key()`, `_delete_instance()`,
+  `_write_user_flag()`, `_set_user_flag()`, `_set_system_flag()`), **revives** it:
   the shutdown then closes what the revival opened, and a master takes its
   lock again BEFORE anything is written. If another process took the store in
   the meantime, the revival logs *"Master lock NOT retaken after a stop:
@@ -2355,6 +2377,13 @@ Returns `0` on success, or a negative value on failure.
 **Notes**
 
 This function modifies the user flag of an existing record but does not alter other record attributes. Use [`tranger2_set_user_flag()`](<#tranger2_set_user_flag>) if you need to update the flag using a mask.
+
+Master only: on a replica, or on a master that lost its lock (see
+[`tranger2_stop()`](<#tranger2_stop>)), it writes nothing, logs *"Only master
+can write"* and returns `-1`. Until the independent review of the second fix
+round after 7.25.4 it asked nothing: the write of the read-only md2 fd failed,
+which is a CRITICAL, and with the default `on_critical_error` the process
+exited(0).
 
 ---
 

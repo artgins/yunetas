@@ -3987,6 +3987,25 @@ PUBLIC int tranger2_write_user_flag(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    /*
+     *  A rewrite of a md2 row in place is a write: on a replica (or a
+     *  master that lost its lock) the fd is read-only, and the failed
+     *  write was a CRITICAL -- an exit(0) with the default
+     *  on_critical_error (M-B of the independent review of the second
+     *  fix round).
+     */
+    if(!tranger_is_master(gobj, tranger)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Only master can write",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         gobj_log_error(gobj, 0,
@@ -4056,6 +4075,25 @@ PUBLIC int tranger2_set_user_flag(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    /*
+     *  A rewrite of a md2 row in place is a write: on a replica (or a
+     *  master that lost its lock) the fd is read-only, and the failed
+     *  write was a CRITICAL -- an exit(0) with the default
+     *  on_critical_error (M-B of the independent review of the second
+     *  fix round).
+     */
+    if(!tranger_is_master(gobj, tranger)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Only master can write",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         gobj_log_error(gobj, 0,
@@ -4141,6 +4179,25 @@ PUBLIC int tranger2_set_system_flag(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    /*
+     *  A rewrite of a md2 row in place is a write: on a replica (or a
+     *  master that lost its lock) the fd is read-only, and the failed
+     *  write was a CRITICAL -- an exit(0) with the default
+     *  on_critical_error (M-B of the independent review of the second
+     *  fix round).
+     */
+    if(!tranger_is_master(gobj, tranger)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Only master can write",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
 
     /*
      *  Gate: only the immutable-record bit may be written through this API.

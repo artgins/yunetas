@@ -248,7 +248,8 @@ PUBLIC json_t *tranger2_startup(
 
    The first call after the stop that opens a topic OR writes (create_topic,
    delete_topic, backup_topic, write_topic_var/_cols, append_record,
-   delete_key, delete_instance) revives the handle (clears `__closed__`), and a
+   delete_key, delete_instance, write_user_flag, set_user_flag,
+   set_system_flag) revives the handle (clears `__closed__`), and a
    master takes its lock again BEFORE anything is written. If another process
    holds it, the handle goes on as a replica: it reads, every write is refused,
    and its json says `"master": false, "master_lost": true`. The `master` of
@@ -642,6 +643,8 @@ PUBLIC int tranger2_delete_instance(
 /*
     Write record user flag
     This function works directly in disk, segments in memory not used or updated
+    Master only: a replica (or a master that lost its lock) logs "Only master
+    can write" and gets -1.
 */
 PUBLIC int tranger2_write_user_flag(
     json_t *tranger,
@@ -655,6 +658,8 @@ PUBLIC int tranger2_write_user_flag(
 /*
     Write record user flag using mask
     This function works directly in disk, segments in memory not used or updated
+    Master only: a replica (or a master that lost its lock) logs "Only master
+    can write" and gets -1.
 */
 PUBLIC int tranger2_set_user_flag(
     json_t *tranger,
@@ -671,6 +676,8 @@ PUBLIC int tranger2_set_user_flag(
     Only sf_immutable_record may be written; any other bit is refused so a
     caller cannot flip key-type / ms / tombstone / loading bits.
     This function works directly in disk, segments in memory not used or updated
+    Master only: a replica (or a master that lost its lock) logs "Only master
+    can write" and gets -1.
 */
 PUBLIC int tranger2_set_system_flag(
     json_t *tranger,
