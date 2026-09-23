@@ -1,0 +1,496 @@
+/****************************************************************************
+ *          test_uncommitted_append.c
+ *
+ *  An append writes the record's content first and its md2 row after. When
+ *  the md2 row is never written (the md2 cannot be created or written, the
+ *  process is killed, the power goes), the append was never acknowledged,
+ *  and the file keeps a content that no row names.
+ *
+ *  The cache build of 200a1791e took "a md2 of 0 rows with a content file
+ *  that is not empty" for a damaged key and flagged it (independent review
+ *  of the fourth fix round, repros indep4_A/r_orphan): a forward load
+ *  stopped there and hid the acknowledged rows of the later files, a treedb
+ *  node with good older rows disappeared, and the flag was never cleared.
+ *
+ *  Key A has rows in four daily files (days 0..3), key B one.
+ *
+ *      1. The md2 of A's day 2 with 0 rows and its content file not empty:
+ *         a warning names the file, the file is ignored, the key is not
+ *         flagged, every load reads the other files (A@1 A@2 A@4).
+ *      2. The same file takes a new append: its row names the new content,
+ *         and after a restart the file is read and warns no more.
+ *      3. An append whose md2 cannot be created: -1, and the content file
+ *         is cut back to where the record began (0 bytes for a new file).
+ *         The next append of the file, once its md2 can be created, is the
+ *         only content of it.
+ *      4. A md2 that could not be opened at the cache build (0000 mode)
+ *         flags the key; once it can be read, the next append into the
+ *         file counts the file again and the flag goes. An append into a
+ *         file still unreadable is refused: its row would follow rows no
+ *         cell counts.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ****************************************************************************/
+#include <string.h>
+#include <signal.h>
+#include <limits.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
+#include <gobj.h>
+#include <kwid.h>
+#include <timeranger2.h>
+#include <helpers.h>
+#include <yev_loop.h>
+#include <testing.h>
+
+#define APP         "test_uncommitted_append"
+#define DATABASE    "tr_uncommitted_append"
+#define TOPIC_NAME  "topic_uncommitted"
+#define DAY1        946684800   // 2000-01-01
+#define DAY         86400
+
+#define MSG_UNCOMMITTED "md2 file of the key with no rows and a content file that is not empty: an append that was never acknowledged, the file is ignored"
+#define MSG_FLAG    "md2 file of the key unreadable when its cache was built: every load of the key says load_failed"
+#define MSG_ITER    "The history of the key is not whole: a md2 file of it could not be read when its cache was built"
+#define MSG_LIST    "Cannot load the whole history of a key of the list: the records read before the failure were handed, the list goes on with the next key"
+#define MSG_REFUSED "Cannot append record, its file is flagged unreadable: its row would follow rows no cell counts"
+#define MSG_READABLE "md2 file of the key readable again: it is counted, and the key is not flagged for it"
+
+/***************************************************************
+ *              Data
+ ***************************************************************/
+PRIVATE yev_loop_h yev_loop;
+PRIVATE char path_root[PATH_MAX];
+PRIVATE char path_database[PATH_MAX];
+PRIVATE char got[512];
+
+/***************************************************************
+ *              Helpers
+ ***************************************************************/
+PRIVATE int on_record(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    size_t ln = strlen(got);
+    if(!record) {
+        snprintf(got + ln, sizeof(got) - ln, "%s%s@NULL", ln? " ": "", key);
+    } else {
+        snprintf(got + ln, sizeof(got) - ln, "%s%s@%d", ln? " ": "", key,
+            (int)kw_get_int(0, record, "v", 0, 0));
+    }
+    JSON_DECREF(record)
+    return 0;
+}
+
+PRIVATE json_t *startup(void)
+{
+    return tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i, s:s}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK,
+        "filename_mask", "%Y-%m-%d"
+    ), 0);
+}
+
+PRIVATE json_t *create_topic(json_t *tranger)
+{
+    return tranger2_create_topic(
+        tranger, TOPIC_NAME, "id", "tm", NULL, sf_string_key,
+        json_pack("{s:s, s:I, s:I}", "id", "", "tm", (json_int_t)0, "v", (json_int_t)0),
+        0
+    );
+}
+
+PRIVATE int append(json_t *tranger, const char *key, int day, int v)
+{
+    md2_record_ex_t md = {0};
+    return tranger2_append_record(tranger, TOPIC_NAME, (uint64_t)(DAY1 + day*DAY), 0, &md,
+        json_pack("{s:s, s:I, s:i}", "id", key, "tm", (json_int_t)(DAY1 + day*DAY), "v", v)
+    );
+}
+
+PRIVATE void file_of_a(char *bf, size_t bfsize, const char *day, const char *ext)
+{
+    char name[NAME_MAX];
+    snprintf(name, sizeof(name), "%s.%s", day, ext);
+    build_path(bf, bfsize, path_database, TOPIC_NAME, "keys", "A", name, NULL);
+}
+
+/*
+ *  A: rows 1, 2, 3, 4 in four daily files, B: row 1
+ */
+PRIVATE int build_store(void)
+{
+    rmrdir(path_database);
+    set_expected_results("uncommitted append: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup();
+    if(!tranger || !create_topic(tranger)) {
+        printf("%sERROR%s --> cannot create the store\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    append(tranger, "A", 0, 1);
+    append(tranger, "A", 1, 2);
+    append(tranger, "A", 2, 3);
+    append(tranger, "A", 3, 4);
+    append(tranger, "B", 0, 1);
+    tranger2_shutdown(tranger);
+    test_json(NULL);    // the setup logs are not what is tested
+    return 0;
+}
+
+PRIVATE json_t *open_list(json_t *tranger, const char *key, BOOL backward)
+{
+    got[0] = 0;
+    json_t *match_cond = json_pack("{s:I, s:b, s:I}",
+        "to_rowid", (json_int_t)1000000,   // no realtime
+        "backward", backward,
+        "load_record_callback", (json_int_t)(uintptr_t)on_record
+    );
+    if(key) {
+        json_object_set_new(match_cond, "key", json_string(key));
+    }
+    return tranger2_open_list(tranger, TOPIC_NAME, match_cond, json_object(), "", FALSE, "");
+}
+
+PRIVATE int expect(const char *what, const char *found, const char *expected)
+{
+    if(strcmp(found, expected) != 0) {
+        printf("%sERROR%s --> %s: [%s], expected [%s]\n",
+            On_Red BWhite, Color_Off, what, found, expected);
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ *  The list of A alone and the keyless list, both directions
+ */
+PRIVATE int check_loads(json_t *tranger, const char *case_name,
+    const char *a_fwd, const char *a_bwd, BOOL expect_failed)
+{
+    int result = 0;
+    char what[160];
+    for(int b = 0; b < 2; b++) {
+        json_t *list = open_list(tranger, "A", b? TRUE: FALSE);
+        snprintf(what, sizeof(what), "%s: list of A %s", case_name, b? "backward": "forward");
+        if(!list) {
+            if(!expect_failed) {
+                printf("%sERROR%s --> %s REFUSED\n", On_Red BWhite, Color_Off, what);
+                result += -1;
+            }
+        } else {
+            result += expect(what, got, b? a_bwd: a_fwd);
+            tranger2_close_list(tranger, list);
+        }
+
+        list = open_list(tranger, NULL, b? TRUE: FALSE);
+        snprintf(what, sizeof(what), "%s: keyless list %s", case_name, b? "backward": "forward");
+        if(!list) {
+            printf("%sERROR%s --> %s REFUSED\n", On_Red BWhite, Color_Off, what);
+            result += -1;
+            continue;
+        }
+        if(!expect_failed) {
+            char expected[256];
+            snprintf(expected, sizeof(expected), "%s B@1", b? a_bwd: a_fwd);
+            result += expect(what, got, expected);
+        }
+        BOOL failed = json_is_true(json_object_get(list, "load_failed"));
+        if(failed != expect_failed) {
+            printf("%sERROR%s --> %s: load_failed %d, expected %d\n",
+                On_Red BWhite, Color_Off, what, failed, expect_failed);
+            result += -1;
+        }
+        tranger2_close_list(tranger, list);
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  1 and 2: a file whose only append was never acknowledged
+ ***************************************************************************/
+PRIVATE int test_uncommitted_file(void)
+{
+    int result = 0;
+    if(build_store() < 0) {
+        return -1;
+    }
+
+    /*
+     *  The shape a first append of day 2 whose md2 row was never written
+     *  leaves: an md2 of 0 rows, a content file with the record
+     */
+    char path[PATH_MAX];
+    file_of_a(path, sizeof(path), "2000-01-03", "md2");
+    if(truncate(path, 0) < 0) {
+        printf("%sERROR%s --> cannot cut %s\n", On_Red BWhite, Color_Off, path);
+        return -1;
+    }
+
+    set_expected_results("1. uncommitted append: open",
+        json_pack("[{s:s}]", "msg", MSG_UNCOMMITTED), NULL, NULL, 1
+    );
+    json_t *tranger = startup();
+    if(!tranger || !create_topic(tranger)) {
+        printf("%sERROR%s --> 1: cannot open the store\n", On_Red BWhite, Color_Off);
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        test_json(NULL);
+        return -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("1. uncommitted append: every load reads the other files",
+        NULL, NULL, NULL, 1
+    );
+    result += check_loads(tranger, "1", "A@1 A@2 A@4", "A@4 A@2 A@1", FALSE);
+    json_t *range = tranger2_topic_key_range(tranger, TOPIC_NAME, "A");
+    char bf[64];
+    snprintf(bf, sizeof(bf), "%d", (int)kw_get_int(0, range, "rows", 0, 0));
+    result += expect("1. rows of A", bf, "3");
+    JSON_DECREF(range)
+    result += test_json(NULL);
+
+    /*
+     *  2. The file takes an append: its first row
+     */
+    set_expected_results("2. the file takes an append", NULL, NULL, NULL, 1);
+    if(append(tranger, "A", 2, 5) < 0) {
+        printf("%sERROR%s --> 2: append into the file refused\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += check_loads(tranger, "2", "A@1 A@2 A@5 A@4", "A@4 A@5 A@2 A@1", FALSE);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    set_expected_results("2. after a restart: read, no warning", NULL, NULL, NULL, 1);
+    tranger = startup();
+    create_topic(tranger);
+    result += check_loads(tranger, "2 restarted", "A@1 A@2 A@5 A@4", "A@4 A@5 A@2 A@1", FALSE);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  3: an append whose md2 cannot be created is rolled back
+ ***************************************************************************/
+PRIVATE int test_rollback(void)
+{
+    int result = 0;
+    if(build_store() < 0) {
+        return -1;
+    }
+
+    /*
+     *  A directory where the md2 of day 5 goes: it cannot be created
+     */
+    char md2_path[PATH_MAX];
+    char json_path[PATH_MAX];
+    file_of_a(md2_path, sizeof(md2_path), "2000-01-06", "md2");
+    file_of_a(json_path, sizeof(json_path), "2000-01-06", "json");
+    if(mkdir(md2_path, 0770) < 0) {
+        printf("%sERROR%s --> cannot make %s\n", On_Red BWhite, Color_Off, md2_path);
+        return -1;
+    }
+
+    set_expected_results_unordered("3. an append whose md2 cannot be created",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot create json file",
+            "msg", "Cannot open file to write"
+        ), NULL, NULL, 1
+    );
+    json_t *tranger = startup();
+    create_topic(tranger);
+    if(append(tranger, "A", 5, 6) == 0) {
+        printf("%sERROR%s --> 3: the append was acknowledged\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    char bf[64];
+    snprintf(bf, sizeof(bf), "%ld", (long)filesize(json_path));
+    result += expect("3. the content of the refused append is cut back", bf, "0");
+
+    /*
+     *  The md2 can be created now: the next append is the only content
+     */
+    set_expected_results("3. the next append of the file", NULL, NULL, NULL, 1);
+    rmdir(md2_path);
+    md2_record_ex_t md = {0};
+    if(tranger2_append_record(tranger, TOPIC_NAME, (uint64_t)(DAY1 + 5*DAY), 0, &md,
+            json_pack("{s:s, s:I, s:i}", "id", "A", "tm", (json_int_t)(DAY1 + 5*DAY), "v", 7)) < 0) {
+        printf("%sERROR%s --> 3: the next append was refused\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    char expected[64];
+    snprintf(bf, sizeof(bf), "offset %ld size %ld",
+        (long)md.__offset__, (long)filesize(json_path));
+    snprintf(expected, sizeof(expected), "offset 0 size %ld", (long)md.__size__);
+    result += expect("3. the content file holds only the acknowledged record", bf, expected);
+
+    set_expected_results("3. after a restart", NULL, NULL, NULL, 1);
+    tranger = startup();
+    create_topic(tranger);
+    result += check_loads(tranger, "3", "A@1 A@2 A@3 A@4 A@7", "A@7 A@4 A@3 A@2 A@1", FALSE);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  4: the flag of a file goes when the file can be read again
+ ***************************************************************************/
+PRIVATE int test_flag_cleared(void)
+{
+    int result = 0;
+    if(geteuid() == 0) {
+        printf("  4. skipped: a 0000 mode does not stop root\n");
+        return 0;
+    }
+    if(build_store() < 0) {
+        return -1;
+    }
+
+    char path[PATH_MAX];
+    file_of_a(path, sizeof(path), "2000-01-02", "md2");
+    if(chmod(path, 0) < 0) {
+        printf("%sERROR%s --> cannot chmod %s\n", On_Red BWhite, Color_Off, path);
+        return -1;
+    }
+
+    set_expected_results("4. an md2 that cannot be opened at the open: flagged",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot open md2 file",
+            "msg", MSG_FLAG
+        ), NULL, NULL, 1
+    );
+    json_t *tranger = startup();
+    create_topic(tranger);
+    result += test_json(NULL);
+
+    /*
+     *  Still unreadable: an append into the file is refused, and writes
+     *  nothing
+     */
+    char json_path[PATH_MAX];
+    file_of_a(json_path, sizeof(json_path), "2000-01-02", "json");
+    off_t json_size = filesize(json_path);
+    set_expected_results("4. an append into the flagged file is refused",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot open md2 file",
+            "msg", MSG_REFUSED
+        ), NULL, NULL, 1
+    );
+    if(append(tranger, "A", 1, 8) == 0) {
+        printf("%sERROR%s --> 4: an append into an unreadable file was acknowledged\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(filesize(json_path) != json_size) {
+        printf("%sERROR%s --> 4: the refused append wrote content\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  Readable again: the next append counts the file, the flag goes
+     */
+    chmod(path, 0660);
+    set_expected_results("4. readable again: the append counts the file",
+        json_pack("[{s:s}]", "msg", MSG_READABLE), NULL, NULL, 1
+    );
+    if(append(tranger, "A", 1, 9) < 0) {
+        printf("%sERROR%s --> 4: append into the file readable again refused\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("4. the key is whole", NULL, NULL, NULL, 1);
+    result += check_loads(tranger, "4", "A@1 A@2 A@9 A@3 A@4", "A@4 A@3 A@9 A@2 A@1", FALSE);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  do_test
+ ***************************************************************************/
+PRIVATE int do_test(void)
+{
+    int result = 0;
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    mkrdir(path_root, 02770);
+    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
+
+    result += test_uncommitted_file();
+    result += test_rollback();
+    result += test_flag_cleared();
+
+    return result;
+}
+
+/***************************************************************************
+ *              Main
+ ***************************************************************************/
+int main(int argc, char *argv[])
+{
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
+    gbmem_get_allocators(&malloc_func, &realloc_func, &calloc_func, &free_func);
+    json_set_alloc_funcs(malloc_func, free_func);
+
+    unsigned long memory_check_list[] = {0, 0};
+    set_memory_check_list(memory_check_list);
+
+    init_backtrace_with_backtrace(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_backtrace);
+
+    gobj_start_up(argc, argv, NULL, NULL, NULL, NULL, NULL, NULL);
+
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+    gobj_log_register_handler("testing", 0, capture_log_write, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+
+    yev_loop_create(0, 2024, 10, NULL, &yev_loop);
+
+    int result = do_test();
+
+    yev_loop_stop(yev_loop);
+    yev_loop_destroy(yev_loop);
+
+    gobj_end();
+
+    if(get_cur_system_memory() != 0) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
+        print_track_mem();
+        result += -1;
+    }
+
+    if(result < 0) {
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+    } else {
+        printf("<-- %sTEST OK%s: %s\n", On_Green BWhite, Color_Off, APP);
+    }
+    return result < 0? -1 : 0;
+}

@@ -8,11 +8,15 @@
  *
  *  It did not (independent review of the third fix round, repro
  *  indep3_B/restart): the cache build dropped an unreadable md2 with a
- *  `continue` after a critical, and counted a md2 cut to 0 bytes as a file
- *  of 0 rows. The key read as a shorter key, nothing failed, `load_failed`
- *  and `load_failed_keys` stayed empty, and treedb's guards never fired
- *  after a restart. And a record whose CONTENT cannot be read was handed to
- *  the callback as NULL: treedb made a blank node of it, with id "".
+ *  `continue` after a critical. The key read as a shorter key, nothing
+ *  failed, `load_failed` and `load_failed_keys` stayed empty, and treedb's
+ *  guards never fired after a restart. And a record whose CONTENT cannot be
+ *  read was handed to the callback as NULL: treedb made a blank node of it,
+ *  with id "".
+ *
+ *  A md2 cut to 0 bytes with its content not empty is NOT here: it is the
+ *  shape of an append that was never acknowledged, not damage, and it is
+ *  ignored with a warning (test_uncommitted_append.c).
  *
  *  Key A has three daily files (rows 1, 2, 3), key B one. The damage is in
  *  A's second file. A load walks the files in its direction and stops where
@@ -20,7 +24,6 @@
  *      forward:  A@1 (the files before the damage), then B
  *      backward: A@3 (the files after it), then B
  *
- *      1. md2 of the file cut to 0 bytes, its content file not empty.
  *      2. 5 bytes of garbage appended to the md2 (not a whole row).
  *      3. the content file cut to 0 bytes, the md2 whole.
  *      4. an EMPTY md2 with an empty content file: nothing is lost, the
@@ -213,12 +216,7 @@ PRIVATE int test_damage(const char *case_name, const char *damage)
     }
 
     char path[PATH_MAX];
-    if(strcmp(damage, "zero") == 0) {
-        file_of_a(path, sizeof(path), "2000-01-02", "md2");
-        if(truncate(path, 0) < 0) {
-            result += -1;
-        }
-    } else if(strcmp(damage, "garbage") == 0) {
+    if(strcmp(damage, "garbage") == 0) {
         file_of_a(path, sizeof(path), "2000-01-02", "md2");
         int fd = open(path, O_WRONLY|O_APPEND);
         if(fd < 0 || write(fd, "XXXXX", 5) != 5) {
@@ -244,9 +242,7 @@ PRIVATE int test_damage(const char *case_name, const char *damage)
      *-------------------------------------*/
     char test[128];
     snprintf(test, sizeof(test), "%s: open", case_name);
-    if(strcmp(damage, "zero") == 0) {
-        set_expected_results(test, json_pack("[{s:s}]", "msg", MSG_FLAG), NULL, NULL, 1);
-    } else if(strcmp(damage, "garbage") == 0) {
+    if(strcmp(damage, "garbage") == 0) {
         set_expected_results(test, json_pack("[{s:s},{s:s}]",
             "msg", "Cannot read last record, md2 file corrupted",
             "msg", MSG_FLAG
@@ -394,7 +390,6 @@ PRIVATE int do_test(void)
     mkrdir(path_root, 02770);
     build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
 
-    result += test_damage("1. md2 cut to 0 bytes", "zero");
     result += test_damage("2. md2 with garbage", "garbage");
     result += test_damage("3. content cut to 0 bytes", "json");
     result += test_empty_files();

@@ -216,6 +216,25 @@ PRIVATE json_t *load_key_cache_from_disk(
     const char *topic_directory,
     const char *key
 );
+PRIVATE void unflag_file_readable_again(
+    hgobj gobj,
+    json_t *topic,
+    const char *key,
+    const char *file_id
+);
+PRIVATE int count_flagged_file_again(
+    hgobj gobj,
+    json_t *topic,
+    const char *key,
+    const char *file_id
+);
+PRIVATE void cut_back_content(
+    hgobj gobj,
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    off_t offset
+);
 PRIVATE json_t *load_cache_cell_from_disk(
     hgobj gobj,
     const char *topic_directory,
@@ -3365,6 +3384,15 @@ PUBLIC int tranger2_append_record(
     }
 
     /*------------------------------------------------------*
+     *  A file flagged unreadable is counted again first
+     *------------------------------------------------------*/
+    if(count_flagged_file_again(gobj, topic, key_value, file_id) < 0) {
+        // Error already logged
+        JSON_DECREF(record)
+        return -1;
+    }
+
+    /*------------------------------------------------------*
      *  Save content, to file
      *------------------------------------------------------*/
     int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, file_id);
@@ -3479,6 +3507,12 @@ PUBLIC int tranger2_append_record(
     set_user_flag(&md_record, user_flag);
     set_system_flag(&md_record, system_flag & ~NOT_INHERITED_MASK);
 
+    /*
+     *  From here on a failure leaves the content without its row: the
+     *  append is not acknowledged, and its content is cut back
+     *  (cut_back_content). A kill or a power cut here leaves the same
+     *  shape, which the cache build ignores with a warning.
+     */
     json_int_t g_rowid = 0;
     json_int_t i_rowid = 0;
     int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, file_id);
@@ -3496,6 +3530,7 @@ PUBLIC int tranger2_append_record(
                 NULL
             );
             gobj_trace_json(gobj, record, "Cannot append record, lseek() FAILED");
+            cut_back_content(gobj, topic, key_value, file_id, __offset__);
             JSON_DECREF(record)
             return -1;
         }
@@ -3532,6 +3567,20 @@ PUBLIC int tranger2_append_record(
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
+            if(ftruncate(md2_fd, offset) < 0) {     // a part of a row
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot cut back the md2 of an append whose row was not written whole: its size is not a whole number of rows",
+                    "topic",        "%s", tranger2_topic_name(topic),
+                    "key",          "%s", key_value,
+                    "file_id",      "%s", file_id,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+            }
+            cut_back_content(gobj, topic, key_value, file_id, __offset__);
             JSON_DECREF(record)
             return -1;
         }
@@ -3555,6 +3604,7 @@ PUBLIC int tranger2_append_record(
         }
     } else {
         // Error already logged by get_topic_wr_fd
+        cut_back_content(gobj, topic, key_value, file_id, __offset__);
         JSON_DECREF(record)
         return -1;
     }
@@ -6272,6 +6322,7 @@ PRIVATE json_int_t update_new_records_from_disk(
         json_t *key_cache = get_key_cache(topic, key);
         json_t *cache_files = json_object_get(key_cache, "files");
         json_array_insert_new(cache_files, (size_t)insert_idx, new_cache_cell);
+        unflag_file_readable_again(gobj, topic, key, file_id_);  // counted whole now
     } else {
         merge_cache_cell(cur_cache_cell, new_cache_cell);
     }
@@ -6942,6 +6993,161 @@ PRIVATE void flag_key_unreadable(
 }
 
 /***************************************************************************
+ *  Index of `file_id` in the key's "unreadable" list, or -1
+ ***************************************************************************/
+PRIVATE int flagged_file_index(json_t *topic, const char *key, const char *file_id)
+{
+    json_t *unreadable = json_object_get(
+        json_object_get(json_object_get(topic, "cache"), key), "unreadable"
+    );
+    int idx; json_t *jn_file_id;
+    json_array_foreach(unreadable, idx, jn_file_id) {
+        const char *file_id_ = json_string_value(jn_file_id);
+        if(file_id_ && strcmp(file_id_, file_id) == 0) {
+            return idx;
+        }
+    }
+    return -1;
+}
+
+/***************************************************************************
+ *  A flagged file has a cell now that counts every row of it: the flag,
+ *  whose cause is gone, goes with it. A flag that outlived its cause kept
+ *  every load of the key failing for the life of the process (independent
+ *  review of the fourth fix round).
+ ***************************************************************************/
+PRIVATE void unflag_file_readable_again(
+    hgobj gobj,
+    json_t *topic,
+    const char *key,
+    const char *file_id
+)
+{
+    int idx = flagged_file_index(topic, key, file_id);
+    if(idx < 0) {
+        return;
+    }
+    json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
+    json_t *unreadable = json_object_get(key_cache, "unreadable");
+    json_array_remove(unreadable, (size_t)idx);
+    if(json_array_size(unreadable) == 0) {
+        json_object_del(key_cache, "unreadable");
+    }
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "md2 file of the key readable again: it is counted, and the key is not flagged for it",
+        "topic",        "%s", tranger2_topic_name(topic),
+        "key",          "%s", key,
+        "file_id",      "%s", file_id,
+        NULL
+    );
+}
+
+/***************************************************************************
+ *  An append into a file the cache build flagged: its rows are in no cell,
+ *  and a row appended after them would be counted as the file's first --
+ *  a load read one of the OLD rows in its place. The file is counted
+ *  again first: if it can be read now, it gets its cell and loses its flag
+ *  (the append goes on); if not, the append is refused.
+ *  Return 0 when the append can go on, -1 (logged) when not.
+ ***************************************************************************/
+PRIVATE int count_flagged_file_again(
+    hgobj gobj,
+    json_t *topic,
+    const char *key,
+    const char *file_id
+)
+{
+    if(flagged_file_index(topic, key, file_id) < 0) {
+        return 0;
+    }
+
+    const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
+    char filename[NAME_MAX];
+    if(snprintf(filename, sizeof(filename), "%s.md2", file_id) >= (int)sizeof(filename)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "md2 filename too long",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "file_id",      "%s", file_id,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *cache_cell = load_cache_cell_from_disk(
+        gobj,
+        topic_directory,
+        key,
+        filename,   // warning .md2 removed
+        NULL        // the file has no cell: it was flagged
+    );
+    if(!cache_cell) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Cannot append record, its file is flagged unreadable: its row would follow rows no cell counts",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "file_id",      "%s", file_id,
+            NULL
+        );
+        return -1;
+    }
+
+    if(json_integer_value(json_object_get(cache_cell, "rows")) > 0) {
+        json_int_t file_base = 0;
+        int insert_idx = 0;
+        find_cache_cell(topic, key, file_id, &file_base, &insert_idx);
+        json_t *cache_files = json_object_get(get_key_cache(topic, key), "files");
+        json_array_insert_new(cache_files, (size_t)insert_idx, cache_cell);
+        update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
+        forget_segments_of_key(topic, key);             // the rowids after it moved
+    } else {
+        JSON_DECREF(cache_cell)     // no rows: the append makes its first
+    }
+
+    unflag_file_readable_again(gobj, topic, key, file_id);
+    return 0;
+}
+
+/***************************************************************************
+ *  An append whose md2 row was not written was not acknowledged: its
+ *  content is cut back, so the file does not keep a record no row names.
+ ***************************************************************************/
+PRIVATE void cut_back_content(
+    hgobj gobj,
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    off_t offset
+)
+{
+    const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
+    char content_name[NAME_MAX + 8];
+    char content_path[PATH_MAX];
+    snprintf(content_name, sizeof(content_name), "%s.json", file_id);
+    if(!build_path(content_path, sizeof(content_path), topic_directory, "keys", key, content_name, NULL)) {
+        return;     // Error already logged
+    }
+    if(truncate(content_path, offset) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot cut back the content of an append whose md2 row was not written: the content file keeps a record no row names",
+            "path",         "%s", content_path,
+            "offset",       "%ld", (long)offset,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
  *  Get range time of a key
  *
  *  A md2 file that cannot be counted is not a file of 0 rows: its rows
@@ -6949,14 +7155,19 @@ PRIVATE void flag_key_unreadable(
  *  flagged -- a treedb came up after a restart with the node absent, and
  *  a create of its id wrote over the records nobody read (independent
  *  review of the third fix round). The key is flagged instead
- *  (flag_key_unreadable), for:
- *      - a md2 that cannot be opened or read, or whose size is not a
- *        whole number of rows;
- *      - a md2 of 0 rows whose content file is NOT empty: the rows of that
- *        content are gone. (It is also what a first append whose md2
- *        write failed leaves; the flag is on the safe side there.)
- *  A md2 of 0 rows with an empty content file loses nothing: it gets no
- *  cell (a cell of 0 rows has the range of a zeroed row, 1970).
+ *  (flag_key_unreadable), for a md2 that cannot be opened or read, or
+ *  whose size is not a whole number of rows.
+ *
+ *  A md2 of 0 rows gets no cell (a cell of 0 rows has the range of a
+ *  zeroed row, 1970) and flags nothing. When its content file is not
+ *  empty, that is what an append that was never acknowledged leaves: the
+ *  content is written first and the md2 row after, and the row was never
+ *  written (the md2 could not be created or written, or the process died
+ *  between the two). It is not damage: flagging it (200a1791e) hid every
+ *  acknowledged row of the files after it from a forward load, made a
+ *  treedb node with good older rows disappear, and was never cleared
+ *  (independent review of the fourth fix round). It is said with a
+ *  warning naming the file, and the file is ignored, as until 7.25.4.
  ***************************************************************************/
 PRIVATE json_t *load_key_cache_from_disk(
     hgobj gobj,
@@ -7013,9 +7224,17 @@ PRIVATE json_t *load_key_cache_from_disk(
                 // Error already logged: a name no file can have, no content lost
                 continue;
             }
-            if(filesize(content_path) > 0) {
-                flag_key_unreadable(gobj, key_cache, topic_directory, key, file_id,
-                    "the md2 file has no rows and its content file is not empty"
+            off_t content_size = filesize(content_path);
+            if(content_size > 0) {
+                gobj_log_warning(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_TRANGER,
+                    "msg",              "%s", "md2 file of the key with no rows and a content file that is not empty: an append that was never acknowledged, the file is ignored",
+                    "topic_directory",  "%s", topic_directory,
+                    "key",              "%s", key,
+                    "file_id",          "%s", file_id,
+                    "content_size",     "%ld", (long)content_size,
+                    NULL
                 );
             }
             continue;

@@ -31,7 +31,7 @@
  *           19. `now` is stamped by every write, `writable` or not
  *           20. a replica writes no file and moves no link
  *           21-24. the guards of the gc fail closed on what did not load
- *           25, 26. the same after a restart, with the store cut while down
+ *           25, 26. the same after a restart, with the store damaged while down
  *           27. the gc refuses while a snap is active
  *           28. treedb_gc_files2() reports what a refused gc still swept
  *
@@ -2144,8 +2144,12 @@ PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
 /***************************************************************************
  *  A self-contained treedb of this file's schema, with dev-<n> linking
  *  the bytes `png`, closed, a key cut behind its back, and opened again.
- *  With `restart`, the tranger is shut down before the cut and started
- *  again after it: the cache of the topic is built from the cut store.
+ *  With `restart`, the tranger is shut down before the damage and started
+ *  again after it: the cache of the topic is built from the damaged store.
+ *  The damage is then 5 bytes of garbage after the md2 (not a whole row):
+ *  a md2 cut to 0 rows with its content left is the shape of an append
+ *  never acknowledged, which the cache build ignores, not damage
+ *  (timeranger2/test_uncommitted_append.c).
  ***************************************************************************/
 PRIVATE json_t *reopen_with_a_key_cut2(
     const char *path_root,
@@ -2180,7 +2184,15 @@ PRIVATE json_t *reopen_with_a_key_cut2(
     dir_array_t da;
     get_ordered_filename_array(0, key_dir, ".*\\.md2", WD_MATCH_REGULAR_FILE, &da);
     for(int i = 0; i < da.count; i++) {
-        if(truncate(da.items[i], 0) < 0) {
+        if(restart) {
+            FILE *f = fopen(da.items[i], "a");
+            if(!f || fwrite("XXXXX", 1, 5, f) != 5) {
+                printf("%s  FAIL: cannot damage %s%s\n", On_Red BWhite, da.items[i], Color_Off);
+            }
+            if(f) {
+                fclose(f);
+            }
+        } else if(truncate(da.items[i], 0) < 0) {
             printf("%s  FAIL: cannot cut %s%s\n", On_Red BWhite, da.items[i], Color_Off);
         }
     }
@@ -2324,9 +2336,9 @@ PRIVATE int test_sweep_with_a_row_that_did_not_load(const char *path_root)
 }
 
 /***************************************************************************
- *  25, 26. The same two, with the key cut while the tranger is DOWN
+ *  25, 26. The same two, with the key damaged while the tranger is DOWN
  *
- *  The cache build counted a md2 cut to 0 bytes as 0 rows: the key read as
+ *  The cache build dropped a md2 it could not count: the key read as
  *  empty, nothing failed, and the gc took the asset of a node that exists
  *  on disk (independent review of the third fix round, repro
  *  indep3_B/gc restart).
@@ -2344,7 +2356,7 @@ PRIVATE int test_gc_after_a_restart(const char *path_root)
         path_root, "tr_files_gc_restart_node", "dev-25", PNG_B, sizeof(PNG_B)-1,
         "devices", "dev-25", TRUE
     );
-    test_json(NULL);    // the load of dev-25 is case 4 of tr_treedb_load_failed
+    test_json(NULL);    // the load of dev-25 is case 5 of tr_treedb_load_failed
 
     set_expected_results_unordered(test,
         json_pack("[{s:s},{s:s}]",

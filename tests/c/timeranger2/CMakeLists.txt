@@ -79,6 +79,7 @@ set(SRCS
     test_open_list_history
     test_unreadable_at_open
     test_mark_tm_order
+    test_uncommitted_append
     test_testing
 )
 

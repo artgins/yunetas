@@ -20,14 +20,25 @@
  *  The same after a RESTART (independent review of the third fix round,
  *  repro indep3_B/restart): the damage is done with the tranger shut down,
  *  and the topic's cache is built from the damaged store. The cache build
- *  dropped an unreadable md2 and counted a md2 cut to 0 bytes as 0 rows, so
- *  nothing failed, the registry stayed empty and every guard was open:
- *      4. md2 of k2 cut to 0 bytes, 5. 5 bytes of garbage appended to it,
+ *  dropped an unreadable md2, so nothing failed, the registry stayed empty
+ *  and every guard was open:
+ *      5. 5 bytes of garbage appended to the md2 of k2,
  *      6. the CONTENT of k2 cut to 0 bytes (it made a node with id ""):
  *         k2 is not in memory, and a create of it is refused.
- *      7. a __snaps__ md2 cut to 0 bytes: shoot, activate and delete refuse.
+ *      7. garbage after a __snaps__ md2: shoot, activate and delete refuse.
  *      8. the recovery: the key deleted, a create of its id is accepted
  *         without reopening the treedb.
+ *
+ *  But a md2 of 0 rows whose content file is not empty is what an append
+ *  that was never acknowledged leaves (the content is written first, the
+ *  md2 row after), not damage. Flagging it (200a1791e) made a node with a
+ *  good older version DISAPPEAR after a restart and refused its create, or
+ *  loaded an old version of it (independent review of the fourth fix round,
+ *  repro indep4_A/r_treedb_orphan). The file is ignored with a warning:
+ *      4a. k2's newest file is such a file: k2 is in memory with its
+ *          previous version, nothing is flagged.
+ *      4b. such a file between two good versions of k2: k2 is in memory
+ *          with the newest one.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -389,7 +400,7 @@ PRIVATE int test_damaged_at_restart(const char *path_root, const char *case_name
      *  8. The recovery: the key deleted,
      *  its id is free, no reopen needed
      *-------------------------------------*/
-    if(!garbage && strcmp(ext, "md2") == 0) {
+    if(garbage && strcmp(ext, "md2") == 0) {
         set_expected_results("8. the key deleted: a create of its id is accepted",
             json_pack("[{s:s}]",
                 "msg", "A key that did not load has been deleted since: it is not a key that did not load any more"
@@ -409,6 +420,181 @@ PRIVATE int test_damaged_at_restart(const char *path_root, const char *case_name
     }
 
     set_expected_results("load failed at restart: close", NULL, NULL, NULL, 1);
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/*
+ *  Move every file of a key to the day file `day` (the key has one day)
+ */
+PRIVATE int move_key_to_day(const char *path_database, const char *key, const char *day)
+{
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_database, TOPIC_NAME, "keys", key, NULL);
+    const char *exts[] = {"md2", "json", NULL};
+    int moved = 0;
+    for(int e = 0; exts[e]; e++) {
+        char pattern[32];
+        snprintf(pattern, sizeof(pattern), ".*\\.%s", exts[e]);
+        dir_array_t da;
+        get_ordered_filename_array(0, key_dir, pattern, WD_MATCH_REGULAR_FILE, &da);
+        for(int i = 0; i < da.count; i++) {
+            char name[NAME_MAX];
+            char dst[PATH_MAX];
+            snprintf(name, sizeof(name), "%s.%s", day, exts[e]);
+            build_path(dst, sizeof(dst), key_dir, name, NULL);
+            if(rename(da.items[i], dst) == 0) {
+                moved++;
+            }
+        }
+        dir_array_free(&da);
+    }
+    if(moved != 2) {
+        printf("%sERROR%s --> cannot move the files of %s to %s\n", On_Red BWhite, Color_Off, key, day);
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ *  The shape an update of `key` never acknowledged leaves in the day file
+ *  `day`: its content written, its md2 created with no row
+ */
+PRIVATE int leave_uncommitted_file(const char *path_database, const char *key,
+    const char *from_day, const char *day)
+{
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_database, TOPIC_NAME, "keys", key, NULL);
+    char name[NAME_MAX];
+    char src[PATH_MAX];
+    char dst[PATH_MAX];
+    snprintf(name, sizeof(name), "%s.json", from_day);
+    build_path(src, sizeof(src), key_dir, name, NULL);
+    snprintf(name, sizeof(name), "%s.json", day);
+    build_path(dst, sizeof(dst), key_dir, name, NULL);
+    int ret = copyfile(src, dst, 0660, TRUE);
+    snprintf(name, sizeof(name), "%s.md2", day);
+    build_path(dst, sizeof(dst), key_dir, name, NULL);
+    FILE *f = fopen(dst, "w");
+    if(ret < 0 || !f) {
+        printf("%sERROR%s --> cannot leave an uncommitted file in %s\n", On_Red BWhite, Color_Off, key_dir);
+        ret = -1;
+    }
+    if(f) {
+        fclose(f);
+    }
+    return ret < 0? -1: 0;
+}
+
+PRIVATE int expect_payload(json_t *tranger, const char *case_name, const char *id, const char *payload)
+{
+    json_t *node = treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, id);
+    const char *found = node? kw_get_str(0, node, "payload", "", 0) : "(absent)";
+    if(strcmp(found, payload) != 0) {
+        printf("%sERROR%s --> %s: %s has payload [%s], expected [%s]\n",
+            On_Red BWhite, Color_Off, case_name, id, found, payload);
+        return -1;
+    }
+    return 0;
+}
+
+PRIVATE int expect_not_flagged(json_t *tranger, const char *case_name, const char *id)
+{
+    if(json_object_get(
+            json_object_get(json_object_get(json_object_get(tranger, "treedbs_load_failed"),
+                TREEDB_NAME), TOPIC_NAME), id)) {
+        printf("%sERROR%s --> %s: %s is in the registry of the keys that did not load\n",
+            On_Red BWhite, Color_Off, case_name, id);
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  4a, 4b: a file whose update was never acknowledged, at the restart
+ ***************************************************************************/
+PRIVATE int test_uncommitted_at_restart(const char *path_root, BOOL in_the_middle)
+{
+    int result = 0;
+    const char *case_name = in_the_middle?
+        "4b. an uncommitted file between two versions of k2, at restart":
+        "4a. an uncommitted newest file of k2, at restart";
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
+    rmrdir(path_database);
+
+    set_expected_results("uncommitted at restart: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = open_tranger(path_root, DATABASE);
+    open_treedb(tranger);
+    const char *ids[] = {"k1", "k2", "k3", NULL};
+    for(int i = 0; ids[i]; i++) {
+        create_item(tranger, ids[i], "a");
+    }
+    treedb_close_db(tranger, TREEDB_NAME);
+    tranger2_shutdown(tranger);
+
+    /*
+     *  k2's version "a" in an older file
+     */
+    result += move_key_to_day(path_database, "k2", "2000-01-01");
+
+    if(in_the_middle) {
+        /*
+         *  and its version "c" in today's file
+         */
+        tranger = open_tranger(path_root, DATABASE);
+        open_treedb(tranger);
+        json_t *k2 = treedb_get_node(tranger, TREEDB_NAME, TOPIC_NAME, "k2");
+        if(!k2 || !treedb_update_node(tranger, k2, json_pack("{s:s}", "payload", "c"), TRUE)) {
+            printf("%sERROR%s --> %s: cannot update k2\n", On_Red BWhite, Color_Off, case_name);
+            result += -1;
+        }
+        treedb_close_db(tranger, TREEDB_NAME);
+        tranger2_shutdown(tranger);
+    }
+    test_json(NULL);    // the setup logs are not what is tested
+
+    result += leave_uncommitted_file(path_database, "k2", "2000-01-01",
+        in_the_middle? "2001-01-01": "2099-01-01");
+
+    set_expected_results_unordered(case_name,
+        json_pack("[{s:s}]",
+            "msg", "md2 file of the key with no rows and a content file that is not empty: "
+                   "an append that was never acknowledged, the file is ignored"
+        ),
+        NULL, NULL, 1
+    );
+    tranger = open_tranger(path_root, DATABASE);
+    open_treedb(tranger);
+
+    char bf[256];
+    ids_in_memory(tranger, bf, sizeof(bf));
+    if(strcmp(bf, "k1 k2 k3") != 0) {
+        printf("%sERROR%s --> %s: nodes in memory: [%s], expected [k1 k2 k3]\n",
+            On_Red BWhite, Color_Off, case_name, bf);
+        result += -1;
+    }
+    result += expect_payload(tranger, case_name, "k2", in_the_middle? "c": "a");
+    result += expect_not_flagged(tranger, case_name, "k2");
+    result += test_json(NULL);
+
+    /*
+     *  A create of k2 is refused because k2 exists, not because it failed
+     */
+    set_expected_results(case_name,
+        json_pack("[{s:s}]", "msg", "Node already exists"),
+        NULL, NULL, 1
+    );
+    if(create_item(tranger, "k2", "OVERWRITTEN")) {
+        printf("%sERROR%s --> %s: create of k2 ACCEPTED\n", On_Red BWhite, Color_Off, case_name);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("uncommitted at restart: close", NULL, NULL, NULL, 1);
     treedb_close_db(tranger, TREEDB_NAME);
     tranger2_shutdown(tranger);
     result += test_json(NULL);
@@ -439,11 +625,12 @@ PRIVATE int test_snaps_damaged_at_restart(const char *path_root)
         printf("%sERROR%s --> cannot shoot and activate s1\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    result += damage_key(path_database, "__snaps__", "1", "md2", FALSE);
+    result += damage_key(path_database, "__snaps__", "1", "md2", TRUE);
 
     const char *test = "7. a __snaps__ damaged at restart: shoot, activate and delete refuse";
     set_expected_results_unordered(test,
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Cannot read last record, md2 file corrupted",
             "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
             "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
             "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
@@ -501,7 +688,8 @@ PRIVATE int do_test(void)
 
     result += test_topic_with_an_unreadable_key(path_root);
     result += test_snaps_that_did_not_load(path_root);
-    result += test_damaged_at_restart(path_root, "4. md2 of k2 cut to 0 bytes, at restart", "md2", FALSE);
+    result += test_uncommitted_at_restart(path_root, FALSE);
+    result += test_uncommitted_at_restart(path_root, TRUE);
     result += test_damaged_at_restart(path_root, "5. garbage after the md2 of k2, at restart", "md2", TRUE);
     result += test_damaged_at_restart(path_root, "6. content of k2 cut to 0 bytes, at restart", "json", FALSE);
     result += test_snaps_damaged_at_restart(path_root);
