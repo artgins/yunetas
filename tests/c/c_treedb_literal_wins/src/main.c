@@ -94,6 +94,12 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
 #define M_REMOVED       "Topic not declared by the schema from C: removed from __system__"
 #define M_WITHDREW      "Schema from C withdrew work on the schema at open"
 #define M_NOT_RAISED    "Topic from C declares other columns than the store runs, without raising its topic_version past it: the store keeps running its own"
+#define M_SNAP_HOLDS    "cannot delete node, a snapshot still holds it"
+#define M_IN_PART       "Schema projected into __system__ only in part: its version is not recorded, and every open of the treedb retries it"
+#define M_COMPLETING    "Completing the projection of the schema from C into __system__, left unfinished by an earlier open"
+#define M_TIE           "Schema from C has the schema_version of the dynamic schema in use but another content: NOT applied, raise its schema_version to publish it"
+#define M_BEHIND        "TreeDB schema from C is behind the schema in use, not applied"
+#define M_REPLICA       "The store of the treedb is not written here: it opens as a replica and runs its schema file, __system__ is not reconciled"
 
 /*
  *  Every log line from INFO up, in order: one per emission (strict FIFO).
@@ -183,10 +189,10 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Schema saved",
     "Schema applied",
-    "Schema from C has the schema_version of the dynamic schema in use but another content: NOT applied, raise its schema_version to publish it",
+    M_TIE,
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
-    "TreeDB schema from C is behind the schema in use, not applied",
+    M_BEHIND,
 
     /*  REN: departments renamed to sections, the hook and fkey with it  */
     "Creating __timeranger2__.json",
@@ -214,10 +220,11 @@ PRIVATE const char *expected_log_msgs[] = {
     M_NOT_RAISED,
     "Re-Creating TreeDB schema file",
 
-    /*  IMP: imposed from the code, v2 removes departments  */
+    /*  IMP: imposed from the code, v2 removes departments (the tranger of
+     *  the treedb is created before the schema is decided)  */
+    "Creating __timeranger2__.json",
     "impose_c_schema forced by the code of the yuno, over the attribute",
     "Opening TreeDB with the schema from C, __system__ not read",
-    "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
     "Creating topic",
@@ -244,6 +251,108 @@ PRIVATE const char *expected_log_msgs[] = {
     "Updating TreeDB schema in __system__",
     "Re-Creating TreeDB schema file",
     "Creating topic",
+
+    /*  SNAP: a snapshot of __system__ holds departments; v2 removes it.
+     *  Twice the delete is refused (the fkey column and the topic), the
+     *  projection says it is partial, the second open retries it; once
+     *  the snapshot is deleted the third open completes it  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_SNAP_HOLDS,
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    M_COMPLETING,
+    M_SNAP_HOLDS,
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    M_COMPLETING,
+    M_REMOVED,
+
+    /*  TWICE: users saved; the second open is refused, and says nothing  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Schema saved",
+
+    /*  RAN: users applied, run by the next open (v1, behind), then v3
+     *  withdraws the running dynamic schema, said once  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Schema saved",
+    "Schema applied",
+    M_BEHIND,
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Updating TreeDB schema in __system__",
+    M_WITHDREW,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+
+    /*  SEED: delete-treedb, then a literal of the dynamic file's version
+     *  with another content: the tie is said at both opens  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Schema saved",
+    "Schema applied",
+    M_TIE,
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    M_TIE,
+
+    /*  LOCK: the store is held: a replica, __system__ not reconciled;
+     *  then free: the literal is installed and projected  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Cannot open an exclusive json file",
+    "Open as not master, __timeranger2__.json locked",
+    M_REPLICA,
+    "Updating TreeDB schema in __system__",
+    M_REMOVED,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+
+    /*  REC: the record of the apply cannot be written: refused; then
+     *  it can  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Schema saved",
+    "Cannot create json file",
+    "Schema applied",
 
     /*  end  */
     "All treedb literal wins tests PASSED",

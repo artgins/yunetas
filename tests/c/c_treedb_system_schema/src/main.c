@@ -156,9 +156,10 @@ PRIVATE const char *expected_log_msgs[] = {
     "Schema topic pkey must be 'id'",
     "Node already exists",
     "Topic already has a column with this name",
-    /*  Test 8: legacy ids move; the treedb opens (+ __assets__)  */
-    "TreeDB schema ids moved to qualified names",
+    /*  Test 8: legacy ids move; the treedb opens (+ __assets__); its
+     *  tranger is created before the schema is decided  */
     "Creating __timeranger2__.json",
+    "TreeDB schema ids moved to qualified names",
     "Creating TreeDB schema file",
     "Creating topic",
     "Creating topic",
@@ -190,6 +191,9 @@ PRIVATE const char *expected_log_msgs[] = {
     "impose_c_schema forced by the code of the yuno, over the attribute",
     "Opening TreeDB with the schema from C, __system__ not read",
     "TreeDB schema from C is imposed, but it is behind __system__: the projection is kept",
+    /*  ...the apply RAN at the open before: imposing replaces a running
+     *  dynamic schema, and says it ("in_use")  */
+    "Schema from C withdrew work on the schema at open",
     "Imposing TreeDB schema from C over a newer one",
     "Re-Creating TreeDB schema file",
     "Imposing topic_version from C over a newer one",

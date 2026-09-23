@@ -26,6 +26,9 @@
  ***********************************************************************/
 #include <string.h>
 #include <limits.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/file.h>
 
 #include "c_test_literal_wins.h"
 
@@ -360,6 +363,47 @@ PRIVATE int apply_schema(hgobj gobj, const char *treedb_name)
     }
     JSON_DECREF(jn_resp)
     return ret;
+}
+
+/***************************************************************************
+ *  open-treedb, the answer as it is. Return is YOURS
+ ***************************************************************************/
+PRIVATE json_t *open_db_resp(hgobj gobj, const char *treedb_name, json_t *jn_schema) // owned
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = json_pack("{s:s, s:i, s:s, s:o}",
+        "filename_mask", "%Y",
+        "exit_on_error", 0,
+        "treedb_name", treedb_name,
+        "treedb_schema", jn_schema
+    );
+    return gobj_command(priv->gobj_treedbs, "open-treedb", kw, gobj);
+}
+
+/***************************************************************************
+ *  The `c_schema_version` of a treedb in __system__, -1 when it has no
+ *  projection
+ ***************************************************************************/
+PRIVATE json_int_t system_c_schema_version(hgobj gobj, const char *treedb_name)
+{
+    json_t *nodes = gobj_list_nodes(gobj_find_service(SYSTEM_TREEDB, FALSE), "treedbs",
+        json_pack("{s:s}", "id", treedb_name), 0, gobj);
+    json_t *node = json_array_get(nodes, 0);
+    json_int_t v = node? kw_get_int(gobj, node, "c_schema_version", -1, KW_WILD_NUMBER) : -1;
+    JSON_DECREF(nodes)
+    return v;
+}
+
+/***************************************************************************
+ *  saved-schema answers a pending save of the treedb
+ ***************************************************************************/
+PRIVATE BOOL has_saved_schema(hgobj gobj, const char *treedb_name)
+{
+    json_t *jn_resp = treedb_cmd(gobj, treedb_name, "saved-schema", json_object());
+    BOOL saved = kw_get_bool(gobj, jn_resp, "data`saved", 0, 0);
+    JSON_DECREF(jn_resp)
+    return saved;
 }
 
 /***************************************************************************
@@ -992,6 +1036,372 @@ PRIVATE int scenario_missing_topic_dir_is_no_apply(hgobj gobj)
 }
 
 /***************************************************************************
+ *  SNAP: a snapshot of __system__ holds the topic the literal removes (and
+ *  the fkey column to it). The delete is refused, so the projection is
+ *  NOT complete, and that is not hidden:
+ *
+ *      - c_schema_version does not claim the literal, so every open
+ *        retries it (it was written first, the next open was silent);
+ *      - save-schema refuses: it would publish the removed topic again
+ *        (it did, and apply-schema resurrected it);
+ *      - what the projection left behind is no operator's work: nothing
+ *        is withdrawn.
+ *
+ *  Once the snapshot is deleted, the next open completes the projection.
+ ***************************************************************************/
+PRIVATE int scenario_snapshot_holds_removed_topic(hgobj gobj)
+{
+    const char *db = "tw_snap";
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, db, schema_of(db, 1, json_pack("[o,o]",
+            topic_of("users", 1, json_pack("{s:o, s:o, s:o}",
+                "id", col_id(), "username", col_str("User"), "departments", col_fkey("Dept"))),
+            topic_of("departments", 1, json_pack("{s:o, s:o, s:o}",
+                "id", col_id(), "name", col_str("Name"), "users", col_hook("users", "departments")))
+        )), FALSE) < 0) {
+        return -1;
+    }
+    json_t *jn_resp = gobj_command(sys, "shoot-snap", json_pack("{s:s}", "name", "s1"), gobj);
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: SNAP, shoot-snap on __system__", json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    close_db(gobj, db);
+
+    for(int i=0; i<2; i++) {
+        if(open_db(gobj, db, schema_of(db, 2, json_pack("[o]",
+                topic_of("users", 2, json_pack("{s:o, s:o}",
+                    "id", col_id(), "username", col_str("User")))
+            )), FALSE) < 0) {
+            return result - 1;
+        }
+        if(!system_has_topic(gobj, db, "departments")) {
+            result += test_fail(gobj, db, "TEST FAIL: SNAP, a topic a snapshot holds was deleted", NULL);
+        }
+        if(system_c_schema_version(gobj, db) == 2) {
+            result += test_fail(gobj, db,
+                "TEST FAIL: SNAP, an unfinished projection claims the literal (c_schema_version)",
+                json_integer(system_c_schema_version(gobj, db)));
+        }
+        jn_resp = treedb_cmd(gobj, db, "save-schema", json_object());
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) >= 0) {
+            result += test_fail(gobj, db,
+                "TEST FAIL: SNAP, save-schema published an unfinished projection", json_incref(jn_resp));
+        }
+        JSON_DECREF(jn_resp)
+        result += check_withdrawn(gobj, db, "TEST FAIL: SNAP, the projection's leftovers read as withdrawn work",
+            0, json_object());
+        jn_resp = treedb_cmd(gobj, db, "saved-schema", json_object());
+        if(json_array_size(kw_get_list(gobj, jn_resp, "data`unfinished_projection", 0, 0)) != 2) {
+            result += test_fail(gobj, db,
+                "TEST FAIL: SNAP, saved-schema does not say what the projection could not remove",
+                json_incref(jn_resp));
+        }
+        JSON_DECREF(jn_resp)
+        close_db(gobj, db);
+    }
+
+    /*
+     *  The snapshot goes (there is no delete-snap: its row of __snaps__)
+     */
+    json_t *snaps = gobj_list_nodes(sys, "__snaps__", json_pack("{s:s}", "name", "s1"), 0, gobj);
+    json_t *snap = json_array_get(snaps, 0);
+    if(!snap || gobj_delete_node(sys, "__snaps__",
+            json_pack("{s:s}", "id", kw_get_str(gobj, snap, "id", "", 0)),
+            json_object(), gobj) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: SNAP, the snapshot could not be deleted", json_incref(snaps));
+    }
+    JSON_DECREF(snaps)
+
+    if(open_db(gobj, db, schema_of(db, 2, json_pack("[o]",
+            topic_of("users", 2, json_pack("{s:o, s:o}",
+                "id", col_id(), "username", col_str("User")))
+        )), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_agree(gobj, db, "TEST FAIL: SNAP, the projection was not completed once the snap went");
+    if(system_has_topic(gobj, db, "departments")) {
+        result += test_fail(gobj, db, "TEST FAIL: SNAP, the removed topic is still in __system__", NULL);
+    }
+    char sys_header[NAME_MAX];
+    system_header(gobj, db, "users", "departments", sys_header, sizeof(sys_header));
+    if(!empty_string(sys_header)) {
+        result += test_fail(gobj, db, "TEST FAIL: SNAP, the removed fkey is still in __system__", NULL);
+    }
+    if(system_c_schema_version(gobj, db) != 2) {
+        result += test_fail(gobj, db, "TEST FAIL: SNAP, a complete projection does not claim the literal",
+            json_integer(system_c_schema_version(gobj, db)));
+    }
+    result += check_withdrawn(gobj, db, "TEST FAIL: SNAP, completing the projection withdrew work",
+        0, json_object());
+    jn_resp = treedb_cmd(gobj, db, "saved-schema", json_object());
+    json_t *unfinished = kw_get_list(gobj, jn_resp, "data`unfinished_projection", 0, 0);
+    if(!unfinished || json_array_size(unfinished) != 0) {
+        result += test_fail(gobj, db, "TEST FAIL: SNAP, a complete projection still reads as unfinished",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  TWICE: open-treedb of a treedb already open here, with a newer literal
+ *  and a save pending. It is refused UP FRONT: __system__ keeps its topics,
+ *  the saved schema stays, nothing is withdrawn, the file is not touched.
+ *  The open used to reconcile all of that first and then fail on the name
+ *  of its tranger ("Internal error, tranger client NULL").
+ ***************************************************************************/
+PRIVATE int scenario_second_open_refused(hgobj gobj)
+{
+    const char *db = "tw_twice";
+    int result = 0;
+
+    if(open_db(gobj, db, schema_of(db, 1, json_pack("[o,o]",
+            topic_of("users", 1, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User"))),
+            topic_of("departments", 1, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name")))
+        )), FALSE) < 0) {
+        return -1;
+    }
+    result += edit_header(gobj, db, "users", "username", "Op");
+    result += save_schema(gobj, db);
+
+    json_t *jn_resp = open_db_resp(gobj, db, schema_of(db, 3, json_pack("[o]",
+        topic_of("users", 1, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User")))
+    )));
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 ||
+            !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "already open")) {
+        result += test_fail(gobj, db, "TEST FAIL: TWICE, a second open is not refused as already open",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+
+    if(!system_has_topic(gobj, db, "departments")) {
+        result += test_fail(gobj, db, "TEST FAIL: TWICE, a refused open removed a topic from __system__", NULL);
+    }
+    if(!has_saved_schema(gobj, db)) {
+        result += test_fail(gobj, db, "TEST FAIL: TWICE, a refused open withdrew the saved schema", NULL);
+    }
+    result += check_withdrawn(gobj, db, "TEST FAIL: TWICE, a refused open withdrew work",
+        0, json_object());
+    json_t *file = load_schema_file(gobj, db);
+    if(!topic_in(file, "departments") || kw_get_int(gobj, file, "schema_version", 0, KW_WILD_NUMBER) != 1) {
+        result += test_fail(gobj, db, "TEST FAIL: TWICE, a refused open touched the file", json_incref(file));
+    }
+    JSON_DECREF(file)
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  RAN: an apply that RAN (an open read it), then a newer literal. The
+ *  literal replaces a dynamic schema that was RUNNING: said, as "in_use",
+ *  for the topics the apply changed. `departments`, which only the
+ *  developer changed, is nobody's work: not said. The next open says
+ *  nothing.
+ ***************************************************************************/
+PRIVATE int scenario_apply_that_ran(hgobj gobj)
+{
+    const char *db = "tw_ran";
+    int result = 0;
+
+    for(int i=0; i<2; i++) {
+        if(open_db(gobj, db, schema_of(db, 1, json_pack("[o,o]",
+                topic_of("users", 1, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User"))),
+                topic_of("departments", 1, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name")))
+            )), FALSE) < 0) {
+            return result - 1;
+        }
+        if(i == 0) {
+            result += edit_header(gobj, db, "users", "username", "Operator user");
+            result += save_schema(gobj, db);
+            result += apply_schema(gobj, db);
+        } else {
+            result += check_header(gobj, db, "TEST FAIL: RAN, the apply does not run",
+                "users", "username", "Operator user", "Operator user", "Operator user");
+            result += check_withdrawn(gobj, db, "TEST FAIL: RAN, the open that runs the apply withdrew",
+                0, json_object());
+        }
+        close_db(gobj, db);
+    }
+
+    for(int i=0; i<2; i++) {
+        if(open_db(gobj, db, schema_of(db, 3, json_pack("[o,o]",
+                topic_of("users", 3, json_pack("{s:o, s:o, s:o}",
+                    "id", col_id(), "username", col_str("User"), "email", col_str("Email"))),
+                topic_of("departments", 2, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Section")))
+            )), FALSE) < 0) {
+            return result - 1;
+        }
+        result += check_agree(gobj, db, "TEST FAIL: RAN, a literal over an apply that ran");
+        result += check_withdrawn(gobj, db, i == 0?
+                "TEST FAIL: RAN, the running dynamic schema replaced is not said" :
+                "TEST FAIL: RAN, a second open says something",
+            0, i == 0? json_pack("{s:s}", "users", "in_use") : json_object());
+        close_db(gobj, db);
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  SEED: delete-treedb of a treedb whose file in use is an operator's
+ *  apply, then an open with a literal of the SAME schema_version and
+ *  another content. The file runs and the projection is seeded from it:
+ *  c_schema_version must not claim the literal, and the tie is said at
+ *  every open, the first one included.
+ ***************************************************************************/
+PRIVATE int scenario_seed_from_dynamic_file(hgobj gobj)
+{
+    const char *db = "tw_seed";
+    int result = 0;
+
+    if(open_db(gobj, db, schema_of(db, 1, json_pack("[o]",
+            topic_of("users", 1, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User")))
+        )), FALSE) < 0) {
+        return -1;
+    }
+    result += edit_header(gobj, db, "users", "username", "Operator user");
+    result += save_schema(gobj, db);
+    result += apply_schema(gobj, db);
+    close_db(gobj, db);
+
+    json_t *jn_resp = treedb_cmd(gobj, db, "delete-treedb", json_pack("{s:b}", "force", 1));
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: SEED, delete-treedb", json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+
+    for(int i=0; i<2; i++) {
+        if(open_db(gobj, db, schema_of(db, 2, json_pack("[o]",
+                topic_of("users", 2, json_pack("{s:o, s:o, s:o}",
+                    "id", col_id(), "username", col_str("User"), "email", col_str("Email")))
+            )), FALSE) < 0) {
+            return result - 1;
+        }
+        result += check_header(gobj, db, "TEST FAIL: SEED, the file does not run",
+            "users", "username", "Operator user", "Operator user", "Operator user");
+        if(system_c_schema_version(gobj, db) == 2) {
+            result += test_fail(gobj, db,
+                "TEST FAIL: SEED, a projection seeded from a dynamic file claims the literal", NULL);
+        }
+        close_db(gobj, db);
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  LOCK: the store of the treedb is held by another process (here another
+ *  open file description of this one: flock() does not tell them apart),
+ *  and a newer literal arrives. The treedb opens as a REPLICA and runs its
+ *  file: __system__ is not projected from a literal that does not run.
+ *  Once the lock is free, the next open installs the literal, and
+ *  __system__ follows.
+ ***************************************************************************/
+PRIVATE int scenario_client_store_locked(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *db = "tw_lock";
+    int result = 0;
+
+    if(open_db(gobj, db, schema_of(db, 1, json_pack("[o,o]",
+            topic_of("users", 1, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User"))),
+            topic_of("departments", 1, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name")))
+        )), FALSE) < 0) {
+        return -1;
+    }
+    close_db(gobj, db);
+
+    char lock_path[PATH_MAX];
+    build_path(lock_path, sizeof(lock_path), priv->path_database, db, "__timeranger2__.json", NULL);
+    int fd = open(lock_path, O_RDONLY|O_CLOEXEC);
+    if(fd < 0 || flock(fd, LOCK_EX|LOCK_NB) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: LOCK, cannot take the lock of the store", NULL);
+    }
+
+    if(open_db(gobj, db, schema_of(db, 2, json_pack("[o]",
+            topic_of("users", 2, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User")))
+        )), FALSE) < 0) {
+        result--;
+    }
+    if(!system_has_topic(gobj, db, "departments") || system_c_schema_version(gobj, db) != 1) {
+        result += test_fail(gobj, db,
+            "TEST FAIL: LOCK, __system__ projected a literal that a replica does not run",
+            json_integer(system_c_schema_version(gobj, db)));
+    }
+    json_t *file = load_schema_file(gobj, db);
+    if(kw_get_int(gobj, file, "schema_version", 0, KW_WILD_NUMBER) != 1) {
+        result += test_fail(gobj, db, "TEST FAIL: LOCK, a replica installed the literal", json_incref(file));
+    }
+    JSON_DECREF(file)
+    close_db(gobj, db);
+
+    if(fd >= 0) {
+        flock(fd, LOCK_UN);
+        close(fd);
+    }
+
+    if(open_db(gobj, db, schema_of(db, 2, json_pack("[o]",
+            topic_of("users", 2, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User")))
+        )), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_agree(gobj, db, "TEST FAIL: LOCK, the literal once the store is free");
+    if(system_has_topic(gobj, db, "departments") || system_c_schema_version(gobj, db) != 2) {
+        result += test_fail(gobj, db, "TEST FAIL: LOCK, __system__ did not follow the literal",
+            json_integer(system_c_schema_version(gobj, db)));
+    }
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  REC: the record of an apply cannot be written. The apply is REFUSED and
+ *  the file in use is not replaced: an apply nobody can report as withdrawn
+ *  is not made (it answered applied, and the record was lost in silence).
+ ***************************************************************************/
+PRIVATE int scenario_apply_record_unwritable(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *db = "tw_rec";
+    int result = 0;
+
+    if(open_db(gobj, db, schema_of(db, 1, json_pack("[o]",
+            topic_of("users", 1, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User")))
+        )), FALSE) < 0) {
+        return -1;
+    }
+    result += edit_header(gobj, db, "users", "username", "Operator user");
+    result += save_schema(gobj, db);
+
+    char record_dir[PATH_MAX];
+    build_path(record_dir, sizeof(record_dir),
+        priv->path_database, "__system__", "saved_schemas", "tw_rec.applied.json", NULL);
+    mkrdir(record_dir, 02770);
+
+    json_t *jn_resp = treedb_cmd(gobj, db, "apply-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 || kw_get_bool(gobj, jn_resp, "data`applied", 0, 0)) {
+        result += test_fail(gobj, db, "TEST FAIL: REC, an apply whose record cannot be written was made",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    json_t *file = load_schema_file(gobj, db);
+    if(kw_get_int(gobj, file, "schema_version", 0, KW_WILD_NUMBER) != 1) {
+        result += test_fail(gobj, db, "TEST FAIL: REC, the file in use was replaced", json_incref(file));
+    }
+    JSON_DECREF(file)
+    if(!has_saved_schema(gobj, db)) {
+        result += test_fail(gobj, db, "TEST FAIL: REC, a refused apply lost the saved schema", NULL);
+    }
+
+    rmrdir(record_dir);
+    result += apply_schema(gobj, db);
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
  *  Run every scenario
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -1007,6 +1417,12 @@ PRIVATE int run_tests(hgobj gobj)
     result += scenario_topic_not_raised(gobj);
     result += scenario_imposed_removed_topic(gobj);
     result += scenario_missing_topic_dir_is_no_apply(gobj);
+    result += scenario_snapshot_holds_removed_topic(gobj);
+    result += scenario_second_open_refused(gobj);
+    result += scenario_apply_that_ran(gobj);
+    result += scenario_seed_from_dynamic_file(gobj);
+    result += scenario_client_store_locked(gobj);
+    result += scenario_apply_record_unwritable(gobj);
 
     if(result == 0) {
         gobj_log_info(gobj, 0,
