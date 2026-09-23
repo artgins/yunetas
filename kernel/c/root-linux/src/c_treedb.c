@@ -4512,7 +4512,13 @@ PRIVATE int upsert_treedb_schema(
             }
             BOOL delete = (!json_object_get(declared_cols, current_col_id) &&
                 col_of_treedb(gobj, ctx->index, treedb_name, topic_id, current_col))? TRUE : FALSE;
-            json_object_set_new(planned, current_col_id, json_null());
+            if(!json_object_get(planned, current_col_id)) {
+                /*
+                 *  Unlinked here and taken by the topic that declares it:
+                 *  what it is written as is what it ends as
+                 */
+                json_object_set_new(planned, current_col_id, json_null());
+            }
             json_array_append_new(removed, json_pack("{s:s, s:b}",
                 "id", current_col_id,
                 "delete", delete
@@ -4633,7 +4639,7 @@ PRIVATE int upsert_treedb_schema(
         );
         char owner_[RECORD_KEY_VALUE_MAX];
         const char *owner = parent_id_of(current_topic_id, topic_name, owner_, sizeof(owner_));
-        BOOL delete = (owner && strcmp(owner, treedb_name)==0)? TRUE : FALSE;
+        BOOL delete = (!owner || strcmp(owner, treedb_name)==0)? TRUE : FALSE;
 
         json_t *all_cols = json_array();
         json_t *delete_cols = json_array();
@@ -4681,8 +4687,6 @@ PRIVATE int upsert_treedb_schema(
     record_projection_in_progress(
         gobj, treedb_name, kw_version, current, ctx, planned, plan_kinds
     );
-    JSON_DECREF(plan_kinds)
-    JSON_DECREF(planned)
 
     /*---------------------------------------------------------------*
      *  WRITE
@@ -4720,7 +4724,27 @@ PRIVATE int upsert_treedb_schema(
         );
     }
     if(!treedb) {
+        /*
+         *  Nothing written: what was planned, and what the record before
+         *  left, stay as they are -- leftovers, or drafts with their kind
+         */
         add_unfinished(unfinished, "not_written", treedb_name, NULL);
+        const char *planned_id; json_t *v;
+        json_object_foreach(planned, planned_id, v) {
+            add_unfinished(unfinished, NULL, planned_id, draft_ids);
+        }
+        json_t *jn_left;
+        json_array_foreach(ctx->left_before, idx, jn_left) {
+            if(json_is_string(jn_left)) {
+                add_unfinished(unfinished, NULL, json_string_value(jn_left), draft_ids);
+            }
+        }
+        const char *kind_topic; json_t *jn_kind;
+        json_object_foreach(plan_kinds, kind_topic, jn_kind) {
+            keep_draft_kind(unfinished, kind_topic, json_string_value(jn_kind));
+        }
+        JSON_DECREF(plan_kinds)
+        JSON_DECREF(planned)
         JSON_DECREF(ops)
         JSON_DECREF(gone)
         JSON_DECREF(declared)
@@ -4729,6 +4753,9 @@ PRIVATE int upsert_treedb_schema(
         JSON_DECREF(cols_desc)
         return -1;  // Error already logged
     }
+
+    JSON_DECREF(plan_kinds)
+    JSON_DECREF(planned)
 
     json_t *protected = json_object();  // topics whose write failed: their orphans stay
     json_t *deleted = json_object();    // ids deleted by this projection
@@ -6162,8 +6189,10 @@ PRIVATE const char *node_treedb(
 
 /***************************************************************************
  *  Does the column `col` (a node in the topic `topic_id` of `treedb_name`)
- *  belong to that treedb? Its own when its id is the topic's and its name;
- *  otherwise whatever node_treedb() reads (an ambiguous one is not).
+ *  belong to that treedb? Its own when its id is the topic's and its name,
+ *  or when its id is not composed at all (keyed before the ids were
+ *  qualified: the tree says it is this topic's); otherwise whatever
+ *  node_treedb() reads (an ambiguous one is not).
  ***************************************************************************/
 PRIVATE BOOL col_of_treedb(
     hgobj gobj,
@@ -6178,7 +6207,7 @@ PRIVATE BOOL col_of_treedb(
         kw_get_str(gobj, col, "id", "", 0), kw_get_str(gobj, col, "value", "", 0),
         parent, sizeof(parent)
     );
-    if(parent_id && strcmp(parent_id, topic_id)==0) {
+    if(!parent_id || strcmp(parent_id, topic_id)==0) {
         return TRUE;
     }
     char owner[RECORD_KEY_VALUE_MAX];
