@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.4 (2026-09-23)
 
 ### The 2026-09-23 review of the 2026-09-22 treedb/timeranger work
 
