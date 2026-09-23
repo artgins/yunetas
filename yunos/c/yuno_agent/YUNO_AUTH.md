@@ -603,7 +603,7 @@ The `C_AUTHZ` gclass reads a small set of attrs at boot (see
 
 | Key                       | Status                | Purpose                                                                                  |
 |---------------------------|-----------------------|------------------------------------------------------------------------------------------|
-| `authz.master`            | bool                  | Whether this instance owns the authz treedb (writer) or follows another (reader).        |
+| `authz.master`            | bool, default `false` | Whether this instance owns the authz treedb (writer) or follows another (reader). **The service never sets it**: an empty `tranger_path` only builds the path, and the directory is created only by a master. Without it, a store that does not exist yet gives *"No authz db, authz only to local access"* and no treedb; a store another yuno owns is opened as a READ-ONLY replica. The agent says `'Authz.master': true` in its `main.c`. |
 | `authz.authz_service`     | preferred             | Service name under which to build/look up the authz tree. Empty → defaults to `yuno_role`. |
 | `authz.authz_yuno_role`   | **`SDF_DEPRECATED`**  | Legacy alias for `authz.authz_service`. Fallback at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_authz.c) — only read if `authz_service` is empty. New configs must use `authz.authz_service`. |
 | `authz.tranger_path`      | optional              | External tranger storage path (when sharing the authz treedb across instances).          |
@@ -801,15 +801,15 @@ The `command_table` at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.2
 | `users`            | List users                                                    |
 | `accesses`         | List `users_accesses` audit rows                              |
 | `create-user`      | Create a user row                                             |
-| `enable-user`      | Flip `disabled=false`                                         |
-| `disable-user`     | Flip `disabled=true`                                          |
+| `enable-user`      | Flip `disabled=false` (writes that column only)               |
+| `disable-user`     | Flip `disabled=true` (writes that column only) and drop the user's sessions |
 | `delete-user`      | Remove a user row (`force=1` to delete one that holds roles. Immutable users are never deleted) |
 | `check-user-pwd`   | Verify a password against credentials                         |
 | `set-user-pwd`     | Set a user's password                                         |
 | `roles`            | List roles                                                    |
 | `user-roles`       | List a user's roles                                           |
 | `user-authzs`      | Effective authzs of a user (after role inheritance)           |
-| `set-max-sessions` | Bound concurrent sessions for a user                          |
+| `set-max-sessions` | Bound concurrent sessions for a user (writes `max_sessions` only); with no `username`, the service default `max_sessions_per_user` |
 
 All are declared with `SDF_AUTHZ_X`, requiring `__execute_command__` — enforced
 only when the broker yuno sets `enable_command_authz` (§4.5). It is off by
@@ -1428,6 +1428,24 @@ create the account in Keycloak and in the local treedb with one call, use
 
 The `credentials` field of a user is **hidden** in the topic schema. A normal
 read answers `null` for it, and that is the filter, not an empty password.
+
+**So never write back what a plain read answered.** The `null` of a hidden
+column in a view is a MASK, and written back it is a value: the stored
+password is replaced by it. `disable-user`, `enable-user` and
+`set-max-sessions` did exactly that until 7.25.4 -- they read the user,
+changed one field, and updated the whole view -- so disabling, re-enabling or
+bounding the sessions of a user ERASED its local password. They write only the
+column they change now, and so must any code that changes a user:
+
+```c
+/*  the column that changes, nothing else  */
+json_decref(gobj_update_node(treedb_authzs, "users",
+    json_pack("{s:s, s:b}", "id", username, "disabled", 1), 0, gobj));
+```
+
+To read the password itself (as `check-user-pwd` does), ask for the hidden
+columns: `json_pack("{s:b}", "show_hidden", 1)` as the options of
+`gobj_get_node()`.
 
 ### 9.4 Add a role with limited authzs
 

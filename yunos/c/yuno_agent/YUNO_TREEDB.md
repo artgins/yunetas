@@ -368,6 +368,36 @@ already lost. The check runs **before** the authz check on purpose: on a replica
 nobody can write, whoever they are, and a `-403` would send an operator looking
 for a permission that would not help.
 
+**From C too, before anything moves.** `gobj_update_node()` (except a
+`volatil` one, which writes memory only), `gobj_link_nodes()`,
+`gobj_unlink_nodes()` and `gobj_delete_node()` on a replica return `NULL` /
+`-1` and log *"Cannot write a node / link nodes / unlink nodes / delete a node
+on a READ-ONLY replica"*; `gobj_create_node()` is refused by
+`treedb_create_node()` itself. Until after 7.25.4 link, unlink and a forced
+delete moved the links in MEMORY first and met the refused save last: the
+caller got `-1` and the replica's memory said what its disk did not.
+
+```C
+/*  On a replica: -1, and item01 keeps the parent it had  */
+int ret = gobj_link_nodes(gobj_node, "children",
+    "items", json_pack("{s:s}", "id", "item00"),
+    "items", json_pack("{s:s}", "id", "item01"),
+    src);
+```
+
+**A master that lost its lock is a replica.** When a stopped master finds its
+store taken by another process, timeranger2 leaves its tranger a replica
+(`master` false, `master_lost` true). The services on top follow what the
+tranger IS: `C_TRANGER`'s `master` attribute reads `false` and its feeds open
+as a replica's (`rt_disk`), and `C_TREEDB`'s `treedbs` command reports
+`master` per treedb:
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=treedbs command=treedbs'
+# [{"treedb_name": "treedb_system_schema", ..., "master": false},
+#  {"treedb_name": "treedb_authzs", ..., "master": true}]
+```
+
 ### 2.8 Snapshots
 
 The current timeranger2 API does **not** expose a snapshot primitive
@@ -1156,6 +1186,35 @@ for them. The agent keeps its own contract -- its `force=1` on the
 `ignore_snaps` for that. `treedb_gc_files()` follows the same rule for the
 bytes of an asset a shot record names.
 
+**What cannot be read is not "held by nothing".** Every guard fails CLOSED:
+
+- `treedb_delete_instance()` refuses, before it tombstones or drops anything,
+  when it cannot read every row of the key: *"Cannot delete instance, cannot
+  read every row of its key"* (a row's metadata) or *"..., a row of its key
+  cannot be read"* (a row's content, which cannot say whose instance it is).
+  Until 7.25.4 it tombstoned the rows it had read, dropped the slot, answered
+  0, and the instance came back at the next open.
+- The asset guard (`treedb_gc_files()`, and `treedb_delete_node()` of an
+  `__assets__` node) walks the tagged records of every topic with a `file`
+  column. A tagged record of an existing snap that cannot be read, or a topic
+  whose walk does not load, refuses: the gc answers `NULL` (*"gc refused:
+  cannot tell which assets a snapshot links"*, and `gc-files` answers -1), the
+  delete answers -1 (*"cannot delete asset, cannot tell whether a snapshot
+  links it"*). Until 7.25.4 the gc took the blob a snapshot needed.
+
+```C
+json_t *taken = treedb_gc_files(tranger, "treedb_files", FALSE);
+if(!taken) {
+    // refused: nothing was taken, the cause is in the log
+}
+```
+
+**A failed activation keeps the snap it found.** `treedb_activate_snap()`
+saves the active snap inactive, then the new one active. When the second save
+fails it saves the old one active again (*"Cannot activate snap, the one active
+before is active again"*): until 7.25.4 the treedb was left with no active snap,
+and the next load went to the latest instances.
+
 #### A child hooked by several instances of its parent
 
 A child's fkey names the parent's **id**, not one of its instances
@@ -1508,23 +1567,48 @@ one in use, but its topic_version is not higher: not applied"*.
 writes into the literal. When `__system__` holds a save that was never applied
 (its `schema_version` is the file's + 1) and a literal arrives that is newer
 than the FILE, `treedb_open_db()` installs the literal -- it is what the treedb
-runs -- so it is projected too, over the draft, topic by topic where it
-differs, with a warning: *"Schema from C takes over the file in use while
-__system__ holds a draft saved over it: the draft is replaced by the schema
-from C"*. Judged by `__system__`'s number alone, that literal was "behind", was
-never projected, and the next `save-schema` published the old draft over it,
-reverting the literal's change with no word. And a literal that carries the
-SAME `schema_version` as a dynamic file in use but another content is two
-schemas under one number: the file wins, as ties always do, and the log says
-*"Schema from C has the schema_version of the dynamic schema in use but another
-content: NOT applied, raise its schema_version to publish it"* (with the flat
-diff), at every open until the literal moves on.
+runs -- so it is projected too, with a warning: *"Schema from C is newer than
+the file in use but not than __system__: it takes over the file, and replaces
+in __system__ the drafts of the topics it raises past the file"*. Judged by
+`__system__`'s number alone, that literal was "behind", was never projected,
+and the next `save-schema` published the old draft over it, reverting the
+literal's change with no word.
+
+**Only the topics the literal RAISED past the file are projected** (after
+7.25.4). tranger2 installs a topic only over a lower `topic_version`, so a
+topic the literal did not raise goes on running from the file, and its draft
+in `__system__` -- an operator's edit included -- is kept, as a literal N+1
+arriving the ordinary way keeps it. The log says it per topic: *"Topic from C
+differs from its draft, but the schema from C does not raise it past the file
+in use: the draft is kept"*. Until 7.25.4 every topic that differed was
+re-written, with the rule of `impose_c_schema`, and an operator's edit of a
+topic the developer never touched was lost. With NO file in use at all, the
+treedb opens from the literal and every topic is projected: *"No schema file
+in use: the treedb opens with the schema from C, projected whole over
+__system__"*.
+
+A literal that carries the SAME `schema_version` as a dynamic file in use but
+another content is two schemas under one number: the file wins, as ties always
+do, and the log says *"Schema from C has the schema_version of the dynamic
+schema in use but another content: NOT applied, raise its schema_version to
+publish it"* (with the flat diff), at every open until the literal moves on.
+The comparison is of CONTENT: cols listed or keyed by name, each carrying its
+`id` or not, are the same schema (until 7.25.4 a literal with its cols as a
+list warned at every open against the file `apply-schema` wrote).
+
+This all assumes the CLIENT treedb opens as a master. The projection is
+decided before its tranger exists, with the `master` of `C_TREEDB`, which
+`__system__` also has. If the lock of the client store is held by another
+process, the client opens as a replica and runs its file while `__system__`
+says the literal; the next open as master installs the literal, and finds its
+projection already there.
 
 | `__system__` | File in use | Literal | What happens at open (impose off) |
 |---|---|---|---|
-| 3, saved, not applied (from 2) | 2 | 3 | literal runs, projected over the draft, warning |
+| 3, saved, not applied (from 2) | 2 | 3, raises `users` | literal runs; `users` projected over its draft, the other topics' drafts kept; warning |
+| 3, saved, not applied | none | 3 | literal runs, projected whole; warning |
 | 3, saved and applied | 3 | 3, other content | file runs, `__system__` kept, warning |
-| 3, saved and applied | 3 | 3, the applied content | file runs, nothing said |
+| 3, saved and applied | 3 | 3, the applied content (any form) | file runs, nothing said |
 | 3, saved and applied | 3 | 2 | file runs, *"behind the schema in use"* |
 
 Up to 7.19.0 the projector did otherwise, and both halves were wrong. It
@@ -1765,7 +1849,31 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    publishes the same numbers. `dry_run=1` answers the schema it would write
    and writes nothing (the GUI's *export as C literal* uses it). The saved
    schema reads like a literal: no empty attributes, no `_geometry`, no
-   projection bookkeeping.
+   projection bookkeeping, and no `default: {}` -- the meta-schema's
+   placeholder for "no default" -- except on a `required` column, where `{}`
+   is what fills a record created without the field (after 7.25.4; dropped,
+   that create was refused *"Field required"*).
+
+   **A draft taken back is withdrawn by the next save** (after 7.25.4). When
+   the draft is the file in use again -- an edit saved, then undone in the
+   editor -- and a saved schema newer than the file in use exists, the save
+   removes it, logs *"Saved schema withdrawn, the draft is the schema in
+   use"*, and says so; `saved-schema` then answers `can_apply: false` and an
+   empty `draft_changed`. Before, the save answered *"nothing to save"*, the
+   editor's mark never cleared, and `apply-schema` installed the change that
+   had been taken back. The versions that save wrote into `__system__` stay (a
+   number there never goes down).
+
+   ```bash
+   ycommand -c 'command-yuno id=<id> service=treedbs command=save-schema treedb_name=treedb_x'
+   # 0: <role>^<name>: the draft of 'treedb_x' is the schema in use: the saved schema_version 13 is withdrawn
+   # data: {"treedb_name": "treedb_x", "withdrawn": true, "schema_version": 13,
+   #        "path": ".../__system__/saved_schemas/treedb_x.treedb_schema.json", "changes": [...]}
+   ```
+
+   With nothing saved, the same answer says *"nothing to save, the draft of
+   'treedb_x' is the schema in use"*, with `withdrawn: false` and the
+   `schema_version` in use.
 2. **`saved-schema treedb_name=X`** answers what was saved, what it changes
    against the file in use (a `flat_diff` of the two: `added`, `removed`,
    `changed`, one row per leaf), and `can_apply`. `draft_changed` names the
@@ -1781,7 +1889,10 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    beside it, flushed, and renamed over it: the file in use is the old one or
    the new one, never a truncated one (until 7.25.3 it was rewritten in place,
    and a crash or a full disk left it empty -- read as version 0 and recreated
-   from the literal at the next open). The answer says `data.applied`.
+   from the literal at the next open). The answer says `data.applied`. The
+   file is written without the `fkey` marks `parse_schema()` derives (a dict on
+   every column a hook points at), as `treedb_open_db()` writes it; until
+   7.25.4 the apply wrote the parsed copy it had validated, marks included.
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=treedbs command=save-schema treedb_name=treedb_x'
@@ -1794,13 +1905,21 @@ Without `treedb_name` each command acts on every treedb that `C_TREEDB` opened
 and lists the answers. It is what gui_agent's Schemas tab sends: one request
 per `C_TREEDB` of the yuno. `apply-schema` then takes only the treedbs whose
 saved schema can be applied (master, not imposed, a saved schema newer than
-the one in use), and it takes them **all or none** (after 7.25.3): each is
-checked first -- its saved schema loads and parses -- then each is written to
-its temporary, and only when every one got that far are they renamed in place.
-One that cannot be applied leaves every file in use as it was, and the answer
-is `-1` with every row `applied: false`. Before, A was applied, B refused,
-the answer was `-1`, and a console that read it as "nothing applied" did not
-restart the yuno. An apply with nothing applicable answers `0` and no row.
+the one in use), and it takes them **all or none up to the renames** (after
+7.25.3): each is checked first -- its saved schema loads and parses -- then
+each is written to its temporary, and only when every one got that far are
+they renamed in place. One that cannot be checked or written leaves every file
+in use as it was, and the answer is `-1` with every row `applied: false`.
+Before, A was applied, B refused, the answer was `-1`, and a console that read
+it as "nothing applied" did not restart the yuno. An apply with nothing
+applicable answers `0` and no row.
+
+The renames themselves are not all or none: they are done one by one, and a
+rename that fails (a full directory, a permission changed under it) fails on
+its own. Its row says `applied: false` and the others `applied: true`, the
+answer is `-1`, and the comment says *"N of M treedb(s) applied, see each
+one"*. So a console reads the ROWS, never the result alone: a `-1` does not
+mean nothing was applied.
 
 ```json
 {"result": -1,

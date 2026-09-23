@@ -23,7 +23,24 @@ JWT tokens, and manages users and their access rules.
 |---------|-------------|
 | `list-jwk` / `add-jwk` / `remove-jwk` | Manage JSON Web Keys. |
 | `users` / `create-user` / `update-user` / `enable-user` / `disable-user` / `delete-user` | User management. A `role` given to `create-user` / `update-user` is a ref `roles^<role id>^users` to a role that exists; anything else is refused before the user is written (*"Role does not exist"*, *"Bad role ref, expected roles^ROLE^users"*), and the user keeps the roles it had. Example: `ycommand -c 'command-yuno id=<id> service=authz command=update-user username=ana@example.com role=roles^operator^users'`. On a replica every write is refused (*"READ-ONLY replica"*), the commands AND the events: `EV_ADD_USER` and `EV_IDP_USER_CREATED` return `-1` and log *"READ-ONLY replica, the users store cannot be written here"* (after 7.25.3). |
+| `enable-user` / `disable-user` / `set-max-sessions` | Write ONE column of the user -- `disabled`, or `max_sessions` -- and nothing else; `disable-user` also drops the user's live sessions, and `set-max-sessions` without `username` sets the service default `max_sessions_per_user`. Until 7.25.4 they wrote back the whole view they had read, whose hidden `credentials` is a `null` mask, and so ERASED the user's local password. Example: `ycommand -c 'command-yuno id=<id> service=authz command=set-max-sessions username=ana@example.com max_sessions=3'`. |
 | `accesses` | List access rules. |
+
+**`master` is configuration, default `false`, never set by the service.** With
+an empty `tranger_path` the path is built from `authz_service` (or the yuno
+role), the realm and `authz_tenant`; only a master creates the directory. A
+yuno that owns its users says so -- the agent, in its `main.c`:
+
+```
+'global': {
+    'Authz.master': true,
+    'Authz.authz_service': 'agent'
+}
+```
+
+Without it, a store that does not exist gives *"No authz db, authz only to
+local access"* and no treedb, and a store another yuno owns is opened as a
+READ-ONLY replica.
 
 ---
 

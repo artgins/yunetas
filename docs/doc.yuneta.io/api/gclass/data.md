@@ -17,6 +17,13 @@ on time-series topics.
 |----------|-------|
 | **States** | `ST_STOPPED`, `ST_IDLE` |
 
+**`master` answers what the tranger IS.** It is configured (`SDF_RD`) and read
+at create, but read afterwards it answers the tranger's own flag: a master that
+lost its lock while stopped (another process took the store) is a replica, and
+`gobj_read_bool_attr(gobj_tranger, "master")` says `FALSE` (after 7.25.4; it
+answered the configuration). `open-rt` and `open-list` follow it: a replica's
+feed is an `rt_disk`, which the other master's appends reach through the disk.
+
 ### Commands
 
 | Command | Description |
@@ -161,14 +168,14 @@ of timeranger with JSON schema support.
 | Command | Description |
 |---------|-------------|
 | `open-treedb` / `close-treedb` | Open or close a treedb instance. `open-treedb impose_c_schema=1`, passed by the yuno's code, imposes the schema from C whatever the attribute says. `close-treedb` acts only on a treedb that THIS service opened, never on its own `__system__` treedb, whatever `force` says: `command-yuno id=<id> service=treedbs command=close-treedb treedb_name=<name> force=1`. |
-| `delete-treedb` | Delete a treedb's SCHEMA: its projection in `__system__` (the `treedbs` / `topics` / `cols` nodes). It never touches the treedb's own store on disk. `force=1` is required and means "yes, delete the schema". It refuses the system schema by name, and it refuses a treedb that is OPEN, and `force` does not lift that: an open treedb keeps answering from the copy in memory while its schema no longer exists anywhere, and the next `open-treedb` dies on the C_TRANGER service still alive under its name. Close it first (`close-treedb`, with `force=1` while the yuno plays, or `pause-yuno` + `play-yuno`): `command-yuno id=<id> service=treedbs command=delete-treedb treedb_name=<name> force=1`. |
+| `delete-treedb` | Delete a treedb's SCHEMA: its projection in `__system__` (the `treedbs` / `topics` / `cols` nodes). It never touches the treedb's own store on disk. `force=1` is required and means "yes, delete the schema". It refuses the system schema by name, and it refuses a treedb that is OPEN, and `force` does not lift that: an open treedb keeps answering from the copy in memory while its schema no longer exists anywhere, and the next `open-treedb` dies on the C_TRANGER service still alive under its name. Close it first (`close-treedb`, with `force=1` while the yuno plays, or `pause-yuno` + `play-yuno`): `command-yuno id=<id> service=treedbs command=delete-treedb treedb_name=<name> force=1`. It writes `__system__`, so it asks what `__system__`'s tranger IS: a master that lost its lock answers *"READ-ONLY"* (after 7.25.4 it asked the `master` attribute and went on). |
 | `create-topic` / `delete-topic` | Manage topics within a treedb that THIS service opened (not `__system__`): `command-yuno id=<id> service=treedbs command=delete-topic treedb_name=<name> topic_name=<topic>`. |
 | `diff-schema` | What the `__system__` projection of a treedb says that its schema from C does not. |
 | (every command) | Asks a permission, except `help` and `authzs`: `open-close` (`open-treedb`, `close-treedb`, `delete-treedb`), `create-delete` (`create-topic`, `delete-topic`, `apply-schema`), `write` (`save-schema`), `read` (`diff-schema`, `treedbs`, `saved-schema`). The test walks C_TREEDB's command table (`tests/c/c_treedb_system_schema`), so a command added without one fails it. On a replica every write answers *"READ-ONLY"*. |
-| `treedbs` | The treedbs this service opened (`treedb_system_schema` first), one row each: `impose_c_schema` as it applies to that treedb, `decided_by` (`code`, `dynamic_schema_treedbs`, `impose_c_schema` or `system`), and the `c_schema_version`, `in_use_schema_version` and `saved_schema_version`. Needs `read`. |
-| `save-schema` | Publish the draft of a schema edited in `__system__`: every topic that differs from the schema file IN USE gets its `topic_version` + 1, the treedb its `schema_version` + 1, and the schema is written to `saved_schemas/<treedb>.treedb_schema.json` under the `__system__` tranger, never over the file in use. `dry_run=1` answers it and writes nothing. Master only; permission `write`. `command-yuno id=<id> service=treedbs command=save-schema treedb_name=<name>`. With no `treedb_name` (this and the next two) it acts on every treedb opened there and lists the answers. The file in use is read whatever shape its `topics` have, a list or a dict keyed by name (what a node opened with `impose_c_schema` off wrote before 7.25.0): the same schema gives the same diff and publishes the same versions. It writes `__system__`, so it asks whether `__system__` is the master's (it asked the treedb's tranger). A column's `default: {}` is not written: it is the meta-schema's placeholder for "no default", and means nothing in any type. |
+| `treedbs` | The treedbs this service opened (`treedb_system_schema` first), one row each: `impose_c_schema` as it applies to that treedb, `decided_by` (`code`, `dynamic_schema_treedbs`, `impose_c_schema` or `system`), the `c_schema_version`, `in_use_schema_version` and `saved_schema_version`, and `master`: whether that treedb's tranger can write NOW (after 7.25.4; a master that lost its lock reads `false`). Needs `read`. Example row: `{"treedb_name": "treedb_authzs", "impose_c_schema": true, "decided_by": "impose_c_schema", "c_schema_version": 19, "in_use_schema_version": 19, "saved_schema_version": 0, "master": true}`. |
+| `save-schema` | Publish the draft of a schema edited in `__system__`: every topic that differs from the schema file IN USE gets its `topic_version` + 1, the treedb its `schema_version` + 1, and the schema is written to `saved_schemas/<treedb>.treedb_schema.json` under the `__system__` tranger, never over the file in use. `dry_run=1` answers it and writes nothing. Master only; permission `write`. `command-yuno id=<id> service=treedbs command=save-schema treedb_name=<name>`. With no `treedb_name` (this and the next two) it acts on every treedb opened there and lists the answers. The file in use is read whatever shape its `topics` have, a list or a dict keyed by name (what a node opened with `impose_c_schema` off wrote before 7.25.0): the same schema gives the same diff and publishes the same versions. It writes `__system__`, so it asks whether `__system__` is the master's (it asked the treedb's tranger). A column's `default: {}` is not written: it is the meta-schema's placeholder for "no default" -- except on a `required` column, where `{}` is what fills a record created without the field, and it is kept (after 7.25.4). **A draft that is the file in use again withdraws the saved schema**: after "edit, save, undo the edit", a saved schema newer than the file in use is removed (logged *"Saved schema withdrawn, the draft is the schema in use"*), so `saved-schema` answers `can_apply: false` and Apply cannot install what was taken back (after 7.25.4; the save answered "nothing to save" and left it). Both "nothing to save" answers carry `data: {treedb_name, withdrawn, schema_version, path, changes}`, for example `0: <role^name>: the draft of 'treedb_x' is the schema in use: the saved schema_version 13 is withdrawn` with `withdrawn: true`; `dry_run=1` says "would be withdrawn" and removes nothing. |
 | `saved-schema` | What `save-schema` wrote, what it changes against the file in use (`diff`: `added` / `removed` / `changed`, one row per `json2flat` leaf), `impose_c_schema` for that treedb (the code's force included) and `can_apply`. Permission `read`. `draft_changed` names the topics whose draft in `__system__` is NOT SAVED: it is diffed against the saved schema when there is one newer than the file in use, and against the file in use otherwise -- what the schema editor marks as unsaved, rebuilt from it after a reload. Until 7.25.3 it was always the file in use, so a topic saved a moment ago read as unsaved until an Apply. Example after a save: `{"draft_changed": {}, "can_apply": true}`. |
-| `apply-schema` | Put the saved schema in place of the file in use: master only, only when C does not impose that treedb's schema, and only a saved `schema_version` higher than the one in use. It takes effect at the next open of the treedb (restart its yuno). Permission `create-delete`, like `create-topic` and `delete-topic`: it replaces the schema of a treedb whole (`save-schema` asks `write`; in 7.25.3 the two were the other way round). `command-yuno id=<id> service=treedbs command=apply-schema treedb_name=<name>`. The answer carries `data: {treedb_name, applied, saved_schema_version, in_use_schema_version}`; `applied` is `true` only when the file in use was replaced, and it is what says to restart. The file is written to a flushed temporary and renamed over the one in use (mode `rpermission`, 0660), never truncated in place. With no `treedb_name` it is **all or none**: every treedb with something to apply is checked and written to its temporary first, and one that fails leaves every file in use as it was (`-1`, every row `applied: false`); each row is `{treedb_name, result, comment, data}` with that same `data`, and an apply with nothing to apply answers `0` and no row. See [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) §3.11. |
+| `apply-schema` | Put the saved schema in place of the file in use: master only, only when C does not impose that treedb's schema, and only a saved `schema_version` higher than the one in use. It takes effect at the next open of the treedb (restart its yuno). Permission `create-delete`, like `create-topic` and `delete-topic`: it replaces the schema of a treedb whole (`save-schema` asks `write`; in 7.25.3 the two were the other way round). `command-yuno id=<id> service=treedbs command=apply-schema treedb_name=<name>`. The answer carries `data: {treedb_name, applied, saved_schema_version, in_use_schema_version}`; `applied` is `true` only when the file in use was replaced, and it is what says to restart. The file is written to a flushed temporary and renamed over the one in use (mode `rpermission`, 0660), never truncated in place. With no `treedb_name` it is **all or none up to the renames**: every treedb with something to apply is checked and written to its temporary first, and one that fails there leaves every file in use as it was (`-1`, every row `applied: false`). The renames that follow are one by one, and a rename that fails fails alone: its row `applied: false`, the others `true`, the answer `-1` with *"N of M treedb(s) applied, see each one"* -- read the rows, not the result. Each row is `{treedb_name, result, comment, data}` with that same `data`, and an apply with nothing to apply answers `0` and no row. The file is written without the derived `fkey` marks of `parse_schema()` (after 7.25.4 it carried them). See [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) §3.11. |
 
 ---
 
@@ -200,7 +207,7 @@ tree nodes with linking, snapshots, and import/export.
 
 | Command | Description |
 |---------|-------------|
-| `create-node` / `update-node` / `delete-node` | CRUD operations on nodes. A record with `file` columns carries its bytes **beside** the record, in `__files__` — see below. `delete-node` takes two options that are NOT the same thing: `force` unlinks the children, and `ignore_snaps` deletes a node a snapshot still holds (and so breaks that snap's rollback). Since after 7.24.1 `force` no longer implies `ignore_snaps`. `ignore_snaps` erases records a snapshot froze, so it asks `create` (what `shoot-snap` asks) besides `delete` (after 7.25.3). Example: `ycommand -c 'command-yuno id=<id> service=<treedb> command=delete-node topic_name=items record={"id":"item1"} options={"force":1}'`. |
+| `create-node` / `update-node` / `delete-node` | CRUD operations on nodes. A record with `file` columns carries its bytes **beside** the record, in `__files__` — see below. `delete-node` takes two options that are NOT the same thing: `force` unlinks the children, and `ignore_snaps` deletes a node a snapshot still holds (and so breaks that snap's rollback). Since after 7.24.1 `force` no longer implies `ignore_snaps`. `ignore_snaps` erases records a snapshot froze, so it asks `create` (what `shoot-snap` asks) besides `delete` (after 7.25.3). Example: `ycommand -c 'command-yuno id=<id> service=<treedb> command=delete-node topic_name=items record={"id":"item1"} options={"force":1}'`. The comments name the yuno (after 7.25.4): `<role^name>: Node update! 'item1' of topic 'items'`, `<role^name>: Node deleted, 'item1' of topic 'items'`. |
 | `import-assets` | Turn a directory already on this node into N assets of `__assets__`: one command, no bytes on the wire. Confined to `import_root`. It creates index nodes, links nothing, and **answers the map `path -> id`** so the loader can link what it imported. `dry_run=1` says what it would take. The confinement is resolved, not only spelled: a `source_dir` with `..`, or one that resolves out of `import_root` through a symlink, is refused. |
 | `gc-assets` | Delete the assets that **no live node and no snapshot** links — row and bytes. Never automatic: `delete-node force=1` unlinks children rather than deleting them, so an unlinked asset is a normal intermediate state of a bulk operation. `dry_run=1` lists what it would take. |
 | `node` / `nodes` | Retrieve one node / list a topic's nodes (with filters). |
@@ -209,7 +216,7 @@ tree nodes with linking, snapshots, and import/export.
 | `parents` / `children` | Navigate the graph. |
 | `hooks` / `links` | Inspect hook and fkey relationships. |
 | `jtree` | Get a node's full subtree as JSON. |
-| `shoot-snap` / `activate-snap` / `deactivate-snap` | Snapshot management. `deactivate-snap` answers `-1` when the save of the active snap fails: the snap is still ACTIVE on disk and the next start loads it (after 7.25.3; it answered *"Snap deactivated"*). |
+| `shoot-snap` / `activate-snap` / `deactivate-snap` | Snapshot management. `deactivate-snap` answers `-1` when the save of the active snap fails: the snap is still ACTIVE on disk and the next start loads it (after 7.25.3; it answered *"Snap deactivated"*); its success is `<role^name>: Snap deactivated, treedb '<treedb>'`. `activate-snap` answers a snap that does not exist itself, `-1 <role^name>: snap not found: 's9'`, and any other failure as `cannot activate snap 's9' (see the log)` (after 7.25.4; it quoted the process-wide last error message, whoever wrote it). |
 | `snaps` / `snap-content` | Inspect snapshots. |
 | `import-db` / `export-db` | Bulk import/export. |
 | `treedbs` / `topics` | List the treedbs of the tranger / the topics of a treedb. |
@@ -263,12 +270,39 @@ ycommand -c 'command-yuno id=<id> service=<treedb> command=delete-node topic_nam
 ```
 
 **A replica writes nothing, whoever asks.** The commands answer *"READ-ONLY"*
-before anything is read. `gobj_update_node()` from C -- the door C_AUTHZ uses
-for a user created from an event, which no command guards -- returns `NULL` on
-a replica for every update but a `volatil` one (memory only), before it moves
-anything; with `autolink` it used to move the links in memory, fail the save,
-and return the node. It also returns `NULL` when the save after an autolink
-fails.
+before anything is read. From C, every write method refuses before it moves
+anything: `gobj_update_node()` returns `NULL` for every update but a `volatil`
+one (memory only) -- the door C_AUTHZ uses for a user created from an event,
+which no command guards; `gobj_link_nodes()`, `gobj_unlink_nodes()` and
+`gobj_delete_node()` return `-1` and log *"Cannot link nodes / unlink nodes /
+delete a node on a READ-ONLY replica"* (after 7.25.4; they moved the links in
+memory first and met the refused save last); `gobj_create_node()` is refused
+by `treedb_create_node()`; and shooting or activating a snap by the treedb
+(*"Only master can ..."*).
+
+```C
+/*  On a replica: -1, nothing moved  */
+int ret = gobj_delete_node(gobj_node, "items",
+    json_pack("{s:s}", "id", "item00"), json_pack("{s:b}", "force", 1), src);
+```
+
+**An autolink write that fails at its save is PARTIAL.** `update-node` (or
+`gobj_update_node()`) with `autolink` answers `NULL` / `-1` when the append
+after the links fails (a full disk, a store gone), and what it leaves is not
+"nothing":
+
+- **create + autolink**: the record was appended by the create with its
+  ordinary fkeys EMPTY (a create stores none: only its `file` columns, which it
+  links itself, and, for a secondary instance, the links it inherits from the
+  primary); the links were then made in memory and their save failed. On disk
+  the node exists without those parents; in memory it has them until the next
+  reload.
+- **update + autolink**: the fields and the links were changed in memory, and
+  nothing reached the disk. Memory and disk differ until the next reload,
+  which brings back the old record.
+
+Write it again once the cause is fixed: the same `update-node` with `autolink`
+converges.
 
 `EV_TREEDB_UPDATE_NODE` is an input event for gobjs of the SAME yuno
 (`gobj_send_event()`), with no permission asked. It is not a public event since
