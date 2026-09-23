@@ -411,11 +411,7 @@ PUBLIC json_t *msg2db_open_db(
              *  keeps, per pkey2, the LAST message read, so what it holds of
              *  that key is the last one read before the damage -- an OLD
              *  message, served as current (independent review of the fourth
-             *  fix round). Dropping the whole key (3b938baa9) was the other
-             *  error: the pkey2s whose current message was readable, after
-             *  the damage, were absent too, and the alarms of db_history
-             *  announced an active alarm again as new and lost the clear of
-             *  one that ended (independent review of the fifth fix round).
+             *  fix round).
              *
              *  The key is loaded again BACKWARD, newest first, keeping the
              *  FIRST message of each pkey2 (load_record_callback with

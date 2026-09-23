@@ -255,6 +255,15 @@ PRIVATE json_int_t load_first_and_last_record_md(
     md2_record_t *md_first_record,
     md2_record_t *md_last_record
 );
+PRIVATE int check_torn_md2_tail(
+    hgobj gobj,
+    const char *topic_directory,
+    const char *key,
+    const char *file_id,
+    int fd,
+    off_t md2_size,
+    off_t content_end
+);
 
 PRIVATE json_int_t update_new_record_from_mem(
     hgobj gobj,
@@ -3598,15 +3607,38 @@ PUBLIC int tranger2_append_record(
          *  an earlier append wrote its row in part and could not cut it
          *  back, and that append was refused. The row of THIS append is
          *  written after the whole rows, never after the torn one: there
-         *  no read finds it, and the cut of the next open would remove
-         *  bytes of an acknowledged row (independent review of the eighth
-         *  fix round, repro review8_tr/B). The md2 is cut back first, as
-         *  a master's open does (load_first_and_last_record_md). If the
-         *  cut fails, the append is refused.
+         *  no read finds it. The md2 is cut back first, as a master's open
+         *  does (load_first_and_last_record_md), and only when its tail is
+         *  a torn row after a valid last row (check_torn_md2_tail). If the
+         *  tail must not be cut, or the cut fails, the append is refused.
          */
         off_t torn = offset % (off_t)sizeof(md2_record_t);
         if(torn != 0) {
             off_t whole = offset - torn;
+            if(check_torn_md2_tail(
+                    gobj,
+                    json_string_value(json_object_get(topic, "directory")),
+                    key_value,
+                    file_id,
+                    md2_fd,
+                    offset,
+                    __offset__
+                ) < 0) {
+                // The cause is already logged
+                cut_back_content(gobj, topic, key_value, file_id, __offset__);
+                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TRANGER,
+                    "msg",          "%s", "Cannot append record, its md2 file ends in a part of a row that must not be cut back: the append is refused",
+                    "topic",        "%s", topic_name,
+                    "key",          "%s", key_value,
+                    "file_id",      "%s", file_id,
+                    "md2_size",     "%ld", (long)offset,
+                    NULL
+                );
+                JSON_DECREF(record)
+                return -1;
+            }
             if(ftruncate(md2_fd, whole) < 0 || lseek(md2_fd, whole, SEEK_SET) != whole) {
                 int err = errno;
                 cut_back_content(gobj, topic, key_value, file_id, __offset__);
@@ -7771,10 +7803,7 @@ PRIVATE int widen_cell_from_rows(
  *  file whole. A marker that cannot be written is logged, and the cell says
  *  so (`<mark>_not_on_disk`): every later append to the file tries it again
  *  (mark_file_before_append), because until it is there a reload -- or a
- *  replica -- misreads the file's range. It used to return with the cell
- *  unflagged, and the master itself took the file for one in order: the
- *  early end of a tm scan hid rows 7.25.4 served (M-A of the independent
- *  review of the second fix round).
+ *  replica -- misreads the file's range.
  *
  *  No fsync: an append is not fsync'ed either. Written before the md2 row
  *  (mark_file_before_append), the marker is never behind the row it
@@ -7923,7 +7952,7 @@ PRIVATE int read_md2_row(
     const char *full_path,
     off_t offset,
     md2_record_t *md_record,
-    const char *which   // "first" or "last"
+    const char *which   // "first", "last" or "end" (the 32 bytes at the end of a torn md2)
 )
 {
     ssize_t ln = pread(fd, md_record, sizeof(md2_record_t), offset);
@@ -7963,6 +7992,152 @@ PRIVATE int read_md2_row(
 }
 
 /***************************************************************************
+ *  A md2 whose size is not a whole number of rows: can its tail be taken
+ *  for a torn row, and cut back? Return 0 when yes, -1 (a CRITICAL logged)
+ *  when not. `fd` is the md2, open for reading. `content_end` is where
+ *  the content the md2 describes ends: an append passes the offset of its
+ *  own record, which it already wrote to the content file; -1 takes the
+ *  size of the content file.
+ *
+ *  Two shapes end on no row boundary:
+ *    - a TORN ROW: whole rows, then 1 to 31 bytes of a row whose write did
+ *      not end. That append was never acknowledged, and the cut is safe.
+ *    - the shape 7.25.4 left: whole rows, the bytes of a torn row, then
+ *      rows that 7.25.4 wrote at the end of the file and acknowledged. The
+ *      last 32 bytes of the file are the last of these rows, and its
+ *      content ends the content file. A cut removes the end of that row.
+ *
+ *  The tail is taken for a torn row only when:
+ *    1. the 32 bytes at the end of the file are NOT a row whose content
+ *       ends exactly at the end of the content file (__size__ > 0 and
+ *       __offset__ + __size__ == the content size), and
+ *    2. the last whole row IS a valid row: __size__ > 0 and its content
+ *       inside the content file, the checks a read applies.
+ *  When 1 fails, it is the shape 7.25.4 left. When 2 fails, the tail does
+ *  not follow a good row, and a cut does not make the file good.
+ *
+ *  Why 1 does not fail for a torn row. With k torn bytes, the 32 bytes at
+ *  the end are the last 32-k bytes of the last whole row, then the first
+ *  k bytes of the torn row. Read as a row, their __offset__ and __size__
+ *  (bytes 16 to 31) are not the fields of any row: they are bytes of the
+ *  last row's fields and of the torn row's __t__ and __tm__, moved by k
+ *  bytes. For k < 8 they are the last row's __offset__ and __size__
+ *  multiplied by 256^k, with the top bytes of a time below them: their sum
+ *  is more than 256 times the end of the last row's content. For k >= 8,
+ *  at least one of them holds bytes of a time (__t__ or __tm__, with the
+ *  flags above it) out of their place. A sum that is exactly the content
+ *  size, to the byte, is then a coincidence of whole 64-bit values, not a
+ *  shape that a write makes. If it happens, the file is flagged, not cut:
+ *  the safe side. Zero bytes (a file that a crash made longer) give a
+ *  __size__ of 0, or one made of the bytes of a time, and do not match.
+ ***************************************************************************/
+PRIVATE int check_torn_md2_tail(
+    hgobj gobj,
+    const char *topic_directory,
+    const char *key,
+    const char *file_id,
+    int fd,
+    off_t md2_size,
+    off_t content_end   // the end of the content the md2 describes, -1: the content file size
+)
+{
+    off_t row_size = (off_t)sizeof(md2_record_t);
+    if(md2_size < row_size) {
+        return 0;   // no whole row: the file's first row is the torn one
+    }
+
+    char name[NAME_MAX + 8];
+    char md2_path[PATH_MAX];
+    char content_path[PATH_MAX];
+    snprintf(name, sizeof(name), "%s.md2", file_id);
+    if(!build_path(md2_path, sizeof(md2_path), topic_directory, "keys", key, name, NULL)) {
+        return -1;  // Error already logged
+    }
+    snprintf(name, sizeof(name), "%s.json", file_id);
+    if(!build_path(content_path, sizeof(content_path), topic_directory, "keys", key, name, NULL)) {
+        return -1;  // Error already logged
+    }
+    const char *topic_name = strrchr(topic_directory, '/');
+    topic_name = topic_name? topic_name + 1: topic_directory;
+
+    off_t content_file_size = content_end;
+    if(content_file_size < 0) {
+        struct stat content_st;
+        if(stat(content_path, &content_st) < 0) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot check the torn tail of a md2 file, its content file cannot be read: not cut",
+                "topic",        "%s", topic_name,
+                "key",          "%s", key,
+                "file_id",      "%s", file_id,
+                "path",         "%s", content_path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            return -1;
+        }
+        content_file_size = content_st.st_size;
+    }
+    uint64_t content_size = (uint64_t)content_file_size;
+
+    off_t end_at = md2_size - row_size;
+    md2_record_t end_row;
+    if(read_md2_row(gobj, fd, md2_path, end_at, &end_row, "end") < 0) {
+        return -1;  // Error already logged
+    }
+    if(end_row.__size__ > 0 &&
+            end_row.__offset__ < content_size &&
+            end_row.__size__ == content_size - end_row.__offset__) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "md2 file of the key ends in a whole row that is not on a row boundary: written by 7.25.4 after a torn row; not cut, repair it by hand",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            "file_id",      "%s", file_id,
+            "path",         "%s", md2_path,
+            "md2_size",     "%ld", (long)md2_size,
+            "content_size", "%lu", (unsigned long)content_size,
+            "row_at",       "%ld", (long)end_at,
+            "__offset__",   "%lu", (unsigned long)end_row.__offset__,
+            "__size__",     "%lu", (unsigned long)end_row.__size__,
+            NULL
+        );
+        return -1;
+    }
+
+    off_t last_at = md2_size - (md2_size % row_size) - row_size;
+    md2_record_t last_row;
+    if(read_md2_row(gobj, fd, md2_path, last_at, &last_row, "last") < 0) {
+        return -1;  // Error already logged
+    }
+    if(last_row.__size__ == 0 ||
+            last_row.__offset__ > content_size ||
+            last_row.__size__ > content_size - last_row.__offset__) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "md2 file of the key ends in a part of a row after a last whole row that is not valid: not cut, repair it by hand",
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            "file_id",      "%s", file_id,
+            "path",         "%s", md2_path,
+            "md2_size",     "%ld", (long)md2_size,
+            "content_size", "%lu", (unsigned long)content_size,
+            "row_at",       "%ld", (long)last_at,
+            "__offset__",   "%lu", (unsigned long)last_row.__offset__,
+            "__size__",     "%lu", (unsigned long)last_row.__size__,
+            NULL
+        );
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
  *  Read the first and the last row of a md2 file.
  *  Return its number of rows, or -1 (logged) when it cannot be read.
  *
@@ -7974,22 +8149,28 @@ PRIVATE int read_md2_row(
  *  content file that is not empty (load_key_cache_from_disk).
  *
  *  A MASTER cuts the md2 back to its whole rows, with one warning. The cut
- *  removes fewer bytes than one row, all of them after the last whole row,
- *  so it never removes a row that was acknowledged: an append always
- *  writes its row on a row boundary, it cuts a torn tail back first
- *  (tranger2_append_record). The content file is left as it is: its bytes
- *  after the last row belong to no row, and the next append writes at its
- *  end. Up to 7.25.4 the cache build logged a CRITICAL ("Cannot read last
- *  record, md2 file corrupted") and left the whole file out of the key,
- *  on a master and on a replica: its acknowledged rows were missing from
- *  every load, and nothing failed.
+ *  removes fewer bytes than one row, all of them after the last whole row.
+ *  An append writes its row on a row boundary, it cuts a torn tail back
+ *  first (tranger2_append_record). 7.25.4 did not: after a torn row it
+ *  wrote the next rows at the end of the file, on no row boundary, and
+ *  those rows were acknowledged. Cutting such a file removes the end of
+ *  its last acknowledged row. So the tail is cut only when it is a torn
+ *  row after a valid last row (check_torn_md2_tail); if not, a CRITICAL
+ *  names the shape, the file is not cut, and the caller flags it. The
+ *  content file is left as it is: its bytes after the last row belong to
+ *  no row, and the next append writes at its end. Up to 7.25.4 the cache
+ *  build logged a CRITICAL ("Cannot read last record, md2 file corrupted")
+ *  and left the whole file out of the key, on a master and on a replica:
+ *  its acknowledged rows were missing from every load, and nothing failed.
  *
  *  A REPLICA never writes: it reads the whole rows only. It also sees a
  *  torn row when the master is writing that row; the row is counted when
  *  the master's next notification of the file arrives. Nothing is logged
- *  here: for a replica it is not an error. A file with no whole row is a
- *  md2 of 0 rows, and when its content is not empty the cache build logs
- *  the 0-rows warning for it (load_key_cache_from_disk).
+ *  for a torn row: for a replica it is not an error. The replica checks the tail
+ *  as the master does, so it does not read the rows of a file that 7.25.4
+ *  wrote on no row boundary. A file with no whole row is a md2 of 0 rows,
+ *  and when its content is not empty the cache build logs the 0-rows
+ *  warning for it (load_key_cache_from_disk).
  ***************************************************************************/
 PRIVATE json_int_t load_first_and_last_record_md(
     hgobj gobj,
@@ -8042,6 +8223,17 @@ PRIVATE json_int_t load_first_and_last_record_md(
     off_t torn = size % (off_t)sizeof(md2_record_t);
     if(torn != 0) {
         off_t whole = size - torn;
+        char file_id[NAME_MAX];
+        snprintf(file_id, sizeof(file_id), "%s", filename);
+        char *dot = strrchr(file_id, '.');
+        if(dot) {
+            *dot = 0;
+        }
+        if(check_torn_md2_tail(gobj, topic_directory, key, file_id, fd, size, -1) < 0) {
+            // Error already logged
+            close(fd);
+            return -1;
+        }
         if(master) {
             if(truncate(full_path, whole) < 0) {
                 gobj_log_critical(gobj, 0,
@@ -8061,12 +8253,6 @@ PRIVATE json_int_t load_first_and_last_record_md(
                 return -1;
             }
 
-            char file_id[NAME_MAX];
-            snprintf(file_id, sizeof(file_id), "%s", filename);
-            char *dot = strrchr(file_id, '.');
-            if(dot) {
-                *dot = 0;
-            }
             const char *topic_name = strrchr(topic_directory, '/');
             topic_name = topic_name? topic_name + 1: topic_directory;
             gobj_log_warning(gobj, 0,
@@ -11578,11 +11764,8 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
          *  It used to be closed with its load_failed unread, and the caller
          *  took what it got for the whole topic (M2 of the 2026-09-23
          *  independent review: the snapshot guard of the assets read "held
-         *  by nothing"). Refusing the whole list instead (6d5760377) was
-         *  worse: the keys after the bad one were not loaded and no feed was
-         *  opened, so a treedb topic came up with 1 node of 6 and a replica
-         *  stopped following it. A caller that must not act on a partial
-         *  history reads `load_failed`.
+         *  by nothing"). A caller that must not act on a partial history
+         *  reads `load_failed`.
          */
         json_t *failed_keys = json_array();
         json_t *jn_keys = tranger2_list_keys(tranger, topic_name);

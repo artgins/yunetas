@@ -29,10 +29,8 @@
  *      4. a RUNNING master finds its md2 torn at the next append (a row
  *         written in part whose cut back failed leaves this shape): the
  *         append cuts the md2 back to its whole rows first, with the same
- *         warning, and writes its row there. Before the fix the row went
- *         at offset 141, where no read finds it: the list said load_failed,
- *         and the cut of the next restart removed bytes of that
- *         acknowledged row.
+ *         warning, and writes its row there. Up to 7.25.4 the row went
+ *         after the torn bytes and the whole file was left out of the key.
  *      5. a md2 flagged unreadable (mode 000) that also ends torn: the
  *         append that finds it readable again counts it, cuts it back,
  *         unflags it, and writes its row as the file's next row.
@@ -49,6 +47,23 @@
  *      9. a REPLICA opens a md2 of 13 bytes only: it has no whole row, so
  *         it is a md2 of 0 rows beside a content that is not empty, and
  *         the replica logs the warning of case 3. It does not cut.
+ *     10. a md2 as 7.25.4 left it after a torn row: 3 whole rows, 13 bytes
+ *         of a row whose append was refused, and 2 rows acknowledged after
+ *         them, on no row boundary (7.25.4 wrote them at the end of the
+ *         file). Its last 32 bytes are a whole row that ends the content
+ *         file. A MASTER does not cut it (the cut would remove the last 13
+ *         bytes of an acknowledged row): a CRITICAL names the shape, the
+ *         file is flagged, the load says load_failed, an append into the
+ *         file is refused, and the md2 bytes do not change.
+ *     11. a REPLICA opens the same shape: the same CRITICAL, the file is
+ *         flagged, and it does not read the rows on the row boundaries.
+ *     12. a torn md2 whose last whole row is not a valid row (its content
+ *         goes past the end of the content file): the tail is not an
+ *         append that was never acknowledged after a good row. It is not
+ *         cut: a CRITICAL, and the file is flagged.
+ *     13. a RUNNING master finds the shape of case 10 at the next append:
+ *         the append is refused, its content is cut back, and the md2
+ *         bytes do not change.
  *
  *      Cases 5 and 6 need a mode that stops a read or a remove: they are
  *      SKIPPED, and say so, when the test runs as root.
@@ -82,6 +97,12 @@
 #define MSG_NO_ROWS     "md2 file of the key with no rows and a content file that is not empty: an append that was never acknowledged, the file is ignored"
 #define MSG_FLAG        "md2 file of the key unreadable when its cache was built: every load of the key says load_failed"
 #define MSG_UNFLAG      "md2 file of the key readable again: it is counted, and the key is not flagged for it"
+#define MSG_725         "md2 file of the key ends in a whole row that is not on a row boundary: written by 7.25.4 after a torn row; not cut, repair it by hand"
+#define MSG_LAST_BAD    "md2 file of the key ends in a part of a row after a last whole row that is not valid: not cut, repair it by hand"
+#define MSG_APPEND_NOT_CUT "Cannot append record, its md2 file ends in a part of a row that must not be cut back: the append is refused"
+#define MSG_APPEND_FLAGGED "Cannot append record, its file is flagged unreadable: its row would follow rows no cell counts"
+#define MSG_ITER        "The history of the key is not whole: a md2 file of it could not be read when its cache was built"
+#define MSG_LIST        "Cannot load the whole history of a key of the list: the records read before the failure were handed, the list goes on with the next key"
 
 /***************************************************************
  *              Data
@@ -842,6 +863,327 @@ PRIVATE int test_replica_only_row_torn(void)
     return result;
 }
 
+/*
+ *  The keyless list forward of a store with A's file of day 1 flagged: it
+ *  stops at the file, and says load_failed
+ */
+PRIVATE int check_list_flagged(json_t *tranger, const char *what)
+{
+    int result = 0;
+    got[0] = 0;
+    set_expected_results(what,
+        json_pack("[{s:s},{s:s}]",
+            "msg", MSG_ITER,
+            "msg", MSG_LIST
+        ), NULL, NULL, 1
+    );
+    json_t *match_cond = json_pack("{s:I, s:b, s:I}",
+        "to_rowid", (json_int_t)1000000,   // no realtime
+        "backward", 0,
+        "load_record_callback", (json_int_t)(uintptr_t)on_record
+    );
+    json_t *list = tranger2_open_list(tranger, TOPIC_NAME, match_cond, json_object(), "", FALSE, "");
+    if(!list) {
+        printf("%sERROR%s --> %s: list REFUSED\n", On_Red BWhite, Color_Off, what);
+        test_json(NULL);
+        return -1;
+    }
+    result += expect(what, got, "A@1 B@1");
+    if(!json_is_true(json_object_get(list, "load_failed"))) {
+        printf("%sERROR%s --> %s: no load_failed\n", On_Red BWhite, Color_Off, what);
+        result += -1;
+    }
+    tranger2_close_list(tranger, list);
+    result += test_json(NULL);
+    return result;
+}
+
+/*
+ *  The whole md2 of A's file of `day`, to compare it after
+ */
+PRIVATE ssize_t read_md2(const char *day, char *bf, size_t bfsize)
+{
+    char path[PATH_MAX];
+    file_of_a(path, sizeof(path), day, "md2");
+    int fd = open(path, O_RDONLY|O_CLOEXEC);
+    if(fd < 0) {
+        printf("%sERROR%s --> cannot open %s\n", On_Red BWhite, Color_Off, path);
+        return -1;
+    }
+    ssize_t ln = pread(fd, bf, bfsize, 0);
+    close(fd);
+    return ln;
+}
+
+PRIVATE int expect_md2_unchanged(const char *what, const char *day, const char *before, ssize_t before_ln)
+{
+    char now[16*ROW];
+    ssize_t ln = read_md2(day, now, sizeof(now));
+    if(ln != before_ln || memcmp(now, before, (size_t)ln) != 0) {
+        printf("%sERROR%s --> %s: the md2 changed, %ld bytes, expected %ld\n",
+            On_Red BWhite, Color_Off, what, (long)ln, (long)before_ln);
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ *  The md2 of A's file of day 1 with 6 rows (v 2..7), rewritten as 7.25.4
+ *  left it: rows 1-3, 13 bytes of row 4 (an append refused after a torn
+ *  write), then rows 5 and 6, acknowledged, at 109 and 141. The content
+ *  file keeps the 6 records. `saved` gets the md2 as written.
+ */
+PRIVATE ssize_t make_725_shape(char *saved, size_t saved_size)
+{
+    char rows[6*ROW];
+    char path[PATH_MAX];
+    file_of_a(path, sizeof(path), "2000-01-02", "md2");
+    if(read_md2("2000-01-02", rows, sizeof(rows)) != (ssize_t)sizeof(rows)) {
+        printf("%sERROR%s --> the md2 has not 6 rows\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    int fd = open(path, O_WRONLY|O_CLOEXEC);
+    if(fd < 0 ||
+            ftruncate(fd, 0) < 0 ||
+            pwrite(fd, rows, 3*ROW, 0) != 3*ROW ||
+            pwrite(fd, rows + 3*ROW, TORN, 3*ROW) != TORN ||
+            pwrite(fd, rows + 4*ROW, 2*ROW, 3*ROW + TORN) != 2*ROW) {
+        printf("%sERROR%s --> cannot rewrite %s\n", On_Red BWhite, Color_Off, path);
+        if(fd >= 0) {
+            close(fd);
+        }
+        return -1;
+    }
+    close(fd);
+    return read_md2("2000-01-02", saved, saved_size);
+}
+
+PRIVATE off_t content_size_of_a(const char *day)
+{
+    char path[PATH_MAX];
+    file_of_a(path, sizeof(path), day, "json");
+    return filesize(path);
+}
+
+/*
+ *  build_store(), then rows v 5, 6, 7 in A's file of day 1
+ */
+PRIVATE int build_store_6_rows(void)
+{
+    if(build_store() < 0) {
+        return -1;
+    }
+    set_expected_results("6 rows: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup(TRUE);
+    if(!tranger || !tranger2_open_topic(tranger, TOPIC_NAME, FALSE)) {
+        printf("%sERROR%s --> cannot open the store\n", On_Red BWhite, Color_Off);
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        return -1;
+    }
+    append(tranger, "A", 1, 5);
+    append(tranger, "A", 1, 6);
+    append(tranger, "A", 1, 7);
+    tranger2_shutdown(tranger);
+    test_json(NULL);    // the setup logs are not what is tested
+    return 0;
+}
+
+/***************************************************************************
+ *  10, 11. The shape 7.25.4 left: a master and a replica do not cut it
+ ***************************************************************************/
+PRIVATE int test_725_shape(BOOL master)
+{
+    int result = 0;
+    const char *case_name = master? "10. a master": "11. a replica";
+    char test[256];
+    char before[16*ROW];
+    if(build_store_6_rows() < 0) {
+        return -1;
+    }
+    ssize_t before_ln = make_725_shape(before, sizeof(before));
+    if(before_ln != 3*ROW + TORN + 2*ROW) {
+        return -1;
+    }
+    off_t content_size = content_size_of_a("2000-01-02");
+
+    snprintf(test, sizeof(test), "%s opens the shape 7.25.4 left: not cut, flagged", case_name);
+    set_expected_results(test,
+        json_pack("[{s:s, s:s, s:s, s:I, s:I, s:I},{s:s, s:s, s:s}]",
+            "msg", MSG_725,
+            "key", "A",
+            "file_id", "2000-01-02",
+            "md2_size", (json_int_t)(3*ROW + TORN + 2*ROW),
+            "content_size", (json_int_t)content_size,
+            "row_at", (json_int_t)(3*ROW + TORN + ROW),
+            "msg", MSG_FLAG,
+            "key", "A",
+            "file_id", "2000-01-02"
+        ), NULL, NULL, 1
+    );
+    json_t *tranger = startup(master);
+    if(!tranger || !tranger2_open_topic(tranger, TOPIC_NAME, FALSE)) {
+        printf("%sERROR%s --> %s: cannot open the store\n", On_Red BWhite, Color_Off, case_name);
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        test_json(NULL);
+        return -1;
+    }
+    result += test_json(NULL);
+    snprintf(test, sizeof(test), "%s: after the open", case_name);
+    result += expect_md2_unchanged(test, "2000-01-02", before, before_ln);
+
+    snprintf(test, sizeof(test), "%s: the list", case_name);
+    result += check_list_flagged(tranger, test);
+
+    if(master) {
+        snprintf(test, sizeof(test), "%s: an append into the file is refused", case_name);
+        set_expected_results(test,
+            json_pack("[{s:s},{s:s, s:s, s:s}]",
+                "msg", MSG_725,
+                "msg", MSG_APPEND_FLAGGED,
+                "key", "A",
+                "file_id", "2000-01-02"
+            ), NULL, NULL, 1
+        );
+        if(append(tranger, "A", 1, 8) == 0) {
+            printf("%sERROR%s --> %s: the append was taken\n", On_Red BWhite, Color_Off, case_name);
+            result += -1;
+        }
+        result += test_json(NULL);
+        snprintf(test, sizeof(test), "%s: after the append", case_name);
+        result += expect_md2_unchanged(test, "2000-01-02", before, before_ln);
+    }
+
+    set_expected_results("the shutdown", NULL, NULL, NULL, 1);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+    snprintf(test, sizeof(test), "%s: after the shutdown", case_name);
+    result += expect_md2_unchanged(test, "2000-01-02", before, before_ln);
+
+    return result;
+}
+
+/***************************************************************************
+ *  12. A torn md2 whose last whole row is not valid: not cut
+ ***************************************************************************/
+PRIVATE int test_last_row_not_valid(void)
+{
+    int result = 0;
+    char before[16*ROW];
+    if(build_store() < 0 || tear_md2("2000-01-02", 3*ROW + TORN) < 0) {
+        return -1;
+    }
+    /*
+     *  The content of the last whole row goes past the end of the content
+     */
+    char path[PATH_MAX];
+    file_of_a(path, sizeof(path), "2000-01-02", "json");
+    off_t content_size = filesize(path) - 5;
+    if(truncate(path, content_size) < 0) {
+        printf("%sERROR%s --> 12: cannot cut %s\n", On_Red BWhite, Color_Off, path);
+        return -1;
+    }
+    ssize_t before_ln = read_md2("2000-01-02", before, sizeof(before));
+
+    set_expected_results("12. a master: the last whole row is not valid, not cut, flagged",
+        json_pack("[{s:s, s:s, s:s, s:I, s:I, s:I},{s:s, s:s, s:s}]",
+            "msg", MSG_LAST_BAD,
+            "key", "A",
+            "file_id", "2000-01-02",
+            "md2_size", (json_int_t)(3*ROW + TORN),
+            "content_size", (json_int_t)content_size,
+            "row_at", (json_int_t)(2*ROW),
+            "msg", MSG_FLAG,
+            "key", "A",
+            "file_id", "2000-01-02"
+        ), NULL, NULL, 1
+    );
+    json_t *tranger = startup(TRUE);
+    if(!tranger || !tranger2_open_topic(tranger, TOPIC_NAME, FALSE)) {
+        printf("%sERROR%s --> 12: cannot open the store\n", On_Red BWhite, Color_Off);
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        test_json(NULL);
+        return -1;
+    }
+    result += test_json(NULL);
+    result += expect_md2_unchanged("12. after the open", "2000-01-02", before, before_ln);
+    result += check_list_flagged(tranger, "12. the list");
+
+    set_expected_results("12. the shutdown", NULL, NULL, NULL, 1);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  13. A running master finds the shape 7.25.4 left at the next append
+ ***************************************************************************/
+PRIVATE int test_725_shape_at_append(void)
+{
+    int result = 0;
+    char before[16*ROW];
+    if(build_store_6_rows() < 0) {
+        return -1;
+    }
+
+    set_expected_results("13. a running master", NULL, NULL, NULL, 1);
+    json_t *tranger = startup(TRUE);
+    if(!tranger || !tranger2_open_topic(tranger, TOPIC_NAME, FALSE)) {
+        printf("%sERROR%s --> 13: cannot open the store\n", On_Red BWhite, Color_Off);
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        test_json(NULL);
+        return -1;
+    }
+    result += check_rows(tranger, "13. the range", 7);
+    result += test_json(NULL);
+
+    ssize_t before_ln = make_725_shape(before, sizeof(before));
+    if(before_ln != 3*ROW + TORN + 2*ROW) {
+        tranger2_shutdown(tranger);
+        return -1;
+    }
+    off_t content_size = content_size_of_a("2000-01-02");
+
+    set_expected_results("13. the append is refused, the md2 is not cut",
+        json_pack("[{s:s, s:s, s:s, s:I, s:I},{s:s, s:s, s:s, s:I}]",
+            "msg", MSG_725,
+            "key", "A",
+            "file_id", "2000-01-02",
+            "md2_size", (json_int_t)before_ln,
+            "content_size", (json_int_t)content_size,
+            "msg", MSG_APPEND_NOT_CUT,
+            "key", "A",
+            "file_id", "2000-01-02",
+            "md2_size", (json_int_t)before_ln
+        ), NULL, NULL, 1
+    );
+    if(append(tranger, "A", 1, 8) == 0) {
+        printf("%sERROR%s --> 13: the append was taken\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+    result += expect_md2_unchanged("13. after the append", "2000-01-02", before, before_ln);
+    if(content_size_of_a("2000-01-02") != content_size) {
+        printf("%sERROR%s --> 13: the content of the refused append was not cut back\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    set_expected_results("13. the shutdown", NULL, NULL, NULL, 1);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
 /***************************************************************************
  *  do_test
  ***************************************************************************/
@@ -861,6 +1203,10 @@ PRIVATE int do_test(void)
     result += test_replica_feed_converges();
     result += test_replica_feed_half_written();
     result += test_replica_only_row_torn();
+    result += test_725_shape(TRUE);
+    result += test_725_shape(FALSE);
+    result += test_last_row_not_valid();
+    result += test_725_shape_at_append();
 
     return result;
 }

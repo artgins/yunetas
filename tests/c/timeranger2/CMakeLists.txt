@@ -82,6 +82,7 @@ set(SRCS
     test_uncommitted_append
     test_torn_md2_tail
     test_md2_read_error
+    test_md2_short_write
     test_testing
 )
 
@@ -111,6 +112,11 @@ foreach(test ${SRCS})
     if(test STREQUAL "test_md2_read_error")
         # The test fails the read of one md2 file in its own __wrap_pread()
         target_link_options(${binary} PRIVATE "-Wl,--wrap=pread")
+    endif()
+    if(test STREQUAL "test_md2_short_write")
+        # The test writes a md2 row short and fails its cut back, in its own
+        # __wrap_write() and __wrap_ftruncate()
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=write,--wrap=ftruncate")
     endif()
 
     add_test("${current_directory_name}/${test}" ${binary})
