@@ -356,6 +356,27 @@ PRIVATE void track_submit(yev_event_t *yev_event, struct io_uring_sqe *sqe)
     yev_event->in_flight++;
 }
 
+/***************************************************************************
+ *  A free submission queue entry, or NULL when the queue is full.
+ *
+ *  Every entry is submitted right after it is prepared, so a full queue
+ *  holds entries that a submit did not hand to the kernel: they are
+ *  flushed (io_uring_submit) and the entry is asked for once more.
+ *  io_uring_get_sqe() answers NULL for a full queue, and every caller used
+ *  that NULL as an entry: a segfault. NULL is not logged here: the caller
+ *  logs it, with what it could not submit, and does not change the state
+ *  of its event.
+ ***************************************************************************/
+PRIVATE struct io_uring_sqe *get_sqe(yev_loop_t *yev_loop)
+{
+    struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+    if(!sqe) {
+        io_uring_submit(&yev_loop->ring);
+        sqe = io_uring_get_sqe(&yev_loop->ring);
+    }
+    return sqe;
+}
+
 PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 {
     if(!cqe) {
@@ -629,7 +650,20 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         /*
                          *  Rearm accept event
                          */
-                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                        struct io_uring_sqe *sqe = get_sqe(yev_loop);
+                        if(!sqe) {
+                            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_LIBURING,
+                                "msg",          "%s", "io_uring_get_sqe() FAILED, the submission queue is full: accept event NOT re-armed",
+                                "type",         "%s", yev_event_type_name(yev_event),
+                                "yev_state",    "%s", yev_get_state_name(yev_event),
+                                "fd",           "%d", yev_get_fd(yev_event),
+                                "p",            "%p", yev_event,
+                                NULL
+                            );
+                            break;
+                        }
                         track_submit(yev_event, sqe);
                         io_uring_prep_accept(
                             sqe,
@@ -736,7 +770,20 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         /*
                          *  Rearm periodic timer event
                          */
-                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                        struct io_uring_sqe *sqe = get_sqe(yev_loop);
+                        if(!sqe) {
+                            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_LIBURING,
+                                "msg",          "%s", "io_uring_get_sqe() FAILED, the submission queue is full: periodic timer NOT re-armed",
+                                "type",         "%s", yev_event_type_name(yev_event),
+                                "yev_state",    "%s", yev_get_state_name(yev_event),
+                                "fd",           "%d", yev_get_fd(yev_event),
+                                "p",            "%p", yev_event,
+                                NULL
+                            );
+                            break;
+                        }
                         track_submit(yev_event, sqe);
                         io_uring_prep_read(
                             sqe,
@@ -1072,7 +1119,20 @@ PUBLIC int yev_loop_stop(yev_loop_h yev_loop_)
         }
 
         struct io_uring_sqe *sqe;
-        sqe = io_uring_get_sqe(&yev_loop->ring);
+        sqe = get_sqe(yev_loop);
+        if(!sqe) {
+            /*
+             *  Not stopping: a later call tries again
+             */
+            yev_loop->stopping = FALSE;
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBURING,
+                "msg",          "%s", "io_uring_get_sqe() FAILED, the submission queue is full: loop NOT stopped",
+                NULL
+            );
+            return -1;
+        }
         io_uring_sqe_set_data(sqe, NULL);  // HACK CQE event without data is loop ending
         io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ALL|IORING_ASYNC_CANCEL_ANY);
         io_uring_submit(&yev_loop->ring);
@@ -1342,7 +1402,19 @@ PUBLIC int yev_start_event(
                     return -1;
                 }
 
-                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                struct io_uring_sqe *sqe = get_sqe(yev_loop);
+                if(!sqe) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING,
+                        "msg",          "%s", "io_uring_get_sqe() FAILED, the submission queue is full: event NOT started",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
                 track_submit(yev_event, sqe);
                 /*
                  *  Use the file descriptor fd to start connecting to the destination
@@ -1382,7 +1454,19 @@ PUBLIC int yev_start_event(
                      *  Use the file descriptor fd to start accepting a connection request
                      *  described by the socket address at addr and of structure length addrlen
                      */
-                    struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                    struct io_uring_sqe *sqe = get_sqe(yev_loop);
+                    if(!sqe) {
+                        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_LIBURING,
+                            "msg",          "%s", "io_uring_get_sqe() FAILED, the submission queue is full: event NOT started",
+                            "event_type",   "%s", yev_event_type_name(yev_event),
+                            "yev_state",    "%s", yev_get_state_name(yev_event),
+                            "p",            "%p", yev_event,
+                            NULL
+                        );
+                        return -1;
+                    }
                     track_submit(yev_event, sqe);
 
                     if(multishot_available) {
@@ -1452,7 +1536,7 @@ PUBLIC int yev_start_event(
                     return -1;
                 }
 
-                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                struct io_uring_sqe *sqe = get_sqe(yev_loop);
                 if(sqe) {
                     track_submit(yev_event, sqe);
                     io_uring_prep_write(
@@ -1468,7 +1552,7 @@ PUBLIC int yev_start_event(
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK|LOG_OPT_ABORT,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_LIBURING,
-                        "msg",          "%s", "io_uring_get_sqe() FAILED",
+                        "msg",          "%s", "io_uring_get_sqe() FAILED, the submission queue is full",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
@@ -1519,7 +1603,19 @@ PUBLIC int yev_start_event(
                     return -1;
                 }
 
-                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                struct io_uring_sqe *sqe = get_sqe(yev_loop);
+                if(!sqe) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING,
+                        "msg",          "%s", "io_uring_get_sqe() FAILED, the submission queue is full: event NOT started",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
                 track_submit(yev_event, sqe);
                 io_uring_prep_read(
                     sqe,
@@ -1586,7 +1682,7 @@ PUBLIC int yev_start_event(
                     return -1;
                 }
 
-                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                struct io_uring_sqe *sqe = get_sqe(yev_loop);
                 if(sqe) {
                     track_submit(yev_event, sqe);
 
@@ -1605,7 +1701,7 @@ PUBLIC int yev_start_event(
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK|LOG_OPT_ABORT,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_LIBURING,
-                        "msg",          "%s", "io_uring_get_sqe() FAILED",
+                        "msg",          "%s", "io_uring_get_sqe() FAILED, the submission queue is full",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
@@ -1656,7 +1752,19 @@ PUBLIC int yev_start_event(
                     return -1;
                 }
 
-                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                struct io_uring_sqe *sqe = get_sqe(yev_loop);
+                if(!sqe) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING,
+                        "msg",          "%s", "io_uring_get_sqe() FAILED, the submission queue is full: event NOT started",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
                 track_submit(yev_event, sqe);
 
                 yev_event->iov.iov_base = gbuffer_cur_wr_pointer(yev_event->gbuf);
@@ -1688,7 +1796,19 @@ PUBLIC int yev_start_event(
                     return -1;
                 }
 
-                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                struct io_uring_sqe *sqe = get_sqe(yev_loop);
+                if(!sqe) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING,
+                        "msg",          "%s", "io_uring_get_sqe() FAILED, the submission queue is full: event NOT started",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
                 track_submit(yev_event, sqe);
                 io_uring_prep_poll_add(
                     sqe,
@@ -1863,9 +1983,22 @@ PUBLIC int yev_start_timer_event(
     /*-------------------------------*
      *      Summit sqe
      *-------------------------------*/
-    struct io_uring_sqe *sqe;
+    struct io_uring_sqe *sqe = get_sqe(yev_loop);
+    if(!sqe) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBURING,
+            "msg",          "%s", "io_uring_get_sqe() FAILED, the submission queue is full: timer NOT started",
+            "type",         "%s", yev_event_type_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
+            "timeout_ms",   "%d", (int)timeout_ms,
+            "fd",           "%d", yev_get_fd(yev_event),
+            "p",            "%p", yev_event,
+            NULL
+        );
+        return -1;
+    }
     timerfd_settime(yev_event->fd, 0, &delta, NULL);
-    sqe = io_uring_get_sqe(&yev_loop->ring);
     track_submit(yev_event, sqe);
     io_uring_prep_read(sqe, yev_event->fd, &yev_event->timer_bf, sizeof(yev_event->timer_bf), 0);
     io_uring_submit(&yev_loop->ring);
@@ -1987,7 +2120,23 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
     yev_state_t cur_state = yev_get_state(yev_event);
     switch(cur_state) {
         case YEV_ST_RUNNING:
-            sqe = io_uring_get_sqe(&yev_loop->ring);
+            sqe = get_sqe(yev_loop);
+            if(!sqe) {
+                /*
+                 *  Still RUNNING: its operation is in the kernel, uncanceled
+                 */
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_LIBURING,
+                    "msg",          "%s", "io_uring_get_sqe() FAILED, the submission queue is full: event NOT canceled",
+                    "type",         "%s", yev_event_type_name(yev_event),
+                    "yev_state",    "%s", yev_get_state_name(yev_event),
+                    "fd",           "%d", yev_get_fd(yev_event),
+                    "p",            "%p", yev_event,
+                    NULL
+                );
+                return -1;
+            }
             track_submit(yev_event, sqe);
             io_uring_prep_cancel(sqe, yev_event, 0);
             io_uring_submit(&yev_loop->ring);
