@@ -548,10 +548,10 @@ PRIVATE void run_checks(hgobj gobj)
 
     /*
      *  Case 10: disable-user, enable-user and set-max-sessions keep the
-     *  local password (HIGH of the 2026-09-23 independent review). They
-     *  read the user WITHOUT show_hidden, so `credentials` came back as the
-     *  view's null mask, and they wrote the whole view back: the password
-     *  was erased by a command about something else.
+     *  local password (7.25.4: they read the user WITHOUT show_hidden, so
+     *  `credentials` came back as the view's null mask, and they wrote the
+     *  whole view back: the password was erased by a command about
+     *  something else).
      */
     {
         const char *commands[] = {"disable-user", "enable-user", "set-max-sessions", 0};
@@ -579,10 +579,9 @@ PRIVATE void run_checks(hgobj gobj)
     }
 
     /*
-     *  Case 11: every comment starts with the yuno (review of the second fix
-     *  round, 2026-09-23: "User enabled: x", "Set max_sessions ...", "User
-     *  not found" and most of the others did not). Named, so the check of
-     *  the prefix is not a check of "".
+     *  Case 11: every comment starts with the yuno (7.25.4: "User enabled:
+     *  x", "Set max_sessions ...", "User not found" and most of the others
+     *  did not). Named, so the check of the prefix is not a check of "".
      */
     {
         gobj_write_str_attr(gobj_yuno(), "yuno_role_plus_name", APP "^messages");

@@ -437,10 +437,10 @@ PRIVATE int check_comments_name_their_yuno(hgobj gobj)
         json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "cannot list the hooks");
 
     /*
-     *  instances with a `filter` and no topic_name took a reference to the
-     *  filter before it asked "What topic_name?", and leaked it: the memory
-     *  audit at the end of the test is what fails (L7 of the third
-     *  independent review, 2026-09-23)
+     *  instances with a `filter` and no topic_name must not take a
+     *  reference to the filter before it asks "What topic_name?" (7.25.4:
+     *  it did, and leaked it): the memory audit at the end of the test is
+     *  what fails
      */
     result += expect_comment(gobj, "instances",
         json_pack("{s:{s:s}}", "filter", "id", "x"), -1, "What topic_name?");
@@ -448,7 +448,8 @@ PRIVATE int check_comments_name_their_yuno(hgobj gobj)
     /*
      *  An update with `create` whose create fails logs ITS cause, not the
      *  process-global last message: the expected log list pins the line
-     *  after the library's own error (same review)
+     *  after the library's own error (7.25.4: it logged the last message of
+     *  anybody)
      */
     gobj_log_set_last_message("a stale message of somebody else");
     json_t *node = gobj_update_node(priv->gobj_node, "items",
@@ -795,10 +796,9 @@ PRIVATE int run_tests(hgobj gobj)
 
     /*-----------------------------------------------*
      *  Every comment a command answers starts with the yuno that answers
-     *  it: "Node update!", "Node deleted" and "Snap deactivated" did not.
-     *  And the cause of a refused activate-snap is the command's own, not
-     *  the process-global last message (C_NODE lows of the 2026-09-23
-     *  independent review).
+     *  it (7.25.4: "Node update!", "Node deleted" and "Snap deactivated"
+     *  did not). And the cause of a refused activate-snap is the command's
+     *  own, not the process-global last message.
      *-----------------------------------------------*/
     {
         treedb_create_node(priv->tranger, TREEDB_NAME, "items",
@@ -1010,9 +1010,9 @@ PRIVATE int run_replica_tests(hgobj gobj)
 
     /*
      *  The other writes a C caller reaches without a command: link, unlink
-     *  and a forced delete. They moved the links in memory and THEN met the
-     *  refused save (C_NODE lows of the 2026-09-23 independent review): the
-     *  replica's memory said what its disk did not. Refused up front now.
+     *  and a forced delete. They are refused up front (7.25.4: they moved
+     *  the links in memory and THEN met the refused save, and the replica's
+     *  memory said what its disk did not).
      */
     {
         int r_link = gobj_link_nodes(

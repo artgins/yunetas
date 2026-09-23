@@ -4012,9 +4012,7 @@ PRIVATE int check_same_schema_other_form_is_quiet(hgobj gobj)
  *  user's decision of 2026-09-23. It replaces the file, __system__ is
  *  projected from it whole -- the operator's saved draft of a topic the
  *  literal did not raise included -- and what that withdrew is said, in
- *  the API too. (The rounds before it re-projected only the topics the
- *  literal raised, and kept the draft of the others, which then ran a
- *  schema the file did not say.)
+ *  the API too.
  ***************************************************************************/
 PRIVATE json_int_t in_use_topic_version(hgobj gobj, const char *topic_name)
 {
@@ -4158,7 +4156,7 @@ PRIVATE int check_takeover_is_whole(hgobj gobj)
 
     /*
      *  With NO file in use the literal takes over too, and the warning says
-     *  that, not "a draft saved over it" (L-6 of the same review): the
+     *  that, not "a draft saved over it" (7.25.4: it said the draft): the
      *  expected log list pins the message.
      */
     {
@@ -5044,11 +5042,9 @@ PRIVATE int check_apply_all_or_none(hgobj gobj)
     JSON_DECREF(jn_resp)
 
     /*
-     *  A saved file of B that cannot be READ (L6 of the third independent
-     *  review, 2026-09-23): saved-schema said `stale` -- harmless -- while
-     *  the apply of all refused every treedb for it. Both say `broken` now:
-     *  saved-schema answers it, and the apply of all leaves B out, says so
-     *  in B's row, and applies A.
+     *  A saved file of B that cannot be READ is BROKEN: saved-schema
+     *  answers it, and the apply of all leaves B out, says so in B's row,
+     *  and applies A.
      */
     if(reopen_test_treedb(gobj, FALSE) < 0) {
         return result - 1;
