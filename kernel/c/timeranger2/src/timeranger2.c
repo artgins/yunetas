@@ -196,7 +196,8 @@ PRIVATE int json_array_find_idx(
 
 PRIVATE int build_topic_cache_from_disk(
     hgobj gobj,
-    json_t *topic
+    json_t *topic,
+    BOOL master
 );
 PRIVATE json_t *get_key_cache(
     json_t *topic,
@@ -214,7 +215,8 @@ PRIVATE json_t *find_cache_cell(
 PRIVATE json_t *load_key_cache_from_disk(
     hgobj gobj,
     const char *topic_directory,
-    const char *key
+    const char *key,
+    BOOL master
 );
 PRIVATE void unflag_file_readable_again(
     hgobj gobj,
@@ -241,13 +243,15 @@ PRIVATE json_t *load_cache_cell_from_disk(
     const char *topic_directory,
     const char *key,
     char *filename, // md2 filename with extension, WARNING modified, .md2 removed
-    json_t *known_cell  // the cell this file already has in memory, or NULL
+    json_t *known_cell, // the cell this file already has in memory, or NULL
+    BOOL master         // a master cuts a torn last row back, a replica reads the whole rows
 );
 PRIVATE json_int_t load_first_and_last_record_md(
     hgobj gobj,
     const char *topic_directory,
     const char *key,
     const char *filename,
+    BOOL master,
     md2_record_t *md_first_record,
     md2_record_t *md_last_record
 );
@@ -1768,7 +1772,9 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     /*-------------------------------------*
      *  Load keys and metadata from disk
      *-------------------------------------*/
-    build_topic_cache_from_disk(gobj, topic);
+    build_topic_cache_from_disk(
+        gobj, topic, json_is_true(json_object_get(tranger, "master"))
+    );
 
     /*
      *  Monitoring the disk to realtime disk lists
@@ -4037,7 +4043,9 @@ PUBLIC int tranger2_delete_key(
              *  again from what is left, and the iterators take their
              *  segments again from it. Nothing is announced.
              */
-            json_t *key_cache = load_key_cache_from_disk(gobj, topic_dir, key);
+            json_t *key_cache = load_key_cache_from_disk(
+                gobj, topic_dir, key, json_is_true(json_object_get(tranger, "master"))
+            );
             if(json_array_size(json_object_get(key_cache, "files")) > 0 ||
                     json_array_size(json_object_get(key_cache, "unreadable")) > 0) {
                 json_object_set_new(topic_cache, key, key_cache);
@@ -4168,12 +4176,12 @@ PRIVATE int get_md_record_for_wr(
 
     *p_offset = offset;
 
-    size_t ln = read( // read direct md
+    ssize_t ln = read( // read direct md
         md2_fd,
         md_record,
         sizeof(md2_record_t)
     );
-    if(ln != sizeof(md2_record_t)) {
+    if(ln < 0) {
         gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -4183,7 +4191,23 @@ PRIVATE int get_md_record_for_wr(
             "serrno",       "%s", strerror(errno),
             "offset",       "%lu", (unsigned long)offset,
             "md2_fd",       "%d", (int)md2_fd,
-            "ln",           "%d", (int)ln,
+            NULL
+        );
+        return -1;
+    }
+    if(ln != (ssize_t)sizeof(md2_record_t)) {
+        /*
+         *  A short read returns a count and leaves errno as it was
+         */
+        gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read record metadata, short read",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "offset",       "%lu", (unsigned long)offset,
+            "md2_fd",       "%d", (int)md2_fd,
+            "read",         "%ld", (long)ln,
+            "expected",     "%ld", (long)sizeof(md2_record_t),
             NULL
         );
         return -1;
@@ -6384,11 +6408,21 @@ PRIVATE json_int_t update_new_records_from_disk(
         topic_directory,
         key,
         filename,   // warning .md2 removed
-        cur_cache_cell
+        cur_cache_cell,
+        json_is_true(json_object_get(tranger, "master"))
     );
     if(!new_cache_cell) {
         // Error already logged
         return -1;
+    }
+    if(!cur_cache_cell && json_integer_value(json_object_get(new_cache_cell, "rows")) == 0) {
+        /*
+         *  No whole row yet: the master is writing the first row of the
+         *  file. A cell of 0 rows has the range of a zeroed row (1970);
+         *  the row is counted when the next notification of the file comes.
+         */
+        JSON_DECREF(new_cache_cell)
+        return 0;
     }
 
     // Publish new data to iterator
@@ -6736,6 +6770,7 @@ struct find_keys_s {
     json_t *topic;
     const char *directory;
     const char *key;
+    BOOL master;
 };
 
 typedef int (*find_keys_cb_fn)(struct find_keys_s *find_keys);
@@ -6751,6 +6786,7 @@ PRIVATE int cmp_key_names(const void *a, const void *b)
 PRIVATE int find_keys_in_disk(
     hgobj gobj,
     json_t *topic,
+    BOOL master,
     find_keys_cb_fn cb
 )
 {
@@ -6778,7 +6814,8 @@ PRIVATE int find_keys_in_disk(
         .gobj = gobj,
         .topic = topic,
         .directory = directory,
-        .key = 0
+        .key = 0,
+        .master = master
     };
 
     /*
@@ -6886,7 +6923,8 @@ PRIVATE int find_keys_cb(struct find_keys_s *find_keys)
     json_t *key_cache = load_key_cache_from_disk(
         find_keys->gobj,
         find_keys->directory,
-        find_keys->key
+        find_keys->key,
+        find_keys->master
     );
     json_object_set_new(topic_cache, find_keys->key, key_cache);
     update_totals_of_key_cache(find_keys->gobj, find_keys->topic, find_keys->key);
@@ -6895,9 +6933,10 @@ PRIVATE int find_keys_cb(struct find_keys_s *find_keys)
 
 PRIVATE int build_topic_cache_from_disk(
     hgobj gobj,
-    json_t *topic
+    json_t *topic,
+    BOOL master
 ) {
-    return find_keys_in_disk(gobj, topic, find_keys_cb);
+    return find_keys_in_disk(gobj, topic, master, find_keys_cb);
 }
 
 /***************************************************************************
@@ -7173,7 +7212,8 @@ PRIVATE int count_flagged_file_again(
         topic_directory,
         key,
         filename,   // warning .md2 removed
-        NULL        // the file has no cell: it was flagged
+        NULL,       // the file has no cell: it was flagged
+        json_is_true(json_object_get(tranger, "master"))
     );
     if(!cache_cell) {
         gobj_log_error(gobj, 0,
@@ -7246,8 +7286,11 @@ PRIVATE void cut_back_content(
  *  flagged -- a treedb came up after a restart with the node absent, and
  *  a create of its id wrote over the records nobody read (independent
  *  review of the third fix round). The key is flagged instead
- *  (flag_key_unreadable), for a md2 that cannot be opened or read, or
- *  whose size is not a whole number of rows.
+ *  (flag_key_unreadable), for a md2 that cannot be opened or read. A md2
+ *  whose size is not a whole number of rows is not damage: its last row is
+ *  torn, an append that was never acknowledged (see
+ *  load_first_and_last_record_md). A master cuts it back, a replica reads
+ *  its whole rows.
  *
  *  A md2 of 0 rows gets no cell (a cell of 0 rows has the range of a
  *  zeroed row, 1970) and flags nothing. When its content file is not
@@ -7264,7 +7307,8 @@ PRIVATE void cut_back_content(
 PRIVATE json_t *load_key_cache_from_disk(
     hgobj gobj,
     const char *topic_directory,
-    const char *key
+    const char *key,
+    BOOL master
 ) {
     char full_path[PATH_MAX];
     build_path(full_path, sizeof(full_path), topic_directory, "keys", key, NULL);
@@ -7298,7 +7342,8 @@ PRIVATE json_t *load_key_cache_from_disk(
             topic_directory,
             key,
             filename,   // warning .md2 removed
-            NULL        // no cell yet: the cache is being built
+            NULL,       // no cell yet: the cache is being built
+            master
         );
         if(!cache_cell) {
             // Error already logged, the cause
@@ -7444,7 +7489,8 @@ PRIVATE json_t *load_cache_cell_from_disk(
     const char *topic_directory,
     const char *key,
     char *filename, // md2 filename with extension, WARNING modified, .md2 removed
-    json_t *known_cell  // the cell this file already has in memory, or NULL
+    json_t *known_cell, // the cell this file already has in memory, or NULL
+    BOOL master         // a master cuts a torn last row back, a replica reads the whole rows
 )
 {
     /*----------------------------------*
@@ -7458,6 +7504,7 @@ PRIVATE json_t *load_cache_cell_from_disk(
         topic_directory,
         key,
         filename,
+        master,
         &md_first_record,
         &md_last_record
     );
@@ -7819,19 +7866,90 @@ PRIVATE void merge_cache_cell(json_t *cur_cache_cell, json_t *new_cache_cell)
 }
 
 /***************************************************************************
+ *  Read one md2 row at `offset`. Return 0, or -1 (logged).
+ *  A short read returns a count and leaves errno as it was: errno says
+ *  something only when read() returned -1.
+ ***************************************************************************/
+PRIVATE int read_md2_row(
+    hgobj gobj,
+    int fd,
+    const char *full_path,
+    off_t offset,
+    md2_record_t *md_record,
+    const char *which   // "first" or "last"
+)
+{
+    ssize_t ln = pread(fd, md_record, sizeof(md2_record_t), offset);
+    if(ln < 0) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read a record of md2 file, read FAILED",
+            "path",         "%s", full_path,
+            "row",          "%s", which,
+            "offset",       "%ld", (long)offset,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    if(ln != (ssize_t)sizeof(md2_record_t)) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read a record of md2 file, short read",
+            "path",         "%s", full_path,
+            "row",          "%s", which,
+            "offset",       "%ld", (long)offset,
+            "read",         "%ld", (long)ln,
+            "expected",     "%ld", (long)sizeof(md2_record_t),
+            NULL
+        );
+        return -1;
+    }
+    md_record->__t__ = (ntohll(md_record->__t__)) & TIME_FLAG_MASK;
+    md_record->__tm__ = (ntohll(md_record->__tm__)) & TIME_FLAG_MASK;
+    md_record->__offset__ = ntohll(md_record->__offset__);
+    md_record->__size__ = ntohll(md_record->__size__);
+    return 0;
+}
+
+/***************************************************************************
+ *  Read the first and the last row of a md2 file.
+ *  Return its number of rows, or -1 (logged) when it cannot be read.
  *
+ *  A md2 whose size is not a whole number of rows ends in a TORN row: a
+ *  power cut during the write of a row. The md2 row is the commit point of
+ *  an append (the content is written first, the row after), and an append
+ *  is acknowledged only once write() wrote the whole row. A torn row was
+ *  therefore never acknowledged, the same as a md2 of 0 rows beside a
+ *  content file that is not empty (load_key_cache_from_disk).
+ *
+ *  A MASTER cuts the md2 back to its whole rows, with one warning. The cut
+ *  removes fewer bytes than one row, all of them after the last whole row,
+ *  so it never removes a row that was acknowledged. The content file is
+ *  left as it is: its bytes after the last row belong to no row, and the
+ *  next append writes at its end. Flagging the file instead (7.25.4
+ *  unreleased work) refused every append into it until an operator cut
+ *  the md2 by hand or the period changed, and with a yearly file
+ *  ("filename_mask": "%Y") that is months of refused messages.
+ *
+ *  A REPLICA never writes: it reads the whole rows only. It also sees a
+ *  torn row when the master is writing that row; the row is counted when
+ *  the master's next notification of the file arrives. Nothing is logged:
+ *  for a replica it is not an error.
  ***************************************************************************/
 PRIVATE json_int_t load_first_and_last_record_md(
     hgobj gobj,
     const char *topic_directory,
     const char *key,
     const char *filename,
+    BOOL master,
     md2_record_t *md_first_record,
     md2_record_t *md_last_record
 )
 {
-    json_int_t file_rows = 0;
-
     /*----------------------------------*
      *  Open the .md2 file of the key
      *  (name relative to time __t__)
@@ -7853,49 +7971,15 @@ PRIVATE json_int_t load_first_and_last_record_md(
     }
 
     /*---------------------------*
-     *      Read first record
+     *      The size
      *---------------------------*/
-    ssize_t ln = read( // read first md
-        fd,
-        md_first_record,
-        sizeof(md2_record_t)
-    );
-    if(ln == sizeof(md2_record_t)) {
-        md_first_record->__t__ = (ntohll(md_first_record->__t__)) & TIME_FLAG_MASK;
-        md_first_record->__tm__ = (ntohll(md_first_record->__tm__)) & TIME_FLAG_MASK;
-        md_first_record->__offset__ = ntohll(md_first_record->__offset__);
-        md_first_record->__size__ = ntohll(md_first_record->__size__);
-        file_rows = 1;
-    } else {
-        if(ln<0) {
-            gobj_log_critical(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot read first record of md2 file",
-                "path",         "%s", full_path,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
-        } else if(ln==0) {
-            // No data
-        }
-    }
-
-    /*---------------------------*
-     *      Read last record
-     *---------------------------*/
-    /*
-     *  Seek the last record
-     */
-    off_t offset = lseek(fd, 0, SEEK_END);
-    if(offset < 0) {
+    off_t size = lseek(fd, 0, SEEK_END);
+    if(size < 0) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Cannot read last record, md2 file corrupted",
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read last record, lseek() FAILED",
             "path",         "%s", full_path,
-            "offset",       "%ld", (long)offset,
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
             NULL
@@ -7903,67 +7987,72 @@ PRIVATE json_int_t load_first_and_last_record_md(
         close(fd);
         return -1;
     }
-    if(offset % sizeof(md2_record_t) != 0) {
-        /*
-         *  A size, not a failed call: there is no errno to say
-         */
-        gobj_log_critical(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Cannot read last record, md2 file corrupted",
-            "path",         "%s", full_path,
-            "offset",       "%ld", (long)offset,
-            "cause",        "%s", "its size is not a whole number of rows",
-            "row_size",     "%ld", (long)sizeof(md2_record_t),
-            NULL
-        );
+
+    off_t torn = size % (off_t)sizeof(md2_record_t);
+    if(torn != 0) {
+        off_t whole = size - torn;
+        if(master) {
+            if(truncate(full_path, whole) < 0) {
+                gobj_log_critical(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_SYSTEM,
+                    "msg",              "%s", "Cannot cut back a md2 file that ends in a part of a row: the file is damaged",
+                    "topic_directory",  "%s", topic_directory,
+                    "key",              "%s", key,
+                    "path",             "%s", full_path,
+                    "old_size",         "%ld", (long)size,
+                    "new_size",         "%ld", (long)whole,
+                    "errno",            "%d", errno,
+                    "serrno",           "%s", strerror(errno),
+                    NULL
+                );
+                close(fd);
+                return -1;
+            }
+
+            char file_id[NAME_MAX];
+            snprintf(file_id, sizeof(file_id), "%s", filename);
+            char *dot = strrchr(file_id, '.');
+            if(dot) {
+                *dot = 0;
+            }
+            const char *topic_name = strrchr(topic_directory, '/');
+            topic_name = topic_name? topic_name + 1: topic_directory;
+            gobj_log_warning(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_TRANGER,
+                "msg",              "%s", "md2 file of the key ends in a part of a row: an append that was never acknowledged was cut back",
+                "topic",            "%s", topic_name,
+                "key",              "%s", key,
+                "file_id",          "%s", file_id,
+                "path",             "%s", full_path,
+                "old_size",         "%ld", (long)size,
+                "new_size",         "%ld", (long)whole,
+                NULL
+            );
+        }
+        size = whole;
+    }
+
+    json_int_t file_rows = (json_int_t)(size / (off_t)sizeof(md2_record_t));
+    if(file_rows == 0) {
+        close(fd);
+        return 0;
+    }
+
+    /*---------------------------*
+     *  Read first and last rows
+     *---------------------------*/
+    if(read_md2_row(gobj, fd, full_path, 0, md_first_record, "first") < 0) {
+        // Error already logged
         close(fd);
         return -1;
     }
-
-    if(offset >= sizeof(md2_record_t)) {
-        /*
-         *  Save file rows
-         */
-        file_rows = offset/sizeof(md2_record_t);
-
-        /*
-         *  Read last record (firstly to back the size of md2_record_t)
-         */
-        offset -= sizeof(md2_record_t);
-        off_t offset2 = lseek(fd, offset, SEEK_SET);
-        if(offset2 < 0 || offset2 != offset) {
-            gobj_log_critical(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot read last record, lseek() FAILED",
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
-        }
-
-        ln = read( // read last md
-            fd,
-            md_last_record,
-            sizeof(md2_record_t)
-        );
-        if(ln == sizeof(md2_record_t)) {
-            md_last_record->__t__ = (ntohll(md_last_record->__t__)) & TIME_FLAG_MASK;
-            md_last_record->__tm__ = (ntohll(md_last_record->__tm__)) & TIME_FLAG_MASK;
-            md_last_record->__offset__ = ntohll(md_last_record->__offset__);
-            md_last_record->__size__ = ntohll(md_last_record->__size__);
-        } else {
-            gobj_log_critical(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot read last record of md2 file",
-                "path",         "%s", full_path,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
-        }
+    if(read_md2_row(gobj, fd, full_path, size - (off_t)sizeof(md2_record_t),
+            md_last_record, "last") < 0) {
+        // Error already logged
+        close(fd);
+        return -1;
     }
 
     close(fd);
@@ -10918,12 +11007,12 @@ PRIVATE int read_md(
         return -1;
     }
 
-    size_t ln = read( // read direct md for segment
+    ssize_t ln = read( // read direct md for segment
         fd,
         &md_record,
         sizeof(md2_record_t)
     );
-    if(ln != sizeof(md2_record_t)) {
+    if(ln < 0) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -10934,6 +11023,24 @@ PRIVATE int read_md(
             "rowid",        "%ld", (long)rowid,
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    if(ln != (ssize_t)sizeof(md2_record_t)) {
+        /*
+         *  A short read returns a count and leaves errno as it was
+         */
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read record metadata, short read",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+            "key",          "%s", key,
+            "rowid",        "%ld", (long)rowid,
+            "read",         "%ld", (long)ln,
+            "expected",     "%ld", (long)sizeof(md2_record_t),
             NULL
         );
         return -1;
@@ -11135,13 +11242,13 @@ PRIVATE json_t *read_record_content(
         );
         return NULL;
     }
-    size_t ln = read( // read content
+    ssize_t ln = read( // read content
         fd,
         p,
         md_record_ex->__size__
     );
 
-    if(ln != md_record_ex->__size__) {
+    if(ln < 0) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -11151,6 +11258,25 @@ PRIVATE json_t *read_record_content(
             "key",          "%s", key,
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        gbmem_free(p);
+        return NULL;
+    }
+    if((uint64_t)ln != md_record_ex->__size__) {
+        /*
+         *  A short read returns a count and leaves errno as it was
+         */
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read record data, short read",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+            "key",          "%s", key,
+            "offset",       "%ld", (long)md_record_ex->__offset__,
+            "read",         "%ld", (long)ln,
+            "expected",     "%ld", (long)md_record_ex->__size__,
             NULL
         );
         gbmem_free(p);

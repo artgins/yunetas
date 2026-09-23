@@ -22,10 +22,11 @@
  *  and the topic's cache is built from the damaged store. The cache build
  *  dropped an unreadable md2, so nothing failed, the registry stayed empty
  *  and every guard was open:
- *      5. 5 bytes of garbage appended to the md2 of k2,
+ *      5. the md2 of k2 cannot be read (mode 000),
  *      6. the CONTENT of k2 cut to 0 bytes (it made a node with id ""):
  *         k2 is not in memory, and a create of it is refused.
- *      7. garbage after a __snaps__ md2: shoot, activate and delete refuse.
+ *      7. a __snaps__ md2 that cannot be read: shoot, activate and delete
+ *         refuse.
  *      8. the recovery: the key deleted, a create of its id is accepted
  *         without reopening the treedb.
  *
@@ -39,6 +40,10 @@
  *          previous version, nothing is flagged.
  *      4b. such a file between two good versions of k2: k2 is in memory
  *          with the newest one.
+ *  A md2 whose size is not a whole number of rows is not damage either:
+ *  its last row is torn, and a master cuts it back (timeranger2's
+ *  test_torn_md2_tail.c). Cases 5 and 7 use a md2 of mode 000, and are
+ *  skipped as root, who reads it anyway.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -47,6 +52,7 @@
 #include <signal.h>
 #include <limits.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -158,7 +164,7 @@ PRIVATE int test_topic_with_an_unreadable_key(const char *path_root)
     const char *test = "1. a topic with an unreadable key loads every other key";
     set_expected_results_unordered(test,
         json_pack("[{s:s},{s:s},{s:s}]",
-            "msg", "Cannot read record metadata, read FAILED",
+            "msg", "Cannot read record metadata, short read",
             "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
                    "were handed, the list goes on with the next key",
             "msg", "treedb topic loaded WITHOUT the whole history of keys that cannot be read: "
@@ -243,7 +249,7 @@ PRIVATE int test_snaps_that_did_not_load(const char *path_root)
     const char *test = "3. a __snaps__ that did not load whole: shoot, activate and delete refuse";
     set_expected_results_unordered(test,
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
-            "msg", "Cannot read record metadata, read FAILED",
+            "msg", "Cannot read record metadata, short read",
             "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
                    "were handed, the list goes on with the next key",
             "msg", "treedb topic loaded WITHOUT the whole history of keys that cannot be read: "
@@ -290,7 +296,7 @@ PRIVATE int test_snaps_that_did_not_load(const char *path_root)
  *  Damage the files `ext` of a key, with no tranger running
  */
 PRIVATE int damage_key(const char *path_database, const char *topic_name, const char *key,
-    const char *ext, BOOL garbage)
+    const char *ext, BOOL unreadable)
 {
     char key_dir[PATH_MAX];
     build_path(key_dir, sizeof(key_dir), path_database, topic_name, "keys", key, NULL);
@@ -300,13 +306,9 @@ PRIVATE int damage_key(const char *path_database, const char *topic_name, const 
     get_ordered_filename_array(0, key_dir, pattern, WD_MATCH_REGULAR_FILE, &da);
     int done = 0;
     for(int i = 0; i < da.count; i++) {
-        if(garbage) {
-            FILE *f = fopen(da.items[i], "a");
-            if(f) {
-                if(fwrite("XXXXX", 1, 5, f) == 5) {
-                    done++;
-                }
-                fclose(f);
+        if(unreadable) {
+            if(chmod(da.items[i], 0) == 0) {
+                done++;
             }
         } else if(truncate(da.items[i], 0) == 0) {
             done++;
@@ -325,9 +327,13 @@ PRIVATE int damage_key(const char *path_database, const char *topic_name, const 
  *  4, 5, 6: a key damaged with the tranger down, found at the restart
  ***************************************************************************/
 PRIVATE int test_damaged_at_restart(const char *path_root, const char *case_name,
-    const char *ext, BOOL garbage)
+    const char *ext, BOOL unreadable)
 {
     int result = 0;
+    if(unreadable && geteuid() == 0) {
+        printf("%s: skipped, root reads a file of mode 000\n", case_name);
+        return 0;
+    }
     char path_database[PATH_MAX];
     build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
     rmrdir(path_database);
@@ -343,7 +349,7 @@ PRIVATE int test_damaged_at_restart(const char *path_root, const char *case_name
     tranger2_shutdown(tranger);
     test_json(NULL);    // the setup logs are not what is tested
 
-    result += damage_key(path_database, TOPIC_NAME, "k2", ext, garbage);
+    result += damage_key(path_database, TOPIC_NAME, "k2", ext, unreadable);
 
     /*
      *  What each damage logs, then what treedb says of it
@@ -353,9 +359,9 @@ PRIVATE int test_damaged_at_restart(const char *path_root, const char *case_name
         json_array_append_new(expected, json_pack("{s:s}",
             "msg", "Bad on-disk record: __offset__/__size__ out of range"));
     } else {
-        if(garbage) {
+        if(unreadable) {
             json_array_append_new(expected, json_pack("{s:s}",
-                "msg", "Cannot read last record, md2 file corrupted"));
+                "msg", "Cannot open md2 file"));
         }
         json_array_append_new(expected, json_pack("{s:s}",
             "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed"));
@@ -400,7 +406,7 @@ PRIVATE int test_damaged_at_restart(const char *path_root, const char *case_name
      *  8. The recovery: the key deleted,
      *  its id is free, no reopen needed
      *-------------------------------------*/
-    if(garbage && strcmp(ext, "md2") == 0) {
+    if(unreadable && strcmp(ext, "md2") == 0) {
         set_expected_results("8. the key deleted: a create of its id is accepted",
             json_pack("[{s:s}]",
                 "msg", "A key that did not load has been deleted since: it is not a key that did not load any more"
@@ -608,6 +614,10 @@ PRIVATE int test_uncommitted_at_restart(const char *path_root, BOOL in_the_middl
 PRIVATE int test_snaps_damaged_at_restart(const char *path_root)
 {
     int result = 0;
+    if(geteuid() == 0) {
+        printf("7: skipped, root reads a file of mode 000\n");
+        return 0;
+    }
     char path_database[PATH_MAX];
     build_path(path_database, sizeof(path_database), path_root, DATABASE2, NULL);
     rmrdir(path_database);
@@ -630,7 +640,7 @@ PRIVATE int test_snaps_damaged_at_restart(const char *path_root)
     const char *test = "7. a __snaps__ damaged at restart: shoot, activate and delete refuse";
     set_expected_results_unordered(test,
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
-            "msg", "Cannot read last record, md2 file corrupted",
+            "msg", "Cannot open md2 file",
             "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
             "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
             "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
@@ -690,7 +700,7 @@ PRIVATE int do_test(void)
     result += test_snaps_that_did_not_load(path_root);
     result += test_uncommitted_at_restart(path_root, FALSE);
     result += test_uncommitted_at_restart(path_root, TRUE);
-    result += test_damaged_at_restart(path_root, "5. garbage after the md2 of k2, at restart", "md2", TRUE);
+    result += test_damaged_at_restart(path_root, "5. the md2 of k2 cannot be read, at restart", "md2", TRUE);
     result += test_damaged_at_restart(path_root, "6. content of k2 cut to 0 bytes, at restart", "json", FALSE);
     result += test_snaps_damaged_at_restart(path_root);
 

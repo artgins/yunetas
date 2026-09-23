@@ -301,7 +301,7 @@ PRIVATE int test_guard_that_cannot_read_refuses(
     set_expected_results_unordered(
         test,
         json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
-            "msg", "Cannot read record metadata, read FAILED",
+            "msg", "Cannot read record metadata, short read",
             "msg", "cannot read the records of a key",
             "msg", "cannot delete instance, cannot tell whether a snapshot holds it (see the log)",
             "msg", "cannot delete node, cannot tell whether a snapshot holds it (see the log)"
@@ -642,7 +642,7 @@ PRIVATE int test_delete_that_cannot_read_refuses(void)
      *------------------------------------*/
     set_expected_results(test,
         json_pack("[{s:s},{s:s}]",
-            "msg", "Cannot read record metadata, read FAILED",
+            "msg", "Cannot read record metadata, short read",
             "msg", "Cannot delete instance, cannot read every row of its key"),
         NULL, NULL, 1);
     if(cut_files_of_key(DB, "rel-1", ".*\\.md2", 2) != 1) {

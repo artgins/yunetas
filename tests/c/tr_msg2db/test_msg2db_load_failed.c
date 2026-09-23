@@ -12,8 +12,8 @@
  *         message and the file of its new one. It was taken for damage,
  *         the load stopped there, and the old message was served. It is
  *         ignored with a warning: the new message is served.
- *      2. The file of dev1's new message really damaged (a md2 whose size
- *         is not a whole number of rows): the load of dev1 stops before it.
+ *      2. The file of dev1's new message really damaged (a md2 that cannot
+ *         be read, mode 000): the load of dev1 stops before it.
  *         What it read is not served as current: msg2db reloads dev1
  *         BACKWARD, the load stops at once at the damaged newest file, and
  *         dev1 is not in memory; that is logged. dev2, whole, is served.
@@ -34,6 +34,16 @@
  *         file (read only by the backward reload). Both are dropped, and
  *         "Records NOT loaded, 'pkey2' empty" says 2: it said 1, because
  *         the count of the forward load was put back after the reload.
+ *      5. The md2 of dev1's new message ends in a part of a row (a power
+ *         cut during the write of a row). That is an append that was never
+ *         acknowledged, not damage: the md2 is cut back with one warning,
+ *         dev1 is whole, and its next message is stored and served. Since
+ *         7.25.4 (unreleased work) it was damage, and every new message of
+ *         dev1 was refused until the period changed -- a year for the
+ *         alarms of the projects ("filename_mask": "%Y").
+ *
+ *  Cases 2, 3 and 4 make a md2 unreadable with mode 000: they are skipped
+ *  as root, who reads it anyway.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -44,6 +54,7 @@
 #include <locale.h>
 #include <signal.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <yunetas.h>
 
 #define APP             "test_msg2db_load_failed"
@@ -53,6 +64,7 @@
 
 #define MSG_UNCOMMITTED "md2 file of the key with no rows and a content file that is not empty: an append that was never acknowledged, the file is ignored"
 #define MSG_CURRENT_DAMAGED "msg2db: the damaged file of the key is the file of the current period: every new message of the key is REFUSED until the file is repaired or the period changes"
+#define MSG_CUT         "md2 file of the key ends in a part of a row: an append that was never acknowledged was cut back"
 #define MSG_NOT_SERVED  "msg2db: a key whose history did not load whole: only the messages newer than the damage are served, a pkey2 whose newest message was not read is ABSENT and its state unknown (msg2db_id_incomplete)"
 
 PRIVATE yev_loop_h yev_loop;
@@ -202,6 +214,23 @@ PRIVATE int move_today_files(const char *id, const char *day)
 }
 
 /*
+ *  A md2 that cannot be read: mode 000. Return 1 when done, 0 when it
+ *  cannot be done (root reads a file of mode 000), -1 on error.
+ */
+PRIVATE int make_unreadable(const char *path)
+{
+    if(geteuid() == 0) {
+        printf("skipped: root reads a file of mode 000\n");
+        return 0;
+    }
+    if(chmod(path, 0) < 0) {
+        printf("%sERROR%s --> cannot make %s unreadable\n", On_Red BWhite, Color_Off, path);
+        return -1;
+    }
+    return 1;
+}
+
+/*
  *  The store: dev1 with OLD in the file 2000-01-01 and NEW in today's,
  *  dev2 with one message
  */
@@ -298,7 +327,7 @@ PRIVATE int test_damaged(void)
     }
 
     /*
-     *  5 bytes after the md2 of today's file: not a whole number of rows
+     *  The md2 of today's file cannot be read
      */
     char dir[PATH_MAX];
     key_dir(dir, sizeof(dir), "dev1");
@@ -309,12 +338,13 @@ PRIVATE int test_damaged(void)
         if(strstr(da.items[i], "2000-01-01.md2")) {
             continue;
         }
-        FILE *f = fopen(da.items[i], "a");
-        if(f) {
-            if(fwrite("XXXXX", 1, 5, f) == 5) {
-                damaged++;
-            }
-            fclose(f);
+        int ret = make_unreadable(da.items[i]);
+        if(ret == 0) {
+            dir_array_free(&da);
+            return 0;   // skipped
+        }
+        if(ret > 0) {
+            damaged++;
         }
     }
     dir_array_free(&da);
@@ -326,7 +356,7 @@ PRIVATE int test_damaged(void)
 
     set_expected_results("2. the file of the new message damaged",
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
-            "msg", "Cannot read last record, md2 file corrupted",
+            "msg", "Cannot open md2 file",
             "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
             "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
             "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
@@ -346,7 +376,7 @@ PRIVATE int test_damaged(void)
      */
     set_expected_results("2. the next message of dev1 goes to the damaged file",
         json_pack("[{s:s},{s:s}]",
-            "msg", "Cannot read last record, md2 file corrupted",
+            "msg", "Cannot open md2 file",
             "msg", "Cannot append record, its file is flagged unreadable: its row would follow rows no cell counts"
         ), NULL, NULL, TRUE
     );
@@ -390,24 +420,23 @@ PRIVATE int test_damaged_middle(void)
     }
 
     /*
-     *  5 bytes after the md2 of the middle file: not a whole number of rows
+     *  The md2 of the middle file cannot be read
      */
     char dir[PATH_MAX];
     char md2[PATH_MAX];
     key_dir(dir, sizeof(dir), "dev1");
     build_path(md2, sizeof(md2), dir, "2000-01-02.md2", NULL);
-    FILE *f = fopen(md2, "a");
-    if(!f || fwrite("XXXXX", 1, 5, f) != 5) {
-        printf("%sERROR%s --> 3: cannot damage the middle md2 of dev1\n", On_Red BWhite, Color_Off);
-        result += -1;
+    int ret = make_unreadable(md2);
+    if(ret == 0) {
+        return 0;   // skipped
     }
-    if(f) {
-        fclose(f);
+    if(ret < 0) {
+        result += -1;
     }
 
     set_expected_results("3. the damage in the middle of dev1's history",
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
-            "msg", "Cannot read last record, md2 file corrupted",
+            "msg", "Cannot open md2 file",
             "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
             "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
             "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
@@ -504,18 +533,17 @@ PRIVATE int test_empty_pkey2_both_loads(void)
     char md2[PATH_MAX];
     key_dir(dir, sizeof(dir), "dev1");
     build_path(md2, sizeof(md2), dir, "2000-01-02.md2", NULL);
-    FILE *f = fopen(md2, "a");
-    if(!f || fwrite("XXXXX", 1, 5, f) != 5) {
-        printf("%sERROR%s --> 4: cannot damage the middle md2 of dev1\n", On_Red BWhite, Color_Off);
-        result += -1;
+    int ret = make_unreadable(md2);
+    if(ret == 0) {
+        return 0;   // skipped
     }
-    if(f) {
-        fclose(f);
+    if(ret < 0) {
+        result += -1;
     }
 
     set_expected_results("4. an empty pkey2 on each side of the damage",
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s, s:i}]",
-            "msg", "Cannot read last record, md2 file corrupted",
+            "msg", "Cannot open md2 file",
             "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
             "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
             "msg", "Field 'pkey2' required, record NOT loaded (first of the topic)",
@@ -537,6 +565,74 @@ PRIVATE int test_empty_pkey2_both_loads(void)
 }
 
 /***************************************************************************
+ *  5. The md2 of today's file ends in a part of a row: an append that was
+ *     never acknowledged. It is cut back, dev1 is whole, and its next
+ *     message is stored and served.
+ ***************************************************************************/
+PRIVATE int test_torn_tail(void)
+{
+    int result = 0;
+    if(build_store() < 0) {
+        return -1;
+    }
+
+    char dir[PATH_MAX];
+    key_dir(dir, sizeof(dir), "dev1");
+    dir_array_t da;
+    get_ordered_filename_array(0, dir, ".*\\.md2", WD_MATCH_REGULAR_FILE, &da);
+    char md2[PATH_MAX] = {0};
+    for(int i = 0; i < da.count; i++) {
+        if(!strstr(da.items[i], "2000-01-01.md2")) {
+            snprintf(md2, sizeof(md2), "%s", da.items[i]);
+        }
+    }
+    dir_array_free(&da);
+    off_t size = filesize(md2);
+    if(!md2[0] || size != 32 || truncate(md2, size + 13) < 0) {
+        printf("%sERROR%s --> 5: cannot tear the md2 of dev1's new message\n",
+            On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    set_expected_results("5. the md2 of today's file ends in a part of a row",
+        json_pack("[{s:s, s:s, s:i, s:i}]",
+            "msg", MSG_CUT,
+            "key", "dev1",
+            "old_size", 32 + 13,
+            "new_size", 32
+        ), NULL, NULL, TRUE
+    );
+    json_t *tranger = open_all();
+    result += expect_description(tranger, "5", "dev1", "NEW");
+    result += expect_description(tranger, "5", "dev2", "WHOLE");
+    if(msg2db_id_incomplete(tranger, MSG2DB_NAME, TOPIC_NAME, "dev1")) {
+        printf("%sERROR%s --> 5: dev1 is incomplete\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("5. the next message of dev1 is stored and served", NULL, NULL, NULL, TRUE);
+    put(tranger, "dev1", "NEXT");
+    result += expect_description(tranger, "5", "dev1", "NEXT");
+    close_all(tranger);
+    if(filesize(md2) != 64) {
+        printf("%sERROR%s --> 5: md2 size %ld, expected 64\n",
+            On_Red BWhite, Color_Off, (long)filesize(md2));
+        result += -1;
+    }
+    tranger = open_all();
+    result += expect_description(tranger, "5", "dev1", "NEXT");
+    if(msg2db_id_incomplete(tranger, MSG2DB_NAME, TOPIC_NAME, "dev1")) {
+        printf("%sERROR%s --> 5: dev1 is incomplete after the restart\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    close_all(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -551,6 +647,7 @@ PRIVATE int do_test(void)
     result += test_damaged();
     result += test_damaged_middle();
     result += test_empty_pkey2_both_loads();
+    result += test_torn_tail();
 
     return result;
 }

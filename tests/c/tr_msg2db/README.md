@@ -17,7 +17,7 @@ message of each `pkey2`:
 1. a file of `dev1` whose only append was never acknowledged (a md2 of 0
    rows, its content not empty), between its old and its new message: the
    file is ignored with a warning, and the NEW message is served;
-2. the md2 of the new message damaged (5 bytes after it, not a whole row):
+2. the md2 of the new message damaged (it cannot be read, mode 000):
    `dev1` is reloaded backward, the load stops at once at its newest file, and
    `dev1` is not served (absent, with an ERROR naming it); `dev2`, whole, is.
    The damaged file is the file of the current period, where the next message
@@ -33,7 +33,16 @@ message of each `pkey2`:
    of the damage: one read by the forward load, one read only by the backward
    reload. Both are dropped, and "Records NOT loaded, 'pkey2' empty" says
    `dropped: 2`. It said 1: the count of the forward load was put back after
-   the reload.
+   the reload;
+5. the md2 of the new message ends in a part of a row (a power cut during
+   the write of a row). That is an append that was never acknowledged, not
+   damage: the md2 is cut back to its whole rows with one warning, `dev1` is
+   whole (`msg2db_id_incomplete()` is FALSE), and its next message is stored
+   and served, also after a restart. Before the fix, the file was flagged
+   and every new message of `dev1` was refused until the period changed.
+
+Cases 2, 3 and 4 use a md2 of mode 000. They are skipped as root, because
+root can read such a file.
 
 1 and 2 served the OLD message before the fix of the fourth fix round. 3 was
 red after it: the whole of `dev1` was dropped, `X` too (fifth fix round).

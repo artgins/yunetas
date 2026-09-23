@@ -84,8 +84,13 @@ extern "C"{
     is the file of the current period..."). The alarms of db_history in the
     projects use a "%Y" tranger, one file per key and YEAR: every new alarm
     message of that device is refused until the file is repaired or the
-    year changes. The repair: cut the torn md2 back to whole rows with the
-    yuno stopped (treedb.md, "A topic that did not load whole").
+    year changes. This is for REAL damage only: a md2 that cannot be
+    opened or read. A md2 whose last row is torn (its size is not a whole
+    number of rows: a power cut during the write of a row) is not damage.
+    It is an append that was never acknowledged, and a master tranger cuts
+    it back at the open with a WARNING ("md2 file of the key ends in a
+    part of a row: an append that was never acknowledged was cut back"):
+    the id loads whole and its next message is stored and served.
 **rst**/
 
 PUBLIC json_t *msg2db_open_db(

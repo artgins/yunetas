@@ -12,10 +12,14 @@ names, and its guards refuse what they would answer wrong.
 | 3 | A `__snaps__` that did not load whole: `shoot-snap`, `activate-snap` and the delete of a node refuse, because which snap is active, or holds the node, is unknown. |
 | 4a | A md2 of 0 rows beside a content file that is not empty (an append that was never acknowledged) as the newest file of `k2`: the file is ignored with a warning, `k2` is in memory with its previous version, and nothing is flagged. |
 | 4b | The same file between two good versions of `k2`: `k2` is in memory with the newest one. |
-| 5 | After a restart, 5 bytes of garbage after the md2 of `k2`: `k2` is not in memory, and a create of it is refused. |
+| 5 | After a restart, the md2 of `k2` cannot be read (mode 000): `k2` is not in memory, and a create of it is refused. |
 | 6 | After a restart, the content of `k2` cut to 0 bytes: the same. A record whose content cannot be read does not become a node with id `""`. |
-| 7 | After a restart, garbage after a `__snaps__` md2: shoot, activate and delete refuse. |
+| 7 | After a restart, a `__snaps__` md2 that cannot be read (mode 000): shoot, activate and delete refuse. |
 | 8 | The recovery: after the key is deleted, a create of its id is accepted without a reopen of the treedb. |
+
+Cases 5 and 7 are skipped as root, because root can read a file of mode 000.
+A md2 whose last row is torn is not a case here: it is not damage, and a
+master cuts it back (timeranger2's `test_torn_md2_tail`).
 
 The operator's side of these cases (how to find the file and repair it) is in
 the treedb API page, "A topic that did not load whole".

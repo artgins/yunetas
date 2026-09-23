@@ -41,6 +41,8 @@
 #include <string.h>
 #include <signal.h>
 #include <limits.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 #include <gobj.h>
 #include <timeranger2.h>
@@ -2019,7 +2021,7 @@ PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
      */
     set_expected_results_unordered(test,
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
-            "msg", "Cannot read record metadata, read FAILED",
+            "msg", "Cannot read record metadata, short read",
             "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
                    "were handed, the list goes on with the next key",
             "msg", "cannot read every instance of a topic: the assets a snapshot holds are unknown",
@@ -2146,10 +2148,12 @@ PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
  *  the bytes `png`, closed, a key cut behind its back, and opened again.
  *  With `restart`, the tranger is shut down before the damage and started
  *  again after it: the cache of the topic is built from the damaged store.
- *  The damage is then 5 bytes of garbage after the md2 (not a whole row):
- *  a md2 cut to 0 rows with its content left is the shape of an append
- *  never acknowledged, which the cache build ignores, not damage
- *  (timeranger2/test_uncommitted_append.c).
+ *  The damage is then a md2 that cannot be read (mode 000): a md2 cut to
+ *  0 rows with its content left is the shape of an append never
+ *  acknowledged, which the cache build ignores, and a md2 that ends in a
+ *  part of a row is an append never acknowledged too, which a master cuts
+ *  back (timeranger2/test_uncommitted_append.c, test_torn_md2_tail.c).
+ *  Neither is damage.
  ***************************************************************************/
 PRIVATE json_t *reopen_with_a_key_cut2(
     const char *path_root,
@@ -2185,12 +2189,8 @@ PRIVATE json_t *reopen_with_a_key_cut2(
     get_ordered_filename_array(0, key_dir, ".*\\.md2", WD_MATCH_REGULAR_FILE, &da);
     for(int i = 0; i < da.count; i++) {
         if(restart) {
-            FILE *f = fopen(da.items[i], "a");
-            if(!f || fwrite("XXXXX", 1, 5, f) != 5) {
+            if(chmod(da.items[i], 0) < 0) {
                 printf("%s  FAIL: cannot damage %s%s\n", On_Red BWhite, da.items[i], Color_Off);
-            }
-            if(f) {
-                fclose(f);
             }
         } else if(truncate(da.items[i], 0) < 0) {
             printf("%s  FAIL: cannot cut %s%s\n", On_Red BWhite, da.items[i], Color_Off);
@@ -2347,6 +2347,10 @@ PRIVATE int test_gc_after_a_restart(const char *path_root)
 {
     int result = 0;
     const char *test = "25. after a restart: the gc does not take an asset linked by a node that did not load";
+    if(geteuid() == 0) {
+        printf("25, 26: skipped, root reads a file of mode 000\n");
+        return 0;
+    }
 
     char id_b[SHA256_HEX_LEN + 1];
     snprintf(id_b, sizeof(id_b), "%s", sha(PNG_B, sizeof(PNG_B)-1));

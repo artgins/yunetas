@@ -936,12 +936,11 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     was handed as NULL and the load went on; an `only_md` load reads no
     content, and no content fails it.)
     The same holds after a RESTART: a md2 file the topic's cache could not
-    count when it was built from disk -- one that cannot be opened or read,
-    or whose size is not a whole number of rows -- flags its key. Every
-    iterator of that key says `"load_failed": true` (paging ones too, and
-    logs it), and a loading stops where the first flagged file is in its
-    direction. E.g. key A with files d1 d2 d3 and garbage after d2's md2
-    while the yuno was down:
+    count when it was built from disk -- one that cannot be opened or
+    read -- flags its key. Every iterator of that key says
+    `"load_failed": true` (paging ones too, and logs it), and a loading
+    stops where the first flagged file is in its direction. E.g. key A with
+    files d1 d2 d3 and d2's md2 unreadable while the yuno was down:
         forward load  -> the rows of d1, then load_failed
         backward load -> the rows of d3, then load_failed
     A md2 of 0 rows gets no cell and flags nothing. With a content file that
@@ -949,7 +948,14 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     written, md2 row not): a WARNING names the file and the key loads from
     its other files ("md2 file of the key with no rows and a content file
     that is not empty: an append that was never acknowledged, the file is
-    ignored"). The flag of a file goes when a cell counts it again (an append
+    ignored"). A md2 whose size is not a whole number of rows is not damage
+    either: its last row is torn (a power cut during the write of a row),
+    an append that was never acknowledged. A MASTER cuts the md2 back to
+    its whole rows with a WARNING ("md2 file of the key ends in a part of a
+    row: an append that was never acknowledged was cut back", with the
+    old_size and the new_size), and the key loads whole. A replica never
+    writes: it reads the whole rows. Its content file is left as it is.
+    The flag of a file goes when a cell counts it again (an append
     into it that finds it readable, or a follower that reads it whole);
     tranger2_delete_key() of the key clears every flag with the key.
     tranger2_open_list() answers NULL for such a load of its one key; a

@@ -80,6 +80,7 @@ set(SRCS
     test_unreadable_at_open
     test_mark_tm_order
     test_uncommitted_append
+    test_torn_md2_tail
     test_testing
 )
 

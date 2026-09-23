@@ -24,7 +24,10 @@
  *      forward:  A@1 (the files before the damage), then B
  *      backward: A@3 (the files after it), then B
  *
- *      2. 5 bytes of garbage appended to the md2 (not a whole row).
+ *      2. the md2 cannot be read (mode 000). A md2 whose size is not a
+ *         whole number of rows is NOT here: its last row is torn, an
+ *         append that was never acknowledged, and a master cuts it back
+ *         (test_torn_md2_tail.c).
  *      3. the content file cut to 0 bytes, the md2 whole.
  *      4. an EMPTY md2 with an empty content file: nothing is lost, the
  *         key loads whole.
@@ -38,6 +41,7 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -216,14 +220,14 @@ PRIVATE int test_damage(const char *case_name, const char *damage)
     }
 
     char path[PATH_MAX];
-    if(strcmp(damage, "garbage") == 0) {
-        file_of_a(path, sizeof(path), "2000-01-02", "md2");
-        int fd = open(path, O_WRONLY|O_APPEND);
-        if(fd < 0 || write(fd, "XXXXX", 5) != 5) {
-            result += -1;
+    if(strcmp(damage, "unreadable") == 0) {
+        if(geteuid() == 0) {
+            printf("%s: skipped, root reads a file of mode 000\n", case_name);
+            return 0;
         }
-        if(fd >= 0) {
-            close(fd);
+        file_of_a(path, sizeof(path), "2000-01-02", "md2");
+        if(chmod(path, 0) < 0) {
+            result += -1;
         }
     } else if(strcmp(damage, "json") == 0) {
         file_of_a(path, sizeof(path), "2000-01-02", "json");
@@ -242,9 +246,9 @@ PRIVATE int test_damage(const char *case_name, const char *damage)
      *-------------------------------------*/
     char test[128];
     snprintf(test, sizeof(test), "%s: open", case_name);
-    if(strcmp(damage, "garbage") == 0) {
+    if(strcmp(damage, "unreadable") == 0) {
         set_expected_results(test, json_pack("[{s:s},{s:s}]",
-            "msg", "Cannot read last record, md2 file corrupted",
+            "msg", "Cannot open md2 file",
             "msg", MSG_FLAG
         ), NULL, NULL, 1);
     } else {
@@ -390,7 +394,7 @@ PRIVATE int do_test(void)
     mkrdir(path_root, 02770);
     build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
 
-    result += test_damage("2. md2 with garbage", "garbage");
+    result += test_damage("2. md2 that cannot be read", "unreadable");
     result += test_damage("3. content cut to 0 bytes", "json");
     result += test_empty_files();
 

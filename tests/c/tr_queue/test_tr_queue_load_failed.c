@@ -155,7 +155,7 @@ PRIVATE int test_trq(void)
      *-------------------------------------*/
     set_expected_results("trq: a load that fails moves nothing",
         json_pack("[{s:s},{s:s},{s:s}]",
-            "msg", "Cannot read record metadata, read FAILED",
+            "msg", "Cannot read record metadata, short read",
             "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
                    "were handed, the list goes on with the next key",
             "msg", "Queue loaded without some of its messages: its first_rowid is not moved nor saved"
@@ -237,7 +237,7 @@ PRIVATE int test_tr2q(void)
 
     set_expected_results("tr2q: a load that fails moves nothing",
         json_pack("[{s:s},{s:s},{s:s}]",
-            "msg", "Cannot read record metadata, read FAILED",
+            "msg", "Cannot read record metadata, short read",
             "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
                    "were handed, the list goes on with the next key",
             "msg", "Queue loaded without some of its messages: its first_rowid is not moved nor saved"
