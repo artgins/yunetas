@@ -1160,6 +1160,26 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  lifecycle with pause-yuno + play-yuno.
      *-----------------------------------------------------*/
     hgobj gobj_opened = gobj_find_service(treedb_name, FALSE);
+    if(gobj_opened && is_treedb_opened_here(gobj, gobj_opened) &&
+            json_object_get(priv->jn_not_opened, treedb_name)) {
+        /*
+         *  Its last open-treedb did not open it, but its services are
+         *  there: the next open would collide with them
+         */
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: cannot delete the schema of '%s': its last open-treedb did not "
+                "open it, and its services are still there. close-treedb it first, "
+                "then delete-treedb",
+                gobj_yuno_role_plus_name(), treedb_name
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     if(gobj_opened && is_treedb_opened_here(gobj, gobj_opened)) {
         return msg_iev_build_response(
             gobj,
@@ -1498,12 +1518,12 @@ PRIVATE void prune_schema_node(json_t *jn) // not owned, MUTATED
              *  as "default added" against the file in use.
              *  On a `required` column too. The meta-schema cannot tell that
              *  `{}` from a `default: {}` the author wrote, and a default
-             *  fills the field, so kept (b6f66cdf8) it turned `required` off
-             *  for every required dict/list/array/blob column declared with
-             *  NO default. The trade-off, the lesser one: a required column
-             *  that really declared `default: {}` loses it through save +
-             *  apply, and a record created without the field is refused
-             *  (review of the second fix round, 2026-09-23).  */
+             *  fills the field, so kept it would turn `required` off for
+             *  every required dict/list/array/blob column declared with NO
+             *  default. The trade-off, the lesser one (as in 7.25.4): a
+             *  required column that really declared `default: {}` loses it
+             *  through save + apply, and a record created without the field
+             *  is refused.  */
             if(strcmp(key, "default")==0) {
                 if(json_is_object(value) && json_object_size(value)==0) {
                     json_object_del(jn, key);
@@ -1756,6 +1776,23 @@ PRIVATE BOOL same_order_of_common_names(json_t *a, json_t *b) // not owned, list
     JSON_DECREF(common_a)
     JSON_DECREF(common_b)
     return same;
+}
+
+/***************************************************************************
+ *  Does a schema declare any topic? A treedb with none does not open
+ *  (treedb_open_db() refuses it: "No topics found"), so a schema without
+ *  topics is neither saved nor applied.
+ ***************************************************************************/
+PRIVATE BOOL schema_has_topics(json_t *jn_schema) // not owned
+{
+    json_t *topics = json_object_get(jn_schema, "topics");
+    if(json_is_array(topics)) {
+        return json_array_size(topics) > 0;
+    }
+    if(json_is_object(topics)) {
+        return json_object_size(topics) > 0;
+    }
+    return FALSE;
 }
 
 /***************************************************************************
@@ -2307,6 +2344,31 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     /*
+     *  A draft with no topic left is not a schema a treedb can open with:
+     *  saved and applied, the treedb would not open again
+     */
+    if(!schema_has_topics(schema)) {
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_TREEDB,
+            "msg",              "%s", "Draft of a treedb schema with no topics: not saved, a treedb without topics does not open",
+            "treedb_name",      "%s", treedb_name,
+            NULL
+        );
+        JSON_DECREF(schema)
+        JSON_DECREF(changed)
+        JSON_DECREF(in_use)
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: cannot save the schema of '%s': its draft in __system__ has "
+                "no topics, and a treedb without topics does not open",
+                gobj_yuno_role_plus_name(), treedb_name),
+            0,
+            json_pack("{s:s, s:o}", "treedb_name", treedb_name, "changes", rows),
+            kw
+        );
+    }
+
+    /*
      *  The versions: the one in use + 1, or the draft's when it is already
      *  ahead of that
      */
@@ -2482,9 +2544,7 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *  with the diff of a schema already in use.
      *
      *  One that cannot be READ is BROKEN: its version is unknown, so it is
-     *  no pending save either, and apply-schema leaves it out. It answered
-     *  `stale` -- harmless -- while the apply of every treedb refused them
-     *  all for it (L6 of the third independent review, 2026-09-23).
+     *  no pending save either, and apply-schema leaves it out.
      */
     BOOL pending = (saved && saved_version > in_use_version)? TRUE: FALSE;
     BOOL broken = (!saved && file_exists(saved_dir, filename))? TRUE: FALSE;
@@ -2780,6 +2840,19 @@ PRIVATE json_t *check_saved_schema_to_apply(
             gobj_yuno_role_plus_name(), treedb_name);
     }
     *p_applicable = TRUE;
+    if(!schema_has_topics(saved)) {
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_TREEDB,
+            "msg",              "%s", "Saved treedb schema with no topics: not applied, a treedb without topics does not open",
+            "treedb_name",      "%s", treedb_name,
+            "schema_version",   "%d", (int)*p_saved_version,
+            NULL
+        );
+        JSON_DECREF(saved)
+        return json_sprintf("%s: the saved schema of '%s' has no topics: a treedb without "
+            "topics does not open", gobj_yuno_role_plus_name(), treedb_name);
+    }
     if(parse_schema(saved)<0) {
         JSON_DECREF(saved)
         return json_sprintf("%s: the saved schema of '%s' does not parse (see the log)",
@@ -2943,8 +3016,7 @@ PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  *  A treedb whose saved file cannot be READ is left out too, and SAID: its
  *  row says `applied: false, broken: true` and the answer is -1. Its
  *  version is unknown, so it is no pending save (saved-schema answers it
- *  `broken`), and it does not refuse the others -- it did, while
- *  saved-schema called it stale (L6 of the third independent review).
+ *  `broken`), and it does not refuse the others.
  ***************************************************************************/
 PRIVATE json_t *apply_every_saved_schema(hgobj gobj, const char *cmd, json_t *kw)
 {
@@ -3772,24 +3844,47 @@ PRIVATE BOOL projection_rewrites_node(
 /***************************************************************************
  *  What the operator had in a topic of __system__ that a projection
  *  replaces, or NULL when it was nobody's work: a DRAFT is a topic that
- *  differs from the schema file in use (`drafts`), "saved" when a pending
- *  save published it (its version in __system__ above the one in use),
- *  "unsaved" otherwise. A save taken back is the file again: no draft.
- *  (An applied topic that never ran is judged against the file, in
- *  reconcile_treedb_schema().)
+ *  differs from the schema file in use (`drafts`). It is "saved" when a
+ *  pending save published it, "unsaved" otherwise:
+ *
+ *      - a topic still in __system__ was saved when its version there is
+ *        above the one in use (save-schema raises it);
+ *      - a topic the draft DELETED from __system__ was saved when the
+ *        pending saved schema does not declare it either;
+ *      - a draft that an earlier open could not replace keeps the kind it
+ *        had then (`kinds_before`, the record's `draft_kinds`): that open
+ *        withdrew the saved schema, so nothing else says it now.
+ *
+ *  A save taken back is the file again: no draft. (An applied topic that
+ *  never ran is judged against the file, in reconcile_treedb_schema().)
  ***************************************************************************/
 PRIVATE const char *draft_kind(
+    hgobj gobj,
     json_t *drafts,             // not owned, {topic: true}, may be NULL
-    BOOL saved_pending,
+    json_t *saved,              // not owned, the pending saved schema, or NULL
+    json_t *kinds_before,       // not owned, {topic: kind} of an unfinished projection, or NULL
     const char *topic_name,
-    json_int_t stored_topic_version,
+    json_t *stored_topic,       // not owned, the topic in __system__, NULL when the draft deleted it
     json_int_t in_use_topic_version
 )
 {
     if(!json_object_get(drafts, topic_name)) {
         return NULL;
     }
-    return (saved_pending && stored_topic_version > in_use_topic_version)? "saved" : "unsaved";
+    const char *kind_before = json_string_value(json_object_get(kinds_before, topic_name));
+    if(kind_before && strcmp(kind_before, "saved")==0) {
+        return "saved";
+    }
+    if(!saved) {
+        return "unsaved";
+    }
+    if(!stored_topic) {
+        return schema_topic(saved, topic_name)? "unsaved" : "saved";
+    }
+    json_int_t stored_topic_version = kw_get_int(
+        gobj, stored_topic, "topic_version", 0, KW_WILD_NUMBER
+    );
+    return (stored_topic_version > in_use_topic_version)? "saved" : "unsaved";
 }
 
 /***************************************************************************
@@ -3800,23 +3895,39 @@ PRIVATE const char *draft_kind(
  *       "not_removed": ["tw.departments"],     // deletes refused
  *       "not_written": [],                     // writes that failed
  *       "leftovers": ["tw.departments", "tw.departments.id",
- *                     "tw.departments.name"]}
+ *                     "tw.departments.name"],
+ *       "draft_kinds": {"users": "saved"}}     // drafts it could not replace
  *
  *  `leftovers` is every id of __system__ the projection left unlike the
  *  schema: the ids of the two lists, and the columns of a topic that it
  *  could not remove or write. They are nobody's draft. An id that carries
  *  an operator's draft is NOT a leftover, although it is in a list: the
  *  projection could not replace the draft, so it is still one (see
- *  upsert_treedb_schema). Return is YOURS.
+ *  upsert_treedb_schema). `draft_kinds` keeps what kind of draft each of
+ *  those topics was ("saved" or "unsaved", see draft_kind), for the open
+ *  that replaces it to say. Return is YOURS.
  ***************************************************************************/
 PRIVATE json_t *new_unfinished(json_int_t schema_version)
 {
-    return json_pack("{s:I, s:[], s:[], s:[]}",
+    return json_pack("{s:I, s:[], s:[], s:[], s:{}}",
         "schema_version", schema_version,
         "not_removed",
         "not_written",
-        "leftovers"
+        "leftovers",
+        "draft_kinds"
     );
+}
+
+/***************************************************************************
+ *  A draft of `topic_name` that the projection could not replace: its
+ *  kind goes into the record, for the open that replaces it to say
+ ***************************************************************************/
+PRIVATE void keep_draft_kind(json_t *unfinished, const char *topic_name, const char *kind)
+{
+    if(!kind) {
+        return;
+    }
+    json_object_set_new(json_object_get(unfinished, "draft_kinds"), topic_name, json_string(kind));
 }
 
 /***************************************************************************
@@ -3897,15 +4008,16 @@ PRIVATE void add_unfinished_topic(
  *  again (fifth independent review, 2026-09-23).
  *
  *  What that replaces of the operator's work -- a draft of a topic, saved
- *  or not (`drafts`, `saved_pending`) -- is added to `replaced` as
- *  {topic: "saved" | "unsaved"}; the caller says it. A draft is reported
- *  by the open that REPLACES it, once: a projection that cannot replace a
- *  part of it (a write that fails, a delete a snapshot refuses) leaves it
- *  a draft -- not a leftover, `draft_ids` says which ids carry one -- and
- *  says nothing of that topic; the open that completes it says it. Taken
- *  for a leftover, a draft would be deleted in silence by that open: the
- *  report does not depend on whether a write succeeded, only on whether
- *  the draft is still in __system__.
+ *  or not (`drafts`, `saved`, see draft_kind), a topic the draft deleted
+ *  included -- is added to `replaced` as {topic: "saved" | "unsaved"}; the
+ *  caller says it. A draft is reported by the open that REPLACES it, once:
+ *  a projection that cannot replace a part of it (a write that fails, a
+ *  delete a snapshot refuses) leaves it a draft -- not a leftover,
+ *  `draft_ids` says which ids carry one -- says nothing of that topic, and
+ *  keeps its kind in `unfinished` (`draft_kinds`); the open that completes
+ *  it says it. Taken for a leftover, a draft would be deleted in silence
+ *  by that open: the report does not depend on whether a write succeeded,
+ *  only on whether the draft is still in __system__.
  *
  *  Only what a write would change is written: an identical topic or column
  *  adds no record. The number of __system__'s `schema_version` never goes
@@ -3923,7 +4035,8 @@ PRIVATE int upsert_treedb_schema(
     json_t *file_in_use, // not owned, the schema file in use before this open, or NULL
     json_t *drafts, // not owned, {topic: true} whose draft differs from the file, or NULL
     json_t *draft_ids, // not owned, {id: true} of __system__ that carry those drafts, or NULL
-    BOOL saved_pending, // a saved schema newer than the file in use exists
+    json_t *saved,  // not owned, the saved schema newer than the file in use, or NULL
+    json_t *kinds_before, // not owned, {topic: kind} of the drafts an earlier open kept, or NULL
     json_t *replaced, // not owned, {topic: kind} the projection replaced is added here, or NULL
     json_t *unfinished  // not owned, what the projection could not do is added (new_unfinished)
 )
@@ -4074,7 +4187,11 @@ PRIVATE int upsert_treedb_schema(
         }
         JSON_DECREF(declared_cols)
 
-        const char *kind = NULL;    // the operator's draft this replaces, see draft_kind()
+        /*
+         *  The operator's draft this replaces (see draft_kind). A topic the
+         *  draft DELETED is re-created, and that is its draft too.
+         */
+        const char *kind = NULL;
         if(current_topic) {
             json_int_t stored_topic_version = kw_get_int(
                 gobj, current_topic, "topic_version", 0, KW_WILD_NUMBER
@@ -4092,9 +4209,14 @@ PRIVATE int upsert_treedb_schema(
             }
 
             kind = topic_changes? draft_kind(
-                drafts, saved_pending, topic_name, stored_topic_version,
+                gobj, drafts, saved, kinds_before, topic_name, current_topic,
                 topic_version_in_use(in_use, topic_name)
             ) : NULL;
+        } else {
+            kind = draft_kind(
+                gobj, drafts, saved, kinds_before, topic_name, NULL,
+                topic_version_in_use(in_use, topic_name)
+            );
         }
 
         /*
@@ -4115,6 +4237,7 @@ PRIVATE int upsert_treedb_schema(
             if(!topic) {
                 failed++;   // Error already logged
                 add_unfinished_topic(gobj, unfinished, topic_id, kw_cols, removed_cols, draft_ids);
+                keep_draft_kind(unfinished, topic_name, kind);
                 JSON_DECREF(removed_cols)
                 JSON_DECREF(kw_cols)
                 continue;   /*  nothing of it replaced: not said  */
@@ -4130,9 +4253,10 @@ PRIVATE int upsert_treedb_schema(
             if(!topic) {
                 failed++;   // Error already logged
                 add_unfinished_topic(gobj, unfinished, topic_id, kw_cols, removed_cols, draft_ids);
+                keep_draft_kind(unfinished, topic_name, kind);
                 JSON_DECREF(removed_cols)
                 JSON_DECREF(kw_cols)
-                continue;
+                continue;   /*  nothing of it replaced: not said  */
             }
 
             if(gobj_link_nodes(
@@ -4226,7 +4350,9 @@ PRIVATE int upsert_treedb_schema(
             }
         }
 
-        if(kind && !draft_left && replaced) {
+        if(draft_left) {
+            keep_draft_kind(unfinished, topic_name, kind);
+        } else if(kind && replaced) {
             json_object_set_new(replaced, topic_name, json_string(kind));
         }
 
@@ -4250,6 +4376,10 @@ PRIVATE int upsert_treedb_schema(
             continue;
         }
         const char *topic_name = kw_get_str(gobj, current_topic, "value", current_topic_id, 0);
+        const char *kind = draft_kind(
+            gobj, drafts, saved, kinds_before, topic_name, current_topic,
+            topic_version_in_use(in_use, topic_name)
+        );
 
         if(gobj_delete_node(
                 priv->gobj_node_system,
@@ -4264,6 +4394,7 @@ PRIVATE int upsert_treedb_schema(
             json_object_foreach(kw_get_dict(gobj, current_topic, "cols", 0, 0), col_id, col) {
                 add_unfinished(unfinished, NULL, col_id, draft_ids);
             }
+            keep_draft_kind(unfinished, topic_name, kind);
             continue;   /*  its draft, if any, is still there: not said  */
         }
 
@@ -4275,11 +4406,6 @@ PRIVATE int upsert_treedb_schema(
             "topic_name",       "%s", topic_name,
             "schema_version",   "%d", (int)kw_version,
             NULL
-        );
-        const char *kind = draft_kind(
-            drafts, saved_pending, topic_name,
-            kw_get_int(gobj, current_topic, "topic_version", 0, KW_WILD_NUMBER),
-            topic_version_in_use(in_use, topic_name)
         );
         if(kind && replaced) {
             json_object_set_new(replaced, topic_name, json_string(kind));
@@ -4537,12 +4663,9 @@ PRIVATE BOOL schema_topic_differs(
  *  apply-schema writes them in -- keeps the record it replaced in
  *  `previous`, and that one is read when its version is the one in use.
  *
- *  It used to be inferred from the file's topic_version being above the
- *  store's topic_var.json, and a topic whose directory or topic_var.json
- *  was missing read as an apply that never ran whether one had been made
- *  or not (L-2 of the fourth independent review, 2026-09-23). And it was
- *  removed by the open that ran the apply, so a literal replacing a
- *  dynamic schema that RAN said nothing (fifth independent review).
+ *  It is recorded, never inferred from the store: a topic whose directory
+ *  or topic_var.json is missing is no apply, and the record stays while
+ *  its file is in use.
  ***************************************************************************/
 PRIVATE void apply_record_filename(const char *treedb_name, char *bf, size_t bfsize)
 {
@@ -4796,7 +4919,10 @@ PRIVATE void unfinished_record_filename(const char *treedb_name, char *bf, size_
  *  for any record, and the retry writes it again (or removes it). With no
  *  leftovers known, what __system__ holds over the file is taken for the
  *  operator's drafts: reported as withdrawn by the open that replaces it,
- *  never deleted in silence. It is said as a WARNING at every read.
+ *  never deleted in silence -- and as "unsaved", the kinds it kept are
+ *  lost with it. It is said as ONE WARNING at every read, with the cause:
+ *  the file is read here, not with load_json_from_file(), which logs bad
+ *  json as a CRITICAL of its own.
  ***************************************************************************/
 PRIVATE json_t *load_unfinished_record(hgobj gobj, const char *treedb_name)
 {
@@ -4807,12 +4933,30 @@ PRIVATE json_t *load_unfinished_record(hgobj gobj, const char *treedb_name)
     if(!file_exists(saved_dir, filename)) {
         return NULL;
     }
-    json_t *record = load_json_from_file(gobj, saved_dir, filename, 0);
+
+    json_t *record = NULL;
+    json_error_t error;
+    memset(&error, 0, sizeof(error));
+    char path[PATH_MAX];
+    if(build_path(path, sizeof(path), saved_dir, filename, NULL)) {
+        int fd = open(path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+        if(fd < 0) {
+            snprintf(error.text, sizeof(error.text), "cannot open it: %s", strerror(errno));
+        } else {
+            record = json_loadfd(fd, 0, &error);
+            close(fd);
+        }
+    } else {
+        snprintf(error.text, sizeof(error.text), "path too long");   // Error already logged
+    }
     if(json_is_object(record) &&
             json_is_array(json_object_get(record, "not_removed")) &&
             json_is_array(json_object_get(record, "not_written")) &&
             json_is_array(json_object_get(record, "leftovers"))) {
         return record;
+    }
+    if(record) {
+        snprintf(error.text, sizeof(error.text), "not the shape of a record");
     }
     JSON_DECREF(record)
 
@@ -4823,6 +4967,7 @@ PRIVATE json_t *load_unfinished_record(hgobj gobj, const char *treedb_name)
         "treedb_name",      "%s", treedb_name,
         "directory",        "%s", saved_dir,
         "filename",         "%s", filename,
+        "error",            "%s", error.text,
         NULL
     );
     record = new_unfinished(0);
@@ -5324,11 +5469,6 @@ PRIVATE json_t *drafts_over_file(
  *  nobody's draft on any path (see rows_without_leftovers); what the
  *  operator did meanwhile is, and a retry that replaces it says it.
  *
- *  Three fix rounds replaced this with rules per topic, and each broke a
- *  different case; the last one merged the literal with the file and built
- *  schemas nobody had written -- a removed parent topic kept a hook to a
- *  column that no longer existed, and the treedb never opened again.
- *
  *  With `imposing` the literal runs whatever the file says (unless it IS
  *  the file's version), and __system__ keeps the rule of the versions
  *  against itself: seeded when the treedb has none, re-made WHOLE when the
@@ -5388,7 +5528,8 @@ PRIVATE int project_literal_into_system(
         }
         *p_projected = TRUE;
         int ret = upsert_treedb_schema(
-            gobj, treedb_name, seed, c_stamp, NULL, file_in_use, NULL, NULL, FALSE, replaced, unfinished
+            gobj, treedb_name, seed, c_stamp, NULL, file_in_use, NULL, NULL, NULL, NULL,
+            replaced, unfinished
         );
         if(from_file) {
             say_literal_not_installed(gobj, treedb_name, jn_schema, file_in_use, 0, c_stamp);
@@ -5419,6 +5560,17 @@ PRIVATE int project_literal_into_system(
         KW_WILD_NUMBER
     );
     JSON_DECREF(stored)
+
+    /*
+     *  A projection that was never stamped: its node says 0 while the file
+     *  in use has a version, and there is no record. That is a seed that
+     *  died before its end (the node is created with 0 and stamped last,
+     *  see upsert_treedb_schema): unfinished like one with a record, and
+     *  nothing in it is anybody's draft. A complete projection of a file
+     *  whose schema_version is 1 or more always stamps 1 or more.
+     */
+    BOOL never_stamped = (stored_version == 0 && in_use_version > 0 && !unfinished_before)?
+        TRUE : FALSE;
 
     /*
      *  A projection written with an older meta-schema may still be keyed by
@@ -5476,7 +5628,7 @@ PRIVATE int project_literal_into_system(
          *  the operator's drafts over it -- unless its projection was
          *  left unfinished, and then it is completed from what runs
          */
-        if(!unfinished_before) {
+        if(!unfinished_before && !never_stamped) {
             say_literal_not_installed(
                 gobj, treedb_name, jn_schema, file_in_use, stored_version, stored_c_version
             );
@@ -5492,6 +5644,8 @@ PRIVATE int project_literal_into_system(
             "msgset",           "%s", MSGSET_INFO,
             "msg",              "%s", "Completing the projection into __system__, left unfinished by an earlier open",
             "treedb_name",      "%s", treedb_name,
+            "why",              "%s", unfinished_before?
+                "its record says so" : "never stamped (schema_version 0), no record",
             "source",           "%s", source == jn_schema? "schema from C" : "schema file in use",
             "schema_version",   "%d", (int)schema_version_of(gobj, source),
             "stored_version",   "%d", (int)stored_version,
@@ -5546,13 +5700,14 @@ PRIVATE int project_literal_into_system(
     /*
      *  The drafts: the topics of __system__ that differ from the schema
      *  file in use, which the projection replaces (said, see upsert), and
-     *  whether a save of them is pending. What an unfinished projection
-     *  left is no draft.
+     *  the saved schema when a save of them is pending. What an unfinished
+     *  projection left is no draft, and a projection never stamped holds
+     *  none.
      */
     json_t *drafts = NULL;
     json_t *draft_ids = NULL;
-    BOOL saved_pending = FALSE;
-    if(file_in_use) {
+    json_t *saved = NULL;
+    if(file_in_use && !never_stamped) {
         drafts = drafts_over_file(gobj, treedb_name, file_in_use,
             unfinished_before? json_object_get(unfinished_before, "leftovers") : NULL,
             &draft_ids);
@@ -5562,9 +5717,10 @@ PRIVATE int project_literal_into_system(
         char filename[NAME_MAX];
         snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
         if(file_exists(saved_dir, filename)) {
-            json_t *saved = load_json_from_file(gobj, saved_dir, filename, 0);
-            saved_pending = (schema_version_of(gobj, saved) > in_use_version)? TRUE : FALSE;
-            JSON_DECREF(saved)
+            saved = load_json_from_file(gobj, saved_dir, filename, 0);
+            if(schema_version_of(gobj, saved) <= in_use_version) {
+                JSON_DECREF(saved)  /*  not a pending save  */
+            }
         }
     }
 
@@ -5574,10 +5730,12 @@ PRIVATE int project_literal_into_system(
         file_in_use,
         drafts,
         draft_ids,
-        saved_pending,
+        saved,
+        unfinished_before? json_object_get(unfinished_before, "draft_kinds") : NULL,
         replaced,
         unfinished
     );
+    JSON_DECREF(saved)
     JSON_DECREF(drafts)
     JSON_DECREF(draft_ids)
     JSON_DECREF(current)
@@ -6224,9 +6382,7 @@ PRIVATE json_t *get_client_treedb_schema(
      *  `impose`: it is installed only when it is newer than the file, and
      *  then over the WHOLE file -- the rule the user decided on 2026-09-23,
      *  as it was in 7.25.4. The file wins on ties and when it is ahead,
-     *  which is what apply-schema makes it. (For three fix rounds a literal
-     *  newer than the file was merged with it topic by topic, and that
-     *  built schemas nobody had written: see reconcile_treedb_schema.)
+     *  which is what apply-schema makes it.
      *
      *  __system__ is not read here. It is where a schema is EDITED: a draft
      *  there reaches a treedb only through save-schema + apply-schema (the

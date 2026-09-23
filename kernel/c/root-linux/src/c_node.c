@@ -464,6 +464,11 @@ typedef struct _PRIVATE_DATA {
      *  subscriber of its events updating this service) cannot reset it.  */
     BOOL links_refused;
 
+    /*  treedb_open_db() opened the treedb at mt_start. When it refused the
+     *  schema the service is still created and running, and a close of a
+     *  treedb that never opened logs "TreeDB not found" with a stack.  */
+    BOOL opened;
+
 } PRIVATE_DATA;
 
 
@@ -611,7 +616,10 @@ PRIVATE int mt_start(hgobj gobj)
         JSON_DECREF(jn_parsed)
     }
 
-    set_treedb_callback(gobj);
+    priv->opened = treedb? TRUE : FALSE;
+    if(treedb) {
+        set_treedb_callback(gobj);
+    }
 
     /*--------------------------------------------------------------*
      *  Seed and protect the records the configuration declares.
@@ -634,7 +642,10 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    treedb_close_db(priv->tranger, priv->treedb_name);
+    if(priv->opened) {
+        treedb_close_db(priv->tranger, priv->treedb_name);
+        priv->opened = FALSE;
+    }
 
     return 0;
 }

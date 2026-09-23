@@ -101,6 +101,8 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
 #define M_BEHIND        "TreeDB schema from C is behind the schema in use, not applied"
 #define M_ENUM          "Value not in enum"
 #define M_REPLICA       "The store of the treedb is not written here: it opens as a replica and runs its schema file, __system__ is not reconciled"
+#define M_NO_TOPICS_SAVE "Draft of a treedb schema with no topics: not saved, a treedb without topics does not open"
+#define M_NO_TOPICS_APPLY "Saved treedb schema with no topics: not applied, a treedb without topics does not open"
 #define M_UNREADABLE    "Record of an unfinished projection cannot be read: the projection is unfinished, what it left is unknown; every open retries it, save-schema refuses, and what __system__ holds over the file is taken for drafts"
 
 /*
@@ -497,7 +499,8 @@ PRIVATE const char *expected_log_msgs[] = {
 
     /*  L6: a literal refused by C_TREEDB (hook and fkey), then a schema
      *  file with no topics: treedb_open_db() fails, the open answers -1
-     *  (C_NODE's callback and close on a treedb that never opened)  */
+     *  (and nothing else: C_NODE neither sets the callback of a treedb
+     *  that never opened nor closes it)  */
     "Creating __timeranger2__.json",
     "A column cannot be both 'hook' and 'fkey'",
     "Input Schema fails",
@@ -509,9 +512,6 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
     "No topics found",
-    "TreeDB not found",
-    "TreeDB not found",
-    "TreeDB not found",
 
     /*  M1b: a snapshot holds departments, v2 leaves it (unfinished), the
      *  operator adds departments.budget; a retry that cannot finish keeps
@@ -600,13 +600,9 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
-    "Cannot load json file, bad json",
     M_UNREADABLE,
-    "Cannot load json file, bad json",
     M_UNREADABLE,
-    "Cannot load json file, bad json",
     M_UNREADABLE,
-    "Cannot load json file, bad json",
     M_UNREADABLE,
     M_COMPLETING,
     M_SNAP_HOLDS,
@@ -625,7 +621,8 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
 
     /*  L3b + L4b: a schema file with no topics: the open fails, the
-     *  second one is refused up front, close-treedb  */
+     *  second one is refused up front, delete-treedb is refused, and
+     *  close-treedb logs nothing  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
@@ -633,9 +630,67 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
     "No topics found",
-    "TreeDB not found",
-    "TreeDB not found",
-    "TreeDB not found",
+
+    /*  N7 unsaved (tw_n7u): the operator deletes departments; a newer
+     *  literal re-creates it and says it  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Updating TreeDB schema in __system__",
+    M_WITHDREW,
+    "Re-Creating TreeDB schema file",
+
+    /*  N7 saved (tw_n7s): the same, with the deletion saved  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Schema saved",
+    "Updating TreeDB schema in __system__",
+    M_WITHDREW,
+    "Re-Creating TreeDB schema file",
+
+    /*  N1: delete-treedb, a seed that died (node 0/0): the next open
+     *  completes it; save-schema and apply-schema refuse no topics  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    M_COMPLETING,
+    M_NO_TOPICS_SAVE,
+    M_NO_TOPICS_APPLY,
+
+    /*  N4: a saved draft on departments, the delete refused: the first
+     *  open says the saved schema; the one that completes says the
+     *  draft, "saved"  */
+    "Creating __timeranger2__.json",
+    "Creating TreeDB schema file",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Creating topic",
+    "Schema saved",
+    "Updating TreeDB schema in __system__",
+    M_SNAP_HOLDS,
+    M_IN_PART,
+    M_WITHDREW,
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    M_COMPLETING,
+    M_REMOVED,
+    M_WITHDREW,
 
     /*  end  */
     "All treedb literal wins tests PASSED",
