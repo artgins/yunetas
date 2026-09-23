@@ -97,6 +97,7 @@ PRIVATE const char *seed_hanging_from(
     char *bf,
     int bfsize
 );
+PRIVATE BOOL treedb_is_master(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -1216,6 +1217,26 @@ PRIVATE int mt_delete_node(
         }
     }
 
+    /*
+     *  A replica cannot write, and this is the one question to ask BEFORE
+     *  anything moves: the treedb moves the links in memory first and
+     *  meets the refused save last, so a direct C caller got -1 over a
+     *  replica whose memory said what its disk did not (C_NODE lows of the
+     *  2026-09-23 independent review). The commands ask it already.
+     */
+    if(!treedb_is_master(gobj)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot delete a node on a READ-ONLY replica",
+            "treedb_name",  "%s", priv->treedb_name,
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        KW_DECREF(kw)
+        return -1;
+    }
+
     /*-----------------------------------*
      *      Check appropriate topic
      *-----------------------------------*/
@@ -1377,6 +1398,26 @@ PRIVATE int mt_link_nodes(
         }
     }
 
+    /*
+     *  A replica cannot write, and this is the one question to ask BEFORE
+     *  anything moves: the treedb moves the links in memory first and
+     *  meets the refused save last, so a direct C caller got -1 over a
+     *  replica whose memory said what its disk did not (C_NODE lows of the
+     *  2026-09-23 independent review). The commands ask it already.
+     */
+    if(!treedb_is_master(gobj)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot link nodes on a READ-ONLY replica",
+            "treedb_name",  "%s", priv->treedb_name,
+            NULL
+        );
+        JSON_DECREF(parent_record)
+        JSON_DECREF(child_record)
+        return -1;
+    }
+
     /*-----------------------------------*
      *      Check appropriate topic
      *-----------------------------------*/
@@ -1527,6 +1568,26 @@ PRIVATE int mt_unlink_nodes(
             gobj_trace_json(gobj, parent_record, "method unlink_nodes parent");
             gobj_trace_json(gobj, child_record, "method unlink_nodes child");
         }
+    }
+
+    /*
+     *  A replica cannot write, and this is the one question to ask BEFORE
+     *  anything moves: the treedb moves the links in memory first and
+     *  meets the refused save last, so a direct C caller got -1 over a
+     *  replica whose memory said what its disk did not (C_NODE lows of the
+     *  2026-09-23 independent review). The commands ask it already.
+     */
+    if(!treedb_is_master(gobj)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot unlink nodes on a READ-ONLY replica",
+            "treedb_name",  "%s", priv->treedb_name,
+            NULL
+        );
+        JSON_DECREF(parent_record)
+        JSON_DECREF(child_record)
+        return -1;
     }
 
     /*-----------------------------------*

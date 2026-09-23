@@ -650,6 +650,23 @@ PRIVATE int run_replica_tests(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = 0;
 
+    /*  A link for the replica to be asked to cut: item-link under item00  */
+    treedb_create_node(priv->tranger, TREEDB_NAME, "items",
+        json_pack("{s:s, s:s}", "id", "item-link", "name", "Linked"));
+    if(gobj_link_nodes(
+            priv->gobj_node, "children",
+            "items", json_pack("{s:s}", "id", "item00"),
+            "items", json_pack("{s:s}", "id", "item-link"),
+            gobj) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: the master could not link item-link",
+            NULL
+        );
+        result += -1;
+    }
+
     /*  The master goes first: one master per tranger  */
     gobj_stop(priv->gobj_node);
     gobj_destroy(priv->gobj_node);
@@ -756,6 +773,54 @@ PRIVATE int run_replica_tests(hgobj gobj)
             result += -1;
         }
         JSON_DECREF(node)
+    }
+
+    /*
+     *  The other writes a C caller reaches without a command: link, unlink
+     *  and a forced delete. They moved the links in memory and THEN met the
+     *  refused save (C_NODE lows of the 2026-09-23 independent review): the
+     *  replica's memory said what its disk did not. Refused up front now.
+     */
+    {
+        int r_link = gobj_link_nodes(
+            priv->gobj_node, "children",
+            "items", json_pack("{s:s}", "id", "item00"),
+            "items", json_pack("{s:s}", "id", "item01"),
+            gobj
+        );
+        int r_unlink = gobj_unlink_nodes(
+            priv->gobj_node, "children",
+            "items", json_pack("{s:s}", "id", "item00"),
+            "items", json_pack("{s:s}", "id", "item-link"),
+            gobj
+        );
+        int r_delete = gobj_delete_node(
+            priv->gobj_node, "items",
+            json_pack("{s:s}", "id", "item00"),
+            json_pack("{s:b}", "force", 1),
+            gobj
+        );
+        json_t *item01_ = treedb_get_node(priv->tranger, TREEDB_NAME, "items", "item01");
+        json_t *item_del = treedb_get_node(priv->tranger, TREEDB_NAME, "items", "item-link");
+        json_t *item01_parent = item01_? json_object_get(item01_, "parent_id") : NULL;
+        json_t *item_del_parent = item_del? json_object_get(item_del, "parent_id") : NULL;
+        if(r_link >= 0 || r_unlink >= 0 || r_delete >= 0 ||
+                (item01_parent && !empty_json(item01_parent)) ||
+                !item_del_parent || empty_json(item_del_parent) ||
+                !treedb_get_node(priv->tranger, TREEDB_NAME, "items", "item00")) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INTERNAL,
+                "msg",              "%s", "TEST FAIL: a link, unlink or forced delete on a replica moved memory",
+                "link",             "%d", r_link,
+                "unlink",           "%d", r_unlink,
+                "delete",           "%d", r_delete,
+                "item01_parent",    "%j", item01_parent? item01_parent : json_null(),
+                "item_del_parent",  "%j", item_del_parent? item_del_parent : json_null(),
+                NULL
+            );
+            result += -1;
+        }
     }
 
     /*  ...and nothing moved  */
