@@ -188,11 +188,8 @@ Three independent reviews of the 7.25.4 fixes and four fix rounds
   ends with no restart.
 - The agent's `audit/` directory grows ~0.6-1 GB a day with no retention
   (19 GB on wattyzer, 90 GB on the dev machine).
-- A crash between the content and the md2 row of the FIRST record of a new
-  file (e.g. the SIGKILL of `deactivate-snap`) leaves a 0-row md2 with a
-  non-empty `.json`, which the cache build flags as damage: a create of that id
-  is refused and a forward load stops there until `delete-key` or a restore.
-  Tell "first row never committed" apart from a truncated md2.
+- An md2 whose last row write was torn (size not whole rows) is an
+  unacknowledged append but stays "damage": truncate it to whole rows instead.
 - **No red test** for: `deactivate-snap` -1 on a failed save, the fs_watcher
   root, `save_json_to_file()`'s `close()` failure, the crash window between a
   marker and its md2 row. Not exercised live: a form Save through a real
