@@ -1671,8 +1671,14 @@ it unfinished in the same way.
  "not_removed": ["treedb_x.departments", "treedb_x.users.departments"],
  "not_written": [],
  "leftovers": ["treedb_x.departments", "treedb_x.users.departments",
-               "treedb_x.departments.id", "treedb_x.departments.name"]}
+               "treedb_x.departments.id", "treedb_x.departments.name"],
+ "draft_kinds": {}}
 ```
+
+`draft_kinds` holds the kind (`"saved"` or `"unsaved"`) of each operator's
+draft that the projection could not replace, for example
+`{"departments": "saved"}`. The open that replaces the draft reports this
+kind (see below).
 
 While the record is there:
 
@@ -1696,10 +1702,21 @@ While the record is there:
   or while it was unfinished. A projection that cannot replace a part of a
   draft (a snapshot refuses its delete, a write fails) does not put that
   part in `leftovers`: it stays a draft, `saved-schema` shows it in
-  `draft_changed`, and the topic is not reported at that open. A leftover
-  stays a leftover at every retry.
+  `draft_changed`, and the topic is not reported at that open. The record
+  keeps its kind in `draft_kinds`, and the open that replaces the draft
+  reports that kind. So a SAVED draft is reported as `"saved"`, also when
+  the first open already withdrew the saved schema. A leftover stays a
+  leftover at every retry.
 - A column that the operator adds to a leftover topic makes that topic a
   draft too.
+- An EDIT of a leftover is NOT a draft, and it is lost in silence.
+  Leftovers are nobody's work, and the record keeps their ids, not their
+  content, so nothing can tell an edit from what the projection left. For
+  example, `departments` is a leftover, and the operator changes the
+  header of `treedb_x.departments.name` in `__system__`. `saved-schema`
+  shows no draft, and the open that completes the projection deletes the
+  column with its new header and reports nothing. To keep a change, ADD a
+  node (that makes the topic a draft), or finish the projection first.
 - `treedbs` and `saved-schema` answer `unfinished_projection`: the ids of
   `not_removed` and `not_written` (`[]` when the projection is complete).
 - `save-schema` refuses: `-1` *"<role^name>: the projection of 'treedb_x'
@@ -1708,15 +1725,17 @@ While the record is there:
   {treedb_name, unfinished_projection}`. A save would publish the removed
   topic again, and the next apply would bring it back.
 - A record that cannot be READ (not json, or not this shape) still means
-  UNFINISHED. At every read a WARNING says *"Record of an unfinished
+  UNFINISHED. At every read ONE WARNING says *"Record of an unfinished
   projection cannot be read: the projection is unfinished, what it left is
   unknown; every open retries it, save-schema refuses, and what __system__
-  holds over the file is taken for drafts"*. `unfinished_projection` is
+  holds over the file is taken for drafts"*, with the cause in `error`
+  (for example `"not the shape of a record"`, or the json parse error).
+  No other line is logged for it. `unfinished_projection` is
   `["treedb_x"]` (the treedb itself), `save-schema` refuses, and the next
   open retries the projection and writes the record again. Because the
   leftovers are unknown, what `__system__` holds over the file counts as a
-  draft: the open that replaces it reports it as `"unsaved"`. It is not
-  deleted in silence.
+  draft: the open that replaces it reports it as `"unsaved"` (the kinds
+  that the record kept are lost with it). It is not deleted in silence.
 
 For example, a literal at `schema_version` 3 drops `departments`, and a
 snapshot of `__system__` holds it:
@@ -1731,6 +1750,12 @@ The record after the 1st and 2nd opens names `treedb_x.departments` and
 `treedb_x.departments.id` and `.name` as leftovers, never
 `treedb_x.departments.budget`. The same happens when the operator adds
 `budget` between the 1st and the 2nd open.
+
+If the operator SAVED that draft before the 1st open (`save-schema`,
+saved `schema_version` 2), the 1st open withdraws the saved schema and
+reports only that: `{"schema_version": 3, "saved_schema_version": 2,
+"topics": {}}`. The record keeps `"draft_kinds": {"departments": "saved"}`,
+and the 3rd open reports `{"topics": {"departments": "saved"}, ...}`.
 
 A topic that cannot go keeps its columns (half a topic helps nobody). To
 finish, delete the snapshot and open the treedb again. There is no
@@ -1750,6 +1775,28 @@ dynamic file whose column has a `flag` that the meta-schema refuses
 (In 7.25.4 a projection only created and updated, and nothing recorded a
 write that failed.)
 
+**A seed that died is completed too.** The node of a new treedb is created
+with `schema_version: 0, c_schema_version: 0`, and it is stamped when the
+last topic is written. If the process dies between the two, the node says 0,
+there is no record, and some topics (or none) are in `__system__`. The next
+open finds a projection that was never stamped: `schema_version` 0 in the
+node, no record, and a file in use with a `schema_version` of 1 or more.
+It completes it, on every path (also when the file runs), and it logs
+*"Completing the projection into __system__, left unfinished by an earlier
+open"* with `why`: `"never stamped (schema_version 0), no record"`. Nothing
+in that projection is a draft, and nothing is reported. For example, after
+`delete-treedb` of `treedb_x` and a crash in the first open that follows:
+
+```json
+{"id": "treedb_x", "schema_version": 0, "c_schema_version": 0, "system_schema_version": 18}
+```
+
+The next open with the literal 1 (the file in use is 1, same content)
+projects `users` and `departments` again and stamps
+`schema_version: 1, c_schema_version: 1`. A complete projection of a file with `schema_version` 1 or more always
+stamps 1 or more. A file that declares `schema_version` 0 has no version,
+and its projection is never retried this way.
+
 **What the literal withdraws is said.** A literal that wins replaces the
 operator's work over the old file. The open logs ONE warning, *"Schema from C
 withdrew work on the schema at open"*, with `treedb_name`, `schema_version`
@@ -1762,8 +1809,8 @@ open of that treedb:
 |---|---|
 | `"applied"` | a topic of an apply that never ran: `apply-schema` wrote the file, and no open read it |
 | `"in_use"` | a topic of an apply that RAN: an open read it, and the treedb was running that dynamic schema (after 7.25.4) |
-| `"saved"` | the draft of a topic that a pending `save-schema` published |
-| `"unsaved"` | a draft never saved: a topic of `__system__` that differs from the file |
+| `"saved"` | the draft of a topic that a pending `save-schema` published: an edit of the topic, or its deletion (the operator deleted the topic, and the saved schema does not declare it) |
+| `"unsaved"` | a draft never saved: a topic of `__system__` that differs from the file, or a topic of the file that the operator deleted from `__system__` |
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=treedbs command=saved-schema treedb_name=treedb_x'
@@ -1825,6 +1872,7 @@ The whole matrix, with `impose_c_schema` off on a master:
 | 2 | `users` 1 | 3, `users` 2 with a new fkey, and a new topic `groups` that hooks it | the literal runs; `groups` is created |
 | 2; `__system__` 3 (saved, not applied) | as the file | 3 | the literal runs; the saved schema and its drafts are withdrawn: `"saved"` |
 | 2; an unsaved draft of `departments` | as the file | 3 | the literal runs; the draft is withdrawn: `"unsaved"` |
+| 2; the operator deleted `departments` from `__system__` | as the file | 3, with `departments` | the literal runs; `departments` is created again in `__system__`; the deletion is withdrawn: `"unsaved"`, or `"saved"` when a save published it |
 | 2, an apply of `users` that ran | as the file | 3, `users` with another content | the literal runs; the running dynamic `users` is withdrawn: `"in_use"` |
 | 2 | as the file | 3, without `departments` | `departments` goes from the file and `__system__`, and does not open |
 | 2 | as the file | 3, without `departments`, a snapshot of `__system__` holds it | the literal runs; `__system__` keeps `departments` (unfinished and recorded, warning, `c_schema_version` 0, retried at every open, no draft, `save-schema` refuses) |
@@ -1881,14 +1929,23 @@ again"* (7.25.4 answered `0` *"Treedb opened!"*). Its services stay until
 `-1` *"<role^name>: treedb '<name>' did not open at its last open-treedb, its
 schema was refused (see the log): close-treedb it before opening it again,
 nothing was changed"*, and its row of `treedbs` carries `"opened": false`
-(`true` for a treedb that opened):
+(`true` for a treedb that opened). The recovery is `close-treedb`, and it
+is clean. The failed open logs the cause once (for a schema file with no
+topics: ERROR *"No topics found"*, from `treedb_open_db`), and nothing
+more: `C_NODE` does not set the callback of a treedb that did not open, and
+does not close it. `delete-treedb` of it is refused until it is closed:
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=treedbs command=treedbs'
 # data: [..., {"treedb_name": "treedb_x", "opened": false, "stopped": false, ...}]
+ycommand -c 'command-yuno id=<id> service=treedbs command=delete-treedb treedb_name=treedb_x force=1'
+# -1: <role^name>: cannot delete the schema of 'treedb_x': its last open-treedb did not open it, and its services are still there. close-treedb it first, then delete-treedb
 ycommand -c 'command-yuno id=<id> service=treedbs command=close-treedb treedb_name=treedb_x force=1'
-# 0: <role^name>: treedb closed: 'treedb_x'
+# 0: <role^name>: treedb closed: 'treedb_x'      (no line in the log)
 ```
+
+(In 7.25.4 that close logged *"TreeDB not found"* twice, with a stack, and
+`delete-treedb` answered *"while it is OPEN"*.)
 
 Every answer of `open-treedb`, `close-treedb` and `delete-treedb` starts
 with the yuno (`<role^name>: ...`), the refusals of their parameters too
@@ -2189,6 +2246,17 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    With nothing saved, the same answer says *"nothing to save, the draft of
    'treedb_x' is the schema in use"*, with `withdrawn: false` and the
    `schema_version` in use.
+
+   **A draft with no topics is not saved.** A treedb without topics does not
+   open (`treedb_open_db()` logs *"No topics found"*), so when the operator
+   deletes every topic of `treedb_x` in `__system__`, the save logs the
+   WARNING *"Draft of a treedb schema with no topics: not saved, a treedb
+   without topics does not open"* and answers:
+
+   ```bash
+   ycommand -c 'command-yuno id=<id> service=treedbs command=save-schema treedb_name=treedb_x'
+   # -1: <role>^<name>: cannot save the schema of 'treedb_x': its draft in __system__ has no topics, and a treedb without topics does not open
+   ```
 2. **`saved-schema treedb_name=X`** answers what was saved, what it changes
    against the file in use (a `flat_diff` of the two: `added`, `removed`,
    `changed`, one row per leaf), and `can_apply`. Topics and columns are keyed
@@ -2251,7 +2319,13 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    7.25.4 the apply wrote the parsed copy it had validated, marks included.
    Once in place, the saved schema IS the file in use, and it is removed
    from `saved_schemas/` (after 7.25.4; it stayed, and `saved-schema` went on
-   answering `saved: true` for it).
+   answering `saved: true` for it). A saved schema with no topics is
+   refused, with the WARNING *"Saved treedb schema with no topics: not
+   applied, a treedb without topics does not open"*: `-1` *"<role>^<name>:
+   the saved schema of 'treedb_x' has no topics: a treedb without topics
+   does not open"*, and the file in use does not change. Without
+   `treedb_name`, that refuses every treedb, as a saved schema that does not
+   parse does.
 
 **A saved schema lives only as long as the file it was saved against** (after
 7.25.4). It is published AGAINST the schema file in use, so when an open writes
@@ -2396,7 +2470,10 @@ means "yes, delete the schema"; it does not lift the refusal of an OPEN
 treedb, because an open one goes on answering from its copy in memory with a
 schema that exists nowhere, and the next `open-treedb` dies on the C_TRANGER
 service still alive under its name, leaving the store orphaned. Close first
-(`close-treedb force=1`, or `pause-yuno` + `play-yuno`), then delete. It
+(`close-treedb force=1`, or `pause-yuno` + `play-yuno`), then delete. A
+treedb whose last `open-treedb` did not open it is refused the same way,
+with *"its last open-treedb did not open it, and its services are still
+there. close-treedb it first, then delete-treedb"*. It
 also removes, from `saved_schemas/`, the treedb's saved schema
 (`<treedb>.treedb_schema.json`), the record of an apply not opened yet
 (`<treedb>.applied.json`) and the record of an unfinished projection
