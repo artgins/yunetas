@@ -82,9 +82,11 @@ listed under "No red test" in `TODO.md`.
   part of a row: an append that was never acknowledged was cut back"*, with
   `old_size` / `new_size`); the key loads whole and appends go on. The cut
   removes fewer than 32 bytes after the last whole row, so it can never remove
-  an acknowledged row. A replica reads only the whole rows and writes nothing
-  (it used to flag the file, or log a critical on its rt_disk path, when it
-  caught a live master mid-write).
+  an acknowledged row. A replica reads only the whole rows and writes nothing.
+  7.25.4 logged a CRITICAL (*"Cannot read last record, md2 file corrupted"*)
+  and left the whole file out of the key, on a master and on a replica: the
+  acknowledged rows of that file were missing from every load, and nothing
+  failed. A replica also did this when it caught a live master mid-write.
 - A read that returns fewer bytes than asked logs *"... short read"* with
   `read` / `expected` (it logged *"read FAILED"* with a stale errno); a short
   write likewise logs *"... short write"*. A read error or short read of an
@@ -124,8 +126,6 @@ listed under "No red test" in `TODO.md`.
   segment stamp could miss a key deleted and written again with the same
   counts). The delete is announced only once its directory is gone.
 - A marker name that does not fit makes the file be read whole (logged).
-- A recount of a flagged file (an append into a file that reads again) rebuilds
-  the index of a filtered iterator of the key; it used to leave it empty.
 
 ### Schemas (C_TREEDB)
 
@@ -226,7 +226,8 @@ listed under "No red test" in `TODO.md`.
   (`aria-pressed`), switched through the FSM (`EV_EXPORT_VIEW`); its
   confirmations pass the keys `delete` / `cancel` (they
   rendered in English in every locale).
-- gui_treedb 0.17.58 / 0.17.59: only the gobj-ui range (^7.25.12).
+- gui_treedb 0.17.58 / 0.17.59: only the gobj-ui range (^7.25.11, then
+  ^7.25.12).
 - gui_agent: the link answers every pending request on a close; request ids
   are unique per page (two treedb views crossed answers and could fake a
   delete); the deadline counts from the dispatch ack and is scaled for uploads;
@@ -274,10 +275,15 @@ listed under "No red test" in `TODO.md`.
   return -1 while the backup is refused.
 - timeranger2: an append into a file flagged unreadable returns -1. A master
   cuts back an md2 that ends in a part of a row (it writes the store at open).
-  Log texts: *"Cannot read last record, md2 file corrupted"* is gone; a
-  truncated md2 or content logs *"... short read"* instead of *"read FAILED"*
-  (match on it if you alert on it); a replica's rt_disk update makes no cache
-  cell for an md2 with no whole row yet.
+  Log texts: *"Cannot read last record, md2 file corrupted"* is gone (a torn
+  md2 is cut back with a WARNING); *"Cannot read first/last record of md2
+  file"* are now *"Cannot read a record of md2 file, read FAILED"* or *"...,
+  short read"* (with `row`: `first` / `last`); a truncated md2 or content logs
+  *"... short read"* instead of *"read FAILED"*, and a write that stops part
+  way logs *"... short write: the file size limit or the disk is full"* (with
+  `written` / `expected`) instead of *"... write FAILED"* -- match on them if
+  you alert on them. A replica's rt_disk update makes no cache cell for an md2
+  with no whole row yet.
 - C_TREEDB answers carry new fields (`withdrawn`, `stale`, `broken`,
   `withdrawn_at_open`, `unfinished_projection`, `stopped`, and `master` in
   `treedbs` rows) and `saved` changed meaning;
@@ -289,8 +295,8 @@ listed under "No red test" in `TODO.md`.
 - `default: {}` placeholders are dropped by save + apply, so a `required`
   column whose literal really declared `'default': {}` loses it.
 - A failed `open-treedb` withdraws the saved schema at once.
-- An md2 truncated to 0 rows behind the yuno's back loses its rows as it did in
-  7.25.4 (ignored with a warning); check the `.json` size before repairing.
+- An md2 truncated to 0 rows behind the yuno's back loses its rows, as in
+  7.25.4 (now with a warning); check the `.json` size before repairing.
 
 ## v7.25.4 (2026-09-23)
 
