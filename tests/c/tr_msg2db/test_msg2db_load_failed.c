@@ -17,6 +17,10 @@
  *         What it read is not served as current: msg2db reloads dev1
  *         BACKWARD, the load stops at once at the damaged newest file, and
  *         dev1 is not in memory; that is logged. dev2, whole, is served.
+ *         The damaged file is the file of the current period, where the
+ *         next message goes: msg2db says so at the open, and the next
+ *         message of dev1 is REFUSED (the append into a flagged file is),
+ *         so it is not served either. The doc said it was.
  *      3. dev1 with two alarms and the damage in the MIDDLE of its history:
  *         X (old in the first file, new in the last) and Y (old in the
  *         first file, newer in the damaged one). X's newest message is
@@ -25,6 +29,11 @@
  *         key was dropped before the fix of the fifth fix round: X, whose
  *         current state was on disk and readable, was absent too, and the
  *         alarms of the projects (db_history) announced it again as new.
+ *      4. The store of 3 with a record of dev1 whose pkey2 is empty in its
+ *         first file (read by the forward load) and another in its last
+ *         file (read only by the backward reload). Both are dropped, and
+ *         "Records NOT loaded, 'pkey2' empty" says 2: it said 1, because
+ *         the count of the forward load was put back after the reload.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -43,6 +52,7 @@
 #define TOPIC_NAME      "alarms"
 
 #define MSG_UNCOMMITTED "md2 file of the key with no rows and a content file that is not empty: an append that was never acknowledged, the file is ignored"
+#define MSG_CURRENT_DAMAGED "msg2db: the damaged file of the key is the file of the current period: every new message of the key is REFUSED until the file is repaired or the period changes"
 #define MSG_NOT_SERVED  "msg2db: a key whose history did not load whole: only the messages newer than the damage are served, a pkey2 whose newest message was not read is ABSENT and its state unknown (msg2db_id_incomplete)"
 
 PRIVATE yev_loop_h yev_loop;
@@ -315,19 +325,33 @@ PRIVATE int test_damaged(void)
     }
 
     set_expected_results("2. the file of the new message damaged",
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Cannot read last record, md2 file corrupted",
             "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
             "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
             "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
                    "were handed, the list goes on with the next key",
             "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
-            "msg", MSG_NOT_SERVED
+            "msg", MSG_NOT_SERVED,
+            "msg", MSG_CURRENT_DAMAGED
         ), NULL, NULL, TRUE
     );
     json_t *tranger = open_all();
     result += expect_description(tranger, "2", "dev1", "(absent)");
     result += expect_description(tranger, "2", "dev2", "WHOLE");
+    result += test_json(NULL);
+
+    /*
+     *  The next message of dev1 goes to the damaged file: it is refused
+     */
+    set_expected_results("2. the next message of dev1 goes to the damaged file",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot read last record, md2 file corrupted",
+            "msg", "Cannot append record, its file is flagged unreadable: its row would follow rows no cell counts"
+        ), NULL, NULL, TRUE
+    );
+    put(tranger, "dev1", "NEXT");
+    result += expect_description(tranger, "2", "dev1", "(absent)");
     close_all(tranger);
     result += test_json(NULL);
 
@@ -429,6 +453,90 @@ PRIVATE int test_damaged_middle(void)
 }
 
 /***************************************************************************
+ *  4. The records with an empty pkey2 are counted in both loads
+ ***************************************************************************/
+PRIVATE void put_raw_empty_pkey2(json_t *tranger, const char *id)
+{
+    /*
+     *  msg2db_append_message() refuses an empty pkey2: an old store may
+     *  hold them, so they are written with tranger2 directly
+     */
+    md2_record_ex_t md = {0};
+    tranger2_append_record(tranger, TOPIC_NAME, 0, 0, &md,
+        json_pack("{s:s, s:I, s:s, s:s}",
+            "id", id,
+            "tm", (json_int_t)time(0),
+            "alarm", "",
+            "description", "EMPTY"
+        )
+    );
+}
+
+PRIVATE int test_empty_pkey2_both_loads(void)
+{
+    int result = 0;
+    rmrdir(path_database);
+    set_expected_results("4. build the store", NULL, NULL, NULL, FALSE);
+
+    json_t *tranger = open_all();
+    put_alarm(tranger, "dev1", "X", "OLD_X");
+    put_raw_empty_pkey2(tranger, "dev1");
+    close_all(tranger);
+    int moved = move_today_files("dev1", "2000-01-01");
+
+    tranger = open_all();
+    put_alarm(tranger, "dev1", "Y", "MID_Y");
+    close_all(tranger);
+    moved += move_today_files("dev1", "2000-01-02");
+
+    tranger = open_all();
+    put_alarm(tranger, "dev1", "X", "NEW_X");
+    put_raw_empty_pkey2(tranger, "dev1");
+    close_all(tranger);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    if(moved != 4) {
+        printf("%sERROR%s --> 4: cannot move the files of dev1\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    char dir[PATH_MAX];
+    char md2[PATH_MAX];
+    key_dir(dir, sizeof(dir), "dev1");
+    build_path(md2, sizeof(md2), dir, "2000-01-02.md2", NULL);
+    FILE *f = fopen(md2, "a");
+    if(!f || fwrite("XXXXX", 1, 5, f) != 5) {
+        printf("%sERROR%s --> 4: cannot damage the middle md2 of dev1\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(f) {
+        fclose(f);
+    }
+
+    set_expected_results("4. an empty pkey2 on each side of the damage",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s, s:i}]",
+            "msg", "Cannot read last record, md2 file corrupted",
+            "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
+            "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
+            "msg", "Field 'pkey2' required, record NOT loaded (first of the topic)",
+            "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
+                   "were handed, the list goes on with the next key",
+            "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
+            "msg", MSG_NOT_SERVED,
+            "msg", "Records NOT loaded, 'pkey2' empty",
+            "dropped", 2
+        ), NULL, NULL, TRUE
+    );
+    tranger = open_all();
+    result += expect_alarm(tranger, "4", "dev1", "X", "NEW_X");
+    result += expect_alarm(tranger, "4", "dev1", "Y", "(absent)");
+    close_all(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -442,6 +550,7 @@ PRIVATE int do_test(void)
     result += test_uncommitted();
     result += test_damaged();
     result += test_damaged_middle();
+    result += test_empty_pkey2_both_loads();
 
     return result;
 }

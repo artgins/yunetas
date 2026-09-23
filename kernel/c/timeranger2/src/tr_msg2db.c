@@ -442,11 +442,10 @@ PUBLIC json_t *msg2db_open_db(
                 json_object_set_new(incomplete, key, json_true());
 
                 /*
-                 *  The empty-pkey2 tally was taken by the forward load:
-                 *  the second read of the key does not count its rows twice
+                 *  The empty-pkey2 tally goes on through the backward
+                 *  reload: it reads only the rows AFTER the damage, which
+                 *  the forward load (stopped before it) did not read
                  */
-                json_t *dropped = json_incref(json_object_get(topic_, "pkey2_dropped"));
-
                 json_t *it = tranger2_open_iterator(
                     tranger,
                     topic_name,
@@ -466,12 +465,6 @@ PUBLIC json_t *msg2db_open_db(
                     tranger2_close_iterator(tranger, it);
                 }   // else Error already logged: the key stays absent
 
-                if(dropped) {
-                    json_object_set_new(topic_, "pkey2_dropped", dropped);
-                } else {
-                    json_object_del(topic_, "pkey2_dropped");
-                }
-
                 json_t *served = json_object_get(indexx, key);
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -483,6 +476,44 @@ PUBLIC json_t *msg2db_open_db(
                     "served",       "%d", (int)json_object_size(served),
                     NULL
                 );
+
+                /*
+                 *  The next message of the key goes to the file of the
+                 *  current period. When that file is the damaged one, the
+                 *  append is refused (tranger2_append_record): no new
+                 *  message of the key is stored or served until the file is
+                 *  repaired or the period changes
+                 */
+                char current_file[NAME_MAX];
+                md2_record_ex_t md_now = {0};
+                md_now.__t__ = (uint64_t)time(NULL);
+                tranger2_print_record_filename(
+                    current_file, sizeof(current_file), tranger, topic_, &md_now, FALSE
+                );
+                char *ext = strrchr(current_file, '.');
+                if(ext) {
+                    *ext = 0;
+                }
+                json_t *unreadable = json_object_get(
+                    json_object_get(json_object_get(topic_, "cache"), key), "unreadable"
+                );
+                int uidx; json_t *jn_file_id;
+                json_array_foreach(unreadable, uidx, jn_file_id) {
+                    const char *file_id = json_string_value(jn_file_id);
+                    if(file_id && strcmp(file_id, current_file) == 0) {
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_MSG2DB,
+                            "msg",          "%s", "msg2db: the damaged file of the key is the file of the current period: every new message of the key is REFUSED until the file is repaired or the period changes",
+                            "msg2db_name",  "%s", msg2db_name,
+                            "topic_name",   "%s", topic_name,
+                            "key",          "%s", key,
+                            "file_id",      "%s", file_id,
+                            NULL
+                        );
+                        break;
+                    }
+                }
             }
 
             /*

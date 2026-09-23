@@ -19,12 +19,21 @@ message of each `pkey2`:
    file is ignored with a warning, and the NEW message is served;
 2. the md2 of the new message damaged (5 bytes after it, not a whole row):
    `dev1` is reloaded backward, the load stops at once at its newest file, and
-   `dev1` is not served (absent, with an ERROR naming it); `dev2`, whole, is;
+   `dev1` is not served (absent, with an ERROR naming it); `dev2`, whole, is.
+   The damaged file is the file of the current period, where the next message
+   goes: a second ERROR says so, and the next message of `dev1` is refused
+   (tranger refuses an append into a flagged file), so it is not served
+   either;
 3. the damage in the MIDDLE of `dev1`'s history, with two alarms: `X`, whose
    newest message is in the last file, is served (its current message); `Y`,
    whose newest message is in the damaged file, is absent (its old message is
    not served as current); `msg2db_id_incomplete()` is TRUE for `dev1`, FALSE
-   for `dev2`, and stays TRUE after `Y`'s next message, which is served.
+   for `dev2`, and stays TRUE after `Y`'s next message, which is served;
+4. the store of 3 with a record of `dev1` whose `pkey2` is empty on each side
+   of the damage: one read by the forward load, one read only by the backward
+   reload. Both are dropped, and "Records NOT loaded, 'pkey2' empty" says
+   `dropped: 2`. It said 1: the count of the forward load was put back after
+   the reload.
 
 1 and 2 served the OLD message before the fix of the fourth fix round. 3 was
 red after it: the whole of `dev1` was dropped, `X` too (fifth fix round).
