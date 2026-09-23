@@ -1719,11 +1719,28 @@ opened. A key fails:
   yuno's back;
 - after a RESTART, when the topic's cache, built from disk at the open,
   could not count a `.md2` file of the key: one that cannot be opened or
-  read, one whose size is not a whole number of 32-byte rows, or one of 0
-  bytes whose `.json` is not empty. (A first append whose md2 write failed
-  leaves that last shape too: the key is flagged all the same, the safe
-  side.) Up to 7.25.4 the cache build dropped such a file, or counted it as
-  0 rows, and nothing failed: after a restart the guards below never fired.
+  read, or one whose size is not a whole number of 32-byte rows. Up to
+  7.25.4 the cache build dropped such a file and nothing failed: after a
+  restart the guards below never fired.
+
+A `.md2` of 0 bytes whose `.json` is NOT empty does not fail the key. It is
+the shape an append that was never acknowledged leaves: the content is
+written first and the md2 row after, and the row was never written (the md2
+could not be created or written, or the yuno died between the two). The
+file is ignored, as until 7.25.4, with a warning that names it, and the key
+loads from its other files:
+
+```text
+WARNING load_key_cache_from_disk: md2 file of the key with no rows and a content file that is not
+      empty: an append that was never acknowledged, the file is ignored
+      topic_directory=<store>/items key=k2 file_id=2099-01-01 content_size=41
+```
+
+(The first fix after 7.25.4, 200a1791e, flagged it: after a restart a node
+with good older rows disappeared, its create was refused, and a forward
+load hid the rows of the later files.) A running yuno does not leave that
+shape any more when the md2 fails: the append answers -1 and its content is
+cut back.
 
 The rows read BEFORE the failure are handed over, and backward they are the
 key's NEWEST: its node is in memory when its newest record was readable (the
@@ -1766,16 +1783,20 @@ a tagged record):
 1. Read the log: the read error names the file (`path`, `file_id`, `rowid`),
    the lines above name the treedb, the topic and the keys.
 2. Look at the key's directory, `<store>/<topic>/keys/<key>/`: a `.md2` whose
-   size is not a multiple of 32 bytes, or of 0 bytes while its `.json` is
-   not, or shorter than what was written (the rows past its end fail); a
-   `.json` that was cut (a row's content past its end fails); a file the
-   yuno's user cannot read.
+   size is not a multiple of 32 bytes, or shorter than what was written (the
+   rows past its end fail); a `.json` that was cut (a row's content past its
+   end fails); a file the yuno's user cannot read.
 3. Repair it with the yuno STOPPED (the running yuno caches the store and
-   writes it): put the key's directory back from a backup copy of the store.
-   When the records of the key are lost for good and that is acceptable,
-   remove the key instead, on the master, with the `delete-key` command of
-   `C_TRANGER` (`force=1` when the key still holds rows). It removes EVERY
-   record of the key, the readable ones too:
+   writes it), with the least that brings the file back, in this order:
+   - a file the yuno's user cannot read: give it back its owner and mode;
+   - anything else: put the key's directory back from a backup copy of the
+     store.
+
+   Only when the records of the key are lost for good and that is
+   acceptable, remove the key, on the master, with the `delete-key` command
+   of `C_TRANGER` (`force=1` when the key still holds rows). It removes
+   EVERY record of the key, the readable ones too -- it is the last answer,
+   never the first:
 
    ```bash
    ycommand -c 'command-yuno id=<id> service=<tranger service> command=delete-key topic_name=items key=k2 force=1'
@@ -1785,6 +1806,23 @@ a tagged record):
    `delete-key` the key is forgotten at once (a create of its id is accepted
    with no restart), but a node of that id that loaded from its newest rows
    stays in memory until the topic is opened again: restart all the same.
+
+**The warning of an append never acknowledged** needs no repair: nothing
+fails, and the next append into that day's file names its content with a
+row of its own. To quiet it, remove the pair with the yuno STOPPED. Only the
+two files the warning names, the `.md2` of 0 bytes AND its `.json`, never
+one of them alone and never the key:
+
+```bash
+cd <topic_directory>/keys/k2          # topic_directory, key and file_id: from the warning
+ls -l 2099-01-01.md2 2099-01-01.json   # the .md2 is 0 bytes
+rm 2099-01-01.md2 2099-01-01.json
+```
+
+A `.json` far larger than one record is worth a look first: a `.md2` cut to
+0 bytes behind the yuno's back has the same shape, and then the rows of that
+file are gone unless a backup has them. Put the pair back from the backup in
+that case, instead of removing it.
 
 ---
 

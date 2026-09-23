@@ -162,6 +162,34 @@ move nothing. Until 2026-09-15 the cache in memory disagreed with the disk
 until the next reload: it served the wrong record, and a follower re-published
 the whole file.
 
+**An append that fails is not half written.** The content (`.json`) is written
+first and the md2 row after. When the md2 cannot be opened or created, sought
+or written, the function returns `-1` and cuts the content file back to where
+the record began (a row written in part is cut from the `.md2` too): the file
+keeps no record that no row names. If the cut fails as well, it logs *"Cannot
+cut back the content of an append whose md2 row was not written: the content
+file keeps a record no row names"*. A kill or a power cut between the two
+writes still leaves that shape; the next open ignores it with a warning (see
+*After a restart too*, under [`tranger2_open_iterator()`](#tranger2_open_iterator)).
+Until the fourth fix round after 7.25.4 the content was left behind.
+
+**An append into a file flagged unreadable** (a `.md2` the cache build could
+not count, see the same section) counts the file again first. If it can be read
+now, it gets its cell, the flag of that file goes (*"md2 file of the key
+readable again: it is counted, and the key is not flagged for it"*), and the
+append goes on. If not, the append is refused with `-1` and writes nothing
+(*"Cannot append record, its file is flagged unreadable: its row would follow
+rows no cell counts"*): its row would have been counted as the file's first,
+and a load read an OLD row of the file in its place.
+
+```C
+/*  key A: the md2 of day 2 could not be opened at the open (mode 0000)     */
+tranger2_append_record(tranger, "topic", t_day2, 0, &md, rec1);   // -1, nothing written
+chmod(path_md2_day2, 0660);
+tranger2_append_record(tranger, "topic", t_day2, 0, &md, rec2);   // 0: day 2 counted,
+                                                                  // A loads whole again
+```
+
 ---
 
 (tranger2_backup_topic)=
@@ -1294,27 +1322,51 @@ and no content fails it.
 
 **After a restart too.** The cache of a topic is built from disk when it is
 opened. A `.md2` file of a key that it cannot count flags the key: one that
-cannot be opened or read, one whose size is not a whole number of 32-byte
-rows, or one of 0 bytes whose `.json` is not empty (its rows are gone). It
+cannot be opened or read, or one whose size is not a whole number of 32-byte
+rows. It
 logs *"md2 file of the key unreadable when its cache was built: every load of
 the key says load_failed"* once, at the open, and then every iterator of the
 key -- paging ones too -- logs *"The history of the key is not whole: a md2
 file of it could not be read when its cache was built"* and says
 `load_failed`. A loading stops where the first flagged file is in its
 direction, the place a running tranger stops when the damage happens behind
-its back. Key `A` with the files of days 1, 2 and 3, day 2 cut to 0 bytes
-while the yuno was down:
+its back. Key `A` with the files of days 1, 2 and 3, 5 bytes of garbage after
+the `.md2` of day 2 while the yuno was down:
 
 ```text
 forward load   -> the rows of day 1, then load_failed
 backward load  -> the rows of day 3, then load_failed
 ```
 
-A `.md2` of 0 rows with an EMPTY `.json` loses nothing: it gets no cell and
-flags nothing. [`tranger2_delete_key()`](#tranger2_delete_key) clears the flag
-with the key. Up to 7.25.4 the cache build dropped an unreadable file (or
-counted a cut one as 0 rows) and nothing failed: the key read as a shorter
-key.
+A `.md2` of 0 rows gets no cell and flags nothing. With an EMPTY `.json` it
+loses nothing. With a `.json` that is NOT empty it is what an append that was
+never acknowledged leaves (the content is written first, the md2 row after,
+and the row was never written: the md2 failed, or the process died between
+the two). That is not damage: the file is ignored, as until 7.25.4, with a
+warning that names it, and the key loads from its other files:
+
+```text
+WARNING: md2 file of the key with no rows and a content file that is not empty:
+         an append that was never acknowledged, the file is ignored
+         topic_directory=<store>/devices key=A file_id=2000-01-02 content_size=32
+forward load   -> the rows of days 1 and 3, load_failed false
+```
+
+The first fix after 7.25.4 (200a1791e) flagged that shape: a forward load
+stopped there and hid the acknowledged rows of the later files, a treedb node
+with good older rows disappeared, and the flag was never cleared. The next
+append into that day's file names its content with a row of its own, and the
+warning goes. A `.md2` cut to 0 bytes behind the yuno's back has the same
+shape, and loses the rows of its file the same way it did until 7.25.4: a
+`.json` much larger than one record is the sign; put the pair back from a
+backup.
+
+The flag of a file goes once a cell counts it again: an append into the file
+that finds it readable (see [`tranger2_append_record()`](#tranger2_append_record)),
+or, on a follower, the file read whole from the disk after the master wrote it.
+[`tranger2_delete_key()`](#tranger2_delete_key) clears every flag with the key.
+Up to 7.25.4 the cache build dropped an unreadable file and nothing failed: the
+key read as a shorter key.
 
 ```C
 json_t *data = json_array();

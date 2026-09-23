@@ -664,8 +664,16 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
     PLACE, so a caller that keeps a reference of its own (json_incref before
     the call) sees both: the carried `__md_tranger__` gone, and a fresh one
     when a list took the record (plus `__rowid__` on an sf_rowid_key topic).
+    The content is written before the md2 row. When the md2 cannot be opened,
+    created, sought or written, the append is not acknowledged (-1) and the
+    content is cut back to where the record began (a partial md2 row too).
+    An append into a file flagged unreadable at the cache build counts the
+    file again first: readable now, the file gets its cell and loses its
+    flag; still unreadable, the append is refused (-1, nothing written) --
+    its row would follow rows no cell counts.
     Return: 0 on success, -1 on error (record NULL, not master, topic not found,
-    missing/oversized pkey, or an unsafe key that would escape keys/).
+    missing/oversized pkey, an unsafe key that would escape keys/, a file of
+    the key flagged unreadable, or a write that failed).
 */
 PUBLIC int tranger2_append_record(
     json_t *tranger,
@@ -927,15 +935,21 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     content, and no content fails it.)
     The same holds after a RESTART: a md2 file the topic's cache could not
     count when it was built from disk -- one that cannot be opened or read,
-    whose size is not a whole number of rows, or of 0 rows with a content
-    file that is not empty -- flags its key. Every iterator of that key says
-    `"load_failed": true` (paging ones too, and logs it), and a loading stops
-    where the first flagged file is in its direction. E.g. key A with files
-    d1 d2 d3 and d2 cut to 0 bytes while the yuno was down:
+    or whose size is not a whole number of rows -- flags its key. Every
+    iterator of that key says `"load_failed": true` (paging ones too, and
+    logs it), and a loading stops where the first flagged file is in its
+    direction. E.g. key A with files d1 d2 d3 and garbage after d2's md2
+    while the yuno was down:
         forward load  -> the rows of d1, then load_failed
         backward load -> the rows of d3, then load_failed
-    A md2 of 0 rows with an EMPTY content file loses nothing and flags
-    nothing. tranger2_delete_key() of the key clears the flag with the key.
+    A md2 of 0 rows gets no cell and flags nothing. With a content file that
+    is not empty it is what an append never acknowledged leaves (content
+    written, md2 row not): a WARNING names the file and the key loads from
+    its other files ("md2 file of the key with no rows and a content file
+    that is not empty: an append that was never acknowledged, the file is
+    ignored"). The flag of a file goes when a cell counts it again (an append
+    into it that finds it readable, or a follower that reads it whole);
+    tranger2_delete_key() of the key clears every flag with the key.
     tranger2_open_list() answers NULL for such a load of its one key; a
     keyless list goes on with the other keys and names the failed ones in the
     handle it returns (see tranger2_open_list).

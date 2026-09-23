@@ -226,14 +226,24 @@ backward: the newest). Up to 7.25.4 a content that could not be read reached
 the callback as `NULL` and the load went on (treedb made a node of it with id
 `""`). The same holds after a RESTART: a `.md2` file the topic's cache could
 not count when it was built at the open -- one that cannot be opened or read,
-whose size is not a whole number of rows, or of 0 bytes with a `.json` that is
-not empty -- flags its key (`"unreadable": [file_id, ...]` in its cache,
-logged once), every iterator of the key says `load_failed`, and a load stops
-where the first such file is in its direction. Up to 7.25.4 the cache build
-dropped such a file, or counted it as 0 rows, and nothing failed. A `.md2` of
-0 rows with an empty `.json` loses nothing and flags nothing.
-`tranger2_delete_key()` clears the flag with the key.
-`tests/c/timeranger2/test_unreadable_at_open.c`.
+or whose size is not a whole number of rows -- flags its key
+(`"unreadable": [file_id, ...]` in its cache, logged once), every iterator of
+the key says `load_failed`, and a load stops where the first such file is in
+its direction. Up to 7.25.4 the cache build dropped such a file and nothing
+failed. `tranger2_delete_key()` clears the flag with the key, and so does a
+cell that counts the file again (an append into it that finds it readable; a
+follower that reads it whole). `tests/c/timeranger2/test_unreadable_at_open.c`.
+
+A `.md2` of 0 rows gets no cell and flags nothing. With a `.json` that is not
+empty it is what an append never acknowledged leaves -- the content is written
+first and the md2 row after -- and it is ignored with a warning naming the file
+(*"md2 file of the key with no rows and a content file that is not empty: an
+append that was never acknowledged, the file is ignored"*), as until 7.25.4.
+Flagging it (200a1791e) hid the later files from a forward load and made a
+treedb node with good older rows disappear. A running tranger does not leave
+it: an append whose md2 fails answers -1 and cuts its content back. An append
+into a file still flagged unreadable is refused.
+`tests/c/timeranger2/test_uncommitted_append.c`.
 
 `tranger2_open_list()` of ONE key answers `NULL` when the history of the key
 did not load whole. A KEYLESS list loads every key it can read, opens its
