@@ -166,9 +166,10 @@ listed under "No red test" in `TODO.md`.
 - `save_json_to_file()` checks `close()` -- a failed close is a CRITICAL at
   `on_critical_error` -- and logs a missing directory when it may not create it.
 
-### JS: gobj-ui 7.25.6 - 7.25.9, gui_agent 0.22.79 - 0.22.83
+### JS: gobj-ui 7.25.6 - 7.25.11, gui_agent 0.22.79 - 0.22.85, gui_treedb 0.17.58
 
-- Deployed to artgins.yunetacontrol.com and .ovh; every deploy console-checked
+- Deployed to artgins.yunetacontrol.com and .ovh (gui_agent) and
+  artgins.ytreedb.com (gui_treedb); every deploy console-checked
   (login, session, Schemas editor, forced reconnect, navigation and clicks
   during loads): 0 errors. Includes the fix of a regression of gobj-ui 7.25.6
   that was live (navigating in the schema editor during a reload emptied the
@@ -178,7 +179,16 @@ listed under "No red test" in `TODO.md`.
   replaced is closed with a message and nothing stamped with the old model is
   written; a refused reload keeps the previous model; a transport drop ends the cut load or write and the reconnect
   reloads; stale answers are ignored by round; nothing is sent out of session;
-  a late successful write reloads and keeps its marks.
+  a late successful write reloads and keeps its marks. A reload that was
+  refused is owed: the operator's next change runs it first (the change is
+  refused with a toast and done again once the schemas are in; moves are not
+  refused). A confirmation that arrives with no model is refused as stale; the
+  import plan lost to a reload is a warning and a toast.
+- Shell modals: `MODAL_BACK` and every `CONFIRM_BTN` carry a title and an
+  aria-label; the schema editor's export C/JSON switch is two buttons
+  (`aria-pressed`); its confirmations pass the keys `delete` / `cancel` (they
+  rendered in English in every locale).
+- gui_treedb 0.17.58: only the gobj-ui range (^7.25.11).
 - gui_agent: the link answers every pending request on a close; request ids
   are unique per page (two treedb views crossed answers and could fake a
   delete); the deadline counts from the dispatch ack and is scaled for uploads;
