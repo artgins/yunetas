@@ -303,11 +303,27 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
 /*
- *  HACK WARNING 2024-Nov-13: use of "tranger_path" to determine if this instance is master or not.
- *  If tranger_path is empty, then
- *      the class uses yuneta_realm_store_dir() to setup the tranger "authzs" as master TRUE
- *  if it's not empty:
- *      use master as set externally
+ *  `tranger_path` and `master`.
+ *
+ *  With `tranger_path` empty the path is BUILT: yuneta_realm_store_dir() of
+ *  `authz_service` (the yuno role when empty), the realm owner and id,
+ *  `authz_tenant`, and "authzs". The directory is created only when `master`
+ *  is TRUE. With `tranger_path` set, that path is used as it is.
+ *
+ *  Either way `master` is what the configuration says, default FALSE: it is
+ *  NOT set here (this comment used to say it was set TRUE when the path is
+ *  empty; the code has not done that since 2024-11, bc0c09eec). So a yuno
+ *  that owns its users says so, as the agent does in its main.c:
+ *
+ *      'global': {
+ *          'Authz.master': true,
+ *          'Authz.authz_service': 'agent'
+ *      }
+ *
+ *  Without it: when the store directory does not exist, the service logs
+ *  "No authz db, authz only to local access" and opens no treedb; when it
+ *  exists (another yuno is its master), it is opened as a READ-ONLY replica,
+ *  and every write command answers READ-ONLY.
  */
 SDATA (DTP_STRING,  "tranger_path",     SDF_RD,     "",         "Tranger path, internal value (or not)"),
 SDATA (DTP_STRING,  "authz_service",    SDF_RD,     "",         "If tranger_path is empty you can force the service where build the authz. If authz_service is empty then it will be the yuno_role"),
@@ -315,7 +331,7 @@ SDATA (DTP_STRING,  "authz_service",    SDF_RD,     "",         "If tranger_path
 SDATA (DTP_STRING,  "authz_yuno_role",  SDF_RD|SDF_DEPRECATED, "", "If tranger_path is empty you can force the yuno_role where build the authz. If authz_yuno_role is empty get it from this yuno. DEPRECATED: use authz_service"),
 
 SDATA (DTP_STRING,  "authz_tenant",     SDF_RD,     "",         "Used for multi-tenant service"),
-SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "the master is the only that can write, if tranger_path is empty is set to TRUE internally"),
+SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "The master is the only one that can write the authzs store, and the only one that creates its directory. Not set internally: configure it (Authz.master)"),
 
 SDATA (DTP_BOOLEAN, "allow_anonymous_in_localhost",SDF_RD,"0",  "Allow no user in local connections"),
 SDATA (DTP_INTEGER, "max_sessions_per_user",SDF_PERSIST,    "0",        "Max sessions per user (0 no limit)"),
