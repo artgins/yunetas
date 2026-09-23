@@ -4,6 +4,7 @@
  *          Unit tests for split2() / split_free2() (string split helper).
  *          Includes a reentrancy regression: split2() must NOT clobber a
  *          caller's in-progress strtok() parse (the strtok -> strtok_r fix).
+ *          And save_json_to_file(): a failure is never silent.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -238,8 +239,62 @@ PRIVATE void test_version_cmp(void)
  *              Test
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
+/***************************************************************************
+ *  save_json_to_file(): every failure leaves a trace. With create=FALSE a
+ *  missing directory answered -1 and logged nothing (L5 of the C_NODE /
+ *  C_AUTHZ part of the 2026-09-23 independent review).
+ ***************************************************************************/
+PRIVATE int s_errors = 0;
+
+PRIVATE int count_errors(void *h, int priority, const char *bf, size_t len)
+{
+    s_errors++;
+    return 0;
+}
+
+PRIVATE void test_save_json_to_file(void)
+{
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), "/tmp", "test_helpers_no_such_dir", "sub", NULL);
+    rmrdir("/tmp/test_helpers_no_such_dir");
+
+    int errors_before = s_errors;
+    int ret = save_json_to_file(
+        0, dir, "x.json", 02770, 0660, 0,
+        FALSE,  // do not create
+        FALSE,
+        json_pack("{s:i}", "a", 1)  // owned
+    );
+    if(ret == -1 && s_errors - errors_before == 1 && !is_directory(dir)) {
+        printf("ok   %-40s\n", "save_json_to_file: missing dir is logged");
+    } else {
+        printf("FAIL %-40s ret=%d errors=%d\n", "save_json_to_file: missing dir is logged",
+            ret, s_errors - errors_before);
+        global_result += -1;
+    }
+
+    /*  ...and the ordinary save still works and logs nothing  */
+    errors_before = s_errors;
+    ret = save_json_to_file(
+        0, dir, "x.json", 02770, 0660, 0,
+        TRUE,   // create
+        FALSE,
+        json_pack("{s:i}", "a", 1)  // owned
+    );
+    json_t *back = load_json_from_file(0, dir, "x.json", 0);
+    if(ret == 0 && s_errors == errors_before && json_integer_value(json_object_get(back, "a")) == 1) {
+        printf("ok   %-40s\n", "save_json_to_file: create and read back");
+    } else {
+        printf("FAIL %-40s ret=%d\n", "save_json_to_file: create and read back", ret);
+        global_result += -1;
+    }
+    JSON_DECREF(back)
+    rmrdir("/tmp/test_helpers_no_such_dir");
+}
+
 PRIVATE int do_test(void)
 {
+    test_save_json_to_file();
     test_split_basic();
     test_split_empties_excluded();
     test_split_null_size_arg();
@@ -295,6 +350,8 @@ int main(int argc, char *argv[])
      *      Log handlers
      *--------------------------------*/
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+    gobj_log_register_handler("count_errors", 0, count_errors, 0);
+    gobj_log_add_handler("count_errors", "count_errors", LOG_OPT_UP_ERROR, 0);
 
     /*--------------------------------*
      *  Create the event loop

@@ -1642,7 +1642,18 @@ PUBLIC json_t *load_json_from_file(
 }
 
 /***************************************************************************
+ *  Write `jn_data` to directory/filename, IN PLACE: the file is truncated
+ *  and rewritten, so a crash or a full disk halfway leaves it short or
+ *  empty. It is NOT atomic, on purpose -- every caller would pay a
+ *  temporary file and a rename it does not need. A caller whose file must
+ *  survive a crash writes a temporary, flushes it and renames it over the
+ *  old one (C_TREEDB's write_schema_tmp / commit_schema_file do).
  *
+ *  Every failure is logged: a missing directory with `create` FALSE as an
+ *  error, the rest (directory, open, write, close) as critical with
+ *  `on_critical_error`. The close is checked because a write the kernel
+ *  delayed fails THERE (EIO, ENOSPC on NFS or a thin volume): ignored, the
+ *  file was reported saved while it was not.
  ***************************************************************************/
 PUBLIC int save_json_to_file(
     hgobj gobj,
@@ -1675,6 +1686,14 @@ PUBLIC int save_json_to_file(
      *-----------------------------------*/
     if(!is_directory(directory)) {
         if(!create) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot save json file, directory not found and not to be created",
+                "directory",    "%s", directory,
+                "filename",     "%s", filename,
+                NULL
+            );
             JSON_DECREF(jn_data)
             return -1;
         }
@@ -1735,7 +1754,19 @@ PUBLIC int save_json_to_file(
         JSON_DECREF(jn_data)
         return -1;
     }
-    close(fp);
+    if(close(fp) < 0) {
+        gobj_log_critical(gobj, on_critical_error,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot close json file, what was written may be lost",
+            "filename",     "%s", full_path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        JSON_DECREF(jn_data)
+        return -1;
+    }
     if(only_read) {
         chmod(full_path, 0440);
     }
