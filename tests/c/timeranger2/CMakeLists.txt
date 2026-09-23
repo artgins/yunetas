@@ -78,6 +78,7 @@ set(SRCS
     test_key_reborn_pages
     test_open_list_history
     test_unreadable_at_open
+    test_mark_tm_order
     test_testing
 )
 

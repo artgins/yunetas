@@ -7983,6 +7983,18 @@ PUBLIC json_t *tranger2_mark_tm_order(
             break;
         }
 
+        /*
+         *  The files on disk and the cells in memory are both in the order
+         *  of the load (by name, see cmp_file_ids): they are walked
+         *  TOGETHER, one cursor each. find_cache_cell() per file walked the
+         *  cells from the first, O(files^2) per key: 2.5 s for 4 keys of
+         *  3650 daily files, the yuno blocked all along (independent review
+         *  of the third fix round).
+         */
+        json_t *cache_files = json_object_get(key_cache, "files");
+        size_t n_cells = json_array_size(cache_files);
+        size_t cell_idx = 0;
+
         dir_array_t da;
         find_files_with_suffix_array(gobj, key_directory, ".md2", &da);
         dir_array_sort(&da);
@@ -8011,6 +8023,25 @@ PUBLIC json_t *tranger2_mark_tm_order(
                 continue;
             }
 
+            /*
+             *  A file that needs a marker and whose name leaves no room for
+             *  one cannot have it: every load reads it whole already
+             *  (load_cache_cell_from_disk), and its cell is flagged. It is
+             *  skipped, not the topic: it aborted the whole migration.
+             */
+            if((t_back || tm_back) && strlen(file_id) + sizeof(".tm_unordered") > NAME_MAX) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "Cannot mark a md2 file, its name leaves no room for a marker: skipped, every load reads it whole",
+                    "topic_name",   "%s", topic_name,
+                    "key",          "%s", key,
+                    "file_id",      "%s", file_id,
+                    NULL
+                );
+                continue;
+            }
+
             int w_t = t_back? write_order_marker(gobj, key_directory, file_id, "unordered", rpermission): 0;
             int w_tm = tm_back? write_order_marker(gobj, key_directory, file_id, "tm_unordered", rpermission): 0;
             if(w_t < 0 || w_tm < 0) {
@@ -8024,9 +8055,20 @@ PUBLIC json_t *tranger2_mark_tm_order(
              *  The cell in memory: its range is the whole file's, and its
              *  flags what the disk says now
              */
-            json_int_t file_base = 0;
-            int insert_idx = 0;
-            json_t *cell = find_cache_cell(topic, key, file_id, &file_base, &insert_idx);
+            json_t *cell = NULL;
+            while(cell_idx < n_cells) {
+                json_t *candidate = json_array_get(cache_files, cell_idx);
+                const char *cell_id = json_string_value(json_object_get(candidate, "id"));
+                int cmp = cmp_file_ids(cell_id? cell_id: "", file_id);
+                if(cmp < 0) {
+                    cell_idx++;
+                    continue;
+                }
+                if(cmp == 0) {
+                    cell = candidate;
+                }
+                break;
+            }
             if(cell) {
                 if(t_back) {
                     json_object_set_new(cell, "unordered", json_true());
@@ -8051,10 +8093,15 @@ PUBLIC json_t *tranger2_mark_tm_order(
             }
         }
         dir_array_free(&da);
+
+        /*
+         *  Also after a failure half way through the key: the cells already
+         *  widened are the key's cells, and its totals follow them.
+         */
+        update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
         if(failed) {
             break;
         }
-        update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
     }
 
     /*
@@ -8071,7 +8118,7 @@ PUBLIC json_t *tranger2_mark_tm_order(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TRANGER,
-            "msg",          "%s", "Cannot mark the topic: it stays as it was (the markers written stay, a marker only costs a whole read)",
+            "msg",          "%s", "Cannot mark the topic: it is not marked; the markers written stay, and the cells read keep their whole ranges",
             "topic_name",   "%s", topic_name,
             NULL
         );

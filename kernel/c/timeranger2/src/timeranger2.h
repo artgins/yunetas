@@ -549,6 +549,19 @@ PUBLIC int tranger2_write_topic_cols(
    topic_desc.json (a temporary file, fsync, rename, fsync of the directory)
    and in memory. The next page of an open iterator takes its segments again.
 
+   Cost: a listing of each key's directory and ONE sequential read of every
+   md2 file, 32 bytes a row -- linear in the rows and in the files. It is
+   synchronous: the yuno's event loop is blocked while it runs. Measured with
+   a warm page cache: 16 ms for 1 key of 30 files x 20000 rows (600000 rows);
+   72-88 ms for 4 keys of 3650 daily files of one row each (14600 files).
+   (Its first version, never released, found each file's cell by walking the
+   cells from the first, quadratic in the files of a key: 2.5 s for those
+   14600 files.)
+
+   A file that needs a marker and whose name leaves no room for one
+   (`<file_id>.tm_unordered` longer than NAME_MAX) is skipped and logged:
+   every load reads such a file whole already, so it needs none.
+
    Run it again on a topic that marks to re-mark it: after a rollback to a
    binary that appends without markers (every release up to 7.25.4), or after
    a crash that lost a marker. It is idempotent: a file already marked is left
@@ -570,9 +583,18 @@ PUBLIC int tranger2_write_topic_cols(
        }
    NULL (logged, and in gobj_log_last_message()) when the handle is not the
    master ("Only master can write"), the topic does not exist, a md2 file
-   cannot be read, a marker or topic_desc.json cannot be written. The topic
-   is then left as it was ("marks_tm_unordered" unchanged); the markers already
-   written stay.
+   cannot be read, a marker or topic_desc.json cannot be written. The keys
+   are walked in the order of the topic's cache, and the call stops at the
+   first failure. Then:
+       - the topic is NOT marked: "marks_tm_unordered" is unchanged, in
+         topic_desc.json and in memory, so no file's tm range is trusted,
+         exactly as before the call;
+       - the markers written before the failure stay on disk;
+       - the cells of the files read before the failure keep, in memory,
+         the flags and the whole-file ranges the call gave them, and the
+         totals of their keys follow (the key that failed too). Those ranges
+         are what the disk holds, so they only make the answers exact.
+   Run it again once the cause is fixed.
 
    Example, the whole store of a yuno, key by key reported:
        json_t *names = tranger2_list_topic_names(tranger);
