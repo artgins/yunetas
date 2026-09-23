@@ -41,6 +41,7 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *withdrawn_at_open(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -1755,17 +1756,16 @@ PRIVATE int check_create_and_delete_are_drafts(hgobj gobj)
 /***************************************************************************
  *  `diff-schema` names what the stored schema says and C does not.
  *
- *  The projector never deletes, and a version says that SOMETHING was
- *  published, never what. Run here, the answer must be exactly the three
- *  things this test left between the literal and the projection, and
- *  nothing else:
+ *  A version says that SOMETHING was published, never what. Run here, the
+ *  answer must be exactly the one thing this test left between the literal
+ *  and the projection, and nothing else: the column edit of
+ *  check_edits_are_drafts, a draft nobody saved.
  *
- *      - the column edit of check_edits_are_drafts,
- *      - the `fidelity` topic, declared by the first schema and dropped by
- *        the second, which the projection keeps because removing a topic is
- *        a deliberate action, never a side effect of an upgrade,
- *      - the `email` header the last literal changed without raising the
- *        topic_version of `users`, so it was never published.
+ *  Until the user's decision of 2026-09-23 there were three: the projection
+ *  also kept the `fidelity` topic the second literal dropped, and the
+ *  `email` header the last literal changed without raising the
+ *  topic_version of `users`. A literal newer than the file wins whole now,
+ *  and __system__ is projected from it whole.
  *
  *  Nothing else, above all: the store fills every column of a record with
  *  the empty value of its type, and reading those as differences drowns the
@@ -1797,8 +1797,6 @@ PRIVATE int check_schema_diff(hgobj gobj)
     json_t *rows = kw_get_list(gobj, jn_resp, "data", 0, KW_REQUIRED);
 
     BOOL found_edit = FALSE;
-    BOOL found_dropped_topic = FALSE;
-    BOOL found_unpublished = FALSE;
 
     int idx; json_t *row;
     json_array_foreach(rows, idx, row) {
@@ -1816,19 +1814,6 @@ PRIVATE int check_schema_diff(hgobj gobj)
             found_edit = TRUE;
             continue;
         }
-        if(strcmp(kind, "only_in_stored")==0 && strcmp(topic, "fidelity")==0 &&
-            empty_string(col) && empty_string(attr)
-        ) {
-            found_dropped_topic = TRUE;
-            continue;
-        }
-        if(strcmp(kind, "changed")==0 && strcmp(topic, "users")==0 &&
-            strcmp(col, "email")==0 && strcmp(attr, "header")==0 &&
-            strcmp(stored, "E-mail")==0 && strcmp(from_c, "Mail")==0
-        ) {
-            found_unpublished = TRUE;
-            continue;
-        }
 
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1840,14 +1825,12 @@ PRIVATE int check_schema_diff(hgobj gobj)
         result += -1;
     }
 
-    if(!found_edit || !found_dropped_topic || !found_unpublished) {
+    if(!found_edit) {
         gobj_log_error(gobj, 0,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_INTERNAL,
             "msg",                  "%s", "TEST FAIL: diff-schema misses a difference",
             "column_edit",          "%d", (int)found_edit,
-            "dropped_topic",        "%d", (int)found_dropped_topic,
-            "unpublished_change",   "%d", (int)found_unpublished,
             "rows",                 "%j", rows,
             NULL
         );
@@ -1902,6 +1885,11 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
 
     json_int_t system_version0 = system_schema_version(gobj, "schema_version");
     json_int_t system_users0 = system_topic_version(gobj, "users");
+    json_t *system_cols0 = system_topic_cols(gobj, "users");
+    char system_header0[NAME_MAX];
+    snprintf(system_header0, sizeof(system_header0), "%s",
+        kw_get_str(gobj, system_cols0, "email__header", "", 0));
+    JSON_DECREF(system_cols0)
 
     set_impose_c_schema(gobj, TRUE);
 
@@ -1960,7 +1948,7 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
     json_t *system_cols = system_topic_cols(gobj, "users");
     const char *system_header = json_string_value(json_object_get(system_cols, "email__header"));
     if(system_version1 != system_version0 || system_users1 != system_users0 ||
-        !system_header || strcmp(system_header, "E-mail")!=0
+        !system_header || strcmp(system_header, system_header0)!=0
     ) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
@@ -1971,6 +1959,7 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
             "users_version",    "%d", (int)system_users1,
             "users_was",        "%d", (int)system_users0,
             "email_header",     "%s", system_header?system_header:"",
+            "email_header_was", "%s", system_header0,
             NULL
         );
         result += -1;
@@ -2583,9 +2572,11 @@ PRIVATE int check_impose_projects_into_system(hgobj gobj)
     }
 
     /*
-     *  Behind: a literal ahead of it re-makes it. The topic moves with it,
-     *  and here it moves although its own topic_version does NOT -- which
-     *  is what imposing means, on disk and here alike.
+     *  Behind: a literal ahead of it re-makes it, whole. The topic moves
+     *  with it although its own topic_version does NOT. On disk it does
+     *  not: tranger2 installs a topic only over ANOTHER topic_version, even
+     *  imposing, so the store keeps its `alfa` -- said as a warning (the
+     *  expected log list pins it).
      */
     close_treedb_to_delete(gobj);
 
@@ -4023,17 +4014,14 @@ PRIVATE int check_same_schema_other_form_is_quiet(hgobj gobj)
 }
 
 /***************************************************************************
- *  A literal that TAKES OVER the file in use re-projects only the topics
- *  it raised past that file (M-B of the 2026-09-23 independent review).
- *
- *  A save not applied raises __system__ past the file in use; a literal
- *  newer than the file (but not than __system__) then takes over, and
- *  runs. It was projected with the rule of `impose`: every topic that
- *  differed was re-written, so an operator's edit of a topic the developer
- *  never raised was overwritten in __system__ -- while that topic, not
- *  raised, goes on running from the file (tranger2 installs a topic only
- *  when its topic_version is higher) and a literal N+1 arriving the
- *  ordinary way leaves it alone.
+ *  A literal newer than the file in use but NOT newer than __system__ (a
+ *  save not applied raised it past the file) wins whole all the same: the
+ *  user's decision of 2026-09-23. It replaces the file, __system__ is
+ *  projected from it whole -- the operator's saved draft of a topic the
+ *  literal did not raise included -- and what that withdrew is said, in
+ *  the API too. (The rounds before it re-projected only the topics the
+ *  literal raised, and kept the draft of the others, which then ran a
+ *  schema the file did not say.)
  ***************************************************************************/
 PRIVATE json_int_t in_use_topic_version(hgobj gobj, const char *topic_name)
 {
@@ -4052,7 +4040,7 @@ PRIVATE json_int_t in_use_topic_version(hgobj gobj, const char *topic_name)
     return v;
 }
 
-PRIVATE int check_takeover_projects_raised_topics_only(hgobj gobj)
+PRIVATE int check_takeover_is_whole(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = 0;
@@ -4140,15 +4128,24 @@ PRIVATE int check_takeover_projects_raised_topics_only(hgobj gobj)
         );
         result += -1;
     }
-    if(!name_header || strcmp(name_header, "Operator name")!=0) {
+    if(!name_header || strcmp(name_header, "Name")!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "TEST FAIL: a topic the literal did not raise lost the operator's edit",
+            "msg",          "%s", "TEST FAIL: the literal did not win whole: a saved draft survived it",
             "name_header",  "%s", name_header?name_header:"",
             NULL
         );
         result += -1;
+    }
+    {
+        json_t *jn_saved = treedbs_command(gobj, "saved-schema", json_object());
+        json_t *w = kw_get_dict(gobj, jn_saved, "data`withdrawn_at_open", 0, 0);
+        if(kw_get_int(gobj, w, "saved_schema_version", 0, 0) <= in_use_v ||
+                strcmp(kw_get_str(gobj, w, "topics`departments", "", 0), "saved")!=0) {
+            result += save_fail(gobj, "TEST FAIL: the saved draft the literal withdrew is not said", jn_saved);
+        }
+        JSON_DECREF(jn_saved)
     }
     JSON_DECREF(users)
     JSON_DECREF(departments)
@@ -4171,7 +4168,24 @@ PRIVATE int check_takeover_projects_raised_topics_only(hgobj gobj)
      *  that, not "a draft saved over it" (L-6 of the same review): the
      *  expected log list pins the message.
      */
-    jn_resp = treedbs_command(gobj, "save-schema", json_object());   /*  __system__ ahead again  */
+    {
+        /*  __system__ ahead again: another edit, saved  */
+        json_t *ids = system_topic_cols(gobj, "departments");
+        const char *name_id = json_string_value(json_object_get(ids, "name"));
+        json_t *edited = gobj_update_node(
+            gobj_find_service(SYSTEM_TREEDB, FALSE),
+            "cols",
+            json_pack("{s:s, s:s}", "id", name_id?name_id:"", "header", "Operator name again"),
+            json_pack("{s:b}", "refs", 1),
+            gobj
+        );
+        if(!edited) {
+            result += save_fail(gobj, "TEST FAIL: the operator edit was refused", NULL);
+        }
+        JSON_DECREF(edited)
+        JSON_DECREF(ids)
+    }
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
     json_int_t saved_v = kw_get_int(gobj, jn_resp, "data`schema_version", 0, KW_WILD_NUMBER);
     JSON_DECREF(jn_resp)
     json_t *literal2 = legalstring2json(schema_test2, TRUE);
@@ -4232,10 +4246,8 @@ PRIVATE int check_takeover_projects_raised_topics_only(hgobj gobj)
 }
 
 /***************************************************************************
- *  A literal arriving the ORDINARY way (newer than __system__) follows the
- *  rule of the take-over: a topic it raises past the FILE IN USE runs from
- *  the literal, so __system__ says the literal (review of the second fix
- *  round, 2026-09-23: C_TREEDB medium).
+ *  A literal arriving the ORDINARY way (newer than __system__) wins whole,
+ *  as one newer than the file only does: __system__ says the literal.
  *
  *  The operator saves an edit of `users` (never applied): `users` goes to
  *  the file's topic_version + 1 in __system__. The developer ships a literal
@@ -4245,8 +4257,7 @@ PRIVATE int check_takeover_projects_raised_topics_only(hgobj gobj)
  *  runs the developer's header. __system__ used to keep the operator's
  *  draft and log "differs from the one in use ... not applied" -- a false
  *  log, and a next save that would have reverted the developer's change
- *  with no word. Taken over (literal one version ahead), the same edit was
- *  replaced: one rule for both now.
+ *  with no word. Now the saved draft is withdrawn, and said.
  ***************************************************************************/
 PRIVATE int check_ordinary_literal_follows_the_file(hgobj gobj)
 {
@@ -4484,26 +4495,27 @@ PRIVATE int check_col_agrees(hgobj gobj, const char *label, const char *topic_na
 }
 
 /***************************************************************************
- *  An APPLIED schema that has not been opened yet survives the literal of
- *  the next open (M-1 of the third independent review, 2026-09-23).
+ *  An APPLIED schema that has not been opened yet is WITHDRAWN by a newer
+ *  literal at the next open, and said (the user's decision of 2026-09-23:
+ *  the literal wins whole).
  *
  *  apply-schema writes the file in use; the treedb reads it at its next
  *  open. When that open brings a literal newer than the file (upgrade-yunos
- *  after an apply), treedb_open_db() wrote the literal over the WHOLE file:
- *  the apply was gone with no word, __system__ kept the operator's value,
- *  and a topic the literal did not raise went on running a third version.
+ *  after an apply), treedb_open_db() writes the literal over the WHOLE
+ *  file: the apply never runs. It is said: `withdrawn_at_open` answers the
+ *  topic as "applied", and one warning names the treedb and the topics.
  *
- *  Now a literal that takes over the file takes over only the topics it
- *  raises past the one in use; the file keeps its own topic otherwise, so
- *  an applied topic the literal does not raise runs at this open, as the
- *  operator applied it:
+ *    C  the literal gives `users` the number the apply gave it (a tie): the
+ *       literal's `users` runs (the store never ran the apply's number),
+ *       and the file and __system__ say it.
+ *    D  the literal raises only `departments`, and carries `users` as it
+ *       runs: `users` goes on running what it ran BEFORE the apply, and the
+ *       file and __system__ say that too.
  *
- *    C  the literal gives `users` the number the apply gave it (a tie):
- *       the file wins, as ties always do, and the apply runs.
- *    D  the literal raises only `departments`: `users` runs as applied,
- *       `departments` as the literal says.
+ *  For three fix rounds the file kept the applied topic in these cases
+ *  (a per-topic merge), which built schemas nobody wrote.
  ***************************************************************************/
-PRIVATE int check_unopened_apply_survives_a_literal(hgobj gobj)
+PRIVATE int check_unopened_apply_withdrawn_by_a_literal(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = 0;
@@ -4541,12 +4553,19 @@ PRIVATE int check_unopened_apply_survives_a_literal(hgobj gobj)
         return result - 1;
     }
     result += check_col_agrees(gobj,
-        "TEST FAIL: an applied schema not opened yet was thrown away by a literal of the same topic_version",
-        "users", "email", "Operator applied mail");
+        "TEST FAIL: a literal of the apply's topic_version does not run whole",
+        "users", "email", "Mail from C");
+    {
+        json_t *w = withdrawn_at_open(gobj);
+        if(strcmp(kw_get_str(gobj, w, "topics`users", "", 0), "applied")!=0) {
+            result += save_fail(gobj, "TEST FAIL: the apply the literal withdrew is not said", w);
+        }
+        JSON_DECREF(w)
+    }
 
     /*
      *  D: save + apply `users` again, and restart with a literal that
-     *  raises only `departments` (its `users` is the version that runs)
+     *  raises only `departments`, and carries `users` as it runs
      */
     file_v = disk_schema_version(gobj);
     users_tv = disk_topic_version(gobj, "users");
@@ -4567,15 +4586,34 @@ PRIVATE int check_unopened_apply_survives_a_literal(hgobj gobj)
     json_t *literal = literal_raising(gobj, file_v + 2,
         "departments", departments_tv + 1, "name", "Name from C");
     set_literal_topic_version(gobj, literal, "users", users_tv);
+    {
+        int idx; json_t *topic;
+        json_array_foreach(json_object_get(literal, "topics"), idx, topic) {
+            if(strcmp(kw_get_str(gobj, topic, "id", "", 0), "users")==0) {
+                json_object_set_new(
+                    json_object_get(json_object_get(topic, "cols"), "email"),
+                    "header",
+                    json_string("Mail from C")
+                );
+            }
+        }
+    }
     if(open_test_treedb(gobj, literal) < 0) {   // literal owned
         return result - 1;
     }
     result += check_col_agrees(gobj,
-        "TEST FAIL: an applied topic the literal did not raise does not run as applied",
-        "users", "email", "Operator applied again");
+        "TEST FAIL: an applied topic the literal withdrew does not run what ran before the apply",
+        "users", "email", "Mail from C");
     result += check_col_agrees(gobj,
         "TEST FAIL: the topic the literal raised does not run from the literal",
         "departments", "name", "Name from C");
+    {
+        json_t *w = withdrawn_at_open(gobj);
+        if(strcmp(kw_get_str(gobj, w, "topics`users", "", 0), "applied")!=0) {
+            result += save_fail(gobj, "TEST FAIL: the apply the literal withdrew is not said", w);
+        }
+        JSON_DECREF(w)
+    }
 
     return result;
 }
@@ -5549,9 +5587,14 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     /*
-     *  And a topic is published by ITS version: a literal ahead of the
-     *  treedb, whose `users` changes a column without raising its
-     *  topic_version, publishes the treedb and leaves `users` as it is.
+     *  A literal ahead of the treedb whose `users` changes a column WITHOUT
+     *  raising its topic_version: the literal wins whole, so the file and
+     *  __system__ say it (topic_version 3, "Mail") -- and the store goes on
+     *  running the columns it has ("E-mail"), because tranger2 installs a
+     *  topic only over a lower topic_version. That is said, as a warning
+     *  (the expected log list pins it). Until the user's decision of
+     *  2026-09-23 __system__ kept "E-mail" too, and the file alone said the
+     *  literal.
      */
     json_t *jn_schema4 = legalstring2json(schema_test2, TRUE);
     json_object_set_new(jn_schema4, "schema_version", json_integer(12));
@@ -5578,16 +5621,20 @@ PRIVATE int run_tests(hgobj gobj)
         const char *email_header = json_string_value(
             json_object_get(cols4, "email__header")
         );
+        char running4[NAME_MAX];
+        client_col_header(gobj, "users", "email", running4, sizeof(running4));
         if(version4 != 12 || users_v4 != 3 ||
-            !email_header || strcmp(email_header, "E-mail")!=0
+            !email_header || strcmp(email_header, "Mail")!=0 ||
+            strcmp(running4, "E-mail")!=0
         ) {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_INTERNAL,
-                "msg",              "%s", "TEST FAIL: a topic whose version did not move was applied",
+                "msg",              "%s", "TEST FAIL: a literal ahead that changes a topic without its topic_version",
                 "schema_version",   "%d", (int)version4,
                 "users_version",    "%d", (int)users_v4,
                 "email_header",     "%s", email_header?email_header:"",
+                "running",          "%s", running4,
                 NULL
             );
             result += -1;
@@ -5731,20 +5778,19 @@ PRIVATE int run_tests(hgobj gobj)
     result += check_same_schema_other_form_is_quiet(gobj);
 
     /*-----------------------------------------------*
-     *  Test 13b3: a literal that takes over the file
-     *  in use re-projects only the topics it raised,
-     *  and a literal arriving the ordinary way
-     *  follows the same rule
+     *  Test 13b3: a literal newer than the file in
+     *  use wins whole, whether or not it is newer
+     *  than __system__
      *-----------------------------------------------*/
     result += check_ordinary_literal_follows_the_file(gobj);
-    result += check_takeover_projects_raised_topics_only(gobj);
+    result += check_takeover_is_whole(gobj);
 
     /*-----------------------------------------------*
      *  Test 13b4: an applied schema not opened yet
-     *  survives the literal of the next open, and a
-     *  draft an open replaces is said, in the API
+     *  is withdrawn by a newer literal, and what an
+     *  open withdraws is said, in the API
      *-----------------------------------------------*/
-    result += check_unopened_apply_survives_a_literal(gobj);
+    result += check_unopened_apply_withdrawn_by_a_literal(gobj);
     result += check_replaced_drafts_are_said(gobj);
 
     /*-----------------------------------------------*

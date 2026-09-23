@@ -123,22 +123,24 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     /*  Test 2: schema file re-created from the literal on re-open  */
     "Creating TreeDB schema file",
-    /*  Test 3: a literal ahead: projection, schema file, the one topic that moved  */
+    /*  Test 3: a literal ahead: projection (whole: `fidelity`, which it
+     *  no longer declares, goes), schema file, the one topic that moved  */
+    "Updating TreeDB schema in __system__",
+    "Topic not declared by the schema from C: removed from __system__",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    /*  Test 4: a literal newer than the FILE, not than __system__ (10),
+     *  wins whole; then one ahead; then one that changes `users` without
+     *  its topic_version: the store keeps its own, said  */
     "Updating TreeDB schema in __system__",
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
-    /*  Test 4: a literal newer than the FILE takes over a save never
-     *  applied (projected over it, said), then one ahead  */
-    "Schema from C is newer than the file in use but not than __system__: it takes over the file, and replaces in __system__ the drafts of the topics it raises past the file",
-    "Updating TreeDB schema in __system__",
-    "Re-Creating TreeDB schema file",
-    "Re-Creating topic_var.json",
-    "Re-Creating topic_cols.json",
     "Updating TreeDB schema in __system__",
     "Re-Creating TreeDB schema file",
     "Updating TreeDB schema in __system__",
-    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
+    "Topic from C declares other columns than the store runs, without raising its topic_version past it: the store keeps running its own",
     "Re-Creating TreeDB schema file",
     /*  Test 5: the refused writes  */
     "Value not in enum",
@@ -209,6 +211,8 @@ PRIVATE const char *expected_log_msgs[] = {
     "impose_c_schema forced by the code of the yuno, over the attribute",
     "Opening TreeDB with the schema from C, __system__ not read",
     "Updating TreeDB schema in __system__",
+    /*  ...`alfa` changed without its topic_version: the store keeps its own  */
+    "Topic from C declares other columns than the store runs, without raising its topic_version past it: the store keeps running its own",
     "Re-Creating TreeDB schema file",
     "impose_c_schema forced by the code of the yuno, over the attribute",
     "Opening TreeDB with the schema from C, __system__ not read",
@@ -257,71 +261,68 @@ PRIVATE const char *expected_log_msgs[] = {
     "TreeDB schema from C is behind the schema in use, not applied",
     "Schema saved",
     "Updating TreeDB schema in __system__",
-    "Topic from C raised past the file in use replaces its saved draft in __system__",
-    "Saved schema withdrawn: the schema from C replaces the file in use it was saved against",
+    "Schema from C withdrew work on the schema at open",
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
-    /*  Test 13b3: a literal taking over the file re-projects only the topic
-     *  it raised; then, with NO file in use, the whole literal  */
+    /*  Test 13b3: a literal newer than the file, not than __system__, wins
+     *  whole: the saved draft of `departments` is withdrawn, said; then,
+     *  with NO file in use, the same  */
     "TreeDB schema from C is behind the schema in use, not applied",
     "Schema saved",
-    "Schema from C is newer than the file in use but not than __system__: it takes over the file, and replaces in __system__ the drafts of the topics it raises past the file",
     "Updating TreeDB schema in __system__",
-    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
-    "Saved schema withdrawn: the schema from C replaces the file in use it was saved against",
+    "Schema from C withdrew work on the schema at open",
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
     "Schema saved",
     "No schema file in use: the treedb opens with the schema from C, projected whole over __system__",
     "Updating TreeDB schema in __system__",
-    "Saved schema withdrawn: the schema from C replaces the file in use it was saved against",
+    "Schema from C withdrew work on the schema at open",
     "Creating TreeDB schema file",
-    /*  Test 13b4: an apply not opened yet survives the literal of the next
-     *  open. C: the literal gives `users` the apply's number (the file keeps
-     *  its topic, the apply runs). D: the literal raises only `departments`
-     *  (the applied `users` runs, and the literal's `departments`)  */
+    /*  Test 13b4: an apply not opened yet is withdrawn by the literal of
+     *  the next open, said. C: the literal gives `users` the apply's number
+     *  (the literal runs). D: the literal raises only `departments` and
+     *  carries `users` as it runs  */
     "TreeDB schema from C is behind the schema in use, not applied",
     "Schema saved",
     "Schema applied",
     "Updating TreeDB schema in __system__",
-    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
+    "Schema from C withdrew work on the schema at open",
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
     "Schema saved",
     "Schema applied",
     "Updating TreeDB schema in __system__",
-    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
+    "Schema from C withdrew work on the schema at open",
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
-    "Re-Creating topic_var.json",
-    "Re-Creating topic_cols.json",
-    /*  ...and what an open replaces is said: an unsaved draft of `users`
-     *  (`departments` is kept from the file); a save taken back replaces
-     *  nothing and says nothing; an apply that never ran, replaced  */
+    /*  ...and what an open withdraws is said: an unsaved draft of `users`;
+     *  a save taken back withdraws nothing and says nothing; an apply that
+     *  never ran. Each literal carries `departments` below the version the
+     *  store runs (D raised it) with other columns: the store keeps its own,
+     *  said at each open  */
     "TreeDB schema from C is behind the schema in use, not applied",
     "Updating TreeDB schema in __system__",
-    "Topic from C replaces an unsaved draft of the topic in __system__",
-    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
+    "Topic from C declares other columns than the store runs, without raising its topic_version past it: the store keeps running its own",
+    "Schema from C withdrew work on the schema at open",
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
     "Schema saved",
     "Saved schema withdrawn, the draft is the schema in use",
-    "Schema from C is newer than the file in use but not than __system__: it takes over the file, and replaces in __system__ the drafts of the topics it raises past the file",
     "Updating TreeDB schema in __system__",
-    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
+    "Topic from C declares other columns than the store runs, without raising its topic_version past it: the store keeps running its own",
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
     "Schema saved",
     "Schema applied",
     "Updating TreeDB schema in __system__",
-    "Topic from C raised past an applied schema that never ran: it replaces the applied topic, in the file and in __system__",
-    "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
+    "Topic from C declares other columns than the store runs, without raising its topic_version past it: the store keeps running its own",
+    "Schema from C withdrew work on the schema at open",
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",

@@ -25,8 +25,12 @@
  *          "apply-schema"  -> put it in place of the file in use (master, not imposed)
  *
  *          __SYSTEM__ IS WHERE A SCHEMA IS EDITED, NOT WHERE A TREEDB OPENS
- *          FROM. The master projects each literal into it (seeded, and re-made
- *          when the literal moves ahead), an operator edits it there, and an
+ *          FROM. The master projects into it what the treedb runs: a literal
+ *          newer than the schema file in use wins WHOLE -- it replaces the
+ *          file, and __system__ is projected from it whole, saying what it
+ *          withdrew of the operator's work (`withdrawn_at_open`) -- and a
+ *          literal that is not newer leaves the file and __system__ as they
+ *          are (user decision, 2026-09-23). An operator edits it there, and an
  *          edit is a DRAFT: it moves no version and reaches no treedb until
  *          save-schema publishes it and apply-schema puts it in the file the
  *          treedb opens from. Until the owner's design of M36 (2026-09-21) it
@@ -132,6 +136,13 @@ PRIVATE BOOL treedb_is_written_here(hgobj gobj, const char *treedb_name);
 PRIVATE BOOL system_is_written_here(hgobj gobj);
 PRIVATE json_t *draft_changed_from_rows(hgobj gobj, json_t *rows);
 PRIVATE int remove_saved_schema(hgobj gobj, const char *treedb_name, json_int_t *p_version);
+PRIVATE int record_unopened_apply(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *applied,
+    json_t *replaced_file
+);
+PRIVATE json_t *take_unopened_apply(hgobj gobj, const char *treedb_name, json_int_t in_use_version);
 PRIVATE json_t *topic_versions_in_use(
     hgobj gobj,
     const char *treedb_name,
@@ -1060,12 +1071,15 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_object_del(priv->jn_forced_treedbs, treedb_name);
 
     /*
-     *  Its saved schema goes with it: left in saved_schemas/, a treedb
-     *  created again under the name found a save of the one deleted.
+     *  Its saved schema goes with it, and the record of an apply not
+     *  opened yet: left in saved_schemas/, a treedb created again under
+     *  the name found a save of the one deleted.
      */
     if(ret == 0) {
         json_int_t removed_version;
         ret = remove_saved_schema(gobj, treedb_name, &removed_version);  // Error already logged
+        json_t *applied_topics = take_unopened_apply(gobj, treedb_name, 0);
+        JSON_DECREF(applied_topics)
     }
 
     if(ret < 0) {
@@ -2667,11 +2681,16 @@ PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
     char tmp_path[PATH_MAX];
+    json_t *replaced_file = load_json_from_file(gobj, in_use_dir, filename, 0);
     int ret = write_schema_tmp(gobj, in_use_dir, filename, saved, tmp_path, sizeof(tmp_path));
-    JSON_DECREF(saved)
     if(ret == 0) {
         ret = commit_schema_file(gobj, in_use_dir, filename, tmp_path);
     }
+    if(ret == 0) {
+        record_unopened_apply(gobj, treedb_name, saved, replaced_file);  // Error already logged
+    }
+    JSON_DECREF(replaced_file)
+    JSON_DECREF(saved)
     if(ret < 0) {
         return msg_iev_build_response(gobj, -1,
             json_sprintf("%s: cannot write the schema of '%s', the file in use is unchanged (see the log)",
@@ -2848,10 +2867,18 @@ PRIVATE json_t *apply_every_saved_schema(hgobj gobj, const char *cmd, json_t *kw
         } else {
             char filename[NAME_MAX];
             snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
-            if(commit_schema_file(gobj,
-                    kw_get_str(gobj, entry, "in_use_dir", "", 0),
-                    filename,
-                    tmp_path)<0) {
+            json_t *replaced_file = load_json_from_file(gobj,
+                kw_get_str(gobj, entry, "in_use_dir", "", 0), filename, 0);
+            int committed = commit_schema_file(gobj,
+                kw_get_str(gobj, entry, "in_use_dir", "", 0),
+                filename,
+                tmp_path);
+            if(committed == 0) {
+                record_unopened_apply(gobj, treedb_name,    // Error already logged
+                    json_object_get(entry, "saved"), replaced_file);
+            }
+            JSON_DECREF(replaced_file)
+            if(committed<0) {
                 comment = json_sprintf("%s: cannot write the schema of '%s', the file in use is unchanged (see the log)",
                     gobj_yuno_role_plus_name(), treedb_name);
             } else {
@@ -2937,9 +2964,8 @@ PRIVATE json_t *apply_every_saved_schema(hgobj gobj, const char *cmd, json_t *kw
  *  The projection in __system__ is seeded from the schema in C and re-made
  *  whenever that moves ahead, so the two are the same thing until somebody
  *  edits the projection -- and an edit is a draft there until save-schema
- *  and apply-schema. The projector never deletes, so an edit is invisible:
- *  the version numbers of the `treedbs` node say that SOMETHING was
- *  published, never what. This answers what.
+ *  and apply-schema. The version numbers of the `treedbs` node say that
+ *  SOMETHING was published, never what. This answers what.
  ***************************************************************************/
 PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -3475,15 +3501,20 @@ PRIVATE json_t *build_col_projection(
 }
 
 /***************************************************************************
- *  Whether writing a projected node over the stored one would change it.
+ *  Whether writing a projected node over the stored one would change it,
+ *  when the projection is WHOLE: the stored node must end up saying what
+ *  the projection says and nothing else.
  *
- *  The comparison of diff-schema, read from the side of the write: an update
- *  merges, so what the stored node holds and the projection does not declare
- *  stays as it is, and only what the projection would ADD or CHANGE counts.
+ *  The comparison of diff-schema, read from the side of the write. An
+ *  update merges, so an attribute the stored node holds and the projection
+ *  does not declare -- an operator's addition -- would stay: it is written
+ *  back empty instead (its declared default, or the empty value of its
+ *  type), which is how the store says "not declared". `projected` is
+ *  MUTATED to carry those.
  ***************************************************************************/
-PRIVATE BOOL projection_changes_node(
+PRIVATE BOOL projection_rewrites_node(
     hgobj gobj,
-    json_t *projected,  // not owned
+    json_t *projected,  // not owned, MUTATED
     json_t *stored,     // not owned
     const char **skip,  // attributes that say how a node is STORED
     json_t *desc        // not owned, descriptor of the node's topic, may be NULL
@@ -3499,8 +3530,39 @@ PRIVATE BOOL projection_changes_node(
         const char *kind = kw_get_str(gobj, row, "kind", "", 0);
         if(strcmp(kind, "changed")==0 || strcmp(kind, "only_in_c")==0) {
             changes = TRUE;
-            break;
+            continue;
         }
+        if(strcmp(kind, "only_in_stored")!=0) {
+            continue;
+        }
+        changes = TRUE;
+
+        const char *attr = kw_get_str(gobj, row, "attr", "", 0);
+        json_t *stored_value = json_object_get(row, "stored");
+        json_t *cleared = NULL;
+        int idx2; json_t *entry;
+        json_array_foreach(desc, idx2, entry) {
+            if(strcmp(kw_get_str(gobj, entry, "id", "", 0), attr)==0 &&
+                    json_object_get(entry, "default")) {
+                cleared = json_deep_copy(json_object_get(entry, "default"));
+            }
+        }
+        if(!cleared) {
+            if(json_is_string(stored_value)) {
+                cleared = json_string("");
+            } else if(json_is_object(stored_value)) {
+                cleared = json_object();
+            } else if(json_is_array(stored_value)) {
+                cleared = json_array();
+            } else if(json_is_boolean(stored_value)) {
+                cleared = json_false();
+            } else if(json_is_real(stored_value)) {
+                cleared = json_real(0);
+            } else {
+                cleared = json_integer(0);
+            }
+        }
+        json_object_set_new(projected, attr, cleared);
     }
     JSON_DECREF(rows)
 
@@ -3508,77 +3570,72 @@ PRIVATE BOOL projection_changes_node(
 }
 
 /***************************************************************************
- *  Project a schema into the __system__ treedb: create what is missing,
- *  update what moved.
+ *  What the operator had in a topic of __system__ that a projection
+ *  replaces, or NULL when it was nobody's work: a DRAFT is a topic that
+ *  differs from the schema file in use (`drafts`), "saved" when a pending
+ *  save published it (its version in __system__ above the one in use),
+ *  "unsaved" otherwise. A save taken back is the file again: no draft.
+ *  (An applied topic that never ran is judged against the file, in
+ *  reconcile_treedb_schema().)
+ ***************************************************************************/
+PRIVATE const char *draft_kind(
+    json_t *drafts,             // not owned, {topic: true}, may be NULL
+    BOOL saved_pending,
+    const char *topic_name,
+    json_int_t stored_topic_version,
+    json_int_t in_use_topic_version
+)
+{
+    if(!json_object_get(drafts, topic_name)) {
+        return NULL;
+    }
+    return (saved_pending && stored_topic_version > in_use_topic_version)? "saved" : "unsaved";
+}
+
+/***************************************************************************
+ *  Project a schema into the __system__ treedb, WHOLE: afterwards the
+ *  projection of the treedb says what `kw` says, and nothing else.
  *
- *  HACK Nothing is ever deleted here. A delete is the one destructive
- *  primitive of the store — it drops the schema's own history, which is the
- *  reason to keep a schema in a treedb at all, and it refuses a
- *  snapshot-tagged node. An update appends a new version instead, so what a
- *  column used to declare stays readable with `instances`. The one exception
- *  is migrate_schema_ids_to_qualified(), which runs before this and has to
- *  retire an id the store can no longer address a node by.
+ *      - a topic or column that is new is created;
+ *      - one that differs is updated, attributes it no longer declares
+ *        included (projection_rewrites_node), and so is a topic whose
+ *        topic_version moved;
+ *      - a topic or column `kw` does not declare is DELETED, with force
+ *        (it is linked), its columns with it.
  *
- *  What exists here and not in the incoming schema is left alone: it is
- *  indistinguishable from an operator addition, and removing a topic or a
- *  column is a deliberate action, never a side effect of an upgrade.
+ *  That is the rule the user decided on 2026-09-23 for a literal that wins
+ *  (see reconcile_treedb_schema): it replaces the schema file whole, and
+ *  __system__ is projected from it whole. The upsert that never deleted
+ *  kept a topic the developer had removed, and the next save-schema
+ *  published it again; a per-topic merge built schemas nobody had written.
+ *  A delete drops the history of the node, and it is refused on a node a
+ *  snapshot tags (logged); that is the price of a projection that says
+ *  what the file says.
  *
- *  With `imposing`, a topic is projected whatever its stored topic_version
- *  says. treedb_open_db() installs each topic of an imposed schema over a
- *  HIGHER stored topic_version too, so the ordinary rule would leave the
- *  projection saying something the store no longer holds -- in the one case
- *  `impose` exists to repair. It is also the rule when there is no schema
- *  file in use: the treedb opens from the literal, whole.
+ *  What that replaces of the operator's work -- a draft of a topic, saved
+ *  or not (`drafts`, `saved_pending`) -- is added to `replaced` as
+ *  {topic: "saved" | "unsaved"}; the caller says it.
  *
- *  Otherwise ONE rule, whether the literal is newer than __system__ (the
- *  ordinary way) or only newer than the file (it takes the file over, see
- *  literal_against_file_in_use): a topic is projected when the literal
- *  RAISES it past the version IN USE -- the schema file's (`file_in_use`),
- *  or the store's when it runs a higher one -- whatever version a save gave
- *  it in __system__. That is the topic the treedb runs from the literal
- *  (literal_over_file_in_use() hands treedb_open_db() the literal's topic,
- *  and tranger2 installs it over a lower topic_version), and __system__
- *  must say what runs: kept, the draft was published by the next save over
- *  the developer's change, reverting it with no word. A topic the literal
- *  does not raise keeps the file's own topic, which the treedb runs -- an
- *  applied one not opened yet included -- and its draft in __system__, an
- *  operator's edit included, is left alone.
- *
- *  The two paths had two rules until the review of the second fix round
- *  (2026-09-23): the ordinary one compared the literal with the version in
- *  __system__, so a topic a save had raised to the literal's number kept the
- *  operator's draft while the treedb ran the literal, and logged that the
- *  literal was "not applied".
+ *  Only what a write would change is written: an identical topic or column
+ *  adds no record. The number of __system__'s `schema_version` never goes
+ *  down (a save may have raised it past the literal), and
+ *  `c_schema_version` records which schema the projection came from.
  ***************************************************************************/
 PRIVATE int upsert_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
-    json_t *kw,     // not owned
+    json_t *kw,     // not owned, the schema to project
     json_t *current,// not owned, the projection already stored, or NULL
-    BOOL imposing,  // every topic that differs is projected (impose, or no file in use)
-    json_t *file_in_use, // not owned, the schema file the literal is installed over, or NULL
+    json_t *file_in_use, // not owned, the schema file in use before this open, or NULL
     json_t *drafts, // not owned, {topic: true} whose draft differs from the file, or NULL
     BOOL saved_pending, // a saved schema newer than the file in use exists
-    json_t *replaced // not owned, {topic: kind} the literal replaced is added here, or NULL
+    json_t *replaced // not owned, {topic: kind} the projection replaced is added here, or NULL
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*
-     *  The literal's own number, as it is: the version is published by
-     *  whoever changes the schema, never invented here. `c_schema_version`
-     *  records which literal this projection came from, for diff-schema.
-     */
     json_int_t c_schema_version = kw_get_int(gobj, kw, "schema_version", 1, KW_WILD_NUMBER);
     json_int_t schema_version = c_schema_version;
-
-    /*
-     *  ...and a number of __system__ never goes down. A literal that takes
-     *  over the file in use (or the missing file) can be older than a save
-     *  that raised __system__: written as it was, its number lowered
-     *  __system__ below that save (review of the second fix round,
-     *  2026-09-23).
-     */
     if(current) {
         json_int_t stored_version = kw_get_int(gobj, current, "schema_version", 0, KW_WILD_NUMBER);
         if(stored_version > schema_version) {
@@ -3618,8 +3675,8 @@ PRIVATE int upsert_treedb_schema(
     json_t *current_topics = current? kw_get_dict(gobj, current, "topics", 0, 0): NULL;
 
     /*
-     *  The version each topic is IN USE at: the file's, or the store's when
-     *  it runs another one (see topic_versions_in_use)
+     *  The version each topic is IN USE at, to tell a saved draft from an
+     *  unsaved one (see draft_kind)
      */
     json_t *in_use = topic_versions_in_use(gobj, treedb_name, file_in_use, kw);
 
@@ -3627,6 +3684,8 @@ PRIVATE int upsert_treedb_schema(
      *  What a column may declare, read once for the whole projection
      */
     json_t *cols_desc = _treedb_create_topic_cols_desc();
+
+    json_t *declared_topics = json_object();
 
     json_t *jn_topics = kw_get_list(gobj, kw, "topics", 0, 0);
     int idx; json_t *jn_topic;
@@ -3644,6 +3703,7 @@ PRIVATE int upsert_treedb_schema(
         if(!build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
             continue;   // Error already logged
         }
+        json_object_set_new(declared_topics, topic_id, json_true());
 
         json_t *current_topic = current_topics?
             json_object_get(current_topics, topic_id):
@@ -3668,9 +3728,11 @@ PRIVATE int upsert_treedb_schema(
 
         /*
          *  Only what a write would change is written: the columns that are
-         *  new or moved, and their topic.
+         *  new or differ, and their topic. A column the topic no longer
+         *  declares goes.
          */
         json_t *kw_cols = json_array();
+        json_t *declared_cols = json_object();
         int idx2; json_t *jn_col;
         json_array_foreach(jn_cols, idx2, jn_col) {
             json_t *kw_col = build_col_projection(gobj, jn_col, cols_desc, idx2);
@@ -3685,10 +3747,11 @@ PRIVATE int upsert_treedb_schema(
                 continue;   // Error already logged
             }
             json_object_set_new(kw_col, "id", json_string(col_id));
+            json_object_set_new(declared_cols, col_id, json_true());
 
             json_t *current_col = current_cols? json_object_get(current_cols, col_id): NULL;
             if(current_col &&
-                !projection_changes_node(gobj, kw_col, current_col, schema_col_skip, cols_desc)
+                !projection_rewrites_node(gobj, kw_col, current_col, schema_col_skip, cols_desc)
             ) {
                 JSON_DECREF(kw_col)
                 continue;
@@ -3697,113 +3760,37 @@ PRIVATE int upsert_treedb_schema(
         }
         json_decref(jn_cols);
 
-        /*
-         *  A topic is published by raising ITS version, the same rule
-         *  tranger2 applies to topic_cols.json, and the number is the
-         *  literal's as it is. A topic the literal does not raise past the
-         *  FILE in use is left as it is stored, dynamic edits included --
-         *  said when the literal declares something else, because a column
-         *  changed in C without a higher topic_version is the classic change
-         *  that reaches nothing. Imposing, that rule does not apply: the
-         *  literal wins at both levels, here as on disk.
-         */
+        json_t *removed_cols = json_array();
+        const char *current_col_id; json_t *current_col;
+        json_object_foreach(current_cols, current_col_id, current_col) {
+            if(!json_object_get(declared_cols, current_col_id)) {
+                json_array_append_new(removed_cols, json_string(current_col_id));
+            }
+        }
+        JSON_DECREF(declared_cols)
+
         if(current_topic) {
             json_int_t stored_topic_version = kw_get_int(
                 gobj, current_topic, "topic_version", 0, KW_WILD_NUMBER
             );
             BOOL topic_changes = (json_array_size(kw_cols) > 0 ||
-                projection_changes_node(gobj, kw_topic, current_topic, schema_topic_skip, NULL)
+                json_array_size(removed_cols) > 0 ||
+                projection_rewrites_node(gobj, kw_topic, current_topic, schema_topic_skip, NULL)
             )? TRUE: FALSE;
 
-            /*
-             *  Imposing, a topic is written because it DIFFERS, not because
-             *  its version is higher. Re-appending an identical topic would
-             *  add a record per start saying nothing.
-             */
-            if(imposing && !topic_changes) {
+            if(!topic_changes && stored_topic_version == topic_version) {
+                JSON_DECREF(removed_cols)
                 JSON_DECREF(kw_cols)
                 json_decref(kw_topic);
-                continue;
+                continue;   /*  __system__ says it already  */
             }
 
-            json_int_t file_topic_version = json_integer_value(
-                json_object_get(json_object_get(in_use, "file"), topic_name)
-            );
-            json_int_t running_version = json_integer_value(
-                json_object_get(json_object_get(in_use, "running"), topic_name)
-            );
-            json_int_t in_use_version = topic_version_in_use(in_use, topic_name);
-
-            if(!imposing) {
-                if(topic_version <= in_use_version) {
-                    if(topic_changes) {
-                        gobj_log_info(gobj, 0,
-                            "function",         "%s", __FUNCTION__,
-                            "msgset",           "%s", MSGSET_INFO,
-                            "msg",              "%s", "Topic from C differs from __system__ but does not raise its topic_version past the one in use: not applied, the file in use keeps its topic and the treedb runs it",
-                            "treedb_name",      "%s", treedb_name,
-                            "topic_name",       "%s", topic_name,
-                            "topic_version",    "%d", (int)topic_version,
-                            "file_version",     "%d", (int)file_topic_version,
-                            "running_version",  "%d", (int)running_version,
-                            "stored_version",   "%d", (int)stored_topic_version,
-                            NULL
-                        );
-                    }
-                    JSON_DECREF(kw_cols)
-                    json_decref(kw_topic);
-                    continue;
-                }
-                if(!topic_changes && topic_version <= stored_topic_version) {
-                    JSON_DECREF(kw_cols)
-                    json_decref(kw_topic);
-                    continue;   /*  raised, and __system__ already says it  */
-                }
-            }
-
-            /*
-             *  What the literal replaces, said -- in the log and, through
-             *  `replaced`, in the API (withdrawn_at_open): an APPLIED topic
-             *  that never ran, a SAVED draft, or a draft never saved. A draft
-             *  is a topic of __system__ that differs from the file in use
-             *  (`drafts`), so a save taken back replaces nothing and says
-             *  nothing: judged by its version alone, it was told "replaces
-             *  its saved draft" (L1-L3 of the third independent review,
-             *  2026-09-23).
-             */
-            const char *kind = NULL;
-            if(topic_changes) {
-                if(!imposing && file_topic_version > running_version) {
-                    kind = "applied";
-                } else if(json_object_get(drafts, topic_name)) {
-                    kind = (saved_pending && stored_topic_version > in_use_version)?
-                        "saved" : "unsaved";
-                }
-            }
-            if(kind) {
-                const char *msg;
-                if(strcmp(kind, "applied")==0) {
-                    msg = "Topic from C raised past an applied schema that never ran: it replaces the applied topic, in the file and in __system__";
-                } else if(strcmp(kind, "saved")==0) {
-                    msg = "Topic from C raised past the file in use replaces its saved draft in __system__";
-                } else {
-                    msg = "Topic from C replaces an unsaved draft of the topic in __system__";
-                }
-                gobj_log_warning(gobj, 0,
-                    "function",         "%s", __FUNCTION__,
-                    "msgset",           "%s", MSGSET_TREEDB,
-                    "msg",              "%s", msg,
-                    "treedb_name",      "%s", treedb_name,
-                    "topic_name",       "%s", topic_name,
-                    "topic_version",    "%d", (int)topic_version,
-                    "file_version",     "%d", (int)file_topic_version,
-                    "running_version",  "%d", (int)running_version,
-                    "stored_version",   "%d", (int)stored_topic_version,
-                    NULL
-                );
-                if(replaced) {
-                    json_object_set_new(replaced, topic_name, json_string(kind));
-                }
+            const char *kind = topic_changes? draft_kind(
+                drafts, saved_pending, topic_name, stored_topic_version,
+                topic_version_in_use(in_use, topic_name)
+            ) : NULL;
+            if(kind && replaced) {
+                json_object_set_new(replaced, topic_name, json_string(kind));
             }
         }
 
@@ -3817,6 +3804,7 @@ PRIVATE int upsert_treedb_schema(
                 gobj
             );
             if(!topic) {
+                JSON_DECREF(removed_cols)
                 JSON_DECREF(kw_cols)
                 continue;   // Error already logged
             }
@@ -3829,6 +3817,7 @@ PRIVATE int upsert_treedb_schema(
                 gobj
             );
             if(!topic) {
+                JSON_DECREF(removed_cols)
                 JSON_DECREF(kw_cols)
                 continue;   // Error already logged
             }
@@ -3847,10 +3836,10 @@ PRIVATE int upsert_treedb_schema(
         json_t *kw_col;
         json_array_foreach(kw_cols, idx2, kw_col) {
             const char *col_id = kw_get_str(gobj, kw_col, "id", "", 0);
-            json_t *current_col = current_cols? json_object_get(current_cols, col_id): NULL;
+            json_t *stored_col = current_cols? json_object_get(current_cols, col_id): NULL;
 
             json_t *col;
-            if(current_col) {
+            if(stored_col) {
                 col = gobj_update_node(
                     priv->gobj_node_system,
                     "cols",
@@ -3890,16 +3879,77 @@ PRIVATE int upsert_treedb_schema(
             json_decref(col);
         }
 
+        json_t *jn_col_id;
+        json_array_foreach(removed_cols, idx2, jn_col_id) {
+            gobj_delete_node(       // Error already logged
+                priv->gobj_node_system,
+                "cols",
+                json_pack("{s:s}", "id", json_string_value(jn_col_id)),
+                json_pack("{s:b}", "force", 1),     // it is linked to its topic
+                gobj
+            );
+        }
+
         /*
          *  free
          */
+        JSON_DECREF(removed_cols)
         JSON_DECREF(kw_cols)
         json_decref(topic);
     }
 
     /*
+     *  A topic `kw` does not declare goes, and its columns with it: the
+     *  topic first (with force it unlinks them), then each column
+     */
+    const char *current_topic_id; json_t *current_topic;
+    json_object_foreach(current_topics, current_topic_id, current_topic) {
+        if(json_object_get(declared_topics, current_topic_id)) {
+            continue;
+        }
+        const char *topic_name = kw_get_str(gobj, current_topic, "value", current_topic_id, 0);
+        const char *kind = draft_kind(
+            drafts, saved_pending, topic_name,
+            kw_get_int(gobj, current_topic, "topic_version", 0, KW_WILD_NUMBER),
+            topic_version_in_use(in_use, topic_name)
+        );
+        if(kind && replaced) {
+            json_object_set_new(replaced, topic_name, json_string(kind));
+        }
+
+        gobj_log_info(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INFO,
+            "msg",              "%s", "Topic not declared by the schema from C: removed from __system__",
+            "treedb_name",      "%s", treedb_name,
+            "topic_name",       "%s", topic_name,
+            "schema_version",   "%d", (int)c_schema_version,
+            NULL
+        );
+
+        gobj_delete_node(   // Error already logged
+            priv->gobj_node_system,
+            "topics",
+            json_pack("{s:s}", "id", current_topic_id),
+            json_pack("{s:b}", "force", 1),     // it is linked to its treedb and its cols
+            gobj
+        );
+        const char *col_id; json_t *col;
+        json_object_foreach(kw_get_dict(gobj, current_topic, "cols", 0, 0), col_id, col) {
+            gobj_delete_node(   // Error already logged
+                priv->gobj_node_system,
+                "cols",
+                json_pack("{s:s}", "id", col_id),
+                json_pack("{s:b}", "force", 1),
+                gobj
+            );
+        }
+    }
+
+    /*
      *  free
      */
+    JSON_DECREF(declared_topics)
     JSON_DECREF(in_use)
     JSON_DECREF(cols_desc)
     json_decref(treedb);
@@ -4001,227 +4051,222 @@ PRIVATE json_int_t topic_version_in_use(json_t *in_use, const char *topic_name) 
 }
 
 /***************************************************************************
- *  The schema a treedb opens with when its literal TAKES OVER the file in
- *  use (impose off, the literal newer than the file): treedb_open_db()
- *  writes what it is handed over the WHOLE file, so it is handed the
- *  literal topic by topic.
- *
- *    - a topic the literal raises past the one in use: the literal's, and
- *      it runs (tranger2 installs it);
- *    - any other topic of the file: the FILE's, as it is. An applied topic
- *      that has not been opened yet runs now, as applied; one in use goes
- *      on running. Handed the literal whole, the file lost an apply nobody
- *      had opened yet with no word, and a topic the literal did not raise
- *      ran one version while the file said another and __system__ a third
- *      (M-1 of the third independent review, 2026-09-23);
- *    - a topic only the file declares stays in it: removing a topic is a
- *      deliberate act, never a side effect of an upgrade, and the
- *      projection keeps it too.
- *
- *  The schema_version, and everything the schema says outside its topics,
- *  is the literal's. Return is YOURS.
+ *  Does topic `topic_name` say something else in `a` than in `b`? Its
+ *  topic_version is not compared: a number moved is no content moved. A
+ *  topic missing from one side differs. With `cols_only`, only the columns
+ *  are compared, and a change of their ORDER alone is no difference
+ *  (tranger2 re-orders topic_cols.json by itself).
  ***************************************************************************/
-PRIVATE json_t *literal_over_file_in_use(
-    hgobj gobj,
-    const char *treedb_name,
-    json_t *jn_schema,      // not owned, the literal
-    json_t *file_in_use     // not owned
+PRIVATE BOOL schema_topic_differs(
+    json_t *a,              // not owned, a schema
+    json_t *b,              // not owned, a schema
+    const char *topic_name,
+    BOOL cols_only
 )
 {
-    json_t *in_use = topic_versions_in_use(gobj, treedb_name, file_in_use, jn_schema);
-    json_t *file_topics = schema_topics_as_list(gobj, file_in_use);
-    json_t *literal_topics = schema_topics_as_list(gobj, jn_schema);
+    json_t *ta = schema_topic(a, topic_name);
+    json_t *tb = schema_topic(b, topic_name);
+    if(!ta || !tb) {
+        return (ta || tb)? TRUE : FALSE;
+    }
 
-    json_t *merged = json_deep_copy(jn_schema);
+    json_t *ca = cols_only?
+        json_pack("{s:s, s:O}", "id", topic_name, "cols", json_object_get(ta, "cols")) :
+        json_deep_copy(ta);
+    json_t *cb = cols_only?
+        json_pack("{s:s, s:O}", "id", topic_name, "cols", json_object_get(tb, "cols")) :
+        json_deep_copy(tb);
+    json_object_del(ca, "topic_version");
+    json_object_del(cb, "topic_version");
+    json_t *sa = json_pack("{s:[o]}", "topics", ca);
+    json_t *sb = json_pack("{s:[o]}", "topics", cb);
+    json_t *diff = schema_diff(sa, sb);
+
+    BOOL differs = FALSE;
+    const char *section[] = {"added", "removed", "changed", NULL};
+    for(int i = 0; section[i]; i++) {
+        const char *leaf; json_t *v;
+        json_object_foreach(json_object_get(diff, section[i]), leaf, v) {
+            if(cols_only && strstr(leaf, "__cols_order__")) {
+                continue;
+            }
+            differs = TRUE;
+        }
+    }
+    JSON_DECREF(diff)
+    JSON_DECREF(sa)
+    JSON_DECREF(sb)
+    return differs;
+}
+
+/***************************************************************************
+ *  An APPLIED schema that has not been opened yet, recorded beside the
+ *  saved schemas: `saved_schemas/<treedb>.applied.json`,
+ *
+ *      {"schema_version": 13, "topics": ["users"]}
+ *
+ *  the version apply-schema put in use and the topics it changed (their
+ *  topic_version went up, or they are new). The next open of the treedb
+ *  consumes it: the apply runs, or a newer literal withdraws it and says
+ *  which topics were withdrawn as "applied".
+ *
+ *  It used to be inferred from the file's topic_version being above the
+ *  store's topic_var.json, and a topic whose directory or topic_var.json
+ *  was missing read as an apply that never ran whether one had been made
+ *  or not (L-2 of the fourth independent review, 2026-09-23).
+ ***************************************************************************/
+PRIVATE void applied_marker_filename(const char *treedb_name, char *bf, size_t bfsize)
+{
+    snprintf(bf, bfsize, "%s.applied.json", treedb_name);
+}
+
+PRIVATE int record_unopened_apply(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *applied,        // not owned, the schema put in use
+    json_t *replaced_file   // not owned, the file it replaced, may be NULL
+)
+{
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char filename[NAME_MAX];
+    applied_marker_filename(treedb_name, filename, sizeof(filename));
+
     json_t *topics = json_array();
-    json_t *seen = json_object();
 
+    /*
+     *  The file it replaced may itself be an apply nobody opened: its
+     *  topics never ran either
+     */
+    if(file_exists(saved_dir, filename)) {
+        json_t *previous = load_json_from_file(gobj, saved_dir, filename, 0);
+        if(previous && schema_version_of(gobj, previous) == schema_version_of(gobj, replaced_file)) {
+            json_array_extend(topics, kw_get_list(gobj, previous, "topics", 0, 0));
+        }
+        JSON_DECREF(previous)
+    }
+
+    json_t *applied_topics = schema_topics_as_list(gobj, applied);
     int idx; json_t *topic;
-    json_array_foreach(literal_topics, idx, topic) {
+    json_array_foreach(applied_topics, idx, topic) {
         const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
         if(empty_string(topic_name)) {
             topic_name = kw_get_str(gobj, topic, "topic_name", "", 0);
         }
-        json_t *file_topic = NULL;
-        int idx2; json_t *ft;
-        json_array_foreach(file_topics, idx2, ft) {
-            const char *name = kw_get_str(gobj, ft, "id", "", 0);
-            if(empty_string(name)) {
-                name = kw_get_str(gobj, ft, "topic_name", "", 0);
-            }
-            if(strcmp(name, topic_name)==0) {
-                file_topic = ft;
-                break;
-            }
+        if(empty_string(topic_name) || json_list_str_index(topics, topic_name, FALSE) >= 0) {
+            continue;
         }
-        json_int_t topic_version = kw_get_int(gobj, topic, "topic_version", 1, KW_WILD_NUMBER);
-        if(file_topic && topic_version <= topic_version_in_use(in_use, topic_name)) {
-            json_array_append_new(topics, json_deep_copy(file_topic));
-        } else {
-            json_array_append_new(topics, json_deep_copy(topic));
-        }
-        json_object_set_new(seen, topic_name, json_true());
-    }
-    json_array_foreach(file_topics, idx, topic) {
-        const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
-        if(empty_string(topic_name)) {
-            topic_name = kw_get_str(gobj, topic, "topic_name", "", 0);
-        }
-        if(!json_object_get(seen, topic_name)) {
-            json_array_append_new(topics, json_deep_copy(topic));
+        json_int_t before = replaced_file? schema_topic_version(gobj, replaced_file, topic_name) : 0;
+        if(kw_get_int(gobj, topic, "topic_version", 0, KW_WILD_NUMBER) > before) {
+            json_array_append_new(topics, json_string(topic_name));
         }
     }
-    json_object_set_new(merged, "topics", topics);
+    JSON_DECREF(applied_topics)
 
-    JSON_DECREF(seen)
-    JSON_DECREF(file_topics)
-    JSON_DECREF(literal_topics)
-    JSON_DECREF(in_use)
-    return merged;
+    return save_json_to_file(
+        gobj,
+        saved_dir,
+        filename,
+        (int)gobj_read_integer_attr(gobj, "xpermission"),
+        (int)gobj_read_integer_attr(gobj, "rpermission"),
+        0,
+        TRUE,   // Create file if not exists or overwrite.
+        FALSE,  // only_read
+        json_pack("{s:I, s:o}",
+            "schema_version", schema_version_of(gobj, applied),
+            "topics", topics
+        )
+    );
 }
 
 /***************************************************************************
- *  What a literal that is NOT newer than __system__ does to the treedb,
- *  asked when the treedb opens from its FILE (impose off).
- *
- *  __system__ and the file in use share one version number and two authors
- *  write it: the literal's author, and save-schema, which gives the draft
- *  the file's version + 1. The number of __system__ can therefore be a
- *  save's, never applied, while the literal moves on -- and the literal
- *  WINS over the file at open (treedb_open_db() installs a literal newer
- *  than the file). Judged by __system__'s number alone, that literal was
- *  "behind" and never projected: the treedb ran it, __system__ went on
- *  holding the draft it had replaced, and the next save published that
- *  draft over it, reverting the literal's change with no word (the second
- *  medium of M36, 2026-09-23 review).
- *
- *  So the question is the one treedb_open_db() asks, against the FILE:
- *
- *    LITERAL_TAKES_OVER_FILE     the literal is newer than the file, or
- *                                there is no file: it is what runs, and
- *                                it is projected -- the topics it raised
- *                                past the file, or every topic when there
- *                                is no file (see upsert_treedb_schema).
- *    LITERAL_SAME_VERSION_OTHER_SCHEMA
- *                                the literal carries the version of the file
- *                                in use, came after the last projection, and
- *                                is another schema: two schemas, one number.
- *                                The file wins (ties go to the file), and it
- *                                is said, loudly, instead of silently.
- *    LITERAL_NOT_APPLIED         behind the file, or the projection is
- *                                already of this literal: the ordinary rule.
+ *  The topics of the unopened apply that IS the file in use (version
+ *  `in_use_version`), and remove the record: the open consumes it. NULL
+ *  when there is none, or it is of another file. Return is YOURS.
  ***************************************************************************/
-typedef enum {
-    LITERAL_NOT_APPLIED = 0,
-    LITERAL_TAKES_OVER_FILE,
-    LITERAL_SAME_VERSION_OTHER_SCHEMA,
-} literal_verdict_t;
-
-PRIVATE literal_verdict_t literal_against_file_in_use(
-    hgobj gobj,
-    const char *treedb_name,
-    json_t *jn_schema,          // not owned, the literal
-    json_int_t new_version,
-    json_int_t stored_version,
-    json_int_t stored_c_version
-)
+PRIVATE json_t *take_unopened_apply(hgobj gobj, const char *treedb_name, json_int_t in_use_version)
 {
-    if(stored_c_version == new_version && stored_version == new_version) {
-        return LITERAL_NOT_APPLIED;     /*  the projection is of this literal  */
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char filename[NAME_MAX];
+    applied_marker_filename(treedb_name, filename, sizeof(filename));
+    if(!file_exists(saved_dir, filename)) {
+        return NULL;
     }
 
-    json_t *in_use = load_schema_file_in_use(gobj, treedb_name);
-    json_int_t in_use_version = schema_version_of(gobj, in_use);
-    literal_verdict_t verdict = LITERAL_NOT_APPLIED;
-
-    if(!in_use) {
-        /*
-         *  No file in use: the treedb opens from the literal, whatever
-         *  version __system__ holds. Said as it is -- it used to be told as
-         *  "a draft saved over it" (L-6 of the 2026-09-23 independent review).
-         */
-        verdict = LITERAL_TAKES_OVER_FILE;
-        gobj_log_warning(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_TREEDB,
-            "msg",              "%s", "No schema file in use: the treedb opens with the schema from C, projected whole over __system__",
-            "treedb_name",      "%s", treedb_name,
-            "schema_version",   "%d", (int)new_version,
-            "system_version",   "%d", (int)stored_version,
-            NULL
-        );
-
-    } else if(new_version > in_use_version) {
-        verdict = LITERAL_TAKES_OVER_FILE;
-        gobj_log_warning(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_TREEDB,
-            "msg",              "%s", "Schema from C is newer than the file in use but not than __system__: it takes over the file, and replaces in __system__ the drafts of the topics it raises past the file",
-            "treedb_name",      "%s", treedb_name,
-            "schema_version",   "%d", (int)new_version,
-            "in_use_version",   "%d", (int)in_use_version,
-            "system_version",   "%d", (int)stored_version,
-            NULL
-        );
-
-    } else if(new_version == in_use_version && stored_c_version != new_version && in_use) {
-        json_t *diff = schema_diff(in_use, jn_schema);
-        BOOL differs = json_object_size(json_object_get(diff, "added")) > 0 ||
-            json_object_size(json_object_get(diff, "removed")) > 0 ||
-            json_object_size(json_object_get(diff, "changed")) > 0;
-        if(differs) {
-            verdict = LITERAL_SAME_VERSION_OTHER_SCHEMA;
-            gobj_log_warning(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_TREEDB,
-                "msg",              "%s", "Schema from C has the schema_version of the dynamic schema in use but another content: NOT applied, raise its schema_version to publish it",
-                "treedb_name",      "%s", treedb_name,
-                "schema_version",   "%d", (int)new_version,
-                "c_schema_version", "%d", (int)stored_c_version,
-                "diff",             "%j", diff,
-                NULL
-            );
-        }
-        JSON_DECREF(diff)
+    json_t *marker = load_json_from_file(gobj, saved_dir, filename, 0);
+    json_t *topics = NULL;
+    if(marker && schema_version_of(gobj, marker) == in_use_version) {
+        topics = json_incref(kw_get_list(gobj, marker, "topics", 0, 0));
     }
-    JSON_DECREF(in_use)
+    JSON_DECREF(marker)
 
-    return verdict;
+    if(file_remove(saved_dir, filename) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_SYSTEM,
+            "msg",              "%s", "Cannot remove the record of an unopened apply",
+            "treedb_name",      "%s", treedb_name,
+            "directory",        "%s", saved_dir,
+            "filename",         "%s", filename,
+            "errno",            "%s", strerror(errno),
+            NULL
+        );
+    }
+    return topics;
 }
 
 /***************************************************************************
- *  Keep the __system__ projection in step with the schema compiled in C.
+ *  Keep the __system__ projection in step with what the treedb RUNS.
  *
- *  Same rule treedb_open_db applies between that schema and the persisted
- *  schema file: the stored one wins on ties, and the incoming one has to be
- *  strictly newer to take over. The version is published by whoever changes
- *  the schema — the author of the literal, or an editor working on
- *  __system__ — and nobody else invents one.
+ *  With impose_c_schema off, treedb_open_db() installs the literal only
+ *  when it is newer than the schema file in use (or there is none), and
+ *  then over the WHOLE file. So (the user's decision, 2026-09-23):
  *
- *  So a literal BEHIND the schema in use is not applied. That is the schema
- *  being changed dynamically, which is a decision, not an accident: a new
- *  installation that has to carry those changes takes them into the literal.
+ *      literal newer than the file, or no file
+ *                  the literal wins WHOLE: __system__ is projected from
+ *                  it whole (upsert_treedb_schema), a topic it does not
+ *                  declare included, whatever version a save gave
+ *                  __system__. What that replaces of the operator's
+ *                  drafts goes into `replaced`, said by the caller.
+ *      literal equal to the file
+ *                  the file runs, nothing is projected. Another content
+ *                  under the same number is said, loudly.
+ *      literal behind the file
+ *                  the file runs, nothing is projected; said.
  *
- *  The rule is the same for a treedb opened with `impose`, which is why that
- *  path calls this one: what `imposing` changes is the TOPICS of a projection
- *  that is being re-made (see upsert_treedb_schema), never whether it is.
+ *  Three fix rounds replaced this with rules per topic, and each broke a
+ *  different case; the last one merged the literal with the file and built
+ *  schemas nobody had written -- a removed parent topic kept a hook to a
+ *  column that no longer existed, and the treedb never opened again.
  *
- *  ONLY THE MASTER WRITES __system__. A replica reads the treedb from disk as
- *  it is at that moment and reconciles nothing: the master's appends reach it
- *  through the store, and a projection written by two owners is a projection
- *  nobody can read. This is the only place __system__ is written from at an
- *  open, the migration of legacy ids included; its one caller,
+ *  With `imposing` the literal runs whatever the file says (unless it IS
+ *  the file's version), and __system__ keeps the rule of the versions
+ *  against itself: seeded when the treedb has none, re-made WHOLE when the
+ *  literal is newer than __system__, left as it is when it is not -- a
+ *  dynamic change published there stays readable with diff-schema, and
+ *  turning the flag off takes it back.
+ *
+ *  A treedb with no projection yet is seeded with what runs: the literal
+ *  when it is installed or imposed, the FILE otherwise.
+ *
+ *  ONLY THE MASTER WRITES __system__, and its one caller,
  *  reconcile_treedb_schema(), holds the guard.
  ***************************************************************************/
 PRIVATE int project_literal_into_system(
     hgobj gobj,
     const char *treedb_name,
-    json_t *jn_schema,  // not owned
+    json_t *jn_schema,  // not owned, the literal
     BOOL imposing,      // the treedb is being opened with the schema from C
+    json_t *file_in_use,// not owned, the schema file in use before this open, or NULL
+    BOOL installed,     // treedb_open_db() writes the literal over the file
     json_t *replaced    // not owned, {topic: kind} of the drafts the literal replaced
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t new_version = schema_version_of(gobj, jn_schema);
+    json_int_t in_use_version = schema_version_of(gobj, file_in_use);
 
     /*
      *  Ask with a list: it is silent when the treedb has no projection yet,
@@ -4236,8 +4281,8 @@ PRIVATE int project_literal_into_system(
     );
     if(json_array_size(stored) == 0) {
         JSON_DECREF(stored)
-        return upsert_treedb_schema(gobj, treedb_name, jn_schema, NULL, imposing, NULL,
-            NULL, FALSE, replaced);
+        json_t *seed = (imposing || installed || !file_in_use)? jn_schema : file_in_use;
+        return upsert_treedb_schema(gobj, treedb_name, seed, NULL, file_in_use, NULL, FALSE, replaced);
     }
 
     json_t *stored_treedb = json_array_get(stored, 0);
@@ -4290,51 +4335,9 @@ PRIVATE int project_literal_into_system(
         }
     }
 
-    json_int_t new_version = kw_get_int(gobj, jn_schema, "schema_version", 1, KW_WILD_NUMBER);
-    BOOL takes_over = FALSE;
-    if(new_version <= stored_version && !imposing) {
-        switch(literal_against_file_in_use(
-                gobj, treedb_name, jn_schema, new_version,
-                stored_version, stored_c_version)) {
-            case LITERAL_TAKES_OVER_FILE:
-                /*
-                 *  The treedb is about to run the literal, and __system__
-                 *  must say so: see literal_against_file_in_use(). A topic
-                 *  the literal raised past the FILE is written, whatever
-                 *  version a save gave it in __system__; the others are
-                 *  left as they are (see upsert_treedb_schema).
-                 *
-                 *  This assumes the CLIENT treedb opens as a master:
-                 *  treedb_open_db() installs nothing on a replica. The
-                 *  client tranger does not exist yet here, and it takes the
-                 *  `master` of this service, as __system__ did; the two
-                 *  differ only when the lock of the client store is held
-                 *  by another process. Then the client opens as a replica
-                 *  and runs its file while __system__ says the literal,
-                 *  until the next open as master installs the literal --
-                 *  whose projection is then already there.
-                 */
-                takes_over = TRUE;
-                break;
-            case LITERAL_SAME_VERSION_OTHER_SCHEMA:
-            case LITERAL_NOT_APPLIED:
-            default:
-                break;
-        }
-    }
-    json_t *file_in_use = imposing? NULL : load_schema_file_in_use(gobj, treedb_name);
-
-    /*
-     *  Not projected. What is said is what the literal is behind of: the
-     *  FILE in use (the schema the treedb runs) or only __system__, whose
-     *  number a save raises past the file and a withdraw leaves there (it
-     *  never goes down). A literal that IS the file in use is behind
-     *  nothing that runs, and said "behind the schema in use" at every open
-     *  after a withdraw (review of the second fix round, 2026-09-23).
-     */
-    if(new_version <= stored_version && !takes_over) {
-        if(new_version < stored_version) {
-            if(imposing) {
+    if(imposing) {
+        if(new_version <= stored_version) {
+            if(new_version < stored_version) {
                 gobj_log_info(gobj, 0,
                     "function",         "%s", __FUNCTION__,
                     "msgset",           "%s", MSGSET_INFO,
@@ -4344,41 +4347,69 @@ PRIVATE int project_literal_into_system(
                     "stored_version",   "%d", (int)stored_version,
                     NULL
                 );
-            } else if(file_in_use && new_version < schema_version_of(gobj, file_in_use)) {
-                gobj_log_info(gobj, 0,
+            }
+            return 0;
+        }
+
+    } else if(!installed) {
+        /*
+         *  The file runs. __system__ keeps what it holds: the file, and
+         *  the operator's drafts over it.
+         */
+        if(new_version < in_use_version) {
+            gobj_log_info(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INFO,
+                "msg",              "%s", "TreeDB schema from C is behind the schema in use, not applied",
+                "treedb_name",      "%s", treedb_name,
+                "schema_version",   "%d", (int)new_version,
+                "in_use_version",   "%d", (int)in_use_version,
+                "stored_version",   "%d", (int)stored_version,
+                NULL
+            );
+        } else if(stored_c_version != new_version) {
+            /*
+             *  Two schemas under one number: the file wins, as ties always
+             *  do, and it is said at every open until the literal moves on
+             */
+            json_t *diff = schema_diff(file_in_use, jn_schema);
+            BOOL differs = json_object_size(json_object_get(diff, "added")) > 0 ||
+                json_object_size(json_object_get(diff, "removed")) > 0 ||
+                json_object_size(json_object_get(diff, "changed")) > 0;
+            if(differs) {
+                gobj_log_warning(gobj, 0,
                     "function",         "%s", __FUNCTION__,
-                    "msgset",           "%s", MSGSET_INFO,
-                    "msg",              "%s", "TreeDB schema from C is behind the schema in use, not applied",
+                    "msgset",           "%s", MSGSET_TREEDB,
+                    "msg",              "%s", "Schema from C has the schema_version of the dynamic schema in use but another content: NOT applied, raise its schema_version to publish it",
                     "treedb_name",      "%s", treedb_name,
                     "schema_version",   "%d", (int)new_version,
-                    "in_use_version",   "%d", (int)schema_version_of(gobj, file_in_use),
-                    "stored_version",   "%d", (int)stored_version,
+                    "c_schema_version", "%d", (int)stored_c_version,
+                    "diff",             "%j", diff,
                     NULL
                 );
             }
+            JSON_DECREF(diff)
         }
-        JSON_DECREF(file_in_use)
         return 0;
-    }
 
-    /*
-     *  Newer than __system__, but not than the file in use: treedb_open_db()
-     *  keeps the file, nothing of the literal runs, and nothing of it is
-     *  projected.
-     */
-    if(file_in_use && !takes_over && new_version <= schema_version_of(gobj, file_in_use)) {
-        gobj_log_info(gobj, 0,
+    } else if(stored_c_version == new_version && stored_version == new_version) {
+        /*
+         *  The projection is of this literal already: a schema file that
+         *  was missing is written again from it, and the drafts over it
+         *  are drafts over the same schema
+         */
+        return 0;
+
+    } else if(!file_in_use) {
+        gobj_log_warning(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INFO,
-            "msg",              "%s", "TreeDB schema from C is newer than __system__ but not than the file in use: not applied, the treedb opens from the file",
+            "msgset",           "%s", MSGSET_TREEDB,
+            "msg",              "%s", "No schema file in use: the treedb opens with the schema from C, projected whole over __system__",
             "treedb_name",      "%s", treedb_name,
             "schema_version",   "%d", (int)new_version,
-            "in_use_version",   "%d", (int)schema_version_of(gobj, file_in_use),
-            "stored_version",   "%d", (int)stored_version,
+            "system_version",   "%d", (int)stored_version,
             NULL
         );
-        JSON_DECREF(file_in_use)
-        return 0;
     }
 
     json_t *current = gobj_node_tree(
@@ -4389,7 +4420,6 @@ PRIVATE int project_literal_into_system(
         gobj
     );
     if(!current) {
-        JSON_DECREF(file_in_use)
         return -1;  // Error already logged
     }
 
@@ -4400,20 +4430,20 @@ PRIVATE int project_literal_into_system(
         "treedb_name",      "%s", treedb_name,
         "schema_version",   "%d", (int)new_version,
         "stored_version",   "%d", (int)stored_version,
+        "in_use_version",   "%d", (int)in_use_version,
         NULL
     );
 
     /*
-     *  The drafts: the topics of __system__ that differ from the schema file
-     *  on disk, which the literal may replace (said, see upsert), and whether
-     *  a save of them is pending
+     *  The drafts: the topics of __system__ that differ from the schema
+     *  file in use, which the projection replaces (said, see upsert), and
+     *  whether a save of them is pending
      */
-    json_t *file_on_disk = imposing? load_schema_file_in_use(gobj, treedb_name) : json_incref(file_in_use);
     json_t *drafts = NULL;
     BOOL saved_pending = FALSE;
-    if(file_on_disk) {
+    if(file_in_use) {
         json_t *rows = json_array();
-        json_t *summary = diff_treedb_schema(gobj, treedb_name, file_on_disk, rows);
+        json_t *summary = diff_treedb_schema(gobj, treedb_name, file_in_use, rows);
         JSON_DECREF(summary)
         drafts = draft_changed_from_rows(gobj, rows);
         JSON_DECREF(rows)
@@ -4424,28 +4454,19 @@ PRIVATE int project_literal_into_system(
         snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
         if(file_exists(saved_dir, filename)) {
             json_t *saved = load_json_from_file(gobj, saved_dir, filename, 0);
-            saved_pending = (schema_version_of(gobj, saved) > schema_version_of(gobj, file_on_disk))?
-                TRUE : FALSE;
+            saved_pending = (schema_version_of(gobj, saved) > in_use_version)? TRUE : FALSE;
             JSON_DECREF(saved)
         }
     }
 
-    /*
-     *  With NO file in use, every topic opens from the literal, and every
-     *  one is projected: the rule of `imposing`. With one, the topics the
-     *  literal raises past it (see upsert_treedb_schema).
-     */
     int ret = upsert_treedb_schema(
         gobj, treedb_name, jn_schema, current,
-        imposing || !file_in_use,
         file_in_use,
         drafts,
         saved_pending,
         replaced
     );
     JSON_DECREF(drafts)
-    JSON_DECREF(file_on_disk)
-    JSON_DECREF(file_in_use)
     JSON_DECREF(current)
 
     return ret;
@@ -4488,25 +4509,84 @@ PRIVATE int remove_saved_schema(hgobj gobj, const char *treedb_name, json_int_t 
 }
 
 /***************************************************************************
- *  Keep the __system__ projection in step with the schema compiled in C
- *  (project_literal_into_system), and retire the saved schema that the open
- *  makes stale.
+ *  A literal installed over the file hands tranger2 every topic, and
+ *  tranger2 installs one only over a LOWER topic_version (or a different
+ *  one, imposing): a topic the literal changes without raising its
+ *  topic_version goes on running the columns of its topic_cols.json, while
+ *  the file and __system__ say the literal. That is the classic change
+ *  that reaches nothing, and it is said, as a warning, per topic.
+ ***************************************************************************/
+PRIVATE void warn_topics_not_raised(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_schema,  // not owned, the literal
+    BOOL imposing
+)
+{
+    json_t *topics = schema_topics_as_list(gobj, jn_schema);
+    int idx; json_t *topic;
+    json_array_foreach(topics, idx, topic) {
+        const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
+        if(empty_string(topic_name)) {
+            topic_name = kw_get_str(gobj, topic, "topic_name", "", 0);
+        }
+        if(empty_string(topic_name)) {
+            continue;
+        }
+        json_int_t running_version = running_topic_version(gobj, treedb_name, topic_name);
+        json_int_t topic_version = kw_get_int(gobj, topic, "topic_version", 1, KW_WILD_NUMBER);
+        if(running_version == 0) {
+            continue;   /*  a topic the store never opened: created from the literal  */
+        }
+        if(imposing? (topic_version != running_version) : (topic_version > running_version)) {
+            continue;   /*  tranger2 installs it  */
+        }
+
+        char directory[PATH_MAX];
+        build_path(directory, sizeof(directory),
+            gobj_read_str_attr(gobj, "path"), treedb_name, topic_name, NULL);
+        if(!file_exists(directory, "topic_cols.json")) {
+            continue;
+        }
+        json_t *running_cols = load_json_from_file(gobj, directory, "topic_cols.json", 0);
+        json_t *running = json_pack("{s:[{s:s, s:o}]}",
+            "topics", "id", topic_name, "cols", running_cols? running_cols : json_object());
+        if(schema_topic_differs(running, jn_schema, topic_name, TRUE)) {
+            gobj_log_warning(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_TREEDB,
+                "msg",              "%s", "Topic from C declares other columns than the store runs, without raising its topic_version past it: the store keeps running its own",
+                "treedb_name",      "%s", treedb_name,
+                "topic_name",       "%s", topic_name,
+                "topic_version",    "%d", (int)topic_version,
+                "running_version",  "%d", (int)running_version,
+                NULL
+            );
+        }
+        JSON_DECREF(running)
+    }
+    JSON_DECREF(topics)
+}
+
+/***************************************************************************
+ *  Keep the __system__ projection in step with what the treedb runs
+ *  (project_literal_into_system), and retire what the open makes stale.
  *
- *  A saved schema is published AGAINST the schema file in use. When the
- *  literal is about to be written over that file -- there is none, the
- *  literal is newer, or it is imposed over another one: the rule of
- *  treedb_open_db() -- the save was made against a file that is gone. It is
- *  withdrawn: left, it was applicable over the literal whenever its number
- *  was higher (a take-over with no file in use), and it installed the
- *  operator's old drafts over the developer's change. Nothing is lost: the
- *  drafts of the topics the literal did not raise stay in __system__, and
- *  the next save publishes them against the new file (review of the second
- *  fix round, 2026-09-23).
+ *  The literal is INSTALLED -- treedb_open_db() writes it over the whole
+ *  schema file -- when there is no file, when it is newer (impose off), or
+ *  when its version is another one (imposing). Then everything the
+ *  operator had over the old file is withdrawn:
  *
- *  What the open withdrew -- that saved schema, and the drafts of the
- *  topics the literal replaced ({topic: "applied" | "saved" | "unsaved"}) --
- *  is kept in `jn_withdrawn_at_open` for the API: `treedbs` and
- *  `saved-schema` answer it as `withdrawn_at_open` until the next open.
+ *      applied  an apply that never ran (take_unopened_apply) whose topic
+ *               the literal says otherwise, or does not declare;
+ *      saved    the saved schema (published against the file that goes)
+ *               and the draft of each topic it carried;
+ *      unsaved  a draft never saved.
+ *
+ *  It is said, ONE warning naming the treedb and the topics, and kept in
+ *  `jn_withdrawn_at_open` for the API: `treedbs` and `saved-schema` answer
+ *  it as `withdrawn_at_open` until the next open of the treedb. A save
+ *  taken back (the draft is the file again) is nothing withdrawn.
  *
  *  ONLY THE MASTER writes __system__ and saved_schemas/.
  ***************************************************************************/
@@ -4529,40 +4609,52 @@ PRIVATE int reconcile_treedb_schema(
         return 0;
     }
 
-    json_int_t new_version = kw_get_int(gobj, jn_schema, "schema_version", 1, KW_WILD_NUMBER);
+    json_int_t new_version = schema_version_of(gobj, jn_schema);
     json_t *file_in_use = load_schema_file_in_use(gobj, treedb_name);
     json_int_t in_use_version = schema_version_of(gobj, file_in_use);
-    BOOL literal_replaces_file = (!file_in_use || new_version > in_use_version ||
-        (imposing && new_version < in_use_version))? TRUE: FALSE;
-    JSON_DECREF(file_in_use)
-
-    json_t *replaced = json_object();
-    int ret = project_literal_into_system(gobj, treedb_name, jn_schema, imposing, replaced);
-
-    json_int_t saved_version = 0;
-    if(literal_replaces_file) {
-        if(remove_saved_schema(gobj, treedb_name, &saved_version) == 0 && saved_version > 0) {
-            gobj_log_warning(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_TREEDB,
-                "msg",              "%s", "Saved schema withdrawn: the schema from C replaces the file in use it was saved against",
-                "treedb_name",      "%s", treedb_name,
-                "saved_version",    "%d", (int)saved_version,
-                "schema_version",   "%d", (int)new_version,
-                "in_use_version",   "%d", (int)in_use_version,
-                NULL
-            );
-        } else {
-            saved_version = 0;  // none, or it could not be removed (logged): not withdrawn
-        }
-    }
+    BOOL installed = (!file_in_use ||
+        (imposing? new_version != in_use_version : new_version > in_use_version))? TRUE: FALSE;
 
     /*
-     *  What this open withdrew, for the API and not only the log: the
-     *  treedbs row and saved-schema answer it as `withdrawn_at_open` until
-     *  the next open of the treedb
+     *  An apply nobody opened is consumed by this open: it runs now, or the
+     *  literal withdraws it
      */
+    json_t *applied_topics = take_unopened_apply(gobj, treedb_name, in_use_version);
+
+    json_t *replaced = json_object();
+    int ret = project_literal_into_system(
+        gobj, treedb_name, jn_schema, imposing, file_in_use, installed, replaced
+    );
+
+    json_int_t saved_version = 0;
+    if(installed) {
+        int idx; json_t *jn_topic_name;
+        json_array_foreach(applied_topics, idx, jn_topic_name) {
+            const char *topic_name = json_string_value(jn_topic_name);
+            if(topic_name && schema_topic_differs(file_in_use, jn_schema, topic_name, FALSE)) {
+                json_object_set_new(replaced, topic_name, json_string("applied"));
+            }
+        }
+
+        if(remove_saved_schema(gobj, treedb_name, &saved_version) < 0) {
+            saved_version = 0;  // it could not be removed (logged): not withdrawn
+        }
+
+        warn_topics_not_raised(gobj, treedb_name, jn_schema, imposing);
+    }
+
     if(saved_version > 0 || json_object_size(replaced) > 0) {
+        gobj_log_warning(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_TREEDB,
+            "msg",                  "%s", "Schema from C withdrew work on the schema at open",
+            "treedb_name",          "%s", treedb_name,
+            "schema_version",       "%d", (int)new_version,
+            "in_use_version",       "%d", (int)in_use_version,
+            "saved_schema_version", "%d", (int)saved_version,
+            "topics",               "%j", replaced,
+            NULL
+        );
         json_object_set_new(priv->jn_withdrawn_at_open, treedb_name, json_pack("{s:I, s:I, s:O}",
             "schema_version", new_version,
             "saved_schema_version", saved_version,
@@ -4570,6 +4662,8 @@ PRIVATE int reconcile_treedb_schema(
         ));
     }
     JSON_DECREF(replaced)
+    JSON_DECREF(applied_topics)
+    JSON_DECREF(file_in_use)
     return ret;
 }
 
@@ -4953,37 +5047,20 @@ PRIVATE json_t *get_client_treedb_schema(
     /*
      *  With impose_c_schema off, a treedb opens from its schema FILE (with
      *  it on, get_c_schema_to_impose() opens it from the literal, over the
-     *  file). The literal is handed to treedb_open_db() without `impose`, so
-     *  it is installed only when it is newer than the file: the file wins
-     *  on ties and when it is ahead -- which is what apply-schema makes it.
-     *  And installed, it replaces only the topics it raises past the ones in
-     *  use (literal_over_file_in_use).
+     *  file). The literal is handed to treedb_open_db() as it is, without
+     *  `impose`: it is installed only when it is newer than the file, and
+     *  then over the WHOLE file -- the rule the user decided on 2026-09-23,
+     *  as it was in 7.25.4. The file wins on ties and when it is ahead,
+     *  which is what apply-schema makes it. (For three fix rounds a literal
+     *  newer than the file was merged with it topic by topic, and that
+     *  built schemas nobody had written: see reconcile_treedb_schema.)
      *
      *  __system__ is not read here. It is where a schema is EDITED: a draft
      *  there reaches a treedb only through save-schema + apply-schema (the
      *  owner's design of M36, 2026-09-21 review). It used to be the source,
      *  so every edit, half made or not, was the schema of the next start.
      */
-    json_t *client_treedb_schema = NULL;
-
-    /*
-     *  A literal newer than the file in use takes the file over -- topic by
-     *  topic: see literal_over_file_in_use(). Only a master writes the file;
-     *  a replica reads it as it is, whatever it is handed.
-     */
-    if(input_schema_ok && gobj_read_bool_attr(gobj, "master")) {
-        json_t *file_in_use = load_schema_file_in_use(gobj, treedb_name);
-        if(file_in_use &&
-                schema_version_of(gobj, jn_client_treedb_schema) > schema_version_of(gobj, file_in_use)) {
-            client_treedb_schema = literal_over_file_in_use(
-                gobj, treedb_name, jn_client_treedb_schema, file_in_use
-            );
-        }
-        JSON_DECREF(file_in_use)
-    }
-    if(!client_treedb_schema) {
-        client_treedb_schema = json_incref(jn_client_treedb_schema);
-    }
+    json_t *client_treedb_schema = json_incref(jn_client_treedb_schema);
 
     if(parse_schema(client_treedb_schema)<0) {
         gobj_log_error(gobj, 0,
@@ -5304,9 +5381,9 @@ PRIVATE int diff_node_attrs(
  *  What the __system__ projection of a treedb says that its schema from C
  *  does not.
  *
- *  The projection is an upsert that never deletes, so what it holds and the
- *  schema does not is indistinguishable from an operator addition — until
- *  somebody compares the two. That is this function: it projects the schema
+ *  What the projection holds and the schema does not is an operator's draft
+ *  (a literal that wins is projected WHOLE, so nothing of an older literal
+ *  stays) -- invisible until somebody compares the two. That is this function: it projects the schema
  *  from C in memory, with the same builders the projector uses, and compares
  *  node by node.
  *

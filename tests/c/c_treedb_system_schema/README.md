@@ -62,13 +62,18 @@ The test drives `C_TREEDB` through its own commands and checks:
    the projector would never write it again, and moving it is the only way it
    survives its parent changing address.
 
-8. **What an open does to the operator's work** — an applied schema not
-   opened yet survives a newer literal at the next open (the literal takes
-   the file over only for the topics it raises past the ones in use), and
-   what, the take-over replaces is said in the API: `withdrawn_at_open` of
-   `saved-schema` and `treedbs`, per topic `applied`, `saved` or `unsaved`,
-   and nothing for a save taken back. A saved file that cannot be read is
-   `broken`, and the apply of every treedb leaves it out.
+8. **What an open does to the operator's work** — a literal newer than the
+   file in use wins WHOLE (the user's decision of 2026-09-23): it replaces
+   the file, `__system__` is projected from it whole, and what that withdraws
+   of the operator's work is said in the API: `withdrawn_at_open` of
+   `saved-schema` and `treedbs`, per topic `applied` (an apply that never
+   ran), `saved` or `unsaved`, and nothing for a save taken back. A literal
+   that changes a topic without raising its `topic_version` leaves the store
+   running its own columns, and a warning says so. A saved file that cannot
+   be read is `broken`, and the apply of every treedb leaves it out. The
+   scenarios of that rule (a topic removed, renamed, added with a hook, a
+   tie with an unopened apply) are in
+   [`c_treedb_literal_wins`](../c_treedb_literal_wins/README.md).
 
 Steps 2 and 3 are the ones that matter for schema editing: they are the path an
 edited schema takes to reach a running treedb. Step 4 is what stands between an
