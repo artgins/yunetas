@@ -2005,6 +2005,14 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    {"treedb_name": "treedb_x", "saved": false, "stale": true, "can_apply": false,
     "in_use_schema_version": 14, "saved_schema_version": 13, "diff": {}, "draft_changed": {}}
    ```
+
+   A file in `saved_schemas/` that cannot be READ (not json, truncated) is
+   `broken: true`, with `stale: false`, `saved: false`, `can_apply: false`,
+   and a comment *"the saved schema of 'treedb_x' cannot be read (see the
+   log): it is left out of apply-schema, save again to replace it"*. Its
+   version is unknown, so nothing says it is a pending save; the next
+   `save-schema` writes over it. Until 7.25.4 it read as `stale` here while
+   the apply of every treedb refused them all for it.
 3. **`apply-schema treedb_name=X`** puts the saved schema in place of the file
    in use — only on the master, only when C does not impose that treedb's
    schema (the literal would overwrite it at the next open), and only when the
@@ -2100,6 +2108,28 @@ mean nothing was applied.
              "saved_schema_version": 50, "in_use_schema_version": 1}}
  ]}
 ```
+
+A saved file that cannot be READ is not part of that all or none (after
+7.25.4): its version is unknown, so nothing says it is a pending save. It is
+left out, the others are applied, and it is said -- its row goes last with
+`applied: false, broken: true`, and the answer is `-1`:
+
+```json
+{"result": -1,
+ "comment": "<role>^<name>: apply-schema, 1 treedb(s) applied; left out, their saved schema cannot be read: treedb_b",
+ "data": [
+   {"treedb_name": "treedb_a", "result": 0, "comment": "...",
+    "data": {"treedb_name": "treedb_a", "applied": true,
+             "saved_schema_version": 5, "in_use_schema_version": 4}},
+   {"treedb_name": "treedb_b", "result": -1,
+    "comment": "<role>^<name>: the saved schema of 'treedb_b' cannot be read (see the log): left out, save again to replace it",
+    "data": {"treedb_name": "treedb_b", "applied": false, "broken": true,
+             "saved_schema_version": 0, "in_use_schema_version": 1}}
+ ]}
+```
+
+A named `apply-schema` of that treedb answers `-1` with the same
+`broken: true`. Until 7.25.4 the broken file refused every treedb.
 
 A console restarts the yuno when a row -- or the `data` of a named apply --
 says `applied: true`, and only then.

@@ -340,6 +340,15 @@ PRIVATE const char *expected_log_msgs[] = {
     "wrong type for list",
     "topic without cols",
     "Schema applied",
+    /*  ...and B's saved file cannot be READ: saved-schema says broken, the
+     *  apply of all leaves B out and applies A  */
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Schema saved",
+    "Cannot load json file, bad json",
+    "Cannot load json file, bad json",
+    "Schema applied",
     /*  Test 13d: every command refuses `denied`, which logs nothing  */
     /*  Test 14: the replica, and its C_TREEDB writes READ-ONLY  */
     "impose_c_schema forced by the code of the yuno, over the attribute",

@@ -5017,6 +5017,59 @@ PRIVATE int check_apply_all_or_none(hgobj gobj)
     }
     JSON_DECREF(jn_resp)
 
+    /*
+     *  A saved file of B that cannot be READ (L6 of the third independent
+     *  review, 2026-09-23): saved-schema said `stale` -- harmless -- while
+     *  the apply of all refused every treedb for it. Both say `broken` now:
+     *  saved-schema answers it, and the apply of all leaves B out, says so
+     *  in B's row, and applies A.
+     */
+    if(reopen_test_treedb(gobj, FALSE) < 0) {
+        return result - 1;
+    }
+    set_draft_col_header(gobj, "users", "username", "Beside a broken one");
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    a_saved = kw_get_int(gobj, jn_resp, "data`schema_version", 0, KW_WILD_NUMBER);
+    JSON_DECREF(jn_resp)
+    {
+        char broken_path[PATH_MAX];
+        build_path(broken_path, sizeof(broken_path), saved_dir, B_TREEDB_NAME ".treedb_schema.json", NULL);
+        FILE *fp = fopen(broken_path, "w");
+        if(fp) {
+            fputs("{ this is not json", fp);
+            fclose(fp);
+        }
+    }
+    jn_resp = gobj_command(priv->gobj_treedbs, "saved-schema",
+        json_pack("{s:s}", "treedb_name", B_TREEDB_NAME), gobj);
+    if(!kw_get_bool(gobj, jn_resp, "data`broken", 0, 0) ||
+            kw_get_bool(gobj, jn_resp, "data`stale", 1, 0) ||
+            kw_get_bool(gobj, jn_resp, "data`can_apply", 1, 0)) {
+        result += save_fail(gobj, "TEST FAIL: saved-schema does not say a saved file that cannot be read is broken",
+            jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+    jn_resp = gobj_command(priv->gobj_treedbs, "apply-schema", json_object(), gobj);
+    {
+        BOOL a_applied = FALSE, b_said = FALSE;
+        int idx; json_t *row;
+        json_array_foreach(kw_get_list(gobj, jn_resp, "data", 0, 0), idx, row) {
+            const char *name = kw_get_str(gobj, row, "treedb_name", "", 0);
+            if(strcmp(name, TREEDB_NAME)==0) {
+                a_applied = kw_get_bool(gobj, row, "data`applied", 0, 0);
+            } else if(strcmp(name, B_TREEDB_NAME)==0) {
+                b_said = !kw_get_bool(gobj, row, "data`applied", 1, 0) &&
+                    kw_get_bool(gobj, row, "data`broken", 0, 0);
+            }
+        }
+        if(!a_applied || !b_said || disk_schema_version(gobj) != a_saved ||
+                b_in_use_version(gobj) != 1) {
+            result += save_fail(gobj, "TEST FAIL: a broken saved file of one treedb decided the apply of the others",
+                jn_resp);
+        }
+    }
+    JSON_DECREF(jn_resp)
+    file_remove(saved_dir, B_TREEDB_NAME ".treedb_schema.json");
 
     jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
         json_pack("{s:s, s:b}", "treedb_name", B_TREEDB_NAME, "force", 1), gobj);

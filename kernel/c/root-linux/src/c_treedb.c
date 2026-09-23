@@ -2300,9 +2300,15 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *  it is STALE (one left by an older release, or a remove that failed),
      *  and it is neither diffed nor applicable. It used to answer `saved`
      *  with the diff of a schema already in use.
+     *
+     *  One that cannot be READ is BROKEN: its version is unknown, so it is
+     *  no pending save either, and apply-schema leaves it out. It answered
+     *  `stale` -- harmless -- while the apply of every treedb refused them
+     *  all for it (L6 of the third independent review, 2026-09-23).
      */
     BOOL pending = (saved && saved_version > in_use_version)? TRUE: FALSE;
-    BOOL stale = (file_exists(saved_dir, filename) && !pending)? TRUE: FALSE;
+    BOOL broken = (!saved && file_exists(saved_dir, filename))? TRUE: FALSE;
+    BOOL stale = (file_exists(saved_dir, filename) && !pending && !broken)? TRUE: FALSE;
 
     json_t *diff = json_object();
     if(in_use && pending) {
@@ -2338,14 +2344,18 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     JSON_DECREF(saved)
 
     return msg_iev_build_response(gobj, 0,
+        broken?
+            json_sprintf("%s: the saved schema of '%s' cannot be read (see the log): "
+                "it is left out of apply-schema, save again to replace it",
+                gobj_yuno_role_plus_name(), treedb_name) : 0,
         0,
-        0,
-        json_pack("{s:s, s:b, s:b, s:b, s:b, s:I, s:I, s:b, s:s, s:o, s:o, s:o}",
+        json_pack("{s:s, s:b, s:b, s:b, s:b, s:b, s:I, s:I, s:b, s:s, s:o, s:o, s:o}",
             "treedb_name", treedb_name,
             "impose_c_schema", imposed,
             "master", master,
             "saved", pending,
             "stale", stale,
+            "broken", broken,
             "in_use_schema_version", in_use_version,
             "saved_schema_version", saved_version,
             "can_apply", master && !imposed && saved_version > in_use_version,
@@ -2517,7 +2527,9 @@ PRIVATE int commit_schema_file(
  *  (YOURS), and `*p_applicable` says whether there was something to apply at
  *  all: an imposed treedb, a replica, no saved schema or none newer than
  *  the one in use are not applicable -- asked for every treedb, that is not
- *  a failure -- while a saved schema that does not load or parse is.
+ *  a failure -- while a saved schema that does not parse is. One that cannot
+ *  be READ is not applicable and `*p_broken`: its version is unknown, so
+ *  nothing says it is a pending save, and saved-schema answers it `broken`.
  ***************************************************************************/
 PRIVATE json_t *check_saved_schema_to_apply(
     hgobj gobj,
@@ -2527,13 +2539,15 @@ PRIVATE json_t *check_saved_schema_to_apply(
     size_t in_use_dir_size,
     json_int_t *p_saved_version,
     json_int_t *p_in_use_version,
-    BOOL *p_applicable
+    BOOL *p_applicable,
+    BOOL *p_broken              // the saved file exists and cannot be read
 )
 {
     *p_saved = NULL;
     *p_saved_version = 0;
     *p_in_use_version = 0;
     *p_applicable = FALSE;
+    *p_broken = FALSE;
 
     if(!treedb_is_written_here(gobj, treedb_name)) {
         return json_sprintf("%s: treedb '%s' is READ-ONLY, this yuno is not the master of its "
@@ -2567,11 +2581,12 @@ PRIVATE json_t *check_saved_schema_to_apply(
             gobj_yuno_role_plus_name(), treedb_name, (int)*p_saved_version, (int)*p_in_use_version);
     }
 
-    *p_applicable = TRUE;
     if(!saved) {
+        *p_broken = TRUE;
         return json_sprintf("%s: the saved schema of '%s' cannot be read (see the log)",
             gobj_yuno_role_plus_name(), treedb_name);
     }
+    *p_applicable = TRUE;
     if(parse_schema(saved)<0) {
         JSON_DECREF(saved)
         return json_sprintf("%s: the saved schema of '%s' does not parse (see the log)",
@@ -2631,16 +2646,20 @@ PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_t *saved;
     char in_use_dir[PATH_MAX];
     json_int_t saved_version, in_use_version;
-    BOOL applicable;
+    BOOL applicable, broken;
     json_t *refused = check_saved_schema_to_apply(
         gobj, treedb_name, &saved, in_use_dir, sizeof(in_use_dir),
-        &saved_version, &in_use_version, &applicable
+        &saved_version, &in_use_version, &applicable, &broken
     );
     if(refused) {
+        json_t *data = apply_schema_data(treedb_name, FALSE, saved_version, in_use_version);
+        if(broken) {
+            json_object_set_new(data, "broken", json_true());
+        }
         return msg_iev_build_response(gobj, -1,
             refused,
             0,
-            apply_schema_data(treedb_name, FALSE, saved_version, in_use_version),
+            data,
             kw
         );
     }
@@ -2709,6 +2728,12 @@ PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  *
  *  A treedb with nothing to apply is left out, as it always was: an apply
  *  with nothing applicable answers 0 and no row, and nobody restarts.
+ *
+ *  A treedb whose saved file cannot be READ is left out too, and SAID: its
+ *  row says `applied: false, broken: true` and the answer is -1. Its
+ *  version is unknown, so it is no pending save (saved-schema answers it
+ *  `broken`), and it does not refuse the others -- it did, while
+ *  saved-schema called it stale (L6 of the third independent review).
  ***************************************************************************/
 PRIVATE json_t *apply_every_saved_schema(hgobj gobj, const char *cmd, json_t *kw)
 {
@@ -2716,17 +2741,35 @@ PRIVATE json_t *apply_every_saved_schema(hgobj gobj, const char *cmd, json_t *kw
 
     json_t *plan = json_array();    // [{treedb_name, saved, in_use_dir, versions, refused}]
     json_t *failed = json_array();  // names
+    json_t *broken_rows = json_array();
 
     const char *name; json_t *jn_c_schema;
     json_object_foreach(priv->jn_c_schemas, name, jn_c_schema) {
         json_t *saved;
         char in_use_dir[PATH_MAX];
         json_int_t saved_version, in_use_version;
-        BOOL applicable;
+        BOOL applicable, broken;
         json_t *refused = check_saved_schema_to_apply(
             gobj, name, &saved, in_use_dir, sizeof(in_use_dir),
-            &saved_version, &in_use_version, &applicable
+            &saved_version, &in_use_version, &applicable, &broken
         );
+        if(broken) {
+            /*
+             *  Left out, and said: its version is unknown, so it is no
+             *  pending save, and it does not decide the others
+             */
+            json_t *data = apply_schema_data(name, FALSE, saved_version, in_use_version);
+            json_object_set_new(data, "broken", json_true());
+            json_array_append_new(broken_rows, json_pack("{s:s, s:i, s:o, s:o}",
+                "treedb_name", name,
+                "result", -1,
+                "comment", json_sprintf("%s: the saved schema of '%s' cannot be read (see the "
+                    "log): left out, save again to replace it", gobj_yuno_role_plus_name(), name),
+                "data", data
+            ));
+            JSON_DECREF(refused)
+            continue;
+        }
         if(!applicable) {
             JSON_DECREF(refused)
             continue;
@@ -2852,6 +2895,29 @@ PRIVATE json_t *apply_every_saved_schema(hgobj gobj, const char *cmd, json_t *kw
         comment = json_sprintf("%s: %s, %d treedb(s) applied",
             gobj_yuno_role_plus_name(), cmd, applied_count);
     }
+
+    /*
+     *  The broken ones go last, each with its row, and the answer is -1:
+     *  something that looked saved was not applied
+     */
+    if(json_array_size(broken_rows) > 0) {
+        json_t *jn_broken = json_string("");
+        int idx2; json_t *row;
+        json_array_foreach(broken_rows, idx2, row) {
+            json_t *joined = json_sprintf("%s%s%s", json_string_value(jn_broken), idx2? ", " : "",
+                kw_get_str(gobj, row, "treedb_name", "", 0));
+            JSON_DECREF(jn_broken)
+            jn_broken = joined;
+        }
+        json_t *full = json_sprintf("%s; left out, their saved schema cannot be read: %s",
+            json_string_value(comment), json_string_value(jn_broken));
+        JSON_DECREF(jn_broken)
+        JSON_DECREF(comment)
+        comment = full;
+        json_array_extend(rows, broken_rows);
+        result = -1;
+    }
+    JSON_DECREF(broken_rows)
     JSON_DECREF(names)
     JSON_DECREF(failed)
     JSON_DECREF(plan)
