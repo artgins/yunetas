@@ -1845,6 +1845,18 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   the tag. Why: eleven review rounds of 7.25.5 fixed correctness and nobody
   measured speed; `test_topic_pkey_integer` had drifted from 1.94 s to
   2.03-2.25 s on the fastest node before anybody looked.
+- **Every release ships a performance report: an `.html` with charts that
+  SELLS the release** (rule of 2026-09-23). When a version is generated,
+  collect the performance figures (the A/B against the last tag above, the
+  timing tests of `build/*.txt`, the benchmarks under `performance/c/` —
+  appends/s, TLS round-trips, message rates, binary sizes) and build a
+  good-looking, self-contained `.html` with charts: this release against the
+  previous ones, what each figure means for a user, the machine it was
+  measured on. It is written to show the qualities of Yuneta to someone
+  deciding whether to adopt it — honest numbers, including any loss with its
+  reason — not as an internal log. Keep the raw figures of each release
+  (so the next report can chart the trend), and publish the page with the
+  release.
 - **A submodule bump of `kernel/js/gobj-js` or `kernel/js/gobj-ui` means
   running `python3 scripts/verify_js_api_coverage.py --repin`, then `--write`.**
   Those two packages carry their own tags, so `check_doc_line_refs.py --repin`
