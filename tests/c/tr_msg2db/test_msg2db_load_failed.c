@@ -1,0 +1,350 @@
+/****************************************************************************
+ *          test_msg2db_load_failed.c
+ *
+ *  msg2db keeps, per id and pkey2, the LAST message it loaded: it loads its
+ *  topic forward, oldest first, and each message replaces the one before.
+ *  A forward load that stops half way leaves the last message it read, an
+ *  OLD one, in the place of the current (independent review of the fourth
+ *  fix round, repro indep4_A/r_msg2db_stale):
+ *
+ *      1. A file of dev1 whose only append was never acknowledged (a md2
+ *         of 0 rows, its content not empty) between the file of its old
+ *         message and the file of its new one. It was taken for damage,
+ *         the load stopped there, and the old message was served. It is
+ *         ignored with a warning: the new message is served.
+ *      2. The file of dev1's new message really damaged (a md2 whose size
+ *         is not a whole number of rows): the load of dev1 stops before it.
+ *         What it read is not served as current: dev1 is not in memory, and
+ *         that is logged. dev2, whole, is served.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ****************************************************************************/
+#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+#include <locale.h>
+#include <signal.h>
+#include <unistd.h>
+#include <yunetas.h>
+
+#define APP             "test_msg2db_load_failed"
+#define DATABASE        "tr_msg2db_load_failed"
+#define MSG2DB_NAME     "msg2db_test"
+#define TOPIC_NAME      "alarms"
+
+#define MSG_UNCOMMITTED "md2 file of the key with no rows and a content file that is not empty: an append that was never acknowledged, the file is ignored"
+#define MSG_NOT_SERVED  "msg2db: the messages of a key whose history did not load whole are NOT served, the last one read may not be the current one"
+
+PRIVATE yev_loop_h yev_loop;
+PRIVATE char path_root[PATH_MAX];
+PRIVATE char path_database[PATH_MAX];
+
+PRIVATE char msg2db_schema[]= "\
+{                                                                   \n\
+    'id': '"MSG2DB_NAME"',                                          \n\
+    'schema_version': '1',                                          \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': '"TOPIC_NAME"',                                   \n\
+            'pkey': 'id',                                           \n\
+            'tkey': 'tm',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'pkey2': 'alarm',                                       \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Device Id',                          \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'tm': {                                             \n\
+                    'header': 'Time',                               \n\
+                    'type': 'integer',                              \n\
+                    'flag': ['persistent','required','time']        \n\
+                },                                                  \n\
+                'alarm': {                                          \n\
+                    'header': 'Alarm',                              \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'description': {                                    \n\
+                    'header': 'Description',                        \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent']                          \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
+/***************************************************************************
+ *  The turns of the loop that free the fs watcher of a master (see
+ *  test_pkey2_empty.c)
+ ***************************************************************************/
+PRIVATE void drain_loop(void)
+{
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+}
+
+PRIVATE json_t *open_all(void)
+{
+    json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 1,
+        "on_critical_error", 0
+    ), yev_loop);
+    json_t *jn_schema = legalstring2json(msg2db_schema, TRUE);
+    msg2db_open_db(tranger, MSG2DB_NAME, jn_schema, "");
+    return tranger;
+}
+
+PRIVATE void close_all(json_t *tranger)
+{
+    msg2db_close_db(tranger, MSG2DB_NAME);
+    tranger2_shutdown(tranger);
+    drain_loop();
+}
+
+PRIVATE void put(json_t *tranger, const char *id, const char *description)
+{
+    msg2db_append_message(tranger, MSG2DB_NAME, TOPIC_NAME,
+        json_pack("{s:s, s:I, s:s, s:s}",
+            "id", id,
+            "tm", (json_int_t)time(0),
+            "alarm", "X",
+            "description", description
+        ),
+        ""
+    );
+}
+
+PRIVATE int expect_description(json_t *tranger, const char *what, const char *id, const char *expected)
+{
+    json_t *msg = msg2db_get_message(tranger, MSG2DB_NAME, TOPIC_NAME, id, "X");
+    const char *found = msg? kw_get_str(0, msg, "description", "?", 0) : "(absent)";
+    if(strcmp(found, expected) != 0) {
+        printf("%sERROR%s --> %s: %s/X is [%s], expected [%s]\n",
+            On_Red BWhite, Color_Off, what, id, found, expected);
+        return -1;
+    }
+    return 0;
+}
+
+PRIVATE void key_dir(char *bf, size_t bfsize, const char *id)
+{
+    build_path(bf, bfsize, path_database, TOPIC_NAME, "keys", id, NULL);
+}
+
+/*
+ *  The store: dev1 with OLD in the file 2000-01-01 and NEW in today's,
+ *  dev2 with one message
+ */
+PRIVATE int build_store(void)
+{
+    rmrdir(path_database);
+    set_expected_results("build the store", NULL, NULL, NULL, FALSE);
+
+    json_t *tranger = open_all();
+    put(tranger, "dev1", "OLD");
+    close_all(tranger);
+
+    char dir[PATH_MAX];
+    key_dir(dir, sizeof(dir), "dev1");
+    const char *exts[] = {"md2", "json", NULL};
+    int moved = 0;
+    for(int e = 0; exts[e]; e++) {
+        char pattern[32];
+        snprintf(pattern, sizeof(pattern), ".*\\.%s", exts[e]);
+        dir_array_t da;
+        get_ordered_filename_array(0, dir, pattern, WD_MATCH_REGULAR_FILE, &da);
+        for(int i = 0; i < da.count; i++) {
+            char name[NAME_MAX];
+            char dst[PATH_MAX];
+            snprintf(name, sizeof(name), "2000-01-01.%s", exts[e]);
+            build_path(dst, sizeof(dst), dir, name, NULL);
+            if(rename(da.items[i], dst) == 0) {
+                moved++;
+            }
+        }
+        dir_array_free(&da);
+    }
+
+    tranger = open_all();
+    put(tranger, "dev1", "NEW");
+    put(tranger, "dev2", "WHOLE");
+    close_all(tranger);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    if(moved != 2) {
+        printf("%sERROR%s --> cannot move the old message of dev1\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  1. An uncommitted file between the old message and the new one
+ ***************************************************************************/
+PRIVATE int test_uncommitted(void)
+{
+    int result = 0;
+    if(build_store() < 0) {
+        return -1;
+    }
+
+    char dir[PATH_MAX];
+    char src[PATH_MAX];
+    char dst[PATH_MAX];
+    key_dir(dir, sizeof(dir), "dev1");
+    build_path(src, sizeof(src), dir, "2000-01-01.json", NULL);
+    build_path(dst, sizeof(dst), dir, "2001-01-01.json", NULL);
+    int ret = copyfile(src, dst, 0660, TRUE);
+    build_path(dst, sizeof(dst), dir, "2001-01-01.md2", NULL);
+    FILE *f = fopen(dst, "w");
+    if(ret < 0 || !f) {
+        printf("%sERROR%s --> 1: cannot leave the uncommitted file\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(f) {
+        fclose(f);
+    }
+
+    set_expected_results("1. an uncommitted file between the old and the new message",
+        json_pack("[{s:s}]", "msg", MSG_UNCOMMITTED), NULL, NULL, TRUE
+    );
+    json_t *tranger = open_all();
+    result += expect_description(tranger, "1", "dev1", "NEW");
+    result += expect_description(tranger, "1", "dev2", "WHOLE");
+    close_all(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  2. The file of the new message damaged: dev1 is not served
+ ***************************************************************************/
+PRIVATE int test_damaged(void)
+{
+    int result = 0;
+    if(build_store() < 0) {
+        return -1;
+    }
+
+    /*
+     *  5 bytes after the md2 of today's file: not a whole number of rows
+     */
+    char dir[PATH_MAX];
+    key_dir(dir, sizeof(dir), "dev1");
+    dir_array_t da;
+    get_ordered_filename_array(0, dir, ".*\\.md2", WD_MATCH_REGULAR_FILE, &da);
+    int damaged = 0;
+    for(int i = 0; i < da.count; i++) {
+        if(strstr(da.items[i], "2000-01-01.md2")) {
+            continue;
+        }
+        FILE *f = fopen(da.items[i], "a");
+        if(f) {
+            if(fwrite("XXXXX", 1, 5, f) == 5) {
+                damaged++;
+            }
+            fclose(f);
+        }
+    }
+    dir_array_free(&da);
+    if(damaged != 1) {
+        printf("%sERROR%s --> 2: cannot damage the md2 of dev1's new message\n",
+            On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    set_expected_results("2. the file of the new message damaged",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Cannot read last record, md2 file corrupted",
+            "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed",
+            "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built",
+            "msg", "Cannot load the whole history of a key of the list: the records read before the failure "
+                   "were handed, the list goes on with the next key",
+            "msg", MSG_NOT_SERVED
+        ), NULL, NULL, TRUE
+    );
+    json_t *tranger = open_all();
+    result += expect_description(tranger, "2", "dev1", "(absent)");
+    result += expect_description(tranger, "2", "dev2", "WHOLE");
+    close_all(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int do_test(void)
+{
+    int result = 0;
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    mkrdir(path_root, 02770);
+    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
+    helper_quote2doublequote(msg2db_schema);
+
+    result += test_uncommitted();
+    result += test_damaged();
+
+    return result;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+int main(int argc, char *argv[])
+{
+    setlocale(LC_ALL, "");
+
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
+
+    gbmem_get_allocators(&malloc_func, &realloc_func, &calloc_func, &free_func);
+    json_set_alloc_funcs(malloc_func, free_func);
+
+    unsigned long memory_check_list[] = {0}; // WARNING: list ended with 0
+    set_memory_check_list(memory_check_list);
+
+    init_backtrace_with_backtrace(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_backtrace);
+
+    gobj_start_up(argc, argv, NULL, NULL, NULL, NULL, NULL, NULL);
+    signal(SIGPIPE, SIG_IGN);
+
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+    gobj_log_register_handler("testing", 0, capture_log_write, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+
+    yev_loop_create(0, 2024, 10, NULL, &yev_loop);
+
+    int result = do_test();
+
+    yev_loop_stop(yev_loop);
+    yev_loop_destroy(yev_loop);
+
+    gobj_end();
+
+    if(get_cur_system_memory() != 0) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
+        print_track_mem();
+        result += -1;
+    }
+    if(result < 0) {
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+    } else {
+        printf("<-- %sTEST OK%s: %s\n", On_Green BWhite, Color_Off, APP);
+    }
+    return result < 0 ? -1 : 0;
+}

@@ -407,6 +407,37 @@ PUBLIC json_t *msg2db_open_db(
             );
         } else {
             /*
+             *  A key whose history did not load whole: msg2db keeps, per
+             *  pkey2, the LAST message it loaded, and the load is forward,
+             *  so what it holds of that key is the last one read before the
+             *  failure -- an OLD message, served as current (independent
+             *  review of the fourth fix round, repro r_msg2db_stale). Its
+             *  messages are not served: absent and logged is what a reader
+             *  can act on; an old state taken for the current one is not.
+             *  (The mqtt broker's alarms: a cleared alarm came back active.)
+             *  The next message of the key is served as it arrives.
+             */
+            json_t *failed_keys = json_object_get(list, "load_failed_keys");
+            json_t *indexx = kw_get_dict(gobj, tranger, path, 0, 0);
+            int kidx; json_t *jn_key;
+            json_array_foreach(failed_keys, kidx, jn_key) {
+                const char *key = json_string_value(jn_key);
+                if(!key) {
+                    continue;
+                }
+                json_object_del(indexx, key);
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MSG2DB,
+                    "msg",          "%s", "msg2db: the messages of a key whose history did not load whole are NOT served, the last one read may not be the current one",
+                    "msg2db_name",  "%s", msg2db_name,
+                    "topic_name",   "%s", topic_name,
+                    "key",          "%s", key,
+                    NULL
+                );
+            }
+
+            /*
              *  The tally of what load_record_callback() refused to load. The
              *  first one was logged whole; this is how many followed it, and
              *  it is the line that says how much of the topic is missing.

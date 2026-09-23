@@ -61,6 +61,13 @@ extern "C"{
         Once saved,
             if you want to change the schema
             then you must change the schema version and topic_version
+
+    The load is forward and keeps, per id and pkey2, the LAST message
+    loaded. The messages of a key whose history did not load whole (a md2
+    file of it cannot be read) are NOT served: the last one read may be an
+    old one. The key is not in memory and an ERROR names it ("msg2db: the
+    messages of a key whose history did not load whole are NOT served...");
+    its next message is served as it arrives.
 **rst**/
 
 PUBLIC json_t *msg2db_open_db(

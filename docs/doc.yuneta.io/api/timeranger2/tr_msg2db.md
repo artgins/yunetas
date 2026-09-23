@@ -219,4 +219,29 @@ The function [`tranger2_startup()`](<#tranger2_startup>) must be called before i
 If the 'persistent' option is enabled, the schema is loaded from a file, which takes precedence over any provided schema.
 To modify the schema after it was saved, the schema version and topic version must be updated.
 
+The load is forward, oldest first, and msg2db keeps per `id` and `pkey2` the
+LAST message it loaded. A key whose history does not load whole (a md2 file of
+it that cannot be read, see
+[`tranger2_open_list()`](<timeranger2.md#tranger2_open_list>)) stops before the damage, so
+the last message read may be an OLD one. The messages of such a key are **not
+served**: the key is not in memory, and an ERROR names it:
+
+```text
+ERROR: {..., "function": "msg2db_open_db", "msgset": "Msg2Db",
+    "msg": "msg2db: the messages of a key whose history did not load whole are NOT served, the last one read may not be the current one",
+    "msg2db_name": "msg2db_alarms", "topic_name": "alarms", "key": "dev1"}
+```
+
+```C
+msg2db_open_db(tranger, "msg2db_alarms", jn_schema, "");
+msg2db_get_message(tranger, "msg2db_alarms", "alarms", "dev1", "X");   // NULL: dev1 did not load whole
+msg2db_get_message(tranger, "msg2db_alarms", "alarms", "dev2", "X");   // dev2 is whole: served
+```
+
+For the mqtt broker's alarms this means an unknown alarm until the device
+reports it again (the next message of the key is served as it arrives), never
+a cleared alarm served as active. Until 7.25.4 the old message was served as
+current, and nothing was logged. Repair the key as the treedb page says
+([what the operator does](<treedb.md#treedb-topic-not-loaded-whole>)).
+
 ---
