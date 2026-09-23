@@ -1428,12 +1428,45 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                         NULL
                     );
                 }
-                file_remove(directory, "topic_cols.json");
                 version_changed = TRUE;
             }
         }
 
         if(version_changed) {
+            /*----------------------------------------*
+             *  Replace topic_cols.json FIRST
+             *
+             *  The version is what says the cols moved: it is written only
+             *  once the cols are. topic_cols.json was REMOVED first, the
+             *  write's result ignored and "Re-Creating" logged all the
+             *  same, and the new version saved: the topic opened with no
+             *  cols file under a version that said it had the new ones
+             *  (independent review of the third fix round). A cols file
+             *  that cannot be replaced leaves both files as they were, and
+             *  the topic is not opened; the next create tries again.
+             *----------------------------------------*/
+            JSON_INCREF(jn_cols)
+            if(tranger2_write_topic_cols(tranger, topic_name, jn_cols) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TRANGER,
+                    "msg",          "%s", "Cannot re-create topic_cols.json for a new topic_version: the topic keeps its version, and is not opened",
+                    "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
+                    "topic",        "%s", topic_name,
+                    "topic_version", "%d", (int)topic_new_version,
+                    "stored_version", "%d", (int)topic_old_version,
+                    NULL
+                );
+                gobj_log_set_last_message(
+                    "Cannot re-create topic_cols.json of topic '%s' for topic_version %d",
+                    topic_name, (int)topic_new_version
+                );
+                JSON_DECREF(jn_cols)
+                JSON_DECREF(jn_var)
+                JSON_DECREF(jn_topic_ext)
+                return NULL;
+            }
+
             /*----------------------------------------*
              *  Replace topic_var.json
              *
@@ -1450,7 +1483,8 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             if(last_rowid_id > 0) {
                 json_object_set_new(new_var, "last_rowid_id", json_integer(last_rowid_id));
             }
-            if(replace_topic_var(gobj, tranger, directory, topic_name, new_var, TRUE)==0) {
+            int ret_var = replace_topic_var(gobj, tranger, directory, topic_name, new_var, TRUE);
+            if(ret_var==0) {
                 gobj_log_info(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INFO,
@@ -1459,8 +1493,29 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                     "topic",        "%s", topic_name,
                     NULL
                 );
-            } else {
-                // Error already logged: the old topic_var.json is still there
+            }
+            gobj_log_info(gobj, 0,      // written above, said after the var as it always was
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Re-Creating topic_cols.json",
+                "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
+                "topic",        "%s", topic_name,
+                NULL
+            );
+            if(ret_var < 0) {
+                /*
+                 *  Error already logged: the old topic_var.json is still
+                 *  there, with the old version, over the new cols. The next
+                 *  create sees the version go up again and writes both.
+                 */
+                gobj_log_set_last_message(
+                    "Cannot re-create topic_var.json of topic '%s' for topic_version %d",
+                    topic_name, (int)topic_new_version
+                );
+                JSON_DECREF(jn_cols)
+                JSON_DECREF(jn_var)
+                JSON_DECREF(jn_topic_ext)
+                return NULL;
             }
 
         } else if(!file_exists(directory, "topic_var.json")) {
@@ -1487,24 +1542,29 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         }
 
 
-        if(!file_exists(directory, "topic_cols.json")) {
+        if(version_changed) {
+            // topic_cols.json written above
+        } else if(!file_exists(directory, "topic_cols.json")) {
             /*----------------------------------------*
              *      Create topic_cols.json
              *----------------------------------------*/
             JSON_INCREF(jn_cols);
-            tranger2_write_topic_cols(
+            if(tranger2_write_topic_cols(
                 tranger,
                 topic_name,
                 jn_cols
-            );
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Re-Creating topic_cols.json",
-                "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
-                "topic",        "%s", topic_name,
-                NULL
-            );
+            )==0) {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INFO,
+                    "msg",          "%s", "Re-Creating topic_cols.json",
+                    "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
+                    "topic",        "%s", topic_name,
+                    NULL
+                );
+            } else {
+                // Error already logged: the topic opens with no cols file, as it was
+            }
         } else {
             /*----------------------------------------*
              *      Re-order topic_cols.json

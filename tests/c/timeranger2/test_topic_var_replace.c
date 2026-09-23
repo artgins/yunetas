@@ -263,6 +263,79 @@ PRIVATE int do_test(void)
     rmdir(path_cols);
     result += test_json(NULL);
 
+    /*-------------------------------------*
+     *  A topic_version that goes up and a
+     *  topic_cols.json that cannot be
+     *  written: the version change removed
+     *  topic_cols.json first, ignored the
+     *  failed write, logged "Re-Creating"
+     *  and saved the new version (third
+     *  independent review). Nothing moves
+     *  now, and the topic is not opened.
+     *-------------------------------------*/
+    set_expected_results(
+        "topic_cols: a version change whose cols cannot be written",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot replace topic_cols.json, cannot remove a temporary file left behind",
+            "msg", "Cannot re-create topic_cols.json for a new topic_version: the topic keeps its version, and is not opened"
+        ),
+        NULL, NULL, 1
+    );
+    tranger2_write_topic_cols(tranger, TOPIC_NAME,     // the case before left none
+        json_pack("{s:s, s:s}", "id", "", "content", "")
+    );
+    tranger2_shutdown(tranger);
+    char path_cols_new[PATH_MAX];
+    build_path(path_cols_new, sizeof(path_cols_new), path_database, TOPIC_NAME, "topic_cols.json.new", NULL);
+    mkdir(path_cols_new, 0700);     // a .new that cannot be removed nor created
+    tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK
+    ), 0);
+    topic = tranger2_create_topic(
+        tranger, TOPIC_NAME, "id", "", NULL, sf_rowid_key,
+        json_pack("{s:s, s:s, s:s}", "id", "", "content", "", "v8", ""),
+        json_pack("{s:I}", "topic_version", (json_int_t)8)
+    );
+    result += expect("the topic is not opened", topic? "opened": "refused", "refused");
+    json_t *var_now = json_load_file(path_var, 0, 0);
+    result += expect("topic_var.json keeps its version",
+        json_integer_value(json_object_get(var_now, "topic_version")) == 7? "7": "other", "7");
+    JSON_DECREF(var_now)
+    json_t *cols_now = json_load_file(path_cols, 0, 0);
+    result += expect("topic_cols.json keeps its cols",
+        !cols_now? "gone": json_object_get(cols_now, "v8")? "the new ones": "the old ones",
+        "the old ones");
+    JSON_DECREF(cols_now)
+    rmdir(path_cols_new);
+    result += test_json(NULL);
+
+    set_expected_results(
+        "topic_cols: the version change once it can be written",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Re-Creating topic_var.json",
+            "msg", "Re-Creating topic_cols.json"
+        ),
+        NULL, NULL, 1
+    );
+    topic = tranger2_create_topic(
+        tranger, TOPIC_NAME, "id", "", NULL, sf_rowid_key,
+        json_pack("{s:s, s:s, s:s}", "id", "", "content", "", "v8", ""),
+        json_pack("{s:I}", "topic_version", (json_int_t)8)
+    );
+    result += expect("the topic is opened", topic? "opened": "refused", "opened");
+    var_now = json_load_file(path_var, 0, 0);
+    result += expect("topic_var.json has the new version",
+        json_integer_value(json_object_get(var_now, "topic_version")) == 8? "8": "other", "8");
+    JSON_DECREF(var_now)
+    cols_now = json_load_file(path_cols, 0, 0);
+    result += expect("topic_cols.json has the new cols",
+        json_object_get(cols_now, "v8")? "the new ones": "the old ones", "the new ones");
+    JSON_DECREF(cols_now)
+    result += test_json(NULL);
+
     set_expected_results("topic_var: shutdown", NULL, NULL, NULL, 1);
     tranger2_shutdown(tranger);
     result += test_json(NULL);
