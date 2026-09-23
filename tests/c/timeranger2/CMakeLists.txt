@@ -72,6 +72,7 @@ set(SRCS
     test_stop_reopen
     test_append_md_contract
     test_str2system_flag
+    test_key_reborn_pages
     test_testing
 )
 

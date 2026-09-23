@@ -5,11 +5,14 @@
  *  on_critical_error says. It still logs a critical, but it answers an
  *  error and the process goes on:
  *
- *      - a filtered iterator whose key was deleted under it: its next page
- *        opens an md2 file that is gone (get_topic_rd_fd). On a master with
- *        on_critical_error=2 that was an exit(0), not relaunched. The page
- *        also says the likely cause: the key is gone from disk (a replica
- *        hears of a delete no other way).
+ *      - a filtered iterator whose key was deleted under it by ANOTHER
+ *        process (a replica whose master deleted the key: nothing tells the
+ *        replica): its next page opens an md2 file that is gone
+ *        (get_topic_rd_fd). On a master with on_critical_error=2 that was an
+ *        exit(0), not relaunched. The page also says the likely cause: the
+ *        key is gone from disk. (A delete in the SAME process empties the
+ *        iterator's index, and its page reads nothing: see
+ *        test_key_reborn_pages.)
  *      - tranger2_read_user_flag() on a (key, __t__) whose md2 file does not
  *        exist: a master CREATED an empty md2 there (the read went through
  *        the write fd), then failed to read it with on_critical_error.
@@ -145,7 +148,7 @@ PRIVATE int do_test(void)
 
     /*-------------------------------------*
      *  A filtered iterator, then its key
-     *  deleted under it
+     *  deleted under it, behind its back
      *-------------------------------------*/
     set_expected_results(
         "a page of an iterator whose key was deleted is an error, not an exit",
@@ -170,7 +173,9 @@ PRIVATE int do_test(void)
         printf("%sERROR%s --> cannot open the iterator\n", On_Red BWhite, Color_Off);
         result += -1;
     } else {
-        if(tranger2_delete_key(tranger, TOPIC_NAME, KEY_GONE) < 0) {
+        char path_key[PATH_MAX];
+        build_path(path_key, sizeof(path_key), path_database, TOPIC_NAME, "keys", KEY_GONE, NULL);
+        if(rmrdir(path_key) < 0) {
             printf("%sERROR%s --> cannot delete the key\n", On_Red BWhite, Color_Off);
             result += -1;
         }

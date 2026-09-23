@@ -310,6 +310,7 @@ PRIVATE json_int_t next_segment_row(
 );
 PRIVATE BOOL segment_t_ordered(json_t *segment);
 PRIVATE json_t *key_cache_stamp(json_t *topic, const char *key);
+PRIVATE void forget_segments_of_key(json_t *topic, const char *key);
 PRIVATE BOOL tranger2_match_metadata(
     json_t *match_cond,
     json_int_t total_rows,
@@ -3655,6 +3656,7 @@ PUBLIC int tranger2_delete_key(
      */
     json_t *topic_cache = json_object_get(topic, "cache");
     json_object_del(topic_cache, key);
+    forget_segments_of_key(topic, key);
 
     return 0;
 }
@@ -5605,6 +5607,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 if(cache) {
                     json_object_del(cache, deleted_key);
                 }
+                forget_segments_of_key(watched_topic, deleted_key);
 
                 json_t *disk = NULL;
                 int idx; json_t *disk_;
@@ -7930,7 +7933,7 @@ PUBLIC size_t tranger2_iterator_size(
  *  it; a replica's iterator just meets the files gone. Say so, beside the
  *  read error, so the cause is not guessed from an errno.
  ***************************************************************************/
-PRIVATE void log_if_key_gone(hgobj gobj, json_t *topic, const char *key)
+PRIVATE BOOL log_if_key_gone(hgobj gobj, json_t *topic, const char *key)
 {
     char key_dir[PATH_MAX];
     build_path(key_dir, sizeof(key_dir),
@@ -7946,7 +7949,9 @@ PRIVATE void log_if_key_gone(hgobj gobj, json_t *topic, const char *key)
             NULL
         );
         gobj_log_set_last_message("key '%s' was deleted", key);
+        return TRUE;
     }
+    return FALSE;
 }
 
 /***************************************************************************
@@ -8029,10 +8034,19 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
                 json_t *record = read_record_content(
                     tranger, topic, key, file_id, &md_record_ex
                 );
-                if(record) {
-                    json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
-                    json_array_append_new(data, record);
+                if(!record) {
+                    /*
+                     *  The metadata can come from an fd opened before the
+                     *  key went (the index was built with it): the content
+                     *  file is the one that says so.
+                     */
+                    if(log_if_key_gone(gobj, topic, key)) {
+                        break;  // Error already logged
+                    }
+                    continue;   // Error already logged
                 }
+                json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
+                json_array_append_new(data, record);
             }
         }
 
@@ -8171,9 +8185,10 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
             );
             if(record) {
                 json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
+                json_array_append_new(data, record);
+            } else if(log_if_key_gone(gobj, topic, key)) {
+                break;  // Error already logged
             }
-
-            json_array_append_new(data, record);
         }
 
         cur_segment = next_segment_row(
@@ -8199,8 +8214,10 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
 /***************************************************************************
  *  What the segments of a key are taken from, in three numbers: the rows
  *  of the key, its files, and its last file. An append moves the rows, a
- *  new file the count and the last id, a deleted key all of them. Equal
- *  stamps, equal segments: they are cut from rows and files only.
+ *  new file the count and the last id. While the key lives its cells only
+ *  grow, so equal stamps are equal segments. A key deleted and written
+ *  again can come back with the same three numbers: its delete drops the
+ *  stamp of every iterator of the key (forget_segments_of_key).
  ***************************************************************************/
 PRIVATE json_t *key_cache_stamp(json_t *topic, const char *key)
 {
@@ -8247,6 +8264,33 @@ PRIVATE json_t *get_cache_total(json_t *topic, const char *key)
     }
     json_t *cache_total = json_object_get(key_cache, "total");
     return cache_total;
+}
+
+/***************************************************************************
+ *  The key was deleted: what its iterators took from its cache names rows
+ *  that are gone. The stamp above does not see it when the key is written
+ *  again with the same numbers and its rows spread another way over its
+ *  files, and a page read the new files with the old segments (L1 of the
+ *  2026-09-23 independent review). So an unfiltered iterator loses its
+ *  segments and its stamp, and takes them again at its next page; a
+ *  filtered one loses its index -- the rows it indexed do not exist any
+ *  more, and an index is built only at the open.
+ ***************************************************************************/
+PRIVATE void forget_segments_of_key(json_t *topic, const char *key)
+{
+    json_t *iterators = json_object_get(topic, "iterators");
+    int idx; json_t *iterator;
+    json_array_foreach(iterators, idx, iterator) {
+        const char *key_ = json_string_value(json_object_get(iterator, "key"));
+        if(!key_ || strcmp(key_, key) != 0) {
+            continue;
+        }
+        json_object_set_new(iterator, "segments", json_array());
+        json_object_set_new(iterator, "segments_stamp", json_null());
+        if(json_object_get(iterator, "index")) {
+            json_object_set_new(iterator, "index", json_array());
+        }
+    }
 }
 
 /***************************************************************************
