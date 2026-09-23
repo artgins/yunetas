@@ -26,7 +26,8 @@ kernel and whatever libraries those cells import.
 `./deploy.sh` builds the site and mirrors it to the server. It is the
 real build, and it does more than mystmd does:
 
-- Stamps the current `YUNETA_VERSION` and the date into `index.md`, and
+- Stamps the current `YUNETA_VERSION` and the date into `get_started.md` (the
+  root of the site), and
   the `yunetas` CLI version into `installation.md`.
 - Injects into every built page what the book-theme has no hook for: the
   anchor-scroll fix, the diagram lightbox, the theme hand-off to
