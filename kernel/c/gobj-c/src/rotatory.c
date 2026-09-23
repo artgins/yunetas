@@ -50,6 +50,8 @@ typedef struct rotatory_log_s {
     pe_flag_t pe_flag;          // Exit if cannot create rotatory file
 
     uint16_t counter_statvfs;
+    BOOL disk_full;             // below min_free_disk_percentage: records dropped
+    uint64_t dropped_records;   // while disk_full
     char log_directory[NAME_MAX];   // from path
     char filenamemask[NAME_MAX];    // from path
     char filename[NAME_MAX];        // current filename
@@ -66,7 +68,6 @@ typedef struct rotatory_log_s {
  *          Data
  *****************************************************************/
 PRIVATE char __initialized__ = 0;
-PRIVATE char disk_full_informed = 0;
 PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 PRIVATE dl_list_t dl_clients;
 PRIVATE const char *priority_names[]={
@@ -94,6 +95,9 @@ PRIVATE BOOL _get_rotatory_filename(rotatory_log_t *rotatory_log);
 PRIVATE int _rotatory_prepare(rotatory_log_t *hr);
 PRIVATE int _rotatory_fwrite(rotatory_log_t *hr, const char *bf, size_t len);
 PRIVATE int _translate_mask(rotatory_log_t *hr);
+PRIVATE BOOL is_open_handle(rotatory_log_t *hr);
+PRIVATE void _rotatory_free(rotatory_log_t *hr);
+PRIVATE BOOL disk_is_full(rotatory_log_t *hr);
 
 
 /*****************************************************************
@@ -247,7 +251,7 @@ PUBLIC hrotatory_h rotatory_open(
                 hr->log_directory,
                 strerror(errno)
             );
-            rotatory_close(hr);
+            _rotatory_free(hr);
             return 0;
         }
     }
@@ -265,7 +269,7 @@ PUBLIC hrotatory_h rotatory_open(
                 hr->path,
                 strerror(errno)
             );
-            rotatory_close(hr);
+            _rotatory_free(hr);
             return 0;
         }
         close(fd);
@@ -278,7 +282,7 @@ PUBLIC hrotatory_h rotatory_open(
             hr->path,
             strerror(errno)
         );
-        rotatory_close(hr);
+        _rotatory_free(hr);
         return 0;
     }
 
@@ -300,20 +304,44 @@ PUBLIC void rotatory_close(hrotatory_h hr_)
 {
     rotatory_log_t *hr = hr_;
 
-    if(!__initialized__ || !hr) {
-        return;
+    if(!is_open_handle(hr)) {
+        return; // Already closed (rotatory_end(), or a second close): see is_open_handle()
     }
 
+    dl_delete(&dl_clients, hr, 0);
+    _rotatory_free(hr);
+}
+
+/*****************************************************************
+ *  Free a handle that is not (or no longer) in the list
+ *****************************************************************/
+PRIVATE void _rotatory_free(rotatory_log_t *hr)
+{
     if(hr->flog) {
         _rotatory_flush(hr);
         fclose(hr->flog);
         hr->flog = 0;
     }
-    if(dl_find(&dl_clients, hr)) {
-        dl_delete(&dl_clients, hr, 0);
-    }
     free(hr->buffer);   // System memory, see rotatory_open()
     free(hr);
+}
+
+/*****************************************************************
+ *  TRUE if hr is a handle that is open now.
+ *
+ *  A handle outlives its rotatory_close() in the hands of others: the
+ *  file log handler of glogger keeps it, and entry_point logs after
+ *  rotatory_end(). Every public function asks this BEFORE touching the
+ *  handle, so a closed one is never read or freed again. It compares
+ *  pointers only (a closed handle is freed memory). The list holds one
+ *  entry for each file the process writes: a few.
+ *****************************************************************/
+PRIVATE BOOL is_open_handle(rotatory_log_t *hr)
+{
+    if(!__initialized__ || !hr) {
+        return FALSE;
+    }
+    return dl_find(&dl_clients, hr)? TRUE: FALSE;
 }
 
 /*****************************************************************
@@ -325,6 +353,10 @@ PUBLIC int rotatory_subscribe2newfile(
     void *user_data)
 {
     rotatory_log_t *hr = hr_;
+    if(!is_open_handle(hr)) {
+        print_error(PEF_SYSLOG, "rotatory_subscribe2newfile(): handle not open");
+        return -1;
+    }
     hr->cb_newfile = cb_newfile;
     hr->user_data = user_data;
 
@@ -340,6 +372,13 @@ PUBLIC int rotatory_write(hrotatory_h hr_, int priority, const char* bf, size_t 
 
     if(!hr || !bf) {
         return -1;
+    }
+    if(!is_open_handle(hr)) {
+        /*
+         *  A closed handle: nothing is written. Not -1: glogger stops
+         *  calling the next handlers when one answers a negative value.
+         */
+        return 0;
     }
     if(priority < 0 || priority > LOG_AUDIT) {
         priority = LOG_DEBUG;
@@ -384,6 +423,9 @@ PUBLIC int rotatory_fwrite(hrotatory_h hr_, int priority, const char *format, ..
         // silence
         return -1;
     }
+    if(!is_open_handle(hr)) {
+        return 0;   // A closed handle, see rotatory_write()
+    }
     va_start(ap, format);
     vsnprintf(
         hr->buffer,
@@ -402,7 +444,9 @@ PUBLIC int rotatory_fwrite(hrotatory_h hr_, int priority, const char *format, ..
 PUBLIC void rotatory_truncate(hrotatory_h hr)
 {
     if(hr) {
-        _rotatory_truncate(hr);
+        if(is_open_handle(hr)) {
+            _rotatory_truncate(hr);
+        }
         return;
     }
 
@@ -419,7 +463,9 @@ PUBLIC void rotatory_truncate(hrotatory_h hr)
 PUBLIC void rotatory_flush(hrotatory_h hr)
 {
     if(hr) {
-        _rotatory_flush(hr);
+        if(is_open_handle(hr)) {
+            _rotatory_flush(hr);
+        }
         return;
     }
 
@@ -506,9 +552,19 @@ PRIVATE BOOL _get_rotatory_filename(rotatory_log_t *hr)
  *****************************************************************/
 PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
 {
-    if(disk_full_informed) {
+    /*
+     *  The free space is checked every MAX_COUNTER_STATVFS records, also
+     *  while the disk is full: that is how the handle writes again.
+     */
+    hr->counter_statvfs = (uint16_t)((hr->counter_statvfs + 1) % MAX_COUNTER_STATVFS);
+    if(hr->counter_statvfs == 0) {
+        disk_is_full(hr);
+    }
+    if(hr->disk_full) {
+        hr->dropped_records++;
         return -1;
     }
+
     BOOL change_file = _get_rotatory_filename(hr);
 
     if(hr->flog) {
@@ -616,39 +672,60 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
         }
     }
 
-    hr->counter_statvfs++;
-    hr->counter_statvfs = hr->counter_statvfs % MAX_COUNTER_STATVFS;
-    if(hr->flog && hr->counter_statvfs==0) {
-        /*
-         *  Check filesystem free only periodically,
-         *  each MAX_COUNTER_STATVFS times.
-         */
-#ifdef __linux__
-        struct statvfs fiData;
-        if(fstatvfs(fileno(hr->flog), &fiData) == 0) {
-            int free_percent = (fiData.f_bavail * 100)/fiData.f_blocks;
-            if(free_percent < hr->min_free_disk_percentage) {
-                // No escribo nada con %free menor que x
-                if(!disk_full_informed) {
-                    print_error(
-                        PEF_SYSLOG,
-                        "rotatory(): stop logging because full disk: %d%% free (<%d%%)",
-                        free_percent,
-                        (int)hr->min_free_disk_percentage
-                    );
-                    rotatory_flush(hr);
-                    disk_full_informed = 1;
-                }
-                return -1;
-            }
-        }
-#endif /* __linux__ */
-    }
-
     if(!hr->flog) {
         return -1;
     }
     return 0;
+}
+
+/*****************************************************************
+ *  Check the free space of the disk of this handle, and change its
+ *  state: below min_free_disk_percentage it stops writing, above it
+ *  writes again. One line (stdout and syslog: this is the sink of the
+ *  log, it cannot log through itself) when it stops, one when it
+ *  writes again. Up to 7.25.4 the state was ONE flag for every handle
+ *  of the process, and nothing cleared it.
+ *****************************************************************/
+PRIVATE BOOL disk_is_full(rotatory_log_t *hr)
+{
+#ifdef __linux__
+    struct statvfs fiData;
+    int ret;
+    if(hr->flog) {
+        ret = fstatvfs(fileno(hr->flog), &fiData);
+    } else {
+        ret = statvfs(hr->log_directory, &fiData);
+    }
+    if(ret != 0 || fiData.f_blocks == 0) {
+        return hr->disk_full;   // Cannot tell: keep the state
+    }
+    int free_percent = (int)((fiData.f_bavail * 100)/fiData.f_blocks);
+
+    if(!hr->disk_full && free_percent < (int)hr->min_free_disk_percentage) {
+        print_error(
+            PEF_SYSLOG,
+            "rotatory(): stop logging to '%s' because full disk: %d%% free (<%d%%)",
+            hr->path,
+            free_percent,
+            (int)hr->min_free_disk_percentage
+        );
+        _rotatory_flush(hr);
+        hr->disk_full = TRUE;
+        hr->dropped_records = 0;
+
+    } else if(hr->disk_full && free_percent >= (int)hr->min_free_disk_percentage) {
+        print_error(
+            PEF_SYSLOG,
+            "rotatory(): logging to '%s' again: %d%% free (>=%d%%), %llu records were dropped",
+            hr->path,
+            free_percent,
+            (int)hr->min_free_disk_percentage,
+            (unsigned long long)hr->dropped_records
+        );
+        hr->disk_full = FALSE;
+    }
+#endif /* __linux__ */
+    return hr->disk_full;
 }
 
 /*****************************************************************
@@ -733,6 +810,9 @@ PRIVATE int _translate_mask(rotatory_log_t *hr)
 PUBLIC const char *rotatory_path(hrotatory_h hr_)
 {
     rotatory_log_t *hr = hr_;
+    if(!is_open_handle(hr)) {
+        return "";
+    }
     return hr->path;
 }
 
@@ -794,11 +874,11 @@ PUBLIC int rotatory_remove_old_files(
     if(removed_bytes) {
         *removed_bytes = 0;
     }
-    if(!hr) {
+    if(!is_open_handle(hr)) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "hr NULL",
+            "msg",          "%s", "hr NULL or not open",
             NULL
         );
         return -1;

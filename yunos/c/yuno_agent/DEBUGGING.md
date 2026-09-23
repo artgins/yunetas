@@ -470,7 +470,7 @@ removes something writes one INFO line to the agent log:
 | `use_audit_command_file` | `1` | Write the audit files. |
 | `max_megas_audit_file` | `500` | Size of one audit file, in MB. A bigger day keeps the first part in `.OLD`. |
 | `audit_keep_days` | `7` | Days of audit files kept. `0` keeps all (the behaviour up to 7.25.4). |
-| `min_free_disk_percentage` | `20` | Stop writing the audit when the disk has less free space. |
+| `min_free_disk_percentage` | `20` | Stop writing the audit when the disk has less free space (checked every 100 records), and write it again when the space is back. |
 
 The directory is bounded: at most (`audit_keep_days` + 1) days × 2 ×
 `max_megas_audit_file`. With the defaults that is 8 GB, and less on a node

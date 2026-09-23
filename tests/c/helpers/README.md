@@ -22,7 +22,11 @@ stay. It also checks that a size rotation calls the newfile callback, where the
 agent applies the retention. And the write path: across a size rotation the
 `.OLD` and the new file hold whole records (up to 7.25.4 the `"\n"` of the
 record that crossed the limit went to the new file), and a file removed by hand
-is created again by the next record.
+is created again by the next record. A full disk stops only the handle on it,
+and it writes again when the space is back (the free space is faked for one
+directory: the test binary is linked with `--wrap=statvfs,--wrap=fstatvfs`).
+And after `rotatory_end()`, a write, flush, truncate or close through an old
+handle does nothing.
 
 ## Run
 

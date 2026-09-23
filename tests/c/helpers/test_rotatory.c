@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <yunetas.h>
 
 #define APP "test_rotatory"
@@ -340,6 +341,178 @@ PRIVATE void test_write_path(void)
 }
 
 /***************************************************************************
+ *  The free-space probe, faked for ONE directory.
+ *
+ *  This test binary is linked with -Wl,--wrap=statvfs,--wrap=fstatvfs
+ *  (see CMakeLists.txt): the rotatory's calls land here, and the answer is
+ *  the real one except for the files under s_fake_dir, which get
+ *  s_fake_free_percent. Production code is not touched.
+ ***************************************************************************/
+PRIVATE char s_fake_dir[PATH_MAX] = "";
+PRIVATE int s_fake_free_percent = -1;   // -1 = the real answer
+
+int __real_statvfs(const char *path, struct statvfs *buf);
+int __wrap_statvfs(const char *path, struct statvfs *buf);
+int __real_fstatvfs(int fd, struct statvfs *buf);
+int __wrap_fstatvfs(int fd, struct statvfs *buf);
+
+PRIVATE void fake_free_space(const char *path, struct statvfs *buf)
+{
+    if(s_fake_free_percent < 0 || !*s_fake_dir) {
+        return;
+    }
+    if(strncmp(path, s_fake_dir, strlen(s_fake_dir)) != 0) {
+        return;
+    }
+    buf->f_blocks = 1000;
+    buf->f_bavail = (fsblkcnt_t)s_fake_free_percent * 10;
+    buf->f_bfree = buf->f_bavail;
+}
+
+int __wrap_statvfs(const char *path, struct statvfs *buf)
+{
+    int ret = __real_statvfs(path, buf);
+    if(ret == 0) {
+        fake_free_space(path, buf);
+    }
+    return ret;
+}
+
+int __wrap_fstatvfs(int fd, struct statvfs *buf)
+{
+    int ret = __real_fstatvfs(fd, buf);
+    if(ret == 0) {
+        char link[64];
+        char path[PATH_MAX];
+        snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+        ssize_t n = readlink(link, path, sizeof(path)-1);
+        if(n > 0) {
+            path[n] = 0;
+            fake_free_space(path, buf);
+        }
+    }
+    return ret;
+}
+
+PRIVATE size_t count_lines(const char *path)
+{
+    size_t len = 0;
+    char *bf = read_whole_file(path, &len);
+    size_t lines = 0;
+    for(size_t i=0; bf && i<len; i++) {
+        if(bf[i] == '\n') {
+            lines++;
+        }
+    }
+    GBMEM_FREE(bf);
+    return lines;
+}
+
+/***************************************************************************
+ *  A full disk stops ONE handle, and it writes again when the space is
+ *  back. Up to 7.25.5-dev the "disk full" state was one flag for every
+ *  handle and was never cleared: once any directory went below its
+ *  min_free_disk_percentage, EVERY rotatory of the process stopped
+ *  writing until the process was restarted.
+ ***************************************************************************/
+PRIVATE void test_disk_full_per_handle(void)
+{
+    rmrdir(BASE);
+    mkrdir(BASE "/a", 02775);
+    mkrdir(BASE "/b", 02775);
+
+    hrotatory_h hr_a = rotatory_open(BASE "/a/a-W.log", 0, 0, 20, 02775, 0660, FALSE);
+    hrotatory_h hr_b = rotatory_open(BASE "/b/b-W.log", 0, 0, 20, 02775, 0660, FALSE);
+    if(!hr_a || !hr_b) {
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    char path_a[PATH_MAX];
+    char path_b[PATH_MAX];
+    snprintf(path_a, sizeof(path_a), "%s", rotatory_path(hr_a));
+    snprintf(path_b, sizeof(path_b), "%s", rotatory_path(hr_b));
+
+    /*
+     *  The disk of `a` goes below 20% free: 10%
+     */
+    snprintf(s_fake_dir, sizeof(s_fake_dir), "%s", BASE "/a");
+    s_fake_free_percent = 10;
+    for(int i=0; i<300; i++) {
+        rotatory_write(hr_a, LOG_INFO, "a", 1);
+        rotatory_write(hr_b, LOG_INFO, "b", 1);
+    }
+    rotatory_flush(NULL);
+    size_t lines_a = count_lines(path_a);
+    size_t lines_b = count_lines(path_b);
+    check(lines_a < 300, "disk full: the handle on the full disk stops");
+    check(lines_b == 300, "disk full: a handle on another disk goes on");
+
+    /*
+     *  The space is back
+     */
+    s_fake_free_percent = 50;
+    for(int i=0; i<300; i++) {
+        rotatory_write(hr_a, LOG_INFO, "a", 1);
+    }
+    rotatory_flush(NULL);
+    size_t lines_a2 = count_lines(path_a);
+    check(lines_a2 >= lines_a + 200, "disk full: the handle writes again when the space is back");
+    printf("     (a: %d lines while full, %d after; b: %d)\n",
+        (int)lines_a, (int)lines_a2, (int)lines_b);
+
+    s_fake_free_percent = -1;
+    s_fake_dir[0] = 0;
+    rotatory_close(hr_a);
+    rotatory_close(hr_b);
+    rmrdir(BASE);
+}
+
+/***************************************************************************
+ *  After rotatory_end() a handle is gone: a write through it, a flush,
+ *  a truncate or a second close must not touch freed memory. The file
+ *  log handler of glogger keeps its pointer, and entry_point logs after
+ *  the end (up to 7.25.4 the leak report did).
+ ***************************************************************************/
+PRIVATE void test_write_after_end(void)
+{
+    rmrdir(BASE);
+    mkrdir(BASE, 02775);
+
+    hrotatory_h hr = rotatory_open(BASE "/end-W.log", 0, 0, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s", rotatory_path(hr));
+    gobj_log_add_handler("to_file", "file", LOG_OPT_ALL, hr);
+    gobj_log_info(0, 0, "msg", "%s", "before the end", NULL);
+
+    rotatory_end();
+
+    gobj_log_info(0, 0, "msg", "%s", "after the end", NULL);
+    int ret = rotatory_write(hr, LOG_INFO, "after", 5);
+    rotatory_fwrite(hr, LOG_INFO, "%s", "after");
+    rotatory_flush(hr);
+    rotatory_truncate(hr);
+    rotatory_close(hr);                 // a second close: no double free
+    gobj_log_del_handler("to_file");    // glogger closes it too: no double free
+
+    size_t len = 0;
+    char *bf = read_whole_file(path, &len);
+    check(bf && strstr(bf, "before the end") && !strstr(bf, "after"),
+        "after rotatory_end(): nothing written, nothing freed twice"
+    );
+    check(ret == 0, "after rotatory_end(): rotatory_write() answers 0 (other handlers go on)");
+    GBMEM_FREE(bf);
+
+    rotatory_start_up();    // for whatever runs after
+    rmrdir(BASE);
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -385,6 +558,8 @@ int main(int argc, char *argv[])
 
     test_retention();
     test_write_path();
+    test_disk_full_per_handle();
+    test_write_after_end();     // LAST: it ends the rotatory
 
     rotatory_end();
     gobj_end();

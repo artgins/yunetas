@@ -35,6 +35,19 @@ A new file (a new day, or the size limit) calls the callback of [`rotatory_subsc
 
 Two small differences from 7.25.4: a file RENAMED by another program is not noticed (the record goes on to the renamed file, until the next new file), and the free-disk check (`min_free_disk_percentage`) runs every 100 records instead of every 100 pieces.
 
+(rotatory-disk-full)=
+**A full disk.** Every 100 records, each handle checks the free space of its own disk. Below `min_free_disk_percentage` that handle stops writing: its records are dropped. It goes on checking every 100 records, and when the free space is back at or above the limit it writes again. Other handles, on other disks, are not affected. It prints one line when it stops and one when it writes again, to stdout and syslog (the rotatory is the sink of the log, it cannot log through itself):
+
+```
+rotatory(): stop logging to '/yuneta/realms/agent/agent/logs/yuneta_agent-4.log' because full disk: 9% free (<10%)
+rotatory(): logging to '/yuneta/realms/agent/agent/logs/yuneta_agent-4.log' again: 23% free (>=10%), 5210 records were dropped
+```
+
+Up to 7.25.4 the state was one flag for every handle of the process, and nothing cleared it: once one disk went below the limit, all the file logs of the process stopped until it was restarted.
+
+(rotatory-closed-handle)=
+**A closed handle.** Every public function checks that the handle is open before it touches it. After [`rotatory_close()`](#rotatory_close) or [`rotatory_end()`](#rotatory_end), a write, a flush, a truncate or a second close through the old handle does nothing, and [`rotatory_write()`](#rotatory_write) answers `0`. This matters because others keep the handle: the file log handler of the logger keeps it, and the process logs after `rotatory_end()`. The check compares pointers with the list of open handles (a few), and it costs nothing measurable: 551 ns per audit record with it, 586-620 ns without.
+
 (rotatory_close)=
 ## [`rotatory_close()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/rotatory.c#L280)
 
@@ -58,7 +71,16 @@ This function does not return a value.
 
 **Notes**
 
-If `hr` is `NULL` or the rotatory system is not initialized, the function does nothing.
+If `hr` is `NULL`, is already closed, or the rotatory system is not initialized, the function does nothing. So a second close is harmless, and so is the close that the logger does when its handler is deleted after [`rotatory_end()`](#rotatory_end). See [a closed handle](#rotatory-closed-handle).
+
+**Example**
+
+```C
+hrotatory_h hr = rotatory_open("/yuneta/realms/agent/agent/logs/W.log", 0, 0, 0, 0, 0, FALSE);
+rotatory_write(hr, LOG_INFO, "hello", 5);
+rotatory_close(hr);
+rotatory_close(hr);     // does nothing
+```
 
 ---
 
@@ -85,6 +107,16 @@ This function does not return a value.
 
 This function iterates through all active rotatory log instances and closes them using [`rotatory_close()`](#rotatory_close).
 After execution, the internal initialization flag is reset, preventing further operations until [`rotatory_start_up()`](#rotatory_start_up) is called again.
+
+A handle kept by someone else after this call is harmless: a write through it does nothing (see [a closed handle](#rotatory-closed-handle)). `yuneta_entry_point()` calls it as the very last step, after the memory leak report, so that the report reaches the log file.
+
+**Example**
+
+```C
+gobj_end();
+print_track_mem();      // still written to the log files
+rotatory_end();         // the last call: the log files are closed
+```
 
 ---
 
@@ -172,7 +204,7 @@ hrotatory_h rotatory_open(
 | `path` | `const char *` | The file path for the rotatory log. |
 | `bf_size` | `size_t` | The buffer size for writing logs. `0` defaults to `64K`. |
 | `max_megas_rotatoryfile_size` | `size_t` | The maximum size of a rotatory log file in megabytes. `0` defaults to `8MB`. |
-| `min_free_disk_percentage` | `size_t` | The minimum free disk space percentage before stopping logging. `0` defaults to `10%`. |
+| `min_free_disk_percentage` | `size_t` | The minimum free disk space percentage. Below it this handle drops its records, and it writes again when the space is back (see [a full disk](#rotatory-disk-full)). `0` defaults to `10%`. |
 | `xpermission` | `int` | The permission mode for directories and executable files. |
 | `rpermission` | `int` | The permission mode for regular log files. |
 | `exit_on_fail` | `BOOL` | If `TRUE`, the process exits on failure. Otherwise, logs an error. |

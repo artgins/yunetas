@@ -83,3 +83,6 @@ foreach(test ${SRCS})
     add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()
+
+# test_rotatory fakes the free space of one directory (see its header)
+target_link_options(test_rotatory PUBLIC LINKER:--wrap=statvfs,--wrap=fstatvfs)
