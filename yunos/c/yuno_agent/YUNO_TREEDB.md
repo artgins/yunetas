@@ -1615,6 +1615,18 @@ operator's delete: `withdrawn_at_open: {"topics": {"departments":
 warned for each such node, naming itself, and the node was left to none,
 for ever.)
 
+**What an open reads of `__system__`.** It reads the treedb nodes, and the
+topics and columns whose id starts with the name of the treedb and a dot:
+only such a node can be of the treedb. A node of another treedb that the
+open needs is read when it is needed: a column the operator moved into one
+of its topics, or the topic that a column of it was moved to. So the cost
+of an open does not grow with the other treedbs of the store. For example,
+a store with 40 treedbs of 10 topics and 20 columns each: the open of
+`m3_39` with a newer literal reads its 220 topics and columns, not
+8 800. After 7.25.4 an open read every node of every treedb with its links,
+about 90 ms an open in that store; now it is about 5 ms. The same open
+reads the schema file in use once (it read it twice).
+
 **A name with a dot can give two elements ONE id, and such a schema is
 refused.** An id is the parent's id, a dot and the name, so the column
 `x.y` of the topic `u` and the column `y` of the topic `u.x` are both

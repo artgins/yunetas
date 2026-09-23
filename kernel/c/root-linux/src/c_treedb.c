@@ -125,7 +125,7 @@ PRIVATE const char *schema_col_skip[] = {
  *  of the operator's work (see project_literal_into_system). Not owned.
  ***************************************************************************/
 typedef struct {
-    json_t *index;          // system_index(): every node of topics, cols and treedbs
+    json_t *index;          // system_index(): the nodes of __system__ the treedb reads
     json_t *orphans;        // orphan_nodes() of the treedb
     json_t *drafts;         // {topic: true} whose draft differs from the file, or NULL
     json_t *draft_ids;      // {id: true} of __system__ that carry those drafts, or NULL
@@ -241,14 +241,21 @@ PRIVATE const char *parent_id_of(
     char *bf,
     size_t bfsize
 );
-PRIVATE json_t *system_index(hgobj gobj);
+PRIVATE json_t *system_index(hgobj gobj, const char *treedb_name);
+PRIVATE json_t *index_node(hgobj gobj, json_t *index, const char *topic_name, const char *id);
 PRIVATE json_t *orphan_nodes(
     hgobj gobj,
     const char *treedb_name,
     json_t *index,
     json_t *record_before
 );
-PRIVATE BOOL links_to(json_t *node, const char *fkey, json_t *parents, const char *parent_id);
+PRIVATE BOOL links_to(
+    hgobj gobj,
+    json_t *index,
+    json_t *node,
+    const char *fkey,
+    const char *parent_id
+);
 PRIVATE BOOL col_of_treedb(
     hgobj gobj,
     json_t *index,
@@ -270,6 +277,7 @@ PRIVATE BOOL schema_to_run_collides(
     hgobj gobj,
     const char *treedb_name,
     json_t *jn_schema,
+    json_t *file_in_use,
     BOOL imposing
 );
 PRIVATE void unfinished_record_filename(const char *treedb_name, char *bf, size_t bfsize);
@@ -4367,12 +4375,13 @@ PRIVATE BOOL treedb_names_overlap(hgobj gobj, const char *treedb_name)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *treedbs = gobj_list_nodes(priv->gobj_node_system, "treedbs", json_object(), 0, gobj);
+    json_t *treedbs = treedb_get_id_index(    // not yours, only its keys are read
+        priv->tranger_system_, gobj_name(priv->gobj_node_system), "treedbs"
+    );
     size_t len = strlen(treedb_name);
     BOOL overlap = FALSE;
-    int idx; json_t *treedb;
-    json_array_foreach(treedbs, idx, treedb) {
-        const char *name = kw_get_str(gobj, treedb, "id", "", 0);
+    const char *name; json_t *treedb;
+    json_object_foreach(treedbs, name, treedb) {
         size_t nlen = strlen(name);
         if(nlen > len && strncmp(name, treedb_name, len)==0 && name[len] == '.') {
             overlap = TRUE;
@@ -4383,7 +4392,6 @@ PRIVATE BOOL treedb_names_overlap(hgobj gobj, const char *treedb_name)
             break;
         }
     }
-    JSON_DECREF(treedbs)
     return overlap;
 }
 
@@ -4705,9 +4713,6 @@ PRIVATE int upsert_treedb_schema(
 
     json_t *draft_ids = ctx->draft_ids;
     json_t *kinds_before = json_object_get(ctx->record_before, "draft_kinds");
-    json_t *index_topics = json_object_get(ctx->index, "topics");
-    json_t *index_cols = json_object_get(ctx->index, "cols");
-    json_t *index_treedbs = json_object_get(ctx->index, "treedbs");
     json_t *current_topics = current? kw_get_dict(gobj, current, "topics", 0, 0): NULL;
 
     /*
@@ -4810,7 +4815,7 @@ PRIVATE int upsert_treedb_schema(
             if(orphan && json_is_true(json_object_get(orphan, "is_topic"))) {
                 orphan = NULL;
             }
-            json_t *elsewhere = (stored_col || orphan)? NULL : json_object_get(index_cols, col_id);
+            json_t *elsewhere = (stored_col || orphan)? NULL : index_node(gobj, ctx->index, "cols", col_id);
 
             const char *mode;
             BOOL write;
@@ -4828,7 +4833,7 @@ PRIVATE int upsert_treedb_schema(
                 json_t *node = orphan? json_object_get(orphan, "node") : elsewhere;
                 mode = "take";
                 write = projection_rewrites_node(gobj, kw_col, node, schema_col_skip, cols_desc);
-                link = links_to(node, "topics", index_topics, topic_id)? FALSE : TRUE;
+                link = links_to(gobj, ctx->index, node, "topics", topic_id)? FALSE : TRUE;
                 if(orphan) {
                     operator_work = json_object_get(draft_ids, col_id)? TRUE : FALSE;
                     json_array_append_new(claimed, json_string(col_id));
@@ -4925,7 +4930,7 @@ PRIVATE int upsert_treedb_schema(
             if(orphan && !json_is_true(json_object_get(orphan, "is_topic"))) {
                 orphan = NULL;
             }
-            json_t *elsewhere = orphan? NULL : json_object_get(index_topics, topic_id);
+            json_t *elsewhere = orphan? NULL : index_node(gobj, ctx->index, "topics", topic_id);
             if(orphan || elsewhere) {
                 /*
                  *  A topic node no treedb holds, or held by another: taken
@@ -4933,7 +4938,7 @@ PRIVATE int upsert_treedb_schema(
                 json_t *node = orphan? json_object_get(orphan, "node") : elsewhere;
                 projection_rewrites_node(gobj, kw_topic, node, schema_topic_skip, NULL);
                 mode = "take";
-                link = links_to(node, "treedbs", index_treedbs, treedb_name)? FALSE : TRUE;
+                link = links_to(gobj, ctx->index, node, "treedbs", treedb_name)? FALSE : TRUE;
                 if(orphan) {
                     orphan_work = json_object_get(draft_ids, topic_id)? TRUE : FALSE;
                     json_array_append_new(claimed, json_string(topic_id));
@@ -6035,12 +6040,20 @@ PRIVATE json_t *load_unfinished_record(hgobj gobj, const char *treedb_name)
     memset(&error, 0, sizeof(error));
     char path[PATH_MAX];
     if(build_path(path, sizeof(path), saved_dir, filename, NULL)) {
+        /*
+         *  Through a buffered stream: json_loadfd() reads one byte per
+         *  read(), and a record is a few hundred KB
+         */
         int fd = open(path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
-        if(fd < 0) {
+        FILE *fp = (fd < 0)? NULL : fdopen(fd, "r");
+        if(!fp) {
             snprintf(error.text, sizeof(error.text), "cannot open it: %s", strerror(errno));
+            if(fd >= 0) {
+                close(fd);
+            }
         } else {
-            record = json_loadfd(fd, 0, &error);
-            close(fd);
+            record = json_loadf(fp, 0, &error);
+            fclose(fp);
         }
     } else {
         snprintf(error.text, sizeof(error.text), "path too long");   // Error already logged
@@ -6592,53 +6605,115 @@ PRIVATE const char *parent_id_of(
 }
 
 /***************************************************************************
- *  Every node of `topics`, `cols` and `treedbs` of __system__, of every
- *  treedb, each with its links (`refs`), read ONCE for an open:
+ *  The nodes of `topics`, `cols` and `treedbs` of __system__ that an open
+ *  of `treedb_name` reads, each with its links (`refs`), read ONCE for an
+ *  open, before anything is written:
  *
- *      {"treedbs": {id: node}, "topics": {id: node}, "cols": {id: node}}
+ *      {"treedbs": {id: node}, "topics": {id: node}, "cols": {id: node},
+ *       "prefix": "<treedb_name>.", "absent": {"topics": {}, "cols": {}}}
  *
  *  It is what says who a node belongs to and whether anything holds it,
  *  and it is read from the nodes themselves: a node the tree of a treedb
  *  does not reach may be held by another treedb, and one whose id starts
  *  with the name of a treedb may be of another treedb whose name starts
- *  the same ("m2" and "m2.b"). Return is YOURS.
+ *  the same ("m2" and "m2.b").
+ *
+ *  It holds every treedb node, and every topic and column whose id starts
+ *  with the name of the treedb and a dot. Only such a node can be of the
+ *  treedb: its id is its parent's id and its name (see node_treedb). The
+ *  other treedbs' nodes are not read: read whole, with their links, the
+ *  index grew with the whole store at every open (90 ms an open with 40
+ *  treedbs of 200 columns). A node of another treedb that the open asks
+ *  for -- a column moved into a topic of this treedb, the topic a column
+ *  of it was moved to -- is read when it is asked (index_node) and kept.
+ *  So the index says __system__ as it was BEFORE the first write, as long
+ *  as it is asked before that write. Return is YOURS.
  ***************************************************************************/
-PRIVATE json_t *system_index(hgobj gobj)
+PRIVATE json_t *system_index(hgobj gobj, const char *treedb_name)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *index = json_pack("{s:{}, s:{}, s:{}}", "treedbs", "topics", "cols");
+    char prefix[RECORD_KEY_VALUE_MAX];
+    snprintf(prefix, sizeof(prefix), "%s.", treedb_name);
+    size_t prefix_len = strlen(prefix);
+
+    json_t *index = json_pack("{s:{}, s:{}, s:{}, s:s, s:{s:{}, s:{}}}",
+        "treedbs", "topics", "cols",
+        "prefix", prefix,
+        "absent", "topics", "cols"
+    );
+    const char *system_treedb = gobj_name(priv->gobj_node_system);
     const char *system_topics[] = {"treedbs", "topics", "cols", NULL};
     for(int i = 0; system_topics[i]; i++) {
+        BOOL all = (i == 0)? TRUE : FALSE;
         json_t *dict = json_object_get(index, system_topics[i]);
-        json_t *nodes = gobj_list_nodes(
-            priv->gobj_node_system,
-            system_topics[i],
-            json_object(),
-            json_pack("{s:b}", "refs", 1),
-            gobj
+        json_t *id_index = treedb_get_id_index(
+            priv->tranger_system_, system_treedb, system_topics[i]
         );
-        int idx; json_t *node;
-        json_array_foreach(nodes, idx, node) {
-            const char *id = kw_get_str(gobj, node, "id", "", 0);
-            if(!empty_string(id)) {
-                json_object_set(dict, id, node);
+        const char *id; json_t *node;
+        json_object_foreach(id_index, id, node) {
+            if(empty_string(id) || (!all && strncmp(id, prefix, prefix_len)!=0)) {
+                continue;
             }
+            json_object_set_new(dict, id, node_collapsed_view(
+                priv->tranger_system_, node, json_pack("{s:b}", "refs", 1)
+            ));
         }
-        JSON_DECREF(nodes)
     }
     return index;
 }
 
 /***************************************************************************
+ *  The node of the index at `id` in `topic_name` ("treedbs", "topics" or
+ *  "cols"), or NULL when __system__ has none. A topic or column that the
+ *  index does not hold, and that is not of its prefix, is read now (with
+ *  its links, as system_index reads them) and kept in the index; one that
+ *  is not there is remembered as absent. Return is NOT YOURS.
+ ***************************************************************************/
+PRIVATE json_t *index_node(hgobj gobj, json_t *index, const char *topic_name, const char *id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *dict = json_object_get(index, topic_name);
+    json_t *node = json_object_get(dict, id);
+    if(node || empty_string(id) || strcmp(topic_name, "treedbs")==0) {
+        return node;    /*  every treedb node is in the index  */
+    }
+    const char *prefix = kw_get_str(gobj, index, "prefix", "", 0);
+    if(strncmp(id, prefix, strlen(prefix))==0) {
+        return NULL;    /*  every node of the prefix is in the index  */
+    }
+    json_t *absent = json_object_get(json_object_get(index, "absent"), topic_name);
+    if(json_object_get(absent, id)) {
+        return NULL;
+    }
+    node = gobj_get_node(
+        priv->gobj_node_system,
+        topic_name,
+        json_pack("{s:s}", "id", id),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    if(!node) {
+        json_object_set_new(absent, id, json_true());
+        return NULL;
+    }
+    json_object_set_new(dict, id, node);
+    return node;
+}
+
+/***************************************************************************
  *  The parents a node links to through its fkey `fkey`, as `refs` shows
  *  it ("<parent topic>^<parent id>^<hook>", a list or one string), that
- *  are nodes of `parents` ({id: node}). Return is YOURS, {parent id: true}.
+ *  are nodes of `parent_topic` of the index (index_node). Return is
+ *  YOURS, {parent id: true}.
  ***************************************************************************/
 PRIVATE json_t *linked_parents(
+    hgobj gobj,
+    json_t *index,      // not owned, system_index()
     json_t *node,       // not owned
     const char *fkey,
-    json_t *parents     // not owned, {id: node}
+    const char *parent_topic
 )
 {
     json_t *found = json_object();
@@ -6654,10 +6729,10 @@ PRIVATE json_t *linked_parents(
         }
         char parent_id[RECORD_KEY_VALUE_MAX];
         if((size_t)(last - first - 1) >= sizeof(parent_id)) {
-            continue;   /*  longer than any key: no node of `parents`  */
+            continue;   /*  longer than any key: no node of `parent_topic`  */
         }
         snprintf(parent_id, sizeof(parent_id), "%.*s", (int)(last - first - 1), first + 1);
-        if(json_object_get(parents, parent_id)) {
+        if(index_node(gobj, index, parent_topic, parent_id)) {
             json_object_set_new(found, parent_id, json_true());
         }
     }
@@ -6666,11 +6741,18 @@ PRIVATE json_t *linked_parents(
 }
 
 /***************************************************************************
- *  Does `node` link to `parent_id` through its fkey `fkey`?
+ *  Does `node` link to `parent_id`, a node of the index, through its fkey
+ *  `fkey` ("treedbs" of a topic, "topics" of a column)?
  ***************************************************************************/
-PRIVATE BOOL links_to(json_t *node, const char *fkey, json_t *parents, const char *parent_id)
+PRIVATE BOOL links_to(
+    hgobj gobj,
+    json_t *index,      // not owned, system_index()
+    json_t *node,       // not owned
+    const char *fkey,
+    const char *parent_id
+)
 {
-    json_t *found = linked_parents(node, fkey, parents);
+    json_t *found = linked_parents(gobj, index, node, fkey, fkey);
     BOOL links = json_object_get(found, parent_id)? TRUE : FALSE;
     JSON_DECREF(found)
     return links;
@@ -6681,22 +6763,21 @@ PRIVATE BOOL links_to(json_t *node, const char *fkey, json_t *parents, const cha
  *  no topic that a treedb holds? Then no tree reaches it: an unlink by
  *  the operator leaves it, and so does a link of a projection that failed.
  ***************************************************************************/
-PRIVATE BOOL is_orphan_topic(json_t *index, json_t *topic)  // not owned
+PRIVATE BOOL is_orphan_topic(hgobj gobj, json_t *index, json_t *topic)  // not owned
 {
-    json_t *found = linked_parents(topic, "treedbs", json_object_get(index, "treedbs"));
+    json_t *found = linked_parents(gobj, index, topic, "treedbs", "treedbs");
     BOOL orphan = json_object_size(found) == 0? TRUE : FALSE;
     JSON_DECREF(found)
     return orphan;
 }
 
-PRIVATE BOOL is_orphan_col(json_t *index, json_t *col)  // not owned
+PRIVATE BOOL is_orphan_col(hgobj gobj, json_t *index, json_t *col)  // not owned
 {
-    json_t *topics = json_object_get(index, "topics");
-    json_t *found = linked_parents(col, "topics", topics);
+    json_t *found = linked_parents(gobj, index, col, "topics", "topics");
     BOOL orphan = TRUE;
     const char *topic_id; json_t *v;
     json_object_foreach(found, topic_id, v) {
-        if(!is_orphan_topic(index, json_object_get(topics, topic_id))) {
+        if(!is_orphan_topic(gobj, index, index_node(gobj, index, "topics", topic_id))) {
             orphan = FALSE;
             break;
         }
@@ -6747,7 +6828,7 @@ PRIVATE const char *node_treedb(
     if(!parent_id_of(id, value, topic_id, sizeof(topic_id))) {
         return NULL;
     }
-    json_t *topic = json_object_get(json_object_get(index, "topics"), topic_id);
+    json_t *topic = index_node(gobj, index, "topics", topic_id);
     if(topic) {
         const char *topic_value = kw_get_str(gobj, topic, "value", "", 0);
         if(topic_bf) {
@@ -6757,9 +6838,12 @@ PRIVATE const char *node_treedb(
     }
 
     int count = 0;
-    json_t *names = json_deep_copy(json_object_get(index, "treedbs"));
-    json_object_set_new(names, treedb_name, json_true());
+    json_t *names = json_object();
     const char *name; json_t *v;
+    json_object_foreach(json_object_get(index, "treedbs"), name, v) {
+        json_object_set_new(names, name, json_true());
+    }
+    json_object_set_new(names, treedb_name, json_true());
     json_object_foreach(names, name, v) {
         size_t nlen = strlen(name);
         if(strncmp(topic_id, name, nlen)!=0 || topic_id[nlen] != '.' || topic_id[nlen + 1] == 0) {
@@ -7062,7 +7146,7 @@ PRIVATE json_t *orphan_nodes(
         BOOL is_topic = (i == 0)? TRUE : FALSE;
         const char *id; json_t *node;
         json_object_foreach(json_object_get(index, system_topics[i]), id, node) {
-            if(is_topic? !is_orphan_topic(index, node) : !is_orphan_col(index, node)) {
+            if(is_topic? !is_orphan_topic(gobj, index, node) : !is_orphan_col(gobj, index, node)) {
                 continue;
             }
             char owner[RECORD_KEY_VALUE_MAX];
@@ -7268,11 +7352,11 @@ PRIVATE json_t *leftover_node(
     BOOL is_topic = FALSE;
     json_t *node;
     if(index) {
-        node = json_object_get(json_object_get(index, "topics"), id);
+        node = index_node(gobj, index, "topics", id);
         if(node) {
             is_topic = TRUE;
         } else {
-            node = json_object_get(json_object_get(index, "cols"), id);
+            node = index_node(gobj, index, "cols", id);
         }
         json_incref(node);
     } else {
@@ -7919,7 +8003,7 @@ PRIVATE int project_literal_into_system(
         if(from_file && (in_use_version != new_version || schemas_differ(file_in_use, jn_schema))) {
             c_stamp = 0;
         }
-        json_t *index = system_index(gobj);
+        json_t *index = system_index(gobj, treedb_name);
         json_t *orphans = orphan_nodes(gobj, treedb_name, index, unfinished_before);
         projection_ctx_t ctx = {
             .index = index,
@@ -8125,7 +8209,7 @@ PRIVATE int project_literal_into_system(
      *  projection left is no draft, and a projection never stamped holds
      *  none.
      */
-    json_t *index = system_index(gobj);
+    json_t *index = system_index(gobj, treedb_name);
     json_t *orphans = orphan_nodes(gobj, treedb_name, index, unfinished_before);
     json_t *drafts = NULL;
     json_t *draft_ids = NULL;
@@ -8334,6 +8418,7 @@ PRIVATE int reconcile_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
     json_t *jn_schema,      // not owned
+    json_t *file_in_use,    // not owned, the schema file in use (load_schema_file_in_use), or NULL
     BOOL imposing,          // the treedb is being opened with the schema from C
     json_t *tranger_client  // not owned, the tranger the treedb opens on
 )
@@ -8362,7 +8447,6 @@ PRIVATE int reconcile_treedb_schema(
     }
 
     json_int_t new_version = schema_version_of(gobj, jn_schema);
-    json_t *file_in_use = load_schema_file_in_use(gobj, treedb_name);
     json_int_t in_use_version = schema_version_of(gobj, file_in_use);
     BOOL installed = (!file_in_use ||
         (imposing? new_version != in_use_version : new_version > in_use_version))? TRUE: FALSE;
@@ -8481,7 +8565,6 @@ PRIVATE int reconcile_treedb_schema(
     }
     JSON_DECREF(replaced)
     JSON_DECREF(record_topics)
-    JSON_DECREF(file_in_use)
     return ret;
 }
 
@@ -8826,10 +8909,10 @@ PRIVATE BOOL schema_to_run_collides(
     hgobj gobj,
     const char *treedb_name,
     json_t *jn_schema,  // not owned, the literal
+    json_t *file_in_use,// not owned, the schema file in use, or NULL
     BOOL imposing
 )
 {
-    json_t *file_in_use = load_schema_file_in_use(gobj, treedb_name);
     json_int_t new_version = schema_version_of(gobj, jn_schema);
     json_int_t in_use_version = schema_version_of(gobj, file_in_use);
     BOOL installed = (!file_in_use ||
@@ -8837,7 +8920,6 @@ PRIVATE BOOL schema_to_run_collides(
     json_t *collision = schema_id_collision(
         gobj, treedb_name, installed? jn_schema : file_in_use, TRUE
     );
-    JSON_DECREF(file_in_use)
     if(!collision) {
         return FALSE;
     }
@@ -8882,17 +8964,27 @@ PRIVATE json_t *get_client_treedb_schema(
      *
      *  On a replica nothing is projected: it reads what the master wrote.
      */
-    if(input_schema_ok && schema_to_run_collides(gobj, treedb_name, jn_client_treedb_schema, FALSE)) {
-        return 0;   // Error already logged
-    }
     if(input_schema_ok) {
+        /*
+         *  The file in use is read ONCE for the open: what runs is decided
+         *  on it, twice (the collision check, the reconcile)
+         */
+        json_t *file_in_use = load_schema_file_in_use(gobj, treedb_name);
+        if(schema_to_run_collides(gobj, treedb_name, jn_client_treedb_schema, file_in_use, FALSE)) {
+            JSON_DECREF(file_in_use)
+            return 0;   // Error already logged
+        }
+
         /*
          *  Keep it: once projected it is gone, and it is the only thing that
          *  can tell an edit made in __system__ from what C declares.
          */
         json_object_set(priv->jn_c_schemas, treedb_name, jn_client_treedb_schema);
 
-        reconcile_treedb_schema(gobj, treedb_name, jn_client_treedb_schema, FALSE, tranger_client);
+        reconcile_treedb_schema(
+            gobj, treedb_name, jn_client_treedb_schema, file_in_use, FALSE, tranger_client
+        );
+        JSON_DECREF(file_in_use)
     }
 
     /*
@@ -8966,7 +9058,9 @@ PRIVATE json_t *get_c_schema_to_impose(
         return NULL;
     }
 
-    if(schema_to_run_collides(gobj, treedb_name, jn_c_schema, TRUE)) {
+    json_t *file_in_use = load_schema_file_in_use(gobj, treedb_name);
+    if(schema_to_run_collides(gobj, treedb_name, jn_c_schema, file_in_use, TRUE)) {
+        JSON_DECREF(file_in_use)
         return NULL;    // Error already logged
     }
 
@@ -8981,7 +9075,8 @@ PRIVATE json_t *get_c_schema_to_impose(
         NULL
     );
 
-    reconcile_treedb_schema(gobj, treedb_name, jn_c_schema, TRUE, tranger_client);
+    reconcile_treedb_schema(gobj, treedb_name, jn_c_schema, file_in_use, TRUE, tranger_client);
+    JSON_DECREF(file_in_use)
 
     return json_incref(jn_c_schema);
 }
@@ -9018,10 +9113,53 @@ PRIVATE int delete_client_treedb_schema(
 
     /*
      *  Who each node belongs to is read BEFORE anything is deleted: the
-     *  deletes unlink, and a column whose topic is gone says less
+     *  deletes unlink, and a column whose topic is gone says less. So what
+     *  goes is decided first, and then deleted.
+     *
+     *  Every node OF this treedb (node_owner): its topics and their
+     *  columns, a column the operator moved to another topic of it
+     *  included, and the nodes of it that no tree reaches (orphan_nodes).
+     *  A node of ANOTHER treedb that somebody linked into this one is only
+     *  unlinked, by the delete of its parent: deleted here, it would be
+     *  taken from the schema it belongs to. An id composed some other way
+     *  (keyed before the ids were qualified) is this treedb's, as the tree
+     *  says.
      */
-    json_t *index = system_index(gobj);
+    json_t *index = system_index(gobj, treedb_name);
     json_t *orphans = orphan_nodes(gobj, treedb_name, index, NULL);
+
+    json_t *plan = json_array();        // [{"topic": node, "cols": [node]}]
+    json_t *deleted = json_object();    // {id: true} planned, then deleted
+    json_t *topics = kw_get_dict(gobj, treedb, "topics", 0, 0);
+    const char *topic_id; json_t *topic;
+    json_object_foreach(topics, topic_id, topic) {
+        char owner_[RECORD_KEY_VALUE_MAX];
+        const char *owner = parent_id_of(
+            topic_id, kw_get_str(gobj, topic, "value", "", 0), owner_, sizeof(owner_)
+        );
+        if(owner && strcmp(owner, treedb_name)!=0) {
+            continue;   /*  of another treedb: unlinked by the delete of the treedb node  */
+        }
+        json_object_set_new(deleted, topic_id, json_true());
+        json_t *delete_cols = json_array();
+        json_array_append_new(plan, json_pack("{s:O, s:o}", "topic", topic, "cols", delete_cols));
+        json_t *cols = kw_get_dict(gobj, topic, "cols", 0, KW_REQUIRED);
+        if(!cols) {
+            continue;   // Error already logged
+        }
+        const char *col_id; json_t *col;
+        json_object_foreach(cols, col_id, col) {
+            if(json_object_get(deleted, col_id)) {
+                continue;   /*  gone already, with another topic  */
+            }
+            json_t *indexed = index_node(gobj, index, "cols", col_id);
+            if(!col_of_treedb(gobj, index, treedb_name, NULL, topic_id, indexed? indexed : col)) {
+                continue;   /*  of another treedb: unlinked by the delete of this topic  */
+            }
+            json_array_append(delete_cols, col);
+            json_object_set_new(deleted, col_id, json_true());
+        }
+    }
 
     /*
      *  The PARENT first, and it is not an oversight: with `force`,
@@ -9039,48 +9177,17 @@ PRIVATE int delete_client_treedb_schema(
         gobj
     );
 
-    /*
-     *  Every node OF this treedb (node_owner): its topics and their
-     *  columns, a column the operator moved to another topic of it
-     *  included, and the nodes of it that no tree reaches (orphan_nodes).
-     *  A node of ANOTHER treedb that somebody linked into this one is only
-     *  unlinked, by the delete of its parent: deleted here, it would be
-     *  taken from the schema it belongs to. An id composed some other way
-     *  (keyed before the ids were qualified) is this treedb's, as the tree
-     *  says.
-     */
-    json_t *deleted = json_object();
-    json_t *topics = kw_get_dict(gobj, treedb, "topics", 0, 0);
-    const char *topic_id; json_t *topic;
-    json_object_foreach(topics, topic_id, topic) {
-        char owner_[RECORD_KEY_VALUE_MAX];
-        const char *owner = parent_id_of(
-            topic_id, kw_get_str(gobj, topic, "value", "", 0), owner_, sizeof(owner_)
-        );
-        if(owner && strcmp(owner, treedb_name)!=0) {
-            continue;   /*  of another treedb: unlinked by the delete of the treedb node  */
-        }
+    int idx; json_t *step;
+    json_array_foreach(plan, idx, step) {
         ret += gobj_delete_node(
             priv->gobj_node_system,
             "topics",
-            json_incref(topic),
+            json_incref(json_object_get(step, "topic")),
             json_pack("{s:b}", "force", 1),
             gobj
         );
-        json_object_set_new(deleted, topic_id, json_true());
-        json_t *cols = kw_get_dict(gobj, topic, "cols", 0, KW_REQUIRED);
-        if(!cols) {
-            continue;   // Error already logged
-        }
-        const char *col_id; json_t *col;
-        json_object_foreach(cols, col_id, col) {
-            if(json_object_get(deleted, col_id)) {
-                continue;   /*  gone already, with another topic  */
-            }
-            json_t *indexed = json_object_get(json_object_get(index, "cols"), col_id);
-            if(!col_of_treedb(gobj, index, treedb_name, NULL, topic_id, indexed? indexed : col)) {
-                continue;   /*  of another treedb: unlinked by the delete of this topic  */
-            }
+        int idx2; json_t *col;
+        json_array_foreach(json_object_get(step, "cols"), idx2, col) {
             ret += gobj_delete_node(
                 priv->gobj_node_system,
                 "cols",
@@ -9088,9 +9195,9 @@ PRIVATE int delete_client_treedb_schema(
                 json_pack("{s:b}", "force", 1),
                 gobj
             );
-            json_object_set_new(deleted, col_id, json_true());
         }
     }
+    JSON_DECREF(plan)
 
     for(int pass = 0; pass < 2; pass++) {
         const char *orphan_id; json_t *orphan;
