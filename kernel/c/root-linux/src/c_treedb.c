@@ -3784,18 +3784,42 @@ PRIVATE int reconcile_treedb_schema(
                 break;
         }
     }
+    json_t *file_in_use = imposing? NULL : load_schema_file_in_use(gobj, treedb_name);
+
+    /*
+     *  Not projected. What is said is what the literal is behind of: the
+     *  FILE in use (the schema the treedb runs) or only __system__, whose
+     *  number a save raises past the file and a withdraw leaves there (it
+     *  never goes down). A literal that IS the file in use is behind
+     *  nothing that runs, and said "behind the schema in use" at every open
+     *  after a withdraw (review of the second fix round, 2026-09-23).
+     */
     if(new_version <= stored_version && !takes_over) {
         if(new_version < stored_version) {
-            gobj_log_info(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_INFO,
-                "msg",              "%s", "TreeDB schema from C is behind the schema in use, not applied",
-                "treedb_name",      "%s", treedb_name,
-                "schema_version",   "%d", (int)new_version,
-                "stored_version",   "%d", (int)stored_version,
-                NULL
-            );
+            if(imposing) {
+                gobj_log_info(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_INFO,
+                    "msg",              "%s", "TreeDB schema from C is imposed, but it is behind __system__: the projection is kept",
+                    "treedb_name",      "%s", treedb_name,
+                    "schema_version",   "%d", (int)new_version,
+                    "stored_version",   "%d", (int)stored_version,
+                    NULL
+                );
+            } else if(file_in_use && new_version < schema_version_of(gobj, file_in_use)) {
+                gobj_log_info(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_INFO,
+                    "msg",              "%s", "TreeDB schema from C is behind the schema in use, not applied",
+                    "treedb_name",      "%s", treedb_name,
+                    "schema_version",   "%d", (int)new_version,
+                    "in_use_version",   "%d", (int)schema_version_of(gobj, file_in_use),
+                    "stored_version",   "%d", (int)stored_version,
+                    NULL
+                );
+            }
         }
+        JSON_DECREF(file_in_use)
         return 0;
     }
 
@@ -3804,7 +3828,6 @@ PRIVATE int reconcile_treedb_schema(
      *  keeps the file, nothing of the literal runs, and nothing of it is
      *  projected.
      */
-    json_t *file_in_use = imposing? NULL : load_schema_file_in_use(gobj, treedb_name);
     if(file_in_use && !takes_over && new_version <= schema_version_of(gobj, file_in_use)) {
         gobj_log_info(gobj, 0,
             "function",         "%s", __FUNCTION__,

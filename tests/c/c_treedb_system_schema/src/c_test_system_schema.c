@@ -3634,6 +3634,24 @@ PRIVATE int check_reverted_draft_withdraws_the_save(hgobj gobj)
     }
     JSON_DECREF(jn_resp)
 
+    /*
+     *  The withdraw leaves __system__ at the number of the save (it never
+     *  goes down). A literal that IS the file in use (its version, its
+     *  content) must not be told "behind the schema in use" at every open
+     *  (review of the second fix round, 2026-09-23). The expected log list
+     *  pins that nothing is said.
+     */
+    {
+        char in_use_dir[PATH_MAX];
+        build_path(in_use_dir, sizeof(in_use_dir), priv->path_database, TREEDB_NAME, NULL);
+        json_t *literal = load_json_from_file(gobj, in_use_dir, TREEDB_NAME ".treedb_schema.json", 0);
+        jn_resp = treedbs_command(gobj, "close-treedb", json_pack("{s:b}", "force", 1));
+        JSON_DECREF(jn_resp)
+        if(!literal || open_test_treedb(gobj, literal) < 0) {   // literal owned
+            result += save_fail(gobj, "TEST FAIL: cannot reopen with the file in use as the literal", NULL);
+        }
+    }
+
     return result;
 }
 

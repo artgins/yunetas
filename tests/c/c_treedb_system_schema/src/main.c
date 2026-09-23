@@ -170,16 +170,15 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating topic_cols.json",
     /*  Test 9: impose_c_schema on: imposed over a newer file  */
     "Opening TreeDB with the schema from C, __system__ not read",
-    "TreeDB schema from C is behind the schema in use, not applied",
+    "TreeDB schema from C is imposed, but it is behind __system__: the projection is kept",
     "Imposing TreeDB schema from C over a newer one",
     "Re-Creating TreeDB schema file",
     "Imposing topic_version from C over a newer one",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
-    /*  Test 9b: impose on, the treedb in dynamic_schema_treedbs opens from its file  */
-    "TreeDB schema from C is behind the schema in use, not applied",
-    /*  Test 10 opens it first  */
-    "TreeDB schema from C is behind the schema in use, not applied",
+    /*  Test 9b: impose on, the treedb in dynamic_schema_treedbs opens from
+     *  its file, which is the literal Test 9 imposed: nothing said; Test 10
+     *  opens it first, the same  */
     /*  Test 10: the disk taken ahead (save + apply), then the code imposes  */
     "Schema saved",
     "Schema applied",
@@ -188,7 +187,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating topic_cols.json",
     "impose_c_schema forced by the code of the yuno, over the attribute",
     "Opening TreeDB with the schema from C, __system__ not read",
-    "TreeDB schema from C is behind the schema in use, not applied",
+    "TreeDB schema from C is imposed, but it is behind __system__: the projection is kept",
     "Imposing TreeDB schema from C over a newer one",
     "Re-Creating TreeDB schema file",
     "Imposing topic_version from C over a newer one",
@@ -213,19 +212,18 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating TreeDB schema file",
     "impose_c_schema forced by the code of the yuno, over the attribute",
     "Opening TreeDB with the schema from C, __system__ not read",
-    "TreeDB schema from C is behind the schema in use, not applied",
+    "TreeDB schema from C is imposed, but it is behind __system__: the projection is kept",
     "Imposing TreeDB schema from C over a newer one",
     "Re-Creating TreeDB schema file",
     /*  Test 13b: save-schema (twice, then once over a dict file), apply
-     *  refused while imposed, applied, the file decides  */
-    "TreeDB schema from C is behind the schema in use, not applied",
+     *  refused while imposed, applied, the file decides. The opens with the
+     *  literal Test 13 imposed on the file say nothing  */
     "Schema saved",
     "Schema saved",
     "Schema saved",
     "impose_c_schema forced by the code of the yuno, over the attribute",
     "Opening TreeDB with the schema from C, __system__ not read",
-    "TreeDB schema from C is behind the schema in use, not applied",
-    "TreeDB schema from C is behind the schema in use, not applied",
+    "TreeDB schema from C is imposed, but it is behind __system__: the projection is kept",
     "Schema applied",
     "TreeDB schema from C is behind the schema in use, not applied",
     "Re-Creating topic_var.json",
@@ -234,6 +232,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "TreeDB schema from C is behind the schema in use, not applied",
     "Schema saved",
     "Saved schema withdrawn, the draft is the schema in use",
+    /*  ...and reopened: the literal is the file in use, nothing is said  */
     /*  Test 13b2b: two required draft columns saved, applied and opened;
      *  the one with no default refuses a record without it; then removed,
      *  saved and applied again  */

@@ -1553,8 +1553,15 @@ Reconciliation compares the literal's `schema_version` with the stored one.
 A higher literal is projected, with its own numbers. A literal that is
 behind a dynamic schema is **not applied** — the schema is now changed
 dynamically, which is a decision — and the log says so: *"TreeDB schema from
-C is behind the schema in use, not applied"*. A new installation that must
-carry the dynamic changes takes them into the literal. Inside a projection,
+C is behind the schema in use, not applied"*. It says it only when the literal
+is behind the FILE in use, the schema the treedb runs (after 7.25.4). A literal
+that IS the file in use but is behind `__system__` -- whose number a
+`save-schema` raises past the file, and a withdraw leaves there -- is behind
+nothing that runs, and nothing is said (it was told "behind the schema in use"
+at every open after a withdraw). An imposed literal behind `__system__` says
+*"TreeDB schema from C is imposed, but it is behind __system__: the projection
+is kept"*. A new installation that must carry the dynamic changes takes them
+into the literal. Inside a projection,
 a topic is written only if it is new or the literal raised its
 `topic_version` **past the schema file in use** (see *One rule for a raised
 topic*, below). A topic that the literal changed without raising it past the
@@ -1630,6 +1637,7 @@ projection already there.
 | 3, saved and applied | 3 | 3, other content | file runs, `__system__` kept, warning |
 | 3, saved and applied | 3 | 3, the applied content (any form) | file runs, nothing said |
 | 3, saved and applied | 3 | 2 | file runs, *"behind the schema in use"* |
+| 4, saved then withdrawn | 3 | 3, the file's content | file runs, nothing said |
 
 Up to 7.19.0 the projector did otherwise, and both halves were wrong. It
 compared the literal with `c_schema_version`, so a new literal overwrote a
