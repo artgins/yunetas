@@ -2312,8 +2312,8 @@ PRIVATE int do_test(void)
 
         /*
          *  all=1: every topic of the tranger, one row each (the
-         *  migration of a whole node after an upgrade; item 4 of the
-         *  third independent review, 2026-09-23). The topic made legacy
+         *  migration of a whole node after an upgrade; the upgrade
+         *  step). The topic made legacy
          *  again is migrated, and its row says so.
          */
         desc = load_json_from_file(0, topic_dir, "topic_desc.json", 0);
@@ -2325,9 +2325,8 @@ PRIVATE int do_test(void)
         /*
          *  A directory of the store that is not a topic -- C_TREEDB keeps
          *  `saved_schemas/` in the store of __system__ -- is not a topic
-         *  to migrate. It was listed as one, it failed, and the documented
-         *  upgrade step answered -1 on every node that ran save-schema
-         *  (M-2 of the fourth independent review, 2026-09-23).
+         *  to migrate. Listed as one it would fail, and the upgrade step
+         *  would answer -1 on every node that ran save-schema.
          */
         char not_a_topic[PATH_MAX];
         build_path(not_a_topic, sizeof(not_a_topic), path_database, "saved_schemas", NULL);

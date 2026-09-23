@@ -198,6 +198,8 @@ crash or leak cannot mask neighbours.
 
 **Source:** `tests/c/timeranger2/`
 
+The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in strings, short reads and writes, ...) are listed in `tests/c/timeranger2/README.md`.
+
 ## TR_MSG & TR_QUEUE
 
 | Binary | Description |

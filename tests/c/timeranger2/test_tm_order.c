@@ -25,17 +25,15 @@
  *  it marks a late __t__ (`<file>.unordered`); a topic that marks says so in
  *  its topic_desc.json (`marks_tm_unordered`).
  *
- *  A marker that cannot be written (independent review of the second fix
- *  round, M-A): the cell of the file was not flagged in memory either, so
- *  the master itself took the file for one in tm order and its early end
- *  hid the rows 7.25.4 served; and nothing wrote the marker later, so a
- *  reload hid them too. The cell is flagged whatever the disk says, the
- *  marker is written BEFORE the md2 row, and the next append to the file
- *  writes a marker that is still missing.
+ *  A marker that cannot be written must not let the master or a reload
+ *  take the file for one in tm order, or its early end hides rows. The
+ *  cell is flagged whatever the disk says, the marker is written BEFORE
+ *  the md2 row, and the next append to the file writes a marker that is
+ *  still missing.
  *
  *  A legacy topic (every topic created by 7.25.4 or earlier) trusts no tm
  *  range, so a tm query reads every file of the key: ~30x slower than
- *  7.25.4 on 30 files (M-C). tranger2_mark_tm_order() is the migration an
+ *  7.25.4 on 30 files. tranger2_mark_tm_order() is the migration an
  *  operator asks for: it reads every md2 file once, writes the markers,
  *  and makes the topic one that marks. Run again, it re-marks a topic whose
  *  markers were lost (a crash, a rollback binary that appends without

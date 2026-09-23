@@ -593,7 +593,7 @@ PRIVATE void register_handle(
  *  crashed a yuno on shutdown (close-treedb frees the topics, then
  *  C_TRANGER's mt_destroy walked its registry closing iterators that no
  *  longer existed), and it crashed again when the topic was open by the time
- *  the session closed (A4 of the 2026-09-21 review).
+ *  the session closed.
  ***************************************************************************/
 PRIVATE json_t *live_handle(hgobj gobj, json_t *registry, const char *id)
 {
@@ -669,7 +669,7 @@ PRIVATE json_t *find_handle_by_identity(
  *
  *  A multi-key iterator holds no tranger2 handle between pages, so nothing
  *  of it dies when its topic is closed -- and a topic closed and opened again
- *  must still read as gone (A4 of the 2026-09-21 review): the row counts it
+ *  must still read as gone: the row counts it
  *  pages with were taken from the opening before. So the topic gets a number
  *  the first time one is asked of it, and a topic opened again is a new json
  *  with none: the numbers differ.
@@ -859,11 +859,11 @@ PRIVATE int mark_iterator_of_deleted_key(
 /***************************************************************************
  *  The keys watch of a multi-key iterator: an rt_mem over every key of the
  *  topic, opened only_md and fed to nobody, kept for its key_deleted
- *  callback. A multi-key iterator holds no tranger2 iterator between pages
- *  (M22), so no callback of the library reaches it -- and judged by the
- *  key's PRESENCE in the topic's cache, a key deleted and created again
- *  between two pages read as intact and was paged with the row count of
- *  the dead one (N5 of the 2026-09-22 review).
+ *  callback. A multi-key iterator holds no tranger2 iterator between pages,
+ *  so no callback of the library reaches it -- and judged by the key's
+ *  PRESENCE in the topic's cache, a key deleted and created again between
+ *  two pages reads as intact, and is paged with the row count of the dead
+ *  one.
  ***************************************************************************/
 PRIVATE int ignore_record_callback(
     json_t *tranger,
@@ -945,8 +945,7 @@ PRIVATE const char *deleted_key_of_iterator(hgobj gobj, const char *iterator_id)
  *  its key, which grows under the iterator: counted live, as a one-key
  *  iterator is (get_single_key_page). With the count frozen at the open, a
  *  backward page ("newest first", the whole-topic card of the treedb GUI)
- *  never showed a row appended after it -- N4 of the 2026-09-22 review,
- *  fixed for one key only.
+ *  never shows a row appended after it.
  *
  *  A FILTERED part keeps the count taken at the open. Its index is not
  *  kept: open_part() builds it again for every page that reads the part,
@@ -1110,7 +1109,7 @@ PRIVATE json_t *get_multi_key_page(
  *  the window [from_rowid, from_rowid+limit) counted from the START and only
  *  reverses the order inside it (test_topic_pkey_integer_iterator5 pins
  *  that). So "newest first" on an unfiltered key served the oldest page,
- *  upside down (M20 of the 2026-09-21 review). As get_multi_key_page()
+ *  upside down. As get_multi_key_page()
  *  does, the window is taken from the end, read forward, and reversed here.
  ***************************************************************************/
 PRIVATE json_t *get_single_key_page(
@@ -1126,9 +1125,8 @@ PRIVATE json_t *get_single_key_page(
     /*
      *  The LIVE count, the one the library's own totals carry: an unfiltered
      *  key grows under its iterator, and a window cut with the count frozen
-     *  at the open skipped the newest rows and left the last pages empty
-     *  (N4 of the 2026-09-22 review). A filtered iterator pages its index,
-     *  which does not grow.
+     *  at the open skips the newest rows and leaves the last pages empty.
+     *  A filtered iterator pages its index, which does not grow.
      */
     json_t *index = json_object_get(iterator, "index");
     json_int_t total_rows = index?
@@ -1174,9 +1172,9 @@ PRIVATE json_t *get_single_key_page(
  *  `master` is what the service IS, not what it was configured to be. A
  *  master that lost its lock while stopped (another process took the
  *  store) goes on as a replica, and its tranger says so (`master` false,
- *  `master_lost` true); the attribute went on answering the configuration,
- *  and the feeds went on being opened as a master's -- rt_mem, which only a
- *  LOCAL append fires (M3 of the 2026-09-23 independent review). Before the
+ *  `master_lost` true). (7.25.4: the attribute went on answering the
+ *  configuration, and the feeds went on being opened as a master's --
+ *  rt_mem, which only a LOCAL append fires.) Before the
  *  tranger exists (mt_create reads the configuration) the stored value is
  *  answered.
  ***************************************************************************/
@@ -1258,8 +1256,8 @@ PRIVATE int mt_stop(hgobj gobj)
 
     /*
      *  The stop frees every handle with its topic; an entry kept past it
-     *  blocks its own id at the next start ("already open", N3 of the
-     *  2026-09-22 review). Close what is still live, drop them all.
+     *  blocks its own id at the next start ("already open"). Close what is
+     *  still live, drop them all.
      */
     drop_handles_of_topic(gobj, "");
     tranger2_stop(priv->tranger);
@@ -3046,7 +3044,7 @@ PRIVATE json_t *open_multi_key_iterator(
          *  reads it (get_multi_key_page). Held for the life of the card, one
          *  iterator per key cost keys x files of memory -- 1000 keys with 60
          *  daily files, +147 MB for one whole-topic card, which the treedb
-         *  GUI reopened on every visit (M22 of the 2026-09-21 review).
+         *  GUI reopened on every visit.
          */
         json_int_t rows = (json_int_t)tranger2_iterator_size(iterator);
         BOOL indexed = json_object_get(iterator, "index")? TRUE : FALSE;
@@ -3380,7 +3378,7 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *  The direction of the pages is get-page's; one not given here is the
      *  one the iterator was OPENED with. `open-iterator backward=1` did
      *  nothing, and a client that set it only there read page 1 oldest
-     *  first (M20 of the 2026-09-21 review).
+     *  first.
      */
     BOOL backward = kw_has_key(kw, "backward")?
         kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER) :
@@ -4070,7 +4068,7 @@ PRIVATE int mt_subscription_deleted(
      *  them: a SESSION is watched (watch_owner) and its EV_ON_CLOSE takes
      *  them when it dies. A session that closes its last Live card is
      *  alive, and its Rows cards still page -- they answered "Iterator not
-     *  found" from then on (M19 of the 2026-09-21 review).
+     *  found" from then on.
      */
     json_t *watch = gobj_find_subscriptions(subscriber, EV_ON_CLOSE, 0, gobj);
     BOOL watched = json_array_size(watch) > 0;
