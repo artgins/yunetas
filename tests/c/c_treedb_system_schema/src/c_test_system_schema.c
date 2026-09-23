@@ -3616,6 +3616,232 @@ PRIVATE int check_reverted_draft_withdraws_the_save(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A literal with the version of the file in use and the SAME schema,
+ *  written with its cols as a LIST, is not "another content" (L-6 of the
+ *  2026-09-23 independent review). The file apply-schema wrote keys them
+ *  by name; compared as they were written, every open of such a literal
+ *  said "another content: NOT applied".
+ ***************************************************************************/
+PRIVATE int check_same_schema_other_form_is_quiet(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    char in_use_dir[PATH_MAX];
+    build_path(in_use_dir, sizeof(in_use_dir), priv->path_database, TREEDB_NAME, NULL);
+    json_t *literal = load_json_from_file(gobj, in_use_dir, TREEDB_NAME ".treedb_schema.json", 0);
+    if(!literal) {
+        return save_fail(gobj, "TEST FAIL: no file in use to write as a literal", NULL);
+    }
+    int idx; json_t *topic;
+    json_array_foreach(json_object_get(literal, "topics"), idx, topic) {
+        json_t *as_list = json_array();
+        const char *col_name; json_t *col;
+        json_object_foreach(json_object_get(topic, "cols"), col_name, col) {
+            json_array_append(as_list, col);
+        }
+        json_object_set_new(topic, "cols", as_list);
+    }
+    /*
+     *  The last projection came from ANOTHER literal (what apply-schema
+     *  leaves: __system__ at the saved version, `c_schema_version` at the
+     *  literal it was projected from)
+     */
+    json_int_t in_use_v = kw_get_int(gobj, literal, "schema_version", 0, KW_WILD_NUMBER);
+    json_t *edited = gobj_update_node(
+        gobj_find_service(SYSTEM_TREEDB, FALSE),
+        "treedbs",
+        json_pack("{s:s, s:I}", "id", TREEDB_NAME, "c_schema_version", in_use_v - 1),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    JSON_DECREF(edited)
+
+    json_t *jn_resp = treedbs_command(gobj, "close-treedb", json_pack("{s:b}", "force", 1));
+    JSON_DECREF(jn_resp)
+    if(open_test_treedb(gobj, literal) < 0) {   // literal owned
+        result += -1;
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  A literal that TAKES OVER the file in use re-projects only the topics
+ *  it raised past that file (M-B of the 2026-09-23 independent review).
+ *
+ *  A save not applied raises __system__ past the file in use; a literal
+ *  newer than the file (but not than __system__) then takes over, and
+ *  runs. It was projected with the rule of `impose`: every topic that
+ *  differed was re-written, so an operator's edit of a topic the developer
+ *  never raised was overwritten in __system__ -- while that topic, not
+ *  raised, goes on running from the file (tranger2 installs a topic only
+ *  when its topic_version is higher) and a literal N+1 arriving the
+ *  ordinary way leaves it alone.
+ ***************************************************************************/
+PRIVATE json_int_t in_use_topic_version(hgobj gobj, const char *topic_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, TREEDB_NAME, NULL);
+    json_t *jn = load_json_from_file(gobj, dir, TREEDB_NAME ".treedb_schema.json", 0);
+    json_int_t v = -1;
+    int idx; json_t *topic;
+    json_array_foreach(json_object_get(jn, "topics"), idx, topic) {
+        if(strcmp(kw_get_str(gobj, topic, "id", "", 0), topic_name)==0) {
+            v = kw_get_int(gobj, topic, "topic_version", 0, KW_WILD_NUMBER);
+        }
+    }
+    JSON_DECREF(jn)
+    return v;
+}
+
+PRIVATE int check_takeover_projects_raised_topics_only(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    json_t *jn_resp;
+
+    if(reopen_test_treedb(gobj, FALSE) < 0) {
+        return -1;  // Error already logged
+    }
+    char saved_dir[PATH_MAX];
+    build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    file_remove(saved_dir, TREEDB_NAME ".treedb_schema.json");
+
+    json_int_t in_use_v = disk_schema_version(gobj);
+    json_int_t users_in_use_tv = in_use_topic_version(gobj, "users");
+    json_int_t departments_in_use_tv = in_use_topic_version(gobj, "departments");
+
+    /*
+     *  The operator edits `departments` and saves, never applies:
+     *  __system__ goes to the file's version + 1
+     */
+    {
+        json_t *ids = system_topic_cols(gobj, "departments");
+        const char *name_id = json_string_value(json_object_get(ids, "name"));
+        json_t *edited = gobj_update_node(
+            gobj_find_service(SYSTEM_TREEDB, FALSE),
+            "cols",
+            json_pack("{s:s, s:s}", "id", name_id?name_id:"", "header", "Operator name"),
+            json_pack("{s:b}", "refs", 1),
+            gobj
+        );
+        if(!edited) {
+            result += save_fail(gobj, "TEST FAIL: the operator edit was refused", NULL);
+        }
+        JSON_DECREF(edited)
+        JSON_DECREF(ids)
+    }
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+        result += save_fail(gobj, "TEST FAIL: the operator save failed", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  The developer's literal: the file's version + 1 (so it takes over
+     *  the file, while it is not newer than __system__), `users` raised
+     *  with a change, `departments` NOT raised
+     */
+    json_t *literal = legalstring2json(schema_test2, TRUE);
+    json_object_set_new(literal, "schema_version", json_integer(in_use_v + 1));
+    int idx; json_t *topic;
+    json_array_foreach(json_object_get(literal, "topics"), idx, topic) {
+        const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
+        if(strcmp(topic_name, "users")==0) {
+            json_object_set_new(topic, "topic_version", json_integer(users_in_use_tv + 1));
+            json_object_set_new(
+                json_object_get(json_object_get(topic, "cols"), "email"),
+                "header",
+                json_string("Mail from C")
+            );
+        } else if(strcmp(topic_name, "departments")==0) {
+            json_object_set_new(topic, "topic_version", json_integer(departments_in_use_tv));
+        }
+    }
+    jn_resp = treedbs_command(gobj, "close-treedb", json_pack("{s:b}", "force", 1));
+    JSON_DECREF(jn_resp)
+    if(open_test_treedb(gobj, literal) < 0) {   // literal owned
+        return result - 1;
+    }
+
+    json_t *users = system_topic_cols(gobj, "users");
+    json_t *departments = system_topic_cols(gobj, "departments");
+    const char *email_header = json_string_value(json_object_get(users, "email__header"));
+    const char *name_header = json_string_value(json_object_get(departments, "name__header"));
+    if(!email_header || strcmp(email_header, "Mail from C")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: the topic the literal raised was not projected",
+            "email_header", "%s", email_header?email_header:"",
+            NULL
+        );
+        result += -1;
+    }
+    if(!name_header || strcmp(name_header, "Operator name")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a topic the literal did not raise lost the operator's edit",
+            "name_header",  "%s", name_header?name_header:"",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(users)
+    JSON_DECREF(departments)
+
+    char header[NAME_MAX];
+    client_col_header(gobj, "users", "email", header, sizeof(header));
+    if(strcmp(header, "Mail from C")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: the literal that takes over does not run",
+            "header",       "%s", header,
+            NULL
+        );
+        result += -1;
+    }
+
+    /*
+     *  With NO file in use the literal takes over too, and the warning says
+     *  that, not "a draft saved over it" (L-6 of the same review): the
+     *  expected log list pins the message.
+     */
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());   /*  __system__ ahead again  */
+    JSON_DECREF(jn_resp)
+    json_t *literal2 = legalstring2json(schema_test2, TRUE);
+    json_object_set_new(literal2, "schema_version", json_integer(in_use_v + 1));
+    json_array_foreach(json_object_get(literal2, "topics"), idx, topic) {
+        const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
+        if(strcmp(topic_name, "users")==0) {
+            json_object_set_new(topic, "topic_version", json_integer(users_in_use_tv + 1));
+            json_object_set_new(
+                json_object_get(json_object_get(topic, "cols"), "email"),
+                "header",
+                json_string("Mail from C")
+            );
+        } else if(strcmp(topic_name, "departments")==0) {
+            json_object_set_new(topic, "topic_version", json_integer(departments_in_use_tv));
+        }
+    }
+    jn_resp = treedbs_command(gobj, "close-treedb", json_pack("{s:b}", "force", 1));
+    JSON_DECREF(jn_resp)
+    {
+        char in_use_dir[PATH_MAX];
+        build_path(in_use_dir, sizeof(in_use_dir), priv->path_database, TREEDB_NAME, NULL);
+        file_remove(in_use_dir, TREEDB_NAME ".treedb_schema.json");
+    }
+    if(open_test_treedb(gobj, literal2) < 0) {   // literal2 owned
+        result += -1;
+    }
+
+    return result;
+}
+
+/***************************************************************************
  *  A second treedb for the apply-schema of all of them
  ***************************************************************************/
 PRIVATE char schema_test_b[] = "\
@@ -4422,6 +4648,18 @@ PRIVATE int run_tests(hgobj gobj)
      *  editor is withdrawn by the next save
      *-----------------------------------------------*/
     result += check_reverted_draft_withdraws_the_save(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13b2b: the same schema in another form is
+     *  not "another content"
+     *-----------------------------------------------*/
+    result += check_same_schema_other_form_is_quiet(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 13b3: a literal that takes over the file
+     *  in use re-projects only the topics it raised
+     *-----------------------------------------------*/
+    result += check_takeover_projects_raised_topics_only(gobj);
 
     /*-----------------------------------------------*
      *  Test 13c: apply-schema of every treedb is all

@@ -130,7 +130,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating topic_cols.json",
     /*  Test 4: a literal newer than the FILE takes over a save never
      *  applied (projected over it, said), then one ahead  */
-    "Schema from C takes over the file in use while __system__ holds a draft saved over it: the draft is replaced by the schema from C",
+    "Schema from C is newer than the file in use but not than __system__: it takes over the file, and replaces in __system__ the drafts of the topics it raises past the file",
     "Updating TreeDB schema in __system__",
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
@@ -234,6 +234,23 @@ PRIVATE const char *expected_log_msgs[] = {
     "TreeDB schema from C is behind the schema in use, not applied",
     "Schema saved",
     "Saved schema withdrawn, the draft is the schema in use",
+    /*  Test 13b2b: the same schema with its cols listed is not "another
+     *  content" (only the ordinary "behind" of __system__)  */
+    "TreeDB schema from C is behind the schema in use, not applied",
+    /*  Test 13b3: a literal taking over the file re-projects only the topic
+     *  it raised; then, with NO file in use, the whole literal  */
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Schema saved",
+    "Schema from C is newer than the file in use but not than __system__: it takes over the file, and replaces in __system__ the drafts of the topics it raises past the file",
+    "Updating TreeDB schema in __system__",
+    "Topic from C differs from its draft, but the schema from C does not raise it past the file in use: the draft is kept",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
+    "Schema saved",
+    "No schema file in use: the treedb opens with the schema from C, projected whole over __system__",
+    "Updating TreeDB schema in __system__",
+    "Creating TreeDB schema file",
     /*  Test 13c: apply of all is all or none: A saved, B opened (+ its
      *  three), B's saved schema does not parse, then A alone applied  */
     "TreeDB schema from C is behind the schema in use, not applied",
