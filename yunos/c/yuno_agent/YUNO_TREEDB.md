@@ -1198,7 +1198,7 @@ bytes of an asset a shot record names.
   `__assets__` node) walks the tagged records of every topic with a `file`
   column. A tagged record of an existing snap that cannot be read, or a topic
   whose walk does not load, refuses: the gc answers `NULL` (*"gc refused:
-  cannot tell which assets a snapshot links"*, and `gc-files` answers -1), the
+  cannot tell which assets a snapshot links"*, and `gc-assets` answers -1), the
   delete answers -1 (*"cannot delete asset, cannot tell whether a snapshot
   links it"*). Until 7.25.4 the gc took the blob a snapshot needed.
 

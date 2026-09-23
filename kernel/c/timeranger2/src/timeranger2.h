@@ -30,17 +30,33 @@
  *                              "tkey"          Record's field with Time of message.
  *                              "directory"
  *                              'system_flag'
+ *                              "marks_tm_unordered"  true in a topic created
+ *                                              after 7.25.4: its md2 files
+ *                                              whose __tm__ goes back are
+ *                                              marked, see below
  *
  *          topic_cols.json     Optional, defines fields of the topic.
  *
  *          topic_var.json      Variable topic metadata (Writable)
  *
  *                              'user_flag' data
+ *                              Always written through topic_var.json.new and
+ *                              a rename(), never in place.
  *
  *          /{topic}                        Topic directory
  *          /{topic}/keys/{key}             A directory for each key
  *          /{topic}/keys/{key}/fmt.json    Files containing the topic's records: {format-file}.json
  *          /{topic}/keys/{key}/fmt.md2     Files containing the topic's metadata: {format-file}.json
+ *          /{topic}/keys/{key}/fmt.unordered     Marker: a __t__ went back in fmt.md2
+ *          /{topic}/keys/{key}/fmt.tm_unordered  Marker: a __tm__ went back in fmt.md2
+ *                                          (only a topic with marks_tm_unordered)
+ *
+ *          The first and the last row of an md2 file give its time range only
+ *          while its rows are in order. The master leaves the marker when an
+ *          append breaks that order, and a load reads a marked file whole.
+ *          In a topic WITHOUT marks_tm_unordered (created by 7.25.4 or earlier) no
+ *          file's tm range is trusted: a tm condition leaves no file out and
+ *          ends no scan, it skips rows.
  *
  *          {format-file}.json  Data files
  *                              It should never be modified externally.
@@ -228,9 +244,15 @@ PUBLIC json_t *tranger2_startup(
    frees it. `tranger` is borrowed. Always returns 0.
 
    A closed fd is marked -1 in `fd_opened_files`, so no later stop closes its
-   number again. A master gives its single-master lock back here. The first
-   topic OPENED after the stop revives the handle (clears `__closed__`) and a
-   master retakes its lock; if it cannot, it goes on as a non-master.
+   number again. A master gives its single-master lock back here.
+
+   The first call after the stop that opens a topic OR writes (create_topic,
+   delete_topic, backup_topic, write_topic_var/_cols, append_record,
+   delete_key, delete_instance) revives the handle (clears `__closed__`), and a
+   master takes its lock again BEFORE anything is written. If another process
+   holds it, the handle goes on as a replica: it reads, every write is refused,
+   and its json says `"master": false, "master_lost": true`. The `master` of
+   the handle is what it holds NOW: read it again after the restart.
 */
 PUBLIC int tranger2_stop(json_t *tranger);
 
@@ -254,11 +276,14 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
        HACK IDEMPOTENT: if the topic already exists it is just opened; the
        creation branch is skipped.
 
-   Creation is MASTER-ONLY: on a non-master, if the topic directory is absent the
-   call fails. On the master it writes topic_desc.json / topic_cols.json /
+   Creation is MASTER-ONLY: on a non-master (or a master that lost its lock at a
+   stop, see tranger2_stop), if the topic directory is absent the call fails,
+   and an existing topic is opened read-only, nothing written. On the master it
+   writes topic_desc.json (with "marks_tm_unordered": true) / topic_cols.json /
    topic_var.json plus the keys/ and disks/ subdirs. If `jn_var`'s topic_version
-   is greater than the on-disk one, topic_cols.json / topic_var.json are removed
-   and regenerated.
+   is greater than the on-disk one, topic_cols.json is regenerated and
+   topic_var.json REPLACED (temporary file + rename, fsync'ed; the treedb
+   counter `last_rowid_id` is carried over).
 
    Key type: if `system_flag` carries no key-type bit it defaults to
         sf_string_key   if pkey is defined
@@ -464,10 +489,13 @@ PUBLIC json_t *tranger2_backup_topic(
 
 /*
    Write topic vars. MASTER-ONLY. MERGES `jn_topic_var` into the existing
-   topic_var.json (update, not replace) and persists it; the in-memory topic is
-   updated too, except the immutable desc fields. `jn_topic_var` is owned
-   (consumed, even on error). Returns 0, or -1 if it is NULL/not a dict or the
-   handle is not master.
+   topic_var.json (update, not replace) and persists it through
+   topic_var.json.new and a rename(): the file on disk is the old one or the new
+   one, never a truncated one (safe against the death of the process; not
+   fsync'ed, so not against a power cut). The in-memory topic takes the values,
+   except the immutable desc fields, only when the file did. `jn_topic_var` is
+   owned (consumed, even on error). Returns 0, or -1 if it is NULL/not a dict,
+   the handle is not master, or the file cannot be written.
 */
 PUBLIC int tranger2_write_topic_var(
     json_t *tranger,
@@ -783,8 +811,23 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     A LOADING that meets a row whose metadata cannot be read stops there, logs
     it, and leaves `"load_failed": true` in the returned iterator: the history
     the callback saw is incomplete. (A record whose CONTENT cannot be read is
-    handed to the callback as NULL.) tranger2_open_list() of one key answers
-    NULL for such a load.
+    handed to the callback as NULL.) tranger2_open_list() answers NULL for such
+    a load, of one key or of any key of a keyless list.
+
+    `tm` is written by the producer and the md2 files are cut by `t`, so the
+    segments of a tm condition can leave out a file in the middle: the scan
+    steps over the hole. A row past the tm range ends the scan of its FILE
+    (not of the key) only when the file is known to be in tm order: a topic
+    with "marks_tm_unordered" and a file without `.tm_unordered`.
+
+    A delete of the key (tranger2_delete_key(), or a replica's key-deleted
+    notice) drops the segments of every iterator of the key: an unfiltered one
+    takes them again at its next page, a filtered one keeps an EMPTY index.
+
+    Return: the iterator, NOT YOURS (the topic owns it). NULL (error logged,
+    match_cond and extra consumed) if the topic cannot be opened, `key` is
+    empty, an iterator with this id and creator already exists, or a filtered
+    paging index cannot be built.
 */
 /*
  *  LOADING: load data from disk, APPENDING: add real time data
@@ -907,7 +950,10 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id( // Silence inside. Check out.
     on error). Creates the realtime disk directory and its inotify monitor.
     Return: the rt_disk handle — NOT YOURS (owned by the topic; close with
     tranger2_close_rt_disk()). NULL if the topic is missing, the callback is NULL,
-    `rt_id` is empty, or a feed with the same id already exists.
+    `rt_id` is refused (empty, a path metacharacter, longer than NAME_MAX: a
+    warning), or a feed of this tranger already uses the id, whatever its
+    creator (a warning). The guard is per process: two processes that follow
+    one store with the same id still take each other's disks/<id>/ directory.
 */
 PUBLIC json_t *tranger2_open_rt_disk(
     json_t *tranger,
@@ -982,7 +1028,15 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
         0   do nothing (the callback may build its own list, or not)
         -1  break the load
 
+    The history is loaded with one-shot iterators of a reserved creator
+    ("__tranger2_open_list__"), so an iterator the caller keeps open on a key
+    does not get in the way.
+
     Return: the realtime handle (rt_mem / rt_disk) or the no_rt `extra`, NULL on error.
+    NULL too when the history of the key -- or of ANY key of a keyless list --
+    could not be loaded whole (see `load_failed` in the iterator match_cond):
+    the records already handed to the callback stay handed, and the caller
+    must not take them for the whole history.
     Both `match_cond` and `extra` are owned (consumed) by this call.
 */
 PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications

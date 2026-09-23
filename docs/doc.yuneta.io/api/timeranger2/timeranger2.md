@@ -95,7 +95,7 @@ int tranger2_append_record(
 | `topic_name` | `const char *` | Name of the topic where the record will be appended. |
 | `__t__` | `uint64_t` | Timestamp of the record. If set to 0, the current time is used. |
 | `user_flag` | `uint16_t` | User-defined flag associated with the record. |
-| `md2_record_ex` | `md2_record_ex_t *` | Pointer to the metadata structure of the record. This field is required. |
+| `md_record_ex` | `md2_record_ex_t *` | Pointer to the metadata structure of the record. This field is required. |
 | `jn_record` | `json_t *` | JSON object containing the record data. Ownership is transferred to the function. |
 
 **Returns**
@@ -107,7 +107,7 @@ Returns 0 on success, or a negative value on failure.
 The function makes sure that the record is appended to the specified topic in [`tranger2_startup()`](<#tranger2_startup>). If the topic does not exist, it must be created using [`tranger2_create_topic()`](<#tranger2_create_topic>) before calling this function.
 
 **Reading the metadata back.** The metadata of the new record is returned in
-`md2_record_ex`, and that is where a caller reads it: `md.g_rowid` is the
+`md_record_ex`, and that is where a caller reads it: `md.g_rowid` is the
 key's global rowid (the one that never resets), `md.rowid` the row's position
 inside its `.md2` file (`i_rowid`), then `__t__`, `__tm__`, `__offset__`,
 `__size__`, `system_flag`, `user_flag`. Hand the function your only reference:
@@ -131,7 +131,7 @@ metadata of THAT record and is dropped before the content is written.
 The record is **owned** by the function, and these changes are made to the
 object itself, not to a copy: a list hands it on without copying it, on the
 hot path of every append. So a caller that keeps a reference of its own sees
-them, and reads the metadata from `md2_record_ex` anyway:
+them, and reads the metadata from `md_record_ex` anyway:
 
 ```C
 json_incref(record);                    // the caller keeps one
@@ -154,7 +154,7 @@ tranger2_append_record(tranger, "topic", t_2000_01_01 + 10, 0, &md, jn_c);
 /*  C gets g_rowid 2, and B is now 3: an iterator serves A, C, B  */
 ```
 
-The `g_rowid` in `md2_record_ex` is its place, the same number a reload gives
+The `g_rowid` in `md_record_ex` is its place, the same number a reload gives
 (and stores in the loaded record's `__md_tranger__`). If you keep global rowids, for example as a page position, a
 record written into an earlier file makes the rowids of the later records
 stale. Records written with `__t__ = 0` (now) always go to the last file, and
@@ -428,9 +428,38 @@ json_t *tranger2_create_topic(
 
 Returns a JSON object representing the topic metadata. The returned JSON object is not owned by the caller and must not be modified or freed.
 
+`NULL` (logged) for a refused name, a topic that does not exist on a replica,
+an empty `pkey` or no key type.
+
 **Notes**
 
 This function is idempotent. This means that if the topic already exists, it will return the existing topic metadata instead of creating a new one. If the primary key (`pkey`) is not specified, the function defaults to `sf_string_key` if `pkey` is defined, otherwise it defaults to `sf_int_key`.
+
+**Only the master writes, and it asks first.** On a replica, or on a master
+that lost its lock while it was stopped (see [`tranger2_stop()`](#tranger2_stop)),
+an existing topic is opened read-only and nothing is written, and a new one is
+refused with *"Cannot open TimeRanger topic. Not found and no master"*.
+
+**A new topic marks the files whose `tm` goes back.** Its `topic_desc.json`
+carries `"marks_tm_unordered": true`, and the master leaves
+`<file>.tm_unordered` beside an md2 file when a record's `tm` is below the
+file's highest one. What a `tm` condition does with it is in
+[`tranger2_open_iterator()`](#tranger2_open_iterator). A topic created by
+7.25.4 or earlier has no such key, and cannot get it afterwards.
+
+```json
+{
+    "topic_name": "readings",
+    "pkey": "id",
+    "tkey": "tm",
+    "system_flag": 1,
+    "marks_tm_unordered": true
+}
+```
+
+**A new `topic_version` replaces `topic_var.json`** through a temporary file
+and a `rename()`, fsync'ed; the `last_rowid_id` counter of treedb is carried
+over. *"Re-Creating topic_var.json"* is logged only when the file was written.
 
 (timeranger2-topic-name-rule)=
 **Topic names.** A topic name is ONE directory under the database, and a segment of the backtick kw paths (`` topics`<name>`cols ``). Every call that takes a topic name — create, open, delete, backup, `tranger2_topic_path()`, `tranger2_write_topic_var()` / `_cols()` — refuses, with the error *"Invalid topic name (path metacharacters not allowed)"*:
@@ -444,23 +473,33 @@ A leading `.` is accepted, unlike a key: MQTT queues are named `<client_id>-IN` 
 of [`tranger2_open_rt_disk()`](<#tranger2_open_rt_disk>) (the `rt_id` of a
 follower's `open-rt` / `open-list`) becomes the directory
 `<topic>/disks/<id>/`, and the follower removes that directory before creating
-it. An empty id, `.`, `..`, or an id holding `/` is refused with *"Invalid rt
-id (path metacharacters not allowed)"*, and an id longer than `NAME_MAX` with
-*"Invalid rt id (longer than NAME_MAX)"* (its directory cannot exist). A
-backtick is accepted, since an rt id is not a segment of any kw path (treedb
-names its own feeds `` <treedb>`<topic>`<id> ``). The id may come from a peer,
-so a refused id is logged as a **warning**, without a stack.
+it. An empty id is refused with *"Invalid rt id (empty)"*; `.`, `..`, or an id
+holding `/` with *"Invalid rt id (path metacharacters not allowed)"*, and an id
+longer than `NAME_MAX` (255 bytes on Linux) with *"Invalid rt id (longer than
+NAME_MAX)"* (its directory cannot exist). A backtick is accepted, since an rt
+id is not a segment of any kw path (treedb names its own feeds
+`` <treedb>`<topic>`<id> ``). The id may come from a peer, so a refused id is
+logged as a **warning**, without a stack.
 
 **One id, one feed.** The directory is keyed by the id alone, so an id already
-in use by a live feed of the topic is refused whatever the `creator`: *"rt disk
-id already in use by another creator, refused"* (a warning), or *"Disk already
-exists"* (an error) when the same creator opens it twice. A second feed used
-to take the first one's directory over, and its close removed it.
+in use by a live feed of the topic is refused whatever the `creator`, with a
+warning: *"rt disk id already in use by another creator, refused"*, or *"rt
+disk id already in use by the same creator, refused"*. A second feed used to
+take the first one's directory over, and its close removed it. The guard is
+**per process**: it reads the feeds of this tranger, so two processes that
+follow one store with the same id still take each other's directory.
 
 ```C
 tranger2_open_rt_disk(tranger, "users", "", 0, cb, "gui-42", "gui", 0);       // OK
 tranger2_open_rt_disk(tranger, "users", "", 0, cb, "../../etc", "", 0);       // refused
+tranger2_open_rt_disk(tranger, "users", "", 0, cb, "", "", 0);                // refused: empty
 tranger2_open_rt_disk(tranger, "users", "", 0, cb, "gui-42", "other", 0);     // refused: in use
+tranger2_open_rt_disk(tranger, "users", "", 0, cb, "gui-42", "gui", 0);       // refused: in use
+
+char long_id[NAME_MAX + 2];
+memset(long_id, 'x', sizeof(long_id) - 1);
+long_id[sizeof(long_id) - 1] = 0;                                              // 256 bytes
+tranger2_open_rt_disk(tranger, "users", "", 0, cb, long_id, "gui", 0);        // refused: > NAME_MAX
 ```
 
 ```C
@@ -523,7 +562,13 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-If the specified `key` does not exist in the topic, `tranger2_delete_key()` will fail.
+A `key` with no directory on disk is logged (*"key directory not found"*, an
+error) and the call still answers `0`: the key is removed from memory all the
+same. A directory that cannot be removed answers `-1` and leaves the memory as
+it was.
+
+The iterators of the key, in this process, lose what they took from it: see
+[`tranger2_iterator_get_page()`](#tranger2_iterator_get_page).
 
 The legacy name `tranger2_delete_record()` is kept as a source-level
 alias in `timeranger2.h` (`#define tranger2_delete_record tranger2_delete_key`)
@@ -902,9 +947,26 @@ rowid. An **unfiltered** iterator has no index, and its positions are the global
 rowids. See [`tranger2_open_iterator()`](#tranger2_open_iterator).
 
 An **unfiltered** iterator pages the key **as it is**: its segments are taken
-from the cache again before every page, so the rows appended since the open
+from the cache again when the key's cache moved since they were taken (its
+rows, its number of files, its last file), so the rows appended since the open
 are readable and `total_rows` / `pages` (the live count) can be paged to the
 end. A **filtered** iterator keeps the index and the segments of its open.
+
+A **delete of the key** drops them: an unfiltered iterator takes its segments
+again at its next page (a key written again with the same number of rows and
+files, spread another way, is not the same key), and a filtered one pages an
+empty index -- the rows it indexed are gone. A page that finds the key gone
+from disk behind its back (a replica whose master deleted it) logs *"Key gone
+from disk while its iterator was open"* and stops.
+
+```C
+json_t *it = tranger2_open_iterator(tranger, "topic", "K", NULL, NULL, "pager", "", NULL, NULL);
+// K: 2 rows on day 1, 1 on day 2
+tranger2_delete_key(tranger, "topic", "K");
+// K written again: 1 row on day 1, 2 on day 2
+json_t *page = tranger2_iterator_get_page(tranger, it, 1, 100, FALSE);
+// page["data"]: the 3 new rows (7.25.4: 1 row, and a CRITICAL)
+```
 
 ```C
 json_t *it = tranger2_open_iterator(tranger, "topic", "key", NULL, NULL, "it1", "", NULL, NULL);
@@ -1079,11 +1141,47 @@ json_t *tranger2_open_iterator(
 
 **Returns**
 
-Returns a JSON object representing the iterator. The caller is responsible for managing its lifecycle.
+Returns a JSON object representing the iterator. The topic owns it: close it
+with [`tranger2_close_iterator()`](<#tranger2_close_iterator>).
+
+`NULL` (logged; `match_cond` and `extra` are consumed all the same) when the
+topic cannot be opened, `key` is empty, an iterator with this `iterator_id`
+and `creator` is already open, or the index of a filtered paging iterator
+cannot be built.
 
 **Notes**
 
 The iterator supports real-time data loading and filtering based on various conditions. Use [`tranger2_close_iterator()`](<#tranger2_close_iterator>) to release resources when done.
+
+**A load that stops half way says so.** When the LOADING (a callback, or
+`data`) meets a row whose metadata cannot be read, it stops there, logs it, and
+leaves `"load_failed": true` in the iterator. What the callback saw, and what
+`data` holds, is then NOT the whole history: a caller that asks the history a
+question (is any record of this key frozen by a snapshot?) must read the flag
+before it takes a "no". A record whose CONTENT cannot be read is handed to the
+callback as `NULL` (and is not added to `data`): check for it too.
+
+```C
+json_t *data = json_array();
+json_t *it = tranger2_open_iterator(
+    tranger, "devices", "dev-1", NULL, NULL, "", "me", data, NULL
+);
+if(!it) {
+    // not opened, the cause is in the log
+} else if(json_is_true(json_object_get(it, "load_failed"))) {
+    // data holds only a part of the history: do not decide on it
+}
+if(it) {
+    tranger2_close_iterator(tranger, it);
+}
+JSON_DECREF(data)
+```
+
+**A deleted key.** A delete of the key
+([`tranger2_delete_key()`](#tranger2_delete_key), or a replica's key-deleted
+notice) drops what its iterators took from it: an unfiltered iterator takes its
+segments again at its next page, a filtered one keeps an empty index (its rows
+are gone, and an index is built only at the open).
 
 **`match_cond` — the conditions an iterator honors**
 
@@ -1116,11 +1214,24 @@ The two axes are not ordered the same way, and the scan knows it:
   `__t__` below the times the file already had). The master marks that file
   `<file>.unordered`, and inside a marked file the scan reads every row of the
   selected files instead of stopping at the first row past the `t` range.
-- **Rows are never assumed in `tm` order.** `tm` is written by the producer (a
-  device that sends what it buffered writes it out of order), so a `tm`
-  condition skips a row but never ends the scan. What bounds the cost is the
-  per-file `tm` range: a file whose `[fr_tm, to_tm]` does not meet the
-  condition is not read.
+- **Rows are in `tm` order only where the master says so.** `tm` is written
+  by the producer (a device that sends what it buffered writes it out of
+  order), and the files are cut by `t`. In a topic created after 7.25.4
+  (`"marks_tm_unordered": true` in its `topic_desc.json`) the master marks a
+  file whose `tm` goes back `<file>.tm_unordered`, and a load reads a marked
+  file whole, so the `[fr_tm, to_tm]` of every file is exact. There a file
+  that does not meet the `tm` condition is not read, and in an unmarked file
+  the first row past the range ends the scan of THAT FILE; the scan goes on in
+  the next file (a later file may hold a lower `tm`). In a marked file a `tm`
+  condition skips rows and ends nothing.
+- **A topic created by 7.25.4 or earlier** cannot tell which of its files are
+  in `tm` order, and no file's `tm` range is trusted: a `tm` condition leaves
+  no file out and ends no scan, it skips rows. Correct, and as costly as a
+  full read of the selected files (an 80000-row file: 60-80 ms for the first
+  100 seconds, against ~1 ms in a marking topic).
+- A file left out by `tm` is a **hole** in the rowids the scan walks: the
+  scan steps over it, and a `from_rowid` / `to_rowid` that falls in it begins
+  at the next row the scan can read.
 
 Both hold in both directions, and for a paged iterator too. With the rows
 `t=100 E1`, `t=50000 E2`, `t=200 E3` (late) in one file:
@@ -1137,6 +1248,21 @@ json_t *it = tranger2_open_iterator(
     NULL, "range", "", data, NULL
 );
 // data holds E3 (up to 7.25.3: nothing, the scan stopped at E2)
+tranger2_close_iterator(tranger, it);
+JSON_DECREF(data)
+```
+
+And with three day files of one key, `tm` 100, 5000 and 150, the middle one is
+out of `to_tm = 300` and the scan steps over it:
+
+```C
+json_t *data = json_array();
+json_t *it = tranger2_open_iterator(
+    tranger, "readings", "K",
+    json_pack("{s:I}", "to_tm", (json_int_t)300),
+    NULL, "range", "", data, NULL
+);
+// data holds D1 D3 (7.25.4: D1, and "next rowids not consecutive")
 tranger2_close_iterator(tranger, it);
 JSON_DECREF(data)
 ```
@@ -1200,11 +1326,44 @@ json_t *tranger2_open_list(
 
 **Returns**
 
-Returns a JSON object representing the real-time list (`rt_mem` or `rt_disk`) or a static list if real-time is disabled. The caller does not own the returned object.
+Returns a JSON object representing the real-time list (`rt_mem` or `rt_disk`),
+or, when real-time is disabled (`to_rowid` set), the `extra` given, tagged
+`"list_type": "no_rt"`. Close either with
+[`tranger2_close_list()`](<#tranger2_close_list>).
+
+`NULL` (logged; `match_cond` and `extra` are consumed) on error: no topic, no
+`load_record_callback`, a bad `rkey`, a real-time feed that cannot be opened,
+no `extra` for a `no_rt` list -- and when the history of the key, or of ANY
+key of a keyless list, could not be loaded whole (the `load_failed` of
+[`tranger2_open_iterator()`](#tranger2_open_iterator)). In that last case the
+records already handed to the callback stay handed: a caller that builds its
+own list from them must drop it.
 
 **Notes**
 
 Loading all records can introduce delays in application startup. Use filtering conditions in `match_cond` to optimize performance.
+
+The history is loaded with one-shot iterators of their own creator
+(`__tranger2_open_list__`): an iterator the caller keeps open on a key does not
+make the load "already exist".
+
+```C
+json_t *list = tranger2_open_list(
+    tranger, "devices",
+    json_pack("{s:I, s:I}",
+        "to_rowid", (json_int_t)1000000,    // one-shot, no realtime
+        "load_record_callback", (json_int_t)(uintptr_t)load_cb
+    ),
+    json_object(),      // extra: IS the returned handle of a no_rt list
+    "", FALSE, "me"
+);
+if(!list) {
+    // refused, or some key's history could not be read: what load_cb got
+    // is not the whole topic
+} else {
+    tranger2_close_list(tranger, list);
+}
+```
 
 ---
 
@@ -1752,12 +1911,19 @@ What the stop does:
   the single-master lock back**. Each closed fd is marked `-1`: a second stop,
   or the shutdown, never closes that number again (by then it can belong to
   somebody else).
-- A tranger stays usable after the stop. The first topic opened again
-  **revives** it: the shutdown then closes what the revival opened, and a
-  master takes its lock again. If another process took the store in the
-  meantime, the revival logs *"Master lock NOT retaken after a stop, go on as
-  not master"* and the tranger goes on as a replica: its appends are refused.
-  A lookup of a topic that is already open revives nothing.
+- A tranger stays usable after the stop. The first call that opens a topic
+  again, or that WRITES (`tranger2_create_topic()`, `_delete_topic()`,
+  `_backup_topic()`, `_write_topic_var()`, `_write_topic_cols()`,
+  `_append_record()`, `_delete_key()`, `_delete_instance()`), **revives** it:
+  the shutdown then closes what the revival opened, and a master takes its
+  lock again BEFORE anything is written. If another process took the store in
+  the meantime, the revival logs *"Master lock NOT retaken after a stop:
+  another process holds it, go on as not master"* (or, with the errno, that
+  the lock file cannot be opened or `flock()` failed) and the tranger goes on
+  as a replica: it reads, every write is refused, and its json says
+  `"master": false, "master_lost": true`. Read `master` again after a restart:
+  it is what the tranger holds now. A lookup of a topic that is already open
+  revives nothing.
 
 This is the life of the tranger of a `C_TRANGER` that is stopped and started
 again: the tranger is built in `mt_create`, stopped in `mt_stop`, and shut down
@@ -1774,6 +1940,18 @@ tranger2_topic(tranger, "devices");  // opens it again: revived, lock retaken
                                      // (C_TRANGER started again)
 
 tranger2_shutdown(tranger);     // closes what the revival opened
+```
+
+And when another process took the store while it was stopped:
+
+```C
+tranger2_stop(a);                                   // a gives the lock back
+json_t *b = tranger2_startup(0, jn_tranger_b, 0);   // b takes the store
+
+tranger2_create_topic(a, "devices", "id", "tm", 0, 0, 0, 0);
+// a cannot take the lock: nothing written, "devices" opened read-only
+kw_get_bool(0, a, "master", 0, 0);        // FALSE
+kw_get_bool(0, a, "master_lost", 0, 0);   // TRUE
 ```
 
 ---
@@ -2128,7 +2306,20 @@ Returns `0` on success, or a negative value on failure.
 
 **Master-only.** Merges `jn_topic_var` into the existing `topic_var.json` (update,
 not replace) and persists it. The in-memory topic is updated too, except the
-immutable descriptor fields.
+immutable descriptor fields, and only when the file was written.
+
+The file is never rewritten in place: the merge is written to
+`topic_var.json.new` and renamed over `topic_var.json`, so a process that dies
+half way leaves the old file or the new one, never an empty one. treedb calls
+this on every create of a rowid-key node (the `last_rowid_id` counter lives
+here), so it does not `fsync()`: it is safe against the death of the process,
+not against a power cut. A `topic_version` change
+([`tranger2_create_topic()`](#tranger2_create_topic)) does fsync.
+
+```C
+tranger2_write_topic_var(tranger, "items", json_pack("{s:I}", "last_rowid_id", (json_int_t)42));
+// topic_var.json: {"topic_version": 3, "last_rowid_id": 42}  (a new inode)
+```
 
 ---
 

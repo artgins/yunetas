@@ -48,14 +48,28 @@ key's span on both axes without reading a record.
 
 The rows of a key are in `t` order except in a file that holds a late record
 (marked `<file>.unordered`); a `t` scan reads such a file through instead of
-stopping at the first row past its range. Rows are never assumed in `tm` order:
-a `tm` condition skips a row and never ends a scan, in either direction.
+stopping at the first row past its range.
+
+`tm` is written by the producer, and the files are cut by `t`. A topic created
+after 7.25.4 carries `"marks_tm_unordered": true` in its `topic_desc.json`, and
+its master marks a file whose `tm` goes back (`<file>.tm_unordered`); a load
+reads a marked file whole, so every file's `[fr_tm, to_tm]` is exact. A `tm`
+condition then leaves out the files that do not meet it (the scan steps over
+the hole), and in an unmarked file the first row past the range ends the scan
+of that FILE, not of the key. In a marked file, and in every file of a topic
+created by 7.25.4 or earlier (no file's `tm` range can be trusted there), a
+`tm` condition skips rows and ends nothing.
 
 ```C
 /*  E1 t=100, E2 t=50000, E3 t=200 (late) in one file: [150, 250] gives E3  */
 json_t *it = tranger2_open_iterator(tranger, "readings", key,
     json_pack("{s:I, s:I}", "from_t", (json_int_t)150, "to_t", (json_int_t)250),
     NULL, "range", "", data, NULL);
+
+/*  three day files, tm 100 / 5000 / 150: to_tm 300 gives D1 D3  */
+json_t *it2 = tranger2_open_iterator(tranger, "readings", key,
+    json_pack("{s:I}", "to_tm", (json_int_t)300),
+    NULL, "range2", "", data2, NULL);
 ```
 
 > **In the md2 record, the times carry flags.** On disk the 16 high bits of
@@ -115,7 +129,10 @@ are `<client_id>-IN/-OUT`, and the broker accepts `.foo` as a client id).
 master-only, like every other destructive call. The **rt id** of a disk feed
 (`<topic>/disks/<id>/`) follows the directory half of the rule, and is refused
 longer than `NAME_MAX` too; an id already in use by a live feed of the topic is
-refused whatever its creator (one id, one directory, one feed). Regression
+refused whatever its creator (one id, one directory, one feed). The id may come
+from a peer, so every refusal of it is a warning, an empty id included (*"Invalid
+rt id (empty)"*). The one-feed guard is per process: two processes that follow
+one store with the same id still take each other's directory. Regression
 coverage in `tests/c/timeranger2/test_topic_path_traversal.c` and
 `test_rt_disk_multi_feed.c`.
 
@@ -130,6 +147,43 @@ with no md2 answers *"Record metadata file not found"*. What keeps exiting on
 purpose is the write side, above all a short write of an md2 row, which would
 misalign every later append. Regression coverage in
 `tests/c/timeranger2/test_read_never_exits.c`.
+
+### A stopped master takes its lock again before it writes
+
+`tranger2_stop()` gives the single-master lock back (C_TRANGER's `mt_stop`).
+The next call that opens a topic or writes -- `tranger2_create_topic()` is the
+restart path of C_TRANGER and C_TREEDB -- takes it again FIRST. When another
+process took the store meanwhile, nothing is written: the tranger goes on as a
+replica, reads, refuses every write, and says so in its json:
+
+```C
+kw_get_bool(0, tranger, "master", 0, 0);        // FALSE: what it holds now
+kw_get_bool(0, tranger, "master_lost", 0, 0);   // TRUE: it was the master, it lost the lock
+```
+
+Until 7.25.4 `tranger2_create_topic()` read the `master` of the stop and wrote
+the topic directory, `topic_cols.json` and `topic_var.json` into the other
+master's store before it noticed. Regression coverage in
+`tests/c/timeranger2/test_lost_lock.c`.
+
+### `topic_var.json` is replaced, never rewritten in place
+
+It holds the `topic_version` and treedb's `last_rowid_id` counter, and it is
+written on every create of a rowid-key node. Every write goes through
+`topic_var.json.new` and a `rename()`: a process that dies half way leaves the
+old file or the new one, never an empty one. The hot path does not `fsync()`
+(safe against the death of the process, not against a power cut); a
+`topic_version` change does. `tests/c/timeranger2/test_topic_var_replace.c`.
+
+### A history that cannot be read whole says so
+
+A load that meets a row whose metadata cannot be read stops and leaves
+`"load_failed": true` in the iterator; a record whose content cannot be read
+reaches the callback as `NULL`. `tranger2_open_list()` answers `NULL` when the
+history of its key -- or of ANY key of a keyless list -- did not load whole,
+and its one-shot iterators have a creator of their own, so an iterator the
+caller keeps open on a key does not block the load.
+`tests/c/timeranger2/test_open_list_history.c`.
 
 ### Subscriber propagation on `tranger2_delete_key`
 
@@ -159,6 +213,12 @@ for the regression coverage.
 The deletion also drops the key from the **watermark** of every `rt_disk` feed
 (below): a feed that outlives many keys must not carry a mark for each one, and
 a key re-created afterwards must not inherit the dead one's.
+
+And it drops what the key's open iterators took from its cache: an unfiltered
+iterator takes its segments again at its next page (a key written again with
+the same rows and files, spread another way, read the new files with the old
+segments until 7.25.4), a filtered one pages an empty index.
+`tests/c/timeranger2/test_key_reborn_pages.c`.
 
 ### What a realtime feed hands its callback
 

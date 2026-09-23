@@ -393,6 +393,10 @@ PUBLIC int set_volatil_values(
     `node` is the pure node as the index holds it: borrowed, never the
     caller's own reference. On success the index's reference is released
     with the key; on a refusal the node is left as it was, still indexed.
+
+    A node of `__assets__` is refused while a snapshot links it, and also
+    when that cannot be told (a tagged record of an existing snap cannot be
+    read): "cannot delete asset, cannot tell whether a snapshot links it".
 **rst**/
 PUBLIC int treedb_delete_node(
     json_t *tranger,
@@ -409,7 +413,10 @@ PUBLIC int treedb_delete_node(
 
     It does NOT look at links. It refuses an immutable record (nothing
     overrides that) and an instance a snapshot holds a record of
-    (`ignore_snaps` overrides that; `force` does not).
+    (`ignore_snaps` overrides that; `force` does not). It refuses too, before
+    anything is tombstoned or dropped, when it cannot read every row of the
+    key: a row whose metadata or content cannot be read might be a row of
+    this instance, and a partial tombstone brings it back at the next open.
 
     `node` is borrowed from the index; the index's reference goes only on
     success.
@@ -724,6 +731,9 @@ PUBLIC json_t *treedb_import_files(
  *  that no row names (what an interrupted write leaves: the blob goes
  *  down before the index node). On demand, never automatic.
  *  Return the list of ids taken (dry_run: that would be taken). YOURS.
+ *  NULL (logged, nothing taken) when __assets__ is not open, or when what
+ *  the snapshots hold cannot be read whole: a tagged record that cannot be
+ *  read may name any blob.
  */
 PUBLIC json_t *treedb_gc_files(
     json_t *tranger,
@@ -740,6 +750,13 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
     const char *snap_name,
     const char *description
 );
+/*
+ *  Activate a snap (or "__clear__" to deactivate the active one). MASTER-ONLY.
+ *  Return the tag of the snap activated (0 for "__clear__"), -1 on error.
+ *  The active snap is saved inactive first, then the new one active: when the
+ *  second save fails, the old one is saved active again (and the error says
+ *  whether that worked), so a failed activation leaves the snap it found.
+ */
 PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
     json_t *tranger,
     const char *treedb_name,

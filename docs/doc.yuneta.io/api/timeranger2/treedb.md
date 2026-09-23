@@ -391,6 +391,8 @@ Returns the snapshot tag (snap `id` = its `g_rowid` in `__snaps__`) as an intege
 
 A save that fails changes nothing, in memory either: the snap that was active stays active, and the one being activated stays inactive. Until 7.25.3 the `"__clear__"` path answered `0` with the save failed, and the snap went on being active on disk.
 
+An activation saves the active snap inactive FIRST, then the new one active. When the second save fails, the old snap is saved active again and the error says so (*"Cannot activate snap, the one active before is active again"*); until 7.25.4 it stayed inactive, and the treedb was left with no active snap. Only if that save fails too is no snap active, on disk and in memory, and the error says that instead.
+
 ```C
 if(treedb_activate_snap(tranger, "treedb_agent", "__clear__") < 0) {
     // still active: the cause is in the log (and gobj_log_last_message())
@@ -799,12 +801,19 @@ Returns `0` on success, or a negative value if the deletion is refused or fails.
 
 It does NOT look at links: an instance is one version of a node, and the links belong to the node.
 
+It refuses, before it tombstones or drops anything, when it cannot read every
+row of the key: a row whose metadata cannot be read (*"Cannot delete instance,
+cannot read every row of its key"*), or whose content cannot be read (*"Cannot
+delete instance, a row of its key cannot be read"*: a row that cannot be read
+cannot say whose instance it is). Until 7.25.4 it tombstoned what it had read,
+dropped the slot, answered `0`, and the instance came back at the next open.
+
 ```C
 // Delete the release "1.2.0" of yuno "gate1" (topic `yunos`, pkey2 `yuno_release`)
 json_t *inst = treedb_get_instance(tranger, "treedb_yuneta_agent", "yunos",
     "yuno_release", "gate1", "1.2.0");
 if(inst && treedb_delete_instance(tranger, inst, "yuno_release", 0) < 0) {
-    // refused: immutable, or a snapshot holds it (logged)
+    // refused: immutable, a snapshot holds it, or a row of the key cannot be read (logged)
 }
 ```
 
@@ -965,10 +974,15 @@ json_t *treedb_gc_files(
 
 The list of asset ids taken (or that would be taken), **yours** to decref. `NULL` with *"__assets__ index not found"* logged when the treedb has no `__assets__` topic.
 
+`NULL`, nothing taken, when what the snapshots hold cannot be read whole: a tagged record of an existing snap whose content cannot be read, or a topic with a `file` column whose records do not load. The log says *"cannot read a tagged record: the assets a snapshot holds are unknown"* (or which topic) and *"gc refused: cannot tell which assets a snapshot links"*. Such a record may name any blob, so none is taken; until 7.25.4 the gc took the ones it could not see held. [`treedb_delete_node()`](<#treedb_delete_node>) of an `__assets__` node refuses in the same case: *"cannot delete asset, cannot tell whether a snapshot links it"*.
+
 **Example**
 
 ```C
 json_t *would = treedb_gc_files(tranger, "treedb_yunovatioscedb", TRUE);
+if(!would) {
+    /* refused: no __assets__, or a snapshot that cannot be read (logged) */
+}
 /* ["3f1c...", "9a0b..."]: look at them before running it for real */
 JSON_DECREF(would)
 ```
