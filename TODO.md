@@ -178,6 +178,32 @@ The third review (of the 2026-09-16 and 2026-09-22 work) was fixed whole on
   wiring tests cover it; a live run would write production data), and
   gui_agent's Schemas tab, which the Playwright harness cannot open.
 
+## TreeDB / timeranger2: what the independent review of 7.25.4 left open
+
+Fixed whole on 2026-09-23 (`CHANGELOG.md`, Unreleased). Left:
+
+- **Legacy topics cannot be tm-marked.** Topics created by 7.25.4 or earlier
+  trust no file's tm range (correct, and as slow as 7.25.4 for tm queries). A
+  migration would have to scan each file once and write its marker.
+- **`treedb_delete_instance()`**: a tombstone write that fails partway still
+  logs and answers 0 (pre-existing).
+- Reopening a treedb whose record content is unreadable logs *"kw must be list
+  or dict"* noise from the loader.
+- `shoot-snap`, `link-nodes`, `unlink-nodes` (C_NODE) still read
+  `gobj_log_last_message()`.
+- gobj-ui `C_YUI_TREEDB_TOPICS`: a topic-table write in flight when the session
+  drops refreshes the topic after the failure, and the adapter logs
+  *"cannot route 'nodes' -- not in session"* (rare, pre-existing).
+- gui_agent: an apply that times out with one owner applied and another silent
+  ends with no restart.
+- No test for `save_json_to_file()`'s `close()` failure (no local way to make
+  it fail).
+- The agent's `audit/` directory grows ~0.6-1 GB a day with no retention
+  (19 GB on wattyzer, 90 GB on the dev machine).
+- Every agent upgrade (`find-new-yunos create=1`) logs *"Parent ref already in
+  child fkey, skipping duplicate"* twice per yuno, which contradicts "linking a
+  pair already linked writes nothing and says nothing".
+
 ## Agent: the spare agent is only refreshed on the package path
 
 `install.sh` restarts `yuneta_agent22` after an upgrade, once the main agent is
