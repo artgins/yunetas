@@ -327,7 +327,12 @@ of the write is told (`EV_TREEDB_NODE_LINKED`, `EV_TREEDB_NODE_UPDATED`):
   create was told (`EV_TREEDB_NODE_CREATED`), and an ERROR says what is left:
   *"Node created, but its links cannot be saved (autolink): the node stays
   without them"*.
-- **update + autolink**: nothing moved, in memory or on disk.
+- **update + autolink**: the node, its fields and its links are as the disk
+  has them, in memory and on disk. One exception: the bytes of a `file`
+  column of the record are stored BEFORE the write opens, as a write of their
+  own. The blob and its `__assets__` node stay on disk, and their
+  `EV_TREEDB_NODE_CREATED` (or `EV_TREEDB_NODE_UPDATED`, for a new name of
+  bytes already stored) is told. The node does not link them.
 
 In 7.25.4 this write was three calls, and a failed save took nothing back:
 memory kept the fields and the links until the next reload, and

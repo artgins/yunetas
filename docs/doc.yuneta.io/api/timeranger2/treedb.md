@@ -502,9 +502,21 @@ The `node` parameter must be a valid pure node object.
 The bytes of the `file` columns of `kw` are stored BEFORE any link moves.
 Storing them can write an asset node (a new name of an asset is an update of
 that node). That is a write of its own: it is on disk, and its event is told,
-whatever the autolink does after. Before, the bytes were stored inside the
-write of the autolink, and a failed autolink dropped the event of an asset
-that was on disk.
+whatever the autolink does after.
+
+A ref is linked through the hook it names, and that hook must fill the column
+the ref arrives in, as [`treedb_replace_links()`](<#treedb_replace_links>)
+asks. A ref whose hook fills ANOTHER column is refused (*"fkey reference: its
+hook does not link into this column"*): the autolink answers `-1`, and nothing
+moves. 7.25.4 linked it through the column the hook fills, a column `kw` did
+not name.
+
+```C
+/*  departments: 'department_id' (fkey) and 'unit_of' (fkey);
+ *  the hook 'units' of departments fills 'unit_of'                        */
+json_t *kw = json_pack("{s:s}", "department_id", "departments^sales^units");
+treedb_autolink(tranger, admin, kw, TRUE);     // -1, nothing moved
+```
 
 It only ADDS links, and it stops at the first ref it cannot link. To make the links of a node equal to the ones a record names, use [`treedb_replace_links()`](<#treedb_replace_links>): it does not touch the links that do not change, and a bad ref does not stop the others. `C_NODE`'s `update-node` with `autolink` uses [`treedb_update_node_and_links()`](<#treedb_update_node_and_links>), which replaces the links as `treedb_replace_links()` does, not `treedb_clean_node()` + `treedb_autolink()`.
 
@@ -906,10 +918,25 @@ If the node has existing links and 'force' is not enabled, [`treedb_delete_node(
 unlink cannot be saved stays linked, and the delete is refused (*"Cannot
 delete node: still has down links"*). A key that cannot be deleted refuses it
 too (*"Cannot delete node"*). Then the children that were unlinked and saved
-before the refusal are put back as they were (a list fkey keeps its order),
-and saved again. The node keeps its parents in memory, and no event of the
-delete is told. When the delete goes through, the events of its unlinks are
-told before `EV_TREEDB_NODE_DELETED`.
+before the refusal are put back as they were (a list fkey keeps its order,
+and each child goes back to its place in the hooks), and saved again. The node
+keeps its parents in memory, and no event of the delete is told.
+
+When the delete goes through, the events of its unlinks are told after the
+node has left the indexes, and before `EV_TREEDB_NODE_DELETED`. A subscriber
+that looks the node up by its id finds nothing. Until the delete returns, a
+save of the node is refused (*"Cannot save a node that is being deleted"*),
+from these callbacks and from the one of `EV_TREEDB_NODE_DELETED`: its key is
+gone, and a record written into it would bring the node back from the disk.
+
+```C
+/*  gina hangs from legal; the callback of the treedb saves legal when it
+ *  is told EV_TREEDB_NODE_UNLINKED                                        */
+treedb_delete_node(tranger, legal, json_pack("{s:b}", "force", 1));   // 0
+/*  told: EV_TREEDB_NODE_UNLINKED (gina), EV_TREEDB_NODE_UPDATED (gina),
+ *  EV_TREEDB_NODE_DELETED (legal). The save in the callback answered -1,
+ *  and legal is not on disk.                                              */
+```
 
 In 7.25.4 a child whose unlink could not be saved did not stop the delete:
 its record on disk kept naming the deleted node. And a key that could not be
@@ -918,8 +945,10 @@ unlinked on disk.
 
 A child that cannot be saved again stays unlinked, in memory as on disk, and
 an ERROR names it: *"A refused delete cannot put back a child it had
-unlinked: the child stays unlinked, in memory as on disk"*. The delete
-answers `-1` all the same.
+unlinked: the child stays unlinked, in memory as on disk"*. Its unlink stays,
+so its events are told: `EV_TREEDB_NODE_UNLINKED` (or the parent's
+`EV_TREEDB_NODE_UPDATED`, without link events) and the `EV_TREEDB_NODE_UPDATED`
+of the child. The delete answers `-1` all the same.
 
 ```C
 /*  finance hangs from board; audit, bob and carol hang from finance;
@@ -1456,9 +1485,7 @@ treedb is opened again"*.
 A ref that was never a link is not linked again when a write is taken back.
 A stale ref (its hook no longer exists, or the hook fills another column since
 a schema re-pointed it) and a ref whose parent is not in memory go back into
-the field alone, as a load of the disk leaves them. Before, a take-back linked
-every ref the write had removed: a stale one made a link that never existed,
-or failed with *"hook field not found"* and the ERROR above.
+the field alone, as a load of the disk leaves them.
 
 ```C
 /*  erin: departments ["departments^sales^users", "departments^direction^nohook"]
@@ -1466,6 +1493,18 @@ or failed with *"hook field not found"* and the ERROR above.
 treedb_clean_node(tranger, erin, TRUE);     // -1
 /*  erin["departments"] is the same two refs, sales hooks erin,
  *  direction does not                                                     */
+```
+
+A child that a take-back links again goes back to its PLACE in the hook of the
+parent, not to the end: every hook holds its children in the order it had
+before the write. That holds for a list hook and for a dict hook (a dict keeps
+its keys in the order they were set), and for the children a refused forced
+delete puts back. In 7.25.4 nothing was taken back.
+
+```C
+/*  sales["users"] holds bob, erin, frank; the files of erin are read-only  */
+treedb_clean_node(tranger, erin, TRUE);     // -1
+/*  sales["users"] holds bob, erin, frank again, in that order             */
 ```
 
 ---
@@ -1878,12 +1917,12 @@ file do not change, and the key fails (a replica makes the same check):
   ```
 
   With content after that row, the `cause` is *"its content is a whole record
-  of the content file"*. When the record is larger than the largest memory
-  block of the yuno that checks (`MEM_MAX_BLOCK` is set for each yuno, and
-  the writer's can be larger), it cannot be parsed, and the `cause` is *"its
-  content has no NUL but the one at its end, and is larger than the largest
-  memory block of this process: it can be a record written by a yuno with a
-  larger block"*: not cut either.
+  of the content file"*. When the yuno that checks has not the memory to
+  parse the record (`MEM_MAX_BLOCK` is set for each yuno, and the writer's
+  can be larger; a record smaller than the block can need more to parse),
+  the `cause` is *"its content has no NUL but the one at its end, and this
+  process has not the memory to parse it (MEM_MAX_BLOCK): it can be a record
+  written by a yuno with a larger block"*: not cut either.
 
 - a `.md2` whose last whole row, or the whole row before it, is not good:
 
@@ -1896,12 +1935,12 @@ file do not change, and the key fails (a replica makes the same check):
   ```
 
   The `cause` is one of *"its content is not inside the content file"*, *"its
-  content is not a record"*, *"its content is larger than the largest memory
-  block of this process: it cannot be checked"*, *"the whole row before it is
-  not a good row"*, *"the content of the whole row before it is larger than
-  the largest memory block of this process: it cannot be checked"* (for these
-  two, `row_at` is that row) and *"its content starts before the end of the
-  content of the row before it"*.
+  content is not a record"*, *"this process has not the memory to parse its
+  content (MEM_MAX_BLOCK): it cannot be checked"*, *"the whole row before it
+  is not a good row"*, *"this process has not the memory to parse the content
+  of the whole row before it (MEM_MAX_BLOCK): it cannot be checked"* (for
+  these two, `row_at` is that row) and *"its content starts before the end of
+  the content of the row before it"*.
 
 When the check itself cannot run, the file is not cut, and the CRITICAL is
 one of three:
@@ -2018,19 +2057,35 @@ a tagged record):
      content after the last row (an append killed between its two writes):
      the script accepts it. It writes the result only when exactly one
      boundary passes. It checks each row twice at most, whatever the number
-     of boundaries (a file of 86 400 rows takes less than one second). Keep
-     a copy, and write the result back into the same file (`cat >` keeps its
-     owner and mode). The block runs in a subshell with `set -e`: when a
-     command fails, the copy first of all, the block stops there and the
-     `.md2` does not change:
+     of boundaries (a file of 86 400 rows takes less than one second).
+
+     Set the topic, the key and the file from the log. The block keeps a copy
+     of the `.md2` in your home directory, with the topic, the key and the
+     file in its name (`items.k2.2026-09-23.md2.orig`), so the copies of two
+     keys do not overwrite each other. If that copy exists already (an
+     earlier try), the block stops: move the old copy away first. The block
+     writes the result into `$f.tmp`, a copy of the `.md2` with its owner and
+     mode (`cp -p`: run it as the owner of the store, or as root), then
+     renames it over the `.md2` (`mv`, one step). It runs in a subshell with
+     `set -e`: when a command before the `mv` fails (the copy first of all, or
+     a full disk), the block stops there and the `.md2` does not change. The
+     `mv` replaces the `.md2` in one step, so the `.md2` is always the old file
+     or the repaired one:
 
      ```bash
      (
      set -e                                    # stop at the first command that fails
-     cd <store>/items/keys/k2                  # topic, key and file: from the log
+     t=items                                   # topic, key and file: from the log
+     k=k2
      f=2026-09-23.md2
-     cp -p $f ~/$f.orig                        # keep the original
-     rm -f $f.new                              # no .new of an earlier try
+     cd <store>/$t/keys/$k
+     b=~/$t.$k.$f.orig                         # the copy: one for each topic, key and file
+     if [ -e $b ]; then                        # never overwrite an earlier copy
+         echo "$b exists: stop"
+         exit 1
+     fi
+     cp -p $f $b                               # keep the original
+     rm -f $f.new $f.tmp                       # no file of an earlier try
      python3 - $f <<'EOF'
      import os, struct, sys
      md2 = sys.argv[1]
@@ -2080,7 +2135,9 @@ a tagged record):
          open(md2 + '.new', 'wb').write(b[:found[0]] + b[found[0] + k:])
      EOF
      if [ -f $f.new ]; then                    # 'torn row at [96] of 13 bytes'
-         cat $f.new > $f
+         cp -p $f $f.tmp                       # the owner and mode of the .md2
+         cat $f.new > $f.tmp                   # the result, into that copy
+         mv $f.tmp $f                          # one step: the old .md2 or the new one
          rm $f.new
      fi
      stat -c %s $f                             # 160: 5 whole rows
@@ -2259,6 +2316,8 @@ Returns `0` on success, or a negative error code on failure.
 **Notes**
 
 The record is always written with tag 0, whether a snap is activated or not. A record gets a snap's tag only once, from [`treedb_shoot_snap()`](<#treedb_shoot_snap>). A save never gives a tag, so it never writes into a snap. With a snap activated, the primary index is loaded from the records that the snap tagged. An edit made during that time appears in the primary index only after the snap is deactivated.
+
+A node that [`treedb_delete_node()`](<#treedb_delete_node>) is deleting cannot be saved: from the moment its key is deleted until the delete returns, a save of it (from a callback of the delete) answers `-1` and logs *"Cannot save a node that is being deleted"*. A record written then would bring the node back from the disk.
 
 ---
 
