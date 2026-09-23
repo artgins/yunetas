@@ -1738,9 +1738,13 @@ WARNING load_key_cache_from_disk: md2 file of the key with no rows and a content
 
 (The first fix after 7.25.4, 200a1791e, flagged it: after a restart a node
 with good older rows disappeared, its create was refused, and a forward
-load hid the rows of the later files.) A running yuno does not leave that
-shape any more when the md2 fails: the append answers -1 and its content is
-cut back.
+load hid the rows of the later files.) An append whose md2 fails does not
+leave that shape: it answers -1 and its content is cut back, BEFORE the
+critical that reports the failure. With `exit_on_error` `2` (the default,
+`LOG_OPT_EXIT_ZERO`) that critical ends the yuno inside the log call, so a cut
+placed after it never ran: until the fifth fix round after 7.25.4 the yuno
+exited and left the shape on disk. A kill or a power cut between the two
+writes still leaves it, and the next open ignores it with the warning above.
 
 The rows read BEFORE the failure are handed over, and backward they are the
 key's NEWEST: its node is in memory when its newest record was readable (the
@@ -1789,6 +1793,23 @@ a tagged record):
 3. Repair it with the yuno STOPPED (the running yuno caches the store and
    writes it), with the least that brings the file back, in this order:
    - a file the yuno's user cannot read: give it back its owner and mode;
+   - a `.md2` whose size is not a multiple of 32 bytes (a torn tail: a row
+     written in part at its end, or bytes added after it): cut it back to
+     whole rows. The part of a row that is cut was never a readable row, and
+     every whole row before it stays. Content that no row names any more can
+     stay in the `.json`: nothing reads it.
+
+     ```bash
+     cd <store>/items/keys/k2                  # topic, key and file: from the log
+     f=2026-09-23.md2
+     stat -c %s $f                             # 1285: 40 rows and 5 bytes
+     truncate -s $(( $(stat -c %s $f) / 32 * 32 )) $f
+     stat -c %s $f                             # 1280
+     ```
+
+     When the file is shorter than what was written (rows lost from its end,
+     not a torn row), the cut only makes it readable again: the lost rows need
+     the backup;
    - anything else: put the key's directory back from a backup copy of the
      store.
 

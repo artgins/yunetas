@@ -173,6 +173,26 @@ writes still leaves that shape; the next open ignores it with a warning (see
 *After a restart too*, under [`tranger2_open_iterator()`](#tranger2_open_iterator)).
 Until the fourth fix round after 7.25.4 the content was left behind.
 
+The cut comes BEFORE the critical that reports the failure. That matters with
+the exit bit of the tranger's `on_critical_error` (`LOG_OPT_EXIT_ZERO`, `2`,
+the default of `C_TRANGER`, and what `C_TREEDB` passes with its
+`exit_on_error`): `gobj_log_critical()` then ends the process inside the log
+call, and nothing after it runs. The first rollback (fourth fix round) cut
+after the critical, so with the production default it never ran and the
+content stayed on disk. When the md2 cannot be opened or created, the cause is
+logged without leaving, the content is cut back, and then one more critical
+exits:
+
+```text
+CRITICAL create_file: Cannot create json file  path=<store>/items/keys/A/2000-01-06.md2
+CRITICAL get_topic_wr_fd: Cannot open file to write  path=<store>/items/keys/A/2000-01-06.md2
+CRITICAL tranger2_append_record: Cannot append record, its md2 file cannot be opened: its content
+         was cut back  topic=items key=A file_id=2000-01-06          <- exit(0) here, with 2
+```
+
+The same order holds for a content write that fails part way: its part is cut
+back before the critical.
+
 **An append into a file flagged unreadable** (a `.md2` the cache build could
 not count, see the same section) counts the file again first. If it can be read
 now, it gets its cell, the flag of that file goes (*"md2 file of the key
@@ -188,6 +208,27 @@ tranger2_append_record(tranger, "topic", t_day2, 0, &md, rec1);   // -1, nothing
 chmod(path_md2_day2, 0660);
 tranger2_append_record(tranger, "topic", t_day2, 0, &md, rec2);   // 0: day 2 counted,
                                                                   // A loads whole again
+```
+
+The file counted again gets its cell in the MIDDLE of the key, and every
+global rowid after it moves up by the rows of the file. The iterators open on
+the key follow: an unfiltered one takes its segments again at its next page; a
+FILTERED one (a paging iterator with an index, see
+[`tranger2_iterator_get_page()`](#tranger2_iterator_get_page)) takes its
+segments and its index again at once, as its open would build them now. So
+its index gains the rows of the file, with their new rowids. Like every append
+after the open of a filtered iterator, the append that caused the count is not
+in its index. Until the fifth fix round the index was emptied, and every page
+of the iterator answered `total_rows` 0 for its whole life:
+
+```C
+/*  key A: v1 (day 1), v2 (day 2, flagged), v3 (day 3), v4 (day 4)          */
+it = tranger2_open_iterator(tranger, "topic", "A",
+        json_pack("{s:I}", "from_t", (json_int_t)t_day1), NULL, "pager", "me", NULL, NULL);
+/*  its page:  total_rows 3, v1 v3 v4                                         */
+chmod(path_md2_day2, 0660);
+tranger2_append_record(tranger, "topic", t_day2, 0, &md, rec_v9); // counts day 2
+/*  its page:  total_rows 4, v1 v2 v3 v4       (was: total_rows 0)           */
 ```
 
 ---
@@ -1245,13 +1286,24 @@ From a yuno, the `mark-tm-order` command of `C_TRANGER`:
 ycommand -c 'command-yuno id=<id> service=<tranger service> command=mark-tm-order topic_name=readings'
 ```
 
-From C, every topic of a store:
+From C, every topic of a store. [`tranger2_list_topic_names()`](#tranger2_list_topic_names)
+lists every DIRECTORY of the store, and not every directory is a topic:
+`C_TREEDB` keeps `saved_schemas/` in the store of `__system__`. Skip a
+directory without its `topic_desc.json`, as the command does, or the loop
+stops there, before the topics listed after it:
 
 ```C
+const char *directory = json_string_value(json_object_get(tranger, "directory"));
 json_t *names = tranger2_list_topic_names(tranger);
 size_t i; json_t *jn_name;
 json_array_foreach(names, i, jn_name) {
-    json_t *report = tranger2_mark_tm_order(tranger, json_string_value(jn_name));
+    const char *name = json_string_value(jn_name);
+    char topic_dir[PATH_MAX];
+    build_path(topic_dir, sizeof(topic_dir), directory, name, NULL);
+    if(!file_exists(topic_dir, "topic_desc.json")) {
+        continue;   // not a topic (saved_schemas/ in __system__)
+    }
+    json_t *report = tranger2_mark_tm_order(tranger, name);
     if(!report) {
         break;  // logged; the topics already marked stay marked
     }
