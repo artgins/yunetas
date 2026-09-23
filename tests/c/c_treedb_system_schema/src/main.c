@@ -138,7 +138,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Updating TreeDB schema in __system__",
     "Re-Creating TreeDB schema file",
     "Updating TreeDB schema in __system__",
-    "Topic from C differs from the one in use, but its topic_version is not higher: not applied",
+    "Topic from C differs from __system__ but does not raise its topic_version past the file in use: not applied, the topic runs from the file",
     "Re-Creating TreeDB schema file",
     /*  Test 5: the refused writes  */
     "Value not in enum",
@@ -237,13 +237,22 @@ PRIVATE const char *expected_log_msgs[] = {
     /*  Test 13b2b: the same schema with its cols listed is not "another
      *  content" (only the ordinary "behind" of __system__)  */
     "TreeDB schema from C is behind the schema in use, not applied",
+    /*  Test 13b3a: an operator save of `users`, then a literal newer than
+     *  __system__ raising `users` past the file: projected over the draft  */
+    "TreeDB schema from C is behind the schema in use, not applied",
+    "Schema saved",
+    "Updating TreeDB schema in __system__",
+    "Topic from C raised past the file in use replaces its saved draft in __system__",
+    "Re-Creating TreeDB schema file",
+    "Re-Creating topic_var.json",
+    "Re-Creating topic_cols.json",
     /*  Test 13b3: a literal taking over the file re-projects only the topic
      *  it raised; then, with NO file in use, the whole literal  */
     "TreeDB schema from C is behind the schema in use, not applied",
     "Schema saved",
     "Schema from C is newer than the file in use but not than __system__: it takes over the file, and replaces in __system__ the drafts of the topics it raises past the file",
     "Updating TreeDB schema in __system__",
-    "Topic from C differs from its draft, but the schema from C does not raise it past the file in use: the draft is kept",
+    "Topic from C differs from __system__ but does not raise its topic_version past the file in use: not applied, the topic runs from the file",
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",

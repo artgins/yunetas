@@ -3198,26 +3198,34 @@ PRIVATE BOOL projection_changes_node(
  *  says. treedb_open_db() installs each topic of an imposed schema over a
  *  HIGHER stored topic_version too, so the ordinary rule would leave the
  *  projection saying something the store no longer holds -- in the one case
- *  `impose` exists to repair.
+ *  `impose` exists to repair. It is also the rule when there is no schema
+ *  file in use: the treedb opens from the literal, whole.
  *
- *  With `file_taken_over` (the schema file in use that a newer literal is
- *  about to replace, see literal_against_file_in_use), a topic is projected
- *  when the literal RAISED it past that file, whatever version a save gave
- *  it in __system__: that is the topic the treedb will run from the
- *  literal (tranger2 installs a topic only over a lower topic_version). A
- *  topic the literal did not raise goes on running from the file, and its
- *  draft in __system__ -- an operator's edit included -- is left alone,
- *  as a literal N+1 arriving the ordinary way leaves it (M-B of the
- *  2026-09-23 independent review: it was projected with the rule of
- *  `imposing`, every topic that differed).
+ *  Otherwise ONE rule, whether the literal is newer than __system__ (the
+ *  ordinary way) or only newer than the file (it takes the file over, see
+ *  literal_against_file_in_use): a topic is projected when the literal
+ *  RAISES it past the schema file IN USE (`file_in_use`), whatever version a
+ *  save gave it in __system__. That is the topic the treedb runs from the
+ *  literal (treedb_open_db() installs a literal newer than the file, and
+ *  tranger2 a topic only over a lower topic_version), and __system__ must
+ *  say what runs: kept, the draft was published by the next save over the
+ *  developer's change, reverting it with no word. A topic the literal does
+ *  not raise past the file goes on running from the file, and its draft in
+ *  __system__ -- an operator's edit included -- is left alone.
+ *
+ *  The two paths had two rules until the review of the second fix round
+ *  (2026-09-23): the ordinary one compared the literal with the version in
+ *  __system__, so a topic a save had raised to the literal's number kept the
+ *  operator's draft while the treedb ran the literal, and logged that the
+ *  literal was "not applied".
  ***************************************************************************/
 PRIVATE int upsert_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
     json_t *kw,     // not owned
     json_t *current,// not owned, the projection already stored, or NULL
-    BOOL imposing,  // the schema from C wins over every stored topic_version
-    json_t *file_taken_over // not owned, the file in use a newer literal replaces, or NULL
+    BOOL imposing,  // every topic that differs is projected (impose, or no file in use)
+    json_t *file_in_use // not owned, the schema file the literal is installed over, or NULL
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -3338,12 +3346,12 @@ PRIVATE int upsert_treedb_schema(
         /*
          *  A topic is published by raising ITS version, the same rule
          *  tranger2 applies to topic_cols.json, and the number is the
-         *  literal's as it is. A topic the literal did not raise is left as
-         *  it is stored, dynamic edits included — said when the literal
-         *  declares something else, because a column changed in C without
-         *  a higher topic_version is the classic change that reaches nothing.
-         *  Imposing, that rule does not apply: the literal wins at both
-         *  levels, here as on disk.
+         *  literal's as it is. A topic the literal does not raise past the
+         *  FILE in use is left as it is stored, dynamic edits included --
+         *  said when the literal declares something else, because a column
+         *  changed in C without a higher topic_version is the classic change
+         *  that reaches nothing. Imposing, that rule does not apply: the
+         *  literal wins at both levels, here as on disk.
          */
         if(current_topic) {
             json_int_t stored_topic_version = kw_get_int(
@@ -3364,20 +3372,38 @@ PRIVATE int upsert_treedb_schema(
                 continue;
             }
 
-            if(file_taken_over && !imposing) {
+            if(!imposing) {
                 json_int_t file_topic_version = schema_topic_version(
-                    gobj, file_taken_over, topic_name
+                    gobj, file_in_use, topic_name
                 );
-                if(!topic_changes) {
+                if(topic_version <= file_topic_version) {
+                    if(topic_changes) {
+                        gobj_log_info(gobj, 0,
+                            "function",         "%s", __FUNCTION__,
+                            "msgset",           "%s", MSGSET_INFO,
+                            "msg",              "%s", "Topic from C differs from __system__ but does not raise its topic_version past the file in use: not applied, the topic runs from the file",
+                            "treedb_name",      "%s", treedb_name,
+                            "topic_name",       "%s", topic_name,
+                            "topic_version",    "%d", (int)topic_version,
+                            "file_version",     "%d", (int)file_topic_version,
+                            "stored_version",   "%d", (int)stored_topic_version,
+                            NULL
+                        );
+                    }
                     JSON_DECREF(kw_cols)
                     json_decref(kw_topic);
                     continue;
                 }
-                if(topic_version <= file_topic_version) {
-                    gobj_log_info(gobj, 0,
+                if(!topic_changes && topic_version <= stored_topic_version) {
+                    JSON_DECREF(kw_cols)
+                    json_decref(kw_topic);
+                    continue;   /*  raised, and __system__ already says it  */
+                }
+                if(topic_changes && stored_topic_version > file_topic_version) {
+                    gobj_log_warning(gobj, 0,
                         "function",         "%s", __FUNCTION__,
-                        "msgset",           "%s", MSGSET_INFO,
-                        "msg",              "%s", "Topic from C differs from its draft, but the schema from C does not raise it past the file in use: the draft is kept",
+                        "msgset",           "%s", MSGSET_TREEDB,
+                        "msg",              "%s", "Topic from C raised past the file in use replaces its saved draft in __system__",
                         "treedb_name",      "%s", treedb_name,
                         "topic_name",       "%s", topic_name,
                         "topic_version",    "%d", (int)topic_version,
@@ -3385,28 +3411,7 @@ PRIVATE int upsert_treedb_schema(
                         "stored_version",   "%d", (int)stored_topic_version,
                         NULL
                     );
-                    JSON_DECREF(kw_cols)
-                    json_decref(kw_topic);
-                    continue;
                 }
-                /*  raised past the file: projected, as imposing would  */
-
-            } else if(topic_version <= stored_topic_version && !imposing) {
-                if(topic_changes) {
-                    gobj_log_info(gobj, 0,
-                        "function",         "%s", __FUNCTION__,
-                        "msgset",           "%s", MSGSET_INFO,
-                        "msg",              "%s", "Topic from C differs from the one in use, but its topic_version is not higher: not applied",
-                        "treedb_name",      "%s", treedb_name,
-                        "topic_name",       "%s", topic_name,
-                        "topic_version",    "%d", (int)topic_version,
-                        "stored_version",   "%d", (int)stored_topic_version,
-                        NULL
-                    );
-                }
-                JSON_DECREF(kw_cols)
-                json_decref(kw_topic);
-                continue;
             }
         }
 
@@ -3793,6 +3798,27 @@ PRIVATE int reconcile_treedb_schema(
         return 0;
     }
 
+    /*
+     *  Newer than __system__, but not than the file in use: treedb_open_db()
+     *  keeps the file, nothing of the literal runs, and nothing of it is
+     *  projected.
+     */
+    json_t *file_in_use = imposing? NULL : load_schema_file_in_use(gobj, treedb_name);
+    if(file_in_use && !takes_over && new_version <= schema_version_of(gobj, file_in_use)) {
+        gobj_log_info(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INFO,
+            "msg",              "%s", "TreeDB schema from C is newer than __system__ but not than the file in use: not applied, the treedb opens from the file",
+            "treedb_name",      "%s", treedb_name,
+            "schema_version",   "%d", (int)new_version,
+            "in_use_version",   "%d", (int)schema_version_of(gobj, file_in_use),
+            "stored_version",   "%d", (int)stored_version,
+            NULL
+        );
+        JSON_DECREF(file_in_use)
+        return 0;
+    }
+
     json_t *current = gobj_node_tree(
         priv->gobj_node_system,
         "treedbs",
@@ -3801,6 +3827,7 @@ PRIVATE int reconcile_treedb_schema(
         gobj
     );
     if(!current) {
+        JSON_DECREF(file_in_use)
         return -1;  // Error already logged
     }
 
@@ -3815,16 +3842,16 @@ PRIVATE int reconcile_treedb_schema(
     );
 
     /*
-     *  Taken over with NO file in use, every topic opens from the literal,
-     *  and every one is projected: the rule of `imposing`.
+     *  With NO file in use, every topic opens from the literal, and every
+     *  one is projected: the rule of `imposing`. With one, the topics the
+     *  literal raises past it (see upsert_treedb_schema).
      */
-    json_t *file_taken_over = takes_over? load_schema_file_in_use(gobj, treedb_name) : NULL;
     int ret = upsert_treedb_schema(
         gobj, treedb_name, jn_schema, current,
-        imposing || (takes_over && !file_taken_over),
-        file_taken_over
+        imposing || !file_in_use,
+        file_in_use
     );
-    JSON_DECREF(file_taken_over)
+    JSON_DECREF(file_in_use)
     JSON_DECREF(current)
 
     return ret;

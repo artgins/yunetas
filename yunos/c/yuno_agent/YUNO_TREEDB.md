@@ -1556,11 +1556,16 @@ dynamically, which is a decision — and the log says so: *"TreeDB schema from
 C is behind the schema in use, not applied"*. A new installation that must
 carry the dynamic changes takes them into the literal. Inside a projection,
 a topic is written only if it is new or the literal raised its
-`topic_version`. A topic that the literal changed without raising its
-version is left as it is, with a log line: *"Topic from C differs from the
-one in use, but its topic_version is not higher: not applied"*.
-`c_schema_version` only records which literal the projection came from, for
-`diff-schema`.
+`topic_version` **past the schema file in use** (see *One rule for a raised
+topic*, below). A topic that the literal changed without raising it past the
+file is left as it is, with a log line: *"Topic from C differs from __system__
+but does not raise its topic_version past the file in use: not applied, the
+topic runs from the file"*. A literal newer than `__system__` but NOT newer
+than the file in use is not installed by `treedb_open_db()` (the file wins),
+so nothing of it is projected either: *"TreeDB schema from C is newer than
+__system__ but not than the file in use: not applied, the treedb opens from
+the file"*. `c_schema_version` only records which literal the projection came
+from, for `diff-schema`.
 
 **"Behind" is judged against the FILE in use too** (after 7.25.3), because
 `save-schema` writes the same number into `__system__` that a literal author
@@ -1574,18 +1579,31 @@ in __system__ the drafts of the topics it raises past the file"*. Judged by
 and the next `save-schema` published the old draft over it, reverting the
 literal's change with no word.
 
-**Only the topics the literal RAISED past the file are projected** (after
-7.25.4). tranger2 installs a topic only over a lower `topic_version`, so a
-topic the literal did not raise goes on running from the file, and its draft
-in `__system__` -- an operator's edit included -- is kept, as a literal N+1
-arriving the ordinary way keeps it. The log says it per topic: *"Topic from C
-differs from its draft, but the schema from C does not raise it past the file
-in use: the draft is kept"*. Until 7.25.4 every topic that differed was
-re-written, with the rule of `impose_c_schema`, and an operator's edit of a
-topic the developer never touched was lost. With NO file in use at all, the
-treedb opens from the literal and every topic is projected: *"No schema file
-in use: the treedb opens with the schema from C, projected whole over
-__system__"*.
+**One rule for a raised topic, whichever way the literal arrives** (after
+7.25.4). Newer than `__system__` (the ordinary way) or only newer than the file
+(the take-over above), a literal installed over the file in use projects a
+topic when it raises that topic's `topic_version` **past the file in use** --
+whatever number a save gave the draft in `__system__`. That is the topic the
+treedb runs from the literal (tranger2 installs a topic only over a lower
+`topic_version`), and `__system__` must say what runs: a draft kept there is
+what the next `save-schema` publishes, over the developer's change, with no
+word. When the topic carried a SAVED draft (its version in `__system__` above
+the file's), the log names it: *"Topic from C raised past the file in use
+replaces its saved draft in __system__"*. A topic the literal does not raise
+past the file goes on running from the file, and its draft in `__system__` --
+an operator's edit included -- is kept, with the log line of the paragraph
+above.
+
+Until 7.25.4 the two ways had two rules. The ordinary one compared the literal
+with the version in `__system__`: an operator saves an edit of `users` (4 in
+the file, 5 in `__system__`), the developer ships a literal two versions ahead
+raising `users` to 5, and the treedb ran the developer's `users` while
+`__system__` kept the operator's and logged *"not applied"*. Taken over (one
+version ahead), the same edit was replaced. Before that, the take-over re-wrote
+every topic that differed, and an operator's edit of a topic the developer
+never touched was lost. With NO file in use at all, the treedb opens from the
+literal and every topic is projected: *"No schema file in use: the treedb
+opens with the schema from C, projected whole over __system__"*.
 
 A literal that carries the SAME `schema_version` as a dynamic file in use but
 another content is two schemas under one number: the file wins, as ties always
@@ -1606,6 +1624,8 @@ projection already there.
 | `__system__` | File in use | Literal | What happens at open (impose off) |
 |---|---|---|---|
 | 3, saved, not applied (from 2) | 2 | 3, raises `users` | literal runs; `users` projected over its draft, the other topics' drafts kept; warning |
+| 3, `users` saved at 5, not applied | 2, `users` 4 | 4, raises `users` to 5 | literal runs; `users` projected over the saved draft (*"replaces its saved draft"*), the other topics' drafts kept |
+| 3, saved, not applied | 2, `users` 4 | 4, `users` changed but left at 4 | literal runs, `users` runs from the file; `users` not projected (*"does not raise its topic_version past the file in use"*) |
 | 3, saved, not applied | none | 3 | literal runs, projected whole; warning |
 | 3, saved and applied | 3 | 3, other content | file runs, `__system__` kept, warning |
 | 3, saved and applied | 3 | 3, the applied content (any form) | file runs, nothing said |

@@ -3919,6 +3919,107 @@ PRIVATE int check_takeover_projects_raised_topics_only(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A literal arriving the ORDINARY way (newer than __system__) follows the
+ *  rule of the take-over: a topic it raises past the FILE IN USE runs from
+ *  the literal, so __system__ says the literal (review of the second fix
+ *  round, 2026-09-23: C_TREEDB medium).
+ *
+ *  The operator saves an edit of `users` (never applied): `users` goes to
+ *  the file's topic_version + 1 in __system__. The developer ships a literal
+ *  two schema versions ahead that raises `users` to the same number with
+ *  another change. treedb_open_db() installs it (newer than the file) and
+ *  tranger2 installs `users` (newer than its topic_cols.json): the treedb
+ *  runs the developer's header. __system__ used to keep the operator's
+ *  draft and log "differs from the one in use ... not applied" -- a false
+ *  log, and a next save that would have reverted the developer's change
+ *  with no word. Taken over (literal one version ahead), the same edit was
+ *  replaced: one rule for both now.
+ ***************************************************************************/
+PRIVATE int check_ordinary_literal_follows_the_file(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    json_t *jn_resp;
+
+    if(reopen_test_treedb(gobj, FALSE) < 0) {
+        return -1;  // Error already logged
+    }
+    char saved_dir[PATH_MAX];
+    build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    file_remove(saved_dir, TREEDB_NAME ".treedb_schema.json");
+
+    json_int_t in_use_v = disk_schema_version(gobj);
+    json_int_t users_in_use_tv = in_use_topic_version(gobj, "users");
+
+    {
+        json_t *ids = system_topic_cols(gobj, "users");
+        const char *email_id = json_string_value(json_object_get(ids, "email"));
+        json_t *edited = gobj_update_node(
+            gobj_find_service(SYSTEM_TREEDB, FALSE),
+            "cols",
+            json_pack("{s:s, s:s}", "id", email_id?email_id:"", "header", "Operator mail"),
+            json_pack("{s:b}", "refs", 1),
+            gobj
+        );
+        if(!edited) {
+            result += save_fail(gobj, "TEST FAIL: the operator edit was refused", NULL);
+        }
+        JSON_DECREF(edited)
+        JSON_DECREF(ids)
+    }
+    jn_resp = treedbs_command(gobj, "save-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            kw_get_int(gobj, jn_resp, "data`topic_versions`users", 0, KW_WILD_NUMBER) != users_in_use_tv + 1) {
+        result += save_fail(gobj, "TEST FAIL: the operator save did not raise users past the file", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  The developer's literal: newer than __system__ (the ordinary path),
+     *  `users` raised past the file to the number the save gave the draft
+     */
+    json_t *literal = legalstring2json(schema_test2, TRUE);
+    json_object_set_new(literal, "schema_version", json_integer(in_use_v + 2));
+    int idx; json_t *topic;
+    json_array_foreach(json_object_get(literal, "topics"), idx, topic) {
+        if(strcmp(kw_get_str(gobj, topic, "id", "", 0), "users")==0) {
+            json_object_set_new(topic, "topic_version", json_integer(users_in_use_tv + 1));
+            json_object_set_new(
+                json_object_get(json_object_get(topic, "cols"), "email"),
+                "header",
+                json_string("Mail from C")
+            );
+        }
+    }
+    jn_resp = treedbs_command(gobj, "close-treedb", json_pack("{s:b}", "force", 1));
+    JSON_DECREF(jn_resp)
+    if(open_test_treedb(gobj, literal) < 0) {   // literal owned
+        return result - 1;
+    }
+
+    char running[NAME_MAX];
+    client_col_header(gobj, "users", "email", running, sizeof(running));
+    json_t *users = system_topic_cols(gobj, "users");
+    const char *in_system = json_string_value(json_object_get(users, "email__header"));
+    if(strcmp(running, "Mail from C")!=0 || !in_system || strcmp(in_system, running)!=0 ||
+            system_topic_version(gobj, "users") != users_in_use_tv + 1) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: __system__ does not say the topic the treedb runs from the literal",
+            "running",          "%s", running,
+            "in_system",        "%s", in_system?in_system:"",
+            "users_version",    "%d", (int)system_topic_version(gobj, "users"),
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(users)
+
+    return result;
+}
+
+/***************************************************************************
  *  __system__'s tranger LOST its lock (another process took its store
  *  while it was stopped): timeranger2 leaves it a replica, `master` false
  *  in its json. C_TREEDB must use and report THAT, not its `master`
@@ -4792,8 +4893,11 @@ PRIVATE int run_tests(hgobj gobj)
 
     /*-----------------------------------------------*
      *  Test 13b3: a literal that takes over the file
-     *  in use re-projects only the topics it raised
+     *  in use re-projects only the topics it raised,
+     *  and a literal arriving the ordinary way
+     *  follows the same rule
      *-----------------------------------------------*/
+    result += check_ordinary_literal_follows_the_file(gobj);
     result += check_takeover_projects_raised_topics_only(gobj);
 
     /*-----------------------------------------------*
