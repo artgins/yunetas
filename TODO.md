@@ -171,11 +171,6 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
 - `import-db` keys its error-count stats on `gobj_log_last_message()`.
 - ***"Child node without fkey field"*** is logged as an ERROR at every open,
   once per node, when an fkey column is filled by no hook any more.
-- gobj-ui `C_YUI_TREEDB_TOPICS`: a topic-table write in flight when the session
-  drops refreshes the topic after the failure, and the adapter logs
-  *"cannot route 'nodes' -- not in session"* (rare).
-- gui_agent: an apply that times out with one owner applied and another silent
-  ends with no restart.
 - The agent's `audit/` directory grows ~0.6-1 GB a day with no retention
   (19 GB on wattyzer, 90 GB on the dev machine).
 - `default: {}` placeholders are dropped by save + apply, so a `required`
