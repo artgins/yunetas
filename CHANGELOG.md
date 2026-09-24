@@ -23,6 +23,14 @@ code before it, except those listed under "No red test" in `TODO.md`.
   and writes nothing when more than one boundary passes. A scan of ~21 500 md2
   files on four stores (local, wattyzer, both yunovatios) found none. See
   `deploying-yunos.md`.
+- **Before upgrading, run `save-schema` for any draft you want to keep.** An
+  unsaved draft that added a topic or column is taken as left by 7.25.4; a
+  topic deleted as an unsaved draft is restored by the first open when the
+  file in use is the literal. See `deploying-yunos.md`.
+- **The agent removes audit files older than 7 days at its first start.** To
+  keep more, set `"agent.audit_keep_days": <days>` in the `global` section of
+  `/yuneta/agent/yuneta_agent.json` BEFORE you start the new agent (`0` keeps
+  all). See DEBUGGING.md 5.5.
 - **Migrate the timeranger2 topics once, after upgrading.** Until a topic
   created by 7.25.4 or earlier is migrated, no file's tm range is trusted in it,
   and a `tm` query (`from_tm` / `to_tm`) reads every md2 row of the key. On the
@@ -35,10 +43,19 @@ code before it, except those listed under "No red test" in `TODO.md`.
   The migration reads every md2 file once, is linear in the number of files, and
   blocks the yuno while it runs (1 key x 30 files x 20 000 rows: ~19 ms). The
   price until then is under "Performance". See `deploying-yunos.md`.
-- **If the main agent does not come back after the upgrade**, look for
-  *"Cannot start agent treedb"* in its log: when its treedb's schema is
+- **If the main agent does not come back after the upgrade**, look in its log
+  for *"treedb 'treedb_yuneta_agent' did not open, its schema was refused"*
+  (syslog has *"Cannot start agent treedb: ..."*): when its treedb's schema is
   refused, the agent now exits 0 and is not relaunched. Reach the node through
   `yuneta_agent22`.
+- **The first open of each treedb after the upgrade reads what 7.25.4 left in
+  `__system__`.** It writes `saved_schemas/<treedb>.upgrade.json` under the
+  `__system__` tranger; do not delete it. Expect once per treedb: WARNING
+  *"Restored from the schema from C: ..."* where a first projection of
+  7.23.0-7.25.4 died after its stamp; when that open's literal is newer,
+  WARNING *"Removed from __system__ what an older release left there: ..."*
+  and `withdrawn_at_open` kind `left_by_older_release`. Neither is operator
+  work.
 - **Do not roll a node back to 7.25.4 or earlier** for topics created or
   migrated by this release without running `mark-tm-order` again after coming
   forward: an older binary appends out-of-order `tm` rows without writing the
@@ -61,12 +78,12 @@ code before it, except those listed under "No red test" in `TODO.md`.
   (*"Cannot read the record, this process has not the memory to parse its
   content (MEM_MAX_BLOCK)"*, with its `key`) instead of crashing the reader;
   a torn md2 whose last row names such a record is flagged, not cut.
-- **One command could crash the agent through its audit** (new in the
-  unreleased audit work; not in 7.25.4). The audit record builder runs before
-  the command parser and the authz, on the text of any peer that can send a
-  command: the scan is one pass without recursion, in linear time, and one
-  record scans at most 128 MB (a longer string is written as `<N bytes, not
-  scanned, sha256:HEX>`; for the command text, its first word comes first).
+- **No command can crash the agent through its audit.** The audit record builder
+  runs before the command parser and the authz, on the text of any peer that can
+  send a command: the scan is one pass without recursion, in linear time, and
+  one record scans at most 128 MB (a longer string is written as
+  `<N bytes, not scanned, sha256:HEX>`; for the command text, its first word
+  comes first).
 - **The audit reads the command word as the parser does** (any case, quotes,
   aliases, looked up in the agent's command table): `WRITE-TTY`,
   `'write-tty'`, `EV_WRITE_TTY` are console writes too, `CLOSE-CONSOLE` ends
@@ -293,14 +310,16 @@ code before it, except those listed under "No red test" in `TODO.md`.
 
 ### Scans and lists (timeranger2)
 
-- `tm` order is marked: in topics created from now on (or migrated with the
-  new `tranger2_mark_tm_order()`), a file that receives a record out of `tm`
-  order gets a `<file>.tm_unordered` marker, written BEFORE the md2 row (a
-  marker that cannot be written is retried at the next append to that file).
-  A marked file's tm range is read from all its rows; in a file known to be
-  in tm order a row past the range ends the scan of that FILE (not of the
-  key). A marker name that does not fit makes the file be read whole
-  (logged).
+- `tm` order is marked: in topics created from now on (or migrated with the new
+  `tranger2_mark_tm_order()`), a file that receives a record out of `tm` order
+  gets a `<file>.tm_unordered` marker, written BEFORE the md2 row (a marker that
+  cannot be written is retried at the next append to that file). A marked file's
+  tm range is read from all its rows; in a file known to be in tm order a row
+  past the range ends the scan of that FILE (not of the key). A marker name that
+  does not fit makes the file be read whole (logged). In 7.25.4 a reload and a
+  replica took a file's tm range from its first and last rows: a tm query left
+  out a file whose rows are not in tm order, and its matching rows were missing
+  from the answer.
 - A scan steps over the holes a tm filter leaves between files (7.25.4 logged
   a false *"next rowids not consecutive"* and lost the rows after the hole).
 - After `delete_key` the iterators of that key drop their segments (7.25.4's
@@ -315,25 +334,24 @@ code before it, except those listed under "No red test" in `TODO.md`.
 Measured with the benchmarks under `performance/c/` (`perf_timeranger2`,
 `perf_tr_treedb`, `perf_c_treedb`, new in this release) and the test
 `timeranger2/test_topic_pkey_integer`, each linked against the module of
-7.25.4 and of this release, run alternated (means of 10 or 20 rounds;
-RelWithDebInfo with memory tracking, ext4, laptop NVMe). The raw figures,
-with their spread, are in `performance/c/README.md`.
+7.25.4 and of this release, run alternated (means of 10 or 20 rounds, some
+of them on 4 link layouts; RelWithDebInfo with memory tracking, ext4, laptop
+NVMe). The raw figures, with their spread, are in `performance/c/README.md`.
 
 - **timeranger2.**
-    - An append costs what it cost in 7.25.4, with the checks this release
-      adds to it (a flagged file, the tm order, a torn md2 tail, a stopped
-      master). The append looks up the cache of its key once (it was four
-      times), and it searches the cache cell of its file once;
-      `cmp_file_ids()` compares file ids in place, without `snprintf()`
-      (new test `timeranger2/test_cmp_file_ids`). `perf_timeranger2`, 20
-      rounds: 400 000 appends into 20 000 files 1733.5 -> 1712.6 ms
-      (-1.2%), 600 000 appends into 30 files of a topic that marks tm
-      order 1635.0 -> 1627.3 ms (-0.5%). `test_topic_pkey_integer`,
-      appends/s without / with an rt list, averaged over 4 code layouts
-      (n = 80): 7.25.4 220 120 / 166 498, now 221 588 / 167 381 (+0.7% /
-      +0.5%). A single link of each moves up to 2% with the address of the
-      libraries after the module (jansson's `json_dumps()` is ~40% of an
-      append): see `performance/c/README.md`.
+    - An append costs what it cost in 7.25.4, with the checks this release adds
+      to it (a flagged file, the tm order, a torn md2 tail, a stopped master).
+      The append looks up the cache of its key once, and it searches the cache
+      cell of its file once; `cmp_file_ids()` compares file ids in place,
+      without `snprintf()` (new test `timeranger2/test_cmp_file_ids`).
+      `perf_timeranger2`, 20 rounds: 400 000 appends into 20 000 files 1733.5 ->
+      1712.6 ms (-1.2%), 600 000 appends into 30 files of a topic that marks tm
+      order 1635.0 -> 1627.3 ms (-0.5%). `test_topic_pkey_integer`, appends/s
+      without / with an rt list, averaged over 4 code layouts (n = 80): 7.25.4
+      220 120 / 166 498, now 221 588 / 167 381 (+0.7% / +0.5%). A single link of
+      each moves up to 2.5% with the address of the libraries after the module
+      (jansson's `json_dumps()` is ~40% of an append): see
+      `performance/c/README.md`.
     - A master opens a store 13% faster (20 000 md2 files: 92 ms -> 81 ms):
       it finds the order markers in the listing of the key directory it
       already reads, instead of a `stat()` per md2 file.
@@ -342,7 +360,7 @@ with their spread, are in `performance/c/README.md`.
       disk after reading each file, because a listing taken before could miss
       a marker the master writes during the open. Creating a topic makes 2
       fsyncs and a `topic_version` change 4 (7.25.4: none; 10 topics created
-      in 160 ms against 1.4 ms, 10 version changes in 277 ms against 9 ms);
+      in 119 ms against 3.6 ms, 10 version changes in 232 ms against 1.7 ms);
       opening an existing store makes none. That is the price of durable
       topic files: a power cut never leaves a new `topic_version` over a
       `topic_cols.json` that is not on disk.
@@ -394,22 +412,27 @@ with their spread, are in `performance/c/README.md`.
   The record is the crash safety of the projection; the index, the orphans
   and the drafts keep an operator's draft from being taken for what a
   projection left, and the reverse.
+- **ctest times** (`build/*.txt`): of the tests whose code did not change
+  after 7.25.4, only `test_treedb_schema_fidelity` moved more than 10%,
+  1.14-1.26 s -> 1.55-1.69 s (+30%). It opens four treedbs in four new stores,
+  and its fsyncs (88, ~0.56 s) are the price of the durable topic files and of
+  the projection record.
 
 ### Schemas (C_TREEDB)
 
 - **A newer C literal wins whole** (dynamic-schema treedb, impose off). As in
-  7.25.4, a literal with a `schema_version` higher than the schema file in
-  use replaces the whole file; an equal or older literal is not installed and
-  the file runs. New: `__system__` is projected from an installed literal
-  whole -- topics, columns and attributes the literal no longer declares are
-  removed from `__system__` too (7.25.4 only added and updated). What the
-  literal discards is said in one WARNING (*"Schema from C withdrew work on
-  the schema at open"*) and exposed as `withdrawn_at_open` per topic in
-  `treedbs` rows and `saved-schema` until the next open: `applied` (an
-  applied schema never opened), `in_use` (an applied schema that ran),
-  `saved`, `unsaved` (drafts). A topic whose columns the literal changes
-  without raising its `topic_version` keeps running its old columns in the
-  store (tranger2 swaps columns only on a version raise): the open warns.
+  7.25.4, a literal with a `schema_version` higher than the schema file in use
+  replaces the whole file; an equal or older literal is not installed and the
+  file runs. New: `__system__` is projected from an installed literal whole --
+  topics, columns and attributes the literal no longer declares are removed from
+  `__system__` too (7.25.4 only added and updated). What the literal discards is
+  said in one WARNING (*"Schema from C withdrew work on the schema at open"*)
+  and exposed as `withdrawn_at_open` per topic in `treedbs` rows and
+  `saved-schema` until the next open: `applied` (an applied schema never
+  opened), `in_use` (an applied schema that ran), `saved`, `unsaved` (drafts),
+  and `left_by_older_release` (below). A topic whose columns the literal changes
+  without raising its `topic_version` keeps running its old columns in the store
+  (tranger2 swaps columns only on a version raise): the open warns.
 - **A projection says when it is unfinished, and records it.** A removal that is
   refused (a snapshot of `__system__` holds the node), or a create, update or
   link that fails, leaves the projection unfinished: one WARNING with
@@ -466,14 +489,42 @@ with their spread, are in `performance/c/README.md`.
   projection's, completes the projection, and reports the drafts it was
   replacing exactly once, also when the retry is killed too (tests:
   `c_treedb_literal_wins`, scenarios CR and DC, a kill at every write). Until
-  then `unfinished_projection` lists `planned` and `save-schema` refuses. A node
-  stamped before its topics and columns were written (7.25.4 and earlier wrote
-  the stamp first) is completed, not taken as done, with `impose_c_schema` and
-  without it: a column the dead projection did not write gets the literal's
-  content, and only what differs from both the old file and the literal is a
-  draft (tests: `c_treedb_literal_wins`, scenarios SE, SH, SI, SJ, SK). The move
-  of a rowid-keyed projection to qualified ids can die at any write and
+  then `unfinished_projection` lists `planned` and `save-schema` refuses. The
+  move of a rowid-keyed projection to qualified ids can die at any write and
   completes at the next open.
+- **A projection that 7.25.4 stamped first is completed, and judged node by
+  node.** 7.25.4 and earlier wrote the stamp of the treedb node first; a
+  process that died after it left a projection that said it was complete, and
+  it was taken as done at every open. Now it is completed, with
+  `impose_c_schema` and without it: a column the dead projection did not write
+  gets the literal's content, and only a NODE (a topic or a column) that
+  differs from both the old file and the literal is the operator's draft -- a
+  topic with one column written and one not is not reported. A node in no
+  tree that is what the literal writes, and that the old file does not
+  declare, belongs to the dead projection (a create whose link never
+  happened). The record of the completing projection keeps the literal
+  (`stamped_base`), so a retry after a second crash compares with both again
+  (tests: `c_treedb_literal_wins`, scenarios SE, SH, SI, SJ, SK, O4C, O4A,
+  O4X).
+- **The first open by this release reads what an older release left.** New
+  record `saved_schemas/<treedb>.upgrade.json`. A first projection that
+  7.23.0-7.25.4 stamped over a file at the literal's version and did not finish
+  is completed: what `__system__` misses is restored from the literal, with one
+  WARNING *"Restored from the schema from C: ..."* naming the ids; nothing is
+  reported as the operator's. After that first open a stamped projection is
+  complete, and a topic the operator deletes stays a draft. A topic or column
+  that 7.25.4 kept after a literal removed it is no draft: the open that removes
+  it reports it in `withdrawn_at_open` as kind `left_by_older_release`, with one
+  WARNING *"Removed from __system__ what an older release left there: ..."*. An
+  edit after the upgrade, or a save that declares it, makes it the operator's
+  (tests: `c_treedb_literal_wins`, scenarios FP, OL).
+- **A `delete-treedb` cut half way is finished by the next one.** Columns first,
+  then topics, then the nodes in no tree, the treedb node last; with the treedb
+  node already gone the nodes left in no tree are still deleted (7.25.4 deleted
+  the treedb node first, and a delete cut after that answered -1 "not projected
+  in __system__" at every run). It answers 0 with the ids in `data.deleted`;
+  nothing left also answers 0. The upgrade record is removed too (test:
+  `c_treedb_literal_wins`, scenario DTK).
 - A topic or column that the treedb's tree no longer reaches (an operator's
   unlink, or a projection link that failed) does not block a projection with
   "Node already exists": a schema that declares it takes it over, otherwise
@@ -532,14 +583,20 @@ with their spread, are in `performance/c/README.md`.
   stacks); a write of `with_link_events` on it sets no callback either.
   Every answer of `open-treedb`, `close-treedb` and `delete-treedb` starts
   with the yuno.
-- **The agent stops when its treedb does not open.** The agent opens its
-  treedb (`treedb_yuneta_agent`) with its schema imposed and exits 0 on a -1
-  answer ("Cannot start agent treedb: ..."); ydaemon does not relaunch an exit
-  0, so the main agent stays down until started again, and `yuneta_agent22`
-  (which opens no treedb) stays up as the way in. 7.25.4 answered 0 when the
-  schema was refused, and the agent ran without its treedb.
+- **The agent stops when its treedb does not open.** The agent opens its treedb
+  (`treedb_yuneta_agent`) with its schema imposed and exits 0 on a -1 answer
+  (its log has the answer, syslog *"Cannot start agent treedb: ..."*); ydaemon
+  does not relaunch an exit 0, so the main agent stays down until started again,
+  and `yuneta_agent22` (which opens no treedb) stays up as the way in. 7.25.4
+  answered 0 when the schema was refused, and the agent ran without its treedb.
 - **The client store decides.** If another process holds the client store's
   lock, the treedb opens as a replica and nothing is reconciled (INFO).
+- Between a stop of C_TREEDB and its next start, `save-schema`,
+  `delete-treedb`, `create-topic` and `delete-topic` are refused
+  (*"<role^name>: treedb '<db>' is STOPPED: its tranger holds no lock until
+  its service starts again"*). 7.25.4 read the `master` that the stopped
+  tranger still said: `save-schema` read nothing and answered "nothing to
+  save", and `delete-treedb` went on to delete nodes of `__system__`.
 - `apply-schema` records what it put in use in a new file,
   `saved_schemas/<treedb>.applied.json`:
   `{"schema_version": N, "topics": {"<topic>": "applied"|"in_use"}}`, with
@@ -554,31 +611,34 @@ with their spread, are in `performance/c/README.md`.
   `saved` now means "waiting to be applied", `stale` marks an old file,
   `broken` an unreadable one (left out of an apply of every treedb).
 - `schema_version` in `__system__` never goes down; `apply-schema` writes no
-  derived `fkey` marks into the file in use; a column reorder is a difference
-  (only when the shared columns change order). The INFO *"TreeDB schema from
-  C is behind the schema in use, not applied"* is logged only when the
-  literal is behind the FILE in use (7.25.4 also logged it for a literal
-  equal to the file while a save was pending, and on every imposed open); an
-  imposed literal behind `__system__` logs *"TreeDB schema from C is imposed,
-  but it is behind __system__: the projection is kept"*.
+  derived `fkey` marks into the file in use; a reorder of topics or of columns
+  is a difference (only when the names both sides declare change order; the
+  `saved-schema` diff carries a `__topics_order__` row and a `__cols_order__`
+  row per topic). The INFO *"TreeDB schema from C is behind the schema in use,
+  not applied"* is logged only when the literal is behind the FILE in use
+  (7.25.4 also logged it for a literal equal to the file while a save was
+  pending, and on an imposed open of a literal behind `__system__`); an imposed
+  literal behind `__system__` logs *"TreeDB schema from C is imposed, but it is
+  behind __system__: the projection is kept"*.
 
 ### Event loop (yev_loop)
 
-- A full submission queue ended the process in 7.25.4: of the 12 places that
-  ask `io_uring_get_sqe()` for an entry, 10 used the NULL entry (a crash) and
-  2 logged *"io_uring_get_sqe() FAILED"* and aborted. The queue is flushed
-  and the entry asked again; when the kernel still takes nothing (on an older
-  kernel a CQ overflow answers `EBUSY` until the completions are reaped), the
-  submission is KEPT and made at the next cycle of the loop, in order (a
-  timer is armed, a stop reaches its event). A stop of a submission still
-  kept reaches the callback as a cancel (`STOPPED`, `-ECANCELED`). One
-  WARNING when the loop starts keeping: *"Submission queue full and the
-  kernel takes nothing: kept for the next cycle"*. Only a submission that
-  there is no memory to keep fails: CRITICAL *"No memory to keep a
-  submission"*, then the caller's ERROR *"No memory to keep a submission:
-  <what did not happen>"*. Test `yev_events/test_yevent_sq_full`; the hot
-  path does not move (perf_yev_ping_pong -1.1%, perf_tcp_test4 +1.6%,
-  perf_tcp_test5 -0.8%: within noise; figures in `performance/c/README.md`).
+- A full submission queue ended the process in 7.25.4: of the 12 places that ask
+  `io_uring_get_sqe()` for an entry, 10 used the NULL entry (a crash) and 2
+  logged *"io_uring_get_sqe() FAILED"* and aborted. The queue is flushed and the
+  entry asked again; when the kernel still takes nothing (on an older kernel a
+  CQ overflow answers `EBUSY` until the completions are reaped), the submission
+  is KEPT and made at the next cycle of the loop, in order (a timer is armed, a
+  stop reaches its event). A stop of a submission still kept reaches the
+  callback as a cancel (`STOPPED`, `-ECANCELED`). One WARNING when the loop
+  starts keeping: *"Submission queue full and the kernel takes nothing: kept for
+  the next cycle"*. Only a submission that there is no memory to keep fails:
+  CRITICAL *"No memory to keep a submission"*, then the caller answers -1 with
+  its ERROR *"No memory to keep a submission: <what did not happen>"* (a write
+  or sendmsg start: *"...: event NOT started"*). Test
+  `yev_events/test_yevent_sq_full`; the hot path does not move
+  (perf_yev_ping_pong -1.1%, perf_tcp_test4 +1.6%, perf_tcp_test5 -0.8%: within
+  noise; figures in `performance/c/README.md`).
 - A submission the kernel did not take is no longer left waiting: a failed
   `io_uring_submit()` can leave its entry in the queue (the submit that hands
   over the kept entries included); the loop submits those entries again at
@@ -591,14 +651,6 @@ with their spread, are in `performance/c/README.md`.
   a NOP whose completion is not delivered; the callback gets `STOPPED`,
   `-ECANCELED`. Otherwise the stale operation ran later on the fd the stop had
   closed, and a new timer that got the same fd number never fired.
-- A write or sendmsg start with no memory to keep its submission answers -1
-  (*"No memory to keep a submission: event NOT started"*), as every other
-  caller does; it aborted the process.
-- `gbmem_realloc()` refused because the new size is larger than the largest
-  block leaves the old block valid and tracked: with
-  `CONFIG_DEBUG_TRACK_MEMORY` it took the block out of the tracking first, and
-  the later free logged *"Wrong dl_item_t, WITHOUT links"* and wrapped the
-  memory counter. The kept lists of yev_loop reach this path.
 - A zero-copy UDP send (`io_uring_prep_sendmsg_zc()`) gives two completions,
   the result (`IORING_CQE_F_MORE`) and a notification (`IORING_CQE_F_NOTIF`);
   the loop counted one, so an event destroyed at the first completion -- as
@@ -660,14 +712,19 @@ with their spread, are in `performance/c/README.md`.
   many writes and bytes: one record at the first write of a burst (one user, one
   console, up to 60 s) and one for the rest when the burst ends; up to 7.25.4
   each keystroke wrote the whole kw with the keystroke in base64 (1000
-  keystrokes: 922 KB, now 945 bytes). Bad data from a peer in `__md_iev__` is a
-  WARNING, not an ERROR. An `install-binary` of a 32 MB yuno went from 134 MB to
-  541 bytes (wattyzer wrote 0.6-1.2 GB of audit on a deploy day). A day of audit
-  that crosses `max_megas_audit_file` continues in `.OLD.1`, `.OLD.2`, ...: up
-  to 7.25.4 each size rotation removed the previous `.OLD`, so a day that
-  crossed the limit twice lost its first part (wattyzer lost the mornings of 22
-  and 23 September 2026). New `rotatory_keep_all_old_files()` (off by default:
-  the yuno logs keep their one `.OLD`).
+  keystrokes: 922 KB, now 945 bytes). A field of a `__md_iev__` hop from a peer
+  that is not a string is written as `""`, with one WARNING (*"Audit: bad
+  __md_iev__ from a peer, written as empty"*). An `install-binary` of a 32 MB
+  yuno went from 134 MB to 541 bytes (wattyzer wrote 0.6-1.2 GB of audit on a
+  deploy day). A day of audit that crosses `max_megas_audit_file` continues in
+  `.OLD.1`, `.OLD.2`, ...: up to 7.25.4 each size rotation removed the previous
+  `.OLD`, so a day that crossed the limit twice lost its first part (wattyzer
+  lost the mornings of 22 and 23 September 2026). New
+  `rotatory_keep_all_old_files()` (off by default: the yuno logs keep their one
+  `.OLD`).
+- The agent flushes every audit record before the command runs (one `write()`
+  per command, ~1.1 us): up to 7.25.4 a record could wait in the buffer of
+  the file and be lost in a crash.
 - **A command whose kw carries a `gbuffer` releases it once.** The command
   parser gives the handler a new kw with the keys of the caller's kw, and it
   copied them with `json_object_update_missing()` (every command, with or
@@ -684,14 +741,25 @@ with their spread, are in `performance/c/README.md`.
 - `gbuffer_base64_to_binary()` decodes `base64_len` chars instead of reading
   up to a `'\0'`: a slice of a longer text (a `content64='...'` inside a
   command line) failed to decode.
+- `gbmem_realloc()` refused because the new size is larger than the largest
+  block leaves the old block valid and tracked: with `CONFIG_DEBUG_TRACK_MEMORY`
+  7.25.4 took the block out of the tracking first, and the later free logged
+  *"Wrong dl_item_t, WITHOUT links"* and wrapped the memory counter. The kept
+  lists of yev_loop reach this path.
 - `rmrdir()` and `rmrcontentdir()` no longer follow symbolic links: a link to a
   directory inside the tree was walked into and the files of its TARGET were
   deleted (outside the tree); a dangling link made the removal fail. A link is
   removed as a link; their failures name the path, and `rmrcontentdir()` no
   longer fails silently. An entry that another process removes during the walk
   is not an error (it returned -1 with no log). `mkrdir()` over a path that
-  exists and is not a directory, or a dangling link, logs the real cause
-  (`ENOTDIR`) and returns -1 (it returned 0, and logged a leftover errno).
+  exists and is not a directory logs *"Not a directory: the path exists and is
+  not a directory"* (`ENOTDIR`) and returns -1; over a dangling link it logs
+  *"newdir() FAILED"* (`EEXIST`) and returns -1. 7.25.4 returned 0, with no log
+  and no directory (its check could never be true).
+- `rmrdir()` / `rmrcontentdir()` refuse, with a log, a tree whose paths do not
+  fit in PATH_MAX or that is deeper than 1024 levels (they could recurse without
+  end); `mkrdir()` refuses, with a log, a path of PATH_MAX or more (7.25.4 cut
+  it silently and returned 0).
 - `find_files_with_suffix_array()` never lists a symbolic link (on
   filesystems without `d_type` it used `stat()` and listed a link to a file).
 - `save_json_to_file()` checks `close()` -- a failed close is a CRITICAL at
@@ -718,9 +786,6 @@ with their spread, are in `performance/c/README.md`.
   emptied only when it was last written before the day its name is used for
   (last week's file of a `W` mask, as intended); a handle with
   `rotatory_keep_all_old_files()` never empties a file.
-- The agent flushes every audit record before the command runs (one `write()`
-  per command, ~1.1 us): the first write of a console burst could wait 2 s in
-  the buffer and be lost in a crash.
 - rotatory: a new day on a full disk opens the new file and calls the newfile
   callback (where the audit runs its retention and frees space); a piece of 0
   bytes no longer closes the file until the next day; a failed write closes the
@@ -728,12 +793,6 @@ with their spread, are in `performance/c/README.md`.
   file of a mask without the year: up to 7.25.4 a yuno that started on a Monday
   appended to last Monday's `W` file, so one file held 8 days. A mask with the
   year never empties a file.
-- `rmrdir()` / `rmrcontentdir()` refuse, with a log, a tree whose paths do not
-  fit in PATH_MAX or that is deeper than 1024 levels (they could recurse without
-  end); `mkrdir()` refuses, with a log, a path of PATH_MAX or more (7.25.4 cut
-  it silently and returned 0).
-- New benchmark `performance/c/perf_rotatory` (the harness behind the rotatory
-  figures, with a case that flushes each record).
 - The entry point closes the log files last: up to 7.25.4 they were closed
   before the final cleaning and the memory leak report, so *"system memory
   not free"* never reached the yuno's log file.
@@ -746,9 +805,10 @@ with their spread, are in `performance/c/README.md`.
   `EV_TIMEOUT` was published without subscribers and the template's
   `ac_timeout` never ran. They create it with `gobj_create_pure_child()`, as
   `yuno_standalone` and the kernel gclasses do. The JS template already did.
-- New benchmarks `performance/c/perf_timeranger2`, `perf_tr_treedb` and
-  `perf_c_treedb` (see "Performance"): each prints one line of JSON per
-  result, and ctest runs them with small sizes.
+- New benchmarks `performance/c/perf_timeranger2`, `perf_tr_treedb`,
+  `perf_c_treedb` (see "Performance") and `perf_rotatory` (the rotatory
+  figures, with a case that flushes each record): each prints one line of
+  JSON per result, and ctest runs them with small sizes.
 
 ### C_NODE, C_AUTHZ, C_TRANGER
 
@@ -843,36 +903,49 @@ with their spread, are in `performance/c/README.md`.
   reach the callback as NULL).
 - treedb refuses creates of unloaded ids, snapshot ops with a partial
   `__snaps__`, `gc-assets` asset rows with a partial asset topic or an active
-  snap.
+  snap (`treedb_gc_files()` answers NULL and takes nothing; new
+  `treedb_gc_files2()` answers a report).
 - The agent's audit record format changed: read-only commands are minimal,
-  `source` replaces `__md_iev__`, there is no `content64`, secrets are written
-  as `<redacted>`, and `write-tty` is written as burst records `{command, date,
-  user, console, writes, bytes, until, source}` with no `kw`. Tools that read
-  the audit must accept both formats (files written before the upgrade keep the
-  old one).
+  `source` replaces `__md_iev__` (no longer written), `__command__` is left out
+  when it repeats the command text, and there is no `content64` (its value is
+  `<N bytes sha256:HEX>`, the `sha256sum` of the binary; a value that is not
+  base64 becomes `<N chars, not base64, sha256 of the text:HEX>`), secrets are
+  written as `<redacted>`, and `write-tty` is written as burst records
+  `{command, date, user, console, writes, bytes, until, source}` with no `kw`.
+  Tools that read the audit must accept both formats (files written before the
+  upgrade keep the old one).
 - yev_loop / gbuffer (API): `gbuffer_setaddr(gbuf, addr, addrlen)` takes the
   length and `gbuffer_getaddrlen()` is new; `yev_create_sendmsg_event()` takes
   `dst_addrlen`; `sock_info_t.addr` is a `struct sockaddr_storage` with
   `addrlen`. Rebuild every user.
-- `mkrdir()` returns -1 for a path of PATH_MAX or more; `rmrdir()` /
-  `rmrcontentdir()` return -1 (logged) for a tree too long or too deep. A yuno
-  log file of a `W` mask last written before today is emptied when the yuno
-  starts, as at a new day. Audit: the new secret names (and `cookie_domain`)
-  are `<redacted>`, a string over 128 MB is written as its size and sha256, and
-  a record reaches the file at once.
+- `mkrdir()` returns -1 for a path of PATH_MAX or more, and over a path that
+  exists and is not a directory; `rmrdir()` / `rmrcontentdir()` return -1
+  (logged) for a tree too long or too deep. A yuno log file of a `W` mask last
+  written before today is emptied when the yuno starts, as at a new day. Audit:
+  the new secret names (and `cookie_domain`) are `<redacted>`, a string over 128
+  MB is written as its size and sha256, and a record reaches the file at once.
+- rotatory: a log file renamed by another program is no longer noticed (a
+  removed one still is): rotate yuno logs by copy and truncate, or remove
+  them. The full-disk lines name the file (*"rotatory(): stop logging to
+  '<path>' because full disk: ..."*, was *"rotatory(): stop logging because
+  full disk: ..."*), and a new line says when it resumes (*"rotatory(): logging
+  to '<path>' again: ..."*).
 - The agent removes audit files older than `audit_keep_days` (default 7) at
-  its first start; `mkrdir()` returns -1 over a non-directory.
+  its first start.
 - gobj-c: the kw a command handler gets holds its own reference of a
   `gbuffer` (the parser increfs it, `kw_update_missing()`). A handler that
   took a second reference to work around the old double release now leaks
   it: take the buffer out of the kw (`KW_EXTRACT`) and use that reference.
 - `tranger2_write_topic_var()` / `tranger2_write_topic_cols()` return -1 when
-  the file cannot be written (7.25.4 ignored the write and returned 0); the
-  three md2 flag rewriters return -1 on a non-master; a revive whose store
-  another process holds exits at `on_critical_error` (default: exit), any
-  other revive failure demotes to replica; C_TRANGER's `master` reads the
-  effective state (it read the configuration); `save_json_to_file()`'s
-  failed close is a CRITICAL at `on_critical_error`.
+  the file cannot be written (7.25.4 ignored the write and returned 0);
+  `tranger2_create_topic()` returns NULL, and does not open the topic, when a
+  `topic_version` change cannot write `topic_cols.json` or `topic_var.json`
+  (7.25.4 ignored the failure and opened it); the three md2 flag rewriters
+  return -1 on a non-master; a revive whose store another process holds exits at
+  `on_critical_error` (default: exit), any other revive failure demotes to
+  replica; C_TRANGER's `master` reads the effective state (it read the
+  configuration); `save_json_to_file()`'s failed close is a CRITICAL at
+  `on_critical_error`.
 - New topics carry `marks_tm_unordered` in `topic_desc.json`, and a file of
   theirs whose `tm` goes back gets a `<file>.tm_unordered` marker beside its
   md2 (`mark-tm-order` writes them too); new `tranger2_mark_tm_order()`.
@@ -931,7 +1004,10 @@ with their spread, are in `performance/c/README.md`.
   `decode_child_ref()` return FALSE for a part that does not fit;
   `treedb_delete_node()` refuses a node whose child topic did not load whole;
   `treedb_delete_instance()` answers -1 when a tombstone fails. C_NODE
-  `import-db`: `data.errores` is keyed by cause.
+  `import-db`: `data.errores` is keyed by cause (`"node exists"`,
+  `"cannot create the node (see the log)"`), and a create refused for another
+  cause than an existing node is a `failure` in every mode (`skip` counted it as
+  `ignored`) and stops an `abort` import.
 - C_TREEDB: every answer of every command starts with the yuno (create-topic
   "<role^name>: topic '<t>' created in treedb '<db>'", was "Topic created!";
   delete-topic "...deleted from treedb '<db>'", was "Topic deleted!";
@@ -940,9 +1016,17 @@ with their spread, are in `performance/c/README.md`.
   with dots) is refused at open, save and apply.
 - C_TREEDB answers carry new fields (`withdrawn`, `stale`, `broken`,
   `withdrawn_at_open`, `unfinished_projection`, `stopped`, and `master` and
-  `opened` in `treedbs` rows) and `saved` changed meaning; C_NODE
-  `gc-assets` `data` is a report, not a list; `instances` answers -1 on
-  failure; command comment texts of C_NODE and C_AUTHZ changed.
+  `opened` in `treedbs` rows) and `saved` changed meaning;
+  `withdrawn_at_open` can carry the kind `"left_by_older_release"`;
+  `delete-treedb` answers `data: {"treedb_name", "deleted": [ids]}` and
+  answers 0 for a treedb with nothing left (it was -1). C_NODE `gc-assets`
+  `data` is a report, not a list; `instances` answers -1 on failure.
+- The command comments of C_NODE and C_AUTHZ changed: they start with the
+  yuno and name what they did, for example "Node update!" -> "<role^name>:
+  Node update! '<id>' of topic '<t>'", "Nodes linked!" -> "<role^name>: Nodes
+  linked, '<topic>^<id>' to '<topic>^<id>^<hook>'", "Node deleted" ->
+  "<role^name>: Node deleted, '<id>' of topic '<t>'", "Snap deactivated" ->
+  "<role^name>: Snap deactivated, treedb '<db>'".
 - **Log texts** -- match on the new ones if you alert on them:
     - timeranger2: *"Cannot read last record, md2 file corrupted"* is gone
       (see the md2 bullets above). *"Cannot read first/last record of md2
@@ -969,29 +1053,41 @@ with their spread, are in `performance/c/README.md`.
     - timeranger2: the ERRORs *"what id?"* and *"Disk already exists"* of an
       rt disk are the WARNINGs *"Invalid rt id (empty)"* and *"rt disk id
       already in use by the same creator, refused"*.
+    - timeranger2, new: *"Cannot re-create topic_cols.json for a new
+      topic_version: the topic keeps its version, and is not opened"*.
     - tr_treedb: new ERRORs *"A write that did not reach the disk could not
       be taken back whole in memory: ..."* and *"A refused delete cannot put
       back a child it had unlinked: ..."*.
-    - tr_treedb: the ERROR *"Child node without fkey field"* (one per node,
-      at every open) is the WARNING *"An fkey column is filled by no hook:
-      its refs link nothing"*, once per column per open, with
-      `nodes_with_refs`. *"tranger2_delete_instance() FAILED"* is gone. New:
-      *"Cannot build the reference of a node: it does not fit"*, *"Wrong
-      reference: a part of it is too long"*, *"Invalid 'id': it holds a '^',
-      the separator of a reference"*, *"Invalid 'id': too long to be part of
-      a reference"*, *"Cannot link, the dict hook holds a node of another
-      topic with this id"*, *"A dict hook holds a node of another topic with
-      this id: this link is not loaded"*, *"Child data not found in dict
-      parent hook: its slot holds a node of another topic"*, *"Cannot link,
-      the reference the child has is too long"*, *"Cannot delete node: a
-      topic its hooks hold did not load whole, a child that did not load may
-      hang from it"*, *"Cannot delete instance, a row of it cannot be
-      tombstoned: the instance stays, its newest rows alive"*.
-    - tr_treedb: `treedb_autolink()`'s *"update_node, new link: parent node
-      not found"* is *"fkey reference: parent node not found"*, the text of
-      `treedb_replace_links()`.
+    - tr_treedb: the ERROR *"Child node without fkey field"* (one per node, at
+      every open) is the WARNING *"An fkey column is filled by no hook: its refs
+      link nothing"*, once per column per open, with `nodes_with_refs`.
+      *"tranger2_delete_instance() FAILED"* is gone. New: *"Cannot build the
+      reference of a node: it does not fit"*, *"Wrong reference: a part of it is
+      too long"*, *"Invalid 'id': it holds a '^', the separator of a
+      reference"*, *"Invalid 'id': too long to be part of a reference"*,
+      *"Cannot link, the dict hook holds a node of another topic with this id"*,
+      *"A dict hook holds a node of another topic with this id: this link is not
+      loaded"*, *"Child data not found in dict parent hook: its slot holds a
+      node of another topic"*, *"Cannot link, the reference the child has is too
+      long"*, *"Cannot delete node: a topic its hooks hold did not load whole, a
+      child that did not load may hang from it"*, *"Cannot delete instance, a
+      row of it cannot be tombstoned: the instance stays, its newest rows
+      alive"*, *"Cannot create node, its id has records on disk that could not
+      be loaded"*, *"Cannot shoot a snap: __snaps__ did not load whole, the
+      active snap is unknown"*, *"Cannot activate a snap: __snaps__ did not load
+      whole, the active snap is unknown"*, *"Cannot deactivate a snap of too
+      many active ones, it stays active on disk"*, *"Cannot save a node that is
+      being deleted"*, *"treedb topic loaded WITHOUT the whole history of keys
+      that cannot be read: ..."*, *"Cannot build the reference of a node: a part
+      of it is too long, or holds a '^'"*.
+    - tr_treedb: `treedb_autolink()`'s *"update_node, new link: parent node not
+      found"* is *"fkey reference: parent node not found"*, the text of
+      `treedb_replace_links()`. *"cannot delete asset, a snapshot still links
+      it"* is also *"cannot delete asset, cannot tell whether a snapshot links
+      it (see the log)"* when the snapshots cannot be read.
     - gobj-c: `mkrdir()`'s *"Not a directory"* is *"Not a directory: the path
-      exists and is not a directory"*.
+      exists and is not a directory"* (7.25.4 never logged it: its check could
+      never be true).
     - C_TREEDB: *"Topic from C differs from the one in use, but its
       topic_version is not higher: not applied"* is *"Topic from C declares
       other columns than the store runs, without raising its topic_version
@@ -999,14 +1095,32 @@ with their spread, are in `performance/c/README.md`.
       the file in use while __system__ holds a draft saved over it: ..."* is
       gone, replaced by *"Schema from C withdrew work on the schema at
       open"*; a record write failure logs *"Cannot write a record of
-      saved_schemas/"*.
+      saved_schemas/"*; *"Treedb schema not projected in __system__"* is gone
+      (a `delete-treedb` of a schema that is not there answers 0).
     - C_NODE: *"Cannot save the node after its links (autolink)"* is gone;
       a create logs *"Node created, but its links cannot be saved
-      (autolink): the node stays without them"*.
-    - yev_loop: *"io_uring_get_sqe() FAILED"* is gone; *"Submission queue
-      full and the kernel takes nothing: kept for the next cycle"* (WARNING),
-      *"No memory to keep a submission"* (CRITICAL) and *"No memory to keep
-      a submission: <what did not happen>"* (ERROR) are new.
+      (autolink): the node stays without them"*. An `update-node` of a node
+      that does not exist logs *"Cannot update node: it does not exist"*, or
+      with `create` *"Cannot update node: it does not exist and it cannot be
+      created (see the previous log)"* (7.25.4 logged the last message of the
+      process, or *"treedb_create_node failed"*).
+    - yev_loop: *"io_uring_get_sqe() FAILED"* is gone. New: the WARNINGs
+      *"Submission queue full and the kernel takes nothing: kept for the next
+      cycle"* and *"Submissions the kernel did not take: submitted again at
+      each cycle"*; the ERROR *"Submissions not taken by the kernel for many
+      cycles of the loop: their operations wait"*; the INFO *"Submissions
+      taken by the kernel again"*; the CRITICALs *"No memory to keep a
+      submission"* and *"No memory to keep a completion: submission handed
+      over as it is"*; the ERROR *"No memory to keep a submission: <what did
+      not happen>"*; the ERROR *"Loop destroyed with events whose completions
+      did not come: freed"*. A connect with a bad `src_url` logs the ERRORs
+      *"Bad src_url: cannot bind the connect"*, *"getaddrinfo() src_url
+      FAILED"* or *"bind() src_url FAILED"* (a failed bind of a connect was
+      *"bind() FAILED"*). *"Cannot start event: sendmsg addr NULL"* is
+      *"Cannot start event: sendmsg addr NULL or bad addr length"*.
+    - tr2migrate: *"Bad data, json_loadfd() FAILED."* is *"Bad data, the
+      content of the record is not json"*; a json file it cannot load logs
+      the texts of `load_json_from_file()`.
 
 ### Known limitations
 

@@ -92,7 +92,7 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
   child (`c_yui_node.js:705/760/969`) and declares neither `EV_NAV_ITEM_CLOSE`
   nor `EV_DRAWER_CLOSE_REQUESTED`, which `c_yui_nav.js` really does publish --
   the likeliest of the three to bite. `C_YUI_TREEDB_TOPIC_WITH_FORM` creates
-  `C_YUI_JSON` as a pure child (`:2522/2651`) without declaring
+  `C_YUI_JSON` as a pure child (`:2599/2725/5177`) without declaring
   `EV_EXPAND_PATH`, which only fires on a `__collapsed__` sentinel and those
   come from the backend, not from a schema or a cell. `C_YUI_TREEDB_TOPICS`
   hosting `C_YUI_TREEDB_SCHEMA` is the documented opt-in case, not a defect.
@@ -100,8 +100,9 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
 **Tests nobody has** (in order of damage): `delete_instance` with links.
 C_NODE commands with no ctest: `node`, `instances`, `pkey2s`, `jtree`,
 `parents`, `children`, `hooks`, `links`, `treedb-info`, the snap commands
-(their permissions are tested, their behaviour is not), `import-db` /
-`export-db` and `print-tranger`. The refusals on a replica are tested since
+(their permissions are tested, their behaviour is not), `export-db` and
+`print-tranger`; `import-db` is tested only for its error count by cause
+(`c_node_link_events`, test 14). The refusals on a replica are tested since
 7.25.0 (`test_c_node_authz`) and, for C_TREEDB, since 7.25.4.
 In gobj-ui, the treedb views got their first wiring tests on 2026-09-23
 (`test/dom_double.js`); the save kw as it leaves `publish_treedb_write` is
@@ -166,8 +167,10 @@ What the changes after 7.25.4 (`CHANGELOG.md`, Unreleased) leave open:
   `kw_update_missing()` of C_IEVENT_SRV's `EV_ON_CLOSE` (none of those kws
   carries a gbuffer today); the two yuno-skeleton fixes (`MSGSET_INTERNAL`,
   the timer as a pure child: checked by hand with a yuno made by
-  `yuno-skeleton -p`; no ctest builds the templates). Not exercised live: a
-  form Save through a real websocket drop.
+  `yuno-skeleton -p`; no ctest builds the templates); the agent's exit 0 when
+  its treedb does not open (no ctest runs the agent); the entry point closing
+  the log files after the leak report. Not exercised live: a form Save through
+  a real websocket drop.
 - A test binary is not relinked by `cmake --build build` after `make install`
   of a library it links by name: a per-module test run can execute the old
   library. `yunetas clean && yunetas build && yunetas test` is not affected.

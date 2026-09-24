@@ -3060,8 +3060,10 @@ them with *"Parent ref names a hook that fills another column"*, then
 *"Removing wrong fkey ref"* (after 7.25.3; before, the unlink looked in the new
 column, refused, and a forced delete of the child failed for ever). The old
 column, if no hook fills it any more, is an fkey column with no hook: every
-open logs *"Child node without fkey field"* once per node of that topic, until
-the column goes from the schema.
+open logs the WARNING *"An fkey column is filled by no hook: its refs link
+nothing"* once for the column (with `nodes_with_refs`, the nodes that hold a
+ref in it), until the column goes from the schema. (Up to 7.25.4 it was the
+ERROR *"Child node without fkey field"*, once per node of the topic.)
 
 ```C
 // v1: the hook fills `f1`       'kids': {'flag': ['hook'], 'hook': {'children': 'f1'}}

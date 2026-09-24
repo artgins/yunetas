@@ -214,8 +214,9 @@ version moved and your yunos took a new version with it.
 CAUTION: Step 3 restarts every yuno on the node, not only the yunos that you
 changed. On a busy production node, tell the team before you start.
 
-If the node runs SDK 7.25.4 or earlier, look for md2 files that are not whole
-rows before step 1: see
+If the node runs SDK 7.25.4 or earlier, read
+[Before an upgrade from 7.25.4 or earlier: the SDK and the agent](#dy-upgrade-7255)
+and look for md2 files that are not whole rows before step 1: see
 [Before an upgrade from 7.25.4 or earlier](#dy-md2-scan).
 
 ```bash
@@ -277,6 +278,69 @@ acceptable. On a production node it is not, and the CAUTION above applies.
 SIGKILL gives no orderly shutdown, because `mt_stop` does not run. If a yuno
 must write its state to disk on exit, stop it first with
 `ycommand -c 'kill-yuno id=<id>'`. Then run `upgrade-yunos`.
+
+(dy-upgrade-7255)=
+### Before an upgrade from 7.25.4 or earlier: the SDK and the agent
+
+**A node that builds from source rebuilds the external libraries first.**
+linux-ext-libs is 1.22 (a patched jansson), and the build refuses a stale
+`outputs_ext` until it is rebuilt:
+
+```bash
+cd kernel/c/linux-ext-libs && ./extrae.sh && ./configure-libs.sh && cd ../../..
+yunetas clean && yunetas build
+```
+
+**The agent removes old audit files at its first start.** The audit files in
+`/yuneta/realms/agent/agent/audit/` older than `audit_keep_days` (default 7)
+are removed, with one INFO *"Old audit files removed"* that names them. Up to
+7.25.4 nothing was removed. To keep more, set the retention in the `global`
+section of `/yuneta/agent/yuneta_agent.json` BEFORE you start the new agent
+(`0` keeps all):
+
+```json
+{
+    "global": {
+        "agent.audit_keep_days": 30
+    }
+}
+```
+
+See [The agent's audit files](#agent-audit-files).
+
+**If the main agent does not come back after the upgrade**, its treedb did not
+open: the agent now exits 0 when the schema of its treedb is refused, and it is
+not relaunched. Its log has:
+
+```text
+treedb 'treedb_yuneta_agent' did not open, its schema was refused (see the log): close-treedb it before opening it again
+```
+
+and syslog has *"Cannot start agent treedb: ..."*. Reach the node through
+`yuneta_agent22`, which opens no treedb.
+
+**The first open of each treedb reads what 7.25.4 left in `__system__`.** It
+writes a record, `saved_schemas/<treedb>.upgrade.json` under the `__system__`
+tranger; do not delete it. Expect, once per treedb:
+
+- the WARNING *"Restored from the schema from C: ..."*, where a first
+  projection of 7.23.0-7.25.4 died after it wrote its stamp;
+- when the literal of that open is newer, the WARNING *"Removed from __system__
+  what an older release left there: ..."* and, in `withdrawn_at_open`, the
+  kind `left_by_older_release`, for example
+  `{"topics": {"departments": "left_by_older_release"}}`.
+
+Neither is work of an operator.
+
+**Before you upgrade, run `save-schema` for each draft that you want to
+keep.** The first open cannot tell an unsaved draft from what 7.25.4 left: a
+topic or column that an unsaved draft added is taken as left by 7.25.4, and a
+topic that an unsaved draft deleted is restored when the file in use is the
+literal:
+
+```bash
+ycommand -c 'command-yuno id=<id> service=treedbs command=save-schema treedb_name=<treedb>'
+```
 
 (dy-md2-scan)=
 ### Before an upgrade from 7.25.4 or earlier: md2 files that are not whole rows
@@ -345,9 +409,8 @@ and the answer is `-1`. It runs on the master only; on a replica it answers
 CAUTION: `mark-tm-order` is **synchronous**. The yuno does nothing else until
 the last topic is marked: no events, no commands, no traffic. The cost is one
 sequential read of every md2 file (32 bytes a row), linear in rows and in
-files. timeranger2 measured, with a warm page cache: 16 ms for 600000 rows in
-30 files, and 72 to 88 ms for 4 keys of 3650 daily files. A cold page cache
-adds the read of the md2 files from the disk. On a large store, run it per
+files. The benchmark `perf_timeranger2` measures 19 ms for 600000 rows in 30
+files. A cold page cache adds the read of the md2 files from the disk. On a large store, run it per
 topic (`topic_name=<t>`) in a quiet window instead of `all=1`.
 
 CAUTION: **never roll back to 7.25.4 or earlier** on topics that 7.25.5

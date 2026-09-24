@@ -7,8 +7,14 @@
 - **GClass / GObj**: class + instance model with **finite-state machines** (`states`, `events`, action callbacks)
 - **SData**: typed attribute schema (`SDATA()` macros) used for configuration, stats and authz
 - **Event bus**: publish/subscribe between gobjs, with automatic cleanup on `gobj_destroy()`. Delivery is synchronous; `gobj_post_event()` is the same send, deferred to the next cycle of the event loop, which is how an action leaves the stack it is standing on
-- **Logging**: structured JSON logger (`gobj_log_info/warn/error`), trace levels, log handlers (stdout, file, UDP)
+- **Logging**: structured JSON logger (`gobj_log_info/warn/error`), trace levels, log handlers (stdout, file, UDP). The file handler writes through the **rotatory** (`rotatory.h`):
+    - A full disk stops only the log file on it, and the file writes again when the space is back. Each change is one line on stdout/syslog that names the file: *"rotatory(): stop logging to '<path>' because full disk: ..."* and *"rotatory(): logging to '<path>' again: ..., N records were dropped"*.
+    - A clock set back across midnight empties no file: an existing file is emptied only when it was last written before the day its name is used for.
+    - Retention: `rotatory_remove_old_files(hr, keep_days, jn_removed, &bytes)` removes the files of the rotatory older than `keep_days`, and `rotatory_keep_all_old_files(hr, TRUE)` keeps every piece of a day (`.OLD.1`, `.OLD.2`, ...). The agent audit uses both (`audit_keep_days`).
+- **Commands**: the command parser gives the handler a new kw with the keys of the caller's kw (`kw_update_missing()`). A binary field of it (the `gbuffer` of an event) holds its own reference, so each kw can be released with `KW_DECREF`. To keep the buffer, take it out of the kw with `KW_EXTRACT` and use that reference; never take a second one.
 - **Helpers**: `kw_*` JSON helpers, `gbuffer_t` byte buffer, `dl_list_t` intrusive lists, strings, paths, regex, base64, hashes, …
+    - `mkrdir()` returns -1, with the log *"Not a directory: the path exists and is not a directory"*, when the path (or a part of it) exists and is not a directory; `rmrdir()` / `rmrcontentdir()` never follow a symbolic link.
+    - The peer address of a `gbuffer_t` has its length: `gbuffer_setaddr(gbuf, addr, addrlen)` and `gbuffer_getaddrlen(gbuf)`, so an IPv6 peer (28 bytes) is kept whole.
 - **Memory tracking**: `GBMEM_MALLOC` / `gbmem_malloc` — tracked allocations surface leaks at shutdown when `CONFIG_DEBUG_TRACK_MEMORY` is enabled. The report says what is still busy; to find out WHO allocated it, two environment variables read by any yuno: `YUNETA_TRACK_MEM_DUMP=1` prints the bytes of each leaked block, and `YUNETA_TRACK_MEM=<ref_min>-<ref_max>[:<size>,...]` logs a stack for every allocation inside that window (recipe in [`DEBUGGING.md`](../../../yunos/c/yuno_agent/DEBUGGING.md) §11.7)
 
 ## Key headers

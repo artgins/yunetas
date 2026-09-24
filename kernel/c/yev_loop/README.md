@@ -16,6 +16,15 @@
 
 There is **no threading** — scaling is achieved by running one yuno per CPU core and exchanging events between them.
 
+## Submissions, stops and addresses
+
+- **A submission is never lost.** When the submission queue is full, the loop flushes it and asks again. When the kernel still takes nothing, the submission is KEPT and made at the next cycle, in order, with one WARNING (*"Submission queue full and the kernel takes nothing: kept for the next cycle"*). An entry that a failed `io_uring_submit()` left in the queue is submitted again at each cycle (a WARNING when it starts, an ERROR after 100 cycles, an INFO when the kernel takes it). Only a submission that there is no memory to keep fails: a CRITICAL *"No memory to keep a submission"*, then the caller answers -1 with an ERROR that says what did not happen. Up to 7.25.4 a full queue ended the process.
+- **A stop always reaches the callback.** A stop of an event whose submission is kept, or still in the queue, takes it back: the callback gets the event `STOPPED` with `-ECANCELED`. A stop keeps the gbuffer of an operation that the kernel still has, and releases it at the last completion, before the callback. `yev_set_gbuffer()` refuses to replace it until then.
+- **A zero-copy UDP send has two completions** (`IORING_CQE_F_MORE`, then `IORING_CQE_F_NOTIF`). The callback runs once, at the first; the notification only ends the operation. A kernel without zero-copy sendmsg (probed at `yev_loop_create()`) gets a plain sendmsg.
+- **An IPv6 peer is kept with its real length** (`struct sockaddr_storage` plus `addrlen`; `gbuffer_setaddr(gbuf, addr, addrlen)`), so an IPv6 accept, connect and UDP answer work. A url can hold an IPv6 literal in brackets: `udp://[::1]:5000`.
+- **A connect binds its `src_url`**: `"127.0.0.1:5000"`, `"[::1]:5000"` or `"tcp://127.0.0.1:5000"`, resolved in the family of the destination. A bad one, a failed resolution or a failed bind is logged and the connect gets no socket.
+- **`yev_loop_destroy()` frees what is left**: it cancels what the kernel still has, collects the completions for up to 1 s, and frees the rest with an ERROR (*"Loop destroyed with events whose completions did not come: freed"*).
+
 ## Key files
 
 | File | Purpose |
