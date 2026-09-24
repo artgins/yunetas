@@ -86,3 +86,12 @@ entries): `find_files_with_suffix_array()`, `walk_dir_array()` and
 `get_ordered_filename_array()` answer `-1` with the listing empty, and log it.
 Up to 7.25.4 the entry was dropped and the listing answered `0`, so
 timeranger2 read a key without the md2 file the listing lost.
+And a walk whose ROOT cannot be opened (mode 0) answers `-1` too; up to 7.25.4
+`walk_dir_array()` answered `0` with an empty listing.
+
+`test_dir_listing` compiles the answer of the agent's `dir-*` commands
+(`yunos/c/yuno_agent/src/dir_listing.c`) and checks it: a tree that can be
+listed answers `0` with its entries sorted; a directory of mode 0 (SKIPPED as
+root), one that does not exist, and a `match` that is not a regular expression
+answer `-1` with a comment that names the directory, and no list. Up to 7.25.4
+each command answered an empty list with `0`.

@@ -34,7 +34,7 @@ int get_ordered_filename_array(
 
 **Returns**
 
-Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory, the pattern does not compile, or an entry cannot be kept (no memory). On error `da` is empty -- a listing that lost an entry is not the listing of the directory (up to 7.25.4 the entry was dropped and the call answered `0`). Results are stored in the `da` structure. Free with `dir_array_free()`.
+Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory or cannot be opened, the pattern does not compile, or an entry cannot be kept (no memory). On error `da` is empty -- a listing that lost an entry is not the listing of the directory (up to 7.25.4 the entry was dropped, a root that could not be opened listed as empty, and the call answered `0`). Results are stored in the `da` structure. Free with `dir_array_free()`.
 
 **Notes**
 
@@ -198,7 +198,7 @@ int walk_dir_array(
 
 **Returns**
 
-Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory, the pattern does not compile, or an entry cannot be kept (no memory). On error `da` is empty (up to 7.25.4 a lost entry was dropped and the call answered `0`).
+Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory or cannot be opened (mode `0`, `EMFILE`), the pattern does not compile, or an entry cannot be kept (no memory). On error `da` is empty (up to 7.25.4 a lost entry was dropped, and a root that could not be opened listed as empty, and the call answered `0`). A SUBdirectory that cannot be opened is skipped, silently for `EACCES` and `ENOENT`.
 
 ---
 

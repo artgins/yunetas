@@ -88,6 +88,30 @@ An old `audit/` directory from 7.25.4 or earlier needs no manual cleaning: the
 first start removes what is older than `audit_keep_days`. Details and the full
 list of read-only commands in [the agent's audit files](#agent-audit-files).
 
+## Listing the node's directories
+
+The `dir-*` commands list a directory tree of the node: `dir-yuneta`,
+`dir-realms`, `dir-repos`, `dir-store` (`subdirectory=` below `/yuneta`,
+`/yuneta/realms`, `/yuneta/repos`, `/yuneta/store`, and `match=` a regular
+expression of the names), `dir-logs` and `dir-local-data` (`id=` of a yuno).
+The data is the list of full paths, sorted:
+
+```bash
+ycommand -c 'dir-store subdirectory=mqtt_broker match=.*\.json'
+```
+
+A tree that cannot be listed -- the directory does not exist or cannot be
+opened, a `match` that is not a regular expression, no memory for an entry --
+answers `-1`, and says which directory:
+
+```text
+-1: yuneta_agent^agent: cannot list '/yuneta/store/nope' (Cannot open directory)
+```
+
+Up to 7.25.4 each of them answered an EMPTY list with result `0`, which reads
+as "the directory is empty". A SUBdirectory the agent cannot open is skipped,
+as before. (`tests/c/helpers/test_dir_listing`.)
+
 ## Redundancy
 
 Every node also runs [`yuneta_agent22`](yuneta_agent22.md), a minimal second

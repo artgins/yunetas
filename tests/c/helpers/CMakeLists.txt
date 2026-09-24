@@ -55,6 +55,7 @@ set(SRCS
     test_rotatory
     test_audit_record
     test_dir_array_nomem
+    test_dir_listing
 )
 
 ##############################################
@@ -97,5 +98,13 @@ target_sources(test_audit_record PRIVATE
     ${YUNETAS_BASE}/yunos/c/yuno_agent/src/audit_record.c
 )
 target_include_directories(test_audit_record PRIVATE
+    ${YUNETAS_BASE}/yunos/c/yuno_agent/src
+)
+
+# test_dir_listing tests the answer of the agent's dir-* commands (its own source)
+target_sources(test_dir_listing PRIVATE
+    ${YUNETAS_BASE}/yunos/c/yuno_agent/src/dir_listing.c
+)
+target_include_directories(test_dir_listing PRIVATE
     ${YUNETAS_BASE}/yunos/c/yuno_agent/src
 )

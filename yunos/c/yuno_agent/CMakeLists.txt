@@ -54,10 +54,12 @@ SET (YUNO_SRCS
     src/main.c
     src/c_agent.c
     src/audit_record.c
+    src/dir_listing.c
 )
 SET (YUNO_HDRS
     src/c_agent.h
     src/audit_record.h
+    src/dir_listing.h
 )
 
 ##############################################

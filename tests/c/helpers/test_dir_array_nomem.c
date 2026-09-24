@@ -12,12 +12,17 @@
  *          The memory is refused with a small largest block (the array of
  *          entries starts at 1024 pointers, 8 KB, over the 4 KB limit).
  *
+ *          And a walk whose ROOT cannot be opened (mode 0) answers -1 too:
+ *          up to 7.25.4 walk_dir_array() answered 0, an empty listing, and
+ *          the agent's dir-* commands answered an empty list.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <yunetas.h>
 
 #define APP "test_dir_array_nomem"
@@ -69,6 +74,24 @@ PRIVATE void test_listing_refused(void)
     ret = get_ordered_filename_array(0, BASE, ".*", WD_MATCH_REGULAR_FILE, &da);
     ok_or_fail(ret == -1, "get_ordered_filename_array() answers -1 too");
     dir_array_free(&da);
+
+    /*
+     *  A root that cannot be opened (mode 0) fails too: it is not empty.
+     *  Skipped as root, which opens it.
+     */
+    if(geteuid() != 0) {
+        chmod(BASE, 0);
+        gobj_log_set_last_message("%s", "");
+        ret = walk_dir_array(0, BASE, ".*", WD_MATCH_REGULAR_FILE, &da);
+        ok_or_fail(ret == -1, "walk_dir_array() of a root that cannot be opened answers -1");
+        ok_or_fail(strstr(gobj_log_last_message(), "the directory cannot be opened") != NULL,
+            "and says so");
+        dir_array_free(&da);
+        ret = find_files_with_suffix_array(0, BASE, ".md2", &da);
+        ok_or_fail(ret == -1, "find_files_with_suffix_array() of it answers -1");
+        dir_array_free(&da);
+        chmod(BASE, 02770);
+    }
 
     /*
      *  An empty directory needs no memory: it lists, 0 entries

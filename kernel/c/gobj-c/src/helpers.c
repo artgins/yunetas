@@ -3727,8 +3727,28 @@ PUBLIC int walk_dir_array(
      *  Fill the array
      */
     fill_array_t fill = {.da = da, .failed = FALSE};
-    _walk_tree(gobj, root_dir, &r, &fill, opt, 0, fill_array_cb);
+    int ret_walk = _walk_tree(gobj, root_dir, &r, &fill, opt, 0, fill_array_cb);
+    int last_errno = errno;
     regfree(&r);
+
+    /*
+     *  The root that cannot be opened is a listing that failed, not an
+     *  empty one (up to 7.25.4 it answered 0). A subdirectory that cannot
+     *  be opened is skipped, as before.
+     */
+    if(ret_walk < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot list directory tree, the directory cannot be opened",
+            "path",         "%s", root_dir,
+            "errno",        "%d", last_errno,
+            "serrno",       "%s", strerror(last_errno),
+            NULL
+        );
+        dir_array_free(da);
+        return -1;
+    }
 
     if(fill.failed) {
         dir_array_free(da);  // Error already logged
