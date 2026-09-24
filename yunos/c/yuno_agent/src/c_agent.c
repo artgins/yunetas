@@ -43,6 +43,8 @@
 #define SDATA_SET_JSON(hs, key, value) json_object_set((hs), (key), value)
 #define SDATA_SET_JSON_NEW(hs, key, value) json_object_set_new((hs), (key), value)
 
+#define AUDIT_TTY_BURST_SECONDS 60  // console writes: one record per burst, see audit_tty_command()
+
 
 /***************************************************************************
  *              Structures
@@ -128,6 +130,7 @@ PRIVATE int authzs_to_yuno(
     hgobj gobj, json_t *yuno, json_t* kw, hgobj src
 );
 PRIVATE int audit_command_cb(const char *command, json_t *kw, void *user_data);
+PRIVATE void write_audit_records(hgobj gobj, json_t *jn_records);
 PRIVATE int audit_newfile_cb(void *user_data, const char *old_filename, const char *new_filename);
 PRIVATE int remove_old_audit_files(hgobj gobj);
 
@@ -1017,6 +1020,7 @@ typedef struct _PRIVATE_DATA {
     hgobj resource;
     hgobj timer;
     hrotatory_h audit_file;
+    json_t *audit_tty_bursts;   // console writes being counted, see audit_tty_command()
 
     json_int_t timeout_expiration;
 
@@ -1163,6 +1167,7 @@ PRIVATE void mt_create(hgobj gobj)
             TRUE
         );
         if(priv->audit_file) {
+            priv->audit_tty_bursts = json_object();
             rotatory_keep_all_old_files(priv->audit_file, TRUE);   // a size rotation deletes no audit
             rotatory_subscribe2newfile(priv->audit_file, audit_newfile_cb, gobj);
             remove_old_audit_files(gobj);
@@ -1230,9 +1235,17 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->cert_sync_state);
 
     if(priv->audit_file) {
+        /*
+         *  The console writes still being counted are written before the end
+         */
+        json_t *jn_records = json_array();
+        audit_tty_close_bursts(priv->audit_tty_bursts, jn_records);
+        write_audit_records(gobj, jn_records);
+        JSON_DECREF(jn_records)
         rotatory_close(priv->audit_file);
         priv->audit_file = 0;
     }
+    JSON_DECREF(priv->audit_tty_bursts);
 
     remove_pid_file();
 }
@@ -9236,24 +9249,63 @@ PRIVATE int audit_command_cb(const char *command, json_t *kw, void *user_data)
     if(priv->audit_file) {
         char date[90];  // current_timestamp() wants 90 bytes
         current_timestamp(date, sizeof(date));
-        json_t *jn_record = audit_record_build(command, kw, date);  // kw not owned
-        if(!jn_record) {
-            return 0;   // Error already logged
+        json_t *jn_records = json_array();
+
+        /*
+         *  A console write (one per keystroke) keeps only the fact, one
+         *  record per burst: see audit_tty_command()
+         */
+        if(!audit_tty_command(
+                priv->audit_tty_bursts,
+                command,
+                kw,             // not owned
+                date,
+                AUDIT_TTY_BURST_SECONDS,
+                jn_records
+            )) {
+            json_t *jn_record = audit_record_build(command, kw, date);  // kw not owned
+            if(jn_record) {
+                json_array_append_new(jn_records, jn_record);
+            }
+            // else error already logged
         }
-        char *audit = json2uglystr(jn_record);
-        if(audit) {
-            rotatory_write(priv->audit_file, LOG_AUDIT, audit, strlen(audit));
-            rotatory_write(priv->audit_file, LOG_AUDIT, "\n", 1);  // double new line: the separator field
-            gbmem_free(audit);
-        }
-        json_decref(jn_record);
+        write_audit_records(gobj, jn_records);
+        JSON_DECREF(jn_records)
     }
     return 0;
 }
 
 /***************************************************************************
+ *  Write the records to the audit file
+ ***************************************************************************/
+PRIVATE void write_audit_records(hgobj gobj, json_t *jn_records)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    size_t idx;
+    json_t *jn_record;
+    json_array_foreach(jn_records, idx, jn_record) {
+        char *audit = json2uglystr(jn_record);
+        if(!audit) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Cannot serialize an audit record",
+                NULL
+            );
+            continue;
+        }
+        rotatory_write(priv->audit_file, LOG_AUDIT, audit, strlen(audit));
+        rotatory_write(priv->audit_file, LOG_AUDIT, "\n", 1);  // double new line: the separator field
+        gbmem_free(audit);
+    }
+}
+
+/***************************************************************************
  *  A new audit file has begun (new day, or the size limit was reached):
- *  the moment to apply the retention. Never on the write path.
+ *  the moment to apply the retention. This runs inside the
+ *  rotatory_write() of the first record of the new file, before that
+ *  record is written: once a day, or at a size rotation.
  ***************************************************************************/
 PRIVATE int audit_newfile_cb(void *user_data, const char *old_filename, const char *new_filename)
 {

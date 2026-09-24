@@ -438,7 +438,9 @@ To add or remove handlers at run time, use the `add-log-handler` and
 ### 5.5 The agent's audit files
 
 `yuneta_agent` writes every command that it runs to an audit file, one JSON
-record for each command (`use_audit_command_file`, on by default). The files
+record for each command (`use_audit_command_file`, on by default). The console
+writes (`write-tty`, one command for each keystroke) are the exception: they
+make one record for each burst (see [Console writes](#agent-audit-console-writes)). The files
 are in the `audit/` directory of the agent realm:
 
 ```
@@ -450,7 +452,8 @@ are in the `audit/` directory of the agent realm:
 #### What a record holds
 
 The record is built by `audit_record_build()`
-(`yunos/c/yuno_agent/src/audit_record.c`). There are two forms.
+(`yunos/c/yuno_agent/src/audit_record.c`). There are two forms, and a third
+one for the console writes.
 
 **A read-only command** gets only the command, the date and the user:
 
@@ -467,12 +470,25 @@ name: the prefixes `list-`, `view-`, `get-`, `info-`, `dir-`, and `help`,
 `parents`, `children`, `pkey2s`, `snaps`, `snap-content`, `print-role`,
 `print-tranger`, `check-json`, `check-realm`, `cert-expiry-status`,
 `cert-sync-status`, `global-variables`, `running-keys`, `running-bin`,
-`users`, `accesses`, `roles`, `user-roles`, `user-authzs`. `command-yuno` and
-`command-agent` are judged by the command that they carry, and the record names
-it: `"command":"command-yuno command=view-attrs"`. These commands keep the full
-record: `read-file`, `read-json` and `read-binary-file` (they read files of the
-node), `check-user-pwd`, and anything that opens something (`open-list`,
-`open-treedb`, …).
+`users`, `accesses`, `roles`, `user-roles`, `user-authzs`.
+
+A command that has a `__reset__` value (in the command text or in the kw) is
+not read-only: `stats=__reset__` sets the counters of a yuno to zero. So
+`stats-yuno id=gate_mqtts stats=__reset__` (the reset button of gui_agent) gets
+the full record, with its `source`. Up to 7.25.5-dev it got the minimal record,
+without the `source`, and a reset sent in the kw was not visible at all.
+
+`command-yuno` and `command-agent` are judged by the command that they carry,
+and the record names it: `"command":"command-yuno command=view-attrs"`. The
+carried command is taken from the same place as the command parser takes it:
+the last `command=` of the command text, else `command` of the kw. Up to
+7.25.5-dev the kw came first, so a kw `command=list-yunos` with a text
+`command='delete-node …'` ran `delete-node` and was recorded as a read-only
+command.
+
+These commands keep the full record: `read-file`, `read-json` and
+`read-binary-file` (they read files of the node), `check-user-pwd`, and anything
+that opens something (`open-list`, `open-treedb`, …).
 
 **Every other command** gets the command, the date, the user, the source and the
 parameters:
@@ -481,12 +497,20 @@ parameters:
 {"command":"install-binary id=auth_bff content64='<33554432 bytes sha256:401b36b9e4f91e967e815f96fd293cb384222d3e73e1b9fcf759d5ecfadfdbf8>'",
  "date":"2026-09-24T10:00:00.000000000+0200",
  "user":"yuneta",
- "source":{"console_purpose":"statnodes",
-           "hops":[{"role":"controlcenter","yuno":"artgins.com","service":"top-16",
-                    "user":"yuneta_agent@artgins.com","host":"artgins"},
-                   {"role":"gui_agent","yuno":"gui_agent_yuno","service":"agent_link",
-                    "user":"claudia@artgins.com","host":"544f1345-65a6-455c-aa94-62b6b020b5c5"}]},
+ "source":{"hops":[{"role":"ycommand","yuno":"","service":"ycommand",
+                    "user":"yuneta","host":"gines-nitroan51753"}]},
  "kw":{"__username__":"yuneta"}}
+```
+
+The same command sent from gui_agent through the controlcenter has two hops,
+nearest first:
+
+```json
+"source":{"console_purpose":"statnodes",
+          "hops":[{"role":"controlcenter","yuno":"artgins.com","service":"top-16",
+                   "user":"yuneta_agent@artgins.com","host":"artgins"},
+                  {"role":"gui_agent","yuno":"gui_agent_yuno","service":"agent_link",
+                   "user":"claudia@artgins.com","host":"544f1345-65a6-455c-aa94-62b6b020b5c5"}]}
 ```
 
 - `user` is the end user (`__username__` of the kw), or the user of the nearest
@@ -494,20 +518,41 @@ parameters:
 - `source` replaces `__md_iev__`. It keeps the console purpose (if any) and, for
   each inter-yuno hop (nearest first), the role, the yuno and the service of
   the sender, its user and its host. The address of the peer is not in the kw
-  and is not written. A command typed on the node (local `ycommand`) has no
-  `source`.
+  and is not written. A command typed on the node (local `ycommand`) has one
+  hop, with the role `ycommand`, the user of the shell and the host name of the
+  node. Only a command that the agent sends to itself has no `source`. A field
+  of a hop that is not a string is written as `""`, and the agent logs one
+  WARNING (msgset `Protocol`, no stack): it is data of a peer.
 - **A `content64` is never written.** Everywhere (in the command text, where
-  `ycommand` puts it, and in any kw key named `content64`), the value is
-  replaced by `<N bytes sha256:HEX>`: the size and the sha256 of the DECODED
-  content. The sha256 is the one of the binary, so you can check it on the
-  node:
+  `ycommand` puts it, with or without blanks around the `=`, and in any kw key
+  named `content64`), the value is replaced by `<N bytes sha256:HEX>`: the size
+  and the sha256 of the DECODED content. The sha256 is the one of the binary,
+  so you can check it on the node:
 
   ```bash
   sha256sum /yuneta/repos/*/auth_bff/*/auth_bff
   ```
 
   A value that is not base64 (a path, for example) is replaced by
-  `<N chars, not base64, sha256 of the text:HEX>`.
+  `<N chars, not base64, sha256 of the text:HEX>`. A bad base64 gives no error
+  in the audit: the command itself answers the error.
+- **A secret is never written.** Its value is replaced by `<redacted>`. A
+  secret is a parameter whose name holds, in any case, `passw`, `pwd`,
+  `secret`, `token` or `jwt`, or both `priv` and `key`: `password`,
+  `user_passw`, `client_secret`, `kc_admin_client_secret`, `access_token`,
+  `jwt`, `private_key`, …. Also the `value` of a `write-attr` whose `attribute`
+  has such a name. This applies to a kw key at any depth, to `name=value` in
+  any string (quoted or not, with blanks around the `=`), to the command carried
+  by `command-yuno`, and to `"name": value` in a JSON given as text. Up to
+  7.25.5-dev `check-user-pwd` and `set-user-pwd` wrote the password in clear
+  text. For example:
+
+  ```json
+  {"command":"set-user-pwd username=bob password=<redacted>","date":"…","user":"yuneta",
+   "source":{…},"kw":{"__username__":"yuneta"}}
+  {"command":"check-user-pwd","date":"…","user":"yuneta",
+   "kw":{"username":"bob","password":"<redacted>"}}
+  ```
 - `__command__` is left out when it repeats the command text.
 
 Up to 7.25.4 the record was the command, the date and the WHOLE kw. The sizes,
@@ -515,12 +560,56 @@ measured with the same commands:
 
 | Command | Up to 7.25.4 | Now |
 |---|---|---|
-| `install-binary` of a 32 MB yuno, by `ycommand` | 134,218,673 bytes (the base64 three times) | 541 bytes |
+| `install-binary` of a 32 MB yuno (`content64` in the command text, as `ycommand` sends it) | 134,218,673 bytes (the base64 three times) | 541 bytes |
 | `run-yuno` through the controlcenter | 891 bytes | 489 bytes |
 | `list-yunos` through the controlcenter | 840 bytes | 97 bytes |
 
 On wattyzer, a deploy day wrote 0.6–1.2 GB of audit (5 to 9 binaries) and a
 normal day 2 KB to 2.6 MB. With this format a deploy day writes a few KB.
+
+(agent-audit-console-writes)=
+#### Console writes
+
+`ycommand`, `ycli` and gui_agent send one `write-tty` command for each
+keystroke typed into an agent console, with the keystroke in `content64`. The
+audit keeps only the **fact**: who, when, which console, how many writes and
+bytes. **Nothing of what was typed is written, not even a hash**: the sha256
+of one byte can be read back with a table of 256 entries, so a hash would
+give the typed text (and a typed password) back.
+
+The writes of one user (the same user and the same `source`) into one console
+make a **burst**. A burst lasts 60 seconds from its first write.
+
+- The first write of a burst is written at once, alone. So a crash of the
+  agent cannot lose who typed into a console, even if what was typed made the
+  agent stop.
+- The other writes of the burst make one more record when the burst ends:
+  `date` is the time of its first write, `until` the time of its last one.
+
+```json
+{"command":"write-tty","date":"2026-09-24T10:00:00.1+0200","user":"claudia@artgins.com",
+ "console":"console-1","writes":1,"bytes":1,"source":{…}}
+{"command":"write-tty","date":"2026-09-24T10:00:00.4+0200","user":"claudia@artgins.com",
+ "console":"console-1","writes":212,"bytes":230,"until":"2026-09-24T10:00:58.9+0200","source":{…}}
+```
+
+The records of a burst do not overlap, so the sum of their `writes` and `bytes`
+is the whole burst. A burst ends:
+
+- when its 60 seconds have passed, at the next command of any kind (a burst
+  of a console that nobody uses any more waits in memory until then; its first
+  record is already on disk),
+- when another user or another source writes into its console (so the writes
+  of each user are always recorded apart),
+- at any `close-console`,
+- when the agent stops.
+
+Up to 7.25.4 each keystroke wrote the whole kw, with the keystroke in base64
+(about 920 bytes each). From 7.25.5-dev to this change each keystroke wrote
+`<1 bytes sha256:…>`, which a table of 256 entries reads back. Now 1000
+keystrokes in one burst write two records, about 950 bytes. A `write-tty`
+carried by `command-agent` gets its full record, with `content64` as
+`<N bytes>` only.
 
 #### Rotation and retention
 
@@ -539,7 +628,10 @@ removes the audit files older than that number of days:
 - when it starts, and
 - when a new audit file begins (a new day, or the size limit).
 
-It never removes files on the write path of a command. It removes only regular
+The second sweep runs inside the write of the first record of the new file,
+before that record is written: so it is on the write path of that one command,
+once a day (or once for each size rotation). It reads the directory once. It
+removes only regular
 files with the name shape of the mask (and their `.OLD` / `.OLD.<n>`), never a
 file of the current day, never a symbolic link, never another file in the
 directory ([`rotatory_remove_old_files()`](#rotatory_remove_old_files)). Each
@@ -587,9 +679,17 @@ INFO line with the list, and keeps the last 7 days and today. On a slow disk
 this first sweep can take some seconds, once. To keep more, set
 `audit_keep_days` before that start.
 
+**A clock set back across midnight** empties no audit file: the file of the
+day before is opened again and the records are appended to it. Up to
+7.25.5-dev it was opened with `"w"` and emptied, and the file of today was
+emptied too when the clock went forward again (see
+[the rotatory](#rotatory-clock-set-back)).
+
 **A tool that reads the audit** must accept both formats: the files written
 before the upgrade have the whole `kw` (with `__md_iev__` and the base64) and
-no `user` or `source`.
+no `user` or `source`. It must also accept the `write-tty` records, which have
+`console`, `writes`, `bytes` and `until` and no `kw`, and `<redacted>` in place
+of a secret.
 
 ---
 

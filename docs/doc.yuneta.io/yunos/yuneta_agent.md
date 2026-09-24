@@ -34,15 +34,26 @@ The agent writes every command that it runs to a daily audit file in
 `/yuneta/realms/agent/agent/audit/` (`use_audit_command_file`, on by default).
 
 - A read-only command (`list-*`, `view-*`, `stats`, `nodes`, `help`, …) is
-  recorded with the command, the date and the user only.
+  recorded with the command, the date and the user only. A command with a
+  `__reset__` value (`stats-yuno stats=__reset__`) is not read-only.
 - Any other command also gets its `source` (the console purpose and each
   inter-yuno hop: role, yuno, service, user, host) and its parameters.
 - A `content64` (a binary, a config) is never written: only its size and the
   sha256 of the decoded content.
+- A secret (a parameter named like `password`, `pwd`, `secret`, `token`, `jwt`,
+  `private_key`, …) is never written: its value is `<redacted>`.
+- A console keystroke (`write-tty`) keeps only the fact: who, when, which
+  console, how many writes and bytes. Nothing of what was typed, not even a
+  hash. The writes of one user into one console make one burst of up to 60
+  seconds: its first write is recorded at once, the rest in one record when
+  the burst ends.
 
 ```json
 {"command":"list-yunos","date":"2026-09-24T10:00:00.000000000+0200","user":"claudia@artgins.com"}
 {"command":"install-binary id=auth_bff content64='<33554432 bytes sha256:401b36b9…>'","date":"…","user":"yuneta","kw":{}}
+{"command":"set-user-pwd username=bob password=<redacted>","date":"…","user":"yuneta","kw":{}}
+{"command":"write-tty","date":"…","user":"claudia@artgins.com","console":"console-1","writes":1,"bytes":1}
+{"command":"write-tty","date":"…","user":"claudia@artgins.com","console":"console-1","writes":212,"bytes":230,"until":"…"}
 ```
 
 Up to 7.25.4 an `install-binary` of a 32 MB yuno wrote 134 MB (the base64 three
@@ -51,9 +62,10 @@ times); now it writes about 500 bytes.
 A day that crosses `max_megas_audit_file` (500 MB) continues in `.OLD.1`,
 `.OLD.2`, …; no piece of a day is removed. The attribute `audit_keep_days`
 (default `7`, `0` = keep all) is the retention: at start, and when a new audit
-file begins, the agent removes the audit files older than that and logs one
-INFO line with their names. Only files with the name shape of the audit mask
-are removed. For example, to keep 30 days, put this in
+file begins (inside the write of its first record), the agent removes the
+audit files older than that and logs one INFO line with their names. Only
+files with the name shape of the audit mask are removed. A clock set back
+across midnight empties no audit file. For example, to keep 30 days, put this in
 `/yuneta/agent/yuneta_agent.json` and restart the agent:
 
 ```json
