@@ -259,7 +259,9 @@ that moves the node to the new release.
    the operation idempotent, and the tool uses an already-active snap again.
    `--no-snap` skips this operation. `--snap-name N` gives the snap another
    name.
-4. **Register** — `find-new-yunos create=1` writes the new yuno-instance rows.
+4. **Register** — `find-new-yunos create=1` writes the new yuno-instance rows,
+   and the tool prints `N created, M already registered`. When every row of
+   the preview is already registered, the tool skips `create=1`.
 5. **Promote and restart** — `deactivate-snap` starts the agent's
    `restart_nodes()`.
 
@@ -280,6 +282,20 @@ ycommand -c 'find-new-yunos'
 
 In 7.25.4 and before, the preview listed the second row as a row to create,
 and `find-new-yunos create=1` failed on it with *"Yuno already exists"*.
+
+`yunetas upgrade-yunos` (CLI 0.19.4 and later) shows the two kinds of rows
+apart, and counts them apart after `create=1`:
+
+```text
+1 new yuno row(s) would be created:
+  create-yuno id=mqtt_broker realm_id=... yuno_role=mqtt_broker role_version=7.25.5 ...
+1 yuno row(s) already registered, pending promotion:
+  already registered, pending promotion (deactivate-snap): create-yuno id=emailsender ...
+...
+1 created, 1 already registered.
+```
+
+CLI 0.19.3 and before counted every row of the preview as created.
 
 The snap comes after the preview, and this order is intentional. A snap tags
 every current record, and it clones each record that another snap tagged
