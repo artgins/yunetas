@@ -85,6 +85,24 @@ against **v3.6.1** on **2026-06-28**.
   `jwt_security.c`, not a verbatim port. (Same-family downgrade — the exact-alg
   pin above — is not yet covered here; see the "Broaden the forgery test" TODO.)
 
+- **`jwks_*` keyring NULL-safety (local backport, 2026-09-24).** Upstream
+  guards the keyring getters against a NULL set (`cfd8902` and later, shape as
+  of `197ac58`); the vendored copy did not, and `jwks_item_get(NULL, 0)`
+  dereferenced `jwk_set->head`. Backported to `jwks.c`, in upstream's shape:
+  `jwks_item_get` returns `NULL`, `jwks_error` and `jwks_error_any` return `1`
+  (a NULL set is an error), `jwks_error_msg` returns `NULL`, and
+  `jwks_error_clear` returns without doing anything. `jwks_free`,
+  `jwks_item_free` and `jwks_item_free_all` already accepted NULL. Not
+  reachable from `C_AUTHZ` (its keyring is always valid). Covered by
+  `test_null_safety` in `test_jwt_alg_confusion`:
+
+  ```c
+  if(jwks_item_get(NULL, 0) == NULL && jwks_error(NULL) != 0) {
+      /* a NULL keyring is refused, not dereferenced */
+  }
+  jwks_free(NULL);    /* no-op */
+  ```
+
 #### v3.4.0 re-review (2026-06-15)
 
 - **`18133e4` (L17) — reject duplicate JSON members on the token parse

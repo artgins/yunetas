@@ -46,12 +46,13 @@ parser degrades gracefully rather than crashing or silently accepting:
 | Malformed JWKs | non-string `alg` (int/null/bool); missing `kty`/unknown `kty`; missing RSA `n`/`e`; missing EC `x`/`crv`; missing OKP `x`; non-string `n`/`e`; deeply-nested `n`; bad-base64 `oct` `k`; empty string | handled — rejected via `jwks_item_error()`, or (non-string `alg`) handled without the `alg_str` NULL-deref |
 | Malformed tokens | `NULL`/empty; no/one/many dots; empty header; header-not-JSON; header missing `alg`; invalid `alg`; `alg` as integer; `alg:none` + bad-base64 payload | rejected by a real-key checker, no crash |
 | `jwt_checker_*` NULL-safety | `verify`/`error`/`error_msg`/`setkey` on a NULL checker | no crash, reports failure |
+| `jwks_*` NULL-safety | `item_get`/`item_free`/`item_free_all`/`error`/`error_any`/`error_msg`/`error_clear`/`free` on a NULL set | no crash; getters answer NULL, `error`/`error_any` answer 1 |
 
-Scope note: upstream also hardens the `jwks_*` keyring API against `NULL`
-(`jwks_item_get(NULL)` / `jwks_free(NULL)`); the vendored v3.2.1+2 copy has
-**not** backported those guards (`jwks_item_get` derefs `jwk_set->head` —
-`jwks.c:201`), so they are deliberately not asserted. Not reachable from
-`c_authz` (the keyring is always valid there) — tracked as a drift item.
+The `jwks_*` keyring API is asserted NULL-safe too (`jwks_item_get`,
+`jwks_item_free`, `jwks_item_free_all`, `jwks_error`, `jwks_error_any`,
+`jwks_error_msg`, `jwks_error_clear`, `jwks_free` on a NULL set). Up to 7.25.4
+the vendored copy lacked upstream's guards and `jwks_item_get(NULL, 0)`
+crashed; the backport is recorded in `kernel/c/libjwt/README.md`.
 
 ## Fixtures
 

@@ -511,15 +511,16 @@ static void test_crit_header(void)
 }
 
 /***************************************************************************
- *  NULL-safety of the jwt_checker_* entry points (ported from upstream
- *  tests/jwt_security.c). These are the verify-path API c_authz drives; they
- *  must not crash and must report failure on a NULL checker.
+ *  NULL-safety of the jwt_checker_* entry points and of the jwks_* keyring
+ *  API (ported from upstream tests/jwt_security.c). The checker calls are
+ *  the verify path c_authz drives; they must not crash and must report
+ *  failure on a NULL checker.
  *
- *  Scope note: upstream also hardens the jwks_* keyring API against NULL
- *  (jwks_item_get(NULL)/jwks_free(NULL)); the vendored v3.2.1+2 copy has NOT
- *  backported those guards (jwks_item_get derefs jwk_set->head — jwks.c:201),
- *  so they are deliberately NOT asserted here. Not reachable from c_authz
- *  (the keyring is always valid there); tracked as a drift item, not tested.
+ *  The keyring guards (jwks_item_get, jwks_error, jwks_error_any,
+ *  jwks_error_msg, jwks_error_clear) are a local backport of upstream's
+ *  (see kernel/c/libjwt/README.md): up to 7.25.4 jwks_item_get(NULL)
+ *  dereferenced jwk_set->head and crashed. Not reachable from c_authz,
+ *  whose keyring is always valid, but the API documents NULL as safe.
  ***************************************************************************/
 static void test_null_safety(void)
 {
@@ -530,6 +531,19 @@ static void test_null_safety(void)
     check(jwt_checker_error_msg(NULL) == NULL,"error_msg(NULL checker) == NULL");
     check(jwt_checker_setkey(NULL, JWT_ALG_NONE, NULL) != 0,
         "setkey(NULL checker) fails");
+
+    printf("NULL safety (jwks_* keyring API):\n");
+
+    check(jwks_item_get(NULL, 0) == NULL,     "item_get(NULL set) == NULL");
+    check(jwks_item_free(NULL, 0) == 0,       "item_free(NULL set) == 0");
+    check(jwks_item_free_all(NULL) == 0,      "item_free_all(NULL set) == 0");
+    check(jwks_error(NULL) != 0,              "error(NULL set) != 0");
+    check(jwks_error_any(NULL) != 0,          "error_any(NULL set) != 0");
+    check(jwks_error_msg(NULL) == NULL,       "error_msg(NULL set) == NULL");
+    jwks_error_clear(NULL);
+    check(1,                                  "error_clear(NULL set) does not crash");
+    jwks_free(NULL);
+    check(1,                                  "free(NULL set) does not crash");
 }
 
 /***************************************************************************

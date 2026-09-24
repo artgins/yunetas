@@ -198,6 +198,9 @@ const jwk_item_t *jwks_item_get(const jwk_set_t *jwk_set, size_t index)
 	jwk_item_t *item = NULL;
 	size_t i = 0;
 
+	if (jwk_set == NULL)	// ArtGins: upstream NULL-safety backport
+		return NULL;
+
 	list_for_each_entry(item, &jwk_set->head, node) {
 		if (i == index)
 			return item;
@@ -210,7 +213,12 @@ const jwk_item_t *jwks_item_get(const jwk_set_t *jwk_set, size_t index)
 int jwks_error_any(const jwk_set_t *jwk_set)
 {
 	jwk_item_t *item = NULL;
-	int count = jwk_set->error;
+	int count;
+
+	if (jwk_set == NULL)	// ArtGins: upstream NULL-safety backport
+		return 1;
+
+	count = jwk_set->error;
 
 	list_for_each_entry(item, &jwk_set->head, node) {
 		if (item->error)
@@ -289,16 +297,25 @@ int jwks_item_key_oct(const jwk_item_t *item, const unsigned char **buf,
 
 int jwks_error(const jwk_set_t *jwk_set)
 {
+	if (jwk_set == NULL)	// ArtGins: upstream NULL-safety backport
+		return 1;
+
 	return jwk_set->error ? 1 : 0;
 }
 
 const char *jwks_error_msg(const jwk_set_t *jwk_set)
 {
+	if (jwk_set == NULL)	// ArtGins: upstream NULL-safety backport
+		return NULL;
+
 	return jwk_set->error_msg;
 }
 
 void jwks_error_clear(jwk_set_t *jwk_set)
 {
+	if (jwk_set == NULL)	// ArtGins: upstream NULL-safety backport
+		return;
+
 	jwk_set->error = 0;
 	memset(jwk_set->error_msg, 0, sizeof(jwk_set->error_msg));
 }
