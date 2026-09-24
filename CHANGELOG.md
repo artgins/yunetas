@@ -61,6 +61,22 @@ code before it, except those listed under "No red test" in `TODO.md`.
   (*"Cannot read the record, this process has not the memory to parse its
   content (MEM_MAX_BLOCK)"*, with its `key`) instead of crashing the reader;
   a torn md2 whose last row names such a record is flagged, not cut.
+- **One command could crash the agent through its audit** (new in the
+  unreleased audit work; not in 7.25.4). The audit record builder runs before
+  the command parser and the authz, on the text of any peer that can send a
+  command: the scan is one pass without recursion, in linear time, and one
+  record scans at most 128 MB (a longer string is written as `<N bytes, not
+  scanned, sha256:HEX>`; for the command text, its first word comes first).
+- **The audit reads the command word as the parser does** (any case, quotes,
+  aliases, looked up in the agent's command table): `WRITE-TTY`,
+  `'write-tty'`, `EV_WRITE_TTY` are console writes too, `CLOSE-CONSOLE` ends
+  the bursts, and the keys `command`, `attribute`, `value` match in any case.
+- **More secrets are redacted in the audit:** `api_key` (set with `write-attr
+  attribute=api_key value=...` on wattyzer's `gate_pvpc`), `apikey`,
+  `x-api-key`, `cookie`, `session_key`, `__session_id__`, `auth_data`,
+  `passphrase`, `credential`, `authorization`, `bearer`, `salt`; the token
+  after `Bearer `, anything shaped like a JWT, and `{attribute, value}` in a
+  json object of the kw. A json key is read with its escapes.
 
 ### Data loss and integrity
 
@@ -664,6 +680,22 @@ with their spread, are in `performance/c/README.md`.
   emptied only when it was last written before the day its name is used for
   (last week's file of a `W` mask, as intended); a handle with
   `rotatory_keep_all_old_files()` never empties a file.
+- The agent flushes every audit record before the command runs (one `write()`
+  per command, ~1.1 us): the first write of a console burst could wait 2 s in
+  the buffer and be lost in a crash.
+- rotatory: a new day on a full disk opens the new file and calls the newfile
+  callback (where the audit runs its retention and frees space); a piece of 0
+  bytes no longer closes the file until the next day; a failed write closes the
+  file and the next record opens it again. `rotatory_open()` empties an old
+  file of a mask without the year: up to 7.25.4 a yuno that started on a Monday
+  appended to last Monday's `W` file, so one file held 8 days. A mask with the
+  year never empties a file.
+- `rmrdir()` / `rmrcontentdir()` refuse, with a log, a tree whose paths do not
+  fit in PATH_MAX or that is deeper than 1024 levels (they could recurse without
+  end); `mkrdir()` refuses, with a log, a path of PATH_MAX or more (7.25.4 cut
+  it silently and returned 0).
+- New benchmark `performance/c/perf_rotatory` (the harness behind the rotatory
+  figures, with a case that flushes each record).
 - The entry point closes the log files last: up to 7.25.4 they were closed
   before the final cleaning and the memory leak report, so *"system memory
   not free"* never reached the yuno's log file.
@@ -780,6 +812,12 @@ with their spread, are in `performance/c/README.md`.
   user, console, writes, bytes, until, source}` with no `kw`. Tools that read
   the audit must accept both formats (files written before the upgrade keep the
   old one).
+- `mkrdir()` returns -1 for a path of PATH_MAX or more; `rmrdir()` /
+  `rmrcontentdir()` return -1 (logged) for a tree too long or too deep. A yuno
+  log file of a `W` mask last written before today is emptied when the yuno
+  starts, as at a new day. Audit: the new secret names (and `cookie_domain`)
+  are `<redacted>`, a string over 128 MB is written as its size and sha256, and
+  a record reaches the file at once.
 - The agent removes audit files older than `audit_keep_days` (default 7) at
   its first start; `mkrdir()` returns -1 over a non-directory.
 - gobj-c: the kw a command handler gets holds its own reference of a
