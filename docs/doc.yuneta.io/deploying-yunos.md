@@ -214,6 +214,10 @@ version moved and your yunos took a new version with it.
 CAUTION: Step 3 restarts every yuno on the node, not only the yunos that you
 changed. On a busy production node, tell the team before you start.
 
+If the node runs SDK 7.25.4 or earlier, look for md2 files that are not whole
+rows before step 1: see
+[Before an upgrade from 7.25.4 or earlier](#dy-md2-scan).
+
 ```bash
 # 1. Build
 yunetas build
@@ -273,6 +277,31 @@ acceptable. On a production node it is not, and the CAUTION above applies.
 SIGKILL gives no orderly shutdown, because `mt_stop` does not run. If a yuno
 must write its state to disk on exit, stop it first with
 `ycommand -c 'kill-yuno id=<id>'`. Then run `upgrade-yunos`.
+
+(dy-md2-scan)=
+### Before an upgrade from 7.25.4 or earlier: md2 files that are not whole rows
+
+An md2 file is a sequence of 32-byte rows. A power cut during the write of a
+row leaves a part of a row at the end of the file, and 7.25.4 kept appending
+after it. 7.25.5 does not cut such a file: every load of its key fails, with
+this CRITICAL, until the file is repaired:
+
+```text
+CRITICAL check_torn_md2_rows: md2 file of the key ends in a whole row that is not on a row
+      boundary: written by 7.25.4 after a torn row; not cut, repair it by hand
+```
+
+Before you upgrade the node, look for such files:
+
+```bash
+find /yuneta/store /yuneta/realms -name '*.md2' -printf '%s %p\n' | awk '$1 % 32'
+```
+
+No output means there is nothing to repair. Each line is the size and the path
+of a file that is not a whole number of rows. For each file, follow
+[A topic that did not load whole](#treedb-topic-not-loaded-whole): it tells a
+torn last row (the master cuts it back at the open, and the key loads) from
+the shapes that must be repaired by hand, and it gives the repair.
 
 (dy-mark-tm-order)=
 ### After an upgrade from 7.25.4 or earlier: `mark-tm-order`

@@ -124,23 +124,14 @@ The second review (read at 7.24.1) shipped in 7.25.0 and in gobj-ui
 
 **Low, worth keeping** (M23, M34 and M40 were lowered to here by their
 verifiers):
-the `EV_TREEDB_NODE_*` feed is outside the `read` permission, because the subscription authz is commented out
-(`c_ievent_srv.c:1373`, `gobj.c:8754`); a refused `__graphs__` write is
-recorded as saved and never retried (`c_g6_nodes_tree.js:3282`);
-refs `topic^id^hook` are written with `snprintf`
-into `char[NAME_MAX]` and truncate silently; hook membership is tested by bare
-id, so two children of different topics with one id collide; an id holding `^`
-is accepted and makes every ref to the node undecodable; JS `kw_get_str()`
-stringifies its default (`0` becomes the truthy `"0"`); `cmd_treedbs` /
-`cmd_links` / `cmd_hooks` still pair `json_incref(kw)` with the wrong decref;
-the warning *"Parent
-ref already in child fkey"* still fires in the legitimate case of 4e4dcdc00,
-once per `create-yuno`.
+the `EV_TREEDB_NODE_*` feed is outside the `read` permission, because the
+subscription authz is commented out (`c_ievent_srv.c`, `gobj.c`); the warning
+*"Parent ref already in child fkey"* still fires in the legitimate case of
+4e4dcdc00, once per `create-yuno`.
 
-## TreeDB / timeranger2: what the reviews of 2026-09-23 left open
+## TreeDB / timeranger2: what 7.25.5 leaves open
 
-The independent reviews of the 7.25.4 fixes and the fix round after each
-(`CHANGELOG.md`, Unreleased). What is still open:
+What the changes after 7.25.4 (`CHANGELOG.md`, Unreleased) leave open:
 
 - **The tm marker after a rollback**: a 7.25.4-or-earlier binary appends
   out-of-order tm without `.tm_unordered`; `mark-tm-order` re-marks the topic,
@@ -152,11 +143,9 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
   4 keys x 3 650 files on a warm cache).
 - A demoted master never takes its lock back while the process lives; it needs
   a restart (documented).
-- treedb deletes of a parent do not see links from children that did not load
-  (a topic with `load_failed` keys); in a partial topic, operations on other
-  ids are allowed.
-- **`treedb_delete_instance()`**: a tombstone write that fails partway still
-  logs and answers 0.
+- In a partial topic, operations on other ids are allowed (creates, updates,
+  links); only the creates of the unloaded ids and the deletes of their
+  possible parents are refused.
 - A store whose schema file is already behind what runs (written whole by an
   older release) stays inconsistent for that topic (the running definition is
   only in `topic_cols.json`).
@@ -165,9 +154,6 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
 - **A multi-key (`rkey`) iterator** does not see keys created after it opened;
   the `key_deleted` mark reaches only the process that deleted the key. Both
   are single-node conveniences by design (philosophy.md, "the key").
-- `import-db` keys its error-count stats on `gobj_log_last_message()`.
-- ***"Child node without fkey field"*** is logged as an ERROR at every open,
-  once per node, when an fkey column is filled by no hook any more.
 - `default: {}` placeholders are dropped by save + apply, so a `required`
   column whose literal really declared `'default': {}` loses it (as in 7.25.4).
 - A failed `open-treedb` withdraws the saved schema at once; it could wait for
@@ -178,10 +164,14 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
   (`tr_msg2db.md` has the code).
 - **No red test** for: `deactivate-snap` -1 on a failed save, the fs_watcher
   root, `save_json_to_file()`'s `close()` failure, the crash window between a
-  marker and its md2 row, the `kw_incref()` of C_MQIOGATE's `view-channels`
-  and the `kw_update_missing()` of C_IEVENT_SRV's `EV_ON_CLOSE` (neither kw
-  carries a gbuffer today). Not exercised live: a form Save
-  through a real websocket drop.
+  marker and its md2 row; the `kw_incref()` of C_NODE `cmd_treedbs` /
+  `cmd_links` / `cmd_hooks` / `cmd_get_node` (every path to them goes
+  through the command parser), of C_MQIOGATE's `view-channels`, and the
+  `kw_update_missing()` of C_IEVENT_SRV's `EV_ON_CLOSE` (none of those kws
+  carries a gbuffer today); the two yuno-skeleton fixes (`MSGSET_INTERNAL`,
+  the timer as a pure child: checked by hand with a yuno made by
+  `yuno-skeleton -p`; no ctest builds the templates). Not exercised live: a
+  form Save through a real websocket drop.
 - A test binary is not relinked by `cmake --build build` after `make install`
   of a library it links by name: a per-module test run can execute the old
   library. `yunetas clean && yunetas build && yunetas test` is not affected.

@@ -14,27 +14,27 @@ code before it, except those listed under "No red test" in `TODO.md`.
   then).
 - **Before upgrading a node, look for md2 files that are not whole rows:**
   `find /yuneta/store /yuneta/realms -name '*.md2' -printf '%s %p\n' | awk '$1 % 32'`.
-  A file that 7.25.4 wrote after a torn row is not cut by this release: its
-  key fails every load (CRITICAL *"...not cut, repair it by hand"*) until it
-  is repaired. treedb.md, "A topic that did not load whole", gives the repair:
-  a script that is linear (86 400 rows in 0.13 s) and runs in a `set -e`
-  subshell. It names its backup `~/<topic>.<key>.<file>.orig` and refuses to
-  overwrite one, writes through `$f.tmp` + `mv` (a failure leaves the `.md2`
-  unchanged), and writes nothing when more than one boundary passes. A scan
-  of ~21 500 md2 files on four stores (local, wattyzer, both yunovatios)
-  found none.
+  A file that 7.25.4 wrote after a torn row is not cut by this release: its key
+  fails every load (CRITICAL *"...not cut, repair it by hand"*) until it is
+  repaired. treedb.md, "A topic that did not load whole", gives the repair: a
+  script that is linear (86 400 rows in 0.13 s) and runs in a `set -e` subshell.
+  It names its backup `~/<topic>.<key>.<file>.orig` and refuses to overwrite
+  one, writes through `$f.tmp` + `mv` (a failure leaves the `.md2` unchanged),
+  and writes nothing when more than one boundary passes. A scan of ~21 500 md2
+  files on four stores (local, wattyzer, both yunovatios) found none. See
+  `deploying-yunos.md`.
 - **Migrate the timeranger2 topics once, after upgrading.** Until a topic
-  created by 7.25.4 or earlier is migrated, no file's tm range is trusted in
-  it, and a `tm` query (`from_tm` / `to_tm`) reads every md2 row of the key.
-  On the master, for each tranger service of each yuno (find them with
+  created by 7.25.4 or earlier is migrated, no file's tm range is trusted in it,
+  and a `tm` query (`from_tm` / `to_tm`) reads every md2 row of the key. On the
+  master, for each tranger service of each yuno (find them with
   `command-yuno id=<id> service=__yuno__ command=services`):
   `command-yuno id=<id> service=<tranger> command=mark-tm-order all=1`. The
   agent is not a managed yuno; its own trangers are
   `command-agent service=tranger_treedb_yuneta_agent command=mark-tm-order all=1`
   and `command-agent service=tranger_system_schema command=mark-tm-order all=1`.
-  The migration reads every md2 file once, is linear in the number of files,
-  and blocks the yuno while it runs (1 key x 30 files x 20 000 rows: ~17 ms).
-  The price until then is under "Performance". See `deploying-yunos.md`.
+  The migration reads every md2 file once, is linear in the number of files, and
+  blocks the yuno while it runs (1 key x 30 files x 20 000 rows: ~17 ms). The
+  price until then is under "Performance". See `deploying-yunos.md`.
 - **If the main agent does not come back after the upgrade**, look for
   *"Cannot start agent treedb"* in its log: when its treedb's schema is
   refused, the agent now exits 0 and is not relaunched. Reach the node through
@@ -60,8 +60,7 @@ code before it, except those listed under "No red test" in `TODO.md`.
 - timeranger2: a record this process has not the memory to parse is reported
   (*"Cannot read the record, this process has not the memory to parse its
   content (MEM_MAX_BLOCK)"*, with its `key`) instead of crashing the reader;
-  a torn md2 whose last row names such a record is flagged, not cut (the open
-  crashed, or cut the file and lost the acknowledged row).
+  a torn md2 whose last row names such a record is flagged, not cut.
 
 ### Data loss and integrity
 
@@ -87,7 +86,11 @@ code before it, except those listed under "No red test" in `TODO.md`.
   would answer wrong: a create of such an id (it would shadow the stored
   record); shoot/activate and the snapshot-guarded deletes when `__snaps__`
   is partial; `gc-assets` when a topic with a `file` column or `__assets__`
-  is partial. `treedb_delete_instance()` refuses when it cannot read every
+  is partial; a delete of a node, forced or not, whose hooks hold a topic
+  that did not load whole (*"Cannot delete node: a topic its hooks hold did
+  not load whole, a child that did not load may hang from it"*; 7.25.4
+  deleted it, and a child that did not load kept naming it).
+  `treedb_delete_instance()` refuses when it cannot read every
   row of the key, and the asset snapshot guard fails closed when it cannot
   read. Recovery procedure in treedb.md ("A topic that did not load whole"),
   from least to most destructive.
@@ -173,27 +176,28 @@ code before it, except those listed under "No red test" in `TODO.md`.
   a zeroed row).
 - **A treedb write whose save fails is taken back in memory.** In 7.25.4
   `treedb_update_node()`, `treedb_link_nodes()`, `treedb_unlink_nodes()`,
-  `treedb_autolink()`, `treedb_clean_node()`, `treedb_replace_links()` and
-  the child unlinks of a forced delete changed the node (fields, fkeys,
-  parent hooks) before the save and kept the change when the save failed: a
-  read then answered a value the disk never had, and a retry of the same
-  write found nothing to write. Now the node goes back to what the disk has,
-  and the call answers `NULL` or -1; a write taken back tells no event.
-  `treedb_autolink()`, `treedb_clean_node()` and `treedb_replace_links()`
-  answer -1 when the save fails (7.25.4 ignored it); a link or unlink that
-  fails part way is taken back whole. Link and unlink events, and the
-  parent's `EV_TREEDB_NODE_UPDATED` in the compatible mode, are told only
-  after the child is saved, in the same order among themselves (7.25.4 told
-  the link events before the save). A write that is taken back puts every
-  child back in its place in the hooks of its parents (list and dict hooks),
-  and a stale fkey ref it removed (its hook gone, or re-pointed to another
-  column) goes back into its field alone, never linked. When memory cannot
-  be taken back whole, an ERROR says so: *"A write that did not reach the
-  disk could not be taken back whole in memory: the links in memory differ
-  from the disk until the treedb is opened again"*. `treedb_autolink()`
-  refuses a ref whose hook fills another column than the one the ref arrives
-  in (*"fkey reference: its hook does not link into this column"*), as
-  `treedb_replace_links()` does; 7.25.4 linked it through the other column.
+  `treedb_autolink()`, `treedb_clean_node()`, `treedb_replace_links()` and the
+  child unlinks of a forced delete changed the node (fields, fkeys, parent
+  hooks) before the save and kept the change when the save failed: a read then
+  answered a value the disk never had, and a retry of the same write found
+  nothing to write. Now the node goes back to what the disk has, and the call
+  answers `NULL` or -1; a write taken back tells no event. `treedb_autolink()`,
+  `treedb_clean_node()` and `treedb_replace_links()` answer -1 when the save
+  fails (7.25.4 ignored it); a link or unlink that fails part way is taken back
+  whole. Link and unlink events, and the parent's `EV_TREEDB_NODE_UPDATED` in
+  the compatible mode, are told only after the child is saved, in the same order
+  among themselves (7.25.4 told the link events before the save). A write that
+  is taken back puts every child back in its place in the hooks of its parents
+  (list and dict hooks), in the instance of the parent that held it (a topic
+  with a `pkey2` has several instances of one id), and a stale fkey ref it
+  removed (its hook gone, or re-pointed to another column) goes back into its
+  field alone, never linked. When memory cannot be taken back whole, an ERROR
+  says so: *"A write that did not reach the disk could not be taken back whole
+  in memory: the links in memory differ from the disk until the treedb is opened
+  again"*. `treedb_autolink()` refuses a ref whose hook fills another column
+  than the one the ref arrives in (*"fkey reference: its hook does not link into
+  this column"*), as `treedb_replace_links()` does; 7.25.4 linked it through the
+  other column.
 - **A forced `treedb_delete_node()` that is refused changes nothing.** A
   child that cannot be saved unlinked stays linked ("Cannot delete node:
   still has down links"), a key that cannot be deleted refuses the delete
@@ -209,6 +213,29 @@ code before it, except those listed under "No red test" in `TODO.md`.
   `treedb_save_node()` refuses the node (*"Cannot save a node that is being
   deleted"*): a subscriber that saved it from one of those events could bring
   it back on disk.
+- **`treedb_delete_instance()` answers -1 when a tombstone fails, and keeps
+  the instance.** 7.25.4 tombstoned the rows newest first, went on after a
+  failure, answered 0 and dropped the instance, which came back at the next
+  open from an OLDER row. The rows go oldest first and the first failure
+  stops the delete (*"Cannot delete instance, a row of it cannot be
+  tombstoned: the instance stays, its newest rows alive"*); the older rows
+  tombstoned before it are gone from the history.
+- **A reference is never cut in silence.** 7.25.4 wrote `topic^id^hook` into
+  `char[NAME_MAX]` and decoded it into parts of `NAME_MAX` with no check. A
+  reference that does not fit is refused (*"Cannot build the reference of a
+  node: it does not fit"*, *"Wrong reference: a part of it is too long"*) and
+  nothing moves. `treedb_create_node()` refuses, for a topic with hooks, an
+  id holding `^` (*"Invalid 'id': it holds a '^', the separator of a
+  reference"*) or of `NAME_MAX` bytes or more (*"Invalid 'id': too long to be
+  part of a reference"*); a topic without hooks keeps any id.
+- **A hook tells two topics apart.** 7.25.4 tested hook membership by the
+  bare id: the group `x` after the user `x` was a skipped duplicate in a list
+  hook (its fkey written all the same) and took the user's place in a dict
+  hook. A list hook holds both; a dict hook refuses the second (*"Cannot
+  link, the dict hook holds a node of another topic with this id"*), a load
+  keeps the first (*"A dict hook holds a node of another topic with this id:
+  this link is not loaded"*), and an unlink does not delete the other topic's
+  entry.
 - **C_NODE `update-node` with `autolink` is ONE write** (the new
   `treedb_update_node_and_links()`): fields, links and save; a failed save
   takes all of it back and tells nothing. In 7.25.4 it was three calls, and a
@@ -348,34 +375,33 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   `saved`, `unsaved` (drafts). A topic whose columns the literal changes
   without raising its `topic_version` keeps running its old columns in the
   store (tranger2 swaps columns only on a version raise): the open warns.
-- **A projection says when it is unfinished, and records it.** A removal
-  that is refused (a snapshot of `__system__` holds the node), or a create,
-  update or link that fails, leaves the projection unfinished: one WARNING
-  with `not_removed` / `not_written` and how to finish it (for a removal,
-  delete the `__snaps__` row), and a record,
-  `saved_schemas/<treedb>.unfinished.json` (`schema_version`, `not_removed`,
-  `not_written`, `leftovers`, `draft_kinds`, `leftover_nodes`). While the
-  record exists every open retries the projection (INFO *"Completing the
-  projection into __system__, left unfinished by an earlier open"*, or the
-  imposed *"Updating TreeDB schema in __system__"*), the leftovers it names,
-  while they stay as the projection left them, are never taken for an
-  operator's draft nor reported as withdrawn work, a new
+- **A projection says when it is unfinished, and records it.** A removal that is
+  refused (a snapshot of `__system__` holds the node), or a create, update or
+  link that fails, leaves the projection unfinished: one WARNING with
+  `not_removed` / `not_written` and how to finish it (for a removal, delete the
+  `__snaps__` row), and a record, `saved_schemas/<treedb>.unfinished.json`
+  (`schema_version`, `not_removed`, `not_written`, `leftovers`, `draft_kinds`,
+  `leftover_nodes`). While the record exists every open retries the projection
+  (INFO *"Completing the projection into __system__, left unfinished by an
+  earlier open"*, or the imposed *"Updating TreeDB schema in __system__"*), the
+  leftovers it names, while they stay as the projection left them, are never
+  taken for an operator's draft nor reported as withdrawn work, a new
   `unfinished_projection` field says it in `treedbs` and `saved-schema`, and
-  `save-schema` refuses (it would publish the removed topic again). A
-  projection that completes removes the record; so does `delete-treedb`. The
-  record is written whole (one buffer, a `.new` file, an fsync and a rename,
-  as the record of an apply); one that cannot be read still means
-  "unfinished" (one WARNING at each read, with its cause in `error`;
-  `save-schema` refused; retried), and then what `__system__` holds over the
-  file is reported as an `unsaved` draft when the projection completes. A record that cannot be written is kept in memory and written
-  again at every open, and the treedb node says `c_schema_version: -1`;
-  after a restart the record is "lost" (a WARNING, `save-schema` refuses,
-  and what `__system__` holds over the file is reported, never deleted in
-  silence). The record keeps `draft_kinds`, so the open that finally replaces
-  a draft reports its kind (a saved draft is `saved`). A treedbs node never
-  stamped (`schema_version` 0, no record, a file in use at `schema_version`
-  1 or more) is a seed that died: the next open completes it and reports
-  nothing.
+  `save-schema` refuses (it would publish the removed topic again). A projection
+  that completes removes the record; so does `delete-treedb`. The record is
+  written whole (one buffer, a `.new` file, an fsync and a rename, as the record
+  of an apply); one that cannot be read still means "unfinished" (one WARNING at
+  each read, with its cause in `error`; `save-schema` refused; retried), and
+  then what `__system__` holds over the file is reported as an `unsaved` draft
+  when the projection completes. A record that cannot be written is kept in
+  memory and written again at every open, and the treedb node says
+  `c_schema_version: -1`; after a restart the record is "lost" (a WARNING,
+  `save-schema` refuses, and what `__system__` holds over the file is reported,
+  never deleted in silence). The record keeps `draft_kinds`, so the open that
+  finally replaces a draft reports its kind (a saved draft is `saved`). A
+  treedbs node never stamped (`schema_version` 0, no record, a file in use at
+  `schema_version` 1 or more) is a seed that died: the next open completes it
+  and reports nothing.
 - **A draft is reported once, by the open that replaces it in
   `__system__`**, whether it was made before the projection failed or while
   it was unfinished. The part of a draft a projection could not replace
@@ -396,24 +422,23 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   as left, with a WARNING (*"Leftovers of an unfinished projection were kept
   under another meta-schema: every leftover is taken as left, an edit of one
   made meanwhile is not told apart"*).
-- **A projection that dies half way invents no operator work.** Before its
-  first write a projection plans every write and records the plan (the
-  record of an unfinished projection, with `"in_progress": true`: `planned`,
-  `target_nodes`, `replaced_kinds`); the projection that completes removes it
-  after its WARNING. A process killed between two writes always leaves that
-  record: the next open takes a node that is as it was, or as the projection
-  writes it, for the projection's, completes the projection, and reports the
-  drafts it was replacing exactly once, also when the retry is killed too
-  (tests: `c_treedb_literal_wins`, scenarios CR and DC, a kill at every
-  write). Until then `unfinished_projection` lists `planned` and
-  `save-schema` refuses. A node stamped before its topics and columns were written (7.25.4
-  and earlier wrote the stamp first) is completed, not taken as done, with
-  `impose_c_schema` and without it: a column the dead projection did not write
-  gets the literal's content, and only what differs from both the old file and
-  the literal is a draft (tests: `c_treedb_literal_wins`, scenarios SE, SH, SI,
-  SJ, SK). The move of a
-  rowid-keyed projection to qualified ids can die at any write and completes
-  at the next open.
+- **A projection that dies half way invents no operator work.** Before its first
+  write a projection plans every write and records the plan (the record of an
+  unfinished projection, with `"in_progress": true`: `planned`, `target_nodes`,
+  `replaced_kinds`); the projection that completes removes it after its WARNING.
+  A process killed between two writes always leaves that record: the next open
+  takes a node that is as it was, or as the projection writes it, for the
+  projection's, completes the projection, and reports the drafts it was
+  replacing exactly once, also when the retry is killed too (tests:
+  `c_treedb_literal_wins`, scenarios CR and DC, a kill at every write). Until
+  then `unfinished_projection` lists `planned` and `save-schema` refuses. A node
+  stamped before its topics and columns were written (7.25.4 and earlier wrote
+  the stamp first) is completed, not taken as done, with `impose_c_schema` and
+  without it: a column the dead projection did not write gets the literal's
+  content, and only what differs from both the old file and the literal is a
+  draft (tests: `c_treedb_literal_wins`, scenarios SE, SH, SI, SJ, SK). The move
+  of a rowid-keyed projection to qualified ids can die at any write and
+  completes at the next open.
 - A topic or column that the treedb's tree no longer reaches (an operator's
   unlink, or a projection link that failed) does not block a projection with
   "Node already exists": a schema that declares it takes it over, otherwise
@@ -544,41 +569,41 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
 
 - **The agent removes old audit files.** New attribute `audit_keep_days`
   (default `7`; `0` keeps all, as 7.25.4 did) is the retention of
-  `/yuneta/realms/agent/agent/audit/`. At start and at each new audit file
-  the agent removes the audit files older than that (only names with the
-  shape of the audit mask, never a link) and logs one INFO *"Old audit files
-  removed"* with the names. Up to 7.25.4 nothing was removed (19 GB on
-  wattyzer). An existing large directory is swept at the first start: to
-  keep more, set `agent.audit_keep_days` in `yuneta_agent.json` before that
-  start. New `rotatory_remove_old_files()`; the sweep at a new audit file runs inside
-  the write of its first record (once a day, or at a size rotation).
-- **The agent's audit record is small, and holds no secret and no keystroke.**
-  A read-only command (`list-*`, `view-*`, `get-*`, `info-*`, `dir-*`, help,
+  `/yuneta/realms/agent/agent/audit/`. At start and at each new audit file the
+  agent removes the audit files older than that (only names with the shape of
+  the audit mask, never a link) and logs one INFO *"Old audit files removed"*
+  with the names. Up to 7.25.4 nothing was removed (19 GB on wattyzer). An
+  existing large directory is swept at the first start: to keep more, set
+  `agent.audit_keep_days` in `yuneta_agent.json` before that start. New
+  `rotatory_remove_old_files()`; the sweep at a new audit file runs inside the
+  write of its first record (once a day, or at a size rotation).
+- **The agent's audit record is small, and holds no secret and no keystroke.** A
+  read-only command (`list-*`, `view-*`, `get-*`, `info-*`, `dir-*`, help,
   stats, services, nodes, treedb-info, topics, ...; the list is in DEBUGGING.md
   5.5) is written as `{command, date, user}` only. A command with a `__reset__`
   value (`stats-yuno stats=__reset__`) is a write. `command-yuno` /
   `command-agent` are judged by the command they carry, taken where the parser
-  takes it. Any other command is written as `{command, date, user, source,
-  kw}`: `__md_iev__` is no longer written, and `source` keeps the console
-  purpose and each inter-yuno hop (role, yuno, service, user, host). A
-  `content64` is never written (blanks around the `=` included): it becomes
-  `<N bytes sha256:HEX>` of the decoded content (the `sha256sum` of the
-  binary). A secret is never written: the value of a parameter named like
-  `password`, `pwd`, `secret`, `token`, `jwt` or `private_key` (and the `value`
-  of a `write-attr` of such an attribute) is `<redacted>`, in the kw at any
-  depth and in any string; up to 7.25.4 `check-user-pwd` and `set-user-pwd`
-  wrote the password in clear text. A console keystroke (`write-tty`) keeps
-  only who, when, which console, and how many writes and bytes: one record at
-  the first write of a burst (one user, one console, up to 60 s) and one for
-  the rest when the burst ends; up to 7.25.4 each keystroke wrote the whole kw
-  with the keystroke in base64 (1000 keystrokes: 922 KB, now 945 bytes). Bad
-  data from a peer in `__md_iev__` is a WARNING, not an ERROR. An `install-binary` of a 32 MB yuno went from 134 MB to 541 bytes
-  (wattyzer wrote 0.6-1.2 GB of audit on a deploy day). A day of audit that
-  crosses `max_megas_audit_file` continues in `.OLD.1`, `.OLD.2`, ...: up to
-  7.25.4 each size rotation removed the previous `.OLD`, so a day that
-  crossed the limit twice lost its first part (wattyzer lost the mornings of
-  22 and 23 September 2026). New `rotatory_keep_all_old_files()` (off by
-  default: the yuno logs keep their one `.OLD`).
+  takes it. Any other command is written as `{command, date, user, source, kw}`:
+  `__md_iev__` is no longer written, and `source` keeps the console purpose and
+  each inter-yuno hop (role, yuno, service, user, host). A `content64` is never
+  written (blanks around the `=` included): it becomes `<N bytes sha256:HEX>` of
+  the decoded content (the `sha256sum` of the binary). A secret is never
+  written: the value of a parameter named like `password`, `pwd`, `secret`,
+  `token`, `jwt` or `private_key` (and the `value` of a `write-attr` of such an
+  attribute) is `<redacted>`, in the kw at any depth and in any string; up to
+  7.25.4 `check-user-pwd` and `set-user-pwd` wrote the password in clear text. A
+  console keystroke (`write-tty`) keeps only who, when, which console, and how
+  many writes and bytes: one record at the first write of a burst (one user, one
+  console, up to 60 s) and one for the rest when the burst ends; up to 7.25.4
+  each keystroke wrote the whole kw with the keystroke in base64 (1000
+  keystrokes: 922 KB, now 945 bytes). Bad data from a peer in `__md_iev__` is a
+  WARNING, not an ERROR. An `install-binary` of a 32 MB yuno went from 134 MB to
+  541 bytes (wattyzer wrote 0.6-1.2 GB of audit on a deploy day). A day of audit
+  that crosses `max_megas_audit_file` continues in `.OLD.1`, `.OLD.2`, ...: up
+  to 7.25.4 each size rotation removed the previous `.OLD`, so a day that
+  crossed the limit twice lost its first part (wattyzer lost the mornings of 22
+  and 23 September 2026). New `rotatory_keep_all_old_files()` (off by default:
+  the yuno logs keep their one `.OLD`).
 - **A command whose kw carries a `gbuffer` releases it once.** The command
   parser gives the handler a new kw with the keys of the caller's kw, and it
   copied them with `json_object_update_missing()` (every command, with or
@@ -595,11 +620,12 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
 - `gbuffer_base64_to_binary()` decodes `base64_len` chars instead of reading
   up to a `'\0'`: a slice of a longer text (a `content64='...'` inside a
   command line) failed to decode.
-- `rmrdir()` and `rmrcontentdir()` no longer follow symbolic links: a link to
-  a directory inside the tree was walked into and the files of its TARGET
-  were deleted (outside the tree); a dangling link made the removal fail. A
-  link is removed as a link; their failures name the path, and
-  `rmrcontentdir()` no \1 An entry that another process removes during the walk is not an\n  error (it returned -1 with no log). `mkrdir()` over a path that
+- `rmrdir()` and `rmrcontentdir()` no longer follow symbolic links: a link to a
+  directory inside the tree was walked into and the files of its TARGET were
+  deleted (outside the tree); a dangling link made the removal fail. A link is
+  removed as a link; their failures name the path, and `rmrcontentdir()` no
+  longer fails silently. An entry that another process removes during the walk
+  is not an error (it returned -1 with no log). `mkrdir()` over a path that
   exists and is not a directory, or a dangling link, logs the real cause
   (`ENOTDIR`) and returns -1 (it returned 0, and logged a leftover errno).
 - `find_files_with_suffix_array()` never lists a symbolic link (on
@@ -648,8 +674,14 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
 
 - Every C_NODE and C_AUTHZ command comment starts with the yuno (except the
   "No permission ... in service" refusals, which name the service), and none
-  reads `gobj_log_last_message()` (import-db still keys its error stats on
-  it).
+  reads `gobj_log_last_message()`.
+- `import-db` counts its errors by cause in `data.errores` (`"node exists"`,
+  `"cannot create the node (see the log)"`); 7.25.4 keyed them on
+  `gobj_log_last_message()`, one key per record. A create refused for another
+  cause than an existing node is a `failure` in every mode (`skip` counted it
+  as `ignored`) and stops an `abort` import.
+- `treedbs`, `links`, `hooks` and `node` hand their kw on with `kw_incref()`
+  (7.25.4: `json_incref()`, released with `KW_DECREF`).
 - `activate-snap` keeps the old snap active when the new one cannot be saved.
 - C_TRANGER `mark-tm-order [topic_name=<t> | all=1]` (master, `write`), over
   the new `tranger2_mark_tm_order()`; with `all=1` it skips, with an INFO,
@@ -658,8 +690,10 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
 - `gc-assets` answers a report (`dry_run`, `assets`, `blobs`, `refused`,
   `blobs_refused`) instead of the list of ids taken.
 
-### JS: gobj-js 7.25.1, gobj-ui 7.25.6 - 7.25.15, gui_agent 0.22.79 - 0.22.89, gui_treedb 0.17.58 - 0.17.62
+### JS: gobj-js, gobj-ui, gui_agent, gui_treedb
 
+- The versions: gobj-js 7.25.1, gobj-ui 7.25.6 - 7.25.15, gui_agent 0.22.79 -
+  0.22.89, gui_treedb 0.17.58 - 0.17.62.
 - Deployed to artgins.yunetacontrol.com and .ovh (gui_agent) and
   artgins.ytreedb.com (gui_treedb); every deploy console-checked (login,
   session, Schemas editor, forced reconnect, navigation and clicks during
@@ -738,6 +772,10 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   old one).
 - The agent removes audit files older than `audit_keep_days` (default 7) at
   its first start; `mkrdir()` returns -1 over a non-directory.
+- gobj-c: the kw a command handler gets holds its own reference of a
+  `gbuffer` (the parser increfs it, `kw_update_missing()`). A handler that
+  took a second reference to work around the old double release now leaks
+  it: take the buffer out of the kw (`KW_EXTRACT`) and use that reference.
 - `tranger2_write_topic_var()` / `tranger2_write_topic_cols()` return -1 when
   the file cannot be written (7.25.4 ignored the write and returned 0); the
   three md2 flag rewriters return -1 on a non-master; a revive whose store
@@ -797,6 +835,13 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   key, is refused and changes nothing (7.25.4 deleted the parent); the events
   of a link, unlink or update are told after the child's save (7.25.4 told
   link events before it); new `treedb_update_node_and_links()`.
+- tr_treedb: `treedb_create_node()` refuses, for a topic with hooks, an id
+  holding `^` or of `NAME_MAX` bytes or more; a dict hook refuses a node of
+  another topic with an id it holds; `decode_parent_ref()` /
+  `decode_child_ref()` return FALSE for a part that does not fit;
+  `treedb_delete_node()` refuses a node whose child topic did not load whole;
+  `treedb_delete_instance()` answers -1 when a tombstone fails. C_NODE
+  `import-db`: `data.errores` is keyed by cause.
 - C_TREEDB: every answer of every command starts with the yuno (create-topic
   "<role^name>: topic '<t>' created in treedb '<db>'", was "Topic created!";
   delete-topic "...deleted from treedb '<db>'", was "Topic deleted!";
@@ -837,6 +882,26 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
     - tr_treedb: new ERRORs *"A write that did not reach the disk could not
       be taken back whole in memory: ..."* and *"A refused delete cannot put
       back a child it had unlinked: ..."*.
+    - tr_treedb: the ERROR *"Child node without fkey field"* (one per node,
+      at every open) is the WARNING *"An fkey column is filled by no hook:
+      its refs link nothing"*, once per column per open, with
+      `nodes_with_refs`. *"tranger2_delete_instance() FAILED"* is gone. New:
+      *"Cannot build the reference of a node: it does not fit"*, *"Wrong
+      reference: a part of it is too long"*, *"Invalid 'id': it holds a '^',
+      the separator of a reference"*, *"Invalid 'id': too long to be part of
+      a reference"*, *"Cannot link, the dict hook holds a node of another
+      topic with this id"*, *"A dict hook holds a node of another topic with
+      this id: this link is not loaded"*, *"Child data not found in dict
+      parent hook: its slot holds a node of another topic"*, *"Cannot link,
+      the reference the child has is too long"*, *"Cannot delete node: a
+      topic its hooks hold did not load whole, a child that did not load may
+      hang from it"*, *"Cannot delete instance, a row of it cannot be
+      tombstoned: the instance stays, its newest rows alive"*.
+    - tr_treedb: `treedb_autolink()`'s *"update_node, new link: parent node
+      not found"* is *"fkey reference: parent node not found"*, the text of
+      `treedb_replace_links()`.
+    - gobj-c: `mkrdir()`'s *"Not a directory"* is *"Not a directory: the path
+      exists and is not a directory"*.
     - C_TREEDB: *"Topic from C differs from the one in use, but its
       topic_version is not higher: not applied"* is *"Topic from C declares
       other columns than the store runs, without raising its topic_version
