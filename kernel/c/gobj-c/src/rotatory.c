@@ -600,9 +600,9 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
         /*
          *  A new name is taken also while the disk is full: the callback
          *  of a new file is where a user applies its retention (the agent
-         *  audit), and the retention is what frees the space. Up to
-         *  7.25.4 nothing was done while the disk was full, so the
-         *  retention never ran and the handle never wrote again.
+         *  audit), and the retention is what frees the space. Before,
+         *  nothing was done while the disk was full, so the retention
+         *  never ran and the handle never wrote again.
          */
         if(change_file) {
             if(_rotatory_open_file(hr, must_be_emptied(hr, NULL)) == 0) {

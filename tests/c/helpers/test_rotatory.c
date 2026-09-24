@@ -908,8 +908,8 @@ PRIVATE void test_open_applies_the_day(void)
 /***************************************************************************
  *  A new day while the disk is full: the file of the new day is opened
  *  and the newfile callback runs, because the retention it applies is
- *  what frees the space. Up to 7.25.4 nothing was done while the disk
- *  was full: the retention never ran, and the handle never wrote again.
+ *  what frees the space. Before, nothing was done while the disk was
+ *  full: the retention never ran, and the handle never wrote again.
  ***************************************************************************/
 PRIVATE int s_full_newfile_calls = 0;
 
