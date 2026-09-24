@@ -5,13 +5,15 @@
  *          Includes a reentrancy regression: split2() must NOT clobber a
  *          caller's in-progress strtok() parse (the strtok -> strtok_r fix).
  *          And save_json_to_file(): a failure is never silent.
- *          And rmrdir() / rmrcontentdir() / mkrdir() with symbolic links.
+ *          And rmrdir() / rmrcontentdir() / mkrdir() with symbolic links,
+ *          and with an entry that disappears during the walk.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
 #include <signal.h>
@@ -417,6 +419,93 @@ PRIVATE void test_rmrdir_symlinks(void)
 }
 
 /***************************************************************************
+ *  An entry that disappears during the walk (another process removed it
+ *  between readdir() and lstat()) is already gone: that is what the walk
+ *  wants, so the walk goes on, and nothing fails without a log.
+ *  Up to 7.25.5-dev the lstat() of the walk returned -1 on ENOENT with no
+ *  log, and every level above answered -1 as "Error already logged".
+ *
+ *  This test binary is linked with -Wl,--wrap=lstat (see CMakeLists.txt):
+ *  the lstat() of s_vanish_path removes that path first, once.
+ ***************************************************************************/
+PRIVATE char s_vanish_path[PATH_MAX] = "";
+
+int __real_lstat(const char *path, struct stat *st);
+int __wrap_lstat(const char *path, struct stat *st);
+
+int __wrap_lstat(const char *path, struct stat *st)
+{
+    if(*s_vanish_path && strcmp(path, s_vanish_path) == 0) {
+        s_vanish_path[0] = 0;
+        char cmd[PATH_MAX + 16];
+        snprintf(cmd, sizeof(cmd), "rm -rf '%s'", path);
+        if(system(cmd) != 0) {
+            printf("FAIL cannot remove %s\n", path);
+            global_result += -1;
+        }
+    }
+    return __real_lstat(path, st);
+}
+
+PRIVATE void make_vanish_tree(const char *tree)
+{
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), tree, "sub", NULL);
+    mkrdir(path, 02775);
+    build_path(path, sizeof(path), tree, "sub", "file.txt", NULL);
+    write_small_file(path);
+    build_path(path, sizeof(path), tree, "file1.txt", NULL);
+    write_small_file(path);
+    build_path(path, sizeof(path), tree, "file2.txt", NULL);
+    write_small_file(path);
+}
+
+PRIVATE void check_vanish(const char *name, int ret, int errors, BOOL gone_ok)
+{
+    if(ret == 0 && errors == 0 && gone_ok) {
+        printf("ok   %-40s\n", name);
+    } else {
+        printf("FAIL %-40s ret=%d errors=%d\n", name, ret, errors);
+        global_result += -1;
+    }
+}
+
+PRIVATE void test_rmrdir_entry_vanishes(void)
+{
+    char tree[PATH_MAX];
+    struct stat st;
+    const char *vanishing[] = {"file1.txt", "sub", 0};
+
+    rmrdir(RMR_BASE);
+    build_path(tree, sizeof(tree), RMR_BASE, "vanish", NULL);
+
+    for(int i=0; vanishing[i]; i++) {
+        char name[128];
+
+        make_vanish_tree(tree);
+        build_path(s_vanish_path, sizeof(s_vanish_path), tree, vanishing[i], NULL);
+        int errors_before = s_errors;
+        int ret = rmrdir(tree);
+        snprintf(name, sizeof(name), "rmrdir: %s disappears in the walk", vanishing[i]);
+        check_vanish(name, ret, s_errors - errors_before, lstat(tree, &st) != 0);
+
+        make_vanish_tree(tree);
+        build_path(s_vanish_path, sizeof(s_vanish_path), tree, vanishing[i], NULL);
+        errors_before = s_errors;
+        ret = rmrcontentdir(tree);
+        snprintf(name, sizeof(name), "rmrcontentdir: %s disappears", vanishing[i]);
+        char path[PATH_MAX];
+        build_path(path, sizeof(path), tree, "file2.txt", NULL);
+        check_vanish(name, ret, s_errors - errors_before,
+            is_directory(tree) && lstat(path, &st) != 0);
+        rmrdir(tree);
+    }
+    s_vanish_path[0] = 0;
+
+    rmrdir(RMR_BASE);
+}
+
+/***************************************************************************
  *  mkrdir() over a path that exists and is not a directory must fail,
  *  and say so. Up to 7.25.4 the check was `stat() != 0 && !S_ISDIR()`,
  *  which is never true, so it answered 0 with no directory there.
@@ -552,6 +641,7 @@ PRIVATE int do_test(void)
 {
     test_save_json_to_file();
     test_rmrdir_symlinks();
+    test_rmrdir_entry_vanishes();
     test_mkrdir_not_a_directory();
     test_find_files_with_suffix();
     test_base64_slice();

@@ -445,10 +445,15 @@ PRIVATE int stat_no_follow(const char *path, struct stat *st)
 /****************************************************************************
  *  Remove one entry that is not a directory (a file, a symbolic link, ...)
  *  remove() of a symbolic link removes the link, never its target.
+ *  An entry already gone (removed by another process during a walk) is
+ *  what the caller wants: 0, no log.
  ****************************************************************************/
 PRIVATE int remove_non_directory(const char *path)
 {
     if(remove(path) != 0) {
+        if(errno == ENOENT) {
+            return 0;   // Already gone
+        }
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -464,16 +469,13 @@ PRIVATE int remove_non_directory(const char *path)
 }
 
 /****************************************************************************
- *  Function to recursively remove a directory and its contents
- *
- *  A symbolic link is removed as a link and NEVER descended: up to 7.25.4
- *  this used stat(), which follows the link, so a link to a directory
- *  was walked into and the files of its target were deleted (outside the
- *  tree), and a dangling link made the whole removal fail.
- *  A path that does not exist returns -1 without a log: callers use
- *  rmrdir() to make sure a directory is gone.
+ *  Remove an entry of a walk and, if it is a directory, all its content.
+ *  An entry that is already gone (another process removed it between the
+ *  readdir() and here) is not an error: 0, no log. Up to 7.25.5-dev that
+ *  case returned -1 with no log, and every level above answered -1 as
+ *  "Error already logged". A symbolic link is removed, never descended.
  ****************************************************************************/
-PUBLIC int rmrdir(const char *path)
+PRIVATE int remove_tree_entry(const char *path)
 {
     struct stat statbuf;
     struct dirent *dir_entry;
@@ -482,7 +484,7 @@ PUBLIC int rmrdir(const char *path)
 
     if(stat_no_follow(path, &statbuf) != 0) {
         if(errno == ENOENT) {
-            return -1;  // Nothing to remove, see the header
+            return 0;   // Already gone
         }
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -502,6 +504,9 @@ PUBLIC int rmrdir(const char *path)
 
     dir = opendir(path);
     if(dir == NULL) {
+        if(errno == ENOENT) {
+            return 0;   // Already gone
+        }
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -521,7 +526,7 @@ PUBLIC int rmrdir(const char *path)
 
         build_path(full_path, sizeof(full_path), path, dir_entry->d_name, NULL);
 
-        if(rmrdir(full_path) != 0) {
+        if(remove_tree_entry(full_path) != 0) {
             closedir(dir);
             return -1;  // Error already logged
         }
@@ -530,6 +535,9 @@ PUBLIC int rmrdir(const char *path)
     closedir(dir);
 
     if(rmdir(path) != 0) {
+        if(errno == ENOENT) {
+            return 0;   // Already gone
+        }
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -546,6 +554,28 @@ PUBLIC int rmrdir(const char *path)
 }
 
 /****************************************************************************
+ *  Function to recursively remove a directory and its contents
+ *
+ *  A symbolic link is removed as a link and NEVER descended: up to 7.25.4
+ *  this used stat(), which follows the link, so a link to a directory
+ *  was walked into and the files of its target were deleted (outside the
+ *  tree), and a dangling link made the whole removal fail.
+ *  A path that does not exist returns -1 without a log: callers use
+ *  rmrdir() to make sure a directory is gone. An entry INSIDE the tree
+ *  that disappears during the walk is not an error (see
+ *  remove_tree_entry()).
+ ****************************************************************************/
+PUBLIC int rmrdir(const char *path)
+{
+    struct stat statbuf;
+
+    if(stat_no_follow(path, &statbuf) != 0 && errno == ENOENT) {
+        return -1;  // Nothing to remove, see the header
+    }
+    return remove_tree_entry(path);  // on -1 error already logged
+}
+
+/****************************************************************************
  *  Recursively remove the content of a directory
  *  A symbolic link is removed as a link and never descended (see rmrdir()).
  ****************************************************************************/
@@ -553,7 +583,6 @@ PUBLIC int rmrcontentdir(const char *root_dir)
 {
     struct dirent *dent;
     DIR *dir;
-    struct stat st;
 
     if (!(dir = opendir(root_dir))) {
         gobj_log_error(0, 0,
@@ -576,30 +605,9 @@ PUBLIC int rmrcontentdir(const char *root_dir)
         char path[PATH_MAX];
         build_path(path, sizeof(path), root_dir, dname, NULL);
 
-        if(stat_no_follow(path, &st) == -1) {
-            gobj_log_error(0, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "lstat() FAILED",
-                "path",         "%s", path,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
+        if(remove_tree_entry(path) < 0) {
             closedir(dir);
-            return -1;
-        }
-
-        if(S_ISDIR(st.st_mode)) {
-            if(rmrdir(path)<0) {
-                closedir(dir);
-                return -1;  // Error already logged
-            }
-        } else {
-            if(remove_non_directory(path) < 0) {
-                closedir(dir);
-                return -1;  // Error already logged
-            }
+            return -1;  // Error already logged
         }
     }
     closedir(dir);

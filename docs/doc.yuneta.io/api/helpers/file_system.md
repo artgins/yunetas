@@ -401,7 +401,7 @@ Returns 0 on success, or -1 if an error occurs.
 
 This function does not remove the root directory itself, only its contents. It skips special entries like `.` and `..` and handles both files and subdirectories recursively.
 
-A symbolic link inside the directory is removed as a link. The function never goes into it, so the files of the link target stay (see [`rmrdir()`](#rmrdir)). Every failure is logged.
+A symbolic link inside the directory is removed as a link. The function never goes into it, so the files of the link target stay (see [`rmrdir()`](#rmrdir)). An entry that another process removes during the walk is not an error. Every failure is logged.
 
 **Example**
 
@@ -448,6 +448,8 @@ A symbolic link is removed as a link and is never followed:
 Up to 7.25.4 the function used `stat()`, which follows links. A link to a directory made it go into the target and delete the files there, outside the tree. A dangling link made it fail.
 
 A `path` that does not exist returns `-1` without a log, because callers use `rmrdir()` to make sure that a directory is gone. Every other failure is logged.
+
+An entry inside the tree that another process removes during the walk (between `readdir()` and `lstat()`) is already gone, so it is not an error: the walk continues. Up to 7.25.5-dev that case returned `-1` with no log.
 
 **Example**
 
