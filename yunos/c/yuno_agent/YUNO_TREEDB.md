@@ -2081,10 +2081,13 @@ missing, or a topic whose `topic_version` is behind, counts: nothing then
 tells a draft from a gap. When the projection differs, the open completes it
 (INFO *"Completing the projection into __system__: it says it is of the
 schema from C, and part of it is not (the stamp was written first, by an
-older release, and the process died)"*). What differs from the old file AND
-from the literal is the operator's draft, and reported; what differs from
-one of them only is the projection's. In 7.25.4 the open took it as done, at
-every open. Two examples:
+older release, and the process died)"*). A NODE -- a topic or a column,
+never a topic with all its columns -- that differs from the old file AND
+from the literal is the operator's draft, and reported; a node that differs
+from one of them only is the projection's. A node that no tree reaches is
+the projection's when it is what the literal writes there and the old file
+does not declare it: a create whose link never happened. In 7.25.4 the open
+took the projection as done, at every open. Four examples:
 
 - A node `{"id": "treedb_x", "schema_version": 2, "c_schema_version": 2}`
   with no topic and no schema file: the open with the literal 2 projects its
@@ -2093,6 +2096,22 @@ every open. Two examples:
   column `username` still has the header of the file 1: the open with the
   literal 2 writes the header of the literal, leaves no draft, and the next
   literal reports nothing.
+- The literal 2 changes the headers of two columns of `users`, and the
+  process died with `username` written (`"User v2"`) and `email` not
+  (`"Email"`): the topic differs from the file and from the literal, but no
+  column differs from both. Nothing is reported. (Before, the topic was
+  compared whole, and the open reported `{"users": "unsaved"}`.)
+- The literal 2 adds the topic `roles`, and the process died after the
+  create of `treedb_x.roles` and before its link: the topic is in no tree,
+  it is what the literal writes, and the file 1 does not declare it. The
+  open links it and reports nothing. (Before: `{"roles": "unsaved"}`.)
+
+An open that completes such a projection and dies too leaves the record of
+its projection in progress, and that record keeps what the dead projection
+was projecting (`stamped_base`, the literal). The open after it compares
+with the old file and with that base, as the first one did. Without it, the
+retry compared with the old file alone, and reported what 7.25.4 wrote of
+the literal as the operator's work.
 
 With `impose_c_schema` and a file at the literal's version the projection
 is complete (7.25.4 wrote the file after the projection), so a draft over

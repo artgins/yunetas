@@ -128,11 +128,12 @@ typedef struct {
     json_t *index;          // system_index(): the nodes of __system__ the treedb reads
     json_t *orphans;        // orphan_nodes() of the treedb
     json_t *drafts;         // {topic: true} whose draft differs from the file, or NULL
-    json_t *draft_ids;      // {id: true} of __system__ that carry those drafts, or NULL
+    json_t *draft_ids;      // {id: topic} of __system__ that carry those drafts, or NULL
     json_t *saved;          // the saved schema newer than the file in use, or NULL
     json_t *record_before;  // the record of an unfinished projection, or NULL
     json_t *left_before;    // its leftovers still as left (leftovers_as_left), or NULL
     json_t *edited;         // {id: topic} of its leftovers the operator edited, or NULL
+    json_t *stamped_base;   // the schema a projection stamped FIRST was projecting, or NULL
 } projection_ctx_t;
 
 /***************************************************************************
@@ -4182,7 +4183,8 @@ PRIVATE const char *edited_kind(json_t *kinds_before, const char *topic_name)  /
  *       "draft_kinds": {"users": "saved"},     // drafts it could not replace
  *       "replaced_kinds": {},                  // drafts a projection that died replaced
  *       "leftover_nodes": {"tw.departments": {...}, ...},
- *       "system_schema_version": 18}           // meta-schema of those nodes
+ *       "system_schema_version": 18,           // meta-schema of those nodes
+ *       "stamped_base": {...}}                 // see drafts_over_file_and_base
  *
  *  `leftovers` is every id of __system__ the projection left unlike the
  *  schema: the ids of the two lists, and the columns of a topic that it
@@ -4656,6 +4658,9 @@ PRIVATE int record_projection_in_progress(
     }
     json_object_set_new(record, "planned", planned_ids);
     json_object_set_new(record, "target_nodes", targets);
+    if(ctx->stamped_base) {
+        json_object_set(record, "stamped_base", ctx->stamped_base);
+    }
 
     json_t *cols_desc = _treedb_create_topic_cols_desc();
     json_t *topic_attrs = projection_attrs(gobj, TRUE, cols_desc);
@@ -7877,8 +7882,9 @@ PRIVATE void keep_common_keys(json_t *a, json_t *b)  // a MUTATED, b not owned
  *  nobody's work. A leftover edited since (see leftovers_as_left) is a
  *  draft of its topic.
  *
- *  `*p_draft_ids` is where those drafts ARE, {id: true}: the ids of
- *  __system__ that carry them, a leftover never among them. A projection
+ *  `*p_draft_ids` is where those drafts ARE, {id: topic name, or true for
+ *  a node no tree reaches}: the ids of __system__ that carry them, a
+ *  leftover never among them. A projection
  *  that cannot replace one of these does not make it a leftover: it stays
  *  a draft, and the open that replaces it says it (see upsert). The nodes
  *  no tree reaches (`orphans`, see orphan_nodes) are among them too,
@@ -7927,8 +7933,9 @@ PRIVATE json_t *drafts_over_file(
         if(!id) {
             continue;
         }
+        const char *topic_name = kw_get_str(gobj, row, "topic", "", 0);
         if(!json_object_get(leftover_ids, id)) {
-            json_object_set_new(*p_draft_ids, id, json_true());
+            json_object_set_new(*p_draft_ids, id, json_string(topic_name));
         }
 
         /*
@@ -7943,7 +7950,7 @@ PRIVATE json_t *drafts_over_file(
         const char *col_id; json_t *col;
         json_object_foreach(kw_get_dict(gobj, topic, "cols", 0, 0), col_id, col) {
             if(!json_object_get(leftover_ids, col_id)) {
-                json_object_set_new(*p_draft_ids, col_id, json_true());
+                json_object_set_new(*p_draft_ids, col_id, json_string(topic_name));
             }
         }
     }
@@ -7951,12 +7958,12 @@ PRIVATE json_t *drafts_over_file(
     const char *edited_id; json_t *jn_topic;
     json_object_foreach(edited, edited_id, jn_topic) {
         json_object_set_new(drafts, json_string_value(jn_topic), json_true());
-        json_object_set_new(*p_draft_ids, edited_id, json_true());
+        json_object_set(*p_draft_ids, edited_id, jn_topic);
     }
 
     const char *orphan_id; json_t *orphan;
     json_object_foreach(orphans, orphan_id, orphan) {
-        if(!json_object_get(leftover_ids, orphan_id)) {
+        if(!json_object_get(leftover_ids, orphan_id) && !json_object_get(*p_draft_ids, orphan_id)) {
             json_object_set_new(*p_draft_ids, orphan_id, json_true());
         }
     }
@@ -7965,6 +7972,144 @@ PRIVATE json_t *drafts_over_file(
     JSON_DECREF(rows)
     *p_edited = edited;
     *p_left = leftovers;
+    return drafts;
+}
+
+/***************************************************************************
+ *  What a projection of `jn_schema` writes at the id `id` of __system__
+ *  (the node kw of upsert_treedb_schema: build_topic_projection() or
+ *  build_col_projection(), with its id), and `*p_is_topic` what it is.
+ *  NULL when the schema declares nothing there. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *schema_node_projection(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_schema,      // not owned
+    const char *id,
+    json_t *cols_desc,      // not owned
+    BOOL *p_is_topic
+)
+{
+    *p_is_topic = FALSE;
+    json_t *projected = NULL;
+    json_t *topics = schema_topics_as_list(gobj, jn_schema);
+    int idx; json_t *jn_topic;
+    json_array_foreach(topics, idx, jn_topic) {
+        const char *topic_name = kw_get_str(gobj, jn_topic, "id", "", 0);
+        if(empty_string(topic_name)) {
+            topic_name = kw_get_str(gobj, jn_topic, "topic_name", "", 0);
+        }
+        char topic_id[RECORD_KEY_VALUE_MAX];
+        if(empty_string(topic_name) ||
+                !build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
+            continue;   // Error already logged (the projection logs a topic with no name)
+        }
+        if(strcmp(topic_id, id)==0) {
+            projected = build_topic_projection(gobj, jn_topic, topic_name,
+                kw_get_int(gobj, jn_topic, "topic_version", 1, KW_WILD_NUMBER), idx);
+            if(projected) {
+                json_object_set_new(projected, "id", json_string(id));
+            }
+            *p_is_topic = TRUE;
+            break;
+        }
+        size_t tlen = strlen(topic_id);
+        if(strncmp(id, topic_id, tlen)!=0 || id[tlen] != '.') {
+            continue;
+        }
+        json_t *jn_cols = kwid_new_list(gobj, jn_topic, 0, "cols");
+        int idx2; json_t *jn_col;
+        json_array_foreach(jn_cols, idx2, jn_col) {
+            if(strcmp(kw_get_str(gobj, jn_col, "id", "", 0), id + tlen + 1)!=0) {
+                continue;
+            }
+            projected = build_col_projection(gobj, jn_col, cols_desc, idx2);
+            if(projected) {
+                json_object_set_new(projected, "id", json_string(id));
+            }
+            break;
+        }
+        JSON_DECREF(jn_cols)
+        if(projected) {
+            break;
+        }
+    }
+    JSON_DECREF(topics)
+    return projected;
+}
+
+/***************************************************************************
+ *  The drafts of drafts_over_file() when a projection STAMPED FIRST by an
+ *  older release died half way (`base`, the schema it was projecting; see
+ *  project_literal_into_system): what it wrote of `base` differs from the
+ *  old file (`file_in_use`), what it did not write differs from `base`,
+ *  and neither is anybody's work. A NODE (a topic or a column, never a
+ *  whole topic with its columns) is the operator's only when it differs
+ *  from BOTH: a topic with one column written and one not differs from
+ *  both, and nobody touched it.
+ *
+ *  A node that no tree reaches is the dead projection's when it is what
+ *  that projection writes there and the old file does not declare it: a
+ *  create whose link never happened. One the old file declares was in the
+ *  tree before, so an unlink (or a delete) was somebody's.
+ *
+ *  `draft_ids` (drafts_over_file() against the file) is MUTATED: only the
+ *  ids that differ from both stay. Return is the drafts of it, {topic:
+ *  true}, YOURS.
+ ***************************************************************************/
+PRIVATE json_t *drafts_over_file_and_base(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *file_in_use,    // not owned
+    json_t *base,           // not owned
+    json_t *record,         // not owned, may be NULL
+    json_t *tree,           // not owned
+    json_t *orphans,        // not owned
+    json_t *draft_ids       // not owned, MUTATED
+)
+{
+    json_t *ids2 = NULL;
+    json_t *left2 = NULL;
+    json_t *edited2 = NULL;
+    json_t *drafts2 = drafts_over_file(
+        gobj, treedb_name, base, record, tree, orphans, &ids2, &left2, &edited2
+    );
+    keep_common_keys(draft_ids, ids2);
+    JSON_DECREF(drafts2)
+    JSON_DECREF(ids2)
+    JSON_DECREF(left2)
+    JSON_DECREF(edited2)
+
+    json_t *cols_desc = _treedb_create_topic_cols_desc();
+    json_t *in_file = declared_schema_ids(gobj, treedb_name, file_in_use);
+    const char *orphan_id; json_t *orphan;
+    json_object_foreach(orphans, orphan_id, orphan) {
+        if(!json_object_get(draft_ids, orphan_id) ||
+                json_object_get(json_object_get(in_file, "topics"), orphan_id) ||
+                json_object_get(json_object_get(in_file, "cols"), orphan_id)) {
+            continue;
+        }
+        BOOL is_topic = json_is_true(json_object_get(orphan, "is_topic"));
+        BOOL target_is_topic;
+        json_t *target = schema_node_projection(
+            gobj, treedb_name, base, orphan_id, cols_desc, &target_is_topic
+        );
+        if(target && target_is_topic == is_topic &&
+                is_projected_node(gobj, json_object_get(orphan, "node"), is_topic, target, cols_desc)) {
+            json_object_del(draft_ids, orphan_id);
+        }
+        JSON_DECREF(target)
+    }
+    JSON_DECREF(in_file)
+    JSON_DECREF(cols_desc)
+
+    json_t *drafts = json_object();
+    const char *id; json_t *jn_topic;
+    json_object_foreach(draft_ids, id, jn_topic) {
+        if(json_is_string(jn_topic)) {
+            json_object_set_new(drafts, json_string_value(jn_topic), json_true());
+        }
+    }
     return drafts;
 }
 
@@ -8039,8 +8184,11 @@ PRIVATE BOOL projection_differs_from_literal(
  *  installed: the open died in between, or before (7.25.4 wrote the stamp
  *  FIRST, then the topics, then their columns). With impose_c_schema or
  *  without it, the projection is compared with the literal, and completed
- *  when it differs. What it holds over the literal counts as a draft only
- *  where it differs from the file too (see projection_differs_from_literal).
+ *  when it differs. A node it holds counts as a draft only when it differs
+ *  from the file AND from the literal (see drafts_over_file_and_base), and
+ *  the record of the completing projection keeps the literal
+ *  (`stamped_base`): an open that retries it after a crash compares with
+ *  both too.
  *
  *  A treedb with no projection yet is seeded with what runs: the literal
  *  when it is installed or imposed, the FILE otherwise -- and then
@@ -8303,30 +8451,34 @@ PRIVATE int project_literal_into_system(
     json_t *left_before = NULL;
     json_t *saved = NULL;
     json_t *edited = NULL;
+
+    /*
+     *  What a projection stamped first by an older release was projecting:
+     *  the literal it says, or, when an open that was completing it died
+     *  too, what the record of that open kept. Against the file alone,
+     *  what the dead projection wrote would read as drafts.
+     */
+    json_t *stamped_base = stamped_early? jn_schema : json_object_get(unfinished_before, "stamped_base");
+    if(!json_is_object(stamped_base)) {
+        stamped_base = NULL;
+    }
     if(file_in_use && !never_stamped) {
         drafts = drafts_over_file(
             gobj, treedb_name, file_in_use, unfinished_before, current, orphans,
             &draft_ids, &left_before, &edited
         );
-        if(stamped_early) {
+        if(stamped_base) {
             /*
              *  What the projection that died wrote of the literal differs
-             *  from the file, and is not a draft: only what differs from
-             *  BOTH is (see projection_differs_from_literal)
+             *  from the file, and is not a draft: only a node that differs
+             *  from BOTH is (see drafts_over_file_and_base)
              */
-            json_t *ids2 = NULL;
-            json_t *left2 = NULL;
-            json_t *edited2 = NULL;
-            json_t *drafts2 = drafts_over_file(
-                gobj, treedb_name, jn_schema, unfinished_before, current, orphans,
-                &ids2, &left2, &edited2
+            JSON_DECREF(drafts)
+            drafts = drafts_over_file_and_base(
+                gobj, treedb_name, file_in_use, stamped_base, unfinished_before, current,
+                orphans, draft_ids
             );
-            keep_common_keys(drafts, drafts2);
-            keep_common_keys(draft_ids, ids2);
-            JSON_DECREF(drafts2)
-            JSON_DECREF(ids2)
-            JSON_DECREF(left2)
-            JSON_DECREF(edited2)
+            json_object_set(unfinished, "stamped_base", stamped_base);
         }
 
         char saved_dir[PATH_MAX];
@@ -8350,6 +8502,7 @@ PRIVATE int project_literal_into_system(
         .record_before = unfinished_before,
         .left_before = left_before,
         .edited = edited,
+        .stamped_base = stamped_base,
     };
     *p_projected = TRUE;
     int ret = upsert_treedb_schema(

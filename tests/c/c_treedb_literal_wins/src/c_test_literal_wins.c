@@ -5482,6 +5482,428 @@ PRIVATE int scenario_double_crash(hgobj gobj)
 }
 
 /***************************************************************************
+ *  7.25.4 PROJECTIONS THAT DIED, emulated write by write.
+ *
+ *  7.25.4 wrote the numbers of the treedb node FIRST, then, in the order
+ *  of the literal, each topic it changed (an update, or a create and its
+ *  link to the treedb) and each column of it that changed (an update, or
+ *  a create and its link to the topic). It never deleted. A process that
+ *  died after the n-th of those writes is emulated by making the first n
+ *  of them here, as 7.25.4 made them: the nodes are what its
+ *  build_topic_projection() and build_col_projection() wrote.
+ ***************************************************************************/
+PRIVATE json_t *old_topic_node(const char *db, const char *name, int topic_version, int order)
+{
+    char id[NAME_MAX];
+    snprintf(id, sizeof(id), "%s.%s", db, name);
+    return json_pack("{s:s, s:s, s:s, s:s, s:s, s:i, s:b, s:b, s:i}",
+        "id", id, "value", name, "pkey", "id", "system_flag", "sf_string_key", "tkey", "",
+        "topic_version", topic_version, "system_topic", 0, "main_topic", 0, "order", order);
+}
+
+PRIVATE json_t *old_col_node(const char *db, const char *topic, const char *name,
+    const char *header, BOOL required, int order)
+{
+    char id[NAME_MAX];
+    snprintf(id, sizeof(id), "%s.%s.%s", db, topic, name);
+    json_t *flag = required?
+        json_pack("[s,s]", "persistent", "required") : json_pack("[s]", "persistent");
+    return json_pack("{s:s, s:s, s:s, s:i, s:s, s:o, s:i}",
+        "id", id, "value", name, "header", header, "fillspace", 10, "type", "string",
+        "flag", flag, "order", order);
+}
+
+PRIVATE json_t *old_write(const char *op, const char *system_topic, json_t *node) // node owned
+{
+    return json_pack("{s:s, s:s, s:o}", "op", op, "topic", system_topic, "node", node);
+}
+
+PRIVATE json_t *old_link(const char *parent_topic, const char *parent_id,
+    const char *child_topic, const char *child_id)
+{
+    return json_pack("{s:s, s:s, s:s, s:s, s:s}", "op", "link",
+        "parent_topic", parent_topic, "parent", parent_id, "topic", child_topic, "child", child_id);
+}
+
+/*
+ *  The stamp 7.25.4 wrote first: an update of the treedb node, or its
+ *  create (a first projection)
+ */
+PRIVATE json_t *old_stamp(hgobj gobj, const char *db, const char *op, int version)
+{
+    json_t *meta = gobj_list_nodes(gobj_find_service(SYSTEM_TREEDB, FALSE), "treedbs",
+        json_pack("{s:s}", "id", db), 0, gobj);
+    json_int_t meta_version = kw_get_int(gobj, json_array_get(meta, 0), "system_schema_version",
+        0, KW_WILD_NUMBER);
+    JSON_DECREF(meta)
+    if(meta_version == 0) {
+        meta_version = 18;  /*  a first projection: the treedb has no node yet  */
+    }
+    return old_write(op, "treedbs", json_pack("{s:s, s:i, s:i, s:I}", "id", db,
+        "schema_version", version, "c_schema_version", version, "system_schema_version", meta_version));
+}
+
+/*
+ *  Make the first `n` writes of `ops` (every one when n < 0). Return how
+ *  many were made, -1 when one failed
+ */
+PRIVATE int run_old_writes(hgobj gobj, const char *db, json_t *ops, int n) // ops not owned
+{
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    int made = 0;
+    int idx; json_t *op;
+    json_array_foreach(ops, idx, op) {
+        if(n >= 0 && made >= n) {
+            break;
+        }
+        const char *what = kw_get_str(gobj, op, "op", "", 0);
+        const char *topic = kw_get_str(gobj, op, "topic", "", 0);
+        int ret = 0;
+        if(strcmp(what, "link")==0) {
+            ret = gobj_link_nodes(sys, topic, kw_get_str(gobj, op, "parent_topic", "", 0),
+                json_pack("{s:s}", "id", kw_get_str(gobj, op, "parent", "", 0)),
+                topic, json_pack("{s:s}", "id", kw_get_str(gobj, op, "child", "", 0)), gobj);
+        } else {
+            json_t *node = strcmp(what, "create")==0?
+                gobj_create_node(sys, topic, json_incref(json_object_get(op, "node")),
+                    json_pack("{s:b}", "refs", 1), gobj) :
+                gobj_update_node(sys, topic, json_incref(json_object_get(op, "node")),
+                    json_pack("{s:b}", "refs", 1), gobj);
+            ret = node? 0 : -1;
+            JSON_DECREF(node)
+        }
+        if(ret < 0) {
+            return test_fail(gobj, db, "TEST FAIL: a write of the emulated 7.25.4 projection failed",
+                json_incref(op));
+        }
+        made++;
+    }
+    return made;
+}
+
+/*
+ *  The record of the upgrade: removed, the store is one an older release
+ *  left (no open of this release has been here)
+ */
+PRIVATE void remove_upgrade_marker(hgobj gobj, const char *db)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    char filename[PATH_MAX];
+    snprintf(filename, sizeof(filename), "%s.upgrade.json", db);
+    if(file_exists(dir, filename)) {
+        file_remove(dir, filename);
+    }
+}
+
+/*
+ *  delete-treedb: a sequence that ran leaves nothing in __system__, which
+ *  every later open reads
+ */
+PRIVATE void drop_treedb(hgobj gobj, const char *db)
+{
+    json_t *jn_resp = treedb_cmd(gobj, db, "delete-treedb", json_pack("{s:b}", "force", 1));
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+        test_fail(gobj, db, "TEST FAIL: delete-treedb of a sequence that ran failed",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+}
+
+/*
+ *  What an open reports as withdrawn, written by every process that logs
+ *  it (a child that dies too) into a file, as DC does
+ */
+PRIVATE int old_reports_count(hgobj gobj)
+{
+    int reports = 0;
+    FILE *file = fopen(dc_reports_path, "r");
+    char line[4096];
+    while(file && fgets(line, sizeof(line), file)) {
+        json_t *jn = json_loads(line, 0, 0);
+        if(json_object_get(jn, "topics")) {
+            reports++;
+        }
+        JSON_DECREF(jn)
+    }
+    if(file) {
+        fclose(file);
+    }
+    return reports;
+}
+
+PRIVATE void old_reports_start(hgobj gobj, const char *db)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    static BOOL registered = FALSE;
+
+    if(!registered) {
+        gobj_log_register_handler("old_reports", 0, dc_report_log_write, 0);
+        registered = TRUE;
+    }
+    char filename[NAME_MAX + sizeof(".reports")];
+    snprintf(filename, sizeof(filename), "%s.reports", db);
+    build_path(dc_reports_path, sizeof(dc_reports_path), priv->path_database, filename, NULL);
+    unlink(dc_reports_path);
+    gobj_log_add_handler("old_reports", "old_reports", LOG_OPT_UP_WARNING, 0);
+}
+
+PRIVATE void old_reports_stop(void)
+{
+    gobj_log_del_handler("old_reports");
+    dc_reports_path[0] = 0;
+}
+
+/*
+ *  Open `db` with `literal` in a CHILD killed at the `kill_at`-th write
+ *  of __system__ (0: never). 1 when it was killed, 0 when it completed,
+ *  -1 on error
+ */
+PRIVATE int open_child_killed(hgobj gobj, const char *db, json_t *literal, BOOL imposed,
+    int kill_at, const char *who) // literal owned
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    fflush(stdout);
+    fflush(stderr);
+    pid_t pid = fork();
+    if(pid < 0) {
+        JSON_DECREF(literal)
+        return test_fail(gobj, db, "TEST FAIL: fork() failed", json_string(strerror(errno)));
+    }
+    if(pid == 0) {
+        child_takes_its_own_ring();
+        dc_who = who;
+        priv->system_writes = 0;
+        priv->kill_at_write = kill_at;
+        watch_system_writes(gobj, TRUE);
+        open_db(gobj, db, literal, imposed);
+        _exit(3);
+    }
+    JSON_DECREF(literal)
+    int status = 0;
+    if(waitpid(pid, &status, 0) < 0) {
+        return test_fail(gobj, db, "TEST FAIL: waitpid() failed", json_string(strerror(errno)));
+    }
+    if(WIFSIGNALED(status) && WTERMSIG(status) == SIGKILL) {
+        return 1;
+    }
+    if(WIFEXITED(status) && WEXITSTATUS(status) == 3) {
+        return 0;
+    }
+    return test_fail(gobj, db, "TEST FAIL: the child process ended some other way",
+        json_integer(status));
+}
+
+/***************************************************************************
+ *  O4C, O4A: a projection of 7.25.4 died after each of its writes, and
+ *  the next open (this release) completes it. Nothing is reported --
+ *  nobody did anything -- then or at the next literal, and the three
+ *  homes of the schema agree:
+ *
+ *    O4C  the literal 2 changes the headers of TWO columns of `users`:
+ *         killed with one written and the other not, the topic differs
+ *         from the old file AND from the literal, and was reported as
+ *         the operator's ("unsaved"). Only a NODE that differs from both
+ *         is the operator's.
+ *    O4A  the literal 2 adds a column to `users` and the topic `roles`:
+ *         a create killed before its link leaves a node in no tree, and
+ *         it was reported as the operator's.
+ *
+ *  Each with the record of the upgrade removed (the store is 7.25.4's)
+ *  and kept (the first open of v1 was by this release). With
+ *  `double_crash` (the record of the upgrade removed) the open that
+ *  completes is killed too, at each of its writes, and the one after it
+ *  completes: its record must keep what the projection that died was
+ *  projecting, or the retry counts against the old file alone.
+ ***************************************************************************/
+PRIVATE json_t *o4c_literal(const char *db, int version, int topic_version,
+    const char *h1, const char *h2)
+{
+    return schema_of(db, version, json_pack("[o,o]",
+        topic_of("users", topic_version, json_pack("{s:o, s:o, s:o}", "id", col_id(),
+            "username", col_str(h1), "email", col_str(h2))),
+        topic_of("departments", 1, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name")))
+    ));
+}
+
+PRIVATE json_t *o4a_literal(const char *db, int version)
+{
+    if(version == 1) {
+        return schema_of(db, 1, json_pack("[o]",
+            topic_of("users", 1, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User")))
+        ));
+    }
+    return schema_of(db, version, json_pack("[o,o]",
+        topic_of("users", 2, json_pack("{s:o, s:o, s:o}", "id", col_id(),
+            "username", col_str("User"), "email", col_str("Email"))),
+        topic_of("roles", 1, json_pack("{s:o, s:o}", "id", col_id(), "rname", col_str("Role")))
+    ));
+}
+
+PRIVATE json_t *o4_literal(const char *db, BOOL adds, int version)
+{
+    if(adds) {
+        return o4a_literal(db, version);
+    }
+    if(version == 1) {
+        return o4c_literal(db, 1, 1, "User", "Email");
+    }
+    return o4c_literal(db, version, 2, "User v2", "Email v2");
+}
+
+/*
+ *  The writes of 7.25.4 opening the literal 2 over the projection of 1
+ */
+PRIVATE json_t *o4_writes(hgobj gobj, const char *db, BOOL adds)
+{
+    char users[NAME_MAX], roles[NAME_MAX], id[NAME_MAX + 16];
+    snprintf(users, sizeof(users), "%s.users", db);
+    snprintf(roles, sizeof(roles), "%s.roles", db);
+    json_t *ops = json_array();
+    json_array_append_new(ops, old_stamp(gobj, db, "update", 2));
+    json_array_append_new(ops, old_write("update", "topics", old_topic_node(db, "users", 2, 0)));
+    if(!adds) {
+        json_array_append_new(ops, old_write("update", "cols",
+            old_col_node(db, "users", "username", "User v2", FALSE, 1)));
+        json_array_append_new(ops, old_write("update", "cols",
+            old_col_node(db, "users", "email", "Email v2", FALSE, 2)));
+        return ops;
+    }
+    json_array_append_new(ops, old_write("create", "cols",
+        old_col_node(db, "users", "email", "Email", FALSE, 2)));
+    snprintf(id, sizeof(id), "%s.email", users);
+    json_array_append_new(ops, old_link("topics", users, "cols", id));
+    json_array_append_new(ops, old_write("create", "topics", old_topic_node(db, "roles", 1, 1)));
+    json_array_append_new(ops, old_link("treedbs", db, "topics", roles));
+    json_array_append_new(ops, old_write("create", "cols", old_col_node(db, "roles", "id", "Id", TRUE, 0)));
+    snprintf(id, sizeof(id), "%s.id", roles);
+    json_array_append_new(ops, old_link("topics", roles, "cols", id));
+    json_array_append_new(ops, old_write("create", "cols",
+        old_col_node(db, "roles", "rname", "Role", FALSE, 1)));
+    snprintf(id, sizeof(id), "%s.rname", roles);
+    json_array_append_new(ops, old_link("topics", roles, "cols", id));
+    return ops;
+}
+
+/*
+ *  One sequence: v1 by this release, 7.25.4 opening v2 dies after `n`
+ *  writes, then (`kill_at` > 0) this release opening v2 dies at its
+ *  `kill_at`-th write, then this release opens v2, then v3.
+ *  `*p_killed` says whether that child was killed.
+ */
+PRIVATE int o4_sequence(hgobj gobj, BOOL adds, BOOL keep_marker, int n, int kill_at, int *p_killed)
+{
+    int result = 0;
+    char db[NAME_MAX];
+    snprintf(db, sizeof(db), "tw_o4%s%s_%d_%d", adds? "a" : "c", keep_marker? "k" : "r", n, kill_at);
+    const char *label = adds? "O4A" : "O4C";
+
+    if(open_db(gobj, db, o4_literal(db, adds, 1), FALSE) < 0) {
+        return -1;
+    }
+    close_db(gobj, db);
+    if(!keep_marker) {
+        remove_upgrade_marker(gobj, db);
+    }
+    json_t *ops = o4_writes(gobj, db, adds);
+    int made = run_old_writes(gobj, db, ops, n);
+    JSON_DECREF(ops)
+    if(made < 0) {
+        return -1;
+    }
+
+    old_reports_start(gobj, db);
+    *p_killed = 0;
+    if(kill_at > 0) {
+        *p_killed = open_child_killed(gobj, db, o4_literal(db, adds, 2), FALSE, kill_at, "child");
+        if(*p_killed < 0) {
+            old_reports_stop();
+            return -1;
+        }
+        restart_system(gobj);
+    }
+
+    dc_who = "parent";
+    json_int_t e0 = log_count(gobj, "error");
+    if(open_db(gobj, db, o4_literal(db, adds, 2), FALSE) < 0) {
+        old_reports_stop();
+        return -1;
+    }
+    char what[256];
+    snprintf(what, sizeof(what), "TEST FAIL: %s, the open after a projection of 7.25.4 that died "
+        "reported work nobody did (n %d, kill %d)", label, n, kill_at);
+    result += check_withdrawn(gobj, db, what, 0, json_object());
+    snprintf(what, sizeof(what), "TEST FAIL: %s, the open after a projection of 7.25.4 that died "
+        "did not complete it (n %d, kill %d)", label, n, kill_at);
+    result += check_agree(gobj, db, what);
+    close_db(gobj, db);
+
+    json_t *v3 = o4_literal(db, adds, 2);
+    json_object_set_new(v3, "schema_version", json_integer(3));
+    if(open_db(gobj, db, v3, FALSE) < 0) {
+        old_reports_stop();
+        return -1;
+    }
+    snprintf(what, sizeof(what), "TEST FAIL: %s, the next literal reported work nobody did "
+        "(n %d, kill %d)", label, n, kill_at);
+    result += check_withdrawn(gobj, db, what, 0, json_object());
+    close_db(gobj, db);
+
+    int reports = old_reports_count(gobj);
+    if(reports > 0 || log_count(gobj, "error") - e0 != 0) {
+        result += test_fail(gobj, db, "TEST FAIL: a process reported work nobody did, or logged an error",
+            json_pack("{s:s, s:i, s:i, s:i, s:I}", "scenario", label, "n", n, "kill", kill_at,
+                "reports", reports, "errors", log_count(gobj, "error") - e0));
+    }
+    old_reports_stop();
+    drop_treedb(gobj, db);
+    return result;
+}
+
+PRIVATE int old_projection_died(hgobj gobj, BOOL adds, BOOL double_crash)
+{
+    int result = 0;
+    json_t *ops = o4_writes(gobj, "x", adds);
+    int total = (int)json_array_size(ops);
+    JSON_DECREF(ops)
+    for(int marker = 0; marker < (double_crash? 1 : 2); marker++) {
+        for(int n = 1; n <= total; n++) {
+            if(!double_crash) {
+                int killed;
+                result += o4_sequence(gobj, adds, marker? TRUE : FALSE, n, 0, &killed);
+                continue;
+            }
+            for(int k = 1; k <= 40; k++) {
+                int killed = 0;
+                result += o4_sequence(gobj, adds, marker? TRUE : FALSE, n, k, &killed);
+                if(!killed) {
+                    break;
+                }
+            }
+        }
+    }
+    return result;
+}
+
+PRIVATE int scenario_old_projection_died_changes(hgobj gobj)
+{
+    return old_projection_died(gobj, FALSE, FALSE);
+}
+
+PRIVATE int scenario_old_projection_died_adds(hgobj gobj)
+{
+    return old_projection_died(gobj, TRUE, FALSE);
+}
+
+PRIVATE int scenario_old_projection_died_twice(hgobj gobj)
+{
+    return old_projection_died(gobj, FALSE, TRUE) + old_projection_died(gobj, TRUE, TRUE);
+}
+
+/***************************************************************************
  *  Run every scenario
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -5579,6 +6001,9 @@ PRIVATE int (*late_scenarios[])(hgobj gobj) = {
     scenario_imposed_draft_kept,
     scenario_legacy_move_killed,
     scenario_double_crash,
+    scenario_old_projection_died_changes,
+    scenario_old_projection_died_adds,
+    scenario_old_projection_died_twice,
     NULL
 };
 
