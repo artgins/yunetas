@@ -4395,6 +4395,66 @@ PRIVATE BOOL treedb_names_overlap(hgobj gobj, const char *treedb_name)
 }
 
 /***************************************************************************
+ *  The element of a schema at the qualified id `id`, said for a log: the
+ *  FIRST one there, in the order of the schema. Return is YOURS.
+ *
+ *  Said only for a collision (schema_id_collision): a string for every
+ *  topic and column of a schema was most of the cost of the check, paid
+ *  at every open.
+ ***************************************************************************/
+PRIVATE json_t *schema_id_described(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *topics,         // not owned, schema_topics_as_list()
+    const char *id
+)
+{
+    int idx; json_t *jn_topic;
+    json_array_foreach(topics, idx, jn_topic) {
+        const char *topic_name = kw_get_str(gobj, jn_topic, "id", "", 0);
+        if(empty_string(topic_name)) {
+            topic_name = kw_get_str(gobj, jn_topic, "topic_name", "", 0);
+        }
+        char topic_id[RECORD_KEY_VALUE_MAX];
+        if(empty_string(topic_name) ||
+                !build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
+            continue;   // Error already logged (the projection logs a topic with no name)
+        }
+        if(strcmp(topic_id, id)==0) {
+            return json_sprintf("topic '%s' of treedb '%s'", topic_name, treedb_name);
+        }
+
+        json_t *jn_cols = kwid_new_list(gobj, jn_topic, 0, "cols");
+        int idx2; json_t *jn_col;
+        json_array_foreach(jn_cols, idx2, jn_col) {
+            const char *col_name = kw_get_str(gobj, jn_col, "id", "", 0);
+            char col_id[RECORD_KEY_VALUE_MAX];
+            if(empty_string(col_name) ||
+                    !build_schema_node_id(gobj, col_id, sizeof(col_id), topic_id, col_name)) {
+                continue;   // Error already logged (the projection logs a column with no name)
+            }
+            if(strcmp(col_id, id)==0) {
+                json_t *what = json_sprintf("column '%s' of topic '%s' of treedb '%s'",
+                    col_name, topic_name, treedb_name);
+                JSON_DECREF(jn_cols)
+                return what;
+            }
+        }
+        JSON_DECREF(jn_cols)
+    }
+
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL,
+        "msg",          "%s", "No element of the schema at a qualified id collected from it",
+        "treedb_name",  "%s", treedb_name,
+        "id",           "%s", id,
+        NULL
+    );
+    return json_sprintf("an element of treedb '%s'", treedb_name);
+}
+
+/***************************************************************************
  *  Do two elements get the same qualified id in __system__? An id is the
  *  parent's id, a dot and the name (build_schema_node_id), so a name with
  *  a dot can give two elements one id: the column `x.y` of the topic `u`
@@ -4412,6 +4472,9 @@ PRIVATE BOOL treedb_names_overlap(hgobj gobj, const char *treedb_name)
  *  so nothing an existing store holds changes id, and no schema of the
  *  tree or of the projects has a dot in a name.
  *
+ *  It runs at every open, so the ids are only collected: the two elements
+ *  are described once there is a collision (schema_id_described).
+ *
  *  Return NULL, or the collision (YOURS), logged as an ERROR naming both
  *  elements: {"id": ..., "first": ..., "second": ...}.
  ***************************************************************************/
@@ -4423,7 +4486,7 @@ PRIVATE json_t *schema_id_collision(
 )
 {
     json_t *collision = NULL;
-    json_t *seen = json_object();   // {id: what}
+    json_t *seen = json_object();   // {id: true}
 
     json_t *topics = schema_topics_as_list(gobj, jn_schema);
     int idx; json_t *jn_topic;
@@ -4437,12 +4500,14 @@ PRIVATE json_t *schema_id_collision(
                 !build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
             continue;   // Error already logged (the projection logs a topic with no name)
         }
-        json_t *what = json_sprintf("topic '%s' of treedb '%s'", topic_name, treedb_name);
-        json_t *first = json_object_get(seen, topic_id);
-        if(first && !collision) {
-            collision = json_pack("{s:s, s:O, s:O}", "id", topic_id, "first", first, "second", what);
+        if(!collision && json_object_get(seen, topic_id)) {
+            collision = json_pack("{s:s, s:o, s:o}",
+                "id", topic_id,
+                "first", schema_id_described(gobj, treedb_name, topics, topic_id),
+                "second", json_sprintf("topic '%s' of treedb '%s'", topic_name, treedb_name)
+            );
         }
-        json_object_set_new(seen, topic_id, what);
+        json_object_set_new(seen, topic_id, json_true());
 
         json_t *jn_cols = kwid_new_list(gobj, jn_topic, 0, "cols");
         int idx2; json_t *jn_col;
@@ -4453,37 +4518,38 @@ PRIVATE json_t *schema_id_collision(
                     !build_schema_node_id(gobj, col_id, sizeof(col_id), topic_id, col_name)) {
                 continue;   // Error already logged (the projection logs a column with no name)
             }
-            json_t *what_col = json_sprintf("column '%s' of topic '%s' of treedb '%s'",
-                col_name, topic_name, treedb_name);
-            json_t *first_col = json_object_get(seen, col_id);
-            if(first_col && !collision) {
-                collision = json_pack("{s:s, s:O, s:O}",
-                    "id", col_id, "first", first_col, "second", what_col);
+            if(!collision && json_object_get(seen, col_id)) {
+                collision = json_pack("{s:s, s:o, s:o}",
+                    "id", col_id,
+                    "first", schema_id_described(gobj, treedb_name, topics, col_id),
+                    "second", json_sprintf("column '%s' of topic '%s' of treedb '%s'",
+                        col_name, topic_name, treedb_name)
+                );
             }
-            json_object_set_new(seen, col_id, what_col);
+            json_object_set_new(seen, col_id, json_true());
         }
         JSON_DECREF(jn_cols)
     }
-    JSON_DECREF(topics)
 
     if(!collision && cross && treedb_names_overlap(gobj, treedb_name)) {
-        const char *id; json_t *what;
-        json_object_foreach(seen, id, what) {
+        const char *id; json_t *jn_true;
+        json_object_foreach(seen, id, jn_true) {
             BOOL is_topic;
             char owner[RECORD_KEY_VALUE_MAX];
             if(!system_id_owner(gobj, id, &is_topic, owner, sizeof(owner)) ||
                     strcmp(owner, treedb_name)==0) {
                 continue;
             }
-            collision = json_pack("{s:s, s:O, s:o}",
+            collision = json_pack("{s:s, s:o, s:o}",
                 "id", id,
-                "first", what,
+                "first", schema_id_described(gobj, treedb_name, topics, id),
                 "second", json_sprintf("%s of treedb '%s', a node of __system__",
                     is_topic? "a topic" : "a column", owner)
             );
             break;
         }
     }
+    JSON_DECREF(topics)
     JSON_DECREF(seen)
 
     if(collision) {
@@ -9000,21 +9066,26 @@ PRIVATE json_t *get_client_treedb_schema(
      *  owner's design of M36, 2026-09-21 review). It used to be the source,
      *  so every edit, half made or not, was the schema of the next start.
      */
-    json_t *client_treedb_schema = json_incref(jn_client_treedb_schema);
-
-    if(parse_schema(client_treedb_schema)<0) {
+    /*
+     *  So the schema the treedb opens with IS the literal, the object
+     *  parsed above, and reconcile does not write it: it is not parsed
+     *  again. That second parse_schema() checked another object until
+     *  7.25.0, the schema read back from __system__; on the same object it
+     *  only paid again one of the dearest steps of an open (perf_c_treedb).
+     *  A literal that failed is refused, as it was.
+     */
+    if(!input_schema_ok) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Schema fails",
             NULL
         );
-        gobj_trace_json(gobj, client_treedb_schema, "Schema fails");
-        json_decref(client_treedb_schema);
+        gobj_trace_json(gobj, jn_client_treedb_schema, "Schema fails");
         return 0;
     }
 
-    return client_treedb_schema;
+    return json_incref(jn_client_treedb_schema);
 }
 
 /***************************************************************************

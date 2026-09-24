@@ -48,5 +48,8 @@ Compile the other release's `c_treedb.c` (with the headers of
 `kernel/c/root-linux/src`) and put its object before the libraries in the
 link line of the benchmark (`build/CMakeFiles/perf_c_treedb.dir/link.txt`).
 The binary must keep the name `perf_c_treedb` (the yuno role), so put each
-variant in its own directory. Run them alternated and compare the medians.
-The figures are in `../README.md`.
+variant in its own directory, and link the object of this release the same
+way, so both are built alike. Run them alternated, 8 rounds or
+more, and compare the mean and the spread: the seed and the newer literal
+are dominated by fsyncs and vary by a few percent from round to round. The
+figures, and where an open spends its time, are in `../README.md`.

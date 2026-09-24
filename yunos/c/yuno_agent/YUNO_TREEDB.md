@@ -1623,7 +1623,9 @@ of its topics, or the topic that a column of it was moved to. So the cost
 of an open does not grow with the other treedbs of the store. For example,
 a store with 40 treedbs of 10 topics and 20 columns each: the open of
 `m3_39` with a newer literal reads its 220 topics and columns, not
-8 800. The same open reads the schema file in use once.
+8 800. The same open reads the schema file in use twice: once in C_TREEDB,
+to decide against it what runs, and once in `treedb_open_db()`, to run it.
+It parses the literal once.
 
 **A name with a dot can give two elements ONE id, and such a schema is
 refused.** An id is the parent's id, a dot and the name, so the column

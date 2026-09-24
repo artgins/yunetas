@@ -502,11 +502,11 @@ PRIVATE const char *expected_log_msgs[] = {
     /*  FAIL: a literal refused by C_TREEDB (hook and fkey), then a schema
      *  file with no topics: treedb_open_db() fails, the open answers -1
      *  (and nothing else: C_NODE neither sets the callback of a treedb
-     *  that never opened nor closes it)  */
+     *  that never opened nor closes it). The literal is parsed once: the
+     *  refusal names its column once  */
     "Creating __timeranger2__.json",
     "A column cannot be both 'hook' and 'fkey'",
     "Input Schema fails",
-    "A column cannot be both 'hook' and 'fkey'",
     "Schema fails",
     "Creating TreeDB schema file",
     "Creating topic",

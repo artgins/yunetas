@@ -176,13 +176,6 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
   estadodelaire, hidraulia) do not use `msg2db_id_incomplete()` yet: an alarm
   absent after a damaged load can be announced again as new
   (`tr_msg2db.md` has the code).
-- `perf_c_treedb` against the C_TREEDB of 7.25.4 linked with this release's
-  libraries (both with the new JSON load): the same-literal open costs +14%
-  (0.65 -> 0.74 s for 40 opens, ~2 ms an open) and a newer literal +4%. The
-  seed's +7% is the record written before the first write; the share of the
-  new checks (ownership read from the node, the record of an unfinished
-  projection, the leftover comparison) in the other two is not measured.
-  Profile them, then fix or name the price.
 - **No red test** for: `deactivate-snap` -1 on a failed save, the fs_watcher
   root, `save_json_to_file()`'s `close()` failure, the crash window between a
   marker and its md2 row. Not exercised live: a form Save through a real

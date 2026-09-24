@@ -159,8 +159,8 @@ Source: `src/main.c`, `src/c_perf_treedb_open.c`
 
 The benchmark of this release linked against the module of each release
 (the object of 7.25.4 put before the libraries), run alternated, medians of
-5 (`perf_timeranger2`), 6 (`perf_tr_treedb`) and 4-8 (`perf_c_treedb`)
-rounds; ext4 on a laptop NVMe.
+5 (`perf_timeranger2`) and 6 (`perf_tr_treedb`) rounds, 10 for
+`perf_c_treedb` (below); ext4 on a laptop NVMe.
 
 `perf_timeranger2`:
 
@@ -185,16 +185,43 @@ rounds; ext4 on a laptop NVMe.
 | `reopen` (per node) | 404 | 396 |
 | `delete_force` | 68.4 | 70.1 |
 
-`perf_c_treedb` (seconds for 40 opens). The 7.25.4 column is the
-`c_treedb.c` of 7.25.4 linked with the libraries of 7.25.5, with the JSON
-load of 7.25.4 (`json_loadfd()`, one `read()` per byte) and with the one of
-7.25.5 (read whole, then parsed):
+`perf_c_treedb` (seconds for 40 opens). The 7.25.4 columns are the
+`c_treedb.c` of 7.25.4 compiled with the headers of 7.25.5 and linked before
+the libraries of 7.25.5. With the JSON load of 7.25.4 (`json_loadfd()`, one
+`read()` per byte; medians of 4-8 rounds, an earlier run):
 
-| Case | 7.25.4, its JSON load | 7.25.4, new JSON load | 7.25.5 |
+| Case | 7.25.4, its JSON load |
+|------|--------|
+| `seed` | 10.85 |
+| `newer_literal` | 13.56 |
+| `same_literal` | 1.84 |
+
+With the JSON load of 7.25.5 (read whole, then parsed) on both sides, 10
+alternated rounds, mean +- standard deviation (median):
+
+| Case | 7.25.4 | 7.25.5 |
+|------|--------|--------|
+| `seed` | 9.87 +- 0.42 (9.74) | 10.84 +- 0.32 (10.75) |
+| `newer_literal` | 12.79 +- 0.44 (12.86) | 13.89 +- 0.53 (14.02) |
+| `same_literal` | 0.672 +- 0.071 (0.647) | 0.613 +- 0.020 (0.610) |
+
+Where an open of 7.25.5 spends differently, from `clock_gettime()` probes
+in a copy of `c_treedb.c` (ms an open, means of 3 runs):
+
+| Step | `same_literal` | `newer_literal` | `seed` |
 |------|--------|--------|--------|
-| `seed` | 10.85 | 9.87 | 10.55 |
-| `newer_literal` | 13.56 | 13.14 | 13.69 |
-| `same_literal` | 1.84 | 0.65 | 0.74 |
+| second `parse_schema()` of the literal (7.25.4 only) | -2.9 | -3.3 | -2.9 |
+| read and parse the schema file in use (60 KB) | +0.7 | +1.3 | -- |
+| id-collision check | +0.1 | +0.2 | +0.2 |
+| records of an apply / an unfinished projection | +0.04 | +0.1 | +0.06 |
+| record of the projection in progress (written whole, fsyncs) | -- | +14.3 | +12.5 |
+| index of `__system__` and orphans | -- | +4.9 | +6.6 (with the ownership checks) |
+| drafts (`__system__` against the file in use) | -- | +2.9 | -- |
+| rest of the projection (ownership checks) | -- | +1.7 | (above) |
+| net | -2.0 | +21.9 | +16.5 |
+
+`treedb_open_db()` reads the schema file in use again (as in 7.25.4): the
+file is read twice an open, once to decide what runs and once to run it.
 
 ### Key takeaways
 

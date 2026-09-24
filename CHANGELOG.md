@@ -296,17 +296,37 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   `load_persistent_json()`, and tr2migrate): `json_loadfd()` made one
   `read()` per byte, 60 000 system calls for a 60 KB schema.
 - **C_TREEDB opens** (`perf_c_treedb`, 40 treedbs x 10 topics x 20 columns,
-  seconds for 40 opens, 7.25.4 -> now): the same literal 1.84 -> 0.74, the
-  first projection (seed) 10.85 -> 10.55, a newer literal 13.56 -> 13.69.
-  An open reads only the nodes of `__system__` of its own treedb, and the
-  schema file in use once.
-- **Price kept, by decision:** against the C_TREEDB of 7.25.4 on the new JSON
-  load, an open costs more: the seed +7% (9.87 -> 10.55 s, ~17 ms a treedb),
-  a newer literal +4% (13.14 -> 13.69 s), the same literal +14% (0.65 ->
-  0.74 s, ~2 ms an open). The seed writes the record of the projection in
-  progress whole, with its fsyncs, before its first write, and stamps the
-  treedb node last: the crash safety of the projection. The share of each
-  check in the other two opens is not measured yet (`TODO.md`).
+  seconds for 40 opens, 10 alternated rounds, mean +- standard deviation).
+  Against the C_TREEDB of 7.25.4 linked with the libraries of this release,
+  so both on the new JSON load: the same literal 0.672 +- 0.071 -> 0.613 +-
+  0.020 (-9%), the first projection (seed) 9.87 +- 0.42 -> 10.84 +- 0.32
+  (+10%), a newer literal 12.79 +- 0.44 -> 13.89 +- 0.53 (+9%). 7.25.4 with
+  its own JSON load took 1.84 s for the same literal. An open reads only the
+  nodes of `__system__` of its own treedb, and parses the literal once:
+  7.25.4 parsed the same object a second time with `parse_schema()` (~2.9 ms
+  an open), a check left from the releases that read the schema back from
+  `__system__` (a literal that fails now logs its bad column once, not
+  twice). The id-collision check collects the ids only and describes the two
+  elements when there is a collision.
+- **Price kept, by decision:** what an open costs over 7.25.4, measured with
+  probes in the code (ms an open):
+    - The same literal, ~0.9 ms, paid by the removed second parse (net
+      -2 ms): C_TREEDB reads and parses the schema file in use (~0.7 ms for
+      a 60 KB file), because what runs is decided against the file, as
+      `treedb_open_db()` decides it, which reads the file again as in
+      7.25.4; the id-collision check (~0.1 ms); the records of an apply and
+      of an unfinished projection (~0.04 ms).
+    - A newer literal, ~25 ms (net ~22 ms): the record of the projection in
+      progress, written whole with its fsyncs before the first write
+      (~14 ms); the index of the treedb's nodes of `__system__` and the
+      search for orphans (~5 ms); the drafts, `__system__` compared with the
+      file in use (~3 ms); the ownership checks of the projection (~2 ms);
+      the schema file in use read (~1.3 ms).
+    - The seed, ~19 ms (net ~16.5 ms): the same record (~12.5 ms); the
+      index of `__system__`, the orphans and the ownership checks (~6.6 ms).
+  The record is the crash safety of the projection; the index, the orphans
+  and the drafts keep an operator's draft from being taken for what a
+  projection left, and the reverse.
 
 ### Schemas (C_TREEDB)
 
