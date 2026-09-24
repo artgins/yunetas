@@ -316,5 +316,5 @@ Toggle with `menuconfig` or pass `-DENABLE_TESTS=OFF` to CMake.
 
 ## Related
 
-- **Performance benchmarks** live under `performance/c/` — `perf_c_tcp`, `perf_c_tcps`, `perf_yev_ping_pong`, `perf_yev_ping_pong2` and the new **`perf_auth_bff`**. That one measures live throughput over the BFF in the ping-pong style. A run is 10 s by default, and it does about 180 000 ops on the reference box.
+- **Performance benchmarks** live under `performance/c/` — `perf_c_tcp`, `perf_c_tcps`, `perf_yev_ping_pong`, `perf_yev_ping_pong2`, **`perf_auth_bff`** (live throughput over the BFF in the ping-pong style: a run is 10 s by default, about 180 000 ops on the reference box), and the persistence ones: **`perf_timeranger2`** (the open of a store, the create of topics, a tm query before and after `tranger2_mark_tm_order()`), **`perf_tr_treedb`** (treedb writes) and **`perf_c_treedb`** (the open of a dynamic-schema treedb by `C_TREEDB` in a store of 40 treedbs). Each prints one line of JSON per result; ctest runs them small, and `performance/c/README.md` keeps the figures of each release.
 - **Stress runners** live under `stress/c/` — `stress/auth_bff` drives concurrent BFF login / refresh / logout cycles to expose races between the pending queue, the watchdog and the flush-on-disconnect path.

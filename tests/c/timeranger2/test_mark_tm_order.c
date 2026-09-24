@@ -14,8 +14,9 @@
  *         reads it whole already. It is skipped and logged, and the topic
  *         is marked.
  *
- *  Its cost (linear in the files of a key) is measured outside the suite,
- *  not asserted here: a timing is not a test.
+ *  Its cost (linear in the files of a key) is measured by
+ *  performance/c/perf_timeranger2, not asserted here: a timing is not a
+ *  test.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

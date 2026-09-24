@@ -2,7 +2,7 @@
 
 Benchmark programs for measuring throughput and latency of Yuneta's core communication and I/O subsystems.
 
-All benchmarks run as self-contained programs: they start an internal server and client, echo messages back and forth, and report throughput metrics. Each benchmark is also registered as a `ctest` target, so `yunetas test` runs them alongside the rest of the test suite.
+All benchmarks run as self-contained programs. The network ones start an internal server and client, echo messages back and forth, and report throughput metrics; the persistence ones (`perf_timeranger2`, `perf_tr_treedb`, `perf_c_treedb`) build a store, measure, print one line of JSON per result, and remove the store. Each benchmark is also registered as a `ctest` target, so `yunetas test` runs them alongside the rest of the test suite (the persistence ones with smaller sizes: ctest checks that they build and run; their reference figures come from a run with the default sizes).
 
 ## Benchmarks
 
@@ -95,6 +95,30 @@ upstream.
 
 Source: `main_perf_auth_bff.c`, `c_perf_auth_bff.c`
 
+### perf_timeranger2 -- timeranger2 open, topic create, tm query
+
+**Binary:** `perf_timeranger2`
+
+timeranger2 alone: the open of a store of 20 000 md2 files as a master and as a replica, the create of 10 topics and 10 `topic_version` changes, and a tm query of one minute before and after `tranger2_mark_tm_order()`. See [`perf_timeranger2/README.md`](perf_timeranger2/README.md).
+
+Source: `src/perf_timeranger2.c` (single file, no GClasses)
+
+### perf_tr_treedb -- treedb writes
+
+**Binary:** `perf_tr_treedb`
+
+`tr_treedb` over timeranger2, without the gclasses: updates (in memory and saved), links and unlinks, creates, the reopen of the treedb, and forced deletes, 100 000 operations. See [`perf_tr_treedb/README.md`](perf_tr_treedb/README.md).
+
+Source: `src/perf_tr_treedb.c` (single file, no GClasses)
+
+### perf_c_treedb -- C_TREEDB open of a dynamic-schema treedb
+
+**Binary:** `perf_c_treedb`
+
+A yuno that drives `C_TREEDB` through `open-treedb` / `close-treedb` in a store of 40 treedbs x 10 topics x 20 columns: the first projection (seed), a newer literal, and the same literal again. See [`perf_c_treedb/README.md`](perf_c_treedb/README.md).
+
+Source: `src/main.c`, `src/c_perf_treedb_open.c`
+
 ## Performance Summary
 
 ### Nov-2024 (RelWithDebInfo)
@@ -130,6 +154,47 @@ Source: `main_perf_auth_bff.c`, `c_perf_auth_bff.c`
 | `perf_tcps_test5` | TLS | mbedTLS | timeranger2 | 11,698 op/sec |
 | `perf_yev_ping_pong` | TCP | -- | -- | 159.0K msg/sec, 159.0 MB/sec |
 | `perf_yev_ping_pong2` | TCP | -- | timeranger2 | 77.4K msg/sec, 5.4 MB/sec |
+
+### Sep-2026: 7.25.5 against 7.25.4 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
+
+The benchmark of this release linked against the module of each release
+(the object of 7.25.4 put before the libraries), run alternated, medians of
+5 (`perf_timeranger2`), 6 (`perf_tr_treedb`) and 4-8 (`perf_c_treedb`)
+rounds; ext4 on a laptop NVMe.
+
+`perf_timeranger2`:
+
+| Case | 7.25.4 | 7.25.5 |
+|------|--------|--------|
+| `open_master` (20 000 md2 files) | 95.2 ms | 82.6 ms |
+| `open_replica` | 92.0 ms | 108.4 ms |
+| `create_topic` (10 topics) | 1.5 ms | 127 ms |
+| `topic_version_change` (10) | 0.8 ms | 226 ms |
+| `tm_query_unmigrated` (1 key, 30 files x 20 000 rows) | 13.2 ms | 406 ms |
+| `mark_tm_order` (the same topic) | -- | 16.7 ms |
+| `tm_query_migrated` | -- | 7.4 ms |
+
+`perf_tr_treedb` (us per operation, N = 100 000):
+
+| Case | 7.25.4 | 7.25.5 |
+|------|--------|--------|
+| `update_memory` | 3.90 | 2.93 |
+| `update_saved` | 11.76 | 10.89 |
+| `link_unlink` | 11.34 | 11.28 |
+| `create_link_half` | 75.1 | 74.8 |
+| `reopen` (per node) | 404 | 396 |
+| `delete_force` | 68.4 | 70.1 |
+
+`perf_c_treedb` (seconds for 40 opens). The 7.25.4 column is the
+`c_treedb.c` of 7.25.4 linked with the libraries of 7.25.5, with the JSON
+load of 7.25.4 (`json_loadfd()`, one `read()` per byte) and with the one of
+7.25.5 (read whole, then parsed):
+
+| Case | 7.25.4, its JSON load | 7.25.4, new JSON load | 7.25.5 |
+|------|--------|--------|--------|
+| `seed` | 10.85 | 9.87 | 10.55 |
+| `newer_literal` | 13.56 | 13.14 | 13.69 |
+| `same_literal` | 1.84 | 0.65 | 0.74 |
 
 ### Key takeaways
 
@@ -169,4 +234,14 @@ performance/c/
   perf_yev_ping_pong2/                    # raw io_uring + timeranger2
     CMakeLists.txt
     src/perf_yev_ping_pong2.c
+  perf_auth_bff/                          # auth_bff login round-trip
+  perf_timeranger2/                       # timeranger2 open, create, tm query
+    CMakeLists.txt
+    src/perf_timeranger2.c
+  perf_tr_treedb/                         # treedb writes (tr_treedb)
+    CMakeLists.txt
+    src/perf_tr_treedb.c
+  perf_c_treedb/                          # C_TREEDB open (a yuno)
+    CMakeLists.txt, small.json
+    src/main.c, src/c_perf_treedb_open.c/h
 ```
