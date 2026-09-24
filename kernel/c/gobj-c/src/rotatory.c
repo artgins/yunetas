@@ -380,7 +380,8 @@ PUBLIC int rotatory_keep_all_old_files(hrotatory_h hr_, BOOL keep_all)
 }
 
 /*****************************************************************
- *   Return bytes written
+ *  Return 0, also when nothing is written (see rotatory.h),
+ *  -1 only if hr or bf is NULL
  *****************************************************************/
 PUBLIC int rotatory_write(hrotatory_h hr_, int priority, const char* bf, size_t len)
 {
@@ -582,6 +583,7 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
     }
 
     BOOL change_file = _get_rotatory_filename(hr);
+    BOOL empty_it = FALSE;  // see the opening of the file below
 
     if(hr->flog) {
         /*
@@ -646,6 +648,9 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
                         filename_old,
                         strerror(errno)
                     );
+                    if(!hr->keep_all_old) {
+                        empty_it = TRUE;    // as up to 7.25.4: the size stays bounded
+                    }
                 }
                 change_file = 1;
             }
@@ -678,6 +683,22 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
         char lastpath[2*NAME_MAX+2];
         strncpy(lastpath, hr->path, sizeof(lastpath)-1);
         snprintf(hr->path, sizeof(hr->path), "%s/%s", hr->log_directory, hr->filename);
+
+        /*
+         *  An existing file is emptied only when it was last written
+         *  before the day that its name is used for: the file of last week
+         *  of a "W" mask (its name is its retention). A file written in
+         *  this day or later is appended to: up to 7.25.4 it was opened
+         *  with "w", and a clock set back across midnight emptied the file
+         *  of the day before, then the one of today. A handle that keeps
+         *  all old files never empties one.
+         */
+        struct stat st_existing;
+        if(!hr->keep_all_old && stat(hr->path, &st_existing) == 0 &&
+                st_existing.st_size > 0 && st_existing.st_mtime < hr->day_start) {
+            empty_it = TRUE;
+        }
+
         if(access(hr->path, 0)!=0) {
             int fd = newfile(hr->path, hr->rpermission, FALSE);
             if(fd < 0) {
@@ -691,7 +712,7 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
             }
             close(fd);
         }
-        hr->flog = fopen(hr->path, "w");
+        hr->flog = fopen(hr->path, empty_it? "w": "a");
         if(!hr->flog) {
             print_error(
                 hr->pe_flag,
@@ -919,7 +940,7 @@ PRIVATE BOOL name_has_the_shape_of_the_mask(rotatory_log_t *hr, const char *name
 
 /*****************************************************************
  *  Retention: remove the files of this rotatory older than keep_days.
- *  See rotatory.h. Nothing of this runs on the write path.
+ *  See rotatory.h. The rotatory never calls it by itself.
  *****************************************************************/
 PUBLIC int rotatory_remove_old_files(
     hrotatory_h hr_,

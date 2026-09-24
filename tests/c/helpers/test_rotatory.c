@@ -7,7 +7,8 @@
  *          of another name. And the rotation calls the newfile callback,
  *          which is where a user (the agent's audit) applies it.
  *          And the write path: whole records across a size rotation, and
- *          a removed file created again.
+ *          a removed file created again. And a clock set back across
+ *          midnight empties no file.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -589,6 +590,153 @@ PRIVATE void test_write_after_end(void)
 }
 
 /***************************************************************************
+ *  The clock, faked.
+ *
+ *  This test binary is linked with -Wl,--wrap=time (see CMakeLists.txt):
+ *  while s_fake_now is not 0, time() answers it, in the rotatory too.
+ ***************************************************************************/
+PRIVATE time_t s_fake_now = 0;
+
+time_t __real_time(time_t *t);
+time_t __wrap_time(time_t *t);
+
+time_t __wrap_time(time_t *t)
+{
+    time_t now = s_fake_now? s_fake_now: __real_time(NULL);
+    if(t) {
+        *t = now;
+    }
+    return now;
+}
+
+PRIVATE BOOL file_holds(const char *path, const char *text)
+{
+    size_t len = 0;
+    char *bf = read_whole_file(path, &len);
+    BOOL found = (bf && strstr(bf, text))? TRUE: FALSE;
+    GBMEM_FREE(bf);
+    return found;
+}
+
+PRIVATE void file_of(time_t t, const char *dir, const char *mask, char *bf, size_t bfsize)
+{
+    char name[NAME_MAX];
+    formatdate(t, name, sizeof(name), mask);
+    build_path(bf, bfsize, dir, name, NULL);
+}
+
+/***************************************************************************
+ *  A clock set back across midnight, and forward again, empties no file.
+ *
+ *  Up to 7.25.5-dev a new name was opened with "w": a step back of a few
+ *  seconds at 00:00:05 opened the file of the day before again and emptied
+ *  it, and the step forward emptied the file of today. For the agent audit
+ *  (keep all) no existing file is ever emptied. For the yuno logs (the "W"
+ *  mask, one file for each week day) the file of LAST week is still emptied
+ *  when its day comes: a file is emptied only when it was last written
+ *  before the day that its name is used for.
+ ***************************************************************************/
+PRIVATE void test_clock_set_back(void)
+{
+    #define CLOCK_DIR BASE "/clock"
+    rmrdir(BASE);
+    mkrdir(CLOCK_DIR, 02775);
+
+    time_t real_now = __real_time(NULL);
+    struct tm tm;
+    localtime_r(&real_now, &tm);
+    tm.tm_hour = 0;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    tm.tm_isdst = -1;
+    time_t midnight = mktime(&tm);  // today 00:00, a day of the real clock (for the mtimes)
+
+    /*
+     *  The agent audit: keep all old files
+     */
+    char yesterday[PATH_MAX];
+    char today[PATH_MAX];
+    file_of(midnight - 2, CLOCK_DIR, MASK, yesterday, sizeof(yesterday));
+    file_of(midnight + 5, CLOCK_DIR, MASK, today, sizeof(today));
+
+    FILE *f = fopen(yesterday, "w");
+    if(f) {
+        fputs("{\"command\":\"yesterday\"}\n\n", f);
+        fclose(f);
+    }
+
+    s_fake_now = midnight + 5;
+    hrotatory_h hr = rotatory_open(CLOCK_DIR "/" MASK, 0, 500, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        s_fake_now = 0;
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    rotatory_keep_all_old_files(hr, TRUE);
+    rotatory_write(hr, LOG_AUDIT, "{\"command\":\"today 1\"}", strlen("{\"command\":\"today 1\"}"));
+    s_fake_now = midnight - 2;      // the clock is set back 7 seconds
+    rotatory_write(hr, LOG_AUDIT, "{\"command\":\"back\"}", strlen("{\"command\":\"back\"}"));
+    s_fake_now = midnight + 10;     // and forward again
+    rotatory_write(hr, LOG_AUDIT, "{\"command\":\"today 2\"}", strlen("{\"command\":\"today 2\"}"));
+    rotatory_flush(hr);
+
+    check(file_holds(yesterday, "\"yesterday\"") && file_holds(yesterday, "\"back\""),
+        "clock set back: the audit file of yesterday is not emptied (the record goes on at its end)");
+    check(file_holds(today, "\"today 1\"") && file_holds(today, "\"today 2\""),
+        "clock forward again: the audit file of today keeps its first record");
+    rotatory_close(hr);
+
+    /*
+     *  The yuno logs: the W mask, one file for each week day
+     */
+    char w_yesterday[PATH_MAX];
+    char w_today[PATH_MAX];
+    file_of(midnight - 2, CLOCK_DIR, "log-W.log", w_yesterday, sizeof(w_yesterday));
+    file_of(midnight + 5, CLOCK_DIR, "log-W.log", w_today, sizeof(w_today));
+
+    s_fake_now = midnight - 5;
+    hr = rotatory_open(CLOCK_DIR "/log-W.log", 0, 500, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        s_fake_now = 0;
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    rotatory_write(hr, LOG_INFO, "yesterday", strlen("yesterday"));
+    rotatory_flush(hr);
+
+    s_fake_now = 0;
+    f = fopen(w_today, "w");
+    if(f) {
+        fputs("INFO: last week\n", f);
+        fclose(f);
+    }
+    set_age(w_today, 7);            // written 7 days ago: last week's file
+
+    s_fake_now = midnight + 5;
+    rotatory_write(hr, LOG_INFO, "today 1", strlen("today 1"));
+    rotatory_flush(hr);
+    check(!file_holds(w_today, "last week") && file_holds(w_today, "today 1"),
+        "W mask, new day: the file of last week is emptied (the name is the retention)");
+
+    s_fake_now = midnight - 2;      // the clock is set back
+    rotatory_write(hr, LOG_INFO, "back", strlen("back"));
+    s_fake_now = midnight + 10;     // and forward again
+    rotatory_write(hr, LOG_INFO, "today 2", strlen("today 2"));
+    rotatory_flush(hr);
+    s_fake_now = 0;
+
+    check(file_holds(w_yesterday, "yesterday") && file_holds(w_yesterday, "back"),
+        "W mask, clock set back: the file of yesterday is not emptied");
+    check(file_holds(w_today, "today 1") && file_holds(w_today, "today 2"),
+        "W mask, clock forward again: the file of today is not emptied");
+    rotatory_close(hr);
+
+    rmrdir(BASE);
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -636,6 +784,7 @@ int main(int argc, char *argv[])
     test_write_path();
     test_keep_all_old();
     test_disk_full_per_handle();
+    test_clock_set_back();
     test_write_after_end();     // LAST: it ends the rotatory
 
     rotatory_end();

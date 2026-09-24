@@ -24,12 +24,21 @@ So the file changes when the date changes. Two masks are in use:
 
 | Mask | File of that day | What it keeps |
 |---|---|---|
-| `mqtt_broker-W.log` (the yuno logs) | `mqtt_broker-4.log` | 7 files. When a new day starts, the file of the same week day is opened with `"w"`, so the file of last week is emptied. The name is the retention. |
-| `ZZZ-DD_MM_CCYY.log` (the agent audit) | `266-23_09_2026.log` | One new file each day, never used again. Nothing is removed unless the user calls [`rotatory_remove_old_files()`](#rotatory_remove_old_files). |
+| `mqtt_broker-W.log` (the yuno logs) | `mqtt_broker-4.log` | 7 files. When a new day starts, the file of the same week day is emptied, because it was last written before this day: it is the file of last week. The name is the retention. |
+| `ZZZ-DD_MM_CCYY.log` (the agent audit) | `266-23_09_2026.log` | One new file each day. Nothing is removed unless the user calls [`rotatory_remove_old_files()`](#rotatory_remove_old_files). |
 
 When the current file becomes larger than `max_megas_rotatoryfile_size`, the rotatory renames it to `<name>.OLD` (a previous `.OLD` is removed) and starts the file again. So one day keeps at most two files of that size: this is what bounds the yuno logs. A handle set with [`rotatory_keep_all_old_files()`](#rotatory_keep_all_old_files) renames to `<name>.OLD.1`, `<name>.OLD.2`, … instead and removes nothing: the agent audit does this, with a retention by days.
 
-A new file (a new day, or the size limit) calls the callback of [`rotatory_subscribe2newfile()`](#rotatory_subscribe2newfile). Nothing else happens on the write path.
+A new file (a new day, or the size limit) calls the callback of [`rotatory_subscribe2newfile()`](#rotatory_subscribe2newfile). The callback runs inside the [`rotatory_write()`](#rotatory_write) of the first record of the new file, before that record is written. So what the callback does (the agent audit applies its retention there) is on the write path of that one record, once a day or once for each size rotation.
+
+(rotatory-clock-set-back)=
+**An existing file is emptied only when it is old.** When the name changes, an existing file of the new name is emptied only if it was last written (its `mtime`) before the local day that the name is used for. That is the file of last week of a `W` mask. A file written in this day or later is appended to. A handle set with [`rotatory_keep_all_old_files()`](#rotatory_keep_all_old_files) never empties a file. Up to 7.25.4 every new name was opened with `"w"`. A clock set back across midnight (for example 7 seconds at 00:00:05) opened the file of the day before again and emptied it. When the clock went forward again, the file of today was emptied too, with its first records. For example, with the audit mask:
+
+```
+00:00:05  record "today 1"  -> 267-24_09_2026.log
+23:59:58  (clock set back)  -> 266-23_09_2026.log is opened again: now appended to, not emptied
+00:00:10  (clock forward)   -> 267-24_09_2026.log is opened again: "today 1" is kept
+```
 
 **What one [`rotatory_write()`](#rotatory_write) costs.** The file is checked once for each record, before its first piece (the priority header, the text, the `"\n"`), so a record is never split between two files. The check is one `fstat()` of the open file: it gives the size (for the size limit) and the link count (a file removed from the directory is created again). The name is made again only when the time leaves the local day of the current name (midnight, or the clock set to another day), so `localtime()` does not run for each record. Measured on the agent's audit record (two writes of 300 bytes and 1 byte): 7.2 µs up to 7.25.4, 0.59 µs after.
 
@@ -172,7 +181,7 @@ int rotatory_fwrite(
 
 **Returns**
 
-Returns the number of bytes written on success, or `-1` if an error occurs.
+Returns `0`, also when nothing was written (as [`rotatory_write()`](#rotatory_write)). Returns `-1` only when `hr` is `NULL`. It does not return the number of bytes written. A text longer than the `bf_size` of [`rotatory_open()`](#rotatory_open) is cut to that size.
 
 **Notes**
 
@@ -250,6 +259,8 @@ It is off by default, and the yuno logs keep it off: their `W` mask makes 7 file
 
 Use it with a mask that makes a new name every day and a retention by days ([`rotatory_remove_old_files()`](#rotatory_remove_old_files)), which removes the `.OLD.<n>` pieces with the rest. The agent audit does this, because a piece of audit must never be removed by the size of the day: up to 7.25.4 a day that crossed the limit twice lost its first part.
 
+A handle with `keep_all` never empties an existing file when its name comes back (for example, a clock set back across midnight): the records are appended. See [An existing file is emptied only when it is old](#rotatory-clock-set-back).
+
 After 9999 pieces in one day, the last one is replaced (and a line is printed).
 
 **Example**
@@ -284,7 +295,7 @@ const char *rotatory_path(
 
 **Returns**
 
-Returns a pointer to the file path string associated with the given rotatory log handle.
+Returns a pointer to the path of the current file of the handle. Returns `""` (an empty string, never `NULL`) when the handle is not open: `NULL`, or closed by [`rotatory_close()`](#rotatory_close) or [`rotatory_end()`](#rotatory_end).
 
 **Notes**
 
@@ -331,7 +342,7 @@ Only the files of **this** rotatory are candidates. A file is removed only if al
 
 A mask with no date letters matches only the current file, so the function removes nothing.
 
-The function is not called on the write path. Call it after [`rotatory_open()`](#rotatory_open) and from the callback of [`rotatory_subscribe2newfile()`](#rotatory_subscribe2newfile). An unlink that fails is logged, and the sweep continues with the next file.
+The rotatory never calls this function by itself. Call it after [`rotatory_open()`](#rotatory_open) and from the callback of [`rotatory_subscribe2newfile()`](#rotatory_subscribe2newfile). That callback runs inside the [`rotatory_write()`](#rotatory_write) of the first record of a new file, so the sweep is on the write path of that one record (once a day, or at a size rotation). It reads the directory once. An unlink that fails is logged, and the sweep continues with the next file.
 
 **Example**
 
@@ -464,11 +475,13 @@ int rotatory_subscribe2newfile(
 
 **Returns**
 
-Returns 0 on success.
+Returns `0`, or `-1` if the handle is not open (`NULL`, or closed). In that case one line is printed to syslog with `print_error()`, and no callback is registered.
 
 **Notes**
 
 Only one callback can be registered per rotatory log instance. Calling this function again replaces the previous callback and user data.
+
+The callback runs inside the [`rotatory_write()`](#rotatory_write) of the first record of the new file, before that record is written.
 
 ---
 
