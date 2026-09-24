@@ -2113,9 +2113,83 @@ with the old file and with that base, as the first one did. Without it, the
 retry compared with the old file alone, and reported what 7.25.4 wrote of
 the literal as the operator's work.
 
-With `impose_c_schema` and a file at the literal's version the projection
-is complete (7.25.4 wrote the file after the projection), so a draft over
-it stays a draft.
+**The first open by this release, and what an older release left.** A node
+stamped with the version of the file in use may ALSO be a projection that
+died after its stamp. 7.23.0 to 7.25.4 gave every imposed treedb its first
+projection over a file already at the literal's version, and so did every
+treedb from before 7.13.0: a process that died after the stamp left a node
+that says the file over a projection with part of it. (This file used to say
+that such a projection is complete. It is not.) Nothing on the node tells it
+from a complete projection whose topic the operator deleted since. What
+tells them apart is WHO stamped it: this release stamps LAST, so once it has
+opened the treedb, a stamped projection is a complete one.
+
+So the FIRST open of a treedb by this release writes a record of the
+upgrade, `saved_schemas/<treedb>.upgrade.json` under the `__system__`
+tranger, and until it exists the open reads `__system__` as an older release
+left it:
+
+- **The node is stamped with the version of the file in use, and the file
+  runs and IS the literal:** what `__system__` misses of it (a topic or a
+  column not in the tree) is written from the literal and linked, and said,
+  ONE WARNING with the ids. Nothing is reported as the operator's, and a
+  node that is in the tree is not touched:
+
+  ```json
+  {"msg": "Restored from the schema from C: what __system__ missed of it, a projection by an older release stamped the treedb first and did not finish (its process died); nobody's work is withdrawn",
+   "treedb_name": "treedb_x", "schema_version": 2,
+   "restored": ["treedb_x.users.username", "treedb_x.departments",
+                "treedb_x.departments.id", "treedb_x.departments.name"],
+   "failed": []}
+  ```
+
+  A write that fails (logged) leaves the record of the upgrade unwritten, so
+  the next open is the first one again and restores what is still missing.
+- **The same node, and a newer literal is installed:** what `__system__`
+  misses of the old file is no deletion of the operator's (INFO *"What
+  __system__ misses of the schema file in use is no deletion of the
+  operator's..."*, with the ids), and the projection writes what the literal
+  declares. Nothing is reported.
+- **What no schema declares:** 7.25.4 and before never deleted from
+  `__system__`, so a topic or a column a literal removed stayed there. Every
+  node OF the treedb that neither the file in use nor a pending saved schema
+  declares, and that no record of an unfinished projection names, is taken
+  as LEFT BY AN OLDER RELEASE, and kept in the record with what it holds.
+  While it stays as it was found, and no schema declares it, it is no
+  draft: `draft_changed` does not name it, and an open with the same literal
+  does not touch it. The open that removes it reports it apart, with the kind
+  `"left_by_older_release"` (never `"unsaved"`), and says it, ONE WARNING
+  *"Removed from __system__ what an older release left there: no schema of
+  the treedb declares it..."* with `topics` and `ids`. An edit of it after
+  the upgrade (a header, a move, an unlink) makes it the operator's: a
+  draft like any other, reported `"unsaved"`. A save that declares it
+  (`save-schema`) makes it the operator's too.
+
+For example, v1 declared `users` (`id`, `username`, `email`) and
+`departments`; 7.25.4 opened v2, which drops `departments` and `users.email`,
+and both stayed in `__system__`. The first open by this release with v2
+answers `draft_changed: {}` and writes:
+
+```json
+{"release": "7.25.5",
+ "left_by_older_release": ["treedb_x.departments", "treedb_x.departments.id",
+                           "treedb_x.departments.name", "treedb_x.users.email"],
+ "leftover_nodes": {"treedb_x.users.email": {"value": "email", "order": 2, "header": "Email",
+                                             "type": "string", "__parents__": ["treedb_x.users"], ...},
+                    ...},
+ "topics": {"treedb_x.departments": "departments", "treedb_x.users.email": "users", ...},
+ "system_schema_version": 18}
+```
+
+The open with v3 removes them and answers `withdrawn_at_open: {"schema_version":
+3, "saved_schema_version": 0, "topics": {"departments": "left_by_older_release",
+"users": "left_by_older_release"}}`. (Before, `draft_changed` answered
+`{"departments": true, "users": true}` and v3 reported both `"unsaved"`.)
+The ids that are gone, or that the schema in use declares, are dropped from
+the record. An unsaved draft that ADDED a node before the upgrade reads the
+same as a node an older release left, and is taken as left too: nothing
+tells the two apart, and both are what an older release kept where this one
+withdraws it. `delete-treedb` removes the record.
 
 **What the literal withdraws is said.** A literal that wins replaces the
 operator's work over the old file. The open logs ONE warning, *"Schema from C
@@ -2131,6 +2205,7 @@ open of that treedb:
 | `"in_use"` | a topic of an apply that RAN: an open read it, and the treedb was running that dynamic schema (new after 7.25.4) |
 | `"saved"` | the draft of a topic that a pending `save-schema` published: an edit of the topic, or its deletion (the operator deleted the topic, and the saved schema does not declare it) |
 | `"unsaved"` | a draft never saved: a topic of `__system__` that differs from the file, a topic of the file that the operator deleted from `__system__`, or a topic that the operator added to `__system__` and the pending saved schema does not declare |
+| `"left_by_older_release"` | no operator's work: a topic, or a column of the topic, that an older release left in `__system__` and no schema declares (see above; new after 7.25.4). Any other kind of the same topic says more, and replaces it |
 
 A topic that the operator ADDED is `"saved"` only when the pending saved
 schema declares it. For example, the operator edits `users`, runs

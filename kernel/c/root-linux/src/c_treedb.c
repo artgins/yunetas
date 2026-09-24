@@ -134,7 +134,16 @@ typedef struct {
     json_t *left_before;    // its leftovers still as left (leftovers_as_left), or NULL
     json_t *edited;         // {id: topic} of its leftovers the operator edited, or NULL
     json_t *stamped_base;   // the schema a projection stamped FIRST was projecting, or NULL
+    json_t *left_by_older;  // {id: topic} an older release left (left_by_older_release_now), or NULL
 } projection_ctx_t;
+
+/*
+ *  The kind of what an open withdraws that is nobody's work: a node an
+ *  older release left in __system__ (see new_upgrade_record). Any kind of
+ *  the operator's says more, and replaces it.
+ */
+#define KIND_LEFT_BY_OLDER_RELEASE  "left_by_older_release"
+
 
 /***************************************************************************
  *              Prototypes
@@ -204,6 +213,15 @@ PRIVATE void remove_apply_record(hgobj gobj, const char *treedb_name);
 PRIVATE void settle_apply_record(hgobj gobj, const char *treedb_name);
 PRIVATE json_t *load_unfinished_record(hgobj gobj, const char *treedb_name);
 PRIVATE void remove_unfinished_record(hgobj gobj, const char *treedb_name);
+PRIVATE void remove_upgrade_record(hgobj gobj, const char *treedb_name);
+PRIVATE json_t *load_upgrade_record(hgobj gobj, const char *treedb_name);
+PRIVATE json_t *left_by_older_release_now(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *upgrade,
+    json_t *file_in_use,
+    json_t *saved
+);
 PRIVATE json_t *rows_without_leftovers(
     hgobj gobj,
     const char *treedb_name,
@@ -502,6 +520,7 @@ typedef struct _PRIVATE_DATA {
     json_t *jn_apply_record_at_open;    // {treedb: "remove"|"ran"} done once the open succeeds
     json_t *jn_not_opened;              // {treedb: true} whose services exist but treedb_open_db() refused it
     json_t *jn_records_not_written;     // {treedb: record} of an unfinished projection the disk refused
+    json_t *jn_upgrade_records;         // {treedb: {record, stat}} read from saved_schemas/, see load_upgrade_record
     json_int_t system_schema_version;   // of treedb_system_schema, see reconcile
     int32_t exit_on_error;
 } PRIVATE_DATA;
@@ -541,6 +560,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->jn_apply_record_at_open = json_object();
     priv->jn_not_opened = json_object();
     priv->jn_records_not_written = json_object();
+    priv->jn_upgrade_records = json_object();
 
     /*-----------------------------------*
      *      Create System Timeranger
@@ -666,6 +686,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->jn_apply_record_at_open)
     JSON_DECREF(priv->jn_not_opened)
     JSON_DECREF(priv->jn_records_not_written)
+    JSON_DECREF(priv->jn_upgrade_records)
 }
 
 /***************************************************************************
@@ -1339,14 +1360,16 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     /*
      *  Its saved schema goes with it, the record of an apply not opened
-     *  yet, and the record of an unfinished projection: left in
-     *  saved_schemas/, a treedb created again under the name found them.
+     *  yet, the record of an unfinished projection and the record of the
+     *  upgrade: left in saved_schemas/, a treedb created again under the
+     *  name found them.
      */
     json_int_t removed_version = 0;
     if(ret == 0) {
         ret = remove_saved_schema(gobj, treedb_name, &removed_version);  // Error already logged
         remove_apply_record(gobj, treedb_name);     // Error already logged
         remove_unfinished_record(gobj, treedb_name);    // Error already logged
+        remove_upgrade_record(gobj, treedb_name);   // Error already logged
     }
 
     if(ret < 0) {
@@ -2768,6 +2791,25 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_t *tree = system_tree_of(gobj, treedb_name);
         json_t *edited = json_object();
         json_t *leftovers = leftovers_as_left(gobj, treedb_name, record, edited);
+
+        /*
+         *  Nor is what an older release left (see new_upgrade_record)
+         */
+        json_t *upgrade = load_upgrade_record(gobj, treedb_name);
+        json_t *left = left_by_older_release_now(
+            gobj, treedb_name, upgrade, in_use, pending? saved : NULL
+        );
+        if(json_object_size(left) > 0) {
+            if(!leftovers) {
+                leftovers = json_array();
+            }
+            const char *left_id; json_t *v;
+            json_object_foreach(left, left_id, v) {
+                json_array_append_new(leftovers, json_string(left_id));
+            }
+        }
+        JSON_DECREF(left)
+        JSON_DECREF(upgrade)
         rows = rows_without_leftovers(gobj, treedb_name, tree, rows, leftovers);
         JSON_DECREF(leftovers)
         JSON_DECREF(tree)
@@ -4292,15 +4334,17 @@ PRIVATE void add_unfinished_topic(
 
 /***************************************************************************
  *  The ids of topics and columns `kw` declares, {"topics": {id: true},
- *  "cols": {id: true}} (a name that does not fit is logged). Return is YOURS.
+ *  "cols": {id: true}} (a name that does not fit is logged), its topics a
+ *  list or a dict. Return is YOURS.
  ***************************************************************************/
 PRIVATE json_t *declared_schema_ids(hgobj gobj, const char *treedb_name, json_t *kw)
 {
     json_t *topic_ids = json_object();
     json_t *col_ids = json_object();
 
+    json_t *topics = schema_topics_as_list(gobj, kw);
     int idx; json_t *jn_topic;
-    json_array_foreach(kw_get_list(gobj, kw, "topics", 0, 0), idx, jn_topic) {
+    json_array_foreach(topics, idx, jn_topic) {
         const char *topic_name = kw_get_str(gobj, jn_topic, "id", "", 0);
         if(empty_string(topic_name)) {
             topic_name = kw_get_str(gobj, jn_topic, "topic_name", "", 0);
@@ -4325,6 +4369,7 @@ PRIVATE json_t *declared_schema_ids(hgobj gobj, const char *treedb_name, json_t 
         }
         JSON_DECREF(jn_cols)
     }
+    JSON_DECREF(topics)
 
     return json_pack("{s:o, s:o}", "topics", topic_ids, "cols", col_ids);
 }
@@ -4689,7 +4734,8 @@ PRIVATE int record_projection_in_progress(
     const char *topic_name; json_t *jn_kind;
     json_object_foreach(kinds, topic_name, jn_kind) {
         const char *before = json_string_value(json_object_get(replaced_kinds, topic_name));
-        if(!before || strcmp(json_string_value(jn_kind), "saved")==0) {
+        if(!before || strcmp(json_string_value(jn_kind), "saved")==0 ||
+                strcmp(before, KIND_LEFT_BY_OLDER_RELEASE)==0) {
             json_object_set(replaced_kinds, topic_name, jn_kind);
         }
     }
@@ -4751,7 +4797,9 @@ PRIVATE int record_projection_in_progress(
  *  What that replaces of the operator's work -- a draft of a topic, saved
  *  or not (`drafts`, `saved`, see draft_kind), a topic the draft deleted
  *  included -- is added to `replaced` as {topic: "saved" | "unsaved"}; the
- *  caller says it. A draft is reported by the open that REPLACES it, once:
+ *  caller says it. What it removes that an older release left
+ *  (`left_by_older`, see new_upgrade_record) is added as
+ *  "left_by_older_release", unless the topic has another kind. A draft is reported by the open that REPLACES it, once:
  *  a projection that cannot replace a part of it (a write that fails, a
  *  delete a snapshot refuses) leaves it a draft -- not a leftover,
  *  `draft_ids` says which ids carry one -- says nothing of that topic, and
@@ -4959,9 +5007,10 @@ PRIVATE int upsert_treedb_schema(
                  */
                 json_object_set_new(planned, current_col_id, json_null());
             }
-            json_array_append_new(removed, json_pack("{s:s, s:b}",
+            json_array_append_new(removed, json_pack("{s:s, s:b, s:b}",
                 "id", current_col_id,
-                "delete", delete
+                "delete", delete,
+                "left", (delete && json_object_get(ctx->left_by_older, current_col_id))? 1 : 0
             ));
         }
         JSON_DECREF(topic_cols)
@@ -5045,6 +5094,14 @@ PRIVATE int upsert_treedb_schema(
                     json_object_set_new(plan_kinds, topic_name, json_string("unsaved"));
                 }
             }
+            json_t *jn_rem;
+            json_array_foreach(removed, idx3, jn_rem) {
+                if(json_is_true(json_object_get(jn_rem, "left")) &&
+                        !json_object_get(plan_kinds, topic_name)) {
+                    json_object_set_new(plan_kinds, topic_name,
+                        json_string(KIND_LEFT_BY_OLDER_RELEASE));
+                }
+            }
         }
 
         json_array_append_new(ops, json_pack("{s:s, s:s, s:o, s:s, s:b, s:s?, s:b, s:o, s:o, s:o}",
@@ -5077,6 +5134,9 @@ PRIVATE int upsert_treedb_schema(
             gobj, ctx->drafts, ctx->saved, kinds_before, topic_name, current_topic,
             topic_version_in_use(in_use, topic_name)
         );
+        if(!kind && json_object_get(ctx->left_by_older, current_topic_id)) {
+            kind = KIND_LEFT_BY_OLDER_RELEASE;
+        }
         char owner_[RECORD_KEY_VALUE_MAX];
         const char *owner = parent_id_of(current_topic_id, topic_name, owner_, sizeof(owner_));
         BOOL delete = (!owner || strcmp(owner, treedb_name)==0)? TRUE : FALSE;
@@ -5113,11 +5173,14 @@ PRIVATE int upsert_treedb_schema(
     const char *orphan_id; json_t *orphan;
     json_object_foreach(orphans, orphan_id, orphan) {
         json_object_set_new(planned, orphan_id, json_null());
+        const char *topic_name = kw_get_str(gobj, orphan, "topic", "", 0);
+        const char *plan_kind = json_string_value(json_object_get(plan_kinds, topic_name));
         if(json_object_get(draft_ids, orphan_id)) {
-            const char *topic_name = kw_get_str(gobj, orphan, "topic", "", 0);
-            if(!json_object_get(plan_kinds, topic_name)) {
+            if(!plan_kind || strcmp(plan_kind, KIND_LEFT_BY_OLDER_RELEASE)==0) {
                 json_object_set_new(plan_kinds, topic_name, json_string("unsaved"));
             }
+        } else if(json_object_get(ctx->left_by_older, orphan_id) && !plan_kind) {
+            json_object_set_new(plan_kinds, topic_name, json_string(KIND_LEFT_BY_OLDER_RELEASE));
         }
     }
 
@@ -5133,8 +5196,10 @@ PRIVATE int upsert_treedb_schema(
     }
     json_object_foreach(ctx->edited, edited_id, jn_edited_topic) {
         const char *topic_name = json_string_value(jn_edited_topic);
+        const char *plan_kind = topic_name?
+            json_string_value(json_object_get(plan_kinds, topic_name)) : NULL;
         if(topic_name && json_object_get(touched, edited_id) &&
-                !json_object_get(plan_kinds, topic_name)) {
+                (!plan_kind || strcmp(plan_kind, KIND_LEFT_BY_OLDER_RELEASE)==0)) {
             json_object_set_new(plan_kinds, topic_name, json_string(
                 edited_kind(kinds_before, topic_name)
             ));
@@ -5344,6 +5409,7 @@ PRIVATE int upsert_treedb_schema(
             JSON_DECREF(col)
         }
 
+        BOOL left_removed = FALSE; /*  a column an older release left, removed  */
         json_t *jn_removed;
         json_array_foreach(removed, idx2, jn_removed) {
             const char *col_id = kw_get_str(gobj, jn_removed, "id", "", 0);
@@ -5380,6 +5446,9 @@ PRIVATE int upsert_treedb_schema(
                 }
             } else {
                 json_object_set_new(done, col_id, json_true());
+                if(json_is_true(json_object_get(jn_removed, "left"))) {
+                    left_removed = TRUE;
+                }
             }
         }
 
@@ -5389,6 +5458,8 @@ PRIVATE int upsert_treedb_schema(
             json_object_set_new(replaced, topic_name, json_string(kind));
         } else if(orphan_work && replaced) {
             json_object_set_new(replaced, topic_name, json_string("unsaved"));
+        } else if(left_removed && replaced && !json_object_get(replaced, topic_name)) {
+            json_object_set_new(replaced, topic_name, json_string(KIND_LEFT_BY_OLDER_RELEASE));
         }
 
         json_decref(topic);
@@ -5539,8 +5610,13 @@ PRIVATE int upsert_treedb_schema(
                 "operator_work",    "%d", (int)operator_work,
                 NULL
             );
-            if(operator_work && replaced && !json_object_get(replaced, topic_name)) {
+            const char *said = json_string_value(json_object_get(replaced, topic_name));
+            if(operator_work && replaced &&
+                    (!said || strcmp(said, KIND_LEFT_BY_OLDER_RELEASE)==0)) {
                 json_object_set_new(replaced, topic_name, json_string("unsaved"));
+            } else if(!operator_work && replaced && !said &&
+                    json_object_get(ctx->left_by_older, orphan_id)) {
+                json_object_set_new(replaced, topic_name, json_string(KIND_LEFT_BY_OLDER_RELEASE));
             }
         }
     }
@@ -5559,7 +5635,8 @@ PRIVATE int upsert_treedb_schema(
             keep_draft_kind(unfinished, topic_name, edited_kind(kinds_before, topic_name));
             continue;
         }
-        if(replaced && !json_object_get(replaced, topic_name)) {
+        const char *said = json_string_value(json_object_get(replaced, topic_name));
+        if(replaced && (!said || strcmp(said, KIND_LEFT_BY_OLDER_RELEASE)==0)) {
             json_object_set_new(replaced, topic_name,
                 json_string(edited_kind(kinds_before, topic_name)));
         }
@@ -6454,6 +6531,149 @@ PRIVATE void remove_unfinished_record(hgobj gobj, const char *treedb_name)
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_SYSTEM,
             "msg",              "%s", "Cannot remove the record of an unfinished projection",
+            "treedb_name",      "%s", treedb_name,
+            "directory",        "%s", saved_dir,
+            "filename",         "%s", filename,
+            "errno",            "%s", strerror(errno),
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
+ *  The RECORD of the upgrade of a treedb, `<treedb>.upgrade.json` in
+ *  saved_schemas/, written by the first open of the treedb by this
+ *  release (see reconcile_treedb_schema):
+ *
+ *      {"release": "7.25.5",
+ *       "left_by_older_release": ["tw.departments", "tw.departments.id"],
+ *       "leftover_nodes": {"tw.departments": {...}, ...},
+ *       "topics": {"tw.departments": "departments", ...},
+ *       "system_schema_version": 18}
+ *
+ *  Its presence says that an open by this release -- one that stamps a
+ *  projection LAST and deletes what the schema does not declare -- has
+ *  been here. Before that open, __system__ is what an older release left:
+ *  7.25.4 and before stamped the node of the treedb FIRST (a process that
+ *  died left a stamped projection with part of it) and never deleted a
+ *  node (a topic or a column a literal removed stayed). After it, a
+ *  stamped projection is a complete one, and a node that no schema
+ *  declares is the operator's.
+ *
+ *  `left_by_older_release` is what that first open found in __system__
+ *  and no schema declares: the nodes an older release left. They keep
+ *  that name while they stay as they were found (`leftover_nodes`, see
+ *  leftovers_as_left): they are no draft, and the open that removes them
+ *  says it with their own kind. The ids that are gone are dropped.
+ ***************************************************************************/
+PRIVATE void upgrade_record_filename(const char *treedb_name, char *bf, size_t bfsize)
+{
+    snprintf(bf, bfsize, "%s.upgrade.json", treedb_name);
+}
+
+/***************************************************************************
+ *  What says that the file of a record is the one read before: its inode,
+ *  size and time of change. Return is YOURS, NULL when there is no file.
+ ***************************************************************************/
+PRIVATE json_t *record_file_stamp(const char *directory, const char *filename)
+{
+    char path[PATH_MAX];
+    struct stat st;
+    if(!build_path(path, sizeof(path), directory, filename, NULL) || stat(path, &st) < 0) {
+        return NULL;
+    }
+    return json_pack("[I, I, I, I]",
+        (json_int_t)st.st_ino,
+        (json_int_t)st.st_size,
+        (json_int_t)st.st_mtim.tv_sec,
+        (json_int_t)st.st_mtim.tv_nsec
+    );
+}
+
+/***************************************************************************
+ *  The record of the upgrade, or NULL when there is none: the treedb was
+ *  never opened by this release. It is read at every open: kept in
+ *  memory while its file is the one read (record_file_stamp). Return is
+ *  YOURS
+ ***************************************************************************/
+PRIVATE json_t *load_upgrade_record(hgobj gobj, const char *treedb_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char filename[NAME_MAX];
+    upgrade_record_filename(treedb_name, filename, sizeof(filename));
+    json_t *stamp = record_file_stamp(saved_dir, filename);
+    if(!stamp) {
+        json_object_del(priv->jn_upgrade_records, treedb_name);
+        return NULL;
+    }
+    json_t *cached = json_object_get(priv->jn_upgrade_records, treedb_name);
+    if(cached && json_equal(json_object_get(cached, "stamp"), stamp)) {
+        JSON_DECREF(stamp)
+        return json_deep_copy(json_object_get(cached, "record"));
+    }
+    json_t *record = load_json_from_file(gobj, saved_dir, filename, 0);
+    if(!json_is_object(record)) {
+        /*
+         *  Unreadable: it says the release was here, and nothing more
+         */
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_TREEDB,
+            "msg",              "%s", "Record of the upgrade cannot be read: the nodes an older release left are not told apart any more",
+            "treedb_name",      "%s", treedb_name,
+            "directory",        "%s", saved_dir,
+            "filename",         "%s", filename,
+            NULL
+        );
+        JSON_DECREF(record)
+        record = json_pack("{s:s, s:[]}", "release", "", "left_by_older_release");
+    }
+    json_object_set_new(priv->jn_upgrade_records, treedb_name, json_pack("{s:o, s:o}",
+        "stamp", stamp,
+        "record", json_deep_copy(record)
+    ));
+    return record;
+}
+
+/***************************************************************************
+ *  Write the record of the upgrade WHOLE (write_record_whole). -1 when it
+ *  could not be written (logged): the next open is then the first one
+ *  again, and finds the same.
+ ***************************************************************************/
+PRIVATE int write_upgrade_record(hgobj gobj, const char *treedb_name, json_t *record) // not owned
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char filename[NAME_MAX];
+    upgrade_record_filename(treedb_name, filename, sizeof(filename));
+    json_object_del(priv->jn_upgrade_records, treedb_name);
+    return write_record_whole(gobj, treedb_name, filename, record, "upgrade");
+}
+
+/***************************************************************************
+ *  Remove the record of the upgrade, if there is one (a failure is logged)
+ ***************************************************************************/
+PRIVATE void remove_upgrade_record(hgobj gobj, const char *treedb_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_object_del(priv->jn_upgrade_records, treedb_name);
+
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char filename[NAME_MAX];
+    upgrade_record_filename(treedb_name, filename, sizeof(filename));
+    if(!file_exists(saved_dir, filename)) {
+        return;
+    }
+    if(file_remove(saved_dir, filename) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_SYSTEM,
+            "msg",              "%s", "Cannot remove the record of the upgrade",
             "treedb_name",      "%s", treedb_name,
             "directory",        "%s", saved_dir,
             "filename",         "%s", filename,
@@ -7891,6 +8111,10 @@ PRIVATE void keep_common_keys(json_t *a, json_t *b)  // a MUTATED, b not owned
  *  unless the projection left them: an unlink the operator made, which
  *  the projection removes or takes over, and says.
  *
+ *  The ids of `not_drafts` (the nodes an older release left, the gaps of
+ *  a projection an older release stamped first) are nobody's work either,
+ *  as a leftover is, but they are not leftovers of the record.
+ *
  *  `*p_left` is the leftovers of the record still as left (NULL without a
  *  record): a projection that writes the record of its own keeps them
  *  (see record_projection_in_progress). `*p_edited` is the leftovers the
@@ -7906,6 +8130,7 @@ PRIVATE json_t *drafts_over_file(
     json_t *record,         // not owned, the record of an unfinished projection, may be NULL
     json_t *tree,           // not owned, the node tree of the treedb
     json_t *orphans,        // not owned, orphan_nodes() of the treedb
+    json_t *not_drafts,     // not owned, {id: ...} that are nobody's work either, may be NULL
     json_t **p_draft_ids,
     json_t **p_left,
     json_t **p_edited
@@ -7914,13 +8139,26 @@ PRIVATE json_t *drafts_over_file(
     json_t *edited = json_object();
     json_t *leftovers = leftovers_as_left(gobj, treedb_name, record, edited);
 
+    /*
+     *  What is nobody's work: the leftovers, and `not_drafts`
+     */
+    json_t *excluded = json_array();
+    if(leftovers) {
+        json_array_extend(excluded, leftovers);
+    }
+    const char *nd_id; json_t *nd;
+    json_object_foreach(not_drafts, nd_id, nd) {
+        json_array_append_new(excluded, json_string(nd_id));
+    }
+
     json_t *rows = json_array();
     json_t *summary = diff_treedb_schema(gobj, treedb_name, file_in_use, rows);
     JSON_DECREF(summary)
-    rows = rows_without_leftovers(gobj, treedb_name, tree, rows, leftovers);
+    rows = rows_without_leftovers(gobj, treedb_name, tree, rows, excluded);
     json_t *drafts = draft_changed_from_rows(gobj, rows);
 
-    json_t *leftover_ids = ids_as_dict(leftovers);
+    json_t *leftover_ids = ids_as_dict(excluded);
+    JSON_DECREF(excluded)
     *p_draft_ids = json_object();
     int idx; json_t *row;
     json_array_foreach(rows, idx, row) {
@@ -8065,6 +8303,7 @@ PRIVATE json_t *drafts_over_file_and_base(
     json_t *record,         // not owned, may be NULL
     json_t *tree,           // not owned
     json_t *orphans,        // not owned
+    json_t *not_drafts,     // not owned, may be NULL (see drafts_over_file)
     json_t *draft_ids       // not owned, MUTATED
 )
 {
@@ -8072,7 +8311,7 @@ PRIVATE json_t *drafts_over_file_and_base(
     json_t *left2 = NULL;
     json_t *edited2 = NULL;
     json_t *drafts2 = drafts_over_file(
-        gobj, treedb_name, base, record, tree, orphans, &ids2, &left2, &edited2
+        gobj, treedb_name, base, record, tree, orphans, not_drafts, &ids2, &left2, &edited2
     );
     keep_common_keys(draft_ids, ids2);
     JSON_DECREF(drafts2)
@@ -8145,6 +8384,447 @@ PRIVATE BOOL projection_differs_from_literal(
 }
 
 /***************************************************************************
+ *  The saved schema of a treedb when it is a PENDING save (newer than the
+ *  file in use), NULL otherwise. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *load_pending_saved_schema(hgobj gobj, const char *treedb_name, json_int_t in_use_version)
+{
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
+    if(!file_exists(saved_dir, filename)) {
+        return NULL;
+    }
+    json_t *saved = load_json_from_file(gobj, saved_dir, filename, 0);
+    if(schema_version_of(gobj, saved) <= in_use_version) {
+        JSON_DECREF(saved)  /*  not a pending save  */
+    }
+    return saved;
+}
+
+/***************************************************************************
+ *  Does `declared` (declared_schema_ids(), may be NULL) declare the id
+ *  `id`, as a topic or as a column?
+ ***************************************************************************/
+PRIVATE BOOL ids_declare(json_t *declared, const char *id)
+{
+    return (json_object_get(json_object_get(declared, "topics"), id) ||
+        json_object_get(json_object_get(declared, "cols"), id))? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  The record of the upgrade that the FIRST open of a treedb by this
+ *  release writes (see upgrade_record_filename): what an OLDER RELEASE
+ *  left in __system__. It is every node OF the treedb -- a topic, a
+ *  column of it, a node of it that no tree reaches, whose owner is read
+ *  from the node as a projection reads it -- that no schema declares
+ *  (neither the schema file in use nor a pending saved schema) and that
+ *  no record of an unfinished projection names.
+ *
+ *  7.25.4 and before never deleted from __system__: a topic or a column a
+ *  literal removed stayed there, and that is what such a node is. An
+ *  unsaved draft that ADDED a node before the upgrade reads the same, and
+ *  is taken as left too: nothing tells the two apart, and both are what
+ *  an older release kept where this one withdraws it. After this open, a
+ *  node that no schema declares is the operator's: this release removes
+ *  what a literal does not declare, and records what it could not.
+ *
+ *  Each node is kept as it is now (leftover_node), so an edit made later
+ *  is the operator's (see left_by_older_release_now). With no schema file
+ *  nothing is declared to compare with, and nothing is taken.
+ *
+ *  Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *new_upgrade_record(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *file_in_use,    // not owned, may be NULL
+    json_t *saved,          // not owned, the pending saved schema, may be NULL
+    json_t *record          // not owned, the record of an unfinished projection, may be NULL
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *upgrade = json_pack("{s:s, s:[], s:{}, s:{}, s:I}",
+        "release", YUNETA_VERSION,
+        "left_by_older_release",
+        "leftover_nodes",
+        "topics",
+        "system_schema_version", (json_int_t)priv->system_schema_version
+    );
+    if(!file_in_use) {
+        return upgrade;
+    }
+
+    json_t *tree = system_tree_of(gobj, treedb_name);
+    json_t *index = system_index(gobj, treedb_name);
+    json_t *orphans = orphan_nodes(gobj, treedb_name, index, record);
+    json_t *in_file = declared_schema_ids(gobj, treedb_name, file_in_use);
+    json_t *in_saved = saved? declared_schema_ids(gobj, treedb_name, saved) : NULL;
+
+    json_t *left = json_object();   // {id: topic}
+    json_t *topics = tree? kw_get_dict(gobj, tree, "topics", 0, 0) : NULL;
+    const char *topic_id; json_t *topic;
+    json_object_foreach(topics, topic_id, topic) {
+        const char *topic_name = kw_get_str(gobj, topic, "value", "", 0);
+        char owner_[RECORD_KEY_VALUE_MAX];
+        const char *owner = parent_id_of(topic_id, topic_name, owner_, sizeof(owner_));
+        if(owner && strcmp(owner, treedb_name)!=0) {
+            continue;   /*  a topic of another treedb linked here  */
+        }
+        if(!ids_declare(in_file, topic_id) && !ids_declare(in_saved, topic_id) &&
+                !record_names_id(record, topic_id)) {
+            json_object_set_new(left, topic_id, json_string(topic_name));
+        }
+        const char *col_id; json_t *col;
+        json_object_foreach(kw_get_dict(gobj, topic, "cols", 0, 0), col_id, col) {
+            json_t *indexed = index_node(gobj, index, "cols", col_id);
+            if(!col_of_treedb(gobj, index, treedb_name, record, topic_id, indexed? indexed : col)) {
+                continue;   /*  a column of another treedb linked here  */
+            }
+            if(!ids_declare(in_file, col_id) && !ids_declare(in_saved, col_id) &&
+                    !record_names_id(record, col_id)) {
+                json_object_set_new(left, col_id, json_string(topic_name));
+            }
+        }
+    }
+    const char *orphan_id; json_t *orphan;
+    json_object_foreach(orphans, orphan_id, orphan) {
+        if(!ids_declare(in_file, orphan_id) && !ids_declare(in_saved, orphan_id) &&
+                !record_names_id(record, orphan_id)) {
+            json_object_set_new(left, orphan_id,
+                json_string(kw_get_str(gobj, orphan, "topic", "", 0)));
+        }
+    }
+
+    json_t *cols_desc = _treedb_create_topic_cols_desc();
+    json_t *topic_attrs = projection_attrs(gobj, TRUE, cols_desc);
+    json_t *col_attrs = projection_attrs(gobj, FALSE, cols_desc);
+    json_t *ids = json_object_get(upgrade, "left_by_older_release");
+    json_t *nodes = json_object_get(upgrade, "leftover_nodes");
+    json_t *id_topics = json_object_get(upgrade, "topics");
+    const char *id; json_t *jn_topic;
+    json_object_foreach(left, id, jn_topic) {
+        json_array_append_new(ids, json_string(id));
+        json_object_set_new(nodes, id,
+            leftover_node(gobj, index, id, topic_attrs, col_attrs, NULL, NULL)
+        );
+        json_object_set(id_topics, id, jn_topic);
+    }
+
+    JSON_DECREF(col_attrs)
+    JSON_DECREF(topic_attrs)
+    JSON_DECREF(cols_desc)
+    JSON_DECREF(left)
+    JSON_DECREF(in_saved)
+    JSON_DECREF(in_file)
+    JSON_DECREF(orphans)
+    JSON_DECREF(index)
+    JSON_DECREF(tree)
+    return upgrade;
+}
+
+/***************************************************************************
+ *  The nodes an older release left (the record of the upgrade, see
+ *  new_upgrade_record) that are STILL that: as the first open found them
+ *  (leftovers_as_left: an edit since, a move, a delete, is the
+ *  operator's), and declared by no schema yet -- neither the schema file
+ *  in use nor a pending saved schema: a save or an apply that declares one
+ *  made it the operator's. They are no draft, and the open that removes
+ *  them says it with their own kind, "left_by_older_release".
+ *
+ *  Return is YOURS, {id: topic name}.
+ ***************************************************************************/
+PRIVATE json_t *left_by_older_release_now(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *upgrade,        // not owned, the record of the upgrade, may be NULL
+    json_t *file_in_use,    // not owned, may be NULL
+    json_t *saved           // not owned, the pending saved schema, may be NULL
+)
+{
+    json_t *left = json_object();
+    json_t *ids = json_object_get(upgrade, "left_by_older_release");
+    if(!json_is_array(ids) || json_array_size(ids) == 0) {
+        return left;
+    }
+    json_t *nodes = json_object_get(upgrade, "leftover_nodes");
+    json_t *as_record = json_object();
+    json_object_set(as_record, "leftovers", ids);
+    json_object_set_new(as_record, "leftover_nodes",
+        json_is_object(nodes)? json_incref(nodes) : json_object());
+    json_object_set_new(as_record, "system_schema_version", json_integer(
+        kw_get_int(gobj, upgrade, "system_schema_version", 0, KW_WILD_NUMBER)
+    ));
+    json_t *as_left = leftovers_as_left(gobj, treedb_name, as_record, NULL);
+    JSON_DECREF(as_record)
+
+    json_t *in_file = file_in_use? declared_schema_ids(gobj, treedb_name, file_in_use) : NULL;
+    json_t *in_saved = saved? declared_schema_ids(gobj, treedb_name, saved) : NULL;
+    json_t *id_topics = json_object_get(upgrade, "topics");
+    int idx; json_t *jn_id;
+    json_array_foreach(as_left, idx, jn_id) {
+        const char *id = json_string_value(jn_id);
+        if(!id || ids_declare(in_file, id) || ids_declare(in_saved, id)) {
+            continue;
+        }
+        json_t *jn_topic = json_object_get(id_topics, id);
+        json_object_set_new(left, id, json_string(json_is_string(jn_topic)?
+            json_string_value(jn_topic) : ""));
+    }
+    JSON_DECREF(in_saved)
+    JSON_DECREF(in_file)
+    JSON_DECREF(as_left)
+    return left;
+}
+
+/***************************************************************************
+ *  The ids `jn_schema` declares that the tree of the treedb (`tree`,
+ *  system_tree_of) does not hold: a topic that is not in it, or a column
+ *  that is in none of its topics. A list, in the order of the schema.
+ *  Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *schema_gaps(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_schema,  // not owned
+    json_t *tree        // not owned, may be NULL
+)
+{
+    json_t *in_tree = json_object();
+    json_t *tree_topics = tree? kw_get_dict(gobj, tree, "topics", 0, 0) : NULL;
+    const char *topic_id; json_t *topic;
+    json_object_foreach(tree_topics, topic_id, topic) {
+        json_object_set_new(in_tree, topic_id, json_true());
+        const char *col_id; json_t *col;
+        json_object_foreach(kw_get_dict(gobj, topic, "cols", 0, 0), col_id, col) {
+            json_object_set_new(in_tree, col_id, json_true());
+        }
+    }
+
+    json_t *gaps = json_array();
+    json_t *topics = schema_topics_as_list(gobj, jn_schema);
+    int idx; json_t *jn_topic;
+    json_array_foreach(topics, idx, jn_topic) {
+        const char *topic_name = kw_get_str(gobj, jn_topic, "id", "", 0);
+        if(empty_string(topic_name)) {
+            topic_name = kw_get_str(gobj, jn_topic, "topic_name", "", 0);
+        }
+        char tid[RECORD_KEY_VALUE_MAX];
+        if(empty_string(topic_name) ||
+                !build_schema_node_id(gobj, tid, sizeof(tid), treedb_name, topic_name)) {
+            continue;   // Error already logged (the projection logs a topic with no name)
+        }
+        if(!json_object_get(in_tree, tid)) {
+            json_array_append_new(gaps, json_string(tid));
+        }
+        json_t *jn_cols = kwid_new_list(gobj, jn_topic, 0, "cols");
+        int idx2; json_t *jn_col;
+        json_array_foreach(jn_cols, idx2, jn_col) {
+            const char *col_name = kw_get_str(gobj, jn_col, "id", "", 0);
+            char cid[RECORD_KEY_VALUE_MAX];
+            if(empty_string(col_name) ||
+                    !build_schema_node_id(gobj, cid, sizeof(cid), tid, col_name)) {
+                continue;   // Error already logged (the projection logs a column with no name)
+            }
+            if(!json_object_get(in_tree, cid)) {
+                json_array_append_new(gaps, json_string(cid));
+            }
+        }
+        JSON_DECREF(jn_cols)
+    }
+    JSON_DECREF(topics)
+    JSON_DECREF(in_tree)
+    return gaps;
+}
+
+/***************************************************************************
+ *  Write into __system__ what `jn_schema` declares at the ids `gaps`
+ *  (schema_gaps) and link it where the schema declares it: a node that is
+ *  there already, in no tree, is only linked. Nothing else is touched: a
+ *  node that is in the tree stays as it is, the operator's edits
+ *  included. Return the ids restored (YOURS); the ids that could not be
+ *  (a write or a link that failed, logged) go into `failed`.
+ ***************************************************************************/
+PRIVATE json_t *restore_from_schema(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_schema,  // not owned
+    json_t *gaps,       // not owned
+    json_t *failed      // not owned, a list
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *restored = json_array();
+    json_t *gap_ids = ids_as_dict(gaps);
+    json_t *cols_desc = _treedb_create_topic_cols_desc();
+
+    json_t *topics = schema_topics_as_list(gobj, jn_schema);
+    int idx; json_t *jn_topic;
+    json_array_foreach(topics, idx, jn_topic) {
+        const char *topic_name = kw_get_str(gobj, jn_topic, "id", "", 0);
+        if(empty_string(topic_name)) {
+            topic_name = kw_get_str(gobj, jn_topic, "topic_name", "", 0);
+        }
+        char topic_id[RECORD_KEY_VALUE_MAX];
+        if(empty_string(topic_name) ||
+                !build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
+            continue;   // Error already logged (the projection logs a topic with no name)
+        }
+
+        json_t *topic = gobj_get_node(
+            priv->gobj_node_system,
+            "topics",
+            json_pack("{s:s}", "id", topic_id),
+            json_pack("{s:b}", "refs", 1),
+            gobj
+        );
+        if(json_object_get(gap_ids, topic_id)) {
+            if(!topic) {
+                json_t *kw_topic = build_topic_projection(gobj, jn_topic, topic_name,
+                    kw_get_int(gobj, jn_topic, "topic_version", 1, KW_WILD_NUMBER), idx);
+                if(kw_topic) {
+                    json_object_set_new(kw_topic, "id", json_string(topic_id));
+                    topic = gobj_create_node(
+                        priv->gobj_node_system,
+                        "topics",
+                        kw_topic,
+                        json_pack("{s:b}", "refs", 1),
+                        gobj
+                    );
+                }
+            }
+            if(!topic || gobj_link_nodes(
+                    priv->gobj_node_system,
+                    "topics",
+                    "treedbs",
+                    json_pack("{s:s}", "id", treedb_name),
+                    "topics",
+                    json_incref(topic),
+                    gobj
+                ) < 0) {
+                /*
+                 *  Nothing is written under a topic no tree reaches
+                 */
+                json_array_append_new(failed, json_string(topic_id));   // Error already logged
+                JSON_DECREF(topic)
+                continue;
+            }
+            json_array_append_new(restored, json_string(topic_id));
+        }
+
+        json_t *jn_cols = kwid_new_list(gobj, jn_topic, 0, "cols");
+        int idx2; json_t *jn_col;
+        json_array_foreach(jn_cols, idx2, jn_col) {
+            const char *col_name = kw_get_str(gobj, jn_col, "id", "", 0);
+            char col_id[RECORD_KEY_VALUE_MAX];
+            if(empty_string(col_name) ||
+                    !build_schema_node_id(gobj, col_id, sizeof(col_id), topic_id, col_name) ||
+                    !json_object_get(gap_ids, col_id)) {
+                continue;
+            }
+            if(!topic) {
+                json_array_append_new(failed, json_string(col_id));
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "Cannot restore a column in __system__: its topic is not there",
+                    "treedb_name",  "%s", treedb_name,
+                    "id",           "%s", col_id,
+                    NULL
+                );
+                continue;
+            }
+            json_t *col = gobj_get_node(
+                priv->gobj_node_system,
+                "cols",
+                json_pack("{s:s}", "id", col_id),
+                json_pack("{s:b}", "refs", 1),
+                gobj
+            );
+            if(!col) {
+                json_t *kw_col = build_col_projection(gobj, jn_col, cols_desc, idx2);
+                if(kw_col) {
+                    json_object_set_new(kw_col, "id", json_string(col_id));
+                    col = gobj_create_node(
+                        priv->gobj_node_system,
+                        "cols",
+                        kw_col,
+                        json_pack("{s:b}", "refs", 1),
+                        gobj
+                    );
+                }
+            }
+            if(!col || gobj_link_nodes(
+                    priv->gobj_node_system,
+                    "cols",
+                    "topics",
+                    json_incref(topic),
+                    "cols",
+                    json_incref(col),
+                    gobj
+                ) < 0) {
+                json_array_append_new(failed, json_string(col_id));    // Error already logged
+            } else {
+                json_array_append_new(restored, json_string(col_id));
+            }
+            JSON_DECREF(col)
+        }
+        JSON_DECREF(jn_cols)
+        JSON_DECREF(topic)
+    }
+
+    JSON_DECREF(topics)
+    JSON_DECREF(cols_desc)
+    JSON_DECREF(gap_ids)
+    return restored;
+}
+
+/***************************************************************************
+ *  Restore what a projection STAMPED FIRST by an older release left out
+ *  (see project_literal_into_system): the topics and columns the literal
+ *  declares that the tree of the treedb does not hold are written from
+ *  the literal and linked, and said, ONE WARNING naming the ids. Nothing
+ *  that is in the tree is touched, and nothing is reported as the
+ *  operator's. -1 when a write failed (logged): the next open is the
+ *  first one again, and restores what is still missing.
+ ***************************************************************************/
+PRIVATE int restore_stamped_projection(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_schema   // not owned, the literal (the file in use is the same)
+)
+{
+    json_t *tree = system_tree_of(gobj, treedb_name);
+    json_t *gaps = schema_gaps(gobj, treedb_name, jn_schema, tree);
+    JSON_DECREF(tree)
+    if(json_array_size(gaps) == 0) {
+        JSON_DECREF(gaps)
+        return 0;
+    }
+
+    json_t *failed = json_array();
+    json_t *restored = restore_from_schema(gobj, treedb_name, jn_schema, gaps, failed);
+    gobj_log_warning(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_TREEDB,
+        "msg",              "%s", "Restored from the schema from C: what __system__ missed of it, a projection by an older release stamped the treedb first and did not finish (its process died); nobody's work is withdrawn",
+        "treedb_name",      "%s", treedb_name,
+        "schema_version",   "%d", (int)schema_version_of(gobj, jn_schema),
+        "restored",         "%j", restored,
+        "failed",           "%j", failed,
+        NULL
+    );
+    int ret = json_array_size(failed) > 0? -1 : 0;
+    JSON_DECREF(restored)
+    JSON_DECREF(failed)
+    JSON_DECREF(gaps)
+    return ret;
+}
+
+/***************************************************************************
  *  Keep the __system__ projection in step with what the treedb RUNS.
  *
  *  With impose_c_schema off, treedb_open_db() installs the literal only
@@ -8209,14 +8889,18 @@ PRIVATE int project_literal_into_system(
     json_t *file_in_use,// not owned, the schema file in use before this open, or NULL
     BOOL installed,     // treedb_open_db() writes the literal over the file
     json_t *unfinished_before, // not owned, the record of an unfinished projection, or NULL
+    json_t *left_by_older, // not owned, {id: topic} an older release left, see left_by_older_release_now
+    BOOL first_open,    // the first open of the treedb by this release (no record of the upgrade)
     json_t *replaced,   // not owned, {topic: kind} of the drafts the literal replaced
     json_t *unfinished, // not owned, what the projection could not do (new_unfinished)
-    BOOL *p_projected
+    BOOL *p_projected,
+    BOOL *p_restore_failed  // what a projection stamped first missed could not be restored
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     *p_projected = FALSE;
+    *p_restore_failed = FALSE;
 
     json_int_t new_version = schema_version_of(gobj, jn_schema);
     json_int_t in_use_version = schema_version_of(gobj, file_in_use);
@@ -8246,6 +8930,7 @@ PRIVATE int project_literal_into_system(
             .index = index,
             .orphans = orphans,
             .record_before = unfinished_before,
+            .left_by_older = left_by_older,
         };
         *p_projected = TRUE;
         int ret = upsert_treedb_schema(
@@ -8317,6 +9002,36 @@ PRIVATE int project_literal_into_system(
         JSON_DECREF(legacy)
         if(moved < 0) {
             return -1;  // Error already logged
+        }
+    }
+
+    /*
+     *  A node stamped with the version of the file in use, at the FIRST
+     *  open by this release, may be a projection an older release stamped
+     *  FIRST and did not finish: 7.23.0 to 7.25.4 gave every imposed treedb
+     *  (and every treedb from before 7.13.0) its first projection over a
+     *  file already at the literal's version, and a process that died after
+     *  the stamp left a node that says the file over a projection with part
+     *  of it. Nothing on the node tells it from a complete one whose topic
+     *  or column the operator deleted since, but this release stamps LAST:
+     *  once it has opened the treedb (the record of the upgrade), a stamped
+     *  projection is a complete one, and what it misses is the operator's.
+     *  So only at that first open:
+     *
+     *    - the file runs, and it IS the literal: what __system__ misses of
+     *      it is written, from the literal, and said (a WARNING naming the
+     *      ids). It is never reported as the operator's;
+     *    - a newer literal is installed: what __system__ misses of the old
+     *      file is no deletion of the operator's (see below), and the
+     *      projection writes what the literal declares.
+     */
+    BOOL stamped_by_older = (first_open && !unfinished_before && file_in_use &&
+        in_use_version > 0 && stored_c_version == in_use_version &&
+        stored_version == in_use_version)? TRUE : FALSE;
+    if(stamped_by_older && !installed && new_version == in_use_version &&
+            !schemas_differ(file_in_use, jn_schema)) {
+        if(restore_stamped_projection(gobj, treedb_name, jn_schema) < 0) {
+            *p_restore_failed = TRUE;   // Error already logged
         }
     }
 
@@ -8462,9 +9177,41 @@ PRIVATE int project_literal_into_system(
     if(!json_is_object(stamped_base)) {
         stamped_base = NULL;
     }
+
+    /*
+     *  Nobody's work either: what an older release left (see
+     *  new_upgrade_record), and, at the first open by this release of a
+     *  projection an older release stamped first, what it misses of the
+     *  file (see `stamped_by_older` above): read as the operator's, those
+     *  would be deletions.
+     */
+    json_t *not_drafts = json_object();
+    if(json_is_object(left_by_older)) {
+        json_object_update(not_drafts, left_by_older);
+    }
+    if(stamped_by_older && installed) {
+        json_t *gaps = schema_gaps(gobj, treedb_name, file_in_use, current);
+        if(json_array_size(gaps) > 0) {
+            gobj_log_info(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INFO,
+                "msg",              "%s", "What __system__ misses of the schema file in use is no deletion of the operator's: a projection by an older release stamped the treedb first and did not finish",
+                "treedb_name",      "%s", treedb_name,
+                "in_use_version",   "%d", (int)in_use_version,
+                "ids",              "%j", gaps,
+                NULL
+            );
+        }
+        int idx; json_t *jn_id;
+        json_array_foreach(gaps, idx, jn_id) {
+            json_object_set_new(not_drafts, json_string_value(jn_id), json_true());
+        }
+        JSON_DECREF(gaps)
+    }
+
     if(file_in_use && !never_stamped) {
         drafts = drafts_over_file(
-            gobj, treedb_name, file_in_use, unfinished_before, current, orphans,
+            gobj, treedb_name, file_in_use, unfinished_before, current, orphans, not_drafts,
             &draft_ids, &left_before, &edited
         );
         if(stamped_base) {
@@ -8476,22 +9223,14 @@ PRIVATE int project_literal_into_system(
             JSON_DECREF(drafts)
             drafts = drafts_over_file_and_base(
                 gobj, treedb_name, file_in_use, stamped_base, unfinished_before, current,
-                orphans, draft_ids
+                orphans, not_drafts, draft_ids
             );
             json_object_set(unfinished, "stamped_base", stamped_base);
         }
 
-        char saved_dir[PATH_MAX];
-        saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
-        char filename[NAME_MAX];
-        snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
-        if(file_exists(saved_dir, filename)) {
-            saved = load_json_from_file(gobj, saved_dir, filename, 0);
-            if(schema_version_of(gobj, saved) <= in_use_version) {
-                JSON_DECREF(saved)  /*  not a pending save  */
-            }
-        }
+        saved = load_pending_saved_schema(gobj, treedb_name, in_use_version);
     }
+    JSON_DECREF(not_drafts)
 
     projection_ctx_t ctx = {
         .index = index,
@@ -8503,6 +9242,7 @@ PRIVATE int project_literal_into_system(
         .left_before = left_before,
         .edited = edited,
         .stamped_base = stamped_base,
+        .left_by_older = left_by_older,
     };
     *p_projected = TRUE;
     int ret = upsert_treedb_schema(
@@ -8624,6 +9364,80 @@ PRIVATE void warn_topics_not_raised(
 }
 
 /***************************************************************************
+ *  After the projection of an open: say what an older release left in
+ *  __system__ and this open removed (`left_by_older`, the ids that are
+ *  gone now: ONE WARNING naming them), and keep the record of the upgrade
+ *  (see new_upgrade_record) without the ids that are gone, or that the
+ *  schema in use after the open (`file_after`) declares. It is written at
+ *  the first open (`write`), and when it changes.
+ ***************************************************************************/
+PRIVATE void settle_upgrade_record(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *upgrade,        // not owned
+    json_t *left_by_older,  // not owned, {id: topic}
+    BOOL write,
+    json_t *file_after      // not owned, may be NULL
+)
+{
+    json_t *removed = json_array();
+    json_t *topics = json_object();
+    const char *id; json_t *jn_topic;
+    json_object_foreach(left_by_older, id, jn_topic) {
+        BOOL is_topic;
+        json_t *node = system_node_at(gobj, id, &is_topic);
+        if(!node) {
+            json_array_append_new(removed, json_string(id));
+            json_object_set_new(topics, json_string_value(jn_topic), json_true());
+        }
+        JSON_DECREF(node)
+    }
+    if(json_array_size(removed) > 0) {
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_TREEDB,
+            "msg",              "%s", "Removed from __system__ what an older release left there: no schema of the treedb declares it (7.25.4 and before never deleted from __system__); it is no operator's work, reported as left_by_older_release",
+            "treedb_name",      "%s", treedb_name,
+            "topics",           "%j", topics,
+            "ids",              "%j", removed,
+            NULL
+        );
+    }
+    JSON_DECREF(topics)
+    JSON_DECREF(removed)
+
+    json_t *ids = json_object_get(upgrade, "left_by_older_release");
+    if(json_array_size(ids) > 0) {
+        json_t *declared = file_after? declared_schema_ids(gobj, treedb_name, file_after) : NULL;
+        json_t *nodes = json_object_get(upgrade, "leftover_nodes");
+        json_t *id_topics = json_object_get(upgrade, "topics");
+        json_t *kept = json_array();
+        int idx; json_t *jn_id;
+        json_array_foreach(ids, idx, jn_id) {
+            const char *left_id = json_string_value(jn_id);
+            BOOL is_topic;
+            json_t *node = left_id? system_node_at(gobj, left_id, &is_topic) : NULL;
+            if(node && !ids_declare(declared, left_id)) {
+                json_array_append(kept, jn_id);
+            } else {
+                if(left_id) {
+                    json_object_del(nodes, left_id);
+                    json_object_del(id_topics, left_id);
+                }
+                write = TRUE;
+            }
+            JSON_DECREF(node)
+        }
+        json_object_set_new(upgrade, "left_by_older_release", kept);
+        JSON_DECREF(declared)
+    }
+
+    if(write) {
+        write_upgrade_record(gobj, treedb_name, upgrade);   // Error already logged
+    }
+}
+
+/***************************************************************************
  *  Keep the __system__ projection in step with what the treedb runs
  *  (project_literal_into_system), and retire what the open makes stale.
  *
@@ -8638,7 +9452,11 @@ PRIVATE void warn_topics_not_raised(
  *               treedb was running;
  *      saved    the saved schema (published against the file that goes)
  *               and the draft of each topic it carried;
- *      unsaved  a draft never saved.
+ *      unsaved  a draft never saved;
+ *      left_by_older_release
+ *               no operator's work: what an older release left in
+ *               __system__ and no schema declares (see new_upgrade_record),
+ *               said apart. Any other kind of the topic replaces it.
  *
  *  It is said, ONE warning naming the treedb and the topics, and kept in
  *  `jn_withdrawn_at_open` for the API: `treedbs` and `saved-schema` answer
@@ -8703,12 +9521,33 @@ PRIVATE int reconcile_treedb_schema(
      */
     rewrite_record_not_written(gobj, treedb_name);
     json_t *unfinished_before = load_unfinished_record(gobj, treedb_name);
+
+    /*
+     *  The record of the upgrade: there is none at the FIRST open of the
+     *  treedb by this release, which finds what an older release left in
+     *  __system__ (see new_upgrade_record)
+     */
+    json_t *pending_saved = load_pending_saved_schema(gobj, treedb_name, in_use_version);
+    json_t *upgrade = load_upgrade_record(gobj, treedb_name);
+    BOOL first_open = upgrade? FALSE : TRUE;
+    if(first_open) {
+        upgrade = new_upgrade_record(
+            gobj, treedb_name, file_in_use, pending_saved, unfinished_before
+        );
+    }
+    json_t *left_by_older = left_by_older_release_now(
+        gobj, treedb_name, upgrade, file_in_use, pending_saved
+    );
+    JSON_DECREF(pending_saved)
+
     json_t *replaced = json_object();
     json_t *unfinished = new_unfinished(0);
     BOOL projected = FALSE;
+    BOOL restore_failed = FALSE;
     int ret = project_literal_into_system(
         gobj, treedb_name, jn_schema, imposing, file_in_use, installed,
-        unfinished_before, replaced, unfinished, &projected
+        unfinished_before, left_by_older, first_open, replaced, unfinished,
+        &projected, &restore_failed
     );
     if(projected) {
         /*
@@ -8729,7 +9568,9 @@ PRIVATE int reconcile_treedb_schema(
                 if(!now) {
                     json_object_set(json_object_get(unfinished, "replaced_kinds"), topic_name, jn_kind);
                 }
-            } else if(!now || (strcmp(kind, "saved")==0 && strcmp(now, "unsaved")==0)) {
+            } else if(!now || (strcmp(kind, "saved")==0 && strcmp(now, "unsaved")==0) ||
+                    (strcmp(now, KIND_LEFT_BY_OLDER_RELEASE)==0 &&
+                        strcmp(kind, KIND_LEFT_BY_OLDER_RELEASE)!=0)) {
                 json_object_set(replaced, topic_name, jn_kind);
             }
         }
@@ -8751,7 +9592,9 @@ PRIVATE int reconcile_treedb_schema(
             if(!kind || !schema_topic_differs(file_in_use, jn_schema, topic_name, FALSE)) {
                 continue;
             }
-            if(strcmp(kind, "applied")==0 || !json_object_get(replaced, topic_name)) {
+            const char *said = json_string_value(json_object_get(replaced, topic_name));
+            if(strcmp(kind, "applied")==0 || !said ||
+                    strcmp(said, KIND_LEFT_BY_OLDER_RELEASE)==0) {
                 json_object_set_new(replaced, topic_name, json_string(kind));
             }
         }
@@ -8794,6 +9637,20 @@ PRIVATE int reconcile_treedb_schema(
             "topics", replaced
         ));
     }
+
+    /*
+     *  What an older release left and this open removed, and the record
+     *  of the upgrade. At the first open it is not written when what a
+     *  projection stamped first missed could not be restored: the next
+     *  open is the first one again, and restores it.
+     */
+    settle_upgrade_record(
+        gobj, treedb_name, upgrade, left_by_older,
+        (first_open && !restore_failed)? TRUE : FALSE,
+        installed? jn_schema : file_in_use
+    );
+    JSON_DECREF(left_by_older)
+    JSON_DECREF(upgrade)
 
     /*
      *  The record of a projection that completed goes LAST, once what it

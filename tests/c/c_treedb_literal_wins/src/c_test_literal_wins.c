@@ -5904,6 +5904,289 @@ PRIVATE int scenario_old_projection_died_twice(hgobj gobj)
 }
 
 /***************************************************************************
+ *  FP: a FIRST projection of 7.25.4 over a schema file already at the
+ *  literal's version -- every imposed treedb got its first projection so
+ *  between 7.23.0 and 7.25.4, and so did every treedb from before 7.13.0
+ *  -- died after its stamp, after each of its writes. The first open by
+ *  this release restores what __system__ misses, from the literal, and
+ *  says it; nothing is reported as the operator's, then or at the next
+ *  literal, and the three homes agree. Once with the file running, once
+ *  imposed, once with a newer literal installed at that first open.
+ *
+ *  Then the operator deletes a topic (a draft): an open with the same
+ *  literal does NOT restore it, the record of the upgrade says this
+ *  release has been here, and a stamped projection is a complete one.
+ *
+ *  Red before: the projection was never completed, `draft_changed` named
+ *  every topic it missed, and the next literal reported them "unsaved".
+ ***************************************************************************/
+PRIVATE json_t *fp_literal(const char *db, int version)
+{
+    return schema_of(db, version, json_pack("[o,o]",
+        topic_of("users", 1, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User"))),
+        topic_of("departments", 1, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name")))
+    ));
+}
+
+PRIVATE json_t *fp_writes(hgobj gobj, const char *db)
+{
+    json_t *ops = json_array();
+    json_array_append_new(ops, old_stamp(gobj, db, "create", 2));
+    static const char *topics[][4] = {
+        {"users", "username", "User", NULL},
+        {"departments", "name", "Name", NULL},
+        {NULL, NULL, NULL, NULL}
+    };
+    for(int t = 0; topics[t][0]; t++) {
+        char topic_id[NAME_MAX + 16], col_id_[2 * NAME_MAX];
+        snprintf(topic_id, sizeof(topic_id), "%s.%s", db, topics[t][0]);
+        json_array_append_new(ops, old_write("create", "topics", old_topic_node(db, topics[t][0], 1, t)));
+        json_array_append_new(ops, old_link("treedbs", db, "topics", topic_id));
+        json_array_append_new(ops, old_write("create", "cols",
+            old_col_node(db, topics[t][0], "id", "Id", TRUE, 0)));
+        snprintf(col_id_, sizeof(col_id_), "%s.id", topic_id);
+        json_array_append_new(ops, old_link("topics", topic_id, "cols", col_id_));
+        json_array_append_new(ops, old_write("create", "cols",
+            old_col_node(db, topics[t][0], topics[t][1], topics[t][2], FALSE, 1)));
+        snprintf(col_id_, sizeof(col_id_), "%s.%s", topic_id, topics[t][1]);
+        json_array_append_new(ops, old_link("topics", topic_id, "cols", col_id_));
+    }
+    return ops;
+}
+
+/*
+ *  mode 0: the file runs; 1: imposed; 2: a newer literal is installed at
+ *  the first open
+ */
+PRIVATE int fp_sequence(hgobj gobj, int mode, int n, int *p_total)
+{
+    int result = 0;
+    BOOL imposed = (mode == 1)? TRUE : FALSE;
+    char db[NAME_MAX];
+    snprintf(db, sizeof(db), "tw_fp%d_%d", mode, n);
+
+    if(open_db(gobj, db, fp_literal(db, 2), imposed) < 0) {
+        return -1;
+    }
+    close_db(gobj, db);
+
+    /*
+     *  A store from before: no projection, no record of the upgrade, the
+     *  file at the literal's version. Then 7.25.4 projects it and dies
+     */
+    json_t *ops = fp_writes(gobj, db);
+    *p_total = (int)json_array_size(ops);
+    drop_treedb(gobj, db);
+    int made = run_old_writes(gobj, db, ops, n);
+    JSON_DECREF(ops)
+    if(made < 0) {
+        return -1;
+    }
+
+    old_reports_start(gobj, db);
+    json_int_t e0 = log_count(gobj, "error");
+    json_t *first = fp_literal(db, mode == 2? 3 : 2);
+    if(open_db(gobj, db, first, imposed) < 0) {
+        old_reports_stop();
+        return -1;
+    }
+    char what[256];
+    snprintf(what, sizeof(what),
+        "TEST FAIL: FP, the first open after a first projection of 7.25.4 that died reported "
+        "work nobody did (mode %d, n %d)", mode, n);
+    result += check_withdrawn(gobj, db, what, 0, json_object());
+    snprintf(what, sizeof(what),
+        "TEST FAIL: FP, the first open did not restore what the projection of 7.25.4 missed "
+        "(mode %d, n %d)", mode, n);
+    result += check_agree(gobj, db, what);
+    close_db(gobj, db);
+
+    if(open_db(gobj, db, fp_literal(db, 4), imposed) < 0) {
+        old_reports_stop();
+        return -1;
+    }
+    snprintf(what, sizeof(what), "TEST FAIL: FP, the next literal reported work nobody did "
+        "(mode %d, n %d)", mode, n);
+    result += check_withdrawn(gobj, db, what, 0, json_object());
+    result += check_agree(gobj, db, what);
+    int reports = old_reports_count(gobj);
+    if(reports > 0 || log_count(gobj, "error") - e0 != 0) {
+        result += test_fail(gobj, db, "TEST FAIL: FP, an open reported work nobody did, or logged an error",
+            json_pack("{s:i, s:i, s:i, s:I}", "mode", mode, "n", n,
+                "reports", reports, "errors", log_count(gobj, "error") - e0));
+    }
+    old_reports_stop();
+
+    /*
+     *  The operator's deletion, after the upgrade, is a draft: kept
+     */
+    if(!imposed) {
+        result += delete_system_topic(gobj, db, "departments");
+        close_db(gobj, db);
+        if(open_db(gobj, db, fp_literal(db, 4), imposed) < 0) {
+            return result - 1;
+        }
+        if(system_has_topic(gobj, db, "departments")) {
+            result += test_fail(gobj, db,
+                "TEST FAIL: FP, an open after the upgrade restored a topic the operator deleted",
+                json_pack("{s:i, s:i}", "mode", mode, "n", n));
+        }
+        result += check_draft_changed(gobj, db,
+            "TEST FAIL: FP, a topic the operator deleted after the upgrade is not a draft",
+            json_pack("{s:b}", "departments", 1));
+    }
+    close_db(gobj, db);
+    drop_treedb(gobj, db);
+    return result;
+}
+
+PRIVATE int scenario_first_projection_of_older_release_died(hgobj gobj)
+{
+    int result = 0;
+    for(int mode = 0; mode < 3; mode++) {
+        int total = 1;
+        for(int n = 1; n <= total; n++) {
+            result += fp_sequence(gobj, mode, n, &total);
+        }
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  OL: what 7.25.4 LEFT in __system__. v1 declares `users` (id, username,
+ *  email) and `departments`; 7.25.4 opened v2, which drops `departments`
+ *  and `users.email`, and never deleted: both stayed in __system__. After
+ *  the upgrade:
+ *
+ *    - an open with the same literal shows no draft (`draft_changed` {}),
+ *      withdraws nothing, and removes nothing (no literal is installed);
+ *    - the next literal removes them and reports them apart, as
+ *      `left_by_older_release`, never as "unsaved", with a WARNING naming
+ *      the ids; the one after it reports nothing;
+ *    - an edit the operator makes of one of them after the upgrade is the
+ *      operator's: `departments` is then a draft, and reported "unsaved";
+ *    - at a first open that installs a newer literal they are removed and
+ *      reported the same way.
+ *
+ *  Red before: `draft_changed` {"departments": true, "users": true}, and
+ *  the next literal reported them "unsaved".
+ ***************************************************************************/
+PRIVATE json_t *ol_literal(const char *db, int version)
+{
+    if(version == 1) {
+        return schema_of(db, 1, json_pack("[o,o]",
+            topic_of("users", 1, json_pack("{s:o, s:o, s:o}", "id", col_id(),
+                "username", col_str("User"), "email", col_str("Email"))),
+            topic_of("departments", 1, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name")))
+        ));
+    }
+    return schema_of(db, version, json_pack("[o]",
+        topic_of("users", 2, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User")))
+    ));
+}
+
+/*
+ *  7.25.4 opened v2 over the projection of v1: the stamp, the topic
+ *  `users` raised, the file installed; nothing deleted
+ */
+PRIVATE int ol_older_release(hgobj gobj, const char *db)
+{
+    if(open_db(gobj, db, ol_literal(db, 1), FALSE) < 0) {
+        return -1;
+    }
+    close_db(gobj, db);
+    remove_upgrade_marker(gobj, db);
+    json_t *ops = json_array();
+    json_array_append_new(ops, old_stamp(gobj, db, "update", 2));
+    json_array_append_new(ops, old_write("update", "topics", old_topic_node(db, "users", 2, 0)));
+    int made = run_old_writes(gobj, db, ops, -1);
+    JSON_DECREF(ops)
+    if(made < 0) {
+        return -1;
+    }
+    return write_schema_file(gobj, db, ol_literal(db, 2));
+}
+
+PRIVATE int scenario_left_by_older_release(hgobj gobj)
+{
+    int result = 0;
+    for(int edited = 0; edited < 2; edited++) {
+        char db[NAME_MAX];
+        snprintf(db, sizeof(db), "tw_ol%s", edited? "e" : "");
+        if(ol_older_release(gobj, db) < 0) {
+            return result - 1;
+        }
+
+        json_int_t w0 = log_count(gobj, "warning");
+        if(open_db(gobj, db, ol_literal(db, 2), FALSE) < 0) {
+            return result - 1;
+        }
+        result += check_withdrawn(gobj, db,
+            "TEST FAIL: OL, the first open withdrew something with the same literal", 0, json_object());
+        result += check_agree(gobj, db,
+            "TEST FAIL: OL, what 7.25.4 left is shown as a draft");
+        if(!system_has_topic(gobj, db, "departments") || log_count(gobj, "warning") - w0 != 0) {
+            result += test_fail(gobj, db,
+                "TEST FAIL: OL, an open with the same literal removed what 7.25.4 left, or warned",
+                json_integer(log_count(gobj, "warning") - w0));
+        }
+        if(edited) {
+            result += edit_header(gobj, db, "departments", "name", "Operator name");
+            result += check_draft_changed(gobj, db,
+                "TEST FAIL: OL, an edit of what 7.25.4 left, after the upgrade, is not a draft",
+                json_pack("{s:b}", "departments", 1));
+        }
+        close_db(gobj, db);
+
+        w0 = log_count(gobj, "warning");
+        if(open_db(gobj, db, ol_literal(db, 3), FALSE) < 0) {
+            return result - 1;
+        }
+        result += check_withdrawn(gobj, db,
+            "TEST FAIL: OL, what 7.25.4 left is not reported apart", 0,
+            json_pack("{s:s, s:s}",
+                "departments", edited? "unsaved" : "left_by_older_release",
+                "users", "left_by_older_release"));
+        result += check_agree(gobj, db, "TEST FAIL: OL, the next literal does not agree");
+        if(system_has_topic(gobj, db, "departments") || log_count(gobj, "warning") - w0 != 2) {
+            result += test_fail(gobj, db,
+                "TEST FAIL: OL, the next literal did not remove what 7.25.4 left, or did not say it (2 warnings)",
+                json_integer(log_count(gobj, "warning") - w0));
+        }
+        char email_id[2 * NAME_MAX];
+        snprintf(email_id, sizeof(email_id), "%s.users.email", db);
+        result += check_absent(gobj, db, "TEST FAIL: OL, a column 7.25.4 left stayed", "cols", email_id);
+        close_db(gobj, db);
+
+        if(open_db(gobj, db, ol_literal(db, 4), FALSE) < 0) {
+            return result - 1;
+        }
+        result += check_withdrawn(gobj, db,
+            "TEST FAIL: OL, the literal after it reported something", 0, json_object());
+        close_db(gobj, db);
+        drop_treedb(gobj, db);
+    }
+
+    /*
+     *  The first open installs a newer literal
+     */
+    const char *db = "tw_ol3";
+    if(ol_older_release(gobj, db) < 0) {
+        return result - 1;
+    }
+    if(open_db(gobj, db, ol_literal(db, 3), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: OL, a first open that installs a literal did not report what 7.25.4 left apart", 0,
+        json_pack("{s:s, s:s}", "departments", "left_by_older_release", "users", "left_by_older_release"));
+    result += check_agree(gobj, db, "TEST FAIL: OL, a first open that installs a literal does not agree");
+    close_db(gobj, db);
+    drop_treedb(gobj, db);
+    return result;
+}
+
+/***************************************************************************
  *  Run every scenario
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -6004,6 +6287,8 @@ PRIVATE int (*late_scenarios[])(hgobj gobj) = {
     scenario_old_projection_died_changes,
     scenario_old_projection_died_adds,
     scenario_old_projection_died_twice,
+    scenario_first_projection_of_older_release_died,
+    scenario_left_by_older_release,
     NULL
 };
 
