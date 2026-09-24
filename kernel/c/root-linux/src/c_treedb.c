@@ -174,6 +174,7 @@ PRIVATE json_t *get_c_schema_to_impose(
 PRIVATE json_t *get_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
+    json_t *file_in_use,// not owned, the schema file in use, may be NULL
     json_t *left_out    // not owned, {id: true} of topics and columns to leave out, may be NULL
 );
 PRIVATE const char *build_schema_node_id(
@@ -331,6 +332,7 @@ PRIVATE json_t *topic_versions_in_use(
     json_t *jn_schema       // not owned, the literal, may be NULL
 );
 PRIVATE json_int_t topic_version_in_use(json_t *in_use, const char *topic_name);
+PRIVATE json_int_t running_topic_version(hgobj gobj, const char *treedb_name, const char *topic_name);
 PRIVATE int diff_node_attrs(
     hgobj gobj,
     json_t *rows,           // not owned
@@ -2359,6 +2361,87 @@ PRIVATE BOOL system_is_written_here(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Write into __system__ the PLACE each topic and column has in the schema
+ *  a save writes, where its node says another `order`: the draft IS the
+ *  saved schema, its places as its versions. `order` is an index while a
+ *  node is a record, and a schema says the same by its sequence, so a
+ *  column the operator added with `order` 99, third in its topic, was
+ *  saved third and then compared (saved-schema, the open after the apply)
+ *  as 99 against 2: its topic read as unsaved right after its save, and
+ *  as a draft over the file it had become. A node that says nothing of its
+ *  place (ORDER_SAYS_NOTHING, a projection from before 7.14.0) gets the
+ *  place the save gave it too. -1 when a write fails (logged).
+ ***************************************************************************/
+PRIVATE int write_saved_positions(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *schema      // not owned, the schema the save writes: topics a list, cols as it orders them
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *tree = system_tree_of(gobj, treedb_name);
+    json_t *stored_topics = tree? kw_get_dict(gobj, tree, "topics", 0, 0) : NULL;
+    int ret = 0;
+
+    int idx; json_t *topic;
+    json_array_foreach(json_object_get(schema, "topics"), idx, topic) {
+        const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
+        char topic_id[RECORD_KEY_VALUE_MAX];
+        if(!build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
+            ret = -1;   // Error already logged
+            continue;
+        }
+        json_t *stored_topic = json_object_get(stored_topics, topic_id);
+        if(!stored_topic) {
+            continue;   /*  what the save wrote comes from __system__: a node of another treedb  */
+        }
+
+        json_t *places = json_array();  // of [system topic, id, place]
+        if(kw_get_int(gobj, stored_topic, "order", -1, KW_WILD_NUMBER) != idx) {
+            json_array_append_new(places, json_pack("[s,s,i]", "topics", topic_id, idx));
+        }
+        json_t *stored_cols = kw_get_dict(gobj, stored_topic, "cols", 0, 0);
+        json_t *cols = kwid_new_list(gobj, topic, 0, "cols");
+        int idx2; json_t *col;
+        json_array_foreach(cols, idx2, col) {
+            char col_id[RECORD_KEY_VALUE_MAX];
+            if(!build_schema_node_id(gobj, col_id, sizeof(col_id), topic_id,
+                    kw_get_str(gobj, col, "id", "", 0))) {
+                ret = -1;   // Error already logged
+                continue;
+            }
+            json_t *stored_col = json_object_get(stored_cols, col_id);
+            if(stored_col && kw_get_int(gobj, stored_col, "order", -1, KW_WILD_NUMBER) != idx2) {
+                json_array_append_new(places, json_pack("[s,s,i]", "cols", col_id, idx2));
+            }
+        }
+        JSON_DECREF(cols)
+
+        json_t *place;
+        json_array_foreach(places, idx2, place) {
+            json_t *node = gobj_update_node(
+                priv->gobj_node_system,
+                json_string_value(json_array_get(place, 0)),
+                json_pack("{s:s, s:O}",
+                    "id", json_string_value(json_array_get(place, 1)),
+                    "order", json_array_get(place, 2)
+                ),
+                0,
+                gobj
+            );
+            if(!node) {
+                ret = -1;   // Error already logged
+            }
+            JSON_DECREF(node)
+        }
+        JSON_DECREF(places)
+    }
+    JSON_DECREF(tree)
+    return ret;
+}
+
+/***************************************************************************
  *  Publish the draft of a schema.
  *
  *  An edit of __system__ is a draft and moves no version. This compares
@@ -2580,7 +2663,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    json_t *schema = get_treedb_schema(gobj, treedb_name, left_out);
+    json_t *schema = get_treedb_schema(gobj, treedb_name, in_use, left_out);
     JSON_DECREF(left_out)
     if(schema) {
         prune_schema(schema);
@@ -2666,8 +2749,19 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         if(!json_object_get(changed, topic_name)) {
             continue;
         }
+        /*
+         *  Past what RUNS, not only past the file: tranger2 installs a topic
+         *  only over a LOWER topic_version, and a store can run one ahead
+         *  of its file (a file written whole by an older release over a
+         *  topic the store had raised, see topic_versions_in_use). Raised
+         *  past the file alone, the apply reached nothing for that topic
+         */
         json_int_t v = kw_get_int(gobj, topic, "topic_version", 0, KW_WILD_NUMBER);
         json_int_t in_use_v = schema_topic_version(gobj, in_use, topic_name);
+        json_int_t running_v = running_topic_version(gobj, treedb_name, topic_name);
+        if(in_use_v < running_v) {
+            in_use_v = running_v;
+        }
         if(v < in_use_v + 1) {
             v = in_use_v + 1;
         }
@@ -2714,6 +2808,13 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             ret = -1;   // Error already logged
         }
         JSON_DECREF(node)
+
+        /*
+         *  And the places: the draft is the saved schema in its order too
+         */
+        if(write_saved_positions(gobj, treedb_name, schema) < 0) {
+            ret = -1;   // Error already logged
+        }
 
         if(ret == 0) {
             /*
@@ -6909,19 +7010,25 @@ PRIVATE BOOL schemas_differ(json_t *a, json_t *b) // not owned
 /***************************************************************************
  *  Say why a literal that is not installed is not: behind the file in
  *  use, or at its number with another content (said at every open until
- *  the literal moves on). Nothing when it IS the file.
+ *  the literal moves on). Nothing when it IS the file. The same with
+ *  impose_c_schema: an imposed literal installs nothing at the file's
+ *  number either (treedb_open_db() keeps the file at a tie), and it is
+ *  exactly the classic mistake. TRUE when it is the tie with another
+ *  content: the FILE runs, and it is not the literal.
  ***************************************************************************/
-PRIVATE void say_literal_not_installed(
+PRIVATE BOOL say_literal_not_installed(
     hgobj gobj,
     const char *treedb_name,
     json_t *jn_schema,          // not owned, the literal
     json_t *file_in_use,        // not owned
     json_int_t stored_version,
-    json_int_t stored_c_version
+    json_int_t stored_c_version,
+    BOOL imposing
 )
 {
     json_int_t new_version = schema_version_of(gobj, jn_schema);
     json_int_t in_use_version = schema_version_of(gobj, file_in_use);
+    BOOL differs = FALSE;
 
     if(new_version < in_use_version) {
         gobj_log_info(gobj, 0,
@@ -6947,7 +7054,7 @@ PRIVATE void say_literal_not_installed(
          *  was said. The price is one schema_diff at an open that ties
          */
         json_t *diff = schema_diff(file_in_use, jn_schema);
-        BOOL differs = json_object_size(json_object_get(diff, "added")) > 0 ||
+        differs = json_object_size(json_object_get(diff, "added")) > 0 ||
             json_object_size(json_object_get(diff, "removed")) > 0 ||
             json_object_size(json_object_get(diff, "changed")) > 0;
         if(differs) {
@@ -6958,12 +7065,14 @@ PRIVATE void say_literal_not_installed(
                 "treedb_name",      "%s", treedb_name,
                 "schema_version",   "%d", (int)new_version,
                 "c_schema_version", "%d", (int)stored_c_version,
+                "imposed",          "%d", imposing? 1 : 0,
                 "diff",             "%j", diff,
                 NULL
             );
         }
         JSON_DECREF(diff)
     }
+    return differs;
 }
 
 /***************************************************************************
@@ -7344,6 +7453,15 @@ PRIVATE const char *node_treedb(
 /***************************************************************************
  *  Does the record of an unfinished projection name the id `id`: planned,
  *  left, not removed, not written, or kept?
+ *
+ *  A list the record does not carry names nothing. Only a projection in
+ *  progress carries `planned`: the record of one that failed, of a move of
+ *  ids that failed, or of a record lost or unreadable, does not (see
+ *  new_unfinished), and a record read from another treedb's file may lack
+ *  any of them. Asked of a missing list, json_list_str_index() logs an
+ *  ERROR and answers 0, "found": such a record "named" every id, took
+ *  what an older release left for its own, and owned every column of an
+ *  ambiguous name (settle_owner).
  ***************************************************************************/
 PRIVATE BOOL record_names_id(json_t *record, const char *id)  // not owned, may be NULL
 {
@@ -7352,7 +7470,8 @@ PRIVATE BOOL record_names_id(json_t *record, const char *id)  // not owned, may 
     }
     const char *lists[] = {"planned", "leftovers", "not_removed", "not_written", NULL};
     for(int i = 0; lists[i]; i++) {
-        if(json_list_str_index(json_object_get(record, lists[i]), id, FALSE) >= 0) {
+        json_t *list = json_object_get(record, lists[i]);
+        if(json_is_array(list) && json_list_str_index(list, id, FALSE) >= 0) {
             return TRUE;
         }
     }
@@ -9092,7 +9211,17 @@ PRIVATE int project_literal_into_system(
     );
     if(json_array_size(stored) == 0) {
         JSON_DECREF(stored)
-        BOOL from_file = (imposing || installed || !file_in_use)? FALSE : TRUE;
+        /*
+         *  Seeded with what RUNS. Imposed, the literal runs unless it ties
+         *  with the file (installed says it): at a tie the file runs, and
+         *  it is the seed when it is not the literal. Seeding the literal
+         *  that does not run made its difference read as the operator's
+         *  draft over the file, and a save published it
+         */
+        BOOL from_file = FALSE;
+        if(!installed) {
+            from_file = imposing? schemas_differ(file_in_use, jn_schema) : TRUE;
+        }
         json_t *seed = from_file? file_in_use : jn_schema;
         json_int_t c_stamp = new_version;
         if(from_file && (in_use_version != new_version || schemas_differ(file_in_use, jn_schema))) {
@@ -9113,7 +9242,9 @@ PRIVATE int project_literal_into_system(
         JSON_DECREF(orphans)
         JSON_DECREF(index)
         if(from_file) {
-            say_literal_not_installed(gobj, treedb_name, jn_schema, file_in_use, 0, c_stamp);
+            say_literal_not_installed(
+                gobj, treedb_name, jn_schema, file_in_use, 0, c_stamp, imposing
+            );
         }
         return ret;
     }
@@ -9218,6 +9349,26 @@ PRIVATE int project_literal_into_system(
         );
 
     } else if(imposing) {
+        /*
+         *  Imposed at the file's schema_version: nothing is installed (a
+         *  tie goes to the file, see treedb_open_db()), the FILE runs, and
+         *  another content is said as it is without impose. It was not:
+         *  the classic mistake -- a column added to the literal, its
+         *  schema_version not raised -- reached nothing in silence on
+         *  every treedb with impose_c_schema, the default. And a
+         *  projection made now is of what runs, the file
+         */
+        BOOL file_is_other = FALSE;
+        if(!installed) {
+            file_is_other = say_literal_not_installed(
+                gobj, treedb_name, jn_schema, file_in_use, stored_version, stored_c_version,
+                imposing
+            );
+        }
+        if(file_is_other) {
+            source = file_in_use;
+            source_c_version = 0;
+        }
         if(new_version <= stored_version && !unfinished_before) {
             if(new_version < stored_version) {
                 gobj_log_info(gobj, 0,
@@ -9241,7 +9392,8 @@ PRIVATE int project_literal_into_system(
          */
         if(!unfinished_before && !never_stamped) {
             say_literal_not_installed(
-                gobj, treedb_name, jn_schema, file_in_use, stored_version, stored_c_version
+                gobj, treedb_name, jn_schema, file_in_use, stored_version, stored_c_version,
+                imposing
             );
             return 0;
         }
@@ -9407,7 +9559,8 @@ PRIVATE int project_literal_into_system(
 
     if(completing && source != jn_schema) {
         say_literal_not_installed(
-            gobj, treedb_name, jn_schema, file_in_use, stored_version, source_c_version
+            gobj, treedb_name, jn_schema, file_in_use, stored_version, source_c_version,
+            imposing
         );
     }
 
@@ -9457,12 +9610,22 @@ PRIVATE int remove_saved_schema(hgobj gobj, const char *treedb_name, json_int_t 
  *  topic_version goes on running the columns of its topic_cols.json, while
  *  the file and __system__ say the literal. That is the classic change
  *  that reaches nothing, and it is said, as a warning, per topic.
+ *
+ *  `file_behind`: `jn_schema` is the schema FILE, which runs (nothing is
+ *  installed), and only a topic the store runs at a topic_version ABOVE
+ *  the file's is looked at: a file written whole over it by an older
+ *  release (7.25.4 installed a literal so, and tranger2 kept its own).
+ *  The store runs a definition that only its topic_cols.json holds, and
+ *  nothing said it after the open that made it: it is said at every open
+ *  now, until a save of the topic (published past what runs, see
+ *  cmd_save_schema) or a literal that raises it puts one definition back.
  ***************************************************************************/
 PRIVATE void warn_topics_not_raised(
     hgobj gobj,
     const char *treedb_name,
-    json_t *jn_schema,  // not owned, the literal
-    BOOL imposing
+    json_t *jn_schema,  // not owned, the literal, or the schema file with `file_behind`
+    BOOL imposing,
+    BOOL file_behind
 )
 {
     json_t *topics = schema_topics_as_list(gobj, jn_schema);
@@ -9483,6 +9646,9 @@ PRIVATE void warn_topics_not_raised(
         if(imposing? (topic_version != running_version) : (topic_version > running_version)) {
             continue;   /*  tranger2 installs it  */
         }
+        if(file_behind && topic_version >= running_version) {
+            continue;   /*  the file says what runs, or it is the classic tie said above  */
+        }
 
         char directory[PATH_MAX];
         build_path(directory, sizeof(directory),
@@ -9497,7 +9663,9 @@ PRIVATE void warn_topics_not_raised(
             gobj_log_warning(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_TREEDB,
-                "msg",              "%s", "Topic from C declares other columns than the store runs, without raising its topic_version past it: the store keeps running its own",
+                "msg",              "%s", file_behind?
+                    "Schema file in use declares other columns than the store runs, at a topic_version behind the store's (a schema written whole over a topic the store had raised): the store runs its own, which only its topic_cols.json says; save the topic from __system__ and apply it, or raise its topic_version in the schema from C" :
+                    "Topic from C declares other columns than the store runs, without raising its topic_version past it: the store keeps running its own",
                 "treedb_name",      "%s", treedb_name,
                 "topic_name",       "%s", topic_name,
                 "topic_version",    "%d", (int)topic_version,
@@ -9776,7 +9944,7 @@ PRIVATE int reconcile_treedb_schema(
             saved_version = 0;  // it could not be removed (logged): not withdrawn
         }
 
-        warn_topics_not_raised(gobj, treedb_name, jn_schema, imposing);
+        warn_topics_not_raised(gobj, treedb_name, jn_schema, imposing, FALSE);
 
     } else if(json_object_size(record_topics) > 0 && record_has_kind(record_topics, "applied")) {
         json_object_set_new(priv->jn_apply_record_at_open, treedb_name,
@@ -9786,6 +9954,13 @@ PRIVATE int reconcile_treedb_schema(
                 "topics", record_topics
             )
         );
+    }
+    if(!installed && !imposing) {
+        /*
+         *  The file runs: a topic the store runs ahead of it is said (with
+         *  impose, treedb_open_db() imposes the file's topics too)
+         */
+        warn_topics_not_raised(gobj, treedb_name, file_in_use, FALSE, TRUE);
     }
 
     if(saved_version > 0 || json_object_size(replaced) > 0) {
@@ -9893,16 +10068,40 @@ PRIVATE json_t *declared_names(
  *  sequence of its dict. Left in, it would reach every topic as a column
  *  attribute nobody declared.
  *
- *  A node with no `order` -- one an operator added, or one projected before
- *  the index existed -- falls back to where the schema compiled in C
- *  declares it, and goes last when C does not know it either. The sort is
- *  stable, so nodes that answer the same keep the order they arrived in.
+ *  A node whose `order` says nothing about its place -- absent, or
+ *  ORDER_SAYS_NOTHING: one an operator added by hand, or one projected
+ *  before the index existed (7.14.0), which loads with that default --
+ *  goes where the schema FILE IN USE declares it; where the schema
+ *  compiled in C declares it when the file does not; and last when
+ *  neither knows it. The file first: it is what runs and what the save is
+ *  compared with, and the literal may be behind it (a dynamic schema that
+ *  reordered it) or tie with it under another order. Read as a position,
+ *  9999 tied every node of a projection from before 7.14.0, the stable
+ *  sort kept the order the store loaded them in -- alphabetical by id --
+ *  and a save published a reorder of every topic and column that nobody
+ *  made, put in the file by apply-schema.
+ *
+ *  The sort is stable, so nodes that answer the same keep the order they
+ *  arrived in.
  *
  *  Return a new dict holding the same nodes. Return is YOURS.
  ***************************************************************************/
+PRIVATE json_int_t declared_position(json_t *declared, const char *name) // not owned
+{
+    int idx; json_t *jn_name;
+    json_array_foreach(declared, idx, jn_name) {
+        const char *declared_name = json_string_value(jn_name);
+        if(declared_name && strcmp(declared_name, name)==0) {
+            return idx;
+        }
+    }
+    return -1;
+}
+
 PRIVATE json_t *order_schema_nodes(
-    json_t *nodes,      // not owned, {name: node}
-    json_t *declared    // not owned, [name, ...] as declared in C, or NULL
+    json_t *nodes,          // not owned, {name: node}
+    json_t *in_file,        // not owned, [name, ...] as the schema file in use declares them, or NULL
+    json_t *declared        // not owned, [name, ...] as declared in C, or NULL
 )
 {
     json_t *sorted = json_array();  // of [order, name]
@@ -9911,16 +10110,15 @@ PRIVATE json_t *order_schema_nodes(
     json_object_foreach(nodes, name, node) {
         json_int_t order;
         json_t *jn_order = json_object_get(node, "order");
-        if(json_is_integer(jn_order)) {
+        if(json_is_integer(jn_order) && json_integer_value(jn_order) != ORDER_SAYS_NOTHING) {
             order = json_integer_value(jn_order);
         } else {
-            order = INT_MAX;
-            int idx; json_t *jn_name;
-            json_array_foreach(declared, idx, jn_name) {
-                if(strcmp(json_string_value(jn_name), name)==0) {
-                    order = idx;
-                    break;
-                }
+            order = declared_position(in_file, name);
+            if(order < 0) {
+                order = declared_position(declared, name);
+            }
+            if(order < 0) {
+                order = INT_MAX;
             }
         }
 
@@ -9954,6 +10152,7 @@ PRIVATE json_t *order_schema_nodes(
 PRIVATE json_t *get_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
+    json_t *file_in_use,// not owned, the schema file in use, may be NULL
     json_t *left_out    // not owned, {id: true} of topics and columns to leave out, may be NULL
 )
 {
@@ -9996,8 +10195,9 @@ PRIVATE json_t *get_treedb_schema(
      *
      *  And re-ORDERED on the way out too: the nodes come back in the order
      *  the store happens to hold them, while in a schema the order of the
-     *  columns is what a table paints. The schema compiled in C is the
-     *  fallback for whatever the projection cannot place by itself.
+     *  columns is what a table paints. The schema file in use, and then
+     *  the schema compiled in C, are the fallback for whatever the
+     *  projection cannot place by itself (see order_schema_nodes).
      */
     json_t *c_schema = json_object_get(priv->jn_c_schemas, treedb_name);
 
@@ -10087,10 +10287,12 @@ PRIVATE json_t *get_treedb_schema(
          *  points into the `value` deleted above, and the string it aims at
          *  may be gone by now.
          */
-        json_t *declared_cols = declared_names(
-            gobj, c_schema, kw_get_str(gobj, topic, "id", "", 0)
-        );
-        json_object_set_new(topic, "cols", order_schema_nodes(new_cols, declared_cols));
+        const char *topic_id = kw_get_str(gobj, topic, "id", "", 0);
+        json_t *declared_cols = declared_names(gobj, c_schema, topic_id);
+        json_t *file_topic = file_in_use? schema_topic(file_in_use, topic_id) : NULL;
+        json_t *file_cols = file_topic? names_list(json_object_get(file_topic, "cols")) : NULL;
+        json_object_set_new(topic, "cols", order_schema_nodes(new_cols, file_cols, declared_cols));
+        JSON_DECREF(file_cols)
         JSON_DECREF(declared_cols)
         JSON_DECREF(new_cols)
 
@@ -10099,7 +10301,9 @@ PRIVATE json_t *get_treedb_schema(
     JSON_DECREF(stored_topics)
 
     json_t *declared_topics = declared_names(gobj, c_schema, NULL);
-    json_object_set_new(treedb, "topics", order_schema_nodes(topics, declared_topics));
+    json_t *file_topics = file_in_use? names_list(json_object_get(file_in_use, "topics")) : NULL;
+    json_object_set_new(treedb, "topics", order_schema_nodes(topics, file_topics, declared_topics));
+    JSON_DECREF(file_topics)
     JSON_DECREF(declared_topics)
     JSON_DECREF(topics)
 

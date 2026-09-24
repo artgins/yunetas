@@ -910,6 +910,19 @@ count-only walk that does not load records), or pass `topic_name=<topic>`
 for the full record foto of that topic. With neither a valid snap nor a
 name it answers `What snap? give snap_id/id (1..65534) or name`.
 
+Both read only the topics of the treedb the command is sent to. A tranger
+can hold other treedbs and plain topics, and a snap id belongs to one
+treedb: every treedb counts its snaps from 1, so the same number tags the
+records of another. A topic that is not of the treedb is refused:
+
+```bash
+ycommand -c 'snap-content name=<tag> topic_name=not_a_topic_of_it'
+#   → -1 "<role^name>: Topic not found in treedb 'treedb_yuneta_agent': 'not_a_topic_of_it'"
+```
+
+(In 7.25.4 and before the command did not ask, and read a topic of the tranger that
+was not of its treedb; the overview counted every topic of the tranger.)
+
 ---
 
 ## 7. Code pointers (one-pager)

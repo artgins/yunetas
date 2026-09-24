@@ -12,7 +12,9 @@
  *          And import-db / export-db: an import counts its errors by cause,
  *          a link it cannot make is a `link failure`, an import that
  *          aborts or fails answers -1; export-db names its file with the
- *          integer schema_version.
+ *          integer schema_version; a content that is not json is the
+ *          peer's, a warning that names it. snap-content reads only the
+ *          topics of its treedb.
  *
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
@@ -60,6 +62,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_STRING,      "peername",         SDF_RD,             "test-peer", "the peer a command comes from, as a transport says it: import-db names it when its content is not json"),
 SDATA_END()
 };
 
@@ -1083,6 +1086,106 @@ PRIVATE int run_tests(hgobj gobj)
                 JSON_DECREF(jn_resp)
             }
         }
+    }
+
+    /*-----------------------------------------------*
+     *  Test 19: import-db with a content64 that is not
+     *  json. The json came from a PEER: a WARNING
+     *  naming it (`peername`, read from the command's
+     *  src), MSGSET_PROTOCOL, no stack, and -1. It was
+     *  parsed as json of our own: an ERROR with a stack
+     *  and the whole buffer, naming no peer (up to
+     *  7.25.4 and after). The log line is in the
+     *  expected list of main.c.
+     *-----------------------------------------------*/
+    {
+        const char *not_json = "{\"users\": [{\"id\": ";
+        gbuffer_t *gbuf_b64 = gbuffer_binary_to_base64(not_json, strlen(not_json));
+        jn_resp = gobj_command(priv->gobj_node, "import-db",
+            json_pack("{s:s}",
+                "content64", gbuffer_cur_rd_pointer(gbuf_b64)
+            ),
+            gobj
+        );
+        GBUFFER_DECREF(gbuf_b64)
+        if(kw_get_int(gobj, jn_resp, "result", 0, 0) != -1 ||
+                !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "Bad json in content64")) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset", "%s", MSGSET_INTERNAL,
+                "msg", "%s", "TEST FAIL: import-db of a content that is not json did not answer -1",
+                "got", "%j", jn_resp,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+    }
+
+    /*-----------------------------------------------*
+     *  Test 20: snap-content reads only the topics of
+     *  ITS treedb. A plain topic of the same tranger
+     *  holds a record tagged with the number of a snap
+     *  (7): asked by name it is refused, and the
+     *  overview (no topic_name) does not list it. Both
+     *  read it (up to 7.25.4 and after): the command
+     *  did not ask treedb_is_treedbs_topic(), as every
+     *  other one of C_NODE does.
+     *-----------------------------------------------*/
+    {
+        md2_record_ex_t md = {0};
+        if(!tranger2_create_topic(priv->tranger, "not_of_the_treedb", "id", "", NULL,
+                sf_string_key, json_pack("{s:s}", "id", ""), 0) ||
+                tranger2_append_record(priv->tranger, "not_of_the_treedb", 0, 7, &md,
+                    json_pack("{s:s}", "id", "outsider")) < 0) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset", "%s", MSGSET_INTERNAL,
+                "msg", "%s", "TEST FAIL: the plain topic could not be made",
+                NULL
+            );
+            result += -1;
+        }
+
+        jn_resp = gobj_command(priv->gobj_node, "snap-content",
+            json_pack("{s:s, s:s}", "snap_id", "7", "topic_name", "not_of_the_treedb"),
+            gobj
+        );
+        if(kw_get_int(gobj, jn_resp, "result", 0, 0) != -1 ||
+                json_array_size(kw_get_list(gobj, jn_resp, "data", 0, 0)) > 0) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset", "%s", MSGSET_INTERNAL,
+                "msg", "%s", "TEST FAIL: snap-content read a topic that is not of its treedb",
+                "got", "%j", jn_resp,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+
+        jn_resp = gobj_command(priv->gobj_node, "snap-content",
+            json_pack("{s:s}", "snap_id", "7"),
+            gobj
+        );
+        BOOL listed = FALSE;
+        int idx; json_t *row;
+        json_array_foreach(kw_get_list(gobj, jn_resp, "data", 0, 0), idx, row) {
+            if(strcmp(kw_get_str(gobj, row, "topic_name", "", 0), "not_of_the_treedb")==0) {
+                listed = TRUE;
+            }
+        }
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) != 0 || listed) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset", "%s", MSGSET_INTERNAL,
+                "msg", "%s", "TEST FAIL: the overview of snap-content listed a topic that is not of its treedb",
+                "got", "%j", jn_resp,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
     }
 
     if(result == 0) {

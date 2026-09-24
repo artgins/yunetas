@@ -397,7 +397,8 @@ PRIVATE int apply_schema(hgobj gobj, const char *treedb_name)
 /***************************************************************************
  *  open-treedb, the answer as it is. Return is YOURS
  ***************************************************************************/
-PRIVATE json_t *open_db_resp(hgobj gobj, const char *treedb_name, json_t *jn_schema) // owned
+PRIVATE json_t *open_db_resp_as(hgobj gobj, const char *treedb_name, json_t *jn_schema, // owned
+    BOOL forced)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -407,7 +408,15 @@ PRIVATE json_t *open_db_resp(hgobj gobj, const char *treedb_name, json_t *jn_sch
         "treedb_name", treedb_name,
         "treedb_schema", jn_schema
     );
+    if(forced) {
+        json_object_set_new(kw, "impose_c_schema", json_true());
+    }
     return gobj_command(priv->gobj_treedbs, "open-treedb", kw, gobj);
+}
+
+PRIVATE json_t *open_db_resp(hgobj gobj, const char *treedb_name, json_t *jn_schema) // owned
+{
+    return open_db_resp_as(gobj, treedb_name, jn_schema, FALSE);
 }
 
 /***************************************************************************
@@ -4029,12 +4038,12 @@ PRIVATE int check_absent(hgobj gobj, const char *treedb_name, const char *label,
  *  What one open of a treedb logs, as {"errors": n, "warnings": n}, with
  *  what it answers: compared with what is expected
  ***************************************************************************/
-PRIVATE int open_counting(hgobj gobj, const char *treedb_name, json_t *jn_schema, // owned
-    const char *label, int errors, int warnings)
+PRIVATE int open_counting_as(hgobj gobj, const char *treedb_name, json_t *jn_schema, // owned
+    BOOL forced, const char *label, int errors, int warnings)
 {
     json_int_t e0 = log_count(gobj, "error");
     json_int_t w0 = log_count(gobj, "warning");
-    json_t *jn_resp = open_db_resp(gobj, treedb_name, jn_schema);
+    json_t *jn_resp = open_db_resp_as(gobj, treedb_name, jn_schema, forced);
     json_int_t e = log_count(gobj, "error") - e0;
     json_int_t w = log_count(gobj, "warning") - w0;
     int result = 0;
@@ -4047,6 +4056,12 @@ PRIVATE int open_counting(hgobj gobj, const char *treedb_name, json_t *jn_schema
     }
     JSON_DECREF(jn_resp)
     return result;
+}
+
+PRIVATE int open_counting(hgobj gobj, const char *treedb_name, json_t *jn_schema, // owned
+    const char *label, int errors, int warnings)
+{
+    return open_counting_as(gobj, treedb_name, jn_schema, FALSE, label, errors, warnings);
 }
 
 /***************************************************************************
@@ -4229,6 +4244,95 @@ PRIVATE int scenario_ambiguous_owner(hgobj gobj)
     result += open_counting(gobj, "tw_am.b", users_only("tw_am.b", 3),
         "TEST FAIL: AMB, a later open said something", 0, 0);
     close_db(gobj, "tw_am.b");
+    return result;
+}
+
+/***************************************************************************
+ *  AF: AMB, when the treedb whose name could own the columns has the
+ *  record of a projection that FAILED: what a failed move of ids, a
+ *  failed seed, or a lost or unreadable record leaves (`not_written`
+ *  names the treedb, nothing is `planned`, see new_unfinished). Such a
+ *  record names no id, so the owner is read from the schemas: `tw_af`
+ *  leaves the columns of `tw_af.b`, whether the record is the one its own
+ *  open read or the file of another treedb, and `tw_af.b` takes them.
+ *
+ *  Red before: a record with no `planned` "named" every id, with an ERROR
+ *  and a stack each time it was asked: `tw_af` took and deleted a column
+ *  that the schema file of `tw_af.b` declares, and `tw_af.b` left its own
+ *  columns to `tw_af`.
+ ***************************************************************************/
+PRIVATE int write_failure_record(hgobj gobj, const char *treedb_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char path[PATH_MAX];
+    char fn[NAME_MAX];
+    snprintf(fn, sizeof(fn), "%s.unfinished.json", treedb_name);
+    build_path(path, sizeof(path), priv->path_database, "__system__", "saved_schemas", fn, NULL);
+    json_t *record = json_pack("{s:i, s:[], s:[s], s:[], s:{}, s:{}}",
+        "schema_version", 0,
+        "not_removed",
+        "not_written", treedb_name,
+        "leftovers",
+        "draft_kinds",
+        "replaced_kinds"
+    );
+    int ret = json_dump_file(record, path, JSON_INDENT(4));
+    JSON_DECREF(record)
+    if(ret < 0) {
+        return test_fail(gobj, treedb_name, "TEST FAIL: AF, the record cannot be written",
+            json_string(path));
+    }
+    return 0;
+}
+
+PRIVATE int scenario_ambiguous_with_failure_record(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, "tw_af", users_departments_v1("tw_af"), FALSE) < 0 ||
+            open_db(gobj, "tw_af.b", users_departments_v1("tw_af.b"), FALSE) < 0) {
+        return -1;
+    }
+    close_db(gobj, "tw_af");
+    close_db(gobj, "tw_af.b");
+    if(gobj_delete_node(sys, "topics", json_pack("{s:s}", "id", "tw_af.b.departments"),
+            json_pack("{s:b}", "force", 1), gobj) < 0) {
+        result += test_fail(gobj, "tw_af.b", "TEST FAIL: AF, the operator's delete was refused", NULL);
+    }
+
+    /*
+     *  The record the open of `tw_af` reads
+     */
+    result += write_failure_record(gobj, "tw_af");
+    result += open_counting(gobj, "tw_af", users_only("tw_af", 2),
+        "TEST FAIL: AF, a failure record made its treedb take the nodes of another one", 0, 0);
+    close_db(gobj, "tw_af");
+    json_t *orphan = system_node(gobj, "cols", "tw_af.b.departments.name");
+    if(!orphan) {
+        result += test_fail(gobj, "tw_af", "TEST FAIL: AF, tw_af deleted a node of tw_af.b", NULL);
+    }
+    JSON_DECREF(orphan)
+
+    /*
+     *  The record of ANOTHER treedb, read from its file
+     */
+    result += write_failure_record(gobj, "tw_af");
+    result += open_counting(gobj, "tw_af.b", users_only("tw_af.b", 2),
+        "TEST FAIL: AF, the owner did not take its nodes, or said more", 0, 3);
+    result += check_withdrawn(gobj, "tw_af.b", "TEST FAIL: AF, the operator's delete was not said",
+        0, json_pack("{s:s}", "departments", "unsaved"));
+    close_db(gobj, "tw_af.b");
+    result += check_absent(gobj, "tw_af.b", "TEST FAIL: AF, a node was left to none",
+        "cols", "tw_af.b.departments.name");
+    result += check_absent(gobj, "tw_af.b", "TEST FAIL: AF, a node was left to none",
+        "cols", "tw_af.b.departments.id");
+
+    char dir[PATH_MAX];
+    build_path(dir, sizeof(dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    file_remove(dir, "tw_af.unfinished.json");
     return result;
 }
 
@@ -6457,8 +6561,17 @@ PRIVATE int scenario_dict_file_projected(hgobj gobj)
  *      `order` existed says nothing about its place, and that is no
  *      reorder --, and the record of the upgrade names `departments` at its
  *      qualified ids and no rowid id;
+ *    - a save keeps the order of the file: the columns of `users` (id,
+ *      username, zeta, alpha) and the topics (users, groups), none of
+ *      them alphabetical. Every node says `order` 9999, which is no
+ *      position: each goes where the FILE IN USE declares it;
  *    - the next literal removes `departments` and reports it as
  *      `left_by_older_release`, never "unsaved".
+ *
+ *  Red before (the order): the save sorted by the 9999 of every node, a
+ *  tie, so the nodes kept the order the store loaded them in --
+ *  alphabetical by id -- and the saved schema moved every column and
+ *  topic, a reorder nobody made, that apply-schema put in the file.
  *
  *  Red before: the record was built on the rowid ids, before the move of
  *  the same open. Every legacy node was "left" (the declared `users`
@@ -6468,6 +6581,101 @@ PRIVATE int scenario_dict_file_projected(hgobj gobj)
  *  `order` (9999) of its nodes against the position a projection writes
  *  today, so the next literal withdrew it "unsaved" too.
  ***************************************************************************/
+PRIVATE json_t *lq_literal(const char *db, int v)
+{
+    return schema_of(db, v, json_pack("[o,o]",
+        topic_of("users", v, json_pack("{s:o, s:o, s:o, s:o}",
+            "id", col_id(), "username", col_str("Login"),
+            "zeta", col_str("Zeta"), "alpha", col_str("Alpha"))),
+        topic_of("groups", v, json_pack("{s:o}", "id", col_id()))));
+}
+
+/*
+ *  What the legacy projection holds beyond build_legacy_projection(): the
+ *  columns zeta and alpha of `users`, and the topic `groups`, as the
+ *  projector of 7.13.1 wrote them
+ */
+PRIVATE int build_lq_legacy_nodes(hgobj gobj, const char *db)
+{
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    int result = 0;
+    char users_rowid[NAME_MAX], groups_rowid[NAME_MAX];
+    snprintf(users_rowid, sizeof(users_rowid), "%s-7", db);
+    snprintf(groups_rowid, sizeof(groups_rowid), "%s-9", db);
+
+    json_t *treedb = gobj_get_node(sys, "treedbs", json_pack("{s:s}", "id", db),
+        json_pack("{s:b}", "refs", 1), gobj);
+    json_t *groups = gobj_create_node(sys, "topics",
+        json_pack("{s:s, s:s, s:s, s:s, s:s, s:i, s:b}", "id", groups_rowid, "value", "groups",
+            "pkey", "id", "system_flag", "sf_string_key", "tkey", "", "topic_version", 1,
+            "system_topic", 0),
+        json_pack("{s:b}", "refs", 1), gobj);
+    if(!treedb || !groups ||
+            gobj_link_nodes(sys, "topics", "treedbs", json_incref(treedb), "topics",
+                json_incref(groups), gobj) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: LQ, the legacy topic groups could not be made", NULL);
+    }
+    static const char *cols[][5] = {
+        {"73", "zeta",  "Zeta",  "",         "-7"},
+        {"74", "alpha", "Alpha", "",         "-7"},
+        {"90", "id",    "Id",    "required", "-9"},
+        {NULL, NULL, NULL, NULL, NULL}
+    };
+    for(int i = 0; cols[i][0]; i++) {
+        char rowid[NAME_MAX], topic_rowid[NAME_MAX];
+        snprintf(rowid, sizeof(rowid), "%s-%s", db, cols[i][0]);
+        snprintf(topic_rowid, sizeof(topic_rowid), "%s%s", db, cols[i][4]);
+        json_t *flag = empty_string(cols[i][3])?
+            json_pack("[s]", "persistent") : json_pack("[s,s]", "persistent", cols[i][3]);
+        json_t *col = gobj_create_node(sys, "cols",
+            json_pack("{s:s, s:s, s:s, s:s, s:i, s:o}", "id", rowid, "value", cols[i][1],
+                "header", cols[i][2], "type", "string", "fillspace", 10, "flag", flag),
+            json_pack("{s:b}", "refs", 1), gobj);
+        if(!col || gobj_link_nodes(sys, "cols", "topics",
+                json_pack("{s:s}", "id", topic_rowid), "cols", json_incref(col), gobj) < 0) {
+            result += test_fail(gobj, db, "TEST FAIL: LQ, a legacy column could not be made", NULL);
+        }
+        JSON_DECREF(col)
+    }
+    JSON_DECREF(groups)
+    JSON_DECREF(treedb)
+    return result;
+}
+
+/*
+ *  The names of a saved schema, in its order: the topics when `topic_name`
+ *  is NULL, the columns of that topic otherwise, joined by ", "
+ */
+PRIVATE void saved_names(json_t *schema, const char *topic_name, char *bf, size_t bfsize)
+{
+    bf[0] = 0;
+    size_t len = 0;
+    int idx; json_t *topic;
+    json_array_foreach(json_object_get(schema, "topics"), idx, topic) {
+        const char *name = json_string_value(json_object_get(topic, "id"));
+        if(!name) {
+            continue;
+        }
+        if(!topic_name) {
+            len += (size_t)snprintf(bf + len, bfsize - len, "%s%s", len? ", " : "", name);
+            if(len >= bfsize) {
+                return;
+            }
+            continue;
+        }
+        if(strcmp(name, topic_name)!=0) {
+            continue;
+        }
+        const char *col_name; json_t *col;
+        json_object_foreach(json_object_get(topic, "cols"), col_name, col) {
+            len += (size_t)snprintf(bf + len, bfsize - len, "%s%s", len? ", " : "", col_name);
+            if(len >= bfsize) {
+                return;
+            }
+        }
+    }
+}
+
 PRIVATE int scenario_legacy_ids_before_the_upgrade_record(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -6475,7 +6683,8 @@ PRIVATE int scenario_legacy_ids_before_the_upgrade_record(hgobj gobj)
     const char *db = "tw_lq";
     hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
 
-    if(write_schema_file(gobj, db, lg_literal(db)) < 0 || build_legacy_projection(gobj, db) < 0) {
+    if(write_schema_file(gobj, db, lq_literal(db, 1)) < 0 ||
+            build_legacy_projection(gobj, db) < 0 || build_lq_legacy_nodes(gobj, db) < 0) {
         return -1;
     }
     char tid[NAME_MAX], cid[NAME_MAX];
@@ -6508,7 +6717,7 @@ PRIVATE int scenario_legacy_ids_before_the_upgrade_record(hgobj gobj)
     restart_system(gobj);
 
     json_int_t w0 = log_count(gobj, "warning");
-    if(open_db(gobj, db, lg_literal(db), FALSE) < 0) {
+    if(open_db(gobj, db, lq_literal(db, 1), FALSE) < 0) {
         return result - 1;
     }
     if(log_count(gobj, "warning") - w0 != 0) {
@@ -6528,6 +6737,7 @@ PRIVATE int scenario_legacy_ids_before_the_upgrade_record(hgobj gobj)
         JSON_DECREF(saved)
         JSON_DECREF(rows)
     }
+
 
     char dir[PATH_MAX];
     build_path(dir, sizeof(dir), priv->path_database, "__system__", "saved_schemas", NULL);
@@ -6552,9 +6762,34 @@ PRIVATE int scenario_legacy_ids_before_the_upgrade_record(hgobj gobj)
     JSON_DECREF(upgrade)
     close_db(gobj, db);
 
-    if(open_db(gobj, db, schema_of(db, 2, json_pack("[o]",
-            topic_of("users", 2, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("Login"))))),
-            FALSE) < 0) {
+    restart_system(gobj);
+    if(open_db(gobj, db, lq_literal(db, 1), FALSE) < 0) {
+        return result - 1;
+    }
+    /*
+     *  A save keeps the order of the file (dry run: an edit, the schema it
+     *  would write, and the edit taken back). After a restart: the store
+     *  loads the nodes sorted by id, not in the order the move wrote them
+     */
+    result += edit_header(gobj, db, "users", "username", "Edited");
+    {
+        json_t *rows = treedb_cmd(gobj, db, "save-schema", json_pack("{s:b}", "dry_run", 1));
+        json_t *schema = kw_get_dict(gobj, rows, "data`schema", 0, 0);
+        char topics[256], cols[256];
+        saved_names(schema, NULL, topics, sizeof(topics));
+        saved_names(schema, "users", cols, sizeof(cols));
+        if(strcmp(topics, "users, groups")!=0 || strcmp(cols, "id, username, zeta, alpha")!=0) {
+            result += test_fail(gobj, db,
+                "TEST FAIL: LQ, a save of a projection written before `order` existed reorders it",
+                json_pack("{s:s, s:s, s:O}", "topics", topics, "users_cols", cols,
+                    "save_dry_run", rows));
+        }
+        JSON_DECREF(rows)
+    }
+    result += edit_header(gobj, db, "users", "username", "Login");
+    close_db(gobj, db);
+
+    if(open_db(gobj, db, lq_literal(db, 2), FALSE) < 0) {
         return result - 1;
     }
     /*
@@ -6631,9 +6866,20 @@ PRIVATE int scenario_legacy_move_that_fails(hgobj gobj)
     }
     restart_system(gobj);
 
-    if(open_db(gobj, db, lit2, FALSE) < 0) {
-        return result - 1;
-    }
+    /*
+     *  The retry is the first open that writes the record of the upgrade,
+     *  and the record the failed move left names no id: `operator_col`,
+     *  declared by no schema, is what an older release left, never the
+     *  operator's work (and no error): removed and said so, two warnings. Red before: the record, with no
+     *  `planned`, "named" every id (an ERROR each time it was asked), so
+     *  `operator_col` was withdrawn "unsaved".
+     */
+    result += open_counting(gobj, db, lit2,
+        "TEST FAIL: LX, the open that completes the move logged errors, or said other than what "
+        "an older release left", 0, 2);
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: LX, what an older release left was withdrawn as operator work", 0,
+        json_pack("{s:s}", "users", "left_by_older_release"));
     static const char *legacy[][2] = {
         {"topics", "-7"}, {"cols", "-70"}, {"cols", "-71"}, {"cols", "-72"}, {NULL, NULL}
     };
@@ -6694,6 +6940,197 @@ PRIVATE int scenario_same_version_other_content(hgobj gobj)
     }
     result += open_counting(gobj, db, sv_literal(db, FALSE),
         "TEST FAIL: SV, the literal that IS the file was said", 0, 0);
+    close_db(gobj, db);
+    drop_treedb(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  SVI: SV with `impose_c_schema`. An imposed literal installs nothing at
+ *  the schema_version of the file (a tie goes to the file, see
+ *  treedb_open_db()): the FILE runs, and it is said as without impose,
+ *  ONE WARNING at every open, nothing when the literal IS the file. And a
+ *  seed of __system__ (after delete-treedb) is made from the file then,
+ *  not from the literal that does not run: no draft, and its
+ *  c_schema_version is not the literal's.
+ *
+ *  Red before: nothing was said, and the seed projected the literal: its
+ *  column read as a draft over the file, that a save would publish.
+ ***************************************************************************/
+PRIVATE int scenario_imposed_same_version_other_content(hgobj gobj)
+{
+    int result = 0;
+    const char *db = "tw_svi";
+    if(open_db(gobj, db, sv_literal(db, FALSE), TRUE) < 0) {
+        return -1;
+    }
+    close_db(gobj, db);
+    for(int i = 0; i < 2; i++) {
+        result += open_counting_as(gobj, db, sv_literal(db, TRUE), TRUE,
+            "TEST FAIL: SVI, an imposed literal with another content under the same number was not said",
+            0, 1);
+        close_db(gobj, db);
+    }
+    result += open_counting_as(gobj, db, sv_literal(db, FALSE), TRUE,
+        "TEST FAIL: SVI, the imposed literal that IS the file was said", 0, 0);
+    close_db(gobj, db);
+
+    json_t *jn_resp = treedb_cmd(gobj, db, "delete-treedb", json_pack("{s:b}", "force", 1));
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: SVI, delete-treedb", json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    result += open_counting_as(gobj, db, sv_literal(db, TRUE), TRUE,
+        "TEST FAIL: SVI, the seed at an imposed tie was not said", 0, 1);
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: SVI, the seed at an imposed tie projected the literal that does not run",
+        json_object());
+    if(system_c_schema_version(gobj, db) == 2) {
+        result += test_fail(gobj, db,
+            "TEST FAIL: SVI, a seed from the file at an imposed tie claims the literal", NULL);
+    }
+    close_db(gobj, db);
+    drop_treedb(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  OP: a column the operator adds with an `order` that is not its place
+ *  (99, the third column of `users`). It is a draft. A save publishes it
+ *  third, and writes that place into __system__ too: right after the save
+ *  `draft_changed` is {} (the draft IS the saved schema), and applied and
+ *  opened, the file runs it and `draft_changed` is {} again.
+ *
+ *  Red before: the save wrote the column third and left 99 in __system__.
+ *  Compared with the saved schema (99 against 2), `users` read as unsaved
+ *  right after its save, and as a draft over the file after the apply.
+ ***************************************************************************/
+PRIVATE json_t *op_literal(const char *db)
+{
+    return schema_of(db, 1, json_pack("[o]",
+        topic_of("users", 1, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User")))));
+}
+
+PRIVATE int scenario_draft_order_is_not_its_place(hgobj gobj)
+{
+    int result = 0;
+    const char *db = "tw_op";
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, db, op_literal(db), FALSE) < 0) {
+        return -1;
+    }
+    result += add_draft_col(gobj, db, "users", "email");
+    json_t *ed = gobj_update_node(sys, "cols",
+        json_pack("{s:s, s:i}", "id", "tw_op.users.email", "order", 99),
+        json_pack("{s:b}", "refs", 1), gobj);
+    if(!ed) {
+        result += test_fail(gobj, db, "TEST FAIL: OP, the operator's order was refused", NULL);
+    }
+    JSON_DECREF(ed)
+    result += check_draft_changed(gobj, db, "TEST FAIL: OP, the operator's column is not a draft",
+        json_pack("{s:b}", "users", 1));
+    result += save_schema(gobj, db);
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: OP, a draft whose order is not its place reads as unsaved right after its save",
+        json_object());
+    result += apply_schema(gobj, db);
+    close_db(gobj, db);
+
+    if(open_db(gobj, db, op_literal(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: OP, the applied draft reads as a draft over the file", json_object());
+    close_db(gobj, db);
+    drop_treedb(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  BH: a store that runs a topic AHEAD of its schema file. The operator's
+ *  apply of `users` ran (topic_version 2, with `email`); then a newer
+ *  literal (schema_version 3) declares `users` at topic_version 1, without
+ *  `email`. It is installed whole (so did 7.25.4), and tranger2 keeps
+ *  running its own `users`: 2 is above 1. The file says one definition,
+ *  the store runs another that only its topic_cols.json holds.
+ *
+ *    - every open that runs the file says it: ONE WARNING, naming the
+ *      topic;
+ *    - a save of `users` publishes it past what RUNS (topic_version 3),
+ *      so the apply installs it: the store runs the saved `users`, and the
+ *      next open says nothing.
+ *
+ *  Red before: nothing was said after the open that installed the
+ *  literal, and the save published `users` at topic_version 2 (the
+ *  file's 1, plus one): not above what ran, so the apply reached nothing,
+ *  and the store went on running the old `users` in silence.
+ ***************************************************************************/
+PRIVATE json_t *bh_literal(const char *db, int v)
+{
+    return schema_of(db, v, json_pack("[o]",
+        topic_of("users", 1, json_pack("{s:o, s:o}", "id", col_id(), "username", col_str("User")))));
+}
+
+PRIVATE int scenario_file_behind_what_runs(hgobj gobj)
+{
+    int result = 0;
+    const char *db = "tw_bh";
+
+    if(open_db(gobj, db, bh_literal(db, 1), FALSE) < 0) {
+        return -1;
+    }
+    result += add_draft_col(gobj, db, "users", "email");
+    result += save_schema(gobj, db);
+    result += apply_schema(gobj, db);
+    close_db(gobj, db);
+    if(open_db(gobj, db, bh_literal(db, 1), FALSE) < 0) {
+        return result - 1;
+    }
+    close_db(gobj, db);
+    if(open_db(gobj, db, bh_literal(db, 3), FALSE) < 0) {
+        return result - 1;
+    }
+    json_int_t tv;
+    json_t *h = running_headers(gobj, db, "users", &tv);
+    if(tv != 2 || !json_object_get(h, "email")) {
+        result += test_fail(gobj, db,
+            "TEST FAIL: BH, the store does not run its own users ahead of the file",
+            json_pack("{s:I, s:O}", "topic_version", tv, "headers", h? h : json_null()));
+    }
+    JSON_DECREF(h)
+    close_db(gobj, db);
+
+    for(int i = 0; i < 2; i++) {
+        result += open_counting(gobj, db, bh_literal(db, 3),
+            "TEST FAIL: BH, a store running a topic ahead of its file was not said", 0, 1);
+        if(i == 0) {
+            close_db(gobj, db);
+        }
+    }
+
+    result += edit_header(gobj, db, "users", "username", "Edited");
+    json_t *jn_resp = treedb_cmd(gobj, db, "save-schema", json_object());
+    json_int_t saved_tv = kw_get_int(gobj, jn_resp, "data`topic_versions`users", -1, KW_WILD_NUMBER);
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 || saved_tv != 3) {
+        result += test_fail(gobj, db,
+            "TEST FAIL: BH, the save did not publish users past what runs", json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    result += apply_schema(gobj, db);
+    close_db(gobj, db);
+
+    result += open_counting(gobj, db, bh_literal(db, 3),
+        "TEST FAIL: BH, the open after the apply said something", 0, 0);
+    h = running_headers(gobj, db, "users", &tv);
+    if(tv != 3 || json_object_get(h, "email") ||
+            strcmp(json_string_value(json_object_get(h, "username"))?
+                json_string_value(json_object_get(h, "username")) : "", "Edited")!=0) {
+        result += test_fail(gobj, db,
+            "TEST FAIL: BH, the apply of the saved users reached nothing",
+            json_pack("{s:I, s:O}", "topic_version", tv, "headers", h? h : json_null()));
+    }
+    JSON_DECREF(h)
     close_db(gobj, db);
     drop_treedb(gobj, db);
     return result;
@@ -6933,6 +7370,7 @@ PRIVATE int (*late_scenarios[])(hgobj gobj) = {
     scenario_orphaned_leftover_edited_0,
     scenario_orphaned_leftover_edited_1,
     scenario_ambiguous_owner,
+    scenario_ambiguous_with_failure_record,
     scenario_ambiguous_after_crash,
     scenario_delete_treedb_every_node,
     scenario_delete_treedb_killed,
@@ -6957,6 +7395,9 @@ PRIVATE int (*late_scenarios[])(hgobj gobj) = {
     scenario_legacy_ids_before_the_upgrade_record,
     scenario_legacy_move_that_fails,
     scenario_same_version_other_content,
+    scenario_imposed_same_version_other_content,
+    scenario_draft_order_is_not_its_place,
+    scenario_file_behind_what_runs,
     scenario_saved_schema_written_whole,
     scenario_kw_gbuffer_every_treedb,
     scenario_public_events_not_implemented,

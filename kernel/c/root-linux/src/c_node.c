@@ -4462,15 +4462,19 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
 
     /*
-     *  No topic_name: show WHERE the snap points, i.e. every topic that has
-     *  records tagged with this snap, and how many. Drill into one topic by
-     *  passing topic_name=<topic>.
+     *  No topic_name: show WHERE the snap points, i.e. every topic OF THIS
+     *  TREEDB that has records tagged with this snap, and how many. Drill
+     *  into one topic by passing topic_name=<topic>. A tranger can hold
+     *  other treedbs and plain topics, and a snap id is this treedb's: the
+     *  same number tags records of others (every treedb counts its snaps
+     *  from 1), and they are not this snap's.
      */
     if(empty_string(topic_name)) {
         json_t *jn_data = json_array();
-        json_t *topics = kw_get_dict(gobj, priv->tranger, "topics", 0, 0);
-        const char *t_name; json_t *t_topic;
-        json_object_foreach(topics, t_name, t_topic) {
+        json_t *topics = treedb_topics(priv->tranger, priv->treedb_name, NULL);
+        int t_idx; json_t *jn_t_name;
+        json_array_foreach(topics, t_idx, jn_t_name) {
+            const char *t_name = json_string_value(jn_t_name);
             json_t *match_cond = json_pack(
                 "{s:b, s:I, s:I, s:I}",
                 "backward", 1,
@@ -4506,6 +4510,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                 );
             }
         }
+        JSON_DECREF(topics)
         return msg_iev_build_response(
             gobj,
             0,
@@ -4519,6 +4524,21 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
+    /*
+     *  A topic of THIS treedb, as every other command asks: the tranger can
+     *  hold topics of other treedbs, and plain ones
+     */
+    if(!treedb_is_treedbs_topic(priv->tranger, priv->treedb_name, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found in treedb '%s': '%s'",
+                gobj_yuno_role_plus_name(), priv->treedb_name, topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     json_t *topic = tranger2_topic(priv->tranger, topic_name);
     if(!topic) {
         return msg_iev_build_response(
@@ -5026,9 +5046,16 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             kw  // owned
         );
     }
-    jn_db = gbuf2json(
+    /*
+     *  The content comes from whoever sent the command: a peer. Bytes that
+     *  are not json are its doing -- a WARNING naming it, a capped dump, no
+     *  stack -- not a broken invariant of ours (an ERROR with a stack and
+     *  the whole buffer, which can be megabytes)
+     */
+    jn_db = gbuf2json_from_peer(
+        gobj,
         gbuf_content,  // owned
-        2
+        src
     );
     if(!jn_db) {
         return msg_iev_build_response(

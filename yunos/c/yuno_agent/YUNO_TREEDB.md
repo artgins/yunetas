@@ -1530,11 +1530,28 @@ they come back in the order the store holds them, which is the order
 position each node occupies in the schema compiled in C, and
 `get_treedb_schema()` sorts by it and then **removes it**: in a schema the
 order IS the sequence of the `cols` dict, and a schema carrying both would
-hand every topic a column attribute nobody declared. A node the projection
-cannot place — one projected before the index existed — falls back to where C
-declares it, and goes last when C does not know it either. `order` defaults to
-**9999**, so a column created here by hand, which says nothing about where it
-goes, goes last too.
+hand every topic a column attribute nobody declared. A node whose `order` says
+nothing about its place — absent, or the default **9999**: one projected
+before the index existed, or a column created here by hand — goes where the
+schema FILE IN USE declares it, then where C declares it, and last when
+neither knows it. The file comes first because it is what runs and what a save
+is compared with; the literal may be behind it, or tie with it in another
+order. For example, a projection from 7.13.1 whose file declares `users` as
+`id, username, zeta, alpha` saves `id, username, zeta, alpha`. (Until this
+release 9999 was read as a position: every node of such a projection tied, the
+nodes kept the order the store loaded them in, alphabetical by id, and a save
+published `alpha, id, username, zeta`, a reorder nobody made, which
+`apply-schema` put in the file.)
+
+**A save writes the places too.** The draft IS the saved schema, its places as
+its versions: `save-schema` writes into `__system__` the position each topic
+and column has in the schema it saves, where the node says another `order`.
+A column the operator added with `order` 99, third in `users`, is saved third
+and its node says `2` afterwards, so `saved-schema` answers `draft_changed:
+{}` right after the save, and again after the apply. (Until this release the
+node kept 99: compared with the saved schema, 99 against 2, `users` read as
+unsaved right after its save, and as a draft over the file after the
+apply.)
 
 Two more things hold that order down, below the schema. The keys of a topic
 are read **sorted** (`find_keys_in_disk()`), because `readdir()` order was
@@ -1701,7 +1718,17 @@ A literal that is not higher is not installed. The log tells why:
   `schema_version`, over a file that came from the literal of that number.
   (Until this release it was compared only when `__system__`'s
   `c_schema_version` was another number, and in that case it is the same
-  number: nothing was said, and the column reached nothing.)
+  number: nothing was said, and the column reached nothing.) **The same with
+  `impose_c_schema` on**, the default: an imposed literal installs nothing at
+  the file's `schema_version` either (`treedb_open_db()` keeps the file at a
+  tie), so the FILE runs and the same WARNING says it, with `"imposed": 1`,
+  for example `{"treedb_name": "treedb_x", "schema_version": 2,
+  "c_schema_version": 2, "imposed": 1, "diff": {"added":
+  {"topics`users`cols`email`header": "Email", ...}, ...}}`. And `__system__`
+  is projected from the file then, not from a literal that does not run.
+  (Until this release an imposed tie was silent: the classic mistake reached
+  nothing on every imposed treedb, and a seed of `__system__` took the literal,
+  whose column then read as the operator's draft over the file.)
 
 For example, the developer removes the topic `departments` and the fkey of
 `users` to it, and raises the versions:
@@ -2314,6 +2341,23 @@ raising its topic_version past it: the store keeps running its own"*
 (`treedb_name`, `topic_name`, `topic_version`, `running_version`). Raise the
 `topic_version` of every topic you change.
 
+**A store can run a topic AHEAD of its file.** When the literal installed over
+the file declares a topic at a `topic_version` BELOW the one the store runs
+(an apply of the operator raised it; 7.25.4 installed literals whole the same
+way), tranger2 keeps the store's topic, and the definition that runs is only
+in its `topic_cols.json`: the file and `__system__` say another. Every open
+that runs the file says it, per topic: *"Schema file in use declares other
+columns than the store runs, at a topic_version behind the store's (a schema
+written whole over a topic the store had raised): the store runs its own, which only its
+topic_cols.json says; save the topic from __system__ and apply it, or raise
+its topic_version in the schema from C"*, for example `{"treedb_name":
+"treedb_x", "topic_name": "users", "topic_version": 1, "running_version":
+2}`. A save publishes a changed topic past what RUNS, not only past the file:
+edit `users` in `__system__` and `save-schema` answers `"topic_versions":
+{"users": 3}`, and the apply installs it. (Until this release nothing said it
+after the open that made it, and the save published `users` at the file's
+version plus one, 2: not above what ran, so the apply reached nothing.)
+
 The whole matrix, with `impose_c_schema` off on a master:
 
 | File in use | Store runs | Literal | Result |
@@ -2335,14 +2379,19 @@ The whole matrix, with `impose_c_schema` off on a master:
 | 2, an apply not opened | `users` 1 | 2 or lower | the file runs: the apply runs at this open |
 | 3 | as the file | 2 | the file runs; *"behind the schema in use"* |
 
-With `impose_c_schema` on, the literal runs whatever the file says (see
-below), and `__system__` follows the versions against itself: it is seeded
-when it has no projection, re-made WHOLE when the literal is higher than
-`__system__`, and left as it is otherwise. On a replica, nothing is
-projected and nothing is withdrawn: the replica runs the file as it is.
+With `impose_c_schema` on, the literal runs whatever the file says, unless
+its `schema_version` IS the file's: at a tie `treedb_open_db()` keeps the file
+(see the table below, `equal | kept`), the FILE runs, and another content is
+said as it is without impose (the WARNING of the tie above, `"imposed": 1`).
+`__system__` follows the versions against itself: it is seeded when it has no
+projection, re-made WHOLE when the literal is higher than `__system__`, and
+left as it is otherwise; at a tie with another content it is projected from
+the file, which is what runs. On a replica, nothing is projected and nothing
+is withdrawn: the replica runs the file as it is.
 
 A treedb with no projection yet is seeded with what runs: the literal when it
-is installed or imposed, the FILE otherwise. Seeded from the file,
+is installed, or imposed and not tied with another file; the FILE otherwise.
+Seeded from the file,
 `c_schema_version` is the literal's version only when the file IS the
 literal, and `0` otherwise, and that open says the tie or *"behind"* as any
 other open does. (In 7.25.4 it was the file's number, so after a
@@ -2468,7 +2517,7 @@ versions still applies, with one more case, at both levels (the treedb's
 | Stored version | What happens |
 |---|---|
 | lower than the literal's | the literal is installed, as always |
-| equal | kept |
+| equal | kept (another content under that number is said: the WARNING of the tie, `"imposed": 1`) |
 | **higher** | overwritten with the literal: a dynamic change being reverted |
 
 The log says *"Opening TreeDB with the schema from C, __system__ not read"*,
