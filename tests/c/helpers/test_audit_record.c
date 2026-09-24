@@ -9,7 +9,8 @@
  *          - the kw of the caller is not modified,
  *          - a secret (password, token, client secret, ...) is never written,
  *          - a stats command with a reset is a write,
- *          - the command carried by command-yuno is the one the parser takes,
+ *          - the command carried by command-yuno is the one its handler
+ *            reads (the key exactly `command`; COMMAND=... is not it),
  *          - bad data from a peer gives warnings, never an error,
  *          - a console write keeps only the fact (who, when, which
  *            console, how many bytes): one record per burst,
@@ -576,6 +577,56 @@ PRIVATE void test_wrapper_text_wins(void)
         "(i) command-yuno: text command=list-yunos wins over kw.command: minimal");
     JSON_DECREF(jn_record)
     JSON_DECREF(kw)
+
+    /*
+     *  The key in another case is NOT the command that runs: the parser
+     *  stores COMMAND=... under "COMMAND", the handler reads "command"
+     */
+    kw = json_pack("{s:s, s:s}", "command", "delete-yuno id=gate", "__username__", "mallory");
+    jn_record = audit_record_build("command-yuno id=x COMMAND=list-yunos", kw, DATE, command_table);
+    check(!only_command_date_user(jn_record) && json_object_get(jn_record, "kw") &&
+        record_holds(jn_record, "delete-yuno"),
+        "(i) command-yuno COMMAND=list-yunos, kw.command=delete-yuno: the full record, with delete-yuno");
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+
+    jn_record = audit_record_build(
+        "command-yuno id=x command=write-attr attribute=api_key value=S3CR3T COMMAND=list-yunos",
+        NULL, DATE, command_table
+    );
+    check(!only_command_date_user(jn_record) && !record_holds(jn_record, "S3CR3T"),
+        "(i) command-yuno command=write-attr ... COMMAND=list-yunos: the full record, the secret redacted");
+    JSON_DECREF(jn_record)
+
+    kw = json_pack("{s:s}", "COMMAND", "delete-yuno id=gate");
+    jn_record = audit_record_build("command-yuno id=x command=list-yunos", kw, DATE, command_table);
+    check(!only_command_date_user(jn_record),
+        "(i) command-yuno command=list-yunos with a kw key COMMAND: the full record");
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+
+    kw = json_pack("{s:s}", "COMMAND", "write-attr attribute=password value=S3CR3TVALUE");
+    check_no_secret("command-yuno id=x command=list-yunos", kw, "S3CR3TVALUE",
+        "(i) a kw key COMMAND (full record now): its write-attr secret is redacted");
+    JSON_DECREF(kw)
+
+    /*
+     *  The console of a write-tty: the handler reads "name", not "NAME"
+     */
+    json_t *jn_bursts = json_object();
+    json_t *jn_records = json_array();
+    kw = json_pack("{s:s, s:s, s:s}", "name", "console-1", "content64", "cg==", "__username__", "mallory");
+    audit_tty_command(jn_bursts, "write-tty NAME=decoy", kw, DATE, 3600, command_table, jn_records);
+    JSON_DECREF(kw)
+    const char *console = kw_get_str(0, json_array_get(jn_records, 0), "console", "", 0);
+    check(json_array_size(jn_records) == 1 && strcmp(console, "console-1") == 0,
+        "(i) write-tty NAME=decoy, kw.name=console-1: recorded on console-1, where the keystroke goes");
+    if(strcmp(console, "console-1") != 0) {
+        printf("     console recorded: '%s'\n", console);
+    }
+    audit_tty_close_bursts(jn_bursts, jn_records);
+    JSON_DECREF(jn_records)
+    JSON_DECREF(jn_bursts)
 }
 
 /***************************************************************************

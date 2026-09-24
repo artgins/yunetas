@@ -479,10 +479,25 @@ the full record, with its `source`, also when the `__reset__` comes in the kw.
 
 `command-yuno` and `command-agent` are judged by the command that they carry,
 and the record names it: `"command":"command-yuno command=view-attrs"`. The
-carried command is taken from the same place as the command parser takes it:
-the last `command=` of the command text, else `command` of the kw. So a kw
+carried command is taken from the same place as the handler takes it: the last
+`command=` of the command text, else `command` of the kw. So a kw
 `command=list-yunos` with a text `command='delete-node …'` runs `delete-node`
 and is recorded as `delete-node`, with the full record.
+
+The key must be exactly `command`. The command parser matches a key of the text
+in any case, but it stores the value under the key as it was typed, and the
+handler reads `command` only. So `COMMAND=list-yunos` is not the command that
+runs: with a kw `{"command": "delete-yuno id=gate"}`, the command
+
+```
+command-yuno id=gate COMMAND=list-yunos
+```
+
+runs `delete-yuno`, and it is recorded with the full record (the kw, the
+`source`). A key `command` in another case, in the text or in the kw, always
+gives the full record: it is never taken as read-only. The same rule gives the
+console of a `write-tty`: the handler reads `name`, so `NAME=decoy` does not
+change the console of the record.
 
 These commands keep the full record: `read-file`, `read-json` and
 `read-binary-file` (they read files of the node), `check-user-pwd`, and anything
@@ -552,9 +567,12 @@ nearest first:
   (`pkey`, `rkey`) are not secrets, and stay. `cookie_domain` is redacted
   too: it holds `cookie`.
 
-  Also the `value` of a `write-attr` whose `attribute` has such a name (the
-  keys in any case, as the parser takes them: `ATTRIBUTE=api_key VALUE=…`),
-  also when `attribute` and `value` come in a JSON object of the kw. Also the
+  Also the `value` of a `write-attr` whose `attribute` has such a name, also
+  when `attribute` and `value` come in a JSON object of the kw. Here the keys
+  are read in any case (`ATTRIBUTE=api_key VALUE=…` is redacted too). That is
+  stricter than the handler, which reads only `attribute` and `value`: the
+  parser gives it `{"ATTRIBUTE": …, "VALUE": …}`, keys as typed. A redaction
+  can be stricter than the parser, never looser. Also the
   token after `Bearer `, and anything with the shape of a JWT (`eyJ…`, three
   parts joined by `.`), wherever they are. This applies to a kw key at any
   depth, to `name=value` in any string (quoted or not, with blanks around the
@@ -655,6 +673,15 @@ each rotation removed the previous `.OLD`, so a day that crossed the limit
 twice lost its first part (on wattyzer, the mornings of 22 and 23 September
 2026).
 
+If the directory refuses the rename (`chattr +a` on it, a read-only bind, a MAC
+denial), nothing is removed: the file of the day is kept and grows over the
+limit. The agent prints one line (stdout and syslog) and tries the rename again
+after 60 seconds, or at the next day, not at every command:
+
+```
+_rotatory(): Cannot rename '/yuneta/realms/agent/agent/audit/267-24_09_2026.log' to '/yuneta/realms/agent/agent/audit/267-24_09_2026.log.OLD.1', Permission denied, the file is kept and grows, the rename is tried again every minute
+```
+
 The attribute **`audit_keep_days`** (default `7`) is the retention. The agent
 removes the audit files older than that number of days:
 
@@ -663,7 +690,9 @@ removes the audit files older than that number of days:
 
 The second sweep runs inside the write of the first record of the new file,
 before that record is written: so it is on the write path of that one command,
-once a day (or once for each size rotation). It reads the directory once. It
+once a day (or once for each size rotation). The same file opened again (after
+a write that failed, or when the file was removed) is not a new file, and it
+runs no sweep. It reads the directory once. It
 removes only regular
 files with the name shape of the mask (and their `.OLD` / `.OLD.<n>`), never a
 file of the current day, never a symbolic link, never another file in the

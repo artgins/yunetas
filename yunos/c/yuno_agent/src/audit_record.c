@@ -91,9 +91,15 @@
  *            and read_only_commands[]. A command with a `__reset__` value
  *            (stats=__reset__ resets the counters) is a write.
  *            command-yuno / command-agent are judged by the command they
- *            carry, taken where the command parser takes it: the last
- *            top-level `command=` of the text (the key in any case), else
- *            kw.command. That command is named in the record.
+ *            carry, taken where their handler takes it: the last
+ *            top-level `command=` of the text, else kw.command. The key
+ *            EXACTLY `command`: the parser matches a key of the text in any
+ *            case, but it stores the value under the key as typed, and the
+ *            handler reads kw["command"]. So `COMMAND=list-yunos` is not the
+ *            command that runs: a text or kw key `command` in another case
+ *            makes the record full (never read-only). That command is
+ *            named in the record. The same for `name` and `content64` of a
+ *            console write.
  *            Commands that read files of the node (read-file, read-json,
  *            read-binary-file), check a password (check-user-pwd) or open
  *            something (open-list, open-treedb, ...) keep the full record.
@@ -396,13 +402,20 @@ PRIVATE void command_word(
 }
 
 /***************************************************************************
- *  The value of the top-level parameter `name` of a command text, taken as
- *  the command parser takes it (get_parameter() for the command, then
- *  get_key_value_parameter(), the key in any case; the last one wins).
- *  NULL if absent. Free the result with gbmem_free().
+ *  The value of the top-level parameter `name` of a command text, as the
+ *  handler gets it: get_parameter() for the command, then
+ *  get_key_value_parameter(), the last one wins. The key EXACTLY `name`:
+ *  build_cmd_kw() stores a value under the key as typed, and the handler
+ *  reads the exact key. `*other_case` (optional): the value of the last
+ *  key that is `name` in another case (COMMAND=...), a value the handler
+ *  does not read, else NULL. NULL if absent. Free the results with
+ *  gbmem_free().
  ***************************************************************************/
-PRIVATE char *text_param(const char *text, const char *name)
+PRIVATE char *text_param(const char *text, const char *name, char **other_case)
 {
+    if(other_case) {
+        *other_case = NULL;
+    }
     if(!strchr(text, '=')) {
         return NULL;
     }
@@ -414,17 +427,23 @@ PRIVATE char *text_param(const char *text, const char *name)
     get_parameter(p, &p);   // the command
 
     const char *found = NULL;
+    const char *found_other_case = NULL;
     char *key;
     char *value;
     while((value = get_key_value_parameter(p, &key, &p))) {
         if(!key) {
             break;
         }
-        if(strcasecmp(key, name) == 0) {
+        if(strcmp(key, name) == 0) {
             found = value;
+        } else if(strcasecmp(key, name) == 0) {
+            found_other_case = value;
         }
     }
     char *ret = found? gbmem_strdup(found): NULL;
+    if(other_case && found_other_case) {
+        *other_case = gbmem_strdup(found_other_case);
+    }
     gbmem_free(copy);
     return ret;
 }
@@ -435,7 +454,7 @@ PRIVATE char *text_param(const char *text, const char *name)
  ***************************************************************************/
 PRIVATE char *param_value(const char *command, json_t *kw, const char *name)
 {
-    char *value = text_param(command, name);
+    char *value = text_param(command, name, NULL);
     if(value) {
         return value;
     }
@@ -476,7 +495,13 @@ PRIVATE BOOL is_wrapper(const char *verb)
 
 /***************************************************************************
  *  The command carried by a wrapper (command-yuno, command-agent), "" if
- *  none. Where the parser takes it: the text wins over the kw.
+ *  none. Where the handler takes it: the text wins over the kw, the key
+ *  exactly `command`.
+ *  `other_bf`: the word of a command under a key `command` in another
+ *  case (COMMAND=..., in the text or in the kw), "" if none. It does not
+ *  run, but it is judged all the same: its presence makes the record full
+ *  (see command_is_read_only()), and a write-tty there hides its
+ *  keystroke (the redaction is stricter than the parser, never looser).
  *  command-agent runs it in the agent: looked up in its table.
  ***************************************************************************/
 PRIVATE void inner_command(
@@ -486,14 +511,39 @@ PRIVATE void inner_command(
     const sdata_desc_t *command_table,
     char *bf,
     size_t bfsize,
-    BOOL *in_text
+    BOOL *in_text,
+    char *other_bf,
+    size_t other_bfsize,
+    BOOL *other_case
 )
 {
     const sdata_desc_t *table = (strcmp(verb, COMMAND_AGENT) == 0)? command_table: NULL;
 
     *bf = 0;
     *in_text = FALSE;
-    char *value = text_param(command, "command");
+    *other_bf = 0;
+    *other_case = FALSE;
+
+    char *value_other_case = NULL;
+    char *value = text_param(command, "command", &value_other_case);
+    if(value_other_case) {
+        *other_case = TRUE;
+        command_word(value_other_case, table, other_bf, other_bfsize);
+        gbmem_free(value_other_case);
+    }
+    if(json_is_object(kw)) {
+        const char *key;
+        json_t *jn_value;
+        json_object_foreach(kw, key, jn_value) {
+            if(strcmp(key, "command") != 0 && strcasecmp(key, "command") == 0) {
+                *other_case = TRUE;
+                if(!*other_bf && json_is_string(jn_value)) {
+                    command_word(json_string_value(jn_value), table, other_bf, other_bfsize);
+                }
+            }
+        }
+    }
+
     if(value) {
         *in_text = TRUE;
         command_word(value, table, bf, bfsize);
@@ -782,14 +832,15 @@ PRIVATE BOOL command_is_read_only(
     json_t *kw,
     const char *verb,
     BOOL wrapper,
-    const char *inner
+    const char *inner,
+    BOOL inner_other_case
 )
 {
     if(has_reset(command, kw)) {
         return FALSE;
     }
     if(wrapper) {
-        if(!*inner || is_wrapper(inner)) {
+        if(!*inner || is_wrapper(inner) || inner_other_case) {
             return FALSE;
         }
         return verb_is_read_only(inner);
@@ -1517,15 +1568,22 @@ PRIVATE json_t *record_build(
 )
 {
     char inner[NAME_MAX] = "";
+    char inner_other_case[NAME_MAX] = "";
     BOOL inner_in_text = FALSE;
+    BOOL has_other_case = FALSE;
     BOOL wrapper = is_wrapper(verb);
     size_t command_len = strlen(command);
     if(wrapper && command_len <= AUDIT_SCAN_BUDGET) {
-        inner_command(command, kw, verb, command_table, inner, sizeof(inner), &inner_in_text);
+        inner_command(
+            command, kw, verb, command_table,
+            inner, sizeof(inner), &inner_in_text,
+            inner_other_case, sizeof(inner_other_case), &has_other_case
+        );
     }
 
     redact_ctx_t ctx = {
-        .tty = (strcmp(verb, TTY_WRITE) == 0 || strcmp(inner, TTY_WRITE) == 0)? TRUE: FALSE,
+        .tty = (strcmp(verb, TTY_WRITE) == 0 || strcmp(inner, TTY_WRITE) == 0 ||
+            strcmp(inner_other_case, TTY_WRITE) == 0)? TRUE: FALSE,
         .value_is_secret = FALSE,
         .budget = AUDIT_SCAN_BUDGET
     };
@@ -1535,13 +1593,21 @@ PRIVATE json_t *record_build(
         ctx.value_is_secret = kw_names_secret_attribute(kw);
     }
     if(!ctx.value_is_secret && wrapper && json_is_object(kw)) {
-        json_t *jn_inner = json_object_get(kw, "command");
-        if(json_is_string(jn_inner) && json_string_length(jn_inner) <= AUDIT_SCAN_BUDGET) {
-            ctx.value_is_secret = names_secret_attribute(
-                json_string_value(jn_inner),
-                json_string_length(jn_inner),
-                NULL
-            );
+        /*
+         *  kw.command, and a key `command` in another case too (it does not
+         *  run, but it is written: the redaction is never looser)
+         */
+        const char *key;
+        json_t *jn_inner;
+        json_object_foreach(kw, key, jn_inner) {
+            if(strcasecmp(key, "command") != 0 || !json_is_string(jn_inner) ||
+                    json_string_length(jn_inner) > AUDIT_SCAN_BUDGET) {
+                continue;
+            }
+            if(names_secret_attribute(json_string_value(jn_inner), json_string_length(jn_inner), NULL)) {
+                ctx.value_is_secret = TRUE;
+                break;
+            }
         }
     }
 
@@ -1549,7 +1615,7 @@ PRIVATE json_t *record_build(
     const char *command_text = command_redacted? command_redacted: command;
     json_t *jn_record = NULL;
 
-    if(command_is_read_only(command, kw, verb, wrapper, inner)) {
+    if(command_is_read_only(command, kw, verb, wrapper, inner, has_other_case)) {
         /*
          *  command, date, user: nothing else. A wrapper names the command
          *  it carries when the text does not.

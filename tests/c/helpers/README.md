@@ -62,9 +62,17 @@ the one the parser takes (`WRITE-TTY`, `'write-tty'`, `EV_WRITE_TTY`,
 `command_get_cmd_desc()`. More secret names (`api_key`, `x-api-key`,
 `http_cookie`, `__session_id__`, `auth_data`, `passphrase`, …), json keys with
 `\u` escapes, `Bearer` tokens and JWTs. It prints the size of a record,
-7.25.4's way and now, and what one record costs. `test_rotatory` also covers
-`rotatory_keep_all_old_files()` (numbered `.OLD.<n>` pieces, none removed, and
-the retention matches them).
+7.25.4's way and now, and what one record costs. The command carried by
+`command-yuno` is the one its handler reads: the key exactly `command`
+(`COMMAND=list-yunos` with a kw `command=delete-yuno` gets the full record, and
+`NAME=decoy` does not move a `write-tty` to another console). `test_rotatory`
+also covers `rotatory_keep_all_old_files()` (numbered `.OLD.<n>` pieces, none
+removed, and the retention matches them), a newfile callback that runs for a
+new file only (never for the same file opened again after a failed write or a
+removal), a keep_all rename that fails (tried once, not at every record; the
+test is linked with `--wrap=rename`), and the open of a fixed name, of a `MM`
+name within its month, and of a `W` file with keep_all set right after the
+open (none of them emptied).
 
 ## Run
 
