@@ -43,13 +43,13 @@ repositories** and is embedded here as **git submodules** (the same model as
   active-changing JS layer, so it evolves on its own line with its own
   `CHANGELOG.md`.
 
-**LAS VERSIONES DE JS NO ADELANTAN A LAS DE C, salvo en el tercer índice**
-(regla del 2026-08-28). Los dos primeros números de un paquete JS del SDK son
-los de `YUNETA_VERSION`; el tercero es la vida propia del paquete entre
-releases del SDK. Un número que no dice contra qué SDK está el paquete no le
-sirve a nadie: `gobj-js` iba por 7.13.x con el C en 7.16.2, y se saltó a
-**7.16.0** para volver a decirlo — el número no cuenta releases, dice a qué
-SDK pertenece.
+**JS versions never get ahead of C, except in the third number** (rule of
+2026-08-28). The first two numbers of an SDK JS package are those of
+`YUNETA_VERSION`; the third is the package's own life between SDK releases. A
+number that does not say which SDK the package goes with is of no use to
+anybody: `gobj-js` was at 7.13.x while C was at 7.16.2, and it jumped to
+**7.16.0** to say it again -- the number does not count releases, it names the
+SDK the package belongs to.
 
 **`gobj-ui` is back in line since SDK 7.23.0.** From 7.16.2 to 7.22.0 it was
 ahead of C (its 7.23.x line was already published, and a lower number would
@@ -1842,8 +1842,8 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   `git worktree` with its own outputs, run both binaries ALTERNATED (8+
   rounds), report mean and spread. A real loss is either the price of a named
   correctness fix, said in the CHANGELOG with its figure, or it is fixed before
-  the tag. Why: eleven review rounds of 7.25.5 fixed correctness and nobody
-  measured speed; `test_topic_pkey_integer` had drifted from 1.94 s to
+  the tag. Why: the correctness fixes of 7.25.5 were made in many passes and
+  nobody measured speed; `test_topic_pkey_integer` had drifted from 1.94 s to
   2.03-2.25 s on the fastest node before anybody looked.
 - **Every release ships a performance report: an `.html` with charts that
   SELLS the release** (rule of 2026-09-23). When a version is generated,
