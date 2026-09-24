@@ -271,6 +271,24 @@ side and run alternated (medians; ext4, laptop NVMe).
   on disk.
 - treedb writes: see "Data loss and integrity" (faster than 7.25.4).
 
+### Performance (C_TREEDB, JSON files), against 7.25.4
+
+- **A treedb open reads only its own nodes of `__system__`.** It read every
+  node of every treedb with its links: ~90 ms an open in a store of 40 treedbs
+  of 200 columns; now ~5 ms, and it does not grow with the store. The schema
+  file in use is read once (it was read twice).
+- **A JSON file is read whole, then parsed** (`load_json_from_file()`,
+  `load_persistent_json()`): `json_loadfd()` made one `read()` per byte, 60 000
+  system calls for a 60 KB schema.
+- 40 treedbs x 10 topics x 20 columns, 40 opens, 8 alternated rounds, in
+  seconds (7.25.4 -> now): first projection (seed) 10.53 -> 11.26, newer literal
+  13.98 -> 13.65, same literal 1.84 -> 0.75.
+- **Price kept, by decision:** with the same JSON load on both sides, the first
+  projection of a treedb is ~17% slower than 7.25.4 (~40 ms a treedb): it writes
+  the record of the projection in progress whole, with its fsyncs, before its
+  first write, and stamps the treedb node last. That is the crash safety of the
+  projection.
+
 ### Schemas (C_TREEDB)
 
 - **A newer C literal wins whole** (dynamic-schema treedb, impose off). As in
@@ -436,9 +454,19 @@ side and run alternated (medians; ext4, laptop NVMe).
   apply, which was written in place) are written whole from one buffer, with
   `.new` + fsync + rename: a 200 KB record takes 6.8 ms instead of 29.7 ms.
 - `io_uring_get_sqe()` returning NULL (a full submission queue) crashed 11
-  callers of yev_loop; the queue is flushed and the entry asked again, and a
-  submission that still cannot be made is logged (new test
-  `yev_events/test_yevent_sq_full`).
+  callers of yev_loop. The queue is flushed and the entry asked again; when the
+  kernel still takes nothing (on an older kernel a CQ overflow answers `EBUSY`
+  until the completions are reaped), the submission is KEPT and made at the
+  next cycle of the loop, in order (a timer is armed, a stop reaches its event).
+  A stop of a submission still kept reaches the callback as a cancel
+  (`STOPPED`, `-ECANCELED`). One WARNING when the loop starts keeping: *"Submission
+  queue full and the kernel takes nothing: kept for the next cycle"*. Test
+  `yev_events/test_yevent_sq_full`; the hot path does not move
+  (perf_yev_ping_pong, perf_c_tcp: within noise).
+- New scenario DC in `c_treedb_literal_wins`: a projection killed twice (at
+  every write; the retry completes, or is killed at its first or last write).
+  The drafts are reported exactly once, by the process that completes the
+  projection, and nothing else is reported.
 
 ### Agent and gobj-c
 
