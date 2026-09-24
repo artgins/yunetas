@@ -589,7 +589,28 @@ with their spread, are in `performance/c/README.md`.
   `CONFIG_DEBUG_TRACK_MEMORY` it took the block out of the tracking first, and
   the later free logged *"Wrong dl_item_t, WITHOUT links"* and wrapped the
   memory counter. The kept lists of yev_loop reach this path.
-
+- A zero-copy UDP send (`io_uring_prep_sendmsg_zc()`) gives two completions,
+  the result (`IORING_CQE_F_MORE`) and a notification (`IORING_CQE_F_NOTIF`);
+  the loop counted one, so an event destroyed at the first completion -- as
+  `C_UDP_S` does when all the data is sent -- was read after it was freed by the
+  notification (7.25.4 too). The callback is called once, at the first
+  completion; the notification only ends the operation. A kernel without
+  zero-copy sendmsg (probed at `yev_loop_create()`) gets a plain sendmsg.
+- **An IPv6 peer is kept with its real length**, so `C_UDP_S` answers it and an
+  accept or connect takes it: in 7.25.4 the address was a 16-byte `struct
+  sockaddr`, an IPv6 accept or connect was refused, a received IPv6 peer was cut
+  and the reply refused (`-EINVAL`). A url can hold an IPv6 literal in brackets
+  (`udp://[::1]:5000`).
+- A stop keeps the gbuffer of an operation the kernel still has, and releases it
+  at the last completion, before the callback (the callback still sees the event
+  STOPPED, without a gbuffer); 7.25.4 released it at once while the kernel could
+  still write into it or read it. `yev_set_gbuffer()` refuses to replace the
+  gbuffer of such an operation.
+- `yev_loop_destroy()` frees the destroyed events whose completions have not
+  come: it cancels what the kernel still has, collects the completions for up to
+  1 s, and frees the rest with an ERROR (*"Loop destroyed with events whose
+  completions did not come: freed"*); in 7.25.4 they leaked, or were freed while
+  the kernel still had their operation.
 
 ### Agent, gobj-c and tools
 
@@ -812,6 +833,10 @@ with their spread, are in `performance/c/README.md`.
   user, console, writes, bytes, until, source}` with no `kw`. Tools that read
   the audit must accept both formats (files written before the upgrade keep the
   old one).
+- yev_loop / gbuffer (API): `gbuffer_setaddr(gbuf, addr, addrlen)` takes the
+  length and `gbuffer_getaddrlen()` is new; `yev_create_sendmsg_event()` takes
+  `dst_addrlen`; `sock_info_t.addr` is a `struct sockaddr_storage` with
+  `addrlen`. Rebuild every user.
 - `mkrdir()` returns -1 for a path of PATH_MAX or more; `rmrdir()` /
   `rmrcontentdir()` return -1 (logged) for a tree too long or too deep. A yuno
   log file of a `W` mask last written before today is emptied when the yuno
