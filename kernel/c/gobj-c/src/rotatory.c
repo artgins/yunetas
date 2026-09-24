@@ -54,6 +54,8 @@ typedef struct rotatory_log_s {
     BOOL keep_all_old;          // size rotation to .OLD.<n>, see rotatory_keep_all_old_files()
     BOOL disk_full;             // below min_free_disk_percentage: records dropped
     uint64_t dropped_records;   // while disk_full
+    BOOL name_recurs;           // the mask has no year: a name is used again (W, DD, ZZZ, ...)
+    BOOL write_failed;          // the last piece could not be written: see _rotatory_fwrite()
     char log_directory[NAME_MAX];   // from path
     char filenamemask[NAME_MAX];    // from path
     char filename[NAME_MAX];        // current filename
@@ -100,6 +102,9 @@ PRIVATE int _translate_mask(rotatory_log_t *hr);
 PRIVATE BOOL is_open_handle(rotatory_log_t *hr);
 PRIVATE void _rotatory_free(rotatory_log_t *hr);
 PRIVATE BOOL disk_is_full(rotatory_log_t *hr);
+PRIVATE BOOL must_be_emptied(rotatory_log_t *hr, const char *path);
+PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it);
+PRIVATE void check_write_again(rotatory_log_t *hr);
 
 
 /*****************************************************************
@@ -260,8 +265,18 @@ PUBLIC hrotatory_h rotatory_open(
     /*-----------------------------*
      *  Make initial filename
      *-----------------------------*/
+    hr->name_recurs = strchr(hr->filenamemask, 'Y')? FALSE: TRUE;
     _translate_mask(hr);
     snprintf(hr->path, sizeof(hr->path), "%s/%s", hr->log_directory, hr->filename);
+
+    /*
+     *  The same rule as at a new name (see must_be_emptied()): a yuno that
+     *  starts on a Monday does not go on with the file of LAST Monday.
+     *  Up to 7.25.4 the file was always opened with "a", and one "W" file
+     *  held the records of 8 days.
+     */
+    BOOL empty_it = must_be_emptied(hr, hr->path);
+
     if(access(hr->path, 0)!=0) {
         int fd = newfile(hr->path, hr->rpermission, FALSE);
         if(fd < 0) {
@@ -276,7 +291,7 @@ PUBLIC hrotatory_h rotatory_open(
         }
         close(fd);
     }
-    hr->flog = fopen(hr->path, "a");
+    hr->flog = fopen(hr->path, empty_it? "w": "a");
     if(!hr->flog) {
         print_error(
             hr->pe_flag,
@@ -425,6 +440,7 @@ PUBLIC int rotatory_write(hrotatory_h hr_, int priority, const char* bf, size_t 
     }
     #define END_LOG "\n"
     _rotatory_fwrite(hr, END_LOG, strlen(END_LOG));
+    check_write_again(hr);
     return 0;
 }
 
@@ -577,13 +593,31 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
     if(hr->counter_statvfs == 0) {
         disk_is_full(hr);
     }
-    if(hr->disk_full) {
-        hr->dropped_records++;
-        return -1;
-    }
 
     BOOL change_file = _get_rotatory_filename(hr);
-    BOOL empty_it = FALSE;  // see the opening of the file below
+
+    if(hr->disk_full) {
+        /*
+         *  A new name is taken also while the disk is full: the callback
+         *  of a new file is where a user applies its retention (the agent
+         *  audit), and the retention is what frees the space. Up to
+         *  7.25.4 nothing was done while the disk was full, so the
+         *  retention never ran and the handle never wrote again.
+         */
+        if(change_file) {
+            if(_rotatory_open_file(hr, must_be_emptied(hr, NULL)) == 0) {
+                disk_is_full(hr);   // the retention may have freed the space
+            }
+            // else error already printed
+        }
+        if(hr->disk_full || !hr->flog) {
+            hr->dropped_records++;
+            return -1;
+        }
+        return 0;
+    }
+
+    BOOL empty_it = FALSE;  // see must_be_emptied()
 
     if(hr->flog) {
         /*
@@ -655,84 +689,117 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
                 change_file = 1;
             }
         }
-    } else if(!change_file) {
-        if(access(hr->path, 0)!=0) {
-            change_file = 1;    // No file open and no file there: create it
-        }
+    } else {
+        /*
+         *  No file open: none there, or a write failed (see
+         *  _rotatory_fwrite()). Open it again: up to 7.25.4 a failed write
+         *  (or a piece of 0 bytes) closed the file until the next name.
+         */
+        change_file = 1;
     }
 
     if(change_file) {
-        if(hr->flog) {
-            rotatory_flush(hr);
-            fclose(hr->flog);
-            hr->flog = 0;
+        if(!empty_it) {
+            empty_it = must_be_emptied(hr, NULL);
         }
-        if(access(hr->log_directory, 0)!=0) {
-            // Creat the directory
-            if(mkrdir(hr->log_directory, hr->xpermission)<0) {
-                print_error(
-                    hr->pe_flag,
-                    "_rotatory(): Cannot create '%s' directory, %s",
-                    hr->log_directory,
-                    strerror(errno)
-                );
-                return -1;
-            }
-        }
-
-        char lastpath[2*NAME_MAX+2];
-        strncpy(lastpath, hr->path, sizeof(lastpath)-1);
-        snprintf(hr->path, sizeof(hr->path), "%s/%s", hr->log_directory, hr->filename);
-
-        /*
-         *  An existing file is emptied only when it was last written
-         *  before the day that its name is used for: the file of last week
-         *  of a "W" mask (its name is its retention). A file written in
-         *  this day or later is appended to: up to 7.25.4 it was opened
-         *  with "w", and a clock set back across midnight emptied the file
-         *  of the day before, then the one of today. A handle that keeps
-         *  all old files never empties one.
-         */
-        struct stat st_existing;
-        if(!hr->keep_all_old && stat(hr->path, &st_existing) == 0 &&
-                st_existing.st_size > 0 && st_existing.st_mtime < hr->day_start) {
-            empty_it = TRUE;
-        }
-
-        if(access(hr->path, 0)!=0) {
-            int fd = newfile(hr->path, hr->rpermission, FALSE);
-            if(fd < 0) {
-                print_error(
-                    hr->pe_flag,
-                    "_rotatory(): Cannot create '%s' file, %s",
-                    hr->path,
-                    strerror(errno)
-                );
-                return -1;
-            }
-            close(fd);
-        }
-        hr->flog = fopen(hr->path, empty_it? "w": "a");
-        if(!hr->flog) {
-            print_error(
-                hr->pe_flag,
-                "_rotatory(): Cannot open '%s' file, %s",
-                hr->path,
-                strerror(errno)
-            );
-            return -1;
-        }
-
-        int fd = fileno(hr->flog);
-        set_cloexec(fd);
-
-        if(hr->cb_newfile) {
-            (hr->cb_newfile)(hr->user_data, lastpath, hr->path);
+        if(_rotatory_open_file(hr, empty_it) < 0) {
+            return -1;  // Error already printed
         }
     }
 
     if(!hr->flog) {
         return -1;
+    }
+    return 0;
+}
+
+/*****************************************************************
+ *  TRUE if the existing file of the current name must be emptied
+ *  before it is written: it was last written before the day that its
+ *  name is used for, and its name is used again (the mask has no year):
+ *  the file of LAST week of a "W" mask (its name is its retention).
+ *  A file written in this day or later is appended to: up to 7.25.4 it
+ *  was opened with "w" at a new name, and a clock set back across
+ *  midnight emptied the file of the day before, then the one of today.
+ *  A handle that keeps all old files never empties one.
+ *  `path` NULL: the path of the current name.
+ *****************************************************************/
+PRIVATE BOOL must_be_emptied(rotatory_log_t *hr, const char *path)
+{
+    if(hr->keep_all_old || !hr->name_recurs) {
+        return FALSE;
+    }
+    char bf[2*NAME_MAX+2];
+    if(!path) {
+        snprintf(bf, sizeof(bf), "%s/%s", hr->log_directory, hr->filename);
+        path = bf;
+    }
+    struct stat st;
+    if(stat(path, &st) == 0 && st.st_size > 0 && st.st_mtime < hr->day_start) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/*****************************************************************
+ *  Close the file open now (if any) and open the one of the current
+ *  name, then call the callback of a new file. Return -1 on error
+ *  (printed: this is the sink of the log, it cannot log through itself).
+ *****************************************************************/
+PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it)
+{
+    if(hr->flog) {
+        rotatory_flush(hr);
+        fclose(hr->flog);
+        hr->flog = 0;
+    }
+    if(access(hr->log_directory, 0)!=0) {
+        // Creat the directory
+        if(mkrdir(hr->log_directory, hr->xpermission)<0) {
+            print_error(
+                hr->pe_flag,
+                "_rotatory(): Cannot create '%s' directory, %s",
+                hr->log_directory,
+                strerror(errno)
+            );
+            return -1;
+        }
+    }
+
+    char lastpath[2*NAME_MAX+2];
+    strncpy(lastpath, hr->path, sizeof(lastpath)-1);
+    lastpath[sizeof(lastpath)-1] = 0;
+    snprintf(hr->path, sizeof(hr->path), "%s/%s", hr->log_directory, hr->filename);
+
+    if(access(hr->path, 0)!=0) {
+        int fd = newfile(hr->path, hr->rpermission, FALSE);
+        if(fd < 0) {
+            print_error(
+                hr->pe_flag,
+                "_rotatory(): Cannot create '%s' file, %s",
+                hr->path,
+                strerror(errno)
+            );
+            return -1;
+        }
+        close(fd);
+    }
+    hr->flog = fopen(hr->path, empty_it? "w": "a");
+    if(!hr->flog) {
+        print_error(
+            hr->pe_flag,
+            "_rotatory(): Cannot open '%s' file, %s",
+            hr->path,
+            strerror(errno)
+        );
+        return -1;
+    }
+
+    int fd = fileno(hr->flog);
+    set_cloexec(fd);
+
+    if(hr->cb_newfile) {
+        (hr->cb_newfile)(hr->user_data, lastpath, hr->path);
     }
     return 0;
 }
@@ -790,32 +857,64 @@ PRIVATE BOOL disk_is_full(rotatory_log_t *hr)
 /*****************************************************************
  *  Write one piece of a record to the file opened by
  *  _rotatory_prepare()
+ *
+ *  A piece of 0 bytes writes nothing and is not an error: up to 7.25.4
+ *  fwrite() of 0 bytes was taken as a failure, and the file was closed
+ *  until the next name (the next day). A real failure closes the file,
+ *  and the next record opens it again (see _rotatory_prepare()). One line
+ *  is printed when the writes fail, one when they work again.
  *****************************************************************/
 PRIVATE int _rotatory_fwrite(rotatory_log_t *hr, const char *bf, size_t len)
 {
-    // TODO perhaps I would remove lock file in order to get more speed.
-    // block to write
-    if(hr->flog) {
+    if(!hr->flog || len == 0) {
+        return 0;
+    }
 #ifdef USE_LOCK_FILE
-        lock_file(fileno(hr->flog));
+    lock_file(fileno(hr->flog));
 #endif
-        int ret = fwrite(bf, 1, len,hr->flog);
+    size_t ret = fwrite(bf, 1, len, hr->flog);
 #ifdef USE_LOCK_FILE
-        unlock_file(fileno(hr->flog));
+    unlock_file(fileno(hr->flog));
 #endif
-        if(ret <= 0) {
+    if(ret != len) {
+        if(!hr->write_failed) {
             print_error(
                 PEF_SYSLOG,
-                "_rotatory(): vfprintf() FAILED, %s",
+                "_rotatory(): fwrite() FAILED, '%s', %s",
+                hr->path,
                 strerror(errno)
             );
-            fclose(hr->flog);
-            hr->flog = 0;
-            return ret;
         }
+        hr->write_failed = TRUE;
+        fclose(hr->flog);
+        hr->flog = 0;
+        return -1;
     }
 
     return 0;
+}
+
+/*****************************************************************
+ *  After a failed write, the first record of the file opened again is
+ *  flushed at once: the writes work again only if it reaches the file
+ *  (a buffered fwrite() does not tell)
+ *****************************************************************/
+PRIVATE void check_write_again(rotatory_log_t *hr)
+{
+    if(!hr->write_failed || !hr->flog) {
+        return;
+    }
+    if(fflush(hr->flog) != 0) {
+        fclose(hr->flog);   // still failing: printed once, see _rotatory_fwrite()
+        hr->flog = 0;
+        return;
+    }
+    hr->write_failed = FALSE;
+    print_error(
+        PEF_SYSLOG,
+        "_rotatory(): writing to '%s' again",
+        hr->path
+    );
 }
 
 /*****************************************************************

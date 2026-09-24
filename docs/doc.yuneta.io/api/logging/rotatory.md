@@ -32,7 +32,7 @@ When the current file becomes larger than `max_megas_rotatoryfile_size`, the rot
 A new file (a new day, or the size limit) calls the callback of [`rotatory_subscribe2newfile()`](#rotatory_subscribe2newfile). The callback runs inside the [`rotatory_write()`](#rotatory_write) of the first record of the new file, before that record is written. So what the callback does (the agent audit applies its retention there) is on the write path of that one record, once a day or once for each size rotation.
 
 (rotatory-clock-set-back)=
-**An existing file is emptied only when it is old.** When the name changes, an existing file of the new name is emptied only if it was last written (its `mtime`) before the local day that the name is used for. That is the file of last week of a `W` mask. A file written in this day or later is appended to. A handle set with [`rotatory_keep_all_old_files()`](#rotatory_keep_all_old_files) never empties a file. Up to 7.25.4 every new name was opened with `"w"`. A clock set back across midnight (for example 7 seconds at 00:00:05) opened the file of the day before again and emptied it. When the clock went forward again, the file of today was emptied too, with its first records. For example, with the audit mask:
+**An existing file is emptied only when it is old.** At a new name, and when the handle is opened, an existing file of the name is emptied only if it was last written (its `mtime`) before the local day that the name is used for, and only if the mask has no year (`CCYY`): a name without the year is used again. That is the file of last week of a `W` mask. A file written in this day or later is appended to. A mask with the year (the agent audit) never empties a file, and neither does a handle set with [`rotatory_keep_all_old_files()`](#rotatory_keep_all_old_files). Up to 7.25.4 every new name was opened with `"w"`. A clock set back across midnight (for example 7 seconds at 00:00:05) opened the file of the day before again and emptied it. When the clock went forward again, the file of today was emptied too, with its first records. For example, with the audit mask:
 
 ```
 00:00:05  record "today 1"  -> 267-24_09_2026.log
@@ -40,7 +40,11 @@ A new file (a new day, or the size limit) calls the callback of [`rotatory_subsc
 00:00:10  (clock forward)   -> 267-24_09_2026.log is opened again: "today 1" is kept
 ```
 
-**What one [`rotatory_write()`](#rotatory_write) costs.** The file is checked once for each record, before its first piece (the priority header, the text, the `"\n"`), so a record is never split between two files. The check is one `fstat()` of the open file: it gives the size (for the size limit) and the link count (a file removed from the directory is created again). The name is made again only when the time leaves the local day of the current name (midnight, or the clock set to another day), so `localtime()` does not run for each record. Measured on the agent's audit record (two writes of 300 bytes and 1 byte): 7.2 µs up to 7.25.4, 0.59 µs after.
+Up to 7.25.4 [`rotatory_open()`](#rotatory_open) always appended. A yuno that started on a Monday went on with the file of last Monday, and that one file held the records of 8 days.
+
+**What one [`rotatory_write()`](#rotatory_write) costs.** The file is checked once for each record, before its first piece (the priority header, the text, the `"\n"`), so a record is never split between two files. The check is one `fstat()` of the open file: it gives the size (for the size limit) and the link count (a file removed from the directory is created again). The name is made again only when the time leaves the local day of the current name (midnight, or the clock set to another day), so `localtime()` does not run for each record. Measured on the agent's audit record (two writes of 300 bytes and 1 byte, with the benchmark `performance/c/perf_rotatory`): 6.2 µs up to 7.25.4, 0.55 µs in 7.25.5 (the figures of `performance/c/README.md`).
+
+**A piece of 0 bytes, and a write that fails.** A piece of 0 bytes writes nothing. Up to 7.25.4 `fwrite()` of 0 bytes was taken as a failure, and the file was closed until the next name, the next day. A write that really fails (the disk, a file size limit) closes the file, and the next record opens it again. The rotatory prints one line when the writes fail, and one when a record reaches the file again (the first record after a failure is flushed at once to know it).
 
 Two small differences from 7.25.4: a file RENAMED by another program is not noticed (the record goes on to the renamed file, until the next new file), and the free-disk check (`min_free_disk_percentage`) runs every 100 records instead of every 100 pieces.
 
@@ -53,6 +57,8 @@ rotatory(): logging to '/yuneta/realms/agent/agent/logs/yuneta_agent-4.log' agai
 ```
 
 Up to 7.25.4 the state was one flag for every handle of the process, and nothing cleared it: once one disk went below the limit, all the file logs of the process stopped until it was restarted.
+
+A new day is taken also while the disk is full: the file of the new name is opened and the callback of [`rotatory_subscribe2newfile()`](#rotatory_subscribe2newfile) runs. That callback is where the agent audit applies its retention, and the retention is what frees the space. After it, the free space is checked again: if it is back, the record of that moment is written. Up to 7.25.4 nothing was done while the disk was full, so the retention never ran and the audit never wrote again by itself.
 
 (rotatory-closed-handle)=
 **A closed handle.** Every public function checks that the handle is open before it touches it. After [`rotatory_close()`](#rotatory_close) or [`rotatory_end()`](#rotatory_end), a write, a flush, a truncate or a second close through the old handle does nothing, and [`rotatory_write()`](#rotatory_write) answers `0`. This matters because others keep the handle: the file log handler of the logger keeps it, and the process logs after `rotatory_end()`. The check compares pointers with the list of open handles (a few), and it costs nothing measurable: 551 ns per audit record with it, 586-620 ns without.
@@ -226,6 +232,7 @@ Returns a handle to the rotatory log (`hrotatory_h`) on success, or `NULL` on fa
 
 If the specified log directory does not exist, `rotatory_open()` attempts to create it.
 If the log file does not exist, `rotatory_open()` creates a new one with the specified permissions.
+If it exists, it is appended to, unless it is old: a file of a mask without the year that was last written before today is emptied (see [File names and rotation](#rotatory-clock-set-back)).
 Use [`rotatory_close()`](#rotatory_close) to properly close the log handle.
 
 ---
@@ -439,7 +446,8 @@ Returns `0`, also when the record could not be written (disk below `min_free_dis
 
 If `priority` is `LOG_AUDIT`, the message is written without a header.
 If `priority` is outside the valid range, it defaults to `LOG_DEBUG`.
-The function appends a newline character (`\n`) to the log message.
+The function appends a newline character (`\n`) to the log message. A `len` of `0` writes the newline only (and the header).
+A write that fails closes the file, and the next record opens it again.
 The file is checked (new day, size limit, file removed) once, before the first piece of the record. See [File names and rotation](#rotatory-file-names).
 
 **Example**

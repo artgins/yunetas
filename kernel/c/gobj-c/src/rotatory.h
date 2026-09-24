@@ -50,6 +50,11 @@ PUBLIC void rotatory_end(void); // close all
 
 // Return NULL on error
 // Available mask for filename: "DD/MM/CCYY-W-ZZZ"
+// A name without the year (CCYY) is used again (the "W" of the yuno logs:
+// one file for each week day). Its file is emptied before it is written
+// when it was last written before the day of the name: at the open, and at
+// a new name. A file written today is appended to; a name with the year,
+// or a handle that keeps all old files, never empties a file.
 PUBLIC hrotatory_h rotatory_open(
     const char* path,
     size_t bf_size,                     // 0 = default 64K
@@ -69,7 +74,8 @@ PUBLIC int rotatory_subscribe2newfile(
 );
 
 // Return 0, also when the record is not written (disk full, a closed handle).
-// -1 only if hr or bf is NULL.
+// -1 only if hr or bf is NULL. A len of 0 writes the record separator only.
+// A write that fails closes the file; the next record opens it again.
 PUBLIC int rotatory_write(hrotatory_h hr, int priority, const char *bf, size_t len);
 
 // Max size defined by bf_size in rotatory_open(). Return as rotatory_write().
@@ -108,6 +114,9 @@ PUBLIC int rotatory_keep_all_old_files(hrotatory_h hr, BOOL keep_all);
  *  opened and from the callback of rotatory_subscribe2newfile(): that
  *  callback runs inside the rotatory_write() of the first record of a new
  *  file (once a day, or at a size rotation), before that record is written.
+ *  A new day calls it also while the disk is below min_free_disk_percentage
+ *  (records dropped): the retention is what frees the space, and the
+ *  record of that moment is written if it does.
  *
  *  Return the number of files removed, -1 on error (logged).
  */

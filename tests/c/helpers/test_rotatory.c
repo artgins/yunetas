@@ -8,7 +8,8 @@
  *          which is where a user (the agent's audit) applies it.
  *          And the write path: whole records across a size rotation, and
  *          a removed file created again. And a clock set back across
- *          midnight empties no file.
+ *          midnight empties no file. And a piece of 0 bytes, a failed
+ *          write, the open of an old "W" file, a new day on a full disk.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -20,6 +21,8 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <sys/resource.h>
+#include <signal.h>
 #include <yunetas.h>
 
 #define APP "test_rotatory"
@@ -742,6 +745,253 @@ PRIVATE void test_clock_set_back(void)
 }
 
 /***************************************************************************
+ *  A piece of 0 bytes writes nothing, and the file stays open.
+ *  Up to 7.25.4 fwrite() of 0 bytes was taken as a failure: the file was
+ *  closed, and nothing more was written until the next name (next day).
+ ***************************************************************************/
+PRIVATE void test_zero_length_piece(void)
+{
+    rmrdir(BASE);
+    mkrdir(BASE, 02775);
+
+    hrotatory_h hr = rotatory_open(BASE "/zero-W.log", 0, 500, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s", rotatory_path(hr));
+
+    int errors = s_errors;
+    rotatory_write(hr, LOG_AUDIT, "0123456789", 10);
+    rotatory_write(hr, LOG_AUDIT, "", 0);
+    for(int i=0; i<50; i++) {
+        rotatory_write(hr, LOG_AUDIT, "0123456789", 10);
+    }
+    rotatory_flush(hr);
+
+    struct stat st;
+    BOOL ok = stat(path, &st) == 0 && st.st_size == 11 + 1 + 50*11;
+    check(ok, "a piece of 0 bytes: nothing lost after it");
+    if(!ok) {
+        printf("     size %ld, expected %d\n", (long)st.st_size, 11 + 1 + 50*11);
+    }
+    check(s_errors == errors, "a piece of 0 bytes: no error");
+
+    rotatory_close(hr);
+    rmrdir(BASE);
+}
+
+/***************************************************************************
+ *  A write that fails closes the file; the next record opens it again.
+ *  The failure: a file size limit (RLIMIT_FSIZE, SIGXFSZ ignored),
+ *  lifted afterwards.
+ ***************************************************************************/
+PRIVATE void test_write_failure_reopens(void)
+{
+    rmrdir(BASE);
+    mkrdir(BASE, 02775);
+
+    hrotatory_h hr = rotatory_open(BASE "/fail-W.log", 0, 500, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s", rotatory_path(hr));
+
+    char line[1001];
+    memset(line, 'f', sizeof(line)-1);
+    line[sizeof(line)-1] = 0;
+
+    struct sigaction sa_old;
+    struct sigaction sa_ign;
+    memset(&sa_ign, 0, sizeof(sa_ign));
+    sa_ign.sa_handler = SIG_IGN;
+    sigaction(SIGXFSZ, &sa_ign, &sa_old);
+
+    struct rlimit rl_old;
+    getrlimit(RLIMIT_FSIZE, &rl_old);
+    struct rlimit rl = {20000, rl_old.rlim_max};
+    setrlimit(RLIMIT_FSIZE, &rl);
+    for(int i=0; i<100; i++) {
+        rotatory_write(hr, LOG_AUDIT, line, strlen(line));  // 100 KB: fails at 20 000 bytes
+    }
+    rotatory_flush(hr);
+    struct stat st;
+    off_t size_at_failure = (stat(path, &st) == 0)? st.st_size: -1;
+
+    setrlimit(RLIMIT_FSIZE, &rl_old);
+    sigaction(SIGXFSZ, &sa_old, NULL);
+
+    rotatory_write(hr, LOG_AUDIT, "after the limit", strlen("after the limit"));
+    rotatory_flush(hr);
+    off_t size_after = (stat(path, &st) == 0)? st.st_size: -1;
+
+    check(size_at_failure > 0 && size_at_failure <= 20000,
+        "a write that fails: the file stops at the limit");
+    check(size_after > size_at_failure && file_holds(path, "after the limit"),
+        "a write that fails: the next record opens the file again and is written");
+    printf("     (size at the failure %ld, after %ld)\n", (long)size_at_failure, (long)size_after);
+
+    rotatory_close(hr);
+    rmrdir(BASE);
+}
+
+/***************************************************************************
+ *  The open applies the rule of a new name: a yuno that starts on the
+ *  week day of an old "W" file does not go on with LAST week's file.
+ *  Up to 7.25.4 rotatory_open() always appended: one file held 8 days.
+ *  A file of today is appended to, and a mask with the year (the audit)
+ *  never empties a file.
+ ***************************************************************************/
+PRIVATE void test_open_applies_the_day(void)
+{
+    #define OPEN_DIR BASE "/open"
+    rmrdir(BASE);
+    mkrdir(OPEN_DIR, 02775);
+
+    char w_today[PATH_MAX];
+    file_of(time(NULL), OPEN_DIR, "log-W.log", w_today, sizeof(w_today));
+
+    /*
+     *  Last week's file of this week day
+     */
+    FILE *f = fopen(w_today, "w");
+    if(f) {
+        fputs("INFO: last week\n", f);
+        fclose(f);
+    }
+    set_age(w_today, 7);
+    hrotatory_h hr = rotatory_open(OPEN_DIR "/log-W.log", 0, 500, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    rotatory_write(hr, LOG_INFO, "today 1", strlen("today 1"));
+    rotatory_close(hr);
+    check(!file_holds(w_today, "last week") && file_holds(w_today, "today 1"),
+        "open, W mask: the file of last week is emptied");
+
+    /*
+     *  Opened again the same day: appended to
+     */
+    hr = rotatory_open(OPEN_DIR "/log-W.log", 0, 500, 1, 02775, 0660, FALSE);
+    rotatory_write(hr, LOG_INFO, "today 2", strlen("today 2"));
+    rotatory_close(hr);
+    check(file_holds(w_today, "today 1") && file_holds(w_today, "today 2"),
+        "open, W mask: the file of today is appended to");
+
+    /*
+     *  A mask with the year: never emptied, even old
+     */
+    char audit_today[PATH_MAX];
+    file_of(time(NULL), OPEN_DIR, MASK, audit_today, sizeof(audit_today));
+    f = fopen(audit_today, "w");
+    if(f) {
+        fputs("{\"command\":\"old\"}\n\n", f);
+        fclose(f);
+    }
+    set_age(audit_today, 7);
+    hr = rotatory_open(OPEN_DIR "/" MASK, 0, 500, 1, 02775, 0660, FALSE);
+    rotatory_write(hr, LOG_AUDIT, "{\"command\":\"new\"}", strlen("{\"command\":\"new\"}"));
+    rotatory_close(hr);
+    check(file_holds(audit_today, "\"old\"") && file_holds(audit_today, "\"new\""),
+        "open, mask with the year: never emptied");
+
+    rmrdir(BASE);
+}
+
+/***************************************************************************
+ *  A new day while the disk is full: the file of the new day is opened
+ *  and the newfile callback runs, because the retention it applies is
+ *  what frees the space. Up to 7.25.4 nothing was done while the disk
+ *  was full: the retention never ran, and the handle never wrote again.
+ ***************************************************************************/
+PRIVATE int s_full_newfile_calls = 0;
+
+PRIVATE int newfile_frees_space_cb(void *user_data, const char *old_filename, const char *new_filename)
+{
+    s_full_newfile_calls++;
+    if(s_full_newfile_calls == 2) {
+        s_fake_free_percent = 50;   // the retention of the second day frees the space
+    }
+    return 0;
+}
+
+PRIVATE void test_disk_full_new_day(void)
+{
+    #define FULL_DIR BASE "/full"
+    rmrdir(BASE);
+    mkrdir(FULL_DIR, 02775);
+
+    time_t real_now = __real_time(NULL);
+    struct tm tm;
+    localtime_r(&real_now, &tm);
+    tm.tm_hour = 23;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    tm.tm_isdst = -1;
+    time_t day1 = mktime(&tm);
+
+    s_fake_now = day1;
+    snprintf(s_fake_dir, sizeof(s_fake_dir), "%s", FULL_DIR);
+    s_fake_free_percent = 50;
+    s_full_newfile_calls = 0;
+
+    hrotatory_h hr = rotatory_open(FULL_DIR "/" MASK, 0, 500, 20, 02775, 0660, FALSE);
+    if(!hr) {
+        s_fake_now = 0;
+        s_fake_free_percent = -1;
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    rotatory_keep_all_old_files(hr, TRUE);
+    rotatory_subscribe2newfile(hr, newfile_frees_space_cb, hr);
+
+    /*
+     *  The disk goes below 20%: seen within 100 records
+     */
+    s_fake_free_percent = 10;
+    for(int i=0; i<150; i++) {
+        rotatory_write(hr, LOG_AUDIT, "x", 1);
+    }
+
+    /*
+     *  Day 2 and day 3, still full until the retention of day 3 frees it
+     */
+    s_fake_now = day1 + 2*3600;     // next day, 01:00
+    rotatory_write(hr, LOG_AUDIT, "day 2", strlen("day 2"));
+    int calls_day2 = s_full_newfile_calls;
+    char path_day2[PATH_MAX];
+    snprintf(path_day2, sizeof(path_day2), "%s", rotatory_path(hr));
+
+    s_fake_now += 86400;
+    rotatory_write(hr, LOG_AUDIT, "day 3", strlen("day 3"));
+    rotatory_flush(hr);
+    int calls_day3 = s_full_newfile_calls;
+    char path_day3[PATH_MAX];
+    snprintf(path_day3, sizeof(path_day3), "%s", rotatory_path(hr));
+
+    check(calls_day2 == 1 && calls_day3 == 2,
+        "disk full: a new day still calls the newfile callback (the retention)");
+    check(!file_holds(path_day2, "day 2"),
+        "disk full: the record is dropped while the disk stays full");
+    check(file_holds(path_day3, "day 3"),
+        "disk full: the retention frees the space, the record of that moment is written");
+
+    rotatory_close(hr);
+    s_fake_now = 0;
+    s_fake_free_percent = -1;
+    s_fake_dir[0] = 0;
+    rmrdir(BASE);
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -790,6 +1040,10 @@ int main(int argc, char *argv[])
     test_keep_all_old();
     test_disk_full_per_handle();
     test_clock_set_back();
+    test_zero_length_piece();
+    test_write_failure_reopens();
+    test_open_applies_the_day();
+    test_disk_full_new_day();
     test_write_after_end();     // LAST: it ends the rotatory
 
     rotatory_end();
