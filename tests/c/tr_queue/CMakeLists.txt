@@ -85,3 +85,6 @@ foreach(test ${SRCS})
     add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()
+
+# test_tr_queue_backup_failed fails the mkdir of a topic's keys/ (see its header)
+target_link_options(test_tr_queue_backup_failed PUBLIC LINKER:--wrap=mkdir)

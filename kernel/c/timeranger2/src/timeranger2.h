@@ -309,8 +309,11 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
    every error path).
 
    Return: the topic — NOT YOURS (it lives inside tranger["topics"]). NULL on
-   error (empty topic_name, directory missing on a non-master, empty pkey, or no
-   resolvable key type).
+   error (empty topic_name, directory missing on a non-master, empty pkey, no
+   resolvable key type, topic_cols.json or topic_var.json that cannot be
+   written at a version change, or the topic that cannot then be OPENED: see
+   the causes of tranger2_open_topic(), a topic_desc.json missing or not
+   loading, keys/ that cannot be listed).
 */
 PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,    // If the topic exists then only needs (tranger, topic_name) parameters
@@ -330,8 +333,13 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
    HACK IDEMPOTENT: if already opened, the SAME json_t topic is returned without
    reloading.
    `verbose` TRUE logs an error when the topic directory does not exist.
-   Return: the topic — NOT YOURS (owned by tranger["topics"]). NULL on empty name
-   or a non-existent topic directory.
+   Return: the topic — NOT YOURS (owned by tranger["topics"]). NULL on empty name,
+   a non-existent topic directory, a topic_desc.json that is missing ("Not a
+   topic") or does not load, or a keys/ directory that cannot be listed
+   (opendir() or readdir() fails): the topic is then NOT opened -- opened
+   empty, a key nobody read would look like a key that does not exist -- and
+   the next open tries again. A KEY directory that cannot be listed does not
+   fail the open: the key is flagged `unlisted` (see tranger2_open_iterator).
 */
 PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,
@@ -492,6 +500,10 @@ PUBLIC int tranger2_delete_topic(
    closed (the backup exists and overwrite_backup is FALSE, topic_desc.json
    does not load, the rename fails) opens the topic again as it was: a
    caller that held the old topic takes it again with tranger2_topic().
+   So does a failure after the rename, when the new topic cannot be created
+   (ENOSPC, a mkdir that fails): what the create left is removed and the
+   backup is moved back first. Only when it cannot be moved back is nothing
+   opened: logged CRITICAL, the data is in the backup.
 */
 
 typedef BOOL (*tranger_backup_deleting_callback_t)( // Return TRUE if you control the backup
@@ -688,9 +700,14 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
     file again first: readable now, the file gets its cell and loses its
     flag; still unreadable, the append is refused (-1, nothing written) --
     its row would follow rows no cell counts.
+    An append into a key flagged unlisted at the cache build lists the key
+    again first: listed now, its cache is built again from the disk and the
+    append goes on; still unlisted, the append is refused (-1, nothing
+    written).
     Return: 0 on success, -1 on error (record NULL, not master, topic not found,
     missing/oversized pkey, an unsafe key that would escape keys/, a file of
-    the key flagged unreadable, or a write that failed).
+    the key flagged unreadable, a key flagged unlisted that still cannot be
+    listed, or a write that failed).
 */
 PUBLIC int tranger2_append_record(
     json_t *tranger,
@@ -719,6 +736,13 @@ PUBLIC int tranger2_append_record(
     See `tranger2_delete_instance()` for per-instance delete (the
     row in the .md2 index is marked dead and the payload bytes are
     optionally zeroed — irrecoverable, no resurrection).
+
+    Return 0, or -1 (logged): not master, a key with path metacharacters,
+    the topic cannot be opened, or the directory of the key cannot be
+    removed. Then NOTHING is announced (the propagation above runs only
+    after the directory is gone); the key's cache is read again from what
+    is left on disk, and its iterators take their segments again from it
+    (a filtered one rebuilds its index at once).
 */
 PUBLIC int tranger2_delete_key(
     json_t *tranger,
@@ -970,8 +994,19 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     row: an append that was never acknowledged was cut back", with the
     old_size and the new_size), and the key loads whole. A replica never
     writes: it reads the whole rows. Its content file is left as it is.
+    A key whose directory cannot be LISTED at the cache build (opendir() or
+    readdir() fails) is flagged whole, `unlisted`: every load of it says
+    load_failed, as for a flagged file.
     The flag of a file goes when a cell counts it again (an append
     into it that finds it readable, or a follower that reads it whole);
+    the flag of an unlisted key when the key is listed again (an append of
+    the master, or a replica's notification). And a LOAD tries the flags
+    first (the retry): it counts a flagged file again when the file changed
+    since it was flagged (ctime or size) or could not be opened then and
+    opens now, and lists an unlisted key again when its directory changed
+    (ctime) or could not be opened then and opens now. A flag whose cause
+    looks as it did is not tried: nothing is read, and nothing more is
+    logged, at every load.
     tranger2_delete_key() of the key clears every flag with the key.
     tranger2_open_list() answers NULL for such a load of its one key; a
     keyless list goes on with the other keys and names the failed ones in the
@@ -986,6 +1021,10 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     A delete of the key (tranger2_delete_key(), or a replica's key-deleted
     notice) drops the segments of every iterator of the key: an unfiltered one
     takes them again at its next page, a filtered one keeps an EMPTY index.
+    A delete that FAILS (its directory cannot be removed) reads the key's
+    cache again from what is left on disk, and the iterators take their
+    segments again from it: an unfiltered one at its next page, a filtered
+    one at once, its index built again as an open builds it.
 
     Return: the iterator, NOT YOURS (the topic owns it). NULL (error logged,
     match_cond and extra consumed) if the topic cannot be opened, `key` is

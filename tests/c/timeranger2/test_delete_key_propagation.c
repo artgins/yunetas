@@ -16,6 +16,10 @@
  *      - do_test_cache_cleared:       topic.cache rollup loses the entry.
  *      - do_test_rmrdir_fails:        a key whose directory cannot be removed
  *        is NOT announced deleted: the notices go out after the rmrdir.
+ *      - do_test_rmrdir_fails_filtered: a delete that fails with no file
+ *        removed leaves a FILTERED paging iterator of the key its rows.
+ *        Before this fix the failure emptied its index (a filtered index
+ *        is built only at the open): total_rows 0 for a key still on disk.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -261,6 +265,91 @@ PRIVATE int do_test_rmrdir_fails(void)
         result += -1;
     }
     tranger2_close_rt_mem(tranger, rt);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  do_test_rmrdir_fails_filtered
+ *  The key directory is read-only: rmrdir() cannot remove any file, and the
+ *  delete fails. A FILTERED paging iterator opened before it keeps its
+ *  rows: its index is built again from the key's cache, read again from
+ *  the disk. Skipped as root, who removes the files anyway.
+ ***************************************************************************/
+PRIVATE int do_test_rmrdir_fails_filtered(void)
+{
+    int result = 0;
+    if(geteuid() == 0) {
+        printf("  rmrdir_fails_filtered: skipped as root\n");
+        return 0;
+    }
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+    reset_callback_state();
+
+    set_expected_results(
+        "rmrdir_fails_filtered: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tranger = startup_master(path_root, FALSE);
+    if(!tranger || create_topic(tranger) < 0 || append_to(tranger, 1, 3) < 0) {
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        return -1;
+    }
+    json_t *iterator = tranger2_open_iterator(
+        tranger, TOPIC_NAME, KEY_A,
+        json_pack("{s:I}", "from_t", (json_int_t)BASE_T),   // filtered: it builds an index
+        NULL, "filtered", "rmrdir", NULL, NULL
+    );
+    json_t *page = tranger2_iterator_get_page(tranger, iterator, 1, 10, FALSE);
+    if(kw_get_int(0, page, "total_rows", -1, 0) != 3) {
+        printf("%sERROR%s --> rmrdir_fails_filtered: %d rows before the delete, expected 3\n",
+            On_Red BWhite, Color_Off, (int)kw_get_int(0, page, "total_rows", -1, 0));
+        result += -1;
+    }
+    JSON_DECREF(page)
+    result += test_json(NULL);
+
+    set_expected_results(
+        "rmrdir_fails_filtered: a delete that removes nothing fails",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "remove() FAILED",
+            "msg", "Cannot delete subdir key. rmrdir() FAILED"
+        ),
+        NULL, NULL, 1
+    );
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_topic, "keys", KEY_A, NULL);
+    chmod(key_dir, 0550);   // its files cannot be unlinked
+    if(tranger2_delete_key(tranger, TOPIC_NAME, KEY_A) == 0) {
+        printf("%sERROR%s --> rmrdir_fails_filtered: the delete answered done\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    chmod(key_dir, 02700);
+    result += test_json(NULL);
+
+    set_expected_results("rmrdir_fails_filtered: the filtered iterator keeps its rows", NULL, NULL, NULL, 1);
+    page = tranger2_iterator_get_page(tranger, iterator, 1, 10, FALSE);
+    json_int_t total_rows = kw_get_int(0, page, "total_rows", -1, 0);
+    size_t data = json_array_size(kw_get_list(0, page, "data", 0, 0));
+    if(total_rows != 3 || data != 3) {
+        printf("%sERROR%s --> rmrdir_fails_filtered: the filtered iterator after the failed delete: "
+            "total_rows %d, %d rows, expected 3 and 3\n",
+            On_Red BWhite, Color_Off, (int)total_rows, (int)data);
+        result += -1;
+    }
+    JSON_DECREF(page)
+    tranger2_close_iterator(tranger, iterator);
     tranger2_shutdown(tranger);
     result += test_json(NULL);
     return result;
@@ -931,6 +1020,7 @@ int main(int argc, char *argv[])
     result += do_test_follower();
     result += do_test_cache_cleared();
     result += do_test_rmrdir_fails();
+    result += do_test_rmrdir_fails_filtered();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

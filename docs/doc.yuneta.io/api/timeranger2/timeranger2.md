@@ -392,6 +392,8 @@ Only a master can back up a topic (the backup moves its directory): on a replica
 
 The backup CLOSES the topic first, then moves its directory. A failure after that point (the backup exists and `overwrite_backup` is false, `topic_desc.json` does not load, or the `rename()` fails -- the backup name is taken by a file, another filesystem) returns `NULL` and opens the topic again as it was, with a warning: *"Backup of topic failed: the topic is opened again as it was, not backed up"*. Every pointer to the old topic is stale all the same, as after a successful backup: take the topic again by name.
 
+So does a failure AFTER the move, when the new topic cannot be created (`ENOSPC`, a `mkdir` that fails): what the create left is removed, the backup is moved back where the topic was, and the topic is opened again, with the same warning. Only when the backup cannot be moved back is nothing opened: a CRITICAL, *"Backup of topic failed, and the backup cannot be moved back: the data of the topic is in the backup"*, with both paths. Before this fix the data stayed in the backup and nothing was opened: a queue had no topic until a restart, and, its size read as 0, its backup was never tried again (`tests/c/tr_queue/test_tr_queue_backup_failed`).
+
 ```C
 json_t *topic = tranger2_backup_topic(tranger, "queue", 0, 0, TRUE, 0);
 if(!topic) {
@@ -782,7 +784,16 @@ same. A directory that cannot be removed answers `-1` and announces nothing,
 but it does NOT leave the memory as it was: some of the key's files may be gone
 already, so the cache of the key is read again from what is left on disk (the
 key leaves the cache if nothing is left), and its iterators take their segments
-again from it.
+again from it: an unfiltered one at its next page, a FILTERED one at once, its
+index built again as an open builds it. Before this fix a filtered iterator
+lost its index there, and paged an EMPTY key that was still on disk until it
+was opened again:
+
+```text
+key A, 3 rows; a filtered pager of A (from_t)    -> total_rows 3
+tranger2_delete_key(A), keys/A of mode 0550        -> -1, no file removed
+the same pager, next page                          -> total_rows 3 (before: 0)
+```
 
 The iterators of the key, in this process, lose what they took from it: see
 [`tranger2_iterator_get_page()`](#tranger2_iterator_get_page).
@@ -1539,8 +1550,11 @@ backward load  -> the rows of day 3, then load_failed
 ```
 
 **A key directory that cannot be LISTED is not an empty key.** When the
-cache build cannot open `keys/<key>/` (`EMFILE`, `EACCES`, `ENOMEM`, or no
-memory for an entry of the listing), none of the key's files is known, so the
+cache build cannot open `keys/<key>/` (`EMFILE`, `EACCES`, `ENOMEM`), cannot
+READ it (`readdir()` fails: `EIO`, `ESTALE`; before this fix that was taken as
+the end of the directory, and the key was read without the files not listed
+yet), or has no memory for an entry of the listing, none of the key's files is
+known, so the
 key is flagged whole: it logs *"key directory cannot be listed when its cache
 was built: every load of the key says load_failed"* once, and every iterator of
 the key logs *"The history of the key is not whole: its directory could not be
@@ -1572,12 +1586,28 @@ until the topic is opened again:
 
 - **A load tries the flags again first.** `tranger2_open_iterator()` (and so
   `tranger2_open_list()`) of a flagged key lists the key again when its
-  directory opens now, and counts a flagged `.md2` again when it changed
-  since it was flagged (its mode or its content: `ctime` or size) or could
-  not be opened then and opens now. A flag whose file looks as it did is not
-  tried: a damaged file is not read, and its damage not logged, at every
-  load. What still cannot be read stays flagged, and the load says
-  `load_failed` with nothing more in the log.
+  directory changed since it was flagged (its mode or its entries: `ctime`)
+  or could not be opened then and opens now, and counts a flagged `.md2`
+  again when it changed since it was flagged (its mode or its content:
+  `ctime` or size) or could not be opened then and opens now. A flag whose
+  directory or file looks as it did is not tried: a directory that cannot be
+  read is not listed, a damaged file not read, and their failure not logged,
+  at every load. What still cannot be read stays flagged, and the load says
+  `load_failed` with nothing more in the log. Before this fix a key
+  directory that OPENED and could not be listed (a `readdir()` that fails)
+  was listed again, and its failure logged again, at every load. So a
+  directory whose `readdir()` recovers without changing stays flagged until
+  it changes, until an append of the master or a notification of a
+  replica lists it (both list it whatever it looks like), or until the
+  topic is opened again (`tests/c/timeranger2/test_unlisted_relist_once`):
+
+  ```text
+  keys/A opens, its readdir() fails (EIO) at the open -> A flagged, logged once
+  three loads of A                   -> load_failed, nothing more in the log
+  readdir() works again, keys/A as it was -> a load: load_failed, not listed
+  chmod keys/A (its ctime moves)     -> a load: INFO key directory listed
+                                        again, every row, load_failed false
+  ```
 - **A replica's notification lists the key again.** When the master appends
   to a key the replica could not list, the notification of the new row
   (an `rt_disk` feed) lists the key first. The rows of the notified file,

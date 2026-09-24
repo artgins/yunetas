@@ -2391,12 +2391,51 @@ PRIVATE void reopen_topic_not_backed_up(
 }
 
 /***************************************************************************
+ *  The backup moved the topic and could not create it again: what the
+ *  create left is removed, the backup is moved back, and the topic opened
+ *  again. When the backup cannot be moved back the data is still in it,
+ *  and that is said CRITICAL, with both paths.
+ ***************************************************************************/
+PRIVATE void put_back_topic_not_backed_up(
+    hgobj gobj,
+    json_t *tranger,
+    const char *topic_name,
+    const char *directory,
+    const char *backup_directory
+)
+{
+    if(json_object_get(json_object_get(tranger, "topics"), topic_name)) {
+        tranger2_close_topic(tranger, topic_name);
+    }
+    if(is_directory(directory)) {
+        rmrdir(directory);  // what the create left; a failure is logged, and the rename fails
+    }
+    if(rename(backup_directory, directory) < 0) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Backup of topic failed, and the backup cannot be moved back: the data of the topic is in the backup",
+            "topic_name",   "%s", topic_name,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            "backup",       "%s", backup_directory,
+            "path",         "%s", directory,
+            NULL
+        );
+        return;
+    }
+    reopen_topic_not_backed_up(gobj, tranger, topic_name);
+}
+
+/***************************************************************************
    Backup topic and re-create it.
    If ``backup_path`` is empty then it will be used the topic path
    If ``backup_name`` is empty then it will be used ``topic_name``.bak
    If overwrite_backup is TRUE and backup exists then it will be overwrited.
    Return the new topic, or NULL (logged): when the failure comes after the
-   topic was closed, the topic is opened again as it was.
+   topic was closed, the topic is opened again as it was -- when it comes
+   after the move (the new topic cannot be created), the backup is moved
+   back first.
  ***************************************************************************/
 PUBLIC json_t *tranger2_backup_topic(
     json_t *tranger,
@@ -2607,6 +2646,19 @@ PUBLIC json_t *tranger2_backup_topic(
     );
 
     JSON_DECREF(topic_desc)
+
+    if(!topic) {
+        /*
+         *  Moved, and the new topic cannot be created (ENOSPC, a mkdir
+         *  that fails): the backup is put back where the topic was, and
+         *  the topic opened again, as for a failure before the move. Up to
+         *  this fix the data stayed in the backup and nothing was opened:
+         *  a queue had no topic until a restart, and its size read 0, so
+         *  the backup was never tried again.
+         */
+        put_back_topic_not_backed_up(gobj, tranger, topic_name, directory, backup_directory);
+        return 0;
+    }
     return topic;
 }
 
@@ -4381,7 +4433,11 @@ PUBLIC int tranger2_delete_key(
             /*
              *  Some of its files may be gone: the cache of the key is read
              *  again from what is left, and the iterators take their
-             *  segments again from it. Nothing is announced.
+             *  segments again from it -- an unfiltered one at its next
+             *  page, a filtered one now, its index built again as an open
+             *  builds it. Nothing is announced. Up to this fix a filtered
+             *  iterator lost its index here, and read an EMPTY key that
+             *  was still on disk until it was opened again.
              */
             json_t *key_cache = load_key_cache_from_disk(
                 gobj, topic_dir, key, json_is_true(json_object_get(tranger, "master"))
@@ -4395,7 +4451,7 @@ PUBLIC int tranger2_delete_key(
                 JSON_DECREF(key_cache)
                 json_object_del(topic_cache, key);
             }
-            forget_segments_of_key(topic, key);
+            retake_segments_of_key(gobj, tranger, topic, key);
             return -1;
         }
     } else {
@@ -7648,21 +7704,74 @@ PRIVATE BOOL flag_cause_gone(
 }
 
 /***************************************************************************
- *  TRUE when the directory of a key can be opened now. Silent.
+ *  What the directory of a key flagged unlisted looked like when it was
+ *  flagged, "unlisted_state" in its cache: {"open_failed": true} when it
+ *  could not be opened, and its "ctime" (ns). A directory that opened and
+ *  could not be LISTED (readdir() failed: EIO, ENOMEM) has no
+ *  "open_failed". See key_dir_flag_cause_gone().
  ***************************************************************************/
-PRIVATE BOOL key_dir_opens(json_t *topic, const char *key)
+PRIVATE void note_unlisted_state(
+    json_t *key_cache,
+    const char *topic_directory,
+    const char *key
+)
+{
+    char path[PATH_MAX];
+    if(!build_path(path, sizeof(path), topic_directory, "keys", key, NULL)) {
+        return; // Error already logged
+    }
+    json_t *state = json_object();
+    DIR *dir = opendir(path);
+    if(!dir) {
+        json_object_set_new(state, "open_failed", json_true());
+    } else {
+        closedir(dir);
+    }
+    struct stat st;
+    if(stat(path, &st) == 0) {
+        json_object_set_new(state, "ctime",
+            json_integer((json_int_t)st.st_ctim.tv_sec * 1000000000LL + st.st_ctim.tv_nsec));
+    }
+    json_object_set_new(key_cache, "unlisted_state", state);
+}
+
+/***************************************************************************
+ *  TRUE when the cause of a key's unlisted flag may be gone: its
+ *  directory changed since it was flagged (its mode, its entries: ctime),
+ *  or it could not be opened then and can be opened now. Silent: a
+ *  directory that looks as it did is not listed, and its failure not
+ *  logged, again at every load. Up to this fix a directory that opened and
+ *  could not be listed was listed again, and logged again, at every load.
+ ***************************************************************************/
+PRIVATE BOOL key_dir_flag_cause_gone(json_t *topic, const char *key)
 {
     const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
+    json_t *state = json_object_get(
+        json_object_get(json_object_get(topic, "cache"), key), "unlisted_state"
+    );
     char path[PATH_MAX];
     if(!build_path(path, sizeof(path), topic_directory, "keys", key, NULL)) {
         return FALSE;   // Error already logged
     }
-    DIR *dir = opendir(path);
-    if(!dir) {
-        return FALSE;
+    struct stat st;
+    if(stat(path, &st) < 0) {
+        return FALSE;   // not reachable now either
     }
-    closedir(dir);
-    return TRUE;
+    if(!state) {
+        return TRUE;    // nothing noted: try
+    }
+    json_int_t ctime_ns = (json_int_t)st.st_ctim.tv_sec * 1000000000LL + st.st_ctim.tv_nsec;
+    if(ctime_ns != json_integer_value(json_object_get(state, "ctime"))) {
+        return TRUE;
+    }
+    if(json_is_true(json_object_get(state, "open_failed"))) {
+        DIR *dir = opendir(path);
+        if(dir) {
+            closedir(dir);
+            return TRUE;
+        }
+    }
+    return FALSE;
 }
 
 /***************************************************************************
@@ -7723,6 +7832,7 @@ PRIVATE void flag_key_unlisted(
         NULL
     );
     json_object_set_new(key_cache, "unlisted", json_true());
+    note_unlisted_state(key_cache, topic_directory, key);
 }
 
 /***************************************************************************
@@ -7963,6 +8073,15 @@ PRIVATE int relist_key(
         gobj, topic_directory, key, json_is_true(json_object_get(tranger, "master"))
     );
     if(json_is_true(json_object_get(key_cache, "unlisted"))) {
+        /*
+         *  Still unlisted: the flag keeps what the directory looks like
+         *  NOW, so a load does not list it again until it changes
+         */
+        json_t *flagged_key_cache = json_object_get(json_object_get(topic, "cache"), key);
+        json_t *state = json_object_get(key_cache, "unlisted_state");
+        if(flagged_key_cache && state) {
+            json_object_set(flagged_key_cache, "unlisted_state", state);
+        }
         JSON_DECREF(key_cache)
         return -1;  // Error already logged
     }
@@ -7989,7 +8108,7 @@ PRIVATE int relist_key(
  *  replica nothing else would ever try: only the appends of a master and
  *  the notifications of the file that changed count a flagged file again.
  *  What still cannot be read stays flagged, and the load says load_failed.
- *  A flag is tried only when its cause may be gone (key_dir_opens,
+ *  A flag is tried only when its cause may be gone (key_dir_flag_cause_gone,
  *  flag_cause_gone): a load does not read a damaged file, and log its
  *  damage, again and again.
  ***************************************************************************/
@@ -8002,8 +8121,8 @@ PRIVATE void retry_key_flags(
 {
     json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
     if(json_object_get(key_cache, "unlisted")) {
-        if(!key_dir_opens(topic, key)) {
-            return; // still cannot be opened: the load says load_failed
+        if(!key_dir_flag_cause_gone(topic, key)) {
+            return; // looks as when it was flagged: the load says load_failed
         }
         if(relist_key(gobj, tranger, topic, key) < 0) {
             return; // Error already logged, the key stays flagged
@@ -11044,10 +11163,12 @@ PRIVATE void forget_segments_of_key(json_t *topic, const char *key)
  *  A file of the key was counted again (count_flagged_file_again), or
  *  flagged by an append (flag_file_unreadable_at_append): its rows got a
  *  cell in the MIDDLE of the key, or lost it, and every rowid after it
- *  moved. That is not a delete, and the iterators of the key must not
- *  lose what they index: an unfiltered one loses its segments and takes
- *  them again at its next page (the stamp), a filtered one takes its
- *  segments and its index again now, as an open would build them.
+ *  moved. Or a delete of the key FAILED (tranger2_delete_key): its cache
+ *  was read again from what is left on disk. That is not a delete, and
+ *  the iterators of the key must not lose what they index: an unfiltered
+ *  one loses its segments and takes them again at its next page (the
+ *  stamp), a filtered one takes its segments and its index again now, as
+ *  an open would build them.
  ***************************************************************************/
 PRIVATE void retake_segments_of_key(
     hgobj gobj,
@@ -11077,7 +11198,7 @@ PRIVATE void retake_segments_of_key(
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TRANGER,
-                "msg",          "%s", "Cannot index the key again after a file of it was counted: the filtered iterator is empty",
+                "msg",          "%s", "Cannot index the key again after its files changed: the filtered iterator is empty",
                 "topic_name",   "%s", tranger2_topic_name(topic),
                 "key",          "%s", key,
                 "id",           "%s", json_string_value(json_object_get(iterator, "id")),

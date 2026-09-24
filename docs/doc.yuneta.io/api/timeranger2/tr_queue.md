@@ -80,8 +80,10 @@ of the mqtt queues behaves the same after a failed `tr2q_load()`.
 `-1` also when the backup itself FAILS
 ([`tranger2_backup_topic()`](<#tranger2_backup_topic>) answers `NULL`: the
 backup name is taken by a file, the `rename()` fails, the topic's files do
-not load). The queue goes on in its topic, not backed up, which the backup
-opened again, and the next period tries again:
+not load, or the new topic cannot be created after the move -- no space, a
+`mkdir` that fails -- and the backup is moved back). The queue goes on in its
+topic, not backed up, which the backup opened again, and the next period tries
+again:
 
 ```text
 ERROR tranger2_backup_topic: cannot backup topic  errno=20 serrno="Not a directory"
@@ -91,8 +93,10 @@ ERROR trq_check_backup: Queue backup failed: the queue goes on in its topic, not
 
 Up to 7.25.4 the queue was left with no topic and the call answered `0`:
 every read logged *"What topic?"*, every ack answered `-1` (the messages were
-sent again after a restart), and no backup happened again. `tr2q_check_backup()`
-behaves the same.
+sent again after a restart), and no backup happened again. Until this fix a
+create that failed after the move still left the queue with no topic: its
+messages in the backup, its size read as 0, and the backup never tried again.
+`tr2q_check_backup()` behaves the same.
 
 **Example**
 

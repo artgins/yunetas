@@ -15,10 +15,19 @@
  *  tranger2_backup_topic() itself also leaked the topic_var it had loaded
  *  when the rename failed: the memory check at the end catches it.
  *
+ *  And a backup that fails AFTER the rename: the new topic cannot be
+ *  created (here: the mkdir of its directory fails with ENOSPC, in
+ *  __wrap_mkdir() below). The backup is moved back, and the queue goes on
+ *  in its topic, whole; the next call backs it up. Up to this fix the data stayed
+ *  in the backup, nothing was opened (the queue had no topic until a
+ *  restart) and, its size read as 0, the backup was never tried again.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <errno.h>
+#include <sys/stat.h>
 #include <limits.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -39,6 +48,23 @@
 #define MSG_RENAME      "cannot backup topic"
 #define MSG_REOPENED    "Backup of topic failed: the topic is opened again as it was, not backed up"
 #define MSG_QUEUE       "Queue backup failed: the queue goes on in its topic, not backed up"
+
+/***************************************************************
+ *              A mkdir() that fails (no space)
+ ***************************************************************/
+int __real_mkdir(const char *path, mode_t mode);
+int __wrap_mkdir(const char *path, mode_t mode);
+
+PRIVATE char failing_mkdir[PATH_MAX] = "";
+
+int __wrap_mkdir(const char *path, mode_t mode)
+{
+    if(failing_mkdir[0] && strcmp(path, failing_mkdir) == 0) {
+        errno = ENOSPC;
+        return -1;
+    }
+    return __real_mkdir(path, mode);
+}
 
 /***************************************************************
  *              Data
@@ -212,6 +238,89 @@ PRIVATE int test_tr2q(void)
 }
 
 /***************************************************************************
+ *  tr_queue: the backup is moved, and the new topic cannot be created
+ ***************************************************************************/
+PRIVATE int test_trq_create_fails(void)
+{
+    int result = 0;
+    const char *topic_name = "trq_create";
+    rmrdir(path_database);
+
+    set_expected_results("trq_create: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup();
+    tr_queue_t *trq = trq_open(tranger, topic_name, "tm", 0, 1 /* backup_queue_size */);
+    trq_load(trq);
+    q_msg_t *msg = trq_append2(trq, 946684801, json_pack("{s:i, s:I}", "n", 1, "tm", (json_int_t)946684801), 0);
+    trq_unload_msg(msg, 0);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    char topic_dir[PATH_MAX];
+    char backup_dir[PATH_MAX];
+    char bak_name[NAME_MAX];
+    snprintf(bak_name, sizeof(bak_name), "%s.bak", topic_name);
+    build_path(topic_dir, sizeof(topic_dir), path_database, topic_name, NULL);
+    build_path(backup_dir, sizeof(backup_dir), path_database, bak_name, NULL);
+    snprintf(failing_mkdir, sizeof(failing_mkdir), "%s", topic_dir);
+
+    set_expected_results(
+        "trq_create: the new topic cannot be created",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", MSG_MOVING,
+            "msg", "newdir() FAILED",   // the topic directory, ENOSPC
+            "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED",
+            "msg", "Creating topic",
+            "msg", "newdir() FAILED",   // what the create writes in it
+            "msg", "Cannot create directory",
+            "msg", "Cannot replace topic_cols.json, cannot create the temporary file",
+            "msg", "Cannot replace topic_var.json, cannot create the temporary file",
+            "msg", "newdir() FAILED",
+            "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED",
+            "msg", "newdir() FAILED",
+            "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED",
+            "msg", "tranger_open_topic(): directory not found",
+            "msg", MSG_REOPENED,        // moved back, and opened again
+            "msg", MSG_QUEUE
+        ),
+        NULL, NULL, 1
+    );
+    int ret = trq_check_backup(trq);
+    failing_mkdir[0] = 0;
+    result += expect_int("trq_create: trq_check_backup() of a failed create", ret, -1);
+    if(!trq->topic || trq->topic != tranger2_topic(tranger, topic_name)) {
+        printf("%sERROR%s --> trq_create: the queue has no topic after the failed create\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += expect_int("trq_create: topic size after the failed create",
+        (json_int_t)tranger2_topic_size(tranger, topic_name), 1);
+    result += expect_int("trq_create: the backup was moved back",
+        (json_int_t)is_directory(backup_dir), 0);
+    result += test_json(NULL);
+
+    /*
+     *  The next call tries again, and backs the queue up
+     */
+    set_expected_results(
+        "trq_create: the next call backs up",
+        json_pack("[{s:s},{s:s}]",
+            "msg", MSG_MOVING,
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    ret = trq_check_backup(trq);
+    result += expect_int("trq_create: trq_check_backup() once it can be done", ret, 0);
+    result += expect_int("trq_create: the backup is there", (json_int_t)is_directory(backup_dir), 1);
+    result += expect_int("trq_create: the new topic is empty",
+        (json_int_t)tranger2_topic_size(tranger, topic_name), 0);
+    trq_close(trq);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -223,6 +332,7 @@ PRIVATE int do_test(void)
 
     result += test_trq();
     result += test_tr2q();
+    result += test_trq_create_fails();
 
     rmrdir(path_database);
     return result;

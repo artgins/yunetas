@@ -88,6 +88,7 @@ set(SRCS
     test_testing
     test_cmp_file_ids
     test_unlistable_dirs
+    test_unlisted_relist_once
 )
 
 ##############################################
@@ -127,6 +128,11 @@ foreach(test ${SRCS})
         target_include_directories(${binary} PRIVATE
             ${YUNETAS_BASE}/kernel/c/timeranger2/src
         )
+    endif()
+    if(test STREQUAL "test_unlisted_relist_once")
+        # The test fails the readdir() of one key directory in its own
+        # __wrap_opendir() and __wrap_readdir()
+        target_link_options(${binary} PRIVATE "-Wl,--wrap=opendir,--wrap=readdir,--wrap=closedir")
     endif()
     if(test STREQUAL "test_torn_tail_check_fails")
         # The test fails the open of a content file in its own __wrap_open()

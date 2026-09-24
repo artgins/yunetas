@@ -15,6 +15,10 @@ taken by a file: the `rename()` fails): `trq_check_backup()` /
 it again), and appends, reads and acks work after it. Up to 7.25.4 the queue
 was left with no topic and the call answered 0; `tranger2_backup_topic()`
 also leaked the `topic_var` it had loaded (the memory check at the end).
+And a backup that fails AFTER the move: the new topic cannot be created (the
+`mkdir` of its directory fails with `ENOSPC`, by `--wrap=mkdir`). The backup
+is moved back, the queue keeps its topic whole, and the next call backs it up.
+Before this fix the messages stayed in the backup and the queue had no topic.
 
 ## Run
 
