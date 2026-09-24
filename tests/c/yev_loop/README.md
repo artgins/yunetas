@@ -12,6 +12,8 @@ Integration tests for the io_uring-based event loop: timers, TCP client/server e
 
 `yev_events/test_yevent_udp_ipv6` uses IPv6 peers on `[::1]`. A UDP listener on `udp://[::1]:0` keeps the IPv6 address. A recvmsg event receives a datagram from an IPv6 client, the peer address goes into the gbuffer with its length (`gbuffer_setaddr()`), and a sendmsg event sends the gbuffer back to it, as `C_UDP_S` does. A TCP connect to `tcp://[::1]` connects. In 7.25.4 the addresses were a `struct sockaddr` (16 bytes): the listener and the connect were refused, the peer was cut to 16 bytes, and the kernel refused the reply (`-EINVAL`). Without IPv6 on the host the test is skipped.
 
+`yev_events/test_yevent_stop_in_flight` stops a read, a write to a full socket and a recvmsg while the kernel has them. The event keeps its gbuffer until the completion of the cancel (the test holds a reference to the gbuffer and reads its refcount), and the callback gets the event `STOPPED`, `-ECANCELED` and without gbuffer. The read is started again with a new gbuffer and reads. `yev_set_gbuffer(NULL)` on a running read releases the gbuffer at the completion too. In 7.25.4 the stop released the gbuffer at once, while the kernel could still write into it.
+
 ## Run
 
 ```bash

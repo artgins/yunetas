@@ -121,7 +121,8 @@ The loop does this with them:
   callback (or before the notification) is not freed at once: the loop
   frees it, with its gbuffer, when the notification arrives.
 - A stop of a sendmsg event keeps its gbuffer while a completion is still
-  to come. The gbuffer is released when the event is freed.
+  to come. The gbuffer is released at the last completion (see
+  [A stop keeps the gbuffer](<#yev-loop-stop-keeps-gbuffer>)).
 - The notification can arrive in any state of the event: the event can
   be sent again, or stopped, before the notification of the last send.
 - When the kernel has no zero-copy sendmsg (the loop asks the kernel in
@@ -162,6 +163,56 @@ read the freed event (a use-after-free). A callback that did not destroy
 the event was called a second time with result `0`.
 
 The test is `tests/c/yev_loop/yev_events/test_yevent_udp_zerocopy.c`.
+
+(yev-loop-stop-keeps-gbuffer)=
+## A stop keeps the gbuffer
+
+A stop of a `RUNNING` read, write, recvmsg or sendmsg event submits a
+cancel. The cancel is not done when it is submitted: until the completion
+of the operation arrives, the kernel can still write into the gbuffer (a
+read) or read from it (a write). So the event keeps its gbuffer while it
+has a completion to come:
+
+- [`yev_stop_event()`](<#yev_stop_event>) does not release the gbuffer
+  of an event with a completion to come. The loop releases it at the last
+  completion of the event, **before** the callback.
+- The callback sees the event as before the change: `STOPPED`, with
+  `-ECANCELED` (or the error of the operation), and without gbuffer
+  (`yev_get_gbuf()` is `NULL`).
+- Between the stop and that completion, `yev_get_gbuf()` still returns
+  the gbuffer. Do not free it and do not give it to another event.
+- [`yev_set_gbuffer()`](<#yev_set_gbuffer>) with `NULL` on such an event
+  releases the gbuffer at the last completion too. A new gbuffer is
+  refused (logged, the new gbuffer is released, `-1`).
+- An event started again before that completion uses its gbuffer again,
+  and it is not released.
+
+A reader that connects again, as `C_TCP` does:
+
+```C
+PRIVATE int yev_callback(yev_event_h yev_event)
+{
+    if(yev_get_state(yev_event) == YEV_ST_STOPPED) {
+        // yev_get_gbuf(yev_event) is NULL: the loop released it
+        return 0;
+    }
+    ...
+}
+
+// Connected again: the same read event, with a new gbuffer
+if(!yev_get_gbuf(yev_reading)) {
+    yev_set_gbuffer(yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
+} else {
+    gbuffer_clear(yev_get_gbuf(yev_reading));
+}
+yev_start_event(yev_reading);
+```
+
+In 7.25.4 and earlier the stop released the gbuffer at once (only a
+sendmsg event kept it, since the zero-copy fix). Its memory could be freed
+and used again while the kernel still had the read or the write.
+
+The test is `tests/c/yev_loop/yev_events/test_yevent_stop_in_flight.c`.
 
 (yev-loop-ipv6-peers)=
 ## IPv6 peers
@@ -783,6 +834,13 @@ Returns `0` on success, or `-1` if an error occurs.
 **Notes**
 
 This function is only applicable for events created using [`yev_create_read_event()`](<#yev_create_read_event>) and [`yev_create_write_event()`](<#yev_create_write_event>).
+When the event has an operation in the kernel, its gbuffer is not released at once: `NULL` releases it at the last completion, and a new gbuffer is refused with an error (the new gbuffer is released). See [A stop keeps the gbuffer](<#yev-loop-stop-keeps-gbuffer>).
+
+```C
+if(!yev_get_gbuf(yev_event)) {
+    yev_set_gbuffer(yev_event, gbuffer_create(4096, 4096));
+}
+```
 
 ---
 
@@ -872,6 +930,12 @@ Returns `0` on success, or `-1` if an error occurs.
 If the event is a `connect`, `timer`, or `accept` event, the associated socket will be closed.
 If the event is in an idle state, it can be reused. Otherwise, a new event must be created.
 A `RUNNING` event whose submission the kernel did not take yet, kept by the loop or still in the submission queue (see [A full submission queue](<#yev-loop-full-submission-queue>)), is not canceled in the kernel: the submission is taken back, so it never runs on the closed fd, and the callback gets the event `STOPPED` with result `-ECANCELED` at the next cycle, as after a cancel.
+The gbuffer of an event with a completion to come is released at that completion, before the callback, not by the stop. See [A stop keeps the gbuffer](<#yev-loop-stop-keeps-gbuffer>).
+
+```C
+yev_stop_event(yev_reading);    // the read is canceled; its gbuffer waits for the completion
+// ... the callback gets yev_reading STOPPED, -ECANCELED, yev_get_gbuf() == NULL
+```
 
 ---
 

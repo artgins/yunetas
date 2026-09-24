@@ -145,6 +145,8 @@ struct yev_event_s {
     int in_flight;             // # of submitted SQEs whose CQE has not been reaped yet
     uint8_t destroy_requested; // set when destroyed while in-flight; free is deferred to callback_cqe
     uint8_t in_dispatch;       // set while callback_cqe is dispatching this event's callback / re-arm
+    uint8_t gbuf_release_pending; // stopped with its operation in the kernel: the gbuffer is
+                                  // released at the last completion of the event, not at the stop
 };
 
 typedef int (*yev_protocol_fill_hints_fn_t)( // fill hints according the schema

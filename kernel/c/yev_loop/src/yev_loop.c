@@ -785,6 +785,15 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     if(yev_event->in_flight > 0 && !(cqe->flags & IORING_CQE_F_MORE)) {
         yev_event->in_flight--;
     }
+    if(yev_event->in_flight <= 0 && yev_event->gbuf_release_pending) {
+        /*
+         *  The kernel is done with the gbuffer of a stopped event (see
+         *  yev_stop_event): released before the callback, which sees the
+         *  event without gbuffer, as when the stop released it
+         */
+        yev_event->gbuf_release_pending = FALSE;
+        GBUFFER_DECREF(yev_event->gbuf)
+    }
     if(yev_event->destroy_requested) {
         if(yev_event->in_flight <= 0) {
             really_free_yev_event(yev_event);
@@ -1755,7 +1764,30 @@ PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_w
                     // if NULL reset the current gbuf
 ) {
     if(gbuf && gbuf == yev_event->gbuf) {
+        yev_event->gbuf_release_pending = FALSE;    // in use again
         return 0;
+    }
+    if(yev_event->gbuf && yev_event->in_flight > 0) {
+        /*
+         *  The kernel may still use the current gbuffer (see
+         *  yev_stop_event): it is released at the last completion
+         */
+        if(!gbuf) {
+            yev_event->gbuf_release_pending = TRUE;
+            return 0;
+        }
+        yev_loop_t *yev_loop = yev_event->yev_loop;
+        gobj_log_error(yev_loop->yuno? yev_event->gobj:0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBURING,
+            "msg",          "%s", "Cannot replace the gbuffer of an event with an operation in the kernel",
+            "type",         "%s", yev_event_type_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
+            "gbuffer",      "%p", yev_event->gbuf,
+            NULL
+        );
+        GBUFFER_DECREF(gbuf)    // owned
+        return -1;
     }
     if(!gbuf) {
         GBUFFER_DECREF(yev_event->gbuf)
@@ -1852,6 +1884,12 @@ PUBLIC int yev_start_event(
         json_decref(jn_flags);
         return -1;
     }
+
+    /*
+     *  Started again before the last completion of its stop: the gbuffer
+     *  is in use again, it is not released
+     */
+    yev_event->gbuf_release_pending = FALSE;
 
     /*-------------------------------*
      *      Summit sqe
@@ -2564,11 +2602,16 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
 
     /*---------------------------*
      *      Free
-     *  A send with a CQE still to come (it runs, or its zero-copy
-     *  notification has not arrived) keeps its gbuffer: the kernel may
-     *  read it. It is released when the event is freed.
+     *  An operation still in the kernel (a read, write, recvmsg or send
+     *  that runs, or a zero-copy send whose notification has not arrived)
+     *  may still write into the gbuffer or read from it until its
+     *  completion: a cancel is not done when it is submitted. The event
+     *  keeps the gbuffer, and callback_cqe releases it at the last
+     *  completion of the event, before the callback.
      *---------------------------*/
-    if(!(yev_event->type == YEV_SENDMSG_TYPE && yev_event->in_flight > 0)) {
+    if(yev_event->gbuf && yev_event->in_flight > 0) {
+        yev_event->gbuf_release_pending = TRUE;
+    } else {
         GBUFFER_DECREF(yev_event->gbuf)
     }
 
