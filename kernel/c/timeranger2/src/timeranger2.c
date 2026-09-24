@@ -259,6 +259,12 @@ PRIVATE json_t *find_cache_cell(
     json_int_t *pfile_base,
     int *pinsert_idx
 );
+PRIVATE json_t *find_cell_in_key_cache(
+    json_t *key_cache,
+    const char *file_id,
+    json_int_t *pfile_base,
+    int *pinsert_idx
+);
 PRIVATE json_t *load_key_cache_from_disk(
     hgobj gobj,
     const char *topic_directory,
@@ -325,10 +331,11 @@ PRIVATE json_int_t update_new_record_from_mem(
     hgobj gobj,
     json_t *topic,
     const char *key,
+    json_t *key_cache,      // the key's cache (get_key_cache)
     const char *file_id,    // the file the record was written to
-    json_t *cell,           // the file's cell (find_cache_cell), or NULL
-    json_int_t file_base,   // from the same find_cache_cell()
-    int insert_idx,         // from the same find_cache_cell()
+    json_t *cell,           // the file's cell (find_cell_in_key_cache), or NULL
+    json_int_t file_base,   // from the same find_cell_in_key_cache()
+    int insert_idx,         // from the same find_cell_in_key_cache()
     md2_record_t *md_record
 );
 PRIVATE json_int_t update_totals_of_key_cache(
@@ -337,9 +344,7 @@ PRIVATE json_int_t update_totals_of_key_cache(
     const char *key
 );
 PRIVATE json_int_t update_totals_of_key_cache2(
-    hgobj gobj,
-    json_t *topic,
-    const char *key,
+    json_t *key_cache,
     json_t *cache_cell,
     json_int_t rows_added
 );
@@ -3505,12 +3510,21 @@ PUBLIC int tranger2_append_record(
     }
 
     /*------------------------------------------------------*
+     *  The key's cache, looked up once for the append:
+     *  NULL for a key with no record yet
+     *------------------------------------------------------*/
+    json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key_value);
+
+    /*------------------------------------------------------*
      *  A file flagged unreadable is counted again first
      *------------------------------------------------------*/
-    if(count_flagged_file_again(gobj, tranger, topic, key_value, file_id) < 0) {
-        // Error already logged
-        JSON_DECREF(record)
-        return -1;
+    if(json_array_size(json_object_get(key_cache, "unreadable")) > 0) {
+        if(count_flagged_file_again(gobj, tranger, topic, key_value, file_id) < 0) {
+            // Error already logged
+            JSON_DECREF(record)
+            return -1;
+        }
+        key_cache = json_object_get(json_object_get(topic, "cache"), key_value);
     }
 
     /*------------------------------------------------------*
@@ -3782,9 +3796,12 @@ PUBLIC int tranger2_append_record(
          *  and between them only the marker flags on
          *  this same cell change.
          *--------------------------------------------*/
+        if(!key_cache) {
+            key_cache = get_key_cache(topic, key_value);    // the key's first record
+        }
         json_int_t file_base = 0;
         int insert_idx = 0;
-        json_t *file_cell = find_cache_cell(topic, key_value, file_id, &file_base, &insert_idx);
+        json_t *file_cell = find_cell_in_key_cache(key_cache, file_id, &file_base, &insert_idx);
 
         /*--------------------------------------------*
          *  The marker of an out-of-order record goes
@@ -3851,7 +3868,7 @@ PUBLIC int tranger2_append_record(
          *  Update cache
          */
         g_rowid = update_new_record_from_mem(
-            gobj, topic, key_value, file_id, file_cell, file_base, insert_idx, &md_record
+            gobj, topic, key_value, key_cache, file_id, file_cell, file_base, insert_idx, &md_record
         );
         if(system_flag_key_type & sf_rowid_key) {
             if(g_rowid != i_rowid) {
@@ -6659,9 +6676,7 @@ PRIVATE json_int_t update_new_records_from_disk(
     }
 
     json_int_t totals = update_totals_of_key_cache2(
-        gobj,
-        topic,
-        key,
+        json_object_get(json_object_get(topic, "cache"), key),
         cur_cache_cell?cur_cache_cell:new_cache_cell,
         rows_added
     );
@@ -7262,7 +7277,25 @@ PRIVATE json_t *find_cache_cell(
     int *pinsert_idx
 )
 {
-    json_t *key_cache = get_key_cache(topic, key);
+    return find_cell_in_key_cache(
+        get_key_cache(topic, key),
+        file_id,
+        pfile_base,
+        pinsert_idx
+    );
+}
+
+/***************************************************************************
+ *  find_cache_cell() in a key's cache the caller already has
+ *  (get_key_cache): the append looks the key's cache up once.
+ ***************************************************************************/
+PRIVATE json_t *find_cell_in_key_cache(
+    json_t *key_cache,
+    const char *file_id,
+    json_int_t *pfile_base,
+    int *pinsert_idx
+)
+{
     json_t *cache_files = json_object_get(key_cache, "files");
 
     /*
@@ -8945,15 +8978,15 @@ PRIVATE json_int_t update_new_record_from_mem(
     hgobj gobj,
     json_t *topic,
     const char *key,
+    json_t *key_cache,      // the key's cache (get_key_cache)
     const char *file_id,    // the file the record was written to
-    json_t *cell,           // the file's cell (find_cache_cell), or NULL
-    json_int_t file_base,   // from the same find_cache_cell()
-    int insert_idx,         // from the same find_cache_cell()
+    json_t *cell,           // the file's cell (find_cell_in_key_cache), or NULL
+    json_int_t file_base,   // from the same find_cell_in_key_cache()
+    int insert_idx,         // from the same find_cell_in_key_cache()
     md2_record_t *md_record
 )
 {
-    json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, 0);
-    if(!topic_cache) {
+    if(!json_is_object(key_cache)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
@@ -8968,8 +9001,8 @@ PRIVATE json_int_t update_new_record_from_mem(
     /*
      *  The cell of the record's file, wherever it is: a __t__ of an earlier
      *  file writes into that file (the caller opened it by this file_id).
-     *  The caller found it with find_cache_cell() BEFORE the row was
-     *  written, for the marker too: one search per append, not two.
+     *  The caller found it with find_cell_in_key_cache() BEFORE the row
+     *  was written, for the marker too: one search per append, not two.
      */
     json_t *cur_cache_cell = cell;
 
@@ -8977,7 +9010,6 @@ PRIVATE json_int_t update_new_record_from_mem(
      *  UPDATE CACHE from mem
      */
     if(!cur_cache_cell) {
-        json_t *key_cache = get_key_cache(topic, key);
         json_t *cache_files = json_object_get(key_cache, "files");
         cur_cache_cell = update_cache_cell(0, file_id, md_record, 1, 1);
         json_array_insert_new(cache_files, (size_t)insert_idx, cur_cache_cell);
@@ -8987,7 +9019,7 @@ PRIVATE json_int_t update_new_record_from_mem(
         update_cache_cell(cur_cache_cell, file_id, md_record, 1, 1);
     }
 
-    if(update_totals_of_key_cache2(gobj, topic, key, cur_cache_cell, 1)<0) {
+    if(update_totals_of_key_cache2(key_cache, cur_cache_cell, 1)<0) {
         // Error already logged
         return -1;
     }
@@ -9097,27 +9129,16 @@ PRIVATE json_int_t update_totals_of_key_cache(
 }
 
 /***************************************************************************
- *  Update totals of a key
+ *  Update totals of a key, `key_cache` is the key's cache (get_key_cache)
  *
  *  Return -1 if error and if successful return total rows ( > 0)
  ***************************************************************************/
 PRIVATE json_int_t update_totals_of_key_cache2(
-    hgobj gobj,
-    json_t *topic,
-    const char *key,
+    json_t *key_cache,
     json_t *cache_file,
     json_int_t rows_added
 ) {
-    json_t *total_range = json_object_get(
-        json_object_get(
-            json_object_get(
-                topic,
-                "cache"
-            ),
-            key
-        ),
-        "total"
-    );
+    json_t *total_range = json_object_get(key_cache, "total");
 
     json_int_t total_rows = json_integer_value(json_object_get(total_range, "rows"));
     uint64_t global_from_t = json_integer_value(json_object_get(total_range, "fr_t"));
