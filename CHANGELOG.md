@@ -74,26 +74,25 @@ code before it, except those listed under "No red test" in `TODO.md`.
   `gc-assets` still sweeps (and reports) orphan blobs, the bytes no asset row
   names. The library's `treedb_gc_files()` takes nothing on a refusal; the
   new `treedb_gc_files2()` returns the report.
-- **Damaged keys.** A key damaged on disk (an md2 that cannot be opened or
-  read, a record whose content cannot be read) makes every load of the key
-  fail (`load_failed`): a row or content that cannot be read fails the load
-  that meets it, and an md2 the cache build cannot count flags the key at the
-  open, also after a restart. The flag of a file is cleared when the file
-  reads again (an append into a file still unreadable is refused). A keyless
-  `tranger2_open_list()` still loads every readable key and opens its
-  realtime feed, and reports the failure as `load_failed` /
-  `load_failed_keys`. treedb remembers those keys and refuses what memory
-  would answer wrong: a create of such an id (it would shadow the stored
-  record); shoot/activate and the snapshot-guarded deletes when `__snaps__`
-  is partial; `gc-assets` when a topic with a `file` column or `__assets__`
-  is partial; a delete of a node, forced or not, whose hooks hold a topic
-  that did not load whole (*"Cannot delete node: a topic its hooks hold did
-  not load whole, a child that did not load may hang from it"*; 7.25.4
-  deleted it, and a child that did not load kept naming it).
-  `treedb_delete_instance()` refuses when it cannot read every
-  row of the key, and the asset snapshot guard fails closed when it cannot
-  read. Recovery procedure in treedb.md ("A topic that did not load whole"),
-  from least to most destructive.
+- **Damaged keys.** A key damaged on disk (an md2 that cannot be opened or read,
+  a record whose content cannot be read) makes every load of the key fail
+  (`load_failed`): a row or content that cannot be read fails the load that
+  meets it, and an md2 the cache build cannot count flags the key at the open,
+  also after a restart. The flag of a file is cleared when the file reads again
+  (an append into a file still unreadable is refused). A keyless
+  `tranger2_open_list()` still loads every readable key and opens its realtime
+  feed, and reports the failure as `load_failed` / `load_failed_keys`. treedb
+  remembers those keys and refuses what memory would answer wrong: a create of
+  such an id (it would shadow the stored record); shoot/activate and the
+  snapshot-guarded deletes when `__snaps__` is partial; `gc-assets` when a topic
+  with a `file` column or `__assets__` is partial; a delete of a node, forced or
+  not, whose hooks hold a topic that did not load whole (*"Cannot delete node: a
+  topic its hooks hold did not load whole, a child that did not load may hang
+  from it"*; 7.25.4 deleted it, and a child that did not load kept naming it).
+  `treedb_delete_instance()` refuses when it cannot read every row of the key,
+  and the asset snapshot guard fails closed when it cannot read. Recovery
+  procedure in treedb.md ("A topic that did not load whole"), from least to most
+  destructive.
 - **msg2db: an id whose history did not load whole** used to serve an older
   message as current. It is now reloaded newest first, up to the damage: a
   pkey2 whose newest message comes after the damage is served as before; one
