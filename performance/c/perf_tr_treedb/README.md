@@ -14,6 +14,7 @@ events it gets are counted.
 | `create_link_half` | N/50 creates, half of them linked. |
 | `reopen` | The open of the treedb: every node and its links. |
 | `delete_force` | N/50 forced deletes, half of them linked. |
+| `delete_parent` | N/5000 forced deletes of a parent with 200 children: each child is unlinked and saved. `us_per_op` is per parent. Only the delete is timed. |
 
 N is 100 000.
 

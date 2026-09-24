@@ -15,6 +15,8 @@
  *            create_link_half  N/50 creates, half of them linked
  *            reopen            the open of the treedb: every node and link
  *            delete_force      N/50 forced deletes (half of them linked)
+ *            delete_parent     N/5000 forced deletes of a parent with 200
+ *                              children (each child is unlinked and saved)
  *          N is 100000 by default; --small is N 10000 (for ctest: it checks
  *          that the benchmark builds and runs, its figures are not the
  *          reference). A link callback is set, as C_NODE does, and every
@@ -52,6 +54,7 @@
 #define BENCH       "perf_tr_treedb"
 #define DATABASE    "perf_tr_treedb"
 #define TREEDB_NAME "treedb_perf"
+#define DELETE_PARENT_CHILDREN  200
 
 /*
  *  users.departments is a list fkey to departments.users;
@@ -215,13 +218,16 @@ PRIVATE int do_bench(const char *path_root)
     }
 
     int result = 0;
-    char name[64];
+    char name[NAME_MAX];
 
     events_told = 0;
     double t0 = now_s();
     for(int i = 0; i < N; i++) {
         snprintf(name, sizeof(name), "alice %d", i);
-        treedb_update_node(tranger, alice, json_pack("{s:s}", "username", name), FALSE);
+        if(!treedb_update_node(tranger, alice, json_pack("{s:s}", "username", name), FALSE)) {
+            result = -1;  // Error already logged
+            break;
+        }
     }
     result_line("update_memory", now_s() - t0, N);
 
@@ -259,8 +265,9 @@ PRIVATE int do_bench(const char *path_root)
             result = -1;  // Error already logged
             break;
         }
-        if(i % 2 == 0) {
-            treedb_link_nodes(tranger, "users", direction, u);
+        if(i % 2 == 0 && treedb_link_nodes(tranger, "users", direction, u) < 0) {
+            result = -1;  // Error already logged
+            break;
         }
     }
     result_line("create_link_half", now_s() - t0, nc);
@@ -294,6 +301,45 @@ PRIVATE int do_bench(const char *path_root)
         }
     }
     result_line("delete_force", now_s() - t0, nc);
+
+    /*
+     *  Forced deletes of a PARENT: each one unlinks and saves its
+     *  children. Only the delete is timed, not the build of the family.
+     */
+    int np = N/5000 > 0? N/5000 : 1;
+    double seconds = 0;
+    long delete_events = 0;
+    for(int p = 0; p < np && result == 0; p++) {
+        snprintf(name, sizeof(name), "parent%04d", p);
+        json_t *parent = treedb_create_node(tranger, TREEDB_NAME, "departments",
+            json_pack("{s:s}", "id", name));
+        if(!parent) {
+            result = -1;  // Error already logged
+            break;
+        }
+        for(int k = 0; k < DELETE_PARENT_CHILDREN; k++) {
+            char child_id[NAME_MAX];
+            snprintf(child_id, sizeof(child_id), "p%04d_c%04d", p, k);
+            json_t *child = treedb_create_node(tranger, TREEDB_NAME, "users",
+                json_pack("{s:s}", "id", child_id));
+            if(!child || treedb_link_nodes(tranger, "users", parent, child) < 0) {
+                result = -1;  // Error already logged
+                break;
+            }
+        }
+        if(result < 0) {
+            break;
+        }
+        events_told = 0;
+        t0 = now_s();
+        if(treedb_delete_node(tranger, parent, json_pack("{s:b}", "force", 1)) < 0) {
+            result = -1;  // Error already logged
+        }
+        seconds += now_s() - t0;
+        delete_events += events_told;
+    }
+    events_told = delete_events;
+    result_line("delete_parent", seconds, np);
 
     treedb_close_db(tranger, TREEDB_NAME);
     tranger2_shutdown(tranger);
