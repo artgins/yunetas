@@ -21,7 +21,7 @@ There is **no threading**. Scaling is achieved by running one yuno per
 CPU core and exchanging events between them.
 :::
 
-(yev_loop_full_submission_queue)=
+(yev-loop-full-submission-queue)=
 ## A full submission queue
 
 Every operation is submitted to the kernel as soon as it is prepared. When
@@ -569,7 +569,7 @@ Returns 0 on success, or a negative value on failure.
 **Notes**
 
 Stopping the event loop using [`yev_loop_stop()`](<#yev_loop_stop>) will cause it to exit its execution cycle, but it can be restarted using [`yev_loop_run()`](<#yev_loop_run>).
-With a full submission queue that the kernel does not take, the stop is kept and made at the next cycle of the loop (see [A full submission queue](<#yev_loop_full_submission_queue>)).
+With a full submission queue that the kernel does not take, the stop is kept and made at the next cycle of the loop (see [A full submission queue](<#yev-loop-full-submission-queue>)).
 
 ---
 
@@ -653,7 +653,7 @@ Returns 0 on success, or a negative value on failure.
 **Notes**
 
 For timer events, use [`yev_start_timer_event()`](<#yev_start_timer_event>) instead.
-With a full submission queue that the kernel does not take, the submission is kept and made at the next cycle of the loop, and the answer is `0` (see [A full submission queue](<#yev_loop_full_submission_queue>)).
+With a full submission queue that the kernel does not take, the submission is kept and made at the next cycle of the loop, and the answer is `0` (see [A full submission queue](<#yev-loop-full-submission-queue>)).
 
 ---
 
@@ -714,7 +714,7 @@ Returns `0` on success, or `-1` if an error occurs.
 
 If the event is a `connect`, `timer`, or `accept` event, the associated socket will be closed.
 If the event is in an idle state, it can be reused. Otherwise, a new event must be created.
-A `RUNNING` event whose submission the loop still keeps (see [A full submission queue](<#yev_loop_full_submission_queue>)) is not canceled in the kernel: the submission is taken back, and the callback gets the event `STOPPED` with result `-ECANCELED` at the next cycle, as after a cancel.
+A `RUNNING` event whose submission the loop still keeps (see [A full submission queue](<#yev-loop-full-submission-queue>)) is not canceled in the kernel: the submission is taken back, and the callback gets the event `STOPPED` with result `-ECANCELED` at the next cycle, as after a cancel.
 
 ---
 
