@@ -449,7 +449,7 @@ Up to 7.25.4 the function used `stat()`, which follows links. A link to a direct
 
 A `path` that does not exist returns `-1` without a log, because callers use `rmrdir()` to make sure that a directory is gone. Every other failure is logged.
 
-An entry inside the tree that another process removes during the walk (between `readdir()` and `lstat()`) is already gone, so it is not an error: the walk continues. Up to 7.25.5-dev that case returned `-1` with no log.
+An entry inside the tree that another process removes during the walk (between `readdir()` and `lstat()`) is already gone, so it is not an error: the walk continues. Up to 7.25.4 that case returned `-1` with no log.
 
 **Example**
 

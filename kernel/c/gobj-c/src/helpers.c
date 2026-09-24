@@ -471,7 +471,7 @@ PRIVATE int remove_non_directory(const char *path)
 /****************************************************************************
  *  Remove an entry of a walk and, if it is a directory, all its content.
  *  An entry that is already gone (another process removed it between the
- *  readdir() and here) is not an error: 0, no log. Up to 7.25.5-dev that
+ *  readdir() and here) is not an error: 0, no log. Up to 7.25.4 that
  *  case returned -1 with no log, and every level above answered -1 as
  *  "Error already logged". A symbolic link is removed, never descended.
  ****************************************************************************/

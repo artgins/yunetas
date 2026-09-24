@@ -475,16 +475,14 @@ name: the prefixes `list-`, `view-`, `get-`, `info-`, `dir-`, and `help`,
 A command that has a `__reset__` value (in the command text or in the kw) is
 not read-only: `stats=__reset__` sets the counters of a yuno to zero. So
 `stats-yuno id=gate_mqtts stats=__reset__` (the reset button of gui_agent) gets
-the full record, with its `source`. Up to 7.25.5-dev it got the minimal record,
-without the `source`, and a reset sent in the kw was not visible at all.
+the full record, with its `source`, also when the `__reset__` comes in the kw.
 
 `command-yuno` and `command-agent` are judged by the command that they carry,
 and the record names it: `"command":"command-yuno command=view-attrs"`. The
 carried command is taken from the same place as the command parser takes it:
-the last `command=` of the command text, else `command` of the kw. Up to
-7.25.5-dev the kw came first, so a kw `command=list-yunos` with a text
-`command='delete-node …'` ran `delete-node` and was recorded as a read-only
-command.
+the last `command=` of the command text, else `command` of the kw. So a kw
+`command=list-yunos` with a text `command='delete-node …'` runs `delete-node`
+and is recorded as `delete-node`, with the full record.
 
 These commands keep the full record: `read-file`, `read-json` and
 `read-binary-file` (they read files of the node), `check-user-pwd`, and anything
@@ -544,7 +542,7 @@ nearest first:
   has such a name. This applies to a kw key at any depth, to `name=value` in
   any string (quoted or not, with blanks around the `=`), to the command carried
   by `command-yuno`, and to `"name": value` in a JSON given as text. Up to
-  7.25.5-dev `check-user-pwd` and `set-user-pwd` wrote the password in clear
+  7.25.4 `check-user-pwd` and `set-user-pwd` wrote the password in clear
   text. For example:
 
   ```json
@@ -605,10 +603,8 @@ is the whole burst. A burst ends:
 - when the agent stops.
 
 Up to 7.25.4 each keystroke wrote the whole kw, with the keystroke in base64
-(about 920 bytes each). From 7.25.5-dev to this change each keystroke wrote
-`<1 bytes sha256:…>`, which a table of 256 entries reads back. Now 1000
-keystrokes in one burst write two records, about 950 bytes. A `write-tty`
-carried by `command-agent` gets its full record, with `content64` as
+(about 920 bytes each). Now 1000 keystrokes in one burst write two records,
+about 950 bytes. A `write-tty` carried by `command-agent` gets its full record, with `content64` as
 `<N bytes>` only.
 
 #### Rotation and retention
@@ -681,7 +677,7 @@ this first sweep can take some seconds, once. To keep more, set
 
 **A clock set back across midnight** empties no audit file: the file of the
 day before is opened again and the records are appended to it. Up to
-7.25.5-dev it was opened with `"w"` and emptied, and the file of today was
+7.25.4 it was opened with `"w"` and emptied, and the file of today was
 emptied too when the clock went forward again (see
 [the rotatory](#rotatory-clock-set-back)).
 

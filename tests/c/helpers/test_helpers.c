@@ -422,7 +422,7 @@ PRIVATE void test_rmrdir_symlinks(void)
  *  An entry that disappears during the walk (another process removed it
  *  between readdir() and lstat()) is already gone: that is what the walk
  *  wants, so the walk goes on, and nothing fails without a log.
- *  Up to 7.25.5-dev the lstat() of the walk returned -1 on ENOENT with no
+ *  Up to 7.25.4 the stat() of the walk returned -1 on ENOENT with no
  *  log, and every level above answered -1 as "Error already logged".
  *
  *  This test binary is linked with -Wl,--wrap=lstat (see CMakeLists.txt):

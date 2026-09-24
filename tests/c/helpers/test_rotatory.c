@@ -487,7 +487,7 @@ PRIVATE size_t count_lines(const char *path)
 
 /***************************************************************************
  *  A full disk stops ONE handle, and it writes again when the space is
- *  back. Up to 7.25.5-dev the "disk full" state was one flag for every
+ *  back. Up to 7.25.4 the "disk full" state was one flag for every
  *  handle and was never cleared: once any directory went below its
  *  min_free_disk_percentage, EVERY rotatory of the process stopped
  *  writing until the process was restarted.
@@ -498,8 +498,13 @@ PRIVATE void test_disk_full_per_handle(void)
     mkrdir(BASE "/a", 02775);
     mkrdir(BASE "/b", 02775);
 
+    /*
+     *  `b` asks 1% (the real free space of /tmp answers for it, and a /tmp
+     *  more than 80% full would stop it): when one flag served every
+     *  handle, the full disk of `a` stopped `b` whatever `b` asked.
+     */
     hrotatory_h hr_a = rotatory_open(BASE "/a/a-W.log", 0, 0, 20, 02775, 0660, FALSE);
-    hrotatory_h hr_b = rotatory_open(BASE "/b/b-W.log", 0, 0, 20, 02775, 0660, FALSE);
+    hrotatory_h hr_b = rotatory_open(BASE "/b/b-W.log", 0, 0, 1, 02775, 0660, FALSE);
     if(!hr_a || !hr_b) {
         printf("FAIL rotatory_open()\n");
         global_result += -1;
@@ -628,7 +633,7 @@ PRIVATE void file_of(time_t t, const char *dir, const char *mask, char *bf, size
 /***************************************************************************
  *  A clock set back across midnight, and forward again, empties no file.
  *
- *  Up to 7.25.5-dev a new name was opened with "w": a step back of a few
+ *  Up to 7.25.4 a new name was opened with "w": a step back of a few
  *  seconds at 00:00:05 opened the file of the day before again and emptied
  *  it, and the step forward emptied the file of today. For the agent audit
  *  (keep all) no existing file is ever emptied. For the yuno logs (the "W"
