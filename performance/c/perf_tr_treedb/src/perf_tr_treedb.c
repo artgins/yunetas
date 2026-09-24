@@ -24,7 +24,10 @@
  *
  *          Every result is one line of JSON on stdout:
  *            {"bench": "perf_tr_treedb", "case": "<case>",
- *             "seconds": <s>, "ops": <n>, "us_per_op": <us>, "events": <n>}
+ *             "seconds": <s>, "cpu_seconds": <s>, "ops": <n>,
+ *             "us_per_op": <us>, "cpu_us_per_op": <us>, "events": <n>}
+ *          `seconds`/`us_per_op` are wall clock, `cpu_*` the CPU time of
+ *          the process: compare releases with the CPU time.
  *          The first line says the version, the build and N. The store
  *          lives in ~/tests_yuneta/perf_tr_treedb and is removed at the end.
  *
@@ -139,24 +142,56 @@ PRIVATE long events_told = 0;
 /***************************************************************
  *              Helpers
  ***************************************************************/
-PRIVATE double now_s(void)
+/*
+ *  A point in time: the wall clock, and the CPU time of the process. The
+ *  CPU time is the figure to compare between releases: the wall clock
+ *  also counts what the other processes of the machine take.
+ */
+typedef struct {
+    double wall;
+    double cpu;
+} clock_mark_t;
+
+PRIVATE double clock_s(clockid_t clock_id)
 {
     struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
+    clock_gettime(clock_id, &ts);
     return (double)ts.tv_sec + (double)ts.tv_nsec/1e9;
 }
 
-PRIVATE void result_line(const char *name, double seconds, int ops)
+PRIVATE clock_mark_t clock_now(void)
 {
-    printf("{\"bench\": \"%s\", \"case\": \"%s\", \"seconds\": %.6f, \"ops\": %d, \"us_per_op\": %.3f, \"events\": %ld}\n",
+    clock_mark_t mark = {clock_s(CLOCK_MONOTONIC), clock_s(CLOCK_PROCESS_CPUTIME_ID)};
+    return mark;
+}
+
+PRIVATE void add_since(clock_mark_t *total, clock_mark_t t0)
+{
+    clock_mark_t t1 = clock_now();
+    total->wall += t1.wall - t0.wall;
+    total->cpu += t1.cpu - t0.cpu;
+}
+
+PRIVATE void result_line(const char *name, clock_mark_t spent, int ops)
+{
+    printf("{\"bench\": \"%s\", \"case\": \"%s\", \"seconds\": %.6f, \"cpu_seconds\": %.6f, \"ops\": %d, \"us_per_op\": %.3f, \"cpu_us_per_op\": %.3f, \"events\": %ld}\n",
         BENCH,
         name,
-        seconds,
+        spent.wall,
+        spent.cpu,
         ops,
-        ops > 0? seconds*1e6/ops : 0.0,
+        ops > 0? spent.wall*1e6/ops : 0.0,
+        ops > 0? spent.cpu*1e6/ops : 0.0,
         events_told
     );
     fflush(stdout);
+}
+
+PRIVATE void result_line_since(const char *name, clock_mark_t t0, int ops)
+{
+    clock_mark_t spent = {0, 0};
+    add_since(&spent, t0);
+    result_line(name, spent, ops);
 }
 
 PRIVATE int treedb_callback(
@@ -221,7 +256,7 @@ PRIVATE int do_bench(const char *path_root)
     char name[NAME_MAX];
 
     events_told = 0;
-    double t0 = now_s();
+    clock_mark_t t0 = clock_now();
     for(int i = 0; i < N; i++) {
         snprintf(name, sizeof(name), "alice %d", i);
         if(!treedb_update_node(tranger, alice, json_pack("{s:s}", "username", name), FALSE)) {
@@ -229,10 +264,10 @@ PRIVATE int do_bench(const char *path_root)
             break;
         }
     }
-    result_line("update_memory", now_s() - t0, N);
+    result_line_since("update_memory", t0, N);
 
     events_told = 0;
-    t0 = now_s();
+    t0 = clock_now();
     for(int i = 0; i < N; i++) {
         snprintf(name, sizeof(name), "alice %d", i);
         if(!treedb_update_node(tranger, alice, json_pack("{s:s}", "username", name), TRUE)) {
@@ -240,11 +275,11 @@ PRIVATE int do_bench(const char *path_root)
             break;
         }
     }
-    result_line("update_saved", now_s() - t0, N);
+    result_line_since("update_saved", t0, N);
 
     events_told = 0;
     int n2 = N/2;
-    t0 = now_s();
+    t0 = clock_now();
     for(int i = 0; i < n2; i++) {
         if(treedb_link_nodes(tranger, "users", direction, alice) < 0 ||
                 treedb_unlink_nodes(tranger, "users", direction, alice) < 0) {
@@ -252,11 +287,11 @@ PRIVATE int do_bench(const char *path_root)
             break;
         }
     }
-    result_line("link_unlink", now_s() - t0, 2*n2);
+    result_line_since("link_unlink", t0, 2*n2);
 
     int nc = N/50;
     events_told = 0;
-    t0 = now_s();
+    t0 = clock_now();
     for(int i = 0; i < nc; i++) {
         snprintf(name, sizeof(name), "u%06d", i);
         json_t *u = treedb_create_node(tranger, TREEDB_NAME, "users",
@@ -270,17 +305,17 @@ PRIVATE int do_bench(const char *path_root)
             break;
         }
     }
-    result_line("create_link_half", now_s() - t0, nc);
+    result_line_since("create_link_half", t0, nc);
 
     treedb_close_db(tranger, TREEDB_NAME);
 
     events_told = 0;
-    t0 = now_s();
+    t0 = clock_now();
     if(open_treedb(tranger) < 0) {
         tranger2_shutdown(tranger);
         return -1;
     }
-    result_line("reopen", now_s() - t0, nc + 2);
+    result_line_since("reopen", t0, nc + 2);
 
     direction = treedb_get_node(tranger, TREEDB_NAME, "departments", "direction");
     size_t linked = json_array_size(json_object_get(direction, "users"));
@@ -291,7 +326,7 @@ PRIVATE int do_bench(const char *path_root)
     }
 
     events_told = 0;
-    t0 = now_s();
+    t0 = clock_now();
     for(int i = 0; i < nc; i++) {
         snprintf(name, sizeof(name), "u%06d", i);
         json_t *u = treedb_get_node(tranger, TREEDB_NAME, "users", name);
@@ -300,14 +335,14 @@ PRIVATE int do_bench(const char *path_root)
             break;
         }
     }
-    result_line("delete_force", now_s() - t0, nc);
+    result_line_since("delete_force", t0, nc);
 
     /*
      *  Forced deletes of a PARENT: each one unlinks and saves its
      *  children. Only the delete is timed, not the build of the family.
      */
     int np = N/5000 > 0? N/5000 : 1;
-    double seconds = 0;
+    clock_mark_t spent = {0, 0};
     long delete_events = 0;
     for(int p = 0; p < np && result == 0; p++) {
         snprintf(name, sizeof(name), "parent%04d", p);
@@ -331,15 +366,15 @@ PRIVATE int do_bench(const char *path_root)
             break;
         }
         events_told = 0;
-        t0 = now_s();
+        t0 = clock_now();
         if(treedb_delete_node(tranger, parent, json_pack("{s:b}", "force", 1)) < 0) {
             result = -1;  // Error already logged
         }
-        seconds += now_s() - t0;
+        add_since(&spent, t0);
         delete_events += events_told;
     }
     events_told = delete_events;
-    result_line("delete_parent", seconds, np);
+    result_line("delete_parent", spent, np);
 
     treedb_close_db(tranger, TREEDB_NAME);
     tranger2_shutdown(tranger);

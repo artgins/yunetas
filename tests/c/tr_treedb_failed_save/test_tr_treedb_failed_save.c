@@ -1323,6 +1323,56 @@ PRIVATE int test_delete_told_after_it_is_gone(json_t *tranger)
 }
 
 /***************************************************************************
+ *  A forced delete of a node with children AND a parent tells, in this
+ *  order: the unlink and the save of each child, in the order of the hook,
+ *  then the unlink of the node from its parent, then the delete. The
+ *  delete tells the events of its children itself (they are not held one
+ *  by one): the order must be the one a hold tells.
+ ***************************************************************************/
+PRIVATE int test_delete_events_in_order(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "a forced delete tells its events in their order";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+
+    json_t *hq = treedb_create_node(tranger, TREEDB_NAME, "departments",
+        json_pack("{s:s, s:s}", "id", "hq", "name", "HQ"));
+    json_t *ops = treedb_create_node(tranger, TREEDB_NAME, "departments",
+        json_pack("{s:s, s:s}", "id", "ops", "name", "Ops"));
+    json_t *hank = treedb_create_node(tranger, TREEDB_NAME, "users",
+        json_pack("{s:s, s:s}", "id", "hank", "username", "hank"));
+    json_t *iris = treedb_create_node(tranger, TREEDB_NAME, "users",
+        json_pack("{s:s, s:s}", "id", "iris", "username", "iris"));
+    if(!hq || !ops || !hank || !iris ||
+            treedb_link_nodes(tranger, "departments", hq, ops) < 0 ||
+            treedb_link_nodes(tranger, "users", ops, hank) < 0 ||
+            treedb_link_nodes(tranger, "users", ops, iris) < 0) {
+        return fail(test, "setup failed", NULL);
+    }
+
+    events_told = 0;
+    events_seen = json_array();
+    if(treedb_delete_node(tranger, ops, json_pack("{s:b}", "force", 1)) < 0) {
+        result += fail(test, "the delete failed", NULL);
+    }
+    json_t *expected = json_pack("[[s,s,s],[s,s,s],[s,s,s],[s,s,s],[s,s,s],[s,s,s]]",
+        EV_TREEDB_NODE_UNLINKED, "departments", "hank",
+        EV_TREEDB_NODE_UPDATED, "users", "hank",
+        EV_TREEDB_NODE_UNLINKED, "departments", "iris",
+        EV_TREEDB_NODE_UPDATED, "users", "iris",
+        EV_TREEDB_NODE_UNLINKED, "departments", "ops",
+        EV_TREEDB_NODE_DELETED, "departments", "ops"
+    );
+    if(!json_equal(events_seen, expected)) {
+        result += fail(test, "the events are not told in their order", events_seen);
+    }
+    JSON_DECREF(expected)
+    JSON_DECREF(events_seen)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  The snap `name` of __snaps__, NOT yours
  ***************************************************************************/
 PRIVATE json_t *get_snap(json_t *tranger, const char *name)
@@ -1815,6 +1865,7 @@ PRIVATE int do_test(void)
     tranger = open_all("reload, a delete and its subscriber", NULL);
     result += test_json(NULL);
     result += test_delete_told_after_it_is_gone(tranger);
+    result += test_delete_events_in_order(tranger);
     json_check_refcounts(tranger, 1000, &result);
     close_all(tranger);
 

@@ -155,6 +155,15 @@ PRIVATE void put_child_in_hook_place(
     json_t *child_node,
     size_t pos
 );
+PRIVATE json_t *unlink_event(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *hook_name,
+    json_t *parent_node,
+    json_t *child_node,
+    const char **operation
+);
 PRIVATE int _link_nodes(
     hgobj gobj,
     json_t *tranger,
@@ -293,6 +302,12 @@ PRIVATE BOOL treedb_trace = 0;
  */
 PRIVATE json_t *nodes_deleting[256];
 PRIVATE size_t n_nodes_deleting = 0;
+/*
+ *  The treedb whose events are MUTED (publish_treedb_event() drops them):
+ *  a forced delete unlinking its children, which tells their events itself
+ *  (tell_child_unlink()). NULL: none.
+ */
+PRIVATE json_t *events_muted_treedb = NULL;
 
 /***************************************************************************
  *
@@ -4898,13 +4913,20 @@ PRIVATE BOOL parent_hook_holds_child(
     switch(json_typeof(hook_data)) { // json_typeof PROTECTED
     case JSON_ARRAY:
         {
-            const char *child_topic_name = node_md_str(child_node, "topic_name");
-            int idx; json_t *data;
-            json_array_foreach(hook_data, idx, data) {
-                if(data == child_node) {
+            /*
+             *  The node itself first, by pointer: it is what a hook
+             *  holds, and a hook of thousands is scanned for every
+             *  unlink. Then another object of its topic and id.
+             */
+            size_t size = json_array_size(hook_data);
+            for(size_t i = 0; i < size; i++) {
+                if(json_array_get(hook_data, i) == child_node) {
                     return TRUE;
                 }
-                if(hook_entry_is(data, child_topic_name, child_id)) {
+            }
+            const char *child_topic_name = node_md_str(child_node, "topic_name");
+            for(size_t i = 0; i < size; i++) {
+                if(hook_entry_is(json_array_get(hook_data, i), child_topic_name, child_id)) {
                     return TRUE;
                 }
             }
@@ -6974,6 +6996,10 @@ PRIVATE void publish_treedb_event(
 )
 {
     json_t *treedb = get_treedb(tranger, treedb_name);
+    if(treedb && treedb == events_muted_treedb) {
+        JSON_DECREF(kw)     // told again by the one that muted them (delete_node())
+        return;
+    }
     treedb_callback_t treedb_callback = (treedb_callback_t)(uintptr_t)json_integer_value(
         json_object_get(treedb, "__treedb_callback__")
     );
@@ -7359,6 +7385,10 @@ PRIVATE const char *child_topic_not_loaded_whole(
     const char *topic_name
 )
 {
+    if(json_object_size(
+            json_object_get(json_object_get(tranger, "treedbs_load_failed"), treedb_name)) == 0) {
+        return NULL;    // every topic of the treedb loaded whole: the common case, and no cols read
+    }
     const char *partial = NULL;
     json_t *cols = topic_cols_dict(tranger, topic_name);
     const char *col_name; json_t *col;
@@ -8187,8 +8217,64 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
 typedef struct child_unlink_s {
     const char *hook;   // NOT owned: a name of the hook list the delete holds
     json_t *child;      // owned: one reference, released with the array
+    BOOL stays;         // a refused delete could not put it back: its unlink stays
     node_write_t write;
 } child_unlink_t;
+
+/***************************************************************************
+ *  Tell the events of the unlink of `child` from `parent` through `hook`,
+ *  and of the save of the child: the ones _unlink_nodes() and
+ *  treedb_save_node() publish. A forced delete MUTES them while it unlinks
+ *  its children, and tells them from here: holding two events per child
+ *  until the delete lands kept hundreds of json alive, and that was most
+ *  of what a forced delete cost over 7.25.4.
+ *
+ *  `now` TRUE calls the callback, as the release of a hold does (the
+ *  caller has opened the hold it owns); FALSE publishes them (held when a
+ *  write is open around). Return FALSE when a callback closed the treedb.
+ ***************************************************************************/
+PRIVATE BOOL tell_child_unlink(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    json_t *parent,     // NOT owned
+    const char *hook,
+    json_t *child,      // NOT owned
+    BOOL now
+)
+{
+    const char *parent_topic_name = node_md_str(parent, "topic_name");
+    const char *child_topic_name = node_md_str(child, "topic_name");
+    const char *operation;
+    json_t *kw = unlink_event(gobj, tranger, treedb_name, hook, parent, child, &operation);
+    if(!now) {
+        publish_treedb_event(gobj, tranger, treedb_name, parent_topic_name, operation, kw);
+        publish_treedb_event(
+            gobj, tranger, treedb_name, child_topic_name, EV_TREEDB_NODE_UPDATED, json_incref(child)
+        );
+        return TRUE;
+    }
+
+    json_t *treedb = get_treedb(tranger, treedb_name);
+    treedb_callback_t treedb_callback = (treedb_callback_t)(uintptr_t)json_integer_value(
+        json_object_get(treedb, "__treedb_callback__")
+    );
+    if(!treedb_callback) {
+        JSON_DECREF(kw)
+        return TRUE;
+    }
+    void *user_data = (void *)(uintptr_t)json_integer_value(
+        json_object_get(treedb, "__treedb_callback_user_data__")
+    );
+    treedb_callback(user_data, tranger, treedb_name, parent_topic_name, operation, kw);
+    if(get_treedb(tranger, treedb_name) != treedb) {
+        return FALSE;   // a callback closed the treedb: nobody left to tell
+    }
+    treedb_callback(
+        user_data, tranger, treedb_name, child_topic_name, EV_TREEDB_NODE_UPDATED, json_incref(child)
+    );
+    return (get_treedb(tranger, treedb_name) == treedb)? TRUE : FALSE;
+}
 
 /***************************************************************************
  *  Put back what a refused delete of `node` changed in its children: each
@@ -8233,6 +8319,7 @@ PRIVATE json_t *put_back_children(
                 "child_id",     "%s", kw_get_str(gobj, child, "id", "", 0),
                 NULL
             );
+            unlinked[i].stays = TRUE;
             json_t *events = take_held_events(&write->events);
             if(events) {
                 if(!stay) {
@@ -8487,6 +8574,7 @@ PRIVATE int delete_node(
     child_unlink_t *unlinked = NULL;    // the children to unlink, and their writes
     size_t n_children = 0;
     size_t n_unlinked = 0;
+    BOOL muted = FALSE;                 // the events of the children are told by the delete
     node_write_t node_write;
     BOOL node_write_open = FALSE;
 
@@ -8536,11 +8624,23 @@ PRIVATE int delete_node(
                     }
                     unlinked[k].hook = json_string_value(json_array_get(jn_hooks, idx2));
                     unlinked[k].child = json_incref(child);
+                    unlinked[k].stays = FALSE;
                     k++;
                 }
             }
             JSON_DECREF(lists)
 
+            /*
+             *  The events of the children are muted, and told by the
+             *  delete itself (tell_child_unlink()), when it owns the hold:
+             *  nothing else can be told meanwhile. Inside another write the
+             *  events stay held as any other.
+             */
+            json_t *muted_before = events_muted_treedb;
+            if(hold.owner && hold.treedb) {
+                events_muted_treedb = hold.treedb;
+                muted = TRUE;
+            }
             for(size_t i = 0; i < n_children; i++) {
                 json_t *child = unlinked[i].child;
                 node_write_t *write = &unlinked[i].write;
@@ -8561,6 +8661,7 @@ PRIVATE int delete_node(
                 }
                 n_unlinked++;
             }
+            events_muted_treedb = muted_before;
 
             /*
              *  Re-checks down links
@@ -8647,6 +8748,13 @@ PRIVATE int delete_node(
         json_t *stay = put_back_children(gobj, tranger, node, unlinked, n_unlinked);
         release_treedb_events(tranger, &hold, FALSE);
         tell_taken_events(gobj, tranger, treedb_name, stay);
+        for(size_t i = 0; muted && i < n_unlinked; i++) {
+            if(unlinked[i].stays) {
+                tell_child_unlink(
+                    gobj, tranger, treedb_name, node, unlinked[i].hook, unlinked[i].child, FALSE
+                );
+            }
+        }
         free_child_unlinks(unlinked, n_children);
         JSON_DECREF(jn_hooks)
         JSON_DECREF(jn_options)
@@ -8662,8 +8770,6 @@ PRIVATE int delete_node(
     for(size_t i = 0; i < n_unlinked; i++) {
         close_node_write(gobj, tranger, &unlinked[i].write, TRUE);
     }
-    free_child_unlinks(unlinked, n_children);
-    JSON_DECREF(jn_hooks)
 
     /*-------------------------------*
      *  Trace
@@ -8781,7 +8887,24 @@ PRIVATE int delete_node(
      *  delete. Until it returns, a save of the node is refused.
      *-------------------------------*/
     BOOL marked = mark_node_deleting(node, TRUE);
+    if(muted) {
+        /*
+         *  The unlinks of the children first, told as the release below
+         *  tells the rest: with the hold released, so that a callback that
+         *  writes tells its own events when its write ends.
+         */
+        json_integer_set(json_object_get(hold.treedb, "__events_held__"), 0);
+        for(size_t i = 0; i < n_unlinked; i++) {
+            if(!tell_child_unlink(
+                    gobj, tranger, treedb_name, node, unlinked[i].hook, unlinked[i].child, TRUE)) {
+                hold.treedb = NULL;     // closed by a callback: nothing left to release
+                break;
+            }
+        }
+    }
     release_treedb_events(tranger, &hold, TRUE);
+    free_child_unlinks(unlinked, n_children);
+    JSON_DECREF(jn_hooks)
 
     /*
      *  Call Callback (a callback of the unlinks may have closed the treedb)
@@ -10453,44 +10576,59 @@ PRIVATE int _unlink_nodes(
 
     /*--------------------------------------------------*
      *      Call Callback (see publish_treedb_event)
+     *      Not even built when muted: told again by the delete
      *--------------------------------------------------*/
+    if(events_muted_treedb && get_treedb(tranger, treedb_name) == events_muted_treedb) {
+        return 0;
+    }
+    const char *operation;
+    json_t *kw_event = unlink_event(
+        gobj, tranger, treedb_name, hook_name, parent_node, child_node, &operation
+    );
+    publish_treedb_event(
+        gobj,
+        tranger,
+        treedb_name,
+        parent_topic_name,
+        operation,
+        kw_event
+    );
+
+    return 0;
+}
+
+/***************************************************************************
+ *  The event of an unlink (_unlink_nodes()): EV_TREEDB_NODE_UNLINKED with
+ *  the whole relationship, or, without TREEDB_CALLBACK_LINK_EVENTS, the
+ *  backward compatible EV_TREEDB_NODE_UPDATED of the PARENT only. Return
+ *  its kw (YOURS), and its operation in `operation`. It is told on the
+ *  topic of the parent.
+ ***************************************************************************/
+PRIVATE json_t *unlink_event(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *hook_name,
+    json_t *parent_node,    // NOT owned
+    json_t *child_node,     // NOT owned
+    const char **operation
+)
+{
     treedb_callback_flag_t flags = (treedb_callback_flag_t)json_integer_value(
         json_object_get(get_treedb(tranger, treedb_name), "__treedb_callback_flags__")
     );
     if(flags & TREEDB_CALLBACK_LINK_EVENTS) {
-        /*
-         *  Inform with specific unlink event, with full relationship info
-         */
-        json_t *kw_link = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+        *operation = EV_TREEDB_NODE_UNLINKED;
+        return json_pack("{s:s, s:s, s:s, s:s, s:s}",
             "hook_name", hook_name,
-            "parent_topic_name", parent_topic_name,
-            "child_topic_name", child_topic_name,
+            "parent_topic_name", node_md_str(parent_node, "topic_name"),
+            "child_topic_name", node_md_str(child_node, "topic_name"),
             "parent_id", kw_get_str(gobj, parent_node, "id", "", 0),
             "child_id", kw_get_str(gobj, child_node, "id", "", 0)
         );
-        publish_treedb_event(
-            gobj,
-            tranger,
-            treedb_name,
-            parent_topic_name,
-            EV_TREEDB_NODE_UNLINKED,
-            kw_link
-        );
-    } else {
-        /*
-         *  Backward compatible: inform as generic update, ONLY PARENT
-         */
-        publish_treedb_event(
-            gobj,
-            tranger,
-            treedb_name,
-            parent_topic_name,
-            EV_TREEDB_NODE_UPDATED,
-            json_incref(parent_node)
-        );
     }
-
-    return 0;
+    *operation = EV_TREEDB_NODE_UPDATED;
+    return json_incref(parent_node);
 }
 
 /***************************************************************************

@@ -46,6 +46,10 @@ disk says what memory said.
     held it. x hangs from P/v1 and P/v2 (list hook and dict hook): an unlink
     from P/v1 whose save fails, and a forced delete of P/v1 refused by a
     failed save, leave x in both instances, in its place.
+11. A forced delete of a node with children and a parent tells its events in
+    their order: the unlink and the save of each child, then the unlink of
+    the node from its parent, then the delete. The delete tells the events of
+    its children itself (they are not held one by one).
 
 ## Run
 
