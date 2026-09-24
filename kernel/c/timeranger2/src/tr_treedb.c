@@ -67,7 +67,7 @@ typedef struct node_write_s {
     json_t *fkeys;      // owned or NULL: {col: value before} of the other ones
     json_t *fields;     // owned or NULL: {key: value before} of the fields it replaces
     json_t *absent;     // owned or NULL: [key] of the fields it adds
-    char hook_ref[TREEDB_REF_MAX];  // the first parent ref it unlinks, "" if none
+    char hook_ref[NAME_MAX];    // the first parent ref it unlinks, "" if none (or too long to be here)
     size_t hook_pos;            // the place of the node in that parent's hook before
     json_t *hook_holder;        // owned or NULL: the instance of that parent that held it
     json_t *hook_positions;     // owned or NULL: {ref: [place before, holder]} of the other ones
@@ -4794,6 +4794,7 @@ PRIVATE BOOL child_in_hook_array(
     BOOL is_child_hook
 )
 {
+    const char *child_topic_name = node_md_str(child_node, "topic_name");
     int idx; json_t *data;
     json_array_foreach(parent_hook_array, idx, data) {
         if(is_child_hook) {
@@ -4804,7 +4805,7 @@ PRIVATE BOOL child_in_hook_array(
             if(data == child_node) {
                 return TRUE;
             }
-            if(hook_entry_is(data, node_md_str(child_node, "topic_name"), child_id)) {
+            if(hook_entry_is(data, child_topic_name, child_id)) {
                 return TRUE;
             }
         }
@@ -4834,12 +4835,13 @@ PRIVATE BOOL parent_hook_holds_child(
     switch(json_typeof(hook_data)) { // json_typeof PROTECTED
     case JSON_ARRAY:
         {
+            const char *child_topic_name = node_md_str(child_node, "topic_name");
             int idx; json_t *data;
             json_array_foreach(hook_data, idx, data) {
                 if(data == child_node) {
                     return TRUE;
                 }
-                if(hook_entry_is(data, node_md_str(child_node, "topic_name"), child_id)) {
+                if(hook_entry_is(data, child_topic_name, child_id)) {
                     return TRUE;
                 }
             }
@@ -7057,7 +7059,7 @@ PRIVATE BOOL node_is_being_deleted(json_t *node)
  *  fields keeps the values it replaces, and a link keeps the one column
  *  it moves.
  ***************************************************************************/
-PRIVATE void begin_node_write(hgobj gobj, json_t *tranger, json_t *node, node_write_t *write)
+PRIVATE void init_node_write(node_write_t *write)
 {
     write->fkey_col[0] = 0;
     write->fkey_before = NULL;
@@ -7068,11 +7070,30 @@ PRIVATE void begin_node_write(hgobj gobj, json_t *tranger, json_t *node, node_wr
     write->hook_pos = 0;
     write->hook_holder = NULL;
     write->hook_positions = NULL;
+}
+
+PRIVATE void begin_node_write(hgobj gobj, json_t *tranger, json_t *node, node_write_t *write)
+{
+    init_node_write(write);
     hold_treedb_events(
         tranger,
         json_string_value(json_object_get(json_object_get(node, "__md_treedb__"), "treedb_name")),
         &write->events
     );
+}
+
+/***************************************************************************
+ *  Open a write (begin_node_write) inside the hold `outer`, that OWNS the
+ *  events of its treedb: what hold_treedb_events() would find, without
+ *  looking it up again -- a forced delete opens one per child.
+ ***************************************************************************/
+PRIVATE void begin_node_write_in(node_write_t *write, events_hold_t *outer)
+{
+    init_node_write(write);
+    write->events.treedb = outer->treedb;
+    write->events.owner = FALSE;
+    write->events.mark = outer->treedb?
+        json_array_size(json_object_get(outer->treedb, "__deferred_events__")) : 0;
 }
 
 /***************************************************************************
@@ -7243,12 +7264,14 @@ PRIVATE void keep_node_fields(node_write_t *write, json_t *node, json_t *updates
  *  (put_child_in_hook_place()). A ref names the parent by its id alone,
  *  and the id of a topic with a pkey2 names several instances: the
  *  primary is not always the one that held the child. Most writes unlink
- *  from one parent: it is kept without a dict.
+ *  from one parent: it is kept without a dict, and without an allocation
+ *  when its ref fits NAME_MAX (a longer one goes to the dict).
  ***************************************************************************/
 PRIVATE void keep_hook_position(node_write_t *write, const char *ref, size_t pos, json_t *holder)
 {
-    if(!write->hook_ref[0]) {
-        snprintf(write->hook_ref, sizeof(write->hook_ref), "%s", ref);
+    size_t len = strlen(ref);
+    if(!write->hook_ref[0] && len < sizeof(write->hook_ref)) {
+        memcpy(write->hook_ref, ref, len + 1);
         write->hook_pos = pos;
         write->hook_holder = json_incref(holder);
         return;
@@ -7973,36 +7996,46 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
 }
 
 /***************************************************************************
+ *  A child a forced delete unlinks (delete_node()): the hook it hangs
+ *  from, and the write of its unlink.
+ ***************************************************************************/
+typedef struct child_unlink_s {
+    const char *hook;   // NOT owned: a name of the hook list the delete holds
+    json_t *child;      // owned: one reference, released with the array
+    node_write_t write;
+} child_unlink_t;
+
+/***************************************************************************
  *  Put back what a refused delete of `node` changed in its children: each
- *  child it had unlinked and saved (`pairs[i]` = [hook, child], `writes[i]`
- *  its write) goes back in memory to what it was (restore_node), and is
- *  saved again -- in the reverse order, so every child goes back to its
- *  place in the hooks. A child that cannot be saved again stays unlinked,
- *  in memory as on disk, and is named in the log. Its unlink stays, so its
- *  events are told: they are returned (YOURS, or NULL), to be told once
- *  the events of the delete are dropped (tell_taken_events()).
+ *  child it had unlinked and saved (`unlinked[i]`, its hook, the child and
+ *  the write of its unlink) goes back in memory to what it was
+ *  (restore_node), and is saved again -- in the reverse order, so every
+ *  child goes back to its place in the hooks. A child that cannot be saved
+ *  again stays unlinked, in memory as on disk, and is named in the log. Its
+ *  unlink stays, so its events are told: they are returned (YOURS, or
+ *  NULL), to be told once the events of the delete are dropped
+ *  (tell_taken_events()).
  ***************************************************************************/
 PRIVATE json_t *put_back_children(
     hgobj gobj,
     json_t *tranger,
     json_t *node,       // NOT owned, the parent
-    json_t *pairs,      // NOT owned
-    node_write_t *writes,
+    child_unlink_t *unlinked,
     size_t n_unlinked
 )
 {
     json_t *stay = NULL;
     for(size_t i = n_unlinked; i-- > 0; ) {
-        json_t *pair = json_array_get(pairs, i);
-        const char *hook = json_string_value(json_array_get(pair, 0));
-        json_t *child = json_array_get(pair, 1);
+        const char *hook = unlinked[i].hook;
+        json_t *child = unlinked[i].child;
+        node_write_t *write = &unlinked[i].write;
 
         node_write_t undo;
         begin_node_write(gobj, tranger, child, &undo);
-        if(writes[i].fkey_before) {
-            keep_node_fkey(&undo, child, writes[i].fkey_col);
+        if(write->fkey_before) {
+            keep_node_fkey(&undo, child, write->fkey_col);
         }
-        restore_node(gobj, tranger, child, &writes[i]);
+        restore_node(gobj, tranger, child, write);
         if(end_node_write(gobj, tranger, child, &undo, TRUE, TRUE)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -8015,7 +8048,7 @@ PRIVATE json_t *put_back_children(
                 "child_id",     "%s", kw_get_str(gobj, child, "id", "", 0),
                 NULL
             );
-            json_t *events = take_held_events(&writes[i].events);
+            json_t *events = take_held_events(&write->events);
             if(events) {
                 if(!stay) {
                     stay = json_array();
@@ -8026,9 +8059,21 @@ PRIVATE json_t *put_back_children(
                 JSON_DECREF(events)
             }
         }
-        close_node_write(gobj, tranger, &writes[i], FALSE);
+        close_node_write(gobj, tranger, write, FALSE);
     }
     return stay;
+}
+
+/***************************************************************************
+ *  Release the array of the children a forced delete unlinks, and the
+ *  reference it holds of each one
+ ***************************************************************************/
+PRIVATE void free_child_unlinks(child_unlink_t *unlinked, size_t n_children)
+{
+    for(size_t i = 0; i < n_children; i++) {
+        JSON_DECREF(unlinked[i].child)
+    }
+    GBMEM_FREE(unlinked)
 }
 
 /***************************************************************************
@@ -8253,8 +8298,9 @@ PRIVATE int delete_node(
     events_hold_t hold;
     hold_treedb_events(tranger, treedb_name, &hold);
 
-    json_t *pairs = NULL;           // [[hook, child], ...] of the children unlinked
-    node_write_t *writes = NULL;    // their writes, in the same order
+    json_t *jn_hooks = NULL;            // the names the children's hooks point to
+    child_unlink_t *unlinked = NULL;    // the children to unlink, and their writes
+    size_t n_children = 0;
     size_t n_unlinked = 0;
     node_write_t node_write;
     BOOL node_write_open = FALSE;
@@ -8265,52 +8311,56 @@ PRIVATE int delete_node(
     json_t *down_refs = get_node_down_refs(gobj, tranger, node);
     if(json_array_size(down_refs)>0) {
         if(force) {
-            pairs = json_array();
-            json_t *jn_hooks = treedb_get_topic_hooks(
+            jn_hooks = treedb_get_topic_hooks(
                 tranger,
                 treedb_name,
                 topic_name
             );
+            /*
+             *  For an array hook, _list_children returns the parent's own
+             *  hook array and _unlink_nodes removes the child from it in
+             *  place; iterating that array directly shifts it under the
+             *  loop and skips children. Snapshot the child refs first.
+             */
+            json_t *lists = json_array();
             int idx2; json_t *jn_hook;
             json_array_foreach(jn_hooks, idx2, jn_hook) {
-                const char *hook = json_string_value(jn_hook);
                 json_t *children = _list_children(
                     gobj,
                     tranger,
-                    hook,
+                    json_string_value(jn_hook),
                     node
                 );
-                /*
-                 *  For an array hook, _list_children returns the parent's own
-                 *  hook array and _unlink_nodes removes the child from it in
-                 *  place; iterating that array directly shifts it under the
-                 *  loop and skips children. Snapshot the child refs first.
-                 */
+                n_children += json_array_size(children);
+                json_array_append_new(lists, children? children : json_array());
+            }
+            if(n_children > 0) {
+                unlinked = gbmem_malloc(n_children * sizeof(child_unlink_t));
+                if(!unlinked) {
+                    to_delete = FALSE;  // Error already logged
+                    n_children = 0;
+                }
+            }
+            size_t k = 0;
+            json_t *children;
+            json_array_foreach(lists, idx2, children) {
                 int idx3; json_t *child;
                 json_array_foreach(children, idx3, child) {
-                    json_array_append_new(pairs, json_pack("[s,O]", hook, child));
-                }
-                JSON_DECREF(children)
-            }
-            JSON_DECREF(jn_hooks)
-
-            if(json_array_size(pairs) > 0) {
-                writes = gbmem_malloc(json_array_size(pairs) * sizeof(node_write_t));
-                if(!writes) {
-                    to_delete = FALSE;  // Error already logged
+                    if(k >= n_children) {
+                        break;
+                    }
+                    unlinked[k].hook = json_string_value(json_array_get(jn_hooks, idx2));
+                    unlinked[k].child = json_incref(child);
+                    k++;
                 }
             }
+            JSON_DECREF(lists)
 
-            int idx3; json_t *pair;
-            json_array_foreach(pairs, idx3, pair) {
-                if(!writes) {
-                    break;
-                }
-                const char *hook = json_string_value(json_array_get(pair, 0));
-                json_t *child = json_array_get(pair, 1);
-                node_write_t *write = &writes[n_unlinked];
-                begin_node_write(gobj, tranger, child, write);
-                int r = _unlink_nodes(gobj, tranger, hook, node, child, write);
+            for(size_t i = 0; i < n_children; i++) {
+                json_t *child = unlinked[i].child;
+                node_write_t *write = &unlinked[i].write;
+                begin_node_write_in(write, &hold);
+                int r = _unlink_nodes(gobj, tranger, unlinked[i].hook, node, child, write);
                 if(r == 0) {
                     r = treedb_save_node(tranger, child);
                 }
@@ -8409,11 +8459,11 @@ PRIVATE int delete_node(
             restore_node(gobj, tranger, node, &node_write);
             close_node_write(gobj, tranger, &node_write, FALSE);
         }
-        json_t *stay = put_back_children(gobj, tranger, node, pairs, writes, n_unlinked);
+        json_t *stay = put_back_children(gobj, tranger, node, unlinked, n_unlinked);
         release_treedb_events(tranger, &hold, FALSE);
         tell_taken_events(gobj, tranger, treedb_name, stay);
-        GBMEM_FREE(writes)
-        JSON_DECREF(pairs)
+        free_child_unlinks(unlinked, n_children);
+        JSON_DECREF(jn_hooks)
         JSON_DECREF(jn_options)
         return -1;
     }
@@ -8425,10 +8475,10 @@ PRIVATE int delete_node(
         close_node_write(gobj, tranger, &node_write, TRUE);
     }
     for(size_t i = 0; i < n_unlinked; i++) {
-        close_node_write(gobj, tranger, &writes[i], TRUE);
+        close_node_write(gobj, tranger, &unlinked[i].write, TRUE);
     }
-    GBMEM_FREE(writes)
-    JSON_DECREF(pairs)
+    free_child_unlinks(unlinked, n_children);
+    JSON_DECREF(jn_hooks)
 
     /*-------------------------------*
      *  Trace
