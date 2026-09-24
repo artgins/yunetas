@@ -4927,7 +4927,7 @@ PRIVATE json_t *find_parent_version_holding_child( // Return is NOT YOURS
  *  keeps the one it has (child_in_hook_array). It took the newest: a
  *  second instance of the child replaced the entry, a delete_instance of
  *  it left it there, and a forced delete of the parent saved the deleted
- *  instance back to disk (M15 of the 2026-09-21 review). Never when the
+ *  instance back to disk (until 7.24.1). Never when the
  *  slot holds the node of ANOTHER topic with this id: a dict hook is keyed
  *  by the id alone (dict_hook_slot_taken()).
  ***************************************************************************/
