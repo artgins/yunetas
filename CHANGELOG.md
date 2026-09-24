@@ -595,7 +595,7 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
 - `gc-assets` answers a report (`dry_run`, `assets`, `blobs`, `refused`,
   `blobs_refused`) instead of the list of ids taken.
 
-### JS: gobj-ui 7.25.6 - 7.25.14, gui_agent 0.22.79 - 0.22.88, gui_treedb 0.17.58 - 0.17.61
+### JS: gobj-js 7.25.1, gobj-ui 7.25.6 - 7.25.15, gui_agent 0.22.79 - 0.22.89, gui_treedb 0.17.58 - 0.17.62
 
 - Deployed to artgins.yunetacontrol.com and .ovh (gui_agent) and
   artgins.ytreedb.com (gui_treedb); every deploy console-checked (login,
@@ -637,16 +637,25 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   unrelated restart). With nothing applied there is no restart, and the toast
   names the silent owners. New locale keys (en, es). 0.22.88: only the
   gobj-ui range (^7.25.14).
-- gui_treedb 0.17.58 - 0.17.61: only the gobj-ui range (^7.25.11 ...
-  ^7.25.14).
-- gui_agent: the link answers every pending request on a close; request ids
-  are unique per page (two treedb views crossed answers and could fake a
-  delete); the deadline counts from the dispatch ack and is scaled for
-  uploads; late answers are logged and a late successful write is echoed;
-  drafts and withdrawn schemas are said; apply deadlines are `C_TIMER`
-  children per step.
-- One toast per message on screen; each repeat keeps its own handle and
-  timer.
+- **gobj-js 7.25.1: `kw_get_str()` returns its default as given**, as the C one
+  does. It returned `String(default)`, so a default of `0` or `null` came back
+  as the truthy `"0"` / `"null"`: `kwid_get_ids()` added the id `"0"` for a
+  record with no id, and the ievent client named its target service `"null"` or
+  `"0"` instead of its `wanted_yuno_service` (the server then used its main
+  service). `KW_CREATE` stores a string default, and `null` for any other.
+- gobj-ui 7.25.15, `C_YUI_SCHEMA_EDITOR`: a move sent by the host closes the
+  dialog of the screen it left (the column or topic form, the import, the
+  orphans), saying "the view moved: open the dialog again" (new consumer i18n
+  key); a Save there answered "Event NOT DEFINED" and the edit was lost. A
+  confirmation answered on another position is refused: a Yes to "delete this
+  column?" asked on `db/users` and answered after a move to `db2/users` deleted
+  the column of `db2`.
+- gobj-ui 7.25.15, `C_G6_NODES_TREE` / `C_YUI_TREEDB_GRAPH`: a `__graphs__`
+  write that did not land (an error answer, a refusal by the transport, no
+  session) is written again at the next Save (new input event
+  `EV_GRAPHS_WRITE_REFUSED {topic}`); it was recorded as saved before it left.
+- gui_agent 0.22.89, gui_treedb 0.17.58 - 0.17.62: the ranges (gobj-ui
+  ^7.25.15, gobj-js ^7.25.1).
 
 ### BREAKING
 
