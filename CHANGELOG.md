@@ -1105,8 +1105,8 @@ their spread, are in `performance/c/README.md`.
 
 ### JS: gobj-js, gobj-ui, gui_agent, gui_treedb
 
-- The versions: gobj-js 7.25.1 - 7.25.3, gobj-ui 7.25.6 - 7.25.18, gui_agent
-  0.22.79 - 0.22.92, gui_treedb 0.17.58 - 0.17.65 (7.25.4 shipped gobj-js
+- The versions: gobj-js 7.25.1 - 7.25.4, gobj-ui 7.25.6 - 7.25.18, gui_agent
+  0.22.79 - 0.22.93, gui_treedb 0.17.58 - 0.17.66 (7.25.4 shipped gobj-js
   7.25.0, gobj-ui 7.25.5, gui_agent 0.22.78, gui_treedb 0.17.57).
 - Deployed to artgins.yunetacontrol.com and .ovh (gui_agent) and
   artgins.ytreedb.com (gui_treedb); every deploy console-checked (login,
@@ -1265,6 +1265,19 @@ their spread, are in `performance/c/README.md`.
   changes on screen. Every other command-frame read in gobj-ui, gui_agent and
   gui_treedb reads only what its request puts in `__md_command__`. The
   ranges: gobj-ui ^7.25.18.
+- **gobj-js 7.25.4: `kw_get_int()` and `kw_get_real()` answer like the C
+  readers.** `KW_EXTRACT` deleted the value before its type was looked at, so
+  a value that was not a number was lost and the default came back; now only
+  a value the reader answers with is taken out (`kw_get_str()` had the same
+  ordering and takes out only a string now). A value that is not a number is
+  logged (*"path MUST BE a json integer"* / *"... a json real"*) with or
+  without `KW_REQUIRED`, as C does. `KW_WILD_NUMBER`, which was ignored, reads
+  a boolean (1/0), a string (`strtoll()` base 0 for int: `"0x1F"` is 31;
+  `parseFloat()` for real) or `null` (0); a list or a dict answers 0 and logs
+  *"path MUST BE a simple json element"*. `kw_get_int()` truncates with
+  `Math.trunc()` instead of `parseInt()`, which read `1e-7` as 1. No caller
+  relied on the old behaviour. gui_agent 0.22.93 and gui_treedb 0.17.66 take
+  gobj-js `^7.25.4`.
 
 ### BREAKING
 
