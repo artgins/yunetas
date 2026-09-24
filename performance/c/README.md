@@ -2,7 +2,7 @@
 
 Benchmark programs for measuring throughput and latency of Yuneta's core communication and I/O subsystems.
 
-All benchmarks run as self-contained programs. The network ones start an internal server and client, echo messages back and forth, and report throughput metrics; the persistence ones (`perf_timeranger2`, `perf_tr_treedb`, `perf_c_treedb`) build a store, measure, print one line of JSON per result, and remove the store. Each benchmark is also registered as a `ctest` target, so `yunetas test` runs them alongside the rest of the test suite (the persistence ones with smaller sizes: ctest checks that they build and run; their reference figures come from a run with the default sizes).
+All benchmarks run as self-contained programs. The network ones start an internal server and client, echo messages back and forth, and report throughput metrics; the persistence ones (`perf_timeranger2`, `perf_tr_treedb`, `perf_c_treedb`) build a store, measure, print one line of JSON per result, and remove the store; `perf_rotatory` does the same with the log files. Each benchmark is also registered as a `ctest` target, so `yunetas test` runs them alongside the rest of the test suite (the persistence ones with smaller sizes: ctest checks that they build and run; their reference figures come from a run with the default sizes).
 
 ## Benchmarks
 
@@ -118,6 +118,14 @@ Source: `src/perf_tr_treedb.c` (single file, no GClasses)
 A yuno that drives `C_TREEDB` through `open-treedb` / `close-treedb` in a store of 40 treedbs x 10 topics x 20 columns: the first projection (seed), a newer literal, and the same literal again. See [`perf_c_treedb/README.md`](perf_c_treedb/README.md).
 
 Source: `src/main.c`, `src/c_perf_treedb_open.c`
+
+### perf_rotatory -- one record of the file log and of the agent audit
+
+**Binary:** `perf_rotatory`
+
+The rotatory alone: 300 000 records of 300 bytes written as the agent audit writes them (two `rotatory_write()` calls), the same with the retention subscribed, the same with a `rotatory_flush()` after each record (what the agent audit does since 7.25.5), and a record with its priority header. See [`perf_rotatory/README.md`](perf_rotatory/README.md).
+
+Source: `src/perf_rotatory.c` (single file, no GClasses)
 
 ## Performance Summary
 
@@ -253,8 +261,11 @@ yev_loop (8 rounds):
 | `perf_tcp_test5` (ops/s) | 30 421 +- 641 (30 386) | 30 181 +- 597 (30 323) | -0.8% |
 
 rotatory (ns for one record of 300 bytes written with two `rotatory_write()`
-calls, as the agent audit writes it; 300 000 records a run, 8 rounds): 7.25.4
-6 194 +- 135 (6 140), 7.25.5 554 +- 10 (555).
+calls, as the agent audit writes it; 300 000 records a run, 8 rounds;
+`perf_rotatory`, case `audit_record`): 7.25.4
+6 194 +- 135 (6 140), 7.25.5 554 +- 10 (555). The agent audit flushes each
+record since 7.25.5 (`audit_record_flush`, a busier run): 7.25.4 7 623 +- 1 105
+(7 252), 7.25.5 1 475 +- 491 (1 309).
 
 `perf_c_treedb` (seconds for 40 opens). The 7.25.4 columns are the
 `c_treedb.c` of 7.25.4 compiled with the headers of 7.25.5 and linked before
@@ -342,4 +353,7 @@ performance/c/
   perf_c_treedb/                          # C_TREEDB open (a yuno)
     CMakeLists.txt, small.json
     src/main.c, src/c_perf_treedb_open.c/h
+  perf_rotatory/                          # one record of the rotatory (log, audit)
+    CMakeLists.txt
+    src/perf_rotatory.c
 ```

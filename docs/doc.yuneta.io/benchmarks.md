@@ -22,21 +22,23 @@ binaries are registered as `ctest` targets and run automatically with
 | **`perf_timeranger2`** | timeranger2: the appends that build a store of 20 000 md2 files, its open as a master and as a replica, the create of topics and a `topic_version` change, a tm query before and after `tranger2_mark_tm_order()`. Open as a master: ~81 ms. |
 | **`perf_tr_treedb`** | treedb writes without the gclasses: updates in memory and saved, links and unlinks, creates, the reopen, forced deletes (of a child, and of a parent with 200 children). An update in memory: ~2.9 us. |
 | **`perf_c_treedb`** | The open of a dynamic-schema treedb by `C_TREEDB` in a store of 40 treedbs: the same literal, a newer literal, the first projection (seed). |
+| **`perf_rotatory`** | The rotatory (the file log of every yuno and the agent audit): one record of 300 bytes as the audit writes it, with the retention, with a flush after each record, and one log record with its header. An audit record: ~0.55 us. |
 
-The last three print one line of JSON per result, for example:
+The last four print one line of JSON per result, for example:
 
 ```json
 {"bench": "perf_tr_treedb", "case": "update_memory", "seconds": 0.289000, "ops": 100000, "us_per_op": 2.890, "events": 0}
 ```
 
-`perf_timeranger2 --small`, `perf_tr_treedb --small` and `perf_c_treedb
---config-file=small.json` run them with the sizes ctest uses. The figures of each release,
+`perf_timeranger2 --small`, `perf_tr_treedb --small`, `perf_rotatory --small`
+and `perf_c_treedb --config-file=small.json` run them with the sizes ctest uses. The figures of each release,
 against the release before, are in `performance/c/README.md`.
 
 **Source:** `performance/c/perf_c_tcp/`, `performance/c/perf_c_tcps/`,
 `performance/c/perf_yev_ping_pong/`, `performance/c/perf_yev_ping_pong2/`,
 `performance/c/perf_auth_bff/`, `performance/c/perf_timeranger2/`,
-`performance/c/perf_tr_treedb/`, `performance/c/perf_c_treedb/`
+`performance/c/perf_tr_treedb/`, `performance/c/perf_c_treedb/`,
+`performance/c/perf_rotatory/`
 
 ## Stress tests
 
