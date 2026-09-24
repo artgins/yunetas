@@ -603,17 +603,12 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
 #ifdef CONFIG_DEBUG_TRACK_MEMORY
     size_t extra = TRACK_MEM;
     new_size += extra;
-
-    char *pm = p;
-    pm -= extra;
-
-    track_mem_t *pm_ = (track_mem_t*)pm;
-    size_t size = pm_->size;
-
-    dl_delete(&dl_busy_mem, pm_, 0);
-    __cur_system_memory__ -= size;
 #endif
 
+    /*
+     *  Refused BEFORE the block leaves the tracking: the caller keeps the
+     *  old block, valid, and frees it later as a tracked one
+     */
     if(new_size > __max_block__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -627,6 +622,15 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
     }
 
 #ifdef CONFIG_DEBUG_TRACK_MEMORY
+    char *pm = p;
+    pm -= extra;
+
+    track_mem_t *pm_ = (track_mem_t*)pm;
+    size_t size = pm_->size;
+
+    dl_delete(&dl_busy_mem, pm_, 0);
+    __cur_system_memory__ -= size;
+
     __cur_system_memory__ += new_size;
     if(__cur_system_memory__ > __max_system_memory__) {
         gobj_log_critical(0, LOG_OPT_ABORT,

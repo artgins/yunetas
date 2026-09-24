@@ -225,6 +225,17 @@ Pointer to the resized memory block, or `NULL` on failure.
 
 If `ptr` is `NULL`, this behaves like `gbmem_malloc()`. The returned pointer can differ from `ptr` if the block was moved. Contents up to the minimum of the old and new sizes are preserved.
 
+When `size` is larger than the largest block ([`gbmem_get_maximum_block()`](<#gbmem_get_maximum_block>)), the answer is `NULL` and an ERROR *"SIZE GREATER THAN MAX_BLOCK"* says so. Then `ptr` is still valid, with its content, and it is still counted by the memory tracking (`CONFIG_DEBUG_TRACK_MEMORY`). Keep it, and free it later as usual. In 7.25.4 and earlier, a refused `gbmem_realloc()` took the block out of the tracking first: its free logged *"Wrong dl_item_t, WITHOUT links"* and the memory counter wrapped.
+
+```C
+char *bigger = gbmem_realloc(list, new_size);
+if(!bigger) {
+    // Error already logged: `list` is unchanged, still valid and still yours
+    return -1;
+}
+list = bigger;
+```
+
 ---
 
 (gbmem_set_allocators)=

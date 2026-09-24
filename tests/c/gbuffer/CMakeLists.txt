@@ -52,6 +52,7 @@ endif()
 ##############################################
 set(SRCS
     test_gbuffer_guards
+    test_gbmem_realloc_refused
 )
 
 ##############################################
