@@ -122,6 +122,10 @@ PRIVATE int build_ref(
 PRIVATE const char *node_md_str(json_t *node, const char *key);
 PRIVATE json_t *topic_cols_dict(json_t *tranger, const char *topic_name);
 PRIVATE BOOL topic_has_hooks(hgobj gobj, json_t *tranger, const char *topic_name);
+PRIVATE BOOL child_data_names_parent(
+    json_t *child_data,     // NOT owned
+    const char *pref
+);
 PRIVATE const char *child_topic_not_loaded_whole(
     hgobj gobj,
     json_t *tranger,
@@ -7639,6 +7643,428 @@ PRIVATE int end_node_write(
 }
 
 /***************************************************************************
+ *  Append `node` to the list `instances`, unless it is there already
+ ***************************************************************************/
+PRIVATE void append_instance(json_t *instances, json_t *node)
+{
+    if(!node) {
+        return;
+    }
+    size_t size = json_array_size(instances);
+    for(size_t i = 0; i < size; i++) {
+        if(json_array_get(instances, i) == node) {
+            return;
+        }
+    }
+    json_array_append(instances, node);
+}
+
+/***************************************************************************
+ *  Every node object memory holds for the key `id` of `topic_name`: the
+ *  primary, and each instance of every secondary index, each one once,
+ *  with `first` (optional) at the head.
+ *
+ *  A delete of the key takes them all (tranger2_delete_key() deletes every
+ *  record of the key), and each one can hang from a parent or hold
+ *  children: a link made at run time lands on the instance it is given.
+ *
+ *  Return YOURS: a list holding a reference of each one, which keeps them
+ *  alive while it lives.
+ ***************************************************************************/
+PRIVATE json_t *key_instances(
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *id,
+    json_t *first   // NOT owned, optional
+)
+{
+    json_t *instances = json_array();
+    append_instance(instances, first);
+
+    // HACK tranger keys have a maximum length (add_secondary_node())
+    char key_[RECORD_KEY_VALUE_MAX];
+    snprintf(key_, sizeof(key_), "%s", id);
+
+    json_t *indexx = treedb_get_id_index(tranger, treedb_name, topic_name);
+    if(indexx) {
+        append_instance(instances, json_object_get(indexx, key_));
+    }
+
+    json_t *pkey2s = treedb_topic_pkey2s(tranger, topic_name);
+    int idx; json_t *jn_pkey2_name;
+    json_array_foreach(pkey2s, idx, jn_pkey2_name) {
+        const char *pkey2_name = json_string_value(jn_pkey2_name);
+        if(empty_string(pkey2_name)) {
+            continue;
+        }
+        json_t *indexy = treedb_get_pkey2_index(tranger, treedb_name, topic_name, pkey2_name);
+        const char *key2; json_t *instance;
+        json_object_foreach(json_object_get(indexy, key_), key2, instance) {
+            append_instance(instances, instance);
+        }
+    }
+    JSON_DECREF(pkey2s)
+    return instances;
+}
+
+/***************************************************************************
+ *  Does an index of its treedb hold `node`: the primary index, or one of
+ *  the secondary ones? A node that no index holds was deleted, its key
+ *  (treedb_delete_node()) or its instance (treedb_delete_instance()).
+ *
+ *  It is asked by every save, so the primary index is asked first, by
+ *  pointer, reached with plain lookups (the ones treedb_get_id_index()
+ *  makes, without formatting and walking a path): it holds the node of
+ *  nearly every save. A node that is not the primary is looked for among
+ *  the instances of its key.
+ ***************************************************************************/
+PRIVATE BOOL node_is_indexed(
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *id,
+    json_t *node    // NOT owned
+)
+{
+    json_t *topic_indexes = json_object_get(
+        json_object_get(json_object_get(tranger, "treedbs"), treedb_name),
+        topic_name
+    );
+
+    // HACK tranger keys have a maximum length (add_primary_node())
+    char key_[RECORD_KEY_VALUE_MAX];
+    const char *key = id;
+    if(strlen(id) >= sizeof(key_)) {
+        memcpy(key_, id, sizeof(key_) - 1);     // cut as snprintf() cut it when it was indexed
+        key_[sizeof(key_) - 1] = 0;
+        key = key_;
+    }
+
+    if(json_object_get(json_object_get(topic_indexes, "id"), key) == node) {
+        return TRUE;
+    }
+
+    BOOL found = FALSE;
+    json_t *pkey2s = treedb_topic_pkey2s(tranger, topic_name);
+    int idx; json_t *jn_pkey2_name;
+    json_array_foreach(pkey2s, idx, jn_pkey2_name) {
+        const char *pkey2_name = json_string_value(jn_pkey2_name);
+        if(empty_string(pkey2_name)) {
+            continue;
+        }
+        const char *key2; json_t *instance;
+        json_object_foreach(
+                json_object_get(json_object_get(topic_indexes, pkey2_name), key),
+                key2, instance) {
+            if(instance == node) {
+                found = TRUE;
+                break;
+            }
+        }
+        if(found) {
+            break;
+        }
+    }
+    JSON_DECREF(pkey2s)
+    return found;
+}
+
+/***************************************************************************
+ *  How many children the hooks of the `instances` hold, all of them
+ *  (count_node_children())
+ ***************************************************************************/
+PRIVATE size_t count_key_children(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *instances   // NOT owned
+)
+{
+    size_t n = 0;
+    int idx; json_t *instance;
+    json_array_foreach(instances, idx, instance) {
+        n += count_node_children(gobj, tranger, instance);
+    }
+    return n;
+}
+
+/***************************************************************************
+ *  Find the hooks that hold `instance` BY POINTER: the hooks of every
+ *  instance of every parent its fkeys name. Return how many hold it.
+ *
+ *  With `taken`, the instance is taken out of each one, and `taken` keeps
+ *  [holder, hook, instance, place, ref] of each, to put it back
+ *  (put_back_unhooked()). Without it, nothing moves. The fkeys of the
+ *  instance do not move: it is going, its key or itself, and no record of
+ *  it is written again.
+ *
+ *  By pointer, never by id: a hook holds ONE object of a child id, and
+ *  the one it holds can be another instance of the child, one that stays.
+ ***************************************************************************/
+PRIVATE size_t unhook_instance(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *instance,   // NOT owned
+    json_t *taken       // NOT owned, optional
+)
+{
+    size_t n = 0;
+    const char *treedb_name = node_md_str(instance, "treedb_name");
+    const char *id = json_string_value(json_object_get(instance, "id"));
+    if(!treedb_name || !id) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot look for the parents of a node without treedb_name or id",
+            NULL
+        );
+        return 0;
+    }
+
+    json_t *refs = get_node_up_refs(gobj, tranger, instance);
+    int idx; json_t *jn_ref;
+    json_array_foreach(refs, idx, jn_ref) {
+        const char *ref = json_string_value(jn_ref);
+        char parent_topic_name[NAME_MAX];
+        char parent_id[NAME_MAX];
+        char hook_name[NAME_MAX];
+        if(!decode_parent_ref(
+            ref,
+            parent_topic_name, sizeof(parent_topic_name),
+            parent_id, sizeof(parent_id),
+            hook_name, sizeof(hook_name)
+        )) {
+            continue;   /*  get_fkey_refs() takes only refs of three parts  */
+        }
+
+        json_t *holders = key_instances(tranger, treedb_name, parent_topic_name, parent_id, NULL);
+        int idx2; json_t *holder;
+        json_array_foreach(holders, idx2, holder) {
+            json_t *hook_data = json_object_get(holder, hook_name);
+            size_t pos = 0;
+            BOOL found = FALSE;
+            if(json_is_array(hook_data)) {
+                size_t size = json_array_size(hook_data);
+                for(size_t i = 0; i < size; i++) {
+                    if(json_array_get(hook_data, i) == instance) {
+                        pos = i;
+                        found = TRUE;
+                        break;
+                    }
+                }
+            } else if(json_is_object(hook_data) && json_object_get(hook_data, id) == instance) {
+                const char *key; json_t *v;
+                json_object_foreach(hook_data, key, v) {
+                    if(strcmp(key, id)==0) {
+                        break;
+                    }
+                    pos++;
+                }
+                found = TRUE;
+            }
+            if(!found) {
+                continue;
+            }
+            n++;
+            if(!taken) {
+                continue;
+            }
+            json_array_append_new(taken,
+                json_pack("[O, s, O, I, s]",
+                    holder, hook_name, instance, (json_int_t)pos, ref
+                )
+            );
+            if(json_is_array(hook_data)) {
+                json_array_remove(hook_data, pos);
+            } else {
+                json_object_del(hook_data, id);
+            }
+        }
+        JSON_DECREF(holders)
+    }
+    JSON_DECREF(refs)
+    return n;
+}
+
+/***************************************************************************
+ *  Put back what unhook_instance() took out of the hooks (`taken`), each
+ *  instance in its place, the last one taken out first. Return how many
+ *  could not be put back (each one logged).
+ ***************************************************************************/
+PRIVATE int put_back_unhooked(
+    hgobj gobj,
+    json_t *taken   // NOT owned
+)
+{
+    int failed = 0;
+    for(size_t i = json_array_size(taken); i-- > 0; ) {
+        json_t *kept = json_array_get(taken, i);
+        json_t *holder = json_array_get(kept, 0);
+        const char *hook_name = json_string_value(json_array_get(kept, 1));
+        json_t *instance = json_array_get(kept, 2);
+        size_t pos = (size_t)json_integer_value(json_array_get(kept, 3));
+        const char *id = json_string_value(json_object_get(instance, "id"));
+
+        json_t *hook_data = json_object_get(holder, hook_name);
+        if(json_is_array(hook_data)) {
+            size_t size = json_array_size(hook_data);
+            json_array_insert(hook_data, pos < size? pos : size, instance);
+        } else if(json_is_object(hook_data) && id && !json_object_get(hook_data, id)) {
+            json_object_set(hook_data, id, instance);
+            put_child_in_hook_place(holder, hook_name, instance, pos);
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Cannot put an instance back into the hook of a parent: its slot holds another node",
+                "parent_ref",   "%s", json_string_value(json_array_get(kept, 4)),
+                "id",           "%s", id? id : "",
+                NULL
+            );
+            failed++;
+        }
+    }
+    return failed;
+}
+
+/***************************************************************************
+ *  `primary` takes the places a deleted instance of its key left in the
+ *  hooks of its parents (`taken`, see unhook_instance()), when its own
+ *  fkey names that parent through that hook. A hook holds one object per
+ *  child id, so the primary was kept out of a hook that held the instance;
+ *  a reload hangs it there. A hook that holds the child already, by any
+ *  object, is left as it is.
+ ***************************************************************************/
+PRIVATE void put_primary_in_places(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *primary,    // NOT owned
+    json_t *taken       // NOT owned
+)
+{
+    if(json_array_size(taken) == 0) {
+        return;
+    }
+    const char *treedb_name = node_md_str(primary, "treedb_name");
+    const char *topic_name = node_md_str(primary, "topic_name");
+    const char *id = json_string_value(json_object_get(primary, "id"));
+    json_t *refs = get_node_up_refs(gobj, tranger, primary);
+
+    int idx; json_t *kept;
+    json_array_foreach(taken, idx, kept) {
+        const char *ref = json_string_value(json_array_get(kept, 4));
+        if(json_list_str_index(refs, ref, FALSE) < 0) {
+            continue;
+        }
+        json_t *holder = json_array_get(kept, 0);
+        const char *hook_name = json_string_value(json_array_get(kept, 1));
+        size_t pos = (size_t)json_integer_value(json_array_get(kept, 3));
+        if(parent_hook_holds_child(gobj, holder, hook_name, primary, id)) {
+            continue;
+        }
+        json_t *hook_data = json_object_get(holder, hook_name);
+        if(json_is_array(hook_data)) {
+            size_t size = json_array_size(hook_data);
+            json_array_insert(hook_data, pos < size? pos : size, primary);
+        } else if(json_is_object(hook_data) &&
+                dict_hook_takes_child(tranger, treedb_name, hook_data, topic_name, id, primary)) {
+            json_object_set(hook_data, id, primary);
+            put_child_in_hook_place(holder, hook_name, primary, pos);
+        }
+    }
+    JSON_DECREF(refs)
+}
+
+/***************************************************************************
+ *  The children the hooks of `instance` hold go to the hooks of `primary`,
+ *  the primary of its key, in memory. Their fkeys name the key, never one
+ *  of its instances, so a reload hangs them from the primary. The instance
+ *  is going (treedb_delete_instance()): left in its hooks, they hung from
+ *  no visible parent until a reload, and a delete of the key did not see
+ *  them (7.25.4). A child that the primary holds already, or whose fkey
+ *  does not name the key through that hook, stays where it is: a reload
+ *  would not hang it there either.
+ ***************************************************************************/
+PRIVATE void hand_children_to_primary(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *instance,   // NOT owned
+    json_t *primary     // NOT owned
+)
+{
+    const char *treedb_name = node_md_str(instance, "treedb_name");
+    const char *topic_name = node_md_str(instance, "topic_name");
+    const char *id = json_string_value(json_object_get(instance, "id"));
+    if(!treedb_name || !topic_name || !id) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot hand the children of a node without treedb_name, topic_name or id",
+            NULL
+        );
+        return;
+    }
+
+    json_t *hooks = treedb_get_topic_hooks(tranger, treedb_name, topic_name);
+    int idx; json_t *jn_hook;
+    json_array_foreach(hooks, idx, jn_hook) {
+        const char *hook_name = json_string_value(jn_hook);
+        json_t *children = get_hook_list(gobj, json_object_get(instance, hook_name));
+        json_t *primary_hook = json_object_get(primary, hook_name);
+        json_t *hook_links = kwid_get(gobj,
+            tranger,
+            0,
+            "topics`%s`cols`%s`hook",
+                topic_name, hook_name
+        );
+        char pref[TREEDB_REF_MAX];
+        if(json_array_size(children) == 0 ||
+                build_ref(gobj, pref, sizeof(pref), topic_name, id, hook_name)<0) {
+            JSON_DECREF(children)
+            continue;   // nothing to hand, or Error already logged
+        }
+
+        int idx2; json_t *child;
+        json_array_foreach(children, idx2, child) {
+            const char *child_topic_name = node_md_str(child, "topic_name");
+            const char *child_id = json_string_value(json_object_get(child, "id"));
+            const char *child_field = child_topic_name?
+                json_string_value(json_object_get(hook_links, child_topic_name)) : NULL;
+            if(!child_id || !child_field ||
+                    !child_data_names_parent(json_object_get(child, child_field), pref)) {
+                continue;
+            }
+            if(json_is_array(primary_hook)) {
+                if(!child_in_hook_array(gobj, primary_hook, child, NULL, child_id, FALSE)) {
+                    json_array_append(primary_hook, child);
+                }
+            } else if(json_is_object(primary_hook)) {
+                if(dict_hook_slot_taken(primary_hook, child_topic_name, child_id)) {
+                    gobj_log_error(gobj, 0,
+                        "function",             "%s", __FUNCTION__,
+                        "msgset",               "%s", MSGSET_TREEDB,
+                        "msg",                  "%s", "A dict hook holds a node of another topic with this id: the child of a deleted instance is not handed to the primary",
+                        "treedb_name",          "%s", treedb_name,
+                        "parent_topic_name",    "%s", topic_name,
+                        "parent_id",            "%s", id,
+                        "hook_name",            "%s", hook_name,
+                        "child_topic_name",     "%s", child_topic_name,
+                        "child_id",             "%s", child_id,
+                        NULL
+                    );
+                } else if(dict_hook_takes_child(
+                        tranger, treedb_name, primary_hook,
+                        child_topic_name, child_id, child)) {
+                    json_object_set(primary_hook, child_id, child);
+                }
+            }
+        }
+        JSON_DECREF(children)
+    }
+    JSON_DECREF(hooks)
+}
+
+/***************************************************************************
  *  Direct saving to tranger.
  *
  *  The record is written UNTAGGED (0), whether a snap is activated or
@@ -7698,6 +8124,27 @@ PUBLIC int treedb_save_node(
         return -1;
     }
 
+    /*-------------------------------*
+     *  No index holds it: it was deleted, its key or its instance, and a
+     *  record written now brings it back from the disk. Whatever kept the
+     *  pointer -- a hook, a caller -- this is the one place every write
+     *  goes through.
+     *-------------------------------*/
+    const char *node_id = kw_get_str(gobj, node, "id", "", 0);
+    if(!node_is_indexed(tranger, treedb_name, topic_name, node_id, node)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot save a node that no index holds: its record would bring back what was deleted",
+            "treedb_name",  "%s", treedb_name? treedb_name: "",
+            "topic_name",   "%s", topic_name? topic_name: "",
+            "id",           "%s", node_id,
+            NULL
+        );
+        gobj_log_set_last_message("%s", "Cannot save a node that no index holds");
+        return -1;
+    }
+
     /*-------------------------------------*
      *  Write to tranger (save, updating)
      *  Untagged, snap active or not (see above).
@@ -7719,7 +8166,6 @@ PUBLIC int treedb_save_node(
      *  the node itself, so the secondary index shares the primary object and
      *  reflects this save. No-op for topics without pkey2s.
      *------------------------------------------------------------------*/
-    const char *node_id = kw_get_str(gobj, node, "id", "", 0);
     json_t *pkey2s = treedb_topic_pkey2s(tranger, topic_name);
     int idx_pkey2; json_t *jn_pkey2_name;
     json_array_foreach(pkey2s, idx_pkey2, jn_pkey2_name) {
@@ -8078,6 +8524,8 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
  ***************************************************************************/
 typedef struct child_unlink_s {
     const char *hook;   // NOT owned: a name of the hook list the delete holds
+    json_t *parent;     // NOT owned: the instance of the node whose hook holds the
+                        // child (the list of instances the delete holds keeps it)
     json_t *child;      // owned: one reference, released with the array
     BOOL stays;         // a refused delete could not put it back: its unlink stays
     node_write_t write;
@@ -8427,6 +8875,15 @@ PRIVATE int delete_node(
      *  nothing, and one that saves it is refused (mark_node_deleting()),
      *  because a record written into the key just deleted brings the node
      *  back from the disk.
+     *
+     *  The key is deleted whole, every instance of it (tranger2_delete_key()),
+     *  and each instance is a node of its own in memory: a link made at run
+     *  time lands on the instance it is given. So the children of EVERY
+     *  instance are looked at, and the parents of every instance too. 7.25.4
+     *  looked at the node it was given alone: a child of another instance
+     *  was left naming a key that is gone, and another instance stayed in
+     *  the hook of its parent, where a forced delete of that parent saved it
+     *  back into the deleted key.
      *-------------------------------*/
     BOOL to_delete = TRUE;
     events_hold_t hold;
@@ -8439,11 +8896,13 @@ PRIVATE int delete_node(
     BOOL muted = FALSE;                 // the events of the children are told by the delete
     node_write_t node_write;
     BOOL node_write_open = FALSE;
+    json_t *instances = key_instances(tranger, treedb_name, topic_name, id, node);
+    json_t *unhooked = NULL;            // the other instances taken out of the hooks of their parents
 
     /*-------------------------------*
      *      Childs
      *-------------------------------*/
-    if(count_node_children(gobj, tranger, node) > 0) {
+    if(count_key_children(gobj, tranger, instances) > 0) {
         if(force) {
             jn_hooks = treedb_get_topic_hooks(
                 tranger,
@@ -8455,18 +8914,28 @@ PRIVATE int delete_node(
              *  hook array and _unlink_nodes removes the child from it in
              *  place; iterating that array directly shifts it under the
              *  loop and skips children. Snapshot the child refs first.
+             *  `lists` holds [instance, hook index, children].
              */
             json_t *lists = json_array();
-            int idx2; json_t *jn_hook;
-            json_array_foreach(jn_hooks, idx2, jn_hook) {
-                json_t *children = _list_children(
-                    gobj,
-                    tranger,
-                    json_string_value(jn_hook),
-                    node
-                );
-                n_children += json_array_size(children);
-                json_array_append_new(lists, children? children : json_array());
+            int idx1; json_t *instance;
+            json_array_foreach(instances, idx1, instance) {
+                int idx2; json_t *jn_hook;
+                json_array_foreach(jn_hooks, idx2, jn_hook) {
+                    json_t *children = _list_children(
+                        gobj,
+                        tranger,
+                        json_string_value(jn_hook),
+                        instance
+                    );
+                    if(json_array_size(children) == 0) {
+                        JSON_DECREF(children)
+                        continue;
+                    }
+                    n_children += json_array_size(children);
+                    json_array_append_new(lists,
+                        json_pack("[O, i, o]", instance, idx2, children)
+                    );
+                }
             }
             if(n_children > 0) {
                 unlinked = gbmem_malloc(n_children * sizeof(child_unlink_t));
@@ -8475,20 +8944,42 @@ PRIVATE int delete_node(
                     n_children = 0;
                 }
             }
+            /*
+             *  A child that two instances hold through one hook is ONE link
+             *  (its fkey names the key): unlinked once, from the first. Only
+             *  a key with several instances can repeat one.
+             */
+            BOOL several = json_array_size(instances) > 1;
             size_t k = 0;
-            json_t *children;
-            json_array_foreach(lists, idx2, children) {
+            json_t *list;
+            json_array_foreach(lists, idx1, list) {
+                json_t *parent = json_array_get(list, 0);
+                const char *hook = json_string_value(
+                    json_array_get(jn_hooks, (size_t)json_integer_value(json_array_get(list, 1)))
+                );
                 int idx3; json_t *child;
-                json_array_foreach(children, idx3, child) {
+                json_array_foreach(json_array_get(list, 2), idx3, child) {
                     if(k >= n_children) {
                         break;
                     }
-                    unlinked[k].hook = json_string_value(json_array_get(jn_hooks, idx2));
+                    BOOL repeated = FALSE;
+                    for(size_t j = 0; several && j < k; j++) {
+                        if(unlinked[j].child == child && unlinked[j].hook == hook) {
+                            repeated = TRUE;
+                            break;
+                        }
+                    }
+                    if(repeated) {
+                        continue;
+                    }
+                    unlinked[k].hook = hook;
+                    unlinked[k].parent = parent;
                     unlinked[k].child = json_incref(child);
                     unlinked[k].stays = FALSE;
                     k++;
                 }
             }
+            n_children = k;
             JSON_DECREF(lists)
 
             /*
@@ -8506,7 +8997,9 @@ PRIVATE int delete_node(
                 json_t *child = unlinked[i].child;
                 node_write_t *write = &unlinked[i].write;
                 begin_node_write_in(write, &hold);
-                int r = _unlink_nodes(gobj, tranger, unlinked[i].hook, node, child, write);
+                int r = _unlink_nodes(
+                    gobj, tranger, unlinked[i].hook, unlinked[i].parent, child, write
+                );
                 if(r == 0) {
                     r = treedb_save_node(tranger, child);
                 }
@@ -8527,7 +9020,7 @@ PRIVATE int delete_node(
             /*
              *  Re-checks down links
              */
-            if(count_node_children(gobj, tranger, node) > 0) {
+            if(count_key_children(gobj, tranger, instances) > 0) {
                 to_delete = FALSE;
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
@@ -8554,16 +9047,32 @@ PRIVATE int delete_node(
 
     /*-------------------------------*
      *      Parents
+     *
+     *  The node is unlinked from its parents (clean_node_in_memory()). The
+     *  other instances of its key are taken out of the hooks that hold
+     *  them, by pointer, and nothing else of them moves: their key goes.
+     *  An fkey of an instance that no hook holds links nothing in memory:
+     *  it goes with the key, and does not refuse the delete.
      *-------------------------------*/
     json_t *up_refs = get_node_up_refs(gobj, tranger, node);
-    if(json_array_size(up_refs)>0) {
+    size_t n_hooked = 0;
+    for(size_t i = 1; i < json_array_size(instances); i++) {
+        n_hooked += unhook_instance(gobj, tranger, json_array_get(instances, i), NULL);
+    }
+    if(json_array_size(up_refs)>0 || n_hooked > 0) {
         if(force) {
-            if(to_delete) {
+            if(to_delete && json_array_size(up_refs)>0) {
                 begin_node_write(gobj, tranger, node, &node_write);
                 node_write_open = TRUE;
                 BOOL to_save = FALSE;   // clean_node_in_memory() keeps what it moves
                 if(clean_node_in_memory(tranger, node, &to_save, &node_write)<0) {
                     to_delete = FALSE;  // Error already logged
+                }
+            }
+            if(to_delete && n_hooked > 0) {
+                unhooked = json_array();
+                for(size_t i = 1; i < json_array_size(instances); i++) {
+                    unhook_instance(gobj, tranger, json_array_get(instances, i), unhooked);
                 }
             }
         } else {
@@ -8599,6 +9108,8 @@ PRIVATE int delete_node(
 
     if(!to_delete) {
         // Error already logged
+        put_back_unhooked(gobj, unhooked);  // Error already logged
+        JSON_DECREF(unhooked)
         if(node_write_open) {
             restore_node(gobj, tranger, node, &node_write);
             close_node_write(gobj, tranger, &node_write, FALSE);
@@ -8609,15 +9120,18 @@ PRIVATE int delete_node(
         for(size_t i = 0; muted && i < n_unlinked; i++) {
             if(unlinked[i].stays) {
                 tell_child_unlink(
-                    gobj, tranger, treedb_name, node, unlinked[i].hook, unlinked[i].child, FALSE
+                    gobj, tranger, treedb_name, unlinked[i].parent, unlinked[i].hook,
+                    unlinked[i].child, FALSE
                 );
             }
         }
         free_child_unlinks(unlinked, n_children);
         JSON_DECREF(jn_hooks)
+        JSON_DECREF(instances)
         JSON_DECREF(jn_options)
         return -1;
     }
+    JSON_DECREF(unhooked)
 
     /*-------------------------------*
      *  Deleted: the unlinks stay held, told below
@@ -8716,7 +9230,10 @@ PRIVATE int delete_node(
             continue;
         }
 
-        // TODO estoy borrando todas las instancias. Y si tienen links?
+        /*
+         *  Every instance goes: their links were undone above, the
+         *  children and the parents of each one
+         */
         json_t * key2v = kw_get_dict_value(
             gobj,
             indexy,
@@ -8754,7 +9271,8 @@ PRIVATE int delete_node(
         json_integer_set(json_object_get(hold.treedb, "__events_held__"), 0);
         for(size_t i = 0; i < n_unlinked; i++) {
             if(!tell_child_unlink(
-                    gobj, tranger, treedb_name, node, unlinked[i].hook, unlinked[i].child, TRUE)) {
+                    gobj, tranger, treedb_name, unlinked[i].parent, unlinked[i].hook,
+                    unlinked[i].child, TRUE)) {
                 hold.treedb = NULL;     // closed by a callback: nothing left to release
                 break;
             }
@@ -8794,9 +9312,11 @@ PRIVATE int delete_node(
     }
 
     /*-------------------------------*
-     *  Kill the node
+     *  Kill the node, and the other
+     *  instances of its key
      *-------------------------------*/
     JSON_DECREF(node)
+    JSON_DECREF(instances)
 
     JSON_DECREF(jn_options)
     return 0;
@@ -9153,6 +9673,35 @@ PUBLIC int treedb_delete_instance(
             "key2",         "%s", pkey2_value,
             NULL
         );
+    }
+
+    /*-------------------------------*
+     *  Its links, in memory
+     *
+     *  The instance leaves the hooks of its parents, where the primary
+     *  takes its place when it names that parent too; and the children
+     *  it holds go to the primary. That is what a reload makes of the
+     *  disk: it links the primary alone, and hangs every child from the
+     *  primary of its parent (an fkey names the key, never an instance).
+     *  7.25.4 left the instance in the hooks of its parents, where a
+     *  forced delete of the parent saved it back (the newest row of its
+     *  key, its primary after a reopen), and left its children under no
+     *  visible parent until the reload.
+     *
+     *  Nothing is written, and the fkeys of the instance do not move: its
+     *  rows are tombstoned, and a record with the fkey cleared would bring
+     *  it back. An instance that is also the primary (the same object in
+     *  the primary index) stays the node in memory, links and all.
+     *-------------------------------*/
+    json_t *primary = treedb_get_node(tranger, treedb_name, topic_name, id);
+    if(primary != node) {
+        json_t *taken = json_array();
+        unhook_instance(gobj, tranger, node, taken);
+        if(primary) {
+            put_primary_in_places(gobj, tranger, primary, taken);
+            hand_children_to_primary(gobj, tranger, node, primary);
+        }
+        JSON_DECREF(taken)
     }
 
     /*-------------------------------*

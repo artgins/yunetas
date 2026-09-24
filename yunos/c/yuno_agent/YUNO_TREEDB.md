@@ -1227,7 +1227,7 @@ and the next load went to the latest instances.
 A child's fkey names the parent's **id**, not one of its instances
 (`yunos^<yuno id>^binary`), so every instance of the parent can hook it: the
 agent's `find-new-yunos create=1` leaves the same binary in the hook of the
-old release and of the new one. Two rules keep that consistent (since 7.25.0):
+old release and of the new one. Three rules keep that consistent (the first two since 7.25.0):
 
 - **An unlink takes the child out of the hook of EVERY instance of the
   parent.** It clears the one ref the child has, so no instance may go on
@@ -1237,9 +1237,20 @@ old release and of the new one. Two rules keep that consistent (since 7.25.0):
 - **A DICT hook keeps the child's PRIMARY instance.** A dict hook holds one
   entry per child id; a new instance of the child (an `install-binary` of a
   new version) no longer replaces the entry unless it is the primary, as an
-  array hook keeps the one it has. It took the newest: a `delete_instance` of
-  that newest left it in the hook, and a forced delete of the parent then
-  SAVED the deleted instance back to disk, the primary after a reload.
+  array hook keeps the one it has. It took the newest (up to 7.24.1).
+- **A deleted instance leaves the hooks, and a delete of a key looks at every
+  instance** (new after 7.25.4). The dict rule above did not close the case:
+  a non-primary instance still sits in a hook whenever it is linked into a
+  slot that does not hold the primary (an array hook, or an empty dict slot,
+  such as the hooks of a new parent instance). `delete_instance` left it
+  there, and a forced delete of the parent SAVED the deleted instance back to
+  disk: its newest row, the primary after a reload. Now `delete_instance`
+  takes the instance out of every parent hook (the primary takes its place
+  when it names that parent too), and hands the children the instance held to
+  the primary, as a reload does. `delete_node` counts and unlinks the
+  children, and the parents, of every instance of the key, not only of the
+  one it is given. And `treedb_save_node()` refuses a node that no index
+  holds, whatever path kept a pointer to it.
 
 ```C
 /*  the agent's shape (treedb_schema_yuneta_agent.c): a dict hook over

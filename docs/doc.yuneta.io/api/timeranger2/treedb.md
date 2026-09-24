@@ -871,7 +871,7 @@ treedb_create_topic(tranger, "my_db", "things", 1, "", 0,
 (treedb_delete_instance)=
 ## [`treedb_delete_instance()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/timeranger2/src/tr_treedb.c#L7169)
 
-`treedb_delete_instance()` durably deletes ONE instance of a node — one value of a secondary key (`pkey2`). Its slot in that `pkey2` index goes, and every md2 row of that `(id, pkey2 value)` is tombstoned on disk, so a reopen does not bring it back. The primary `id` index is not touched: route only a NON-primary instance here. [`treedb_delete_node()`](<#treedb_delete_node>) deletes a whole key.
+`treedb_delete_instance()` durably deletes ONE instance of a node — one value of a secondary key (`pkey2`). Its slot in that `pkey2` index goes, every md2 row of that `(id, pkey2 value)` is tombstoned on disk, and the instance leaves the hooks of its parents in memory: nothing writes it back, and a reopen does not bring it back. The primary `id` index is not touched: route only a NON-primary instance here. [`treedb_delete_node()`](<#treedb_delete_node>) deletes a whole key.
 
 ```C
 int treedb_delete_instance(
@@ -889,7 +889,7 @@ int treedb_delete_instance(
 | `tranger` | `json_t *` | Pointer to the tranger database instance. |
 | `node` | `json_t *` | The instance as the `pkey2` index holds it. Borrowed: the index's reference goes on success only. |
 | `pkey2_name` | `const char *` | Name of the secondary key that identifies the instance. |
-| `jn_options` | `json_t *` | Owned. `ignore_snaps` skips the snapshot guard (not the immutable one). `force` does nothing here: it is about links, and this does not look at them. |
+| `jn_options` | `json_t *` | Owned. `ignore_snaps` skips the snapshot guard (not the immutable one). `force` does nothing here: a delete of an instance is never refused for its links (see below). |
 
 **Returns**
 
@@ -897,7 +897,39 @@ Returns `0` on success, or a negative value if the deletion is refused or fails.
 
 **Notes**
 
-It does NOT look at links: an instance is one version of a node, and the links belong to the node.
+**Its links are moved in memory, never refused.** An fkey names the parent's
+KEY, never one of its instances, so a reload links the primary instance of a
+node alone, and hangs every child from the primary of its parent. A link made
+at run time lands on the instance it is given, and the delete puts memory
+where a reload would put it (new after 7.25.4):
+
+- The instance leaves the hooks of its parents (every instance of each
+  parent its fkeys name, found by pointer). When the primary of its key names
+  that parent too, the primary takes its place: a hook holds one entry per
+  child id, so it had kept the primary out.
+- The children the instance holds go to the hooks of the primary. Their fkeys
+  name the key, which is still there.
+
+Nothing is written: the rows of the instance are tombstoned, and a record with
+its fkeys cleared would bring it back. Its fkeys stay as they are. An instance
+that is also the primary (the same object in the primary index) stays the node
+in memory, with its links.
+
+In 7.25.4 the instance stayed in the hooks of its parents. A delete of such a
+parent without `force` was refused for an instance that was gone, and a forced
+delete saved it back: its newest row, the primary of its key after a reopen.
+And its children hung from no visible parent until a reload, so a delete of
+the key did not see them and left their fkeys naming a parent that was gone.
+
+```C
+/*  kids x/v1 (the primary) and x/v2; parents O and P, P with instances v1
+ *  (the primary) and v2. O.kids holds x/v2; P/v2.kids holds kid a.  */
+treedb_delete_instance(tranger, x2, "version", 0);   // 0: O.kids is [] (or [x/v1],
+                                                     //    when x/v1 names O too)
+treedb_delete_instance(tranger, p2, "version", 0);   // 0: P/v1.kids holds a
+treedb_delete_node(tranger, o, json_object());       // 0: O holds nothing
+treedb_delete_node(tranger, p1, json_object());      // -1: has down links (a)
+```
 
 It refuses, before it tombstones or drops anything, when it cannot read every
 row of the key: a row whose metadata cannot be read (*"Cannot delete instance,
@@ -971,6 +1003,33 @@ Returns 0 on success, or a negative error code if the deletion fails.
 **Notes**
 
 If the node has existing links and 'force' is not enabled, [`treedb_delete_node()`](<#treedb_delete_node>) will fail.
+
+**Every instance of the key is looked at.** The delete takes the key whole,
+every instance of it on disk, and each instance is a node of its own in memory:
+a link made at run time lands on the instance it is given. So the guard counts
+the children of every instance, and the parents of every instance that a hook
+holds (found by pointer). Without `force` a child or a parent of any of them
+refuses the delete (*"Cannot delete node: has down links"* / *"has up
+links"*). With `force` every child is unlinked and saved (a child that two
+instances hold through one hook is one link, unlinked once), and every other
+instance is taken out of the hooks that hold it, in memory: nothing else of it
+moves, its key goes. An fkey of an instance that no hook holds links nothing
+in memory, and does not refuse the delete. A delete that is refused puts all
+of it back. In 7.25.4 the delete looked at the node it was given alone: a
+child of another instance kept naming the deleted key (*"Node not found"* at
+the next open), and another instance stayed in the hook of its parent, where a
+forced delete of that parent saved it back into the deleted key, which was
+back after a reopen (new after 7.25.4).
+
+```C
+/*  P/v1 is the primary; kid a hangs from P/v2 only  */
+treedb_delete_node(tranger, p1, json_object());                     // -1: has down links
+treedb_delete_node(tranger, p1, json_pack("{s:b}", "force", 1));   // 0: a["parent"] is ""
+
+/*  x/v1 is the primary, hanging from nothing; x/v2 hangs from O2  */
+treedb_delete_node(tranger, x1, json_object());                     // -1: has up links
+treedb_delete_node(tranger, x1, json_pack("{s:b}", "force", 1));   // 0: O2.kids is []
+```
 
 **Every child a hook holds is a down link, whatever its id.** A topic without
 hooks keeps any id (an id that holds `^`, or one of `NAME_MAX` bytes), and such
@@ -2463,6 +2522,23 @@ Returns `0` on success, or a negative error code on failure.
 The record is always written with tag 0, whether a snap is activated or not. A record gets a snap's tag only once, from [`treedb_shoot_snap()`](<#treedb_shoot_snap>). A save never gives a tag, so it never writes into a snap. With a snap activated, the primary index is loaded from the records that the snap tagged. An edit made during that time appears in the primary index only after the snap is deactivated.
 
 A node that [`treedb_delete_node()`](<#treedb_delete_node>) is deleting cannot be saved: from the moment its key is deleted until the delete returns, a save of it (from a callback of the delete) answers `-1` and logs *"Cannot save a node that is being deleted"*. A record written then would bring the node back from the disk.
+
+A node that no index holds is not saved either: its key was deleted
+([`treedb_delete_node()`](<#treedb_delete_node>)), or its instance
+([`treedb_delete_instance()`](<#treedb_delete_instance>)). The save answers
+`-1` and logs *"Cannot save a node that no index holds: its record would bring
+back what was deleted"*, whatever kept the pointer (a hook of a parent, a
+caller). The primary index is asked first, by pointer; a node that is not the
+primary is looked for among the instances of its key. Until 7.25.4 such a save
+wrote a record into the deleted key, and the node was back at the next open
+(new after 7.25.4).
+
+```C
+json_t *x2 = json_incref(treedb_get_instance(tranger, "my_db", "kids", "version", "x", "v2"));
+treedb_delete_instance(tranger, x2, "version", 0);   // 0
+treedb_save_node(tranger, x2);                       // -1: no index holds it
+json_decref(x2);
+```
 
 ---
 
