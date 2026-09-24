@@ -173,6 +173,12 @@ if(!decode_child_ref("users^alice",
 // topic_name is "users", id is "alice"
 ```
 
+The `refs` option lists every child of the hook, also a child whose id holds a
+`^` or is `NAME_MAX` bytes long (a topic without hooks keeps such an id):
+`"users^a^b"`. `decode_child_ref()` refuses that reference and logs why. In
+7.25.4 the reference of a long id was cut in silence, and named another node or
+none.
+
 ---
 
 (decode_parent_ref)=
@@ -965,6 +971,20 @@ Returns 0 on success, or a negative error code if the deletion fails.
 **Notes**
 
 If the node has existing links and 'force' is not enabled, [`treedb_delete_node()`](<#treedb_delete_node>) will fail.
+
+**Every child a hook holds is a down link, whatever its id.** A topic without
+hooks keeps any id (an id that holds `^`, or one of `NAME_MAX` bytes), and such
+a child hangs from its parent like any other. A delete without `force` is
+refused (*"Cannot delete node: has down links"*), and a forced delete unlinks
+it. In 7.25.4 a dict hook did not count a child whose id holds two `^`: the
+parent was deleted, forced or not, and the child's fkey named a node that is
+gone, also after a reopen (*"Node not found"*).
+
+```C
+/*  users has no hooks: "u^1" is a valid id; u^1 hangs from P1 (owners.members)  */
+treedb_delete_node(tranger, p1, json_object());                     // -1: has down links
+treedb_delete_node(tranger, p1, json_pack("{s:b}", "force", 1));   // 0: u^1["owner"] is ""
+```
 
 **A node whose child topic did not load whole is not deleted**, forced or not:
 a topic one of its hooks holds has keys that did not load (see [A topic that

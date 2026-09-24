@@ -5644,170 +5644,6 @@ PRIVATE int load_all_links(
 }
 
 /***************************************************************************
-    Being `ids` a:
-
-        {
-            "$id": {
-                "id": "$id",
-                ...
-            }
-            ...
-        }
-
-        [
-            {
-                "id":$id,
-                ...
-            },
-            ...
-        ]
-
-    return a new list of all node's mix_id
- ***************************************************************************/
-PRIVATE json_t *get_hook_refs(
-    hgobj gobj,
-    json_t *hook_data // NOT owned
-)
-{
-    char mix_id[TREEDB_REF_MAX];
-    json_t *refs = json_array();
-
-    switch(json_typeof(hook_data)) {
-    case JSON_OBJECT:
-        /*
-            {
-                "$id": {
-                    "id": "$id",
-                    ...
-                }
-                ...
-            }
-        */
-        {
-            const char *id; json_t *jn_value;
-            json_object_foreach(hook_data, id, jn_value) {
-                int ampersands = count_char(id, '^');
-                int tildes = count_char(id, '~');
-
-                if(tildes == 2) {
-                    json_array_append_new(refs, json_string(id));
-                    continue;
-                } else if(ampersands == 2) {
-                    continue;
-                }
-
-                const char *topic_name = kw_get_str(
-                    gobj,
-                    jn_value,
-                    "__md_treedb__`topic_name",
-                    0,
-                    0
-                );
-                if(!topic_name) {
-                    gobj_log_error(gobj, 0,
-                        "function",             "%s", __FUNCTION__,
-                        "msgset",               "%s", MSGSET_TREEDB,
-                        "msg",                  "%s", "__md_treedb__ not found",
-                        NULL
-                    );
-                    gobj_trace_json(gobj, jn_value, "__md_treedb__ not found: value");
-                    gobj_trace_json(gobj, hook_data, "__md_treedb__ not found: hook_data");
-                    continue;
-                }
-                if(build_ref(gobj, mix_id, sizeof(mix_id), topic_name, id, NULL)<0) {
-                    continue;   // Error already logged
-                }
-                json_array_append_new(refs, json_string(mix_id));
-            }
-        }
-        break;
-
-    case JSON_ARRAY:
-        {
-            int idx; json_t *jn_value;
-            json_array_foreach(hook_data, idx, jn_value) {
-                switch(json_typeof(jn_value)) {
-                case JSON_OBJECT:
-                    /*
-                        [
-                            {
-                                "id":$id,
-                                ...
-                            },
-                            ...
-                        ]
-                    */
-                    {
-                        const char *id = kw_get_str(gobj, jn_value, "id", 0, 0);
-                        if(id) {
-                            const char *topic_name = kw_get_str(
-                                gobj,
-                                jn_value,
-                                "__md_treedb__`topic_name",
-                                0,
-                                0
-                            );
-                            if(!topic_name) {
-                                gobj_log_error(gobj, 0,
-                                    "function",             "%s", __FUNCTION__,
-                                    "msgset",               "%s", MSGSET_TREEDB,
-                                    "msg",                  "%s", "__md_treedb__ not found",
-                                    NULL
-                                );
-                                gobj_trace_json(gobj, jn_value, "__md_treedb__ not found: value");
-                                gobj_trace_json(gobj, hook_data, "__md_treedb__ not found: hook_data");
-                                break;
-                            }
-                            if(build_ref(gobj, mix_id, sizeof(mix_id), topic_name, id, NULL)<0) {
-                                break;  // Error already logged
-                            }
-                            json_array_append_new(refs, json_string(mix_id));
-                        }
-                    }
-                    break;
-                case JSON_STRING:
-                    {
-                        int ampersands = count_char(json_string_value(jn_value), '^');
-                        int tildes = count_char(json_string_value(jn_value), '~');
-
-                        if(tildes == 2) {
-                            json_array_append(refs, jn_value);
-                            break;
-                        } else if(ampersands == 2) {
-                            break;
-                        }
-                    }
-                    break;
-                default:
-                    gobj_log_error(gobj, 0,
-                        "function",             "%s", __FUNCTION__,
-                        "msgset",               "%s", MSGSET_TREEDB,
-                        "msg",                  "%s", "wrong array child hook type",
-                        NULL
-                    );
-                    gobj_trace_json(gobj, jn_value, "wrong array child hook type: value");
-                    gobj_trace_json(gobj, hook_data, "wrong array child hook type: hook data");
-                    break;
-                }
-            }
-        }
-        break;
-
-    default:
-        gobj_log_error(gobj, 0,
-            "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_TREEDB,
-            "msg",                  "%s", "wrong child hook type",
-            "hook_data",            "%j", hook_data,
-            NULL
-        );
-        break;
-    }
-
-    return refs;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *get_fkey_refs(
@@ -5854,15 +5690,24 @@ PRIVATE json_t *get_fkey_refs(
 }
 
 /***************************************************************************
- *  Used in delete_node to get all down refs
+ *  Used in delete_node(): how many children the hooks of the node hold.
+ *  Every entry counts, whatever its id: a topic without hooks keeps any
+ *  id (one holding '^', one of NAME_MAX bytes), and such a child hangs
+ *  from its parent like any other. These are the children that
+ *  _list_children() gives a forced delete to unlink, so the guard, the
+ *  unlinks and the re-check see one set. A ref built for each child (a
+ *  string nobody read, only counted) skipped the child whose id cannot
+ *  be part of a ref, and 7.25.4 skipped the key of a dict hook holding
+ *  two '^': the parent was deleted, and the child's fkey named a node
+ *  that is gone.
  ***************************************************************************/
-PRIVATE json_t *get_node_down_refs(  // Return MUST be decref
+PRIVATE size_t count_node_children(
     hgobj gobj,
     json_t *tranger,
     json_t *node    // NOT owned
 )
 {
-    json_t *refs = json_array();
+    size_t n = 0;
 
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, KW_REQUIRED);
@@ -5893,13 +5738,30 @@ PRIVATE json_t *get_node_down_refs(  // Return MUST be decref
             continue;
         }
 
-        json_t *child_list = get_hook_refs(gobj, field_data);
-        json_array_extend(refs, child_list);
-        json_decref(child_list);
+        switch(json_typeof(field_data)) {
+        case JSON_ARRAY:
+            n += json_array_size(field_data);
+            break;
+        case JSON_OBJECT:
+            n += json_object_size(field_data);
+            break;
+        default:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "wrong child hook type",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "field",        "%s", col_name,
+                "hook_data",    "%j", field_data,
+                NULL
+            );
+            break;
+        }
     }
 
     json_decref(cols);
-    return refs;
+    return n;
 }
 
 /***************************************************************************
@@ -8581,8 +8443,7 @@ PRIVATE int delete_node(
     /*-------------------------------*
      *      Childs
      *-------------------------------*/
-    json_t *down_refs = get_node_down_refs(gobj, tranger, node);
-    if(json_array_size(down_refs)>0) {
+    if(count_node_children(gobj, tranger, node) > 0) {
         if(force) {
             jn_hooks = treedb_get_topic_hooks(
                 tranger,
@@ -8666,8 +8527,7 @@ PRIVATE int delete_node(
             /*
              *  Re-checks down links
              */
-            json_t *down_refs_ = get_node_down_refs(gobj, tranger, node);
-            if(json_array_size(down_refs_)>0) {
+            if(count_node_children(gobj, tranger, node) > 0) {
                 to_delete = FALSE;
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
@@ -8678,7 +8538,6 @@ PRIVATE int delete_node(
                     NULL
                 );
             }
-            JSON_DECREF(down_refs_);
 
         } else {
             to_delete = FALSE;
@@ -8692,7 +8551,6 @@ PRIVATE int delete_node(
             );
         }
     }
-    JSON_DECREF(down_refs)
 
     /*-------------------------------*
      *      Parents
@@ -12703,12 +12561,18 @@ PRIVATE json_t *apply_child_list_options(
 
             */
             const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
-            const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, 0);
-            char ref[TREEDB_REF_MAX];
-            if(build_ref(gobj, ref, sizeof(ref), topic_name, id, NULL)<0) {
+            const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, KW_REQUIRED);
+            if(!id || !topic_name) {
                 continue;   // Error already logged
             }
-            json_array_append_new(children, json_string(ref));
+            /*
+             *  Not build_ref(): the treedb never stores a child ref nor
+             *  reads one back, this one is for the caller, and the child
+             *  hangs from the hook whatever its id holds (a topic without
+             *  hooks keeps an id with '^', or of NAME_MAX bytes).
+             *  decode_child_ref() refuses such a ref, and says so.
+             */
+            json_array_append_new(children, json_sprintf("%s^%s", topic_name, id));
 
         } else {
             /*
@@ -14941,7 +14805,7 @@ PRIVATE int derive_file_hooks(
     /*
      *  The desc of __assets__ is the TRANGER's, so every treedb that holds
      *  a copy of its nodes must carry every hook field in every copy --
-     *  get_node_down_refs() walks the desc and expects each field in the
+     *  count_node_children() walks the desc and expects each field in the
      *  node. Seeded and removed in every treedb's index, not only ours.
      */
     json_t *treedbs = json_object_get(tranger, "treedbs");

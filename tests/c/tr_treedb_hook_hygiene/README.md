@@ -47,6 +47,15 @@ stores only the config id, not the version — the asymmetry the fixes handle.
      cut in silence. A topic with no hooks keeps such an id.
    - A reference whose id part does not fit the decode is refused (*"Wrong
      reference: a part of it is too long"*), not cut.
+   - A child whose id cannot be part of a reference still hangs from its
+     parent (`test_children_without_ref`): the user `u^1` in a list hook, the
+     user `a^b^c` (two `^`) in a dict hook, and a user whose id is 255 bytes
+     long. A delete of the parent without `force` is refused (*"Cannot delete
+     node: has down links"*) and nothing moves; the `refs` option lists the
+     child (`users^u^1`); a forced delete unlinks it. The delete guard built a
+     reference for each child and skipped the one it could not build (and a
+     dict hook skipped a key with two `^`): the parent was deleted, forced or
+     not, and the child's fkey named a node that is gone.
 
 6. **Parents of an older store** (`test_parents_of_before`): parents written
    with an id of `NAME_MAX` and an id holding `^` (a create refuses both now).

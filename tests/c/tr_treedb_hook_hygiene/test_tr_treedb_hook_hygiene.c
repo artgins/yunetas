@@ -426,6 +426,12 @@ PRIVATE int test_failed_open_no_desc_leak(
  *       undecodable; an id of NAME_MAX made refs that were cut in silence.
  *       Both are refused at create.
  *    7. A ref whose part is too long for the decode was cut in silence.
+ *   10. A child whose id cannot make a ref (it holds '^', or two '^' in
+ *       a dict hook, or it is 255 bytes long; `users` has no hooks, so
+ *       it keeps such an id) was not counted as a down link: a delete
+ *       without `force` deleted its parent and left the child's fkey
+ *       naming a node that is gone. A forced delete did not unlink it
+ *       either, and the `refs` option left it out of the list.
  ***************************************************************************/
 static char schema_ids[]= "\
 {                                                                   \n\
@@ -464,6 +470,162 @@ static char schema_ids[]= "\
     ]                                                               \n\
 }                                                                   \n\
 ";
+
+/***************************************************************************
+ *  Does the hook `hook` of `parent` hold `child`? (list or dict hook)
+ ***************************************************************************/
+PRIVATE BOOL hook_holds(json_t *parent, const char *hook, json_t *child)
+{
+    json_t *hook_data = json_object_get(parent, hook);
+    if(json_is_object(hook_data)) {
+        return json_object_get(hook_data, json_string_value(json_object_get(child, "id"))) == child;
+    }
+    size_t idx; json_t *entry;
+    json_array_foreach(hook_data, idx, entry) {
+        if(entry == child) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Does the fkey `fkey` of `child` hold the ref `ref`? (string or list)
+ ***************************************************************************/
+PRIVATE BOOL fkey_holds(json_t *child, const char *fkey, const char *ref)
+{
+    json_t *value = json_object_get(child, fkey);
+    if(json_is_string(value)) {
+        return strcmp(json_string_value(value), ref)==0;
+    }
+    return json_list_str_index(value, ref, FALSE) >= 0;
+}
+
+/***************************************************************************
+ *  10. Children whose id cannot make a ref. `users` has no hooks, so it
+ *  keeps any id; such a child hangs from its parent like any other.
+ ***************************************************************************/
+PRIVATE int test_children_without_ref(
+    json_t *tranger,
+    const char *treedb_name,
+    const char *long_id     // NAME_MAX bytes: the longest a key can be
+)
+{
+    int result = 0;
+    struct {
+        const char *parent_id;
+        const char *hook;
+        const char *child_id;
+        const char *fkey;
+    } cases[] = {
+        {"P1", "members", "u^1",    "owner"},   // u^1 was created in 6
+        {"P2", "tagged",  "a^b^c",  "tags"},    // a dict hook skipped a key with two '^'
+        {"P3", "members", long_id,  "owner"}
+    };
+    size_t n = sizeof(cases)/sizeof(cases[0]);
+    char ref[3*NAME_MAX];
+
+    const char *test = "children whose id cannot make a ref: setup";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    for(size_t i = 0; i < n; i++) {
+        json_t *parent = treedb_create_node(tranger, treedb_name, "owners",
+            json_pack("{s:s}", "id", cases[i].parent_id));
+        json_t *child = treedb_get_node(tranger, treedb_name, "users", cases[i].child_id);
+        if(!child) {
+            child = treedb_create_node(tranger, treedb_name, "users",
+                json_pack("{s:s}", "id", cases[i].child_id));
+        }
+        if(!parent || !child || treedb_link_nodes(tranger, cases[i].hook, parent, child) < 0) {
+            printf("%s  FAIL: %s: %s cannot hang from %s%s\n",
+                On_Red BWhite, test, cases[i].child_id, cases[i].parent_id, Color_Off);
+            result += -1;
+        }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A delete without force is refused, and nothing moves
+     */
+    test = "a delete without force refuses a parent whose child cannot make a ref";
+    set_expected_results(test,
+        json_pack("[{s:s}, {s:s}, {s:s}]",
+            "msg", "Cannot delete node: has down links",
+            "msg", "Cannot delete node: has down links",
+            "msg", "Cannot delete node: has down links"
+        ),
+        NULL, NULL, 1
+    );
+    for(size_t i = 0; i < n; i++) {
+        json_t *parent = treedb_get_node(tranger, treedb_name, "owners", cases[i].parent_id);
+        if(!parent || treedb_delete_node(tranger, parent, json_object()) >= 0) {
+            printf("%s  FAIL: %s: the delete of %s answered success%s\n",
+                On_Red BWhite, test, cases[i].parent_id, Color_Off);
+            result += -1;
+        }
+        parent = treedb_get_node(tranger, treedb_name, "owners", cases[i].parent_id);
+        json_t *child = treedb_get_node(tranger, treedb_name, "users", cases[i].child_id);
+        snprintf(ref, sizeof(ref), "owners^%s^%s", cases[i].parent_id, cases[i].hook);
+        if(!parent || !child ||
+                !hook_holds(parent, cases[i].hook, child) ||
+                !fkey_holds(child, cases[i].fkey, ref)) {
+            printf("%s  FAIL: %s: %s no longer hangs from %s%s\n",
+                On_Red BWhite, test, cases[i].child_id, cases[i].parent_id, Color_Off);
+            result += -1;
+        }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  The refs option lists them
+     */
+    test = "the refs option lists a child whose id cannot make a ref";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    for(size_t i = 0; i < n; i++) {
+        json_t *parent = treedb_get_node(tranger, treedb_name, "owners", cases[i].parent_id);
+        if(!parent) {
+            printf("%s  FAIL: %s: %s is gone%s\n",
+                On_Red BWhite, test, cases[i].parent_id, Color_Off);
+            result += -1;
+            continue;
+        }
+        json_t *view = node_collapsed_view(tranger, parent, json_pack("{s:b}", "refs", 1));
+        json_t *refs = json_object_get(view, cases[i].hook);
+        const char *listed = json_string_value(json_array_get(refs, 0));
+        snprintf(ref, sizeof(ref), "users^%s", cases[i].child_id);
+        if(json_array_size(refs) != 1 || !listed || strcmp(listed, ref)!=0) {
+            printf("%s  FAIL: %s: %s lists %d refs, not %s%s\n",
+                On_Red BWhite, test, cases[i].parent_id, (int)json_array_size(refs),
+                cases[i].child_id, Color_Off);
+            result += -1;
+        }
+        JSON_DECREF(view)
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A forced delete unlinks them
+     */
+    test = "a forced delete unlinks a child whose id cannot make a ref";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    for(size_t i = 0; i < n; i++) {
+        json_t *parent = treedb_get_node(tranger, treedb_name, "owners", cases[i].parent_id);
+        if(!parent || treedb_delete_node(tranger, parent, json_pack("{s:b}", "force", 1)) < 0) {
+            printf("%s  FAIL: %s: the forced delete of %s failed%s\n",
+                On_Red BWhite, test, cases[i].parent_id, Color_Off);
+            result += -1;
+        }
+        json_t *child = treedb_get_node(tranger, treedb_name, "users", cases[i].child_id);
+        if(treedb_get_node(tranger, treedb_name, "owners", cases[i].parent_id) ||
+                !child || !empty_json(json_object_get(child, cases[i].fkey))) {
+            printf("%s  FAIL: %s: %s still names %s%s\n",
+                On_Red BWhite, test, cases[i].child_id, cases[i].parent_id, Color_Off);
+            result += -1;
+        }
+    }
+    result += test_json(NULL);
+
+    return result;
+}
 
 PRIVATE int test_ids_and_refs(json_t *tranger)
 {
@@ -589,6 +751,8 @@ PRIVATE int test_ids_and_refs(json_t *tranger)
         result += -1;
     }
     result += test_json(NULL);
+
+    result += test_children_without_ref(tranger, treedb_name, long_id);
 
     json_check_refcounts(tranger, 1000, &result);
     treedb_close_db(tranger, treedb_name);

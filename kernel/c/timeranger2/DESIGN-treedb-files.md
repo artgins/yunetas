@@ -1016,7 +1016,7 @@ second half:
   deleted row leaves every treedb's index, or the other one keeps answering a
   row that is not on disk. And the derived hooks are seeded into — and taken
   from — every treedb's copies, not the deriving treedb's only: the desc is
-  shared, `get_node_down_refs()` walks it and expects each field in the node,
+  shared, `count_node_children()` walks it and expects each field in the node,
   and the first delete of a copy that lacked the other treedb's hook said
   *"field not found in the node"*. Test 12. What is NOT done: an asset stored
   from one treedb is not in the other's index until it reopens, so the other
