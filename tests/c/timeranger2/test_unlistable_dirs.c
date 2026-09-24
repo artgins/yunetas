@@ -23,6 +23,20 @@
  *      3. `keys/` that cannot be listed at the open: the topic opened with
  *         no keys. Now the topic is not opened; the next open tries again.
  *
+ *      4. A REPLICA that opened a key it could not list, while a feed of
+ *         it is open: once the directory can be listed again, the next
+ *         notification of the master's append lists the key again, hands
+ *         the feed the new row (with its rowid in the whole key), and the
+ *         replica reads the whole key. Up to this fix the key stayed
+ *         flagged until the topic was opened again (and before the flag,
+ *         the notified file alone was counted as the whole key).
+ *
+ *      5. A load tries the flags again: a replica with a key it could not
+ *         list and a md2 it could not read (mode 0 both) reads both keys
+ *         whole once the modes are put back, with no append at all. While
+ *         the cause is there the load only says load_failed, and logs
+ *         nothing more (the flags are not tried again at every load).
+ *
  *  The directories are made unlistable with chmod 0: skipped as root.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -443,6 +457,160 @@ PRIVATE int test_keys_unlistable_at_open(void)
     return result;
 }
 
+/*
+ *  A tranger that follows the disk (its rt_disk feeds need the loop)
+ */
+PRIVATE json_t *startup_with_loop(BOOL master)
+{
+    return tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i, s:s}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", master? 1: 0,
+        "on_critical_error", LOG_OPT_TRACE_STACK,
+        "filename_mask", "%Y-%m-%d"
+    ), yev_loop);
+}
+
+PRIVATE int feed_rows = 0;
+PRIVATE json_int_t feed_last_rowid = 0;
+PRIVATE int feed_last_v = 0;
+
+PRIVATE int on_feed_record(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    if(strcmp(key, "A") == 0) {
+        feed_rows++;
+        feed_last_rowid = rowid;
+        feed_last_v = (int)kw_get_int(0, record, "v", 0, 0);
+    }
+    JSON_DECREF(record)
+    return 0;
+}
+
+/***************************************************************************
+ *  4. A replica: the notification of an append lists the key again
+ ***************************************************************************/
+PRIVATE int test_replica_notification(void)
+{
+    int result = 0;
+    if(build_store() < 0) {
+        return -1;
+    }
+    char key_dir[PATH_MAX];
+    dir_of(key_dir, sizeof(key_dir), "A");
+
+    set_expected_results("4. a replica opens with the key A unlistable", json_pack("[{s:s},{s:s}]",
+        "msg", MSG_OPENDIR,
+        "msg", MSG_UNLISTED
+    ), NULL, NULL, 1);
+    json_t *master = startup_with_loop(TRUE);
+    tranger2_open_topic(master, TOPIC_NAME, FALSE);
+    chmod(key_dir, 0);
+    json_t *replica = startup_with_loop(FALSE);
+    json_t *topic = tranger2_open_topic(replica, TOPIC_NAME, FALSE);
+    json_t *feed = tranger2_open_rt_disk(
+        replica, TOPIC_NAME, "", NULL, on_feed_record, "rtALL", "test", NULL
+    );
+    chmod(key_dir, 02770);
+    if(!topic || !feed) {
+        printf("%sERROR%s --> 4. the replica or its feed did not open\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    set_expected_results("4. the notification of an append lists the key again", json_pack("[{s:s}]",
+        "msg", MSG_RELISTED
+    ), NULL, NULL, 1);
+    feed_rows = 0;
+    append(master, "A", 3, DAY1 + 3*DAY, 4);
+    for(int i = 0; i < 50 && feed_rows == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(feed_rows != 1 || feed_last_v != 4 || feed_last_rowid != 4) {
+        printf("%sERROR%s --> 4. the feed got %d row(s), the last v=%d rowid=%d; expected 1, v=4, rowid=4\n",
+            On_Red BWhite, Color_Off, feed_rows, feed_last_v, (int)feed_last_rowid);
+        result += -1;
+    }
+    result += check_iterator(replica, "4. the replica reads the whole key", "A", NULL,
+        "A@1 A@2 A@3 A@4", FALSE);
+    result += test_json(NULL);
+
+    set_expected_results("4. shutdown", NULL, NULL, NULL, 1);
+    tranger2_close_rt_disk(replica, feed);
+    tranger2_shutdown(replica);
+    tranger2_shutdown(master);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  5. A load tries the flags again once their cause is gone
+ ***************************************************************************/
+PRIVATE int test_load_retries_flags(void)
+{
+    int result = 0;
+    if(build_store() < 0) {
+        return -1;
+    }
+    char key_dir[PATH_MAX];
+    dir_of(key_dir, sizeof(key_dir), "A");
+    char md2_b[PATH_MAX];
+    build_path(md2_b, sizeof(md2_b), path_database, TOPIC_NAME, "keys", "B", "2000-01-01.md2", NULL);
+    struct stat st;
+    stat(md2_b, &st);
+
+    set_expected_results("5. a replica opens with A unlistable and B's md2 unreadable",
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", MSG_OPENDIR,
+            "msg", MSG_UNLISTED,
+            "msg", "Cannot open md2 file",
+            "msg", "md2 file of the key unreadable when its cache was built: every load of the key says load_failed"
+        ), NULL, NULL, 1);
+    chmod(key_dir, 0);
+    chmod(md2_b, 0);
+    json_t *replica = startup_with_loop(FALSE);
+    tranger2_open_topic(replica, TOPIC_NAME, FALSE);
+    result += test_json(NULL);
+
+    set_expected_results("5. while the cause is there, a load says load_failed and nothing more",
+        json_pack("[{s:s},{s:s}]",
+            "msg", MSG_ITER,
+            "msg", "The history of the key is not whole: a md2 file of it could not be read when its cache was built"
+        ), NULL, NULL, 1);
+    result += check_iterator(replica, "5. A, still unlistable", "A", NULL, "", TRUE);
+    result += check_iterator(replica, "5. B, still unreadable", "B", NULL, "", TRUE);
+    result += test_json(NULL);
+
+    set_expected_results("5. the modes put back: the loads read both keys whole",
+        json_pack("[{s:s},{s:s}]",
+            "msg", MSG_RELISTED,
+            "msg", "md2 file of the key readable again: it is counted, and the key is not flagged for it"
+        ), NULL, NULL, 1);
+    chmod(key_dir, 02770);
+    chmod(md2_b, st.st_mode & 07777);
+    result += check_iterator(replica, "5. A, listable again", "A", NULL, "A@1 A@2 A@3", FALSE);
+    result += check_iterator(replica, "5. B, readable again", "B", NULL, "B@1", FALSE);
+    tranger2_shutdown(replica);
+    result += test_json(NULL);
+    return result;
+}
+
 /***************************************************************************
  *  do_test
  ***************************************************************************/
@@ -460,6 +628,8 @@ PRIVATE int do_test(void)
     result += test_mark_unlistable();
     result += test_key_unlistable_at_open();
     result += test_keys_unlistable_at_open();
+    result += test_replica_notification();
+    result += test_load_retries_flags();
 
     rmrdir(path_database);
     return result;

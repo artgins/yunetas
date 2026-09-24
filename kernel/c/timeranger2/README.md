@@ -241,7 +241,14 @@ the key says `load_failed`, and a load stops where the first such file is in
 its direction. Up to 7.25.4 the cache build dropped such a file and nothing
 failed. `tranger2_delete_key()` clears the flag with the key, and so does a
 cell that counts the file again (an append into it that finds it readable; a
-follower that reads it whole). `tests/c/timeranger2/test_unreadable_at_open.c`.
+follower that reads it whole; a load of the key, once the file changed since it
+was flagged or opens again). A key whose DIRECTORY could not be listed is
+flagged whole (`"unlisted"`), and is listed again by an append (master), by
+the notification of an append (replica, whose feed then gets the new rows with
+their rowids in the whole key) and by a load, once the directory opens. A flag
+whose cause looks unchanged is not tried again: a load does not re-read and
+re-log a damaged file. `tests/c/timeranger2/test_unreadable_at_open.c`,
+`test_unlistable_dirs.c`.
 
 A `.md2` of 0 rows gets no cell and flags nothing. With a `.json` that is not
 empty it is what an append never acknowledged leaves -- the content is written

@@ -284,7 +284,26 @@ PRIVATE int count_flagged_file_again(
     const char *key,
     const char *file_id
 );
+PRIVATE int recount_flagged_file(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *file_id
+);
 PRIVATE int relist_key_before_append(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+);
+PRIVATE int relist_key(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+);
+PRIVATE void retry_key_flags(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -6731,6 +6750,43 @@ PRIVATE json_int_t update_new_records_from_disk(
     if(ext) {
         *ext = 0;
     }
+    /*
+     *  A key whose directory could not be listed has no cell: the cell of
+     *  this file alone would count its rows as the first of the key, and
+     *  publish them with rowids that belong to older rows. The key is
+     *  listed again first; while it cannot be listed, nothing is read.
+     *  Listed, the cell of THIS file is left out of the cache built again:
+     *  its rows, which nobody was handed, are counted and published below
+     *  as new ones. The rows of the other files are history, for a load.
+     */
+    json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
+    if(json_object_get(key_cache, "unlisted")) {
+        if(relist_key(gobj, tranger, topic, key) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "New records of the key not read: its directory cannot be listed",
+                "topic_name",   "%s", tranger2_topic_name(topic),
+                "key",          "%s", key,
+                "filename",     "%s", filename,
+                NULL
+            );
+            return -1;
+        }
+        json_t *cache_files = json_object_get(
+            json_object_get(json_object_get(topic, "cache"), key), "files"
+        );
+        int idx; json_t *cell;
+        json_array_foreach(cache_files, idx, cell) {
+            const char *cell_id = json_string_value(json_object_get(cell, "id"));
+            if(cell_id && strcmp(cell_id, file_id_) == 0) {
+                json_array_remove(cache_files, (size_t)idx);
+                update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
+                break;
+            }
+        }
+    }
+
     json_int_t file_base = 0;
     int insert_idx = 0;
     json_t *cur_cache_cell = find_cache_cell(
@@ -7494,6 +7550,122 @@ PRIVATE json_t *find_cell_in_key_cache(
 }
 
 /***************************************************************************
+ *  Path of the md2 file of a key. FALSE (logged) when it does not fit.
+ ***************************************************************************/
+PRIVATE BOOL md2_path_of(
+    char *bf,
+    size_t bfsize,
+    const char *topic_directory,
+    const char *key,
+    const char *file_id
+)
+{
+    char name[NAME_MAX + 8];
+    snprintf(name, sizeof(name), "%s.md2", file_id);
+    return build_path(bf, bfsize, topic_directory, "keys", key, name, NULL)? TRUE: FALSE;
+}
+
+/***************************************************************************
+ *  What a flagged file looked like when it was flagged:
+ *  key_cache["unreadable_state"][file_id] = {open_failed, ctime, size}.
+ *  A load tries a flag again only when that changed (flag_cause_gone):
+ *  otherwise every load of the key read a damaged file again, and logged
+ *  its damage again.
+ ***************************************************************************/
+PRIVATE void note_flag_state(
+    json_t *key_cache,
+    const char *topic_directory,
+    const char *key,
+    const char *file_id
+)
+{
+    char path[PATH_MAX];
+    if(!md2_path_of(path, sizeof(path), topic_directory, key, file_id)) {
+        return; // Error already logged
+    }
+    json_t *state = json_object();
+    int fd = open(path, O_RDONLY|O_CLOEXEC);
+    if(fd < 0) {
+        json_object_set_new(state, "open_failed", json_true());
+    } else {
+        close(fd);
+    }
+    struct stat st;
+    if(stat(path, &st) == 0) {
+        json_object_set_new(state, "ctime",
+            json_integer((json_int_t)st.st_ctim.tv_sec * 1000000000LL + st.st_ctim.tv_nsec));
+        json_object_set_new(state, "size", json_integer((json_int_t)st.st_size));
+    }
+    json_t *states = json_object_get(key_cache, "unreadable_state");
+    if(!states) {
+        states = json_object();
+        json_object_set_new(key_cache, "unreadable_state", states);
+    }
+    json_object_set_new(states, file_id, state);
+}
+
+/***************************************************************************
+ *  TRUE when the cause of a file's flag may be gone: the file changed
+ *  since it was flagged (its mode, its content: ctime or size), or it
+ *  could not be opened then and can be opened now (EMFILE, EACCES).
+ *  Silent: a file that looks as it did is not read again.
+ ***************************************************************************/
+PRIVATE BOOL flag_cause_gone(
+    json_t *topic,
+    const char *key,
+    const char *file_id
+)
+{
+    const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
+    json_t *state = json_object_get(
+        json_object_get(json_object_get(json_object_get(topic, "cache"), key), "unreadable_state"),
+        file_id
+    );
+    if(!state) {
+        return TRUE;    // nothing noted: try
+    }
+    char path[PATH_MAX];
+    if(!md2_path_of(path, sizeof(path), topic_directory, key, file_id)) {
+        return FALSE;   // Error already logged
+    }
+    struct stat st;
+    if(stat(path, &st) < 0) {
+        return FALSE;   // not reachable now either
+    }
+    json_int_t ctime_ns = (json_int_t)st.st_ctim.tv_sec * 1000000000LL + st.st_ctim.tv_nsec;
+    if(ctime_ns != json_integer_value(json_object_get(state, "ctime")) ||
+            (json_int_t)st.st_size != json_integer_value(json_object_get(state, "size"))) {
+        return TRUE;
+    }
+    if(json_is_true(json_object_get(state, "open_failed"))) {
+        int fd = open(path, O_RDONLY|O_CLOEXEC);
+        if(fd >= 0) {
+            close(fd);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  TRUE when the directory of a key can be opened now. Silent.
+ ***************************************************************************/
+PRIVATE BOOL key_dir_opens(json_t *topic, const char *key)
+{
+    const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
+    char path[PATH_MAX];
+    if(!build_path(path, sizeof(path), topic_directory, "keys", key, NULL)) {
+        return FALSE;   // Error already logged
+    }
+    DIR *dir = opendir(path);
+    if(!dir) {
+        return FALSE;
+    }
+    closedir(dir);
+    return TRUE;
+}
+
+/***************************************************************************
  *  A md2 file of the key that the cache build cannot count: the key is
  *  flagged, `"unreadable": [file_id, ...]` in its cache, sorted like the
  *  cells. Its rows are in no cell, and every load of the key says
@@ -7524,6 +7696,7 @@ PRIVATE void flag_key_unreadable(
         json_object_set_new(key_cache, "unreadable", unreadable);
     }
     json_array_append_new(unreadable, json_string(file_id));
+    note_flag_state(key_cache, topic_directory, key, file_id);
 }
 
 /***************************************************************************
@@ -7591,6 +7764,10 @@ PRIVATE void unflag_file_readable_again(
     json_array_remove(unreadable, (size_t)idx);
     if(json_array_size(unreadable) == 0) {
         json_object_del(key_cache, "unreadable");
+    }
+    json_object_del(json_object_get(key_cache, "unreadable_state"), file_id);
+    if(json_object_size(json_object_get(key_cache, "unreadable_state")) == 0) {
+        json_object_del(key_cache, "unreadable_state");
     }
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
@@ -7661,6 +7838,9 @@ PRIVATE void flag_file_unreadable_at_append(
         }
         json_array_insert_new(unreadable, insert_idx, json_string(file_id));
     }
+    note_flag_state(
+        key_cache, json_string_value(json_object_get(topic, "directory")), key, file_id
+    );
 
     if(had_cell) {
         update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
@@ -7669,14 +7849,13 @@ PRIVATE void flag_file_unreadable_at_append(
 }
 
 /***************************************************************************
- *  An append into a file the cache build flagged: its rows are in no cell,
- *  and a row appended after them would be counted as the file's first --
- *  a load read one of the OLD rows in its place. The file is counted
- *  again first: if it can be read now, it gets its cell and loses its flag
- *  (the append goes on); if not, the append is refused.
- *  Return 0 when the append can go on, -1 (logged) when not.
+ *  A file the cache build (or an append) flagged unreadable is counted
+ *  again: if it can be read now, it gets its cell and loses its flag, and
+ *  the iterators of the key take their segments again. Return 0 when the
+ *  file is counted (or was not flagged), -1 (logged) when it still cannot
+ *  be read: it stays flagged.
  ***************************************************************************/
-PRIVATE int count_flagged_file_again(
+PRIVATE int recount_flagged_file(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -7713,16 +7892,7 @@ PRIVATE int count_flagged_file_again(
         json_is_true(json_object_get(tranger, "master"))
     );
     if(!cache_cell) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TRANGER,
-            "msg",          "%s", "Cannot append record, its file is flagged unreadable: its row would follow rows no cell counts",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            "file_id",      "%s", file_id,
-            NULL
-        );
-        return -1;
+        return -1;  // Error already logged, the file is still flagged
     }
 
     if(json_integer_value(json_object_get(cache_cell, "rows")) > 0) {
@@ -7743,6 +7913,129 @@ PRIVATE int count_flagged_file_again(
 }
 
 /***************************************************************************
+ *  An append into a file the cache build flagged: its rows are in no cell,
+ *  and a row appended after them would be counted as the file's first --
+ *  a load read one of the OLD rows in its place. The file is counted
+ *  again first: if it can be read now, it gets its cell and loses its flag
+ *  (the append goes on); if not, the append is refused.
+ *  Return 0 when the append can go on, -1 (logged) when not.
+ ***************************************************************************/
+PRIVATE int count_flagged_file_again(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *file_id
+)
+{
+    if(recount_flagged_file(gobj, tranger, topic, key, file_id) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Cannot append record, its file is flagged unreadable: its row would follow rows no cell counts",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "file_id",      "%s", file_id,
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  A key flagged unlisted (flag_key_unlisted) is listed again: if its
+ *  directory can be listed now, its cache is built again from the disk
+ *  (with the flags of the files that still cannot be read) and replaces
+ *  the flagged one, and the iterators of the key take their segments again.
+ *  Return 0 when listed, -1 (logged) when it still cannot be listed: the
+ *  key stays flagged.
+ ***************************************************************************/
+PRIVATE int relist_key(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+)
+{
+    const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
+    json_t *key_cache = load_key_cache_from_disk(
+        gobj, topic_directory, key, json_is_true(json_object_get(tranger, "master"))
+    );
+    if(json_is_true(json_object_get(key_cache, "unlisted"))) {
+        JSON_DECREF(key_cache)
+        return -1;  // Error already logged
+    }
+
+    json_object_set_new(json_object_get(topic, "cache"), key, key_cache);
+    update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
+    retake_segments_of_key(gobj, tranger, topic, key);
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "key directory listed again: its files are counted, and the key is not flagged",
+        "topic",        "%s", tranger2_topic_name(topic),
+        "key",          "%s", key,
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
+ *  A load of a key flagged unlisted, or with files flagged unreadable,
+ *  tries the flags again first: a cause that is gone (the mode of a
+ *  directory or a file put back, a descriptor free again) must not keep
+ *  every load of the key failing until the topic is opened again. On a
+ *  replica nothing else would ever try: only the appends of a master and
+ *  the notifications of the file that changed count a flagged file again.
+ *  What still cannot be read stays flagged, and the load says load_failed.
+ *  A flag is tried only when its cause may be gone (key_dir_opens,
+ *  flag_cause_gone): a load does not read a damaged file, and log its
+ *  damage, again and again.
+ ***************************************************************************/
+PRIVATE void retry_key_flags(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+)
+{
+    json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
+    if(json_object_get(key_cache, "unlisted")) {
+        if(!key_dir_opens(topic, key)) {
+            return; // still cannot be opened: the load says load_failed
+        }
+        if(relist_key(gobj, tranger, topic, key) < 0) {
+            return; // Error already logged, the key stays flagged
+        }
+        key_cache = json_object_get(json_object_get(topic, "cache"), key);
+    }
+
+    json_t *unreadable = json_object_get(key_cache, "unreadable");
+    if(json_array_size(unreadable) == 0) {
+        return;
+    }
+    json_t *file_ids = json_deep_copy(unreadable);  // the flags go as the files are counted
+    int idx; json_t *jn_file_id;
+    json_array_foreach(file_ids, idx, jn_file_id) {
+        const char *file_id = json_string_value(jn_file_id);
+        if(!file_id || !flag_cause_gone(topic, key, file_id)) {
+            continue;   // looks as when it was flagged: not read again
+        }
+        if(recount_flagged_file(gobj, tranger, topic, key, file_id) < 0) {
+            // Error already logged: flagged still, as it looks now
+            note_flag_state(
+                json_object_get(json_object_get(topic, "cache"), key),
+                json_string_value(json_object_get(topic, "directory")),
+                key,
+                file_id
+            );
+        }
+    }
+    JSON_DECREF(file_ids)
+}
+
+/***************************************************************************
  *  An append into a key flagged unlisted (flag_key_unlisted): none of its
  *  files is in a cell, and a row appended now would be counted as the
  *  first of its file -- a load read one of the OLD rows in its place. The
@@ -7758,12 +8051,7 @@ PRIVATE int relist_key_before_append(
     const char *key
 )
 {
-    const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
-    json_t *key_cache = load_key_cache_from_disk(
-        gobj, topic_directory, key, json_is_true(json_object_get(tranger, "master"))
-    );
-    if(json_is_true(json_object_get(key_cache, "unlisted"))) {
-        JSON_DECREF(key_cache)
+    if(relist_key(gobj, tranger, topic, key) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TRANGER,
@@ -7774,18 +8062,6 @@ PRIVATE int relist_key_before_append(
         );
         return -1;
     }
-
-    json_object_set_new(json_object_get(topic, "cache"), key, key_cache);
-    update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
-    retake_segments_of_key(gobj, tranger, topic, key);
-    gobj_log_info(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INFO,
-        "msg",          "%s", "key directory listed again: its files are counted, and the key is not flagged",
-        "topic",        "%s", tranger2_topic_name(topic),
-        "key",          "%s", key,
-        NULL
-    );
     return 0;
 }
 
@@ -9863,6 +10139,15 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         JSON_DECREF(match_cond)
         JSON_DECREF(extra)
         return NULL;
+    }
+
+    /*
+     *  A flag whose cause is gone goes before the load (retry_key_flags)
+     */
+    json_t *key_cache_ = json_object_get(json_object_get(topic, "cache"), key);
+    if(json_object_get(key_cache_, "unlisted") ||
+            json_array_size(json_object_get(key_cache_, "unreadable")) > 0) {
+        retry_key_flags(gobj, tranger, topic, key);
     }
 
     BOOL realtime;

@@ -1561,6 +1561,39 @@ iterator of A              -> every row of A, the new one last, load_failed fals
 When `keys/` itself cannot be listed, no key can be flagged by name: the topic
 is not opened (see [`tranger2_open_topic()`](#tranger2_open_topic)).
 
+**A flag goes when its cause goes, on a replica too.** A flag is not kept
+until the topic is opened again:
+
+- **A load tries the flags again first.** `tranger2_open_iterator()` (and so
+  `tranger2_open_list()`) of a flagged key lists the key again when its
+  directory opens now, and counts a flagged `.md2` again when it changed
+  since it was flagged (its mode or its content: `ctime` or size) or could
+  not be opened then and opens now. A flag whose file looks as it did is not
+  tried: a damaged file is not read, and its damage not logged, at every
+  load. What still cannot be read stays flagged, and the load says
+  `load_failed` with nothing more in the log.
+- **A replica's notification lists the key again.** When the master appends
+  to a key the replica could not list, the notification of the new row
+  (an `rt_disk` feed) lists the key first. The rows of the notified file,
+  which nobody was handed, are published to the feeds with their rowids in
+  the WHOLE key; the rows of the key's other files are history, for a load.
+  While the directory still cannot be listed, nothing is read (*"New
+  records of the key not read: its directory cannot be listed"*).
+- A master's append counts a flagged file, and lists an unlisted key, before
+  it writes (see above).
+
+```text
+replica opens, keys/A of mode 0000     -> A flagged unlisted, feed "rtALL" open
+chmod 02770 keys/A; the master appends A (its 4th row)
+replica, at the notification           -> INFO key directory listed again,
+                                          rtALL gets the row, rowid 4
+replica: iterator of A                 -> A@1 A@2 A@3 A@4, load_failed false
+```
+
+Up to this release the notification counted the notified file alone as the
+whole key (the feed got rowid 1 for the key's 4th row), and a flag stayed until
+the topic was opened again.
+
 A `.md2` of 0 rows gets no cell and flags nothing. With an EMPTY `.json` it
 loses nothing. With a `.json` that is NOT empty it is what an append that was
 never acknowledged leaves (the content is written first, the md2 row after,
@@ -1740,7 +1773,9 @@ every load, and nothing failed.
 
 The flag of a file goes once a cell counts it again: an append into the file
 that finds it readable (see [`tranger2_append_record()`](#tranger2_append_record)),
-or, on a follower, the file read whole from the disk after the master wrote it.
+on a follower the file read whole from the disk after the master wrote it, or a
+load of the key once the file changed or opens again (see *A flag goes when its
+cause goes* below).
 [`tranger2_delete_key()`](#tranger2_delete_key) clears every flag with the key.
 Up to 7.25.4 the cache build dropped an unreadable file and nothing failed: the
 key read as a shorter key.
