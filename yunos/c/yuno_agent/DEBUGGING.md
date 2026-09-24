@@ -612,8 +612,26 @@ nearest first:
   depth, to `name=value` in any string (quoted or not, with blanks around the
   `=`), to the command carried by `command-yuno`, and to `"name": value` in a
   JSON given as text. The name of a JSON key is read with its escapes:
-  `"pass\u0077ord"` is `password`. Up to 7.25.4 `check-user-pwd` and
-  `set-user-pwd` wrote the password in clear text. For example:
+  `"pass\u0077ord"` is `password`. A JSON text given inside a JSON text (a
+  treedb column that holds JSON text, for example) has its quotes escaped, and
+  it is redacted too, at any depth up to 8 levels: a quoted run that holds a
+  backslash is scanned again with its escapes decoded. The redacted run is
+  written back with its escapes, so the record still holds the same JSON text:
+
+  ```text
+  update-node topic_name=x content='{"cfg":"{\"password\":\"hunter2\",\"n\":1}"}'
+  ```
+
+  is recorded as
+
+  ```text
+  update-node topic_name=x content='{"cfg":"{\"password\":\"<redacted>\",\"n\":1}"}'
+  ```
+
+  Deeper than 8 levels, a quoted run with a backslash is not written, only its
+  size and sha256 (`<N bytes, not scanned, sha256:HEX>`). Up to 7.25.4
+  `check-user-pwd` and `set-user-pwd` wrote the password in clear text. For
+  example:
 
   ```json
   {"command":"set-user-pwd username=bob password=<redacted>","date":"…","user":"yuneta",
@@ -631,8 +649,10 @@ nearest first:
   `command-yuno` runs in another yuno, whose table the agent does not have: it
   is compared in lower case.
 - **A text that is hard to scan costs no more than its size.** The scan of a
-  string is one pass, in linear time, without recursion: the audit runs
-  before the parser and the authz, on the text that any peer sends. One
+  string is one pass, in linear time: the audit runs before the parser and
+  the authz, on the text that any peer sends. The only recursion is one level
+  for each level of JSON text inside JSON text (at most 8), and each level
+  counts against the same budget. One
   record scans at most 128 MB: a string beyond it is not scanned and
   not written, only its size and its sha256 (and, for the command text, its
   first word before that):

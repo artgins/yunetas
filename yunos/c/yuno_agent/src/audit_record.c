@@ -52,12 +52,20 @@
  *            given as text) to `name=value` (quoted or not, blanks around
  *            the `=` as the command parser allows) and to `"name": value`
  *            (the name of a json key is read with its escapes: "\u0070"
- *            is "p").
+ *            is "p"). And inside a json text given inside a json text,
+ *            whose quotes are escaped ({"cfg":"{\"password\":\"x\"}"}),
+ *            at any depth up to MAX_ESCAPE_LEVELS: a quoted run with a
+ *            backslash is scanned again with its escapes decoded (see
+ *            scan_escaped_run()). Deeper, such a run is not written: its
+ *            size and sha256 only.
  *
- *          - The scan of a string is ONE pass, without recursion, in
- *            linear time: a value inside a quoted value is followed with a
- *            small stack of regions (MAX_REGIONS), and the key of a json
- *            member is the last string seen before its ':'. The audit
+ *          - The scan of a string is ONE pass, in linear time: a value
+ *            inside a quoted value is followed with a small stack of
+ *            regions (MAX_REGIONS), and the key of a json member is the
+ *            last string seen before its ':'. The only recursion is one
+ *            level for each level of escaped json (a quoted run with a
+ *            backslash, decoded), at most MAX_ESCAPE_LEVELS deep, each
+ *            level scanned in one pass and charged to the budget. The audit
  *            runs before the parser and the authz, on the text that any
  *            peer sends: a first version went one level of recursion
  *            deeper for each '=' in a run without blanks (O(n^2) time,
@@ -143,6 +151,13 @@
 #define MAX_REGIONS     16
 
 /*
+ *  Levels of a json text inside a json text (quotes escaped once more at
+ *  each level) that the scan decodes. A quoted run with a backslash below
+ *  the last level is not written: its size and sha256 only.
+ */
+#define MAX_ESCAPE_LEVELS   8
+
+/*
  *  Read-only commands, by name
  */
 PRIVATE const char *read_only_prefixes[] = {
@@ -225,6 +240,7 @@ typedef struct {
     BOOL tty;               // content64 of a console write: its size only
     BOOL value_is_secret;   // write-attr of a secret attribute: `value` is a secret
     size_t budget;          // bytes that can still be scanned for this record
+    int escape_level;       // the json text being scanned is inside this many quoted runs
 } redact_ctx_t;
 
 /*
@@ -252,12 +268,14 @@ typedef struct {
     const char *q_last;     // the last '"' not escaped, and the one before:
     const char *q_prev;     //   a json key is the string between them
     size_t backslashes;     // the run of '\' just before the current byte
+    const char *run_end;    // the closing '"' of the last quoted run looked at
 } scan_state_t;
 
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
 PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx);
+PRIVATE char *not_scanned_text(const char *text, size_t len);
 PRIVATE json_t *redacted_copy(json_t *jn, redact_ctx_t *ctx);
 
 /***************************************************************************
@@ -701,6 +719,117 @@ PRIVATE int hex_value(char c)
     return -1;
 }
 
+/*
+ *  The 4 hex digits of a \u at s[i] (s[i] is the 'u'), -1 if they are not
+ */
+PRIVATE int u_escape_code(const char *s, size_t len, size_t i)
+{
+    if(i + 4 >= len) {
+        return -1;
+    }
+    int code = 0;
+    for(int h=1; h<=4; h++) {
+        int v = hex_value(s[i+h]);
+        if(v < 0) {
+            return -1;
+        }
+        code = code*16 + v;
+    }
+    return code;
+}
+
+PRIVATE size_t put_utf8(char *out, unsigned code)
+{
+    if(code < 0x80) {
+        out[0] = (char)code;
+        return 1;
+    }
+    if(code < 0x800) {
+        out[0] = (char)(0xC0 | (code >> 6));
+        out[1] = (char)(0x80 | (code & 0x3F));
+        return 2;
+    }
+    if(code < 0x10000) {
+        out[0] = (char)(0xE0 | (code >> 12));
+        out[1] = (char)(0x80 | ((code >> 6) & 0x3F));
+        out[2] = (char)(0x80 | (code & 0x3F));
+        return 3;
+    }
+    out[0] = (char)(0xF0 | (code >> 18));
+    out[1] = (char)(0x80 | ((code >> 12) & 0x3F));
+    out[2] = (char)(0x80 | ((code >> 6) & 0x3F));
+    out[3] = (char)(0x80 | (code & 0x3F));
+    return 4;
+}
+
+#define REPLACEMENT_CHAR    0xFFFD
+
+/*
+ *  The text of a json string with its escapes decoded, leniently (it is
+ *  scanned, not validated): an unknown escape is the char itself, a \u
+ *  without 4 hex digits is "u", a code point that is not ASCII is written
+ *  in UTF-8, and a lone surrogate and \u0000 as U+FFFD (the text stays a
+ *  C string). `out` holds `len` + 1 bytes: a decoded text is never longer.
+ *  Return its length.
+ */
+PRIVATE size_t json_unescape(const char *s, size_t len, char *out)
+{
+    size_t n = 0;
+    for(size_t i=0; i<len; i++) {
+        char c = s[i];
+        if(c != '\\' || i + 1 >= len) {
+            out[n++] = c;
+            continue;
+        }
+        char e = s[++i];
+        switch(e) {
+            case 'b':
+                out[n++] = '\b';
+                break;
+            case 'f':
+                out[n++] = '\f';
+                break;
+            case 'n':
+                out[n++] = '\n';
+                break;
+            case 'r':
+                out[n++] = '\r';
+                break;
+            case 't':
+                out[n++] = '\t';
+                break;
+            case 'u':
+                {
+                    int code = u_escape_code(s, len, i);
+                    if(code < 0) {
+                        out[n++] = e;
+                        break;
+                    }
+                    i += 4;
+                    unsigned cp = (unsigned)code;
+                    if(cp >= 0xD800 && cp <= 0xDBFF && i + 2 < len &&
+                            s[i+1] == '\\' && s[i+2] == 'u') {
+                        int low = u_escape_code(s, len, i + 2);
+                        if(low >= 0xDC00 && low <= 0xDFFF) {
+                            cp = 0x10000 + ((cp - 0xD800) << 10) + ((unsigned)low - 0xDC00);
+                            i += 6;
+                        }
+                    }
+                    if(cp == 0 || (cp >= 0xD800 && cp <= 0xDFFF)) {
+                        cp = REPLACEMENT_CHAR;
+                    }
+                    n += put_utf8(out + n, cp);
+                }
+                break;
+            default:    // '"', '\\', '/' and anything else: the char itself
+                out[n++] = e;
+                break;
+        }
+    }
+    out[n] = 0;
+    return n;
+}
+
 PRIVATE key_kind_t json_key_kind(const char *key, size_t len, const redact_ctx_t *ctx)
 {
     if(!memchr(key, '\\', len)) {
@@ -711,55 +840,7 @@ PRIVATE key_kind_t json_key_kind(const char *key, size_t len, const redact_ctx_t
     if(!bf) {
         return KEY_SECRET;  // Error already logged. Never write what cannot be judged
     }
-    size_t n = 0;
-    for(size_t i=0; i<len; i++) {
-        char c = key[i];
-        if(c != '\\' || i + 1 >= len) {
-            bf[n++] = c;
-            continue;
-        }
-        char e = key[++i];
-        switch(e) {
-            case 'b':
-                bf[n++] = '\b';
-                break;
-            case 'f':
-                bf[n++] = '\f';
-                break;
-            case 'n':
-                bf[n++] = '\n';
-                break;
-            case 'r':
-                bf[n++] = '\r';
-                break;
-            case 't':
-                bf[n++] = '\t';
-                break;
-            case 'u':
-                {
-                    int code = 0;
-                    BOOL ok = (i + 4 < len)? TRUE: FALSE;
-                    for(int h=1; ok && h<=4; h++) {
-                        int v = hex_value(key[i+h]);
-                        if(v < 0) {
-                            ok = FALSE;
-                        } else {
-                            code = code*16 + v;
-                        }
-                    }
-                    if(ok) {
-                        bf[n++] = (code < 0x80)? (char)code: (char)0x80;
-                        i += 4;
-                    } else {
-                        bf[n++] = e;
-                    }
-                }
-                break;
-            default:    // '"', '\\', '/' and anything else: the char itself
-                bf[n++] = e;
-                break;
-        }
-    }
+    size_t n = json_unescape(key, len, bf);
     key_kind_t kind = key_kind(bf, n, ctx);
     gbmem_free(bf);
     return kind;
@@ -1273,7 +1354,124 @@ PRIVATE const char *scan_jwt(redact_scan_t *sc, scan_state_t *st, const char *p)
 }
 
 /***************************************************************************
- *  Scan the bytes [begin, end) of the text: one pass, no recursion
+ *  A quoted run at `q` (a '"' not escaped) that holds a backslash is
+ *  scanned again with its escapes decoded: a json text inside a json text
+ *  has its quotes escaped (\"password\":\"x\"), and the scan of this
+ *  level cannot tell a key there. The decoded text is redacted like any
+ *  string (redact_text(), within the budget), so a json text two or more
+ *  levels deep is decoded one level at a time. When something is
+ *  replaced, the run is written back as the redacted text with its
+ *  escapes; else the scan goes on inside the run, as before.
+ *
+ *  The run ends at the next '"' not escaped, in the region. It is the
+ *  run of a json string, or the text between two of them when the pairs
+ *  cannot be told (a quote that opened a value of the parser): decoding
+ *  that is harmless, it only ever redacts more. Each run is looked at
+ *  once (st->run_end): linear time at each level.
+ *
+ *  The levels are bounded (MAX_ESCAPE_LEVELS): a backslash at level N
+ *  costs 2^N bytes when written as "\\", but only N+1 more bytes each
+ *  with "\u005c", so the text alone does not bound them. Deeper than
+ *  that, a run with a backslash is not written (its size and sha256).
+ *  Return where the scan goes on, NULL to go on at `q` as before.
+ ***************************************************************************/
+PRIVATE void out_append_json_escaped(redact_scan_t *sc, const char *s, size_t len)
+{
+    const char *from = s;
+    const char *end = s + len;
+    for(const char *p = s; p < end; p++) {
+        unsigned char c = (unsigned char)*p;
+        if(c != '"' && c != '\\' && c >= 0x20) {
+            continue;
+        }
+        out_append(sc, from, (size_t)(p - from));
+        char esc[8];
+        switch(c) {
+            case '"':
+                snprintf(esc, sizeof(esc), "\\\"");
+                break;
+            case '\\':
+                snprintf(esc, sizeof(esc), "\\\\");
+                break;
+            case '\n':
+                snprintf(esc, sizeof(esc), "\\n");
+                break;
+            case '\r':
+                snprintf(esc, sizeof(esc), "\\r");
+                break;
+            case '\t':
+                snprintf(esc, sizeof(esc), "\\t");
+                break;
+            default:
+                snprintf(esc, sizeof(esc), "\\u%04x", c);
+                break;
+        }
+        out_append(sc, esc, strlen(esc));
+        from = p + 1;
+    }
+    out_append(sc, from, (size_t)(end - from));
+}
+
+PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const char *q)
+{
+    BOOL has_backslash = FALSE;
+    const char *e = q + 1;
+    while(e < st->hi && *e != '"') {
+        if(*e == '\\' && e + 1 < st->hi) {
+            has_backslash = TRUE;
+            e++;
+        } else if(*e == '\\') {
+            has_backslash = TRUE;
+        }
+        e++;
+    }
+    if(e >= st->hi) {
+        st->run_end = st->hi;   // never closed in the region
+        return NULL;
+    }
+    st->run_end = e;
+    if(!has_backslash) {
+        return NULL;
+    }
+
+    const char *v = q + 1;
+    size_t len = (size_t)(e - v);
+    char *redacted = NULL;
+    if(sc->ctx->escape_level >= MAX_ESCAPE_LEVELS) {
+        redacted = not_scanned_text(v, len);
+    } else {
+        char *decoded = gbmem_malloc(len + 1);
+        if(!decoded) {
+            // Error already logged. Never write what cannot be judged
+            redacted = gbmem_strdup("<not written: no memory to redact it>");
+        } else {
+            size_t n = json_unescape(v, len, decoded);
+            BOOL value_is_secret = sc->ctx->value_is_secret;
+            if(!value_is_secret && names_secret_attribute(decoded, n, NULL)) {
+                sc->ctx->value_is_secret = TRUE;
+            }
+            sc->ctx->escape_level++;
+            redacted = redact_text(decoded, n, sc->ctx);
+            sc->ctx->escape_level--;
+            sc->ctx->value_is_secret = value_is_secret;
+            gbmem_free(decoded);
+        }
+    }
+    if(!redacted) {
+        return NULL;    // Nothing to redact inside: the scan goes on in the run
+    }
+
+    out_append(sc, sc->from, (size_t)(v - sc->from));
+    out_append_json_escaped(sc, redacted, strlen(redacted));
+    sc->from = e;
+    gbmem_free(redacted);
+    forget_quotes(st);
+    return e + 1;
+}
+
+/***************************************************************************
+ *  Scan the bytes [begin, end) of the text: one pass (and one more over a
+ *  quoted run with escapes, see scan_escaped_run())
  ***************************************************************************/
 PRIVATE void scan_text(redact_scan_t *sc, const char *begin, const char *end)
 {
@@ -1284,6 +1482,7 @@ PRIVATE void scan_text(redact_scan_t *sc, const char *begin, const char *end)
     st.q_last = NULL;
     st.q_prev = NULL;
     st.backslashes = 0;
+    st.run_end = NULL;
 
     const char *p = begin;
     while(p < end) {
@@ -1307,6 +1506,8 @@ PRIVATE void scan_text(redact_scan_t *sc, const char *begin, const char *end)
             next = scan_bearer(sc, &st, p);
         } else if(c == 'e' && st.hi - p > 2 && p[1] == 'y' && p[2] == 'J') {
             next = scan_jwt(sc, &st, p);
+        } else if(c == '"' && (st.backslashes % 2) == 0 && (!st.run_end || p > st.run_end)) {
+            next = scan_escaped_run(sc, &st, p);
         }
         if(next) {
             p = next;
@@ -1327,17 +1528,22 @@ PRIVATE void scan_text(redact_scan_t *sc, const char *begin, const char *end)
  *  header). NULL if there is nothing to replace (use the text as it is).
  *  Free the result with gbmem_free().
  ***************************************************************************/
+PRIVATE char *not_scanned_text(const char *text, size_t len)
+{
+    char hex[SHA256_HEX_LEN + 1];
+    if(sha256_hex(text, len, hex, sizeof(hex)) < 0) {
+        snprintf(hex, sizeof(hex), "?");    // Error already logged
+    }
+    char bf[SHA256_HEX_LEN + 64];
+    snprintf(bf, sizeof(bf), "<%zu bytes, not scanned, sha256:%s>", len, hex);
+    return gbmem_strdup(bf);
+}
+
 PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx)
 {
     if(len > ctx->budget) {
         ctx->budget = 0;
-        char hex[SHA256_HEX_LEN + 1];
-        if(sha256_hex(text, len, hex, sizeof(hex)) < 0) {
-            snprintf(hex, sizeof(hex), "?");    // Error already logged
-        }
-        char bf[SHA256_HEX_LEN + 64];
-        snprintf(bf, sizeof(bf), "<%zu bytes, not scanned, sha256:%s>", len, hex);
-        return gbmem_strdup(bf);
+        return not_scanned_text(text, len);
     }
     ctx->budget -= len;
 

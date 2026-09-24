@@ -19,6 +19,8 @@
  *          - the command word is the one the parser takes (any case,
  *            quotes, aliases), and more secret names (api_key, ...),
  *            json keys with escapes, Bearer tokens and JWTs,
+ *          - a json text inside a json text (escaped quotes, one level or
+ *            more): its secrets are redacted too,
  *          and what one record costs, 7.25.4's way and the new way.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -1260,6 +1262,175 @@ PRIVATE void test_more_secrets(void)
 }
 
 /***************************************************************************
+ *  (r) A json given as text INSIDE a json given as text: its quotes are
+ *  escaped (\"password\":\"x\"), once or more, and a secret there was
+ *  written in clear. A quoted run with a backslash is also scanned with
+ *  its escapes decoded, one level at a time.
+ ***************************************************************************/
+/*
+ *  `text` as a json string literal, with its quotes
+ */
+PRIVATE char *json_quoted(const char *text)
+{
+    json_t *jn = json_string(text);
+    char *s = jn? json_dumps(jn, JSON_ENCODE_ANY): NULL;
+    JSON_DECREF(jn)
+    return s;
+}
+
+/*
+ *  {"a": <quoted inner>}, `levels` times around `inner`
+ */
+PRIVATE char *nested_json_text(const char *inner, int levels)
+{
+    char *s = gbmem_strdup(inner);
+    for(int i=0; s && i<levels; i++) {
+        char *q = json_quoted(s);
+        gbmem_free(s);
+        s = NULL;
+        if(q) {
+            size_t n = strlen(q) + 16;
+            s = gbmem_malloc(n);
+            if(s) {
+                snprintf(s, n, "{\"a\":%s}", q);
+            }
+            gbmem_free(q);
+        }
+    }
+    return s;
+}
+
+PRIVATE void test_json_text_in_json_text(void)
+{
+    /*
+     *  The shapes of review 17 (P1, P4), and more levels
+     */
+    check_no_secret(
+        "update-node topic_name=x content='{\"cfg\":\"{\\\"password\\\":\\\"P1LEAK\\\"}\"}'",
+        NULL, "P1LEAK", "(r) json text in json text, in the command text");
+    check_no_secret(
+        "update-node topic_name=x content='{\"a\":\"{\\\"b\\\":\\\"{\\\\\\\"password\\\\\\\":\\\\\\\"P1DEEP\\\\\\\"}\\\"}\"}'",
+        NULL, "P1DEEP", "(r) json text in json text in json text, in the command text");
+
+    json_t *kw = json_pack("{s:s, s:s}", "username", "u",
+        "cfg", "{\"a\":\"{\\\"token\\\":\\\"P4LEAK\\\"}\"}");
+    check_no_secret("create-user", kw, "P4LEAK", "(r) json text in json text, in a kw string");
+    JSON_DECREF(kw)
+
+    char *deep = nested_json_text("{\"client_secret\":\"P4DEEP\",\"user\":\"bob\"}", 3);
+    kw = json_pack("{s:s}", "cfg", deep? deep: "");
+    json_t *jn_record = audit_record_build("update-node", kw, DATE, command_table);
+    char *s = record_text(jn_record);
+    BOOL ok = jn_record && !strstr(s, "P4DEEP") && strstr(s, "<redacted>") &&
+        strstr(s, "bob") && !strstr(s, "not scanned");
+    check(ok, "(r) three levels of json text in a kw string: redacted, the rest kept");
+    if(!ok) {
+        printf("     %s\n", s);
+    }
+    GBMEM_FREE(s);
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+    GBMEM_FREE(deep);
+
+    /*
+     *  The record of a redacted json text is still the json text: the kw
+     *  string decodes to a json whose "cfg" is a json text with the secret
+     *  redacted and the rest as it was
+     */
+    kw = json_pack("{s:s}", "cfg", "{\"a\":\"{\\\"password\\\":\\\"P4LEAK\\\",\\\"n\\\":1}\",\"b\":2}");
+    jn_record = audit_record_build("update-node", kw, DATE, command_table);
+    json_t *jn_cfg = json_loads(kw_get_str(0, jn_record, "kw`cfg", "", 0), 0, NULL);
+    json_t *jn_a = jn_cfg? json_loads(kw_get_str(0, jn_cfg, "a", "", 0), 0, NULL): NULL;
+    check(jn_a && strcmp(kw_get_str(0, jn_a, "password", "", 0), "<redacted>") == 0 &&
+        kw_get_int(0, jn_a, "n", 0, 0) == 1 && kw_get_int(0, jn_cfg, "b", 0, 0) == 2,
+        "(r) the redacted json text is still the json text");
+    JSON_DECREF(jn_a)
+    JSON_DECREF(jn_cfg)
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+
+    /*
+     *  The example of DEBUGGING.md 5.5, as it is written there
+     */
+    jn_record = audit_record_build(
+        "update-node topic_name=x content='{\"cfg\":\"{\\\"password\\\":\\\"hunter2\\\",\\\"n\\\":1}\"}'",
+        NULL, DATE, command_table);
+    check(jn_record && strcmp(kw_get_str(0, jn_record, "command", "", 0),
+        "update-node topic_name=x content='{\"cfg\":\"{\\\"password\\\":\\\"<redacted>\\\",\\\"n\\\":1}\"}'") == 0,
+        "(r) the example of DEBUGGING.md: the run written back with its escapes");
+    JSON_DECREF(jn_record)
+
+    /*
+     *  An array element, quotes written as \u0022, a name=value escaped
+     */
+    kw = json_pack("{s:s}", "list", "[\"{\\\"password\\\":\\\"PARRAY\\\"}\"]");
+    check_no_secret("update-node", kw, "PARRAY", "(r) json text as an element of a list in a json text");
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s}", "cfg", "{\"a\":\"{\\" "u0022password\\" "u0022:\\" "u0022PU0022\\" "u0022}\"}");
+    check_no_secret("update-node", kw, "PU0022", "(r) json text with its quotes as \\u0022");
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s}", "cfg", "{\"cmd\":\"set-user-pwd username=bob password=\\\"PQUOTED two\\\"\"}");
+    check_no_secret("command-yuno id=x", kw, "PQUOTED", "(r) name=\\\"value\\\" in a json text");
+    JSON_DECREF(kw)
+    check_no_secret(
+        "command-yuno id=x command=\"write-attr attribute=idp_password value=PWATTR\"",
+        NULL, "PWATTR", "(r) control: write-attr of a secret attribute carried by command-yuno");
+
+    /*
+     *  Too many levels: not written (never what cannot be judged)
+     */
+    deep = nested_json_text("{\"password\":\"PTOODEEP\"}", 12);
+    kw = json_pack("{s:s}", "cfg", deep? deep: "");
+    jn_record = audit_record_build("update-node", kw, DATE, command_table);
+    check(jn_record && !record_holds(jn_record, "PTOODEEP") && record_holds(jn_record, "not scanned"),
+        "(r) 12 levels of json text: the deepest one is not scanned and not written");
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+    GBMEM_FREE(deep);
+
+    /*
+     *  Not secrets: a json text with escapes and no secret is written as
+     *  it came
+     */
+    const char *plain = "{\"a\":\"{\\\"path\\\":\\\"C:\\\\\\\\dir\\\",\\\"n\\\":1}\"}";
+    kw = json_pack("{s:s}", "cfg", plain);
+    jn_record = audit_record_build("update-node", kw, DATE, command_table);
+    check(jn_record && strcmp(kw_get_str(0, jn_record, "kw`cfg", "", 0), plain) == 0,
+        "(r) a json text with escapes and no secret: written as it came");
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+
+    /*
+     *  Hard shapes: linear, no crash
+     */
+    struct {
+        const char *head;
+        const char *unit;
+    } shapes[] = {
+        {"run-yuno x='{\"a\":\"",           "\\\\u005c"},       // one literal of \u005c
+        {"run-yuno x='",                    "\"\\\"\""},        // "\""  "\""  ...
+        {"run-yuno x='",                    "\"a\\\\\":\""},    // "a\\":"  ...
+        {"run-yuno x='{\"a\":\"",           "{\\\"a\\\":\\\""},  // {\"a\":\" ... one level down each
+        {0, 0}
+    };
+    for(int i=0; shapes[i].head; i++) {
+        char *s_small = repeated_text(shapes[i].head, shapes[i].unit, 100*1000);
+        char *s_big = repeated_text(shapes[i].head, shapes[i].unit, 1000*1000);
+        double t_small = seconds_to_build(s_small, NULL);
+        double t_big = seconds_to_build(s_big, NULL);
+        kw = json_pack("{s:s}", "data", s_big);
+        double t_kw = seconds_to_build("run-yuno", kw);
+        JSON_DECREF(kw)
+        char name[200];
+        snprintf(name, sizeof(name), "(r) \"%s\" + \"%s\" x N: 1 MB in %.3f s (100 KB %.3f s, kw %.3f s)",
+            shapes[i].head, shapes[i].unit, t_big, t_small, t_kw);
+        check(t_big < 1.0 && t_kw < 1.0 && t_big <= 30*t_small + 0.05, name);
+        GBMEM_FREE(s_small);
+        GBMEM_FREE(s_big);
+    }
+}
+
+/***************************************************************************
  *  What one record costs (the agent serializes it too)
  ***************************************************************************/
 PRIVATE void test_cost(void)
@@ -1291,6 +1462,36 @@ PRIVATE void test_cost(void)
             commands[c], (double)(t1-t0)*1000.0/n, (double)(t2-t1)*1000.0/n);
     }
     JSON_DECREF(kw)
+
+    /*
+     *  A write with a json given as text in the kw: plain, and with a
+     *  json text inside it (escaped quotes, scanned decoded too)
+     */
+    const char *contents[] = {
+        "{\"id\":\"bob\",\"name\":\"Bob Smith\",\"email\":\"bob@example.com\",\"n\":1,\"tags\":[\"a\",\"b\"]}",
+        "{\"id\":\"bob\",\"name\":\"Bob Smith\",\"cfg\":\"{\\\"theme\\\":\\\"dark\\\",\\\"lang\\\":\\\"es\\\"}\",\"n\":1}",
+    };
+    const char *content_names[] = {"a json text", "a json text holding a json text"};
+    for(int c=0; c<2; c++) {
+        kw = json_pack("{s:s, s:s, s:s, s:o}",
+            "topic_name", "users",
+            "content", contents[c],
+            "__username__", "claudia@artgins.com",
+            "__md_iev__", md_iev_via_controlcenter("update-node")
+        );
+        int n = 100000;
+        uint64_t t0 = time_in_milliseconds_monotonic();
+        for(int i=0; i<n; i++) {
+            json_t *jn = audit_record_build("update-node", kw, DATE, command_table);
+            char *s = json2uglystr(jn);
+            GBMEM_FREE(s);
+            JSON_DECREF(jn)
+        }
+        uint64_t t1 = time_in_milliseconds_monotonic();
+        printf("     update-node with %s in the kw: %.2f us per record (build + serialize)\n",
+            content_names[c], (double)(t1-t0)*1000.0/n);
+        JSON_DECREF(kw)
+    }
 }
 
 /***************************************************************************
@@ -1361,6 +1562,7 @@ int main(int argc, char *argv[])
     test_scan_budget();
     test_command_word();
     test_more_secrets();
+    test_json_text_in_json_text();
     test_cost();
 
     gobj_end();
