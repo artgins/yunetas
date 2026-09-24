@@ -41,5 +41,6 @@ The first line gives `yuneta_version`, `track_memory` and N. The store is
 Compile the other release's `tr_treedb.c` (with the headers of
 `kernel/c/timeranger2/src`) and put its object before the libraries in the
 link line of the benchmark (`build/CMakeFiles/perf_tr_treedb.dir/link.txt`).
-Run the two binaries alternated, several rounds, and compare the medians.
-The figures are in `../README.md`.
+Run the two binaries alternated, 10 rounds or more, with a `sync` and a pause
+before each run, and compare mean +- standard deviation. The figures are in
+`../README.md`.

@@ -157,33 +157,64 @@ Source: `src/main.c`, `src/c_perf_treedb_open.c`
 
 ### Sep-2026: 7.25.5 against 7.25.4 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
-The benchmark of this release linked against the module of each release
-(the object of 7.25.4 put before the libraries), run alternated, medians of
-5 (`perf_timeranger2`) and 6 (`perf_tr_treedb`) rounds, 10 for
-`perf_c_treedb` (below); ext4 on a laptop NVMe.
+Each benchmark of this release is linked twice: with the libraries of this
+release, and with the module of 7.25.4 compiled with the headers of this
+release and put before the libraries (`tr_treedb.c` for `perf_tr_treedb`,
+`timeranger2.c` for `perf_timeranger2` and `test_topic_pkey_integer`,
+`yev_loop.c` for the network benchmarks, `rotatory.c` for the log files). The
+two binaries run alternated, on ext4 on a laptop NVMe, with a `sync` and a
+pause before each run. The figures are mean +- standard deviation (median),
+and the last column is the change of the mean.
 
-`perf_timeranger2`:
+`perf_timeranger2` (ms; 10 rounds):
 
-| Case | 7.25.4 | 7.25.5 |
-|------|--------|--------|
-| `open_master` (20 000 md2 files) | 95.2 ms | 82.6 ms |
-| `open_replica` | 92.0 ms | 108.4 ms |
-| `create_topic` (10 topics) | 1.5 ms | 127 ms |
-| `topic_version_change` (10) | 0.8 ms | 226 ms |
-| `tm_query_unmigrated` (1 key, 30 files x 20 000 rows) | 13.2 ms | 406 ms |
-| `mark_tm_order` (the same topic) | -- | 16.7 ms |
-| `tm_query_migrated` | -- | 7.4 ms |
+| Case | 7.25.4 | 7.25.5 | Change |
+|------|--------|--------|--------|
+| `build_appends` (400 000 appends, 2000 keys x 10 files) | 1695.3 +- 29.2 (1685.9) | 1741.6 +- 28.5 (1741.3) | +2.7% |
+| `open_master` (20 000 md2 files) | 92.5 +- 1.9 (91.7) | 80.8 +- 1.9 (80.1) | -12.7% |
+| `open_replica` | 89.7 +- 2.1 (88.9) | 106.5 +- 2.0 (105.9) | +18.7% |
+| `create_topic` (10 topics) | 1.4 +- 0.0 (1.4) | 159.6 +- 14.2 (167.6) | x114 |
+| `topic_version_change` (10) | 8.8 +- 4.0 (10.6) | 276.6 +- 25.0 (286.2) | x31 |
+| `tm_build_appends` (600 000 appends, 1 key x 30 files) | 1592.3 +- 31.5 (1589.0) | 1691.2 +- 33.9 (1685.6) | +6.2% |
+| `tm_query_unmigrated` (1 key, 30 files x 20 000 rows) | 12.7 +- 0.2 (12.7) | 391.6 +- 8.2 (387.4) | x31 |
+| `mark_tm_order` (the same topic) | -- | 19.3 +- 1.5 (19.9) | |
+| `tm_query_migrated` | -- | 7.4 +- 0.1 (7.3) | |
 
-`perf_tr_treedb` (us per operation, N = 100 000):
+`perf_tr_treedb` (us per operation, N = 100 000; 20 rounds, the order of
+the two binaries swapped at each round):
 
-| Case | 7.25.4 | 7.25.5 |
-|------|--------|--------|
-| `update_memory` | 3.90 | 2.93 |
-| `update_saved` | 11.76 | 10.89 |
-| `link_unlink` | 11.34 | 11.28 |
-| `create_link_half` | 75.1 | 74.8 |
-| `reopen` (per node) | 404 | 396 |
-| `delete_force` | 68.4 | 70.1 |
+| Case | 7.25.4 | 7.25.5 | Change |
+|------|--------|--------|--------|
+| `update_memory` | 3.88 +- 0.10 (3.89) | 2.89 +- 0.08 (2.88) | -25.4% |
+| `update_saved` | 11.45 +- 0.26 (11.54) | 10.36 +- 0.26 (10.38) | -9.6% |
+| `link_unlink` | 10.96 +- 0.25 (11.00) | 10.77 +- 0.24 (10.81) | -1.7% |
+| `create_link_half` | 69.9 +- 1.4 (69.8) | 70.3 +- 1.1 (70.1) | +0.6% |
+| `reopen` (per node) | 391.5 +- 12.8 (388.8) | 389.3 +- 13.4 (388.3) | -0.6% |
+| `delete_force` | 66.3 +- 1.4 (66.3) | 67.3 +- 1.3 (67.4) | +1.6% |
+| `delete_parent` (per parent of 200 children) | 3061 +- 40 (3053) | 3087 +- 63 (3072) | +0.9% |
+
+`timeranger2/test_topic_pkey_integer` (appends/s, 180 000 appends; 20
+rounds, the order swapped at each round):
+
+| Case | 7.25.4 | 7.25.5 | Change |
+|------|--------|--------|--------|
+| without an rt list | 227 790 +- 4 884 (224 893) | 219 912 +- 4 837 (220 442) | -3.5% |
+| with an rt list | 167 102 +- 4 014 (165 150) | 168 175 +- 3 821 (168 456) | +0.6% |
+
+The same test with the store on tmpfs (10 rounds): 236 821 -> 234 113
+(-1.1%) and 176 840 -> 175 443 (-0.8%).
+
+yev_loop (8 rounds):
+
+| Benchmark | 7.25.4 | 7.25.5 | Change |
+|------|--------|--------|--------|
+| `perf_yev_ping_pong` (K msg/s) | 152.2 +- 3.3 (153.7) | 150.5 +- 2.9 (149.8) | -1.1% |
+| `perf_tcp_test4` (ops/s) | 38 706 +- 685 (38 841) | 39 344 +- 771 (39 831) | +1.6% |
+| `perf_tcp_test5` (ops/s) | 30 421 +- 641 (30 386) | 30 181 +- 597 (30 323) | -0.8% |
+
+rotatory (ns for one record of 300 bytes written with two `rotatory_write()`
+calls, as the agent audit writes it; 300 000 records a run, 8 rounds): 7.25.4
+6 194 +- 135 (6 140), 7.25.5 554 +- 10 (555).
 
 `perf_c_treedb` (seconds for 40 opens). The 7.25.4 columns are the
 `c_treedb.c` of 7.25.4 compiled with the headers of 7.25.5 and linked before

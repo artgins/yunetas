@@ -36,7 +36,9 @@ store is `~/tests_yuneta/perf_timeranger2`, removed at the end.
 Compile the other release's `timeranger2.c` and put its object before the
 libraries in the link line of the benchmark (the one in
 `build/CMakeFiles/perf_timeranger2.dir/link.txt`). Run the two binaries
-alternated, several rounds, and compare the medians. Linked against 7.25.4,
+alternated, 10 rounds or more, with a `sync` and a pause before each run (a
+run leaves much to write back, and it slows the next one), and compare mean
++- standard deviation. Linked against 7.25.4,
 `tranger2_mark_tm_order()` does not exist (the benchmark declares it weak):
 the tm phase then prints `mark_tm_order_not_linked`, and
 `tm_query_unmigrated` is the tm query of 7.25.4. The figures are in

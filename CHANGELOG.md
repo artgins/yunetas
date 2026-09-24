@@ -33,7 +33,7 @@ code before it, except those listed under "No red test" in `TODO.md`.
   `command-agent service=tranger_treedb_yuneta_agent command=mark-tm-order all=1`
   and `command-agent service=tranger_system_schema command=mark-tm-order all=1`.
   The migration reads every md2 file once, is linear in the number of files, and
-  blocks the yuno while it runs (1 key x 30 files x 20 000 rows: ~17 ms). The
+  blocks the yuno while it runs (1 key x 30 files x 20 000 rows: ~19 ms). The
   price until then is under "Performance". See `deploying-yunos.md`.
 - **If the main agent does not come back after the upgrade**, look for
   *"Cannot start agent treedb"* in its log: when its treedb's schema is
@@ -290,40 +290,46 @@ code before it, except those listed under "No red test" in `TODO.md`.
 Measured with the benchmarks under `performance/c/` (`perf_timeranger2`,
 `perf_tr_treedb`, `perf_c_treedb`, new in this release) and the test
 `timeranger2/test_topic_pkey_integer`, each linked against the module of
-7.25.4 and of this release, run alternated (medians; RelWithDebInfo with
-memory tracking, ext4, laptop NVMe). The raw figures are in
-`performance/c/README.md`.
+7.25.4 and of this release, run alternated (means of 10 or 20 rounds;
+RelWithDebInfo with memory tracking, ext4, laptop NVMe). The raw figures,
+with their spread, are in `performance/c/README.md`.
 
 - **timeranger2.**
-    - An append is at the speed of 7.25.4. The tm marker made every append
-      search the cache cell of its file twice, each search building two file
-      names with `snprintf()`; it searches once and `cmp_file_ids()` compares
-      in place (new test `timeranger2/test_cmp_file_ids`).
-      `test_topic_pkey_integer`, appends/s without / with an rt list: 7.25.4
-      209 535 / 158 040, now 208 910 / 160 967.
-    - A master opens a store 13% faster (20 000 md2 files: 95 ms -> 83 ms):
+    - **Price:** an append costs 1% to 6% more than in 7.25.4 on ext4, the
+      checks this release adds to each append (a flagged file, the tm
+      order). `test_topic_pkey_integer`, appends/s without / with an rt
+      list: 7.25.4 227 790 / 167 102, now 219 912 / 168 175 (-3.5% /
+      +0.6%; on tmpfs -1.1% / -0.8%); `perf_timeranger2`, 400 000 appends
+      into 20 000 files +2.7%, 600 000 appends into 30 files of a topic that
+      marks tm order +6.2%. The tm marker made every append search the cache
+      cell of its file twice, each search building two file names with
+      `snprintf()`; it searches once and `cmp_file_ids()` compares in place
+      (new test `timeranger2/test_cmp_file_ids`).
+    - A master opens a store 13% faster (20 000 md2 files: 92 ms -> 81 ms):
       it finds the order markers in the listing of the key directory it
       already reads, instead of a `stat()` per md2 file.
-    - **Price kept, by decision:** a replica's open is ~18% slower (92 ms ->
-      108 ms, one more `stat()` per md2 file): it looks for the markers on
+    - **Price kept, by decision:** a replica's open is ~19% slower (90 ms ->
+      106 ms, one more `stat()` per md2 file): it looks for the markers on
       disk after reading each file, because a listing taken before could miss
       a marker the master writes during the open. Creating a topic makes 2
       fsyncs and a `topic_version` change 4 (7.25.4: none; 10 topics created
-      in 127 ms against 1.5 ms, 10 version changes in 226 ms against 0.8 ms);
+      in 160 ms against 1.4 ms, 10 version changes in 277 ms against 9 ms);
       opening an existing store makes none. That is the price of durable
       topic files: a power cut never leaves a new `topic_version` over a
       `topic_cols.json` that is not on disk.
     - **Price until migrated:** a `tm` query on a topic created by 7.25.4 or
       earlier reads every md2 row of the key until `mark-tm-order` runs (one
-      minute of 1 key x 30 files x 20 000 rows: 13 ms on 7.25.4, ~406 ms
+      minute of 1 key x 30 files x 20 000 rows: 13 ms on 7.25.4, ~392 ms
       unmigrated, ~7 ms migrated). See "Upgrade steps".
 - **treedb writes** (`perf_tr_treedb`, 100 000 operations): an update in
-  memory 3.90 -> 2.93 us, a saved update 11.76 -> 10.89 us, link+unlink
-  11.34 -> 11.28 us. An update deep-copied the node, with every child its
+  memory 3.88 -> 2.89 us, a saved update 11.45 -> 10.36 us, link+unlink
+  10.96 -> 10.77 us. An update deep-copied the node, with every child its
   hooks hold, for the system schema's check on every treedb; now only on the
-  system schema. A forced delete costs ~2% more (68 -> 70 us): the hold of
-  its events and the write of a node that has parents, the price of a
-  refused delete changing nothing.
+  system schema. A forced delete costs ~1.6% more (66.3 -> 67.3 us), and a
+  forced delete of a parent with 200 children ~1% more (3061 -> 3087 us, the
+  new `delete_parent` case): the hold of its events and a write per child
+  (its fkey list and its place in the hook kept), the price of a refused
+  delete changing nothing.
 - **A JSON file is read whole, then parsed** (`load_json_from_file()`,
   `load_persistent_json()`, and tr2migrate): `json_loadfd()` made one
   `read()` per byte, 60 000 system calls for a 60 KB schema.
@@ -542,7 +548,8 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   there is no memory to keep fails: CRITICAL *"No memory to keep a
   submission"*, then the caller's ERROR *"No memory to keep a submission:
   <what did not happen>"*. Test `yev_events/test_yevent_sq_full`; the hot
-  path does not move (perf_yev_ping_pong, perf_c_tcp: within noise).
+  path does not move (perf_yev_ping_pong -1.1%, perf_tcp_test4 +1.6%,
+  perf_tcp_test5 -0.8%: within noise; figures in `performance/c/README.md`).
 - A submission the kernel did not take is no longer left waiting: a failed
   `io_uring_submit()` can leave its entry in the queue (the submit that hands
   over the kept entries included); the loop submits those entries again at
@@ -635,7 +642,7 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   it.
 - rotatory (the log files): a record is checked once and written whole. Up to
   7.25.4 each piece of a record rebuilt the file name (`localtime()`) and ran
-  `access()` + `fstat()`: an agent audit record cost 7.2 us, now 0.59 us. A
+  `access()` + `fstat()`: an agent audit record cost 6.2 us, now 0.55 us. A
   record is no longer split between two files at a size rotation. A log file
   RENAMED by another program is no longer noticed (a removed one still is);
   the free-disk check runs every 100 records instead of every 100 pieces.
