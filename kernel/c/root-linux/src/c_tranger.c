@@ -1877,6 +1877,19 @@ PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  blocked until the last topic is marked.
      */
     json_t *names = tranger2_list_topic_names(priv->tranger);
+    if(!names) {
+        // Error already logged
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: mark-tm-order of every topic: cannot list the topics of the store, "
+                "nothing marked (%s)",
+                gobj_yuno_role_plus_name(), gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     json_t *rows = json_array();
     int marked = 0, already = 0, failed = 0, topics = 0;
     int idx; json_t *jn_name;

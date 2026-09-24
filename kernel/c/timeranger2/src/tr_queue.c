@@ -664,7 +664,7 @@ PUBLIC int trq_check_backup(tr_queue_t * trq)
         }
         if(sz >= backup_queue_size) {
             trq_set_first_rowid(trq, sz);
-            trq->topic = tranger2_backup_topic(
+            json_t *topic = tranger2_backup_topic(
                 trq->tranger,
                 trq->topic_name,
                 0,
@@ -672,6 +672,26 @@ PUBLIC int trq_check_backup(tr_queue_t * trq)
                 TRUE,
                 0
             );
+            if(!topic) {
+                /*
+                 *  The topic is still the queue's, not backed up: the
+                 *  backup opens it again (tranger2_backup_topic). Up to
+                 *  7.25.4 the queue was left with no topic and this
+                 *  answered 0: every read and every ack failed after it.
+                 */
+                trq->topic = tranger2_topic(trq->tranger, trq->topic_name);
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TRANGER,
+                    "msg",          "%s", trq->topic?
+                        "Queue backup failed: the queue goes on in its topic, not backed up":
+                        "Queue backup failed, and the queue has no topic",
+                    "topic_name",   "%s", trq->topic_name,
+                    NULL
+                );
+                return -1;
+            }
+            trq->topic = topic;
             trq_set_first_rowid(trq, 0);
         }
     }

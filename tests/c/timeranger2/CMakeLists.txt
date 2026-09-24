@@ -87,6 +87,7 @@ set(SRCS
     test_torn_tail_check_fails
     test_testing
     test_cmp_file_ids
+    test_unlistable_dirs
 )
 
 ##############################################

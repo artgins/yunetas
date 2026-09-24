@@ -77,6 +77,23 @@ Up to 7.25.4 the periodic backup of a
 queue whose load had failed re-created the topic empty. `tr2q_check_backup()`
 of the mqtt queues behaves the same after a failed `tr2q_load()`.
 
+`-1` also when the backup itself FAILS
+([`tranger2_backup_topic()`](<#tranger2_backup_topic>) answers `NULL`: the
+backup name is taken by a file, the `rename()` fails, the topic's files do
+not load). The queue goes on in its topic, not backed up, which the backup
+opened again, and the next period tries again:
+
+```text
+ERROR tranger2_backup_topic: cannot backup topic  errno=20 serrno="Not a directory"
+WARN  reopen_topic_not_backed_up: Backup of topic failed: the topic is opened again as it was, not backed up
+ERROR trq_check_backup: Queue backup failed: the queue goes on in its topic, not backed up
+```
+
+Up to 7.25.4 the queue was left with no topic and the call answered `0`:
+every read logged *"What topic?"*, every ack answered `-1` (the messages were
+sent again after a restart), and no backup happened again. `tr2q_check_backup()`
+behaves the same.
+
 **Example**
 
 ```C

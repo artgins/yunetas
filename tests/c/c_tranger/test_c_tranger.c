@@ -24,6 +24,8 @@
  ****************************************************************************/
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include <limits.h>
 
 #include <yunetas.h>
@@ -2373,6 +2375,33 @@ PRIVATE int do_test(void)
         check_bool("mark-tm-order all=1: the comment says every topic",
             strstr(kw_get_str(0, r, "comment", "", 0), "every topic") != NULL, TRUE);
         JSON_DECREF(r)
+    }
+
+    /*-------------------------------------------------*
+     *      mark-tm-order all=1 on a store that cannot be LISTED: -1,
+     *      and nothing marked. (7.25.4: the listing failed with no log,
+     *      and the command answered "0 topic(s)" with result 0 -- the
+     *      upgrade step looked done while nothing was migrated.)
+     *      Mode 0300 keeps the open files and the paths working, and
+     *      refuses the listing; as root it is still listed: skipped.
+     *-------------------------------------------------*/
+    if(geteuid() != 0) {
+        set_expected_results(
+            "mark-tm-order all=1 on a store that cannot be listed",
+            json_pack("[{s:s}]",
+                "msg", "Cannot list the topics of the store"
+            ),
+            NULL, NULL, 1
+        );
+        chmod(path_database, 0300);
+        r = gobj_command(yuno, "mark-tm-order", json_pack("{s:b}", "all", 1), yuno);
+        chmod(path_database, 02770);
+        check_int("mark-tm-order all=1 on a store that cannot be listed",
+            kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("mark-tm-order all=1: the comment says the store cannot be listed",
+            strstr(kw_get_str(0, r, "comment", "", 0), "cannot list the topics") != NULL, TRUE);
+        JSON_DECREF(r)
+        global_result += test_json(NULL);
     }
 
     /*-------------------------------------------------*

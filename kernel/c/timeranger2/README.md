@@ -417,11 +417,14 @@ tranger2_set_rt_key_deleted_callback(handle, cb, user_data);
 
 When the master calls `tranger2_delete_key()`:
 
-1. Every `topic/disks/<rt_id>/<key>/` subdirectory is removed before
-   the live `keys/<key>/` directory. `rt_by_disk` followers
-   recursive-watching `disks/<rt_id>/` pick this up as
-   `FS_SUBDIR_DELETED_TYPE` and run the same callback fan-out on
-   their side.
+1. The live `keys/<key>/` directory is removed FIRST; the delete is
+   announced only once it is done. When it cannot be removed the call
+   answers `-1`, announces nothing, and reads the key's cache again
+   from what is left on disk. Then every `topic/disks/<rt_id>/<key>/`
+   subdirectory is removed (or created and removed at once).
+   `rt_by_disk` followers recursive-watching `disks/<rt_id>/` pick
+   this up as `FS_SUBDIR_DELETED_TYPE` and run the same callback
+   fan-out on their side.
 2. In-process subscribers whose `key` filter matches receive the
    `key_deleted_callback`. Handles that own an inotify watcher
    (`fs_event_client` set) are skipped here — the inotify branch

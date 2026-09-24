@@ -378,7 +378,9 @@ PUBLIC json_t *tranger2_list_topics( // return is yours
    database directory on disk — each subdir is treated as a topic. Disk scan on
    every call (no caching); any subdirectory counts (not validated as a real
    topic); order is filesystem-dependent.
-   Return is yours; never NULL (empty array if the directory cannot be opened).
+   Return is yours. NULL (logged, and in gobj_log_last_message()) when the
+   directory cannot be listed: a store that cannot be listed is not a store
+   with no topic (up to 7.25.4 it answered an empty array, with no log).
 */
 PUBLIC json_t *tranger2_list_topic_names( // return is yours, WARNING works in disk, not in memory
     json_t *tranger
@@ -485,7 +487,10 @@ PUBLIC int tranger2_delete_topic(
    If overwrite_backup is true and backup exists then it will be overwrite
         but before tranger_backup_deleting_callback() will be called
             and if it returns TRUE then the existing backup will be not removed.
-   Return the new topic
+   Return the new topic, or NULL (logged). A failure after the topic was
+   closed (the backup exists and overwrite_backup is FALSE, topic_desc.json
+   does not load, the rename fails) opens the topic again as it was: a
+   caller that held the old topic takes it again with tranger2_topic().
 */
 
 typedef BOOL (*tranger_backup_deleting_callback_t)( // Return TRUE if you control the backup

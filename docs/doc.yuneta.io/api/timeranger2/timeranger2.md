@@ -376,13 +376,25 @@ json_t *tranger2_backup_topic(
 
 **Returns**
 
-A JSON object representing the new topic backup.
+The new, empty topic (not yours), created with the description, cols and var of the old one; or `NULL` (logged) when the backup fails.
 
 **Notes**
 
 If `overwrite_backup` is true and the backup exists, `tranger_backup_deleting_callback` is called. If it returns true, the existing backup is not removed.
 
 Only a master can back up a topic (the backup moves its directory): on a replica it returns `NULL` with *"Only master can back up"*. The topic name follows the [topic name rule](<#timeranger2-topic-name-rule>).
+
+The backup CLOSES the topic first, then moves its directory. A failure after that point (the backup exists and `overwrite_backup` is false, `topic_desc.json` does not load, or the `rename()` fails -- the backup name is taken by a file, another filesystem) returns `NULL` and opens the topic again as it was, with a warning: *"Backup of topic failed: the topic is opened again as it was, not backed up"*. Every pointer to the old topic is stale all the same, as after a successful backup: take the topic again by name.
+
+```C
+json_t *topic = tranger2_backup_topic(tranger, "queue", 0, 0, TRUE, 0);
+if(!topic) {
+    // Error already logged: not backed up; the topic is still the old one
+    topic = tranger2_topic(tranger, "queue");
+}
+```
+
+Up to 7.25.4 a failed `rename()` also leaked the `topic_var` it had loaded, and the topic stayed closed: a queue ([`trq_check_backup()`](#trq_check_backup)) was left with no topic.
 
 ---
 
@@ -716,8 +728,10 @@ the master can delete.
 
 The deletion is **propagated to subscribers**:
 
-- The master signals the delete in the directory of **every** rt_disk feed,
-  before it removes the live `keys/<key>/` directory. Where
+- The master removes the live `keys/<key>/` directory FIRST, and signals
+  the delete only once it is done (up to 7.25.4 it signalled first, so a
+  key whose directory could not be removed was heard deleted while it was
+  still on disk). It signals it in the directory of **every** rt_disk feed. Where
   `topic/disks/<rt_id>/<key>/` exists (the feed received records of the
   key), it is removed. Where it does not exist, it is created and removed
   at once: a key directory that appears and vanishes means "deleted". A
@@ -758,8 +772,11 @@ Returns `0` on success, or a negative value on failure.
 
 A `key` with no directory on disk is logged (*"key directory not found"*, an
 error) and the call still answers `0`: the key is removed from memory all the
-same. A directory that cannot be removed answers `-1` and leaves the memory as
-it was.
+same. A directory that cannot be removed answers `-1` and announces nothing,
+but it does NOT leave the memory as it was: some of the key's files may be gone
+already, so the cache of the key is read again from what is left on disk (the
+key leaves the cache if nothing is left), and its iterators take their segments
+again from it.
 
 The iterators of the key, in this process, lose what they took from it: see
 [`tranger2_iterator_get_page()`](#tranger2_iterator_get_page).
@@ -1346,8 +1363,15 @@ A dict, yours:
 
 `t_unordered_marked` / `tm_unordered_marked` count the markers THIS call
 wrote. `NULL` (logged, and in `gobj_log_last_message()`) when the handle is
-not the master (*"Only master can write"*), the topic does not exist, a md2
-file cannot be read, or a marker or `topic_desc.json` cannot be written. The
+not the master (*"Only master can write"*), the topic does not exist or
+cannot be opened (its `keys/` cannot be listed, see
+[`tranger2_open_topic()`](#tranger2_open_topic)), a key directory cannot be
+listed (*"Cannot open directory"*: `EMFILE`, `EACCES`, no memory for the
+listing), a md2 file cannot be read, or a marker or `topic_desc.json` cannot
+be written. Up to 7.25.4 a key directory that could not be listed counted as
+a key of 0 files and the topic was MARKED: the tm ranges of the files nobody
+scanned were trusted, and a tm query lost rows (a legacy file of tm 100, 300,
+200 has the range [100,200]; a query of [250,350] skipped it). The
 keys are walked in the order of the topic's cache and the call stops at the
 first failure. What it leaves:
 
@@ -1412,6 +1436,9 @@ stops there, before the topics listed after it:
 ```C
 const char *directory = json_string_value(json_object_get(tranger, "directory"));
 json_t *names = tranger2_list_topic_names(tranger);
+if(!names) {
+    return -1;  // logged: the store cannot be listed, nothing was marked
+}
 size_t i; json_t *jn_name;
 json_array_foreach(names, i, jn_name) {
     const char *name = json_string_value(jn_name);
@@ -1504,6 +1531,35 @@ made unreadable (mode `0000`) while the yuno was down:
 forward load   -> the rows of day 1, then load_failed
 backward load  -> the rows of day 3, then load_failed
 ```
+
+**A key directory that cannot be LISTED is not an empty key.** When the
+cache build cannot open `keys/<key>/` (`EMFILE`, `EACCES`, `ENOMEM`, or no
+memory for an entry of the listing), none of the key's files is known, so the
+key is flagged whole: it logs *"key directory cannot be listed when its cache
+was built: every load of the key says load_failed"* once, and every iterator of
+the key logs *"The history of the key is not whole: its directory could not be
+listed when its cache was built"* and says `load_failed` with no row handed. A
+keyless [`tranger2_open_list()`](#tranger2_open_list) names the key in
+`load_failed_keys`, so treedb refuses a create of that id. An append into the
+key lists it again first: while the directory still cannot be listed the
+append is refused (*"Cannot append record, its key cannot be listed: its row
+would follow rows no cell counts"*); once it can, the key's cache is built from
+the disk, the flag goes (*"key directory listed again"*, an INFO) and the append
+goes on. Up to 7.25.4 the key loaded as an EMPTY key with `load_failed` false,
+and an append counted its row as the first of its file.
+
+```text
+keys/A of mode 0000 at the open:
+iterator of A              -> no row, load_failed
+keyless list               -> the rows of B, load_failed, load_failed_keys ["A"]
+append into A              -> -1 (refused)
+keys/A of mode 02770 again:
+append into A              -> 0, the key listed again
+iterator of A              -> every row of A, the new one last, load_failed false
+```
+
+When `keys/` itself cannot be listed, no key can be flagged by name: the topic
+is not opened (see [`tranger2_open_topic()`](#tranger2_open_topic)).
 
 A `.md2` of 0 rows gets no cell and flags nothing. With an EMPTY `.json` it
 loses nothing. With a `.json` that is NOT empty it is what an append that was
@@ -2073,6 +2129,19 @@ A JSON object representing the opened topic. The returned object is not owned by
 This function is idempotent. This means that calling it multiple times with the same `topic_name` will return the same JSON object without creating a new instance.
 
 It returns `NULL`, never a critical, when the name is refused by the [topic name rule](<#timeranger2-topic-name-rule>), and when the directory exists but is not a topic (it has no `topic_desc.json`): *"Not a topic: topic_desc.json not found"*, logged only with `verbose`. A peer can send any name, and with `on_critical_error=2` a critical is an `exit(0)` of the yuno.
+
+It also returns `NULL` when the `keys/` directory of the topic exists and cannot be listed (`EMFILE`, `EACCES`, `ENOMEM`, or a `readdir()` that fails): *"Cannot list the keys of the topic"* (with `errno`), then *"Cannot open topic: its keys cannot be listed"*. The topic is not left open: opened with no keys, a key nobody read looked like a key that does not exist, and a treedb accepted a create of its id (so up to 7.25.4). The next open, or the next [`tranger2_topic()`](#tranger2_topic), tries again:
+
+```C
+json_t *topic = tranger2_open_topic(tranger, "devices", TRUE);
+if(!topic) {
+    // Error already logged: not a topic, a refused name, or keys/ cannot be listed.
+    // Nothing of the topic is in memory; try again later.
+    return -1;
+}
+```
+
+A `keys/` that does not exist (`ENOENT`) is still a topic with no key, as before.
 
 ---
 
@@ -3041,9 +3110,26 @@ json_t *tranger2_list_topic_names(
 
 A new JSON array of strings, each being a topic name found as a subdirectory in the tranger database directory. The caller owns the returned array and must call `json_decref()` on it. Hidden entries (names starting with `.`) are excluded.
 
+`NULL` when the directory cannot be listed (`opendir()` or `readdir()` fails): logged, *"Cannot list the topics of the store"* with `errno`, and the cause is left in `gobj_log_last_message()`. A store that cannot be listed is not a store with no topic: up to 7.25.4 it answered `[]` with no log, and `mark-tm-order all=1` of `C_TRANGER` answered *"0 topic(s)"* with result `0` -- the upgrade step looked done while nothing was migrated. It answers `-1` now, and so do `list-queues` and `clean-queues` of the MQTT broker.
+
 **Notes**
 
 This function operates on disk, not in memory. It can return topic names that are not currently open, or miss topics that exist only in memory. Use [`tranger2_list_topics()`](#tranger2_list_topics) to get the in-memory list instead.
+
+**Example**
+
+```C
+json_t *names = tranger2_list_topic_names(tranger);
+if(!names) {
+    // Error already logged: the store cannot be listed, NOT "no topic"
+    return -1;
+}
+size_t idx; json_t *jn_name;
+json_array_foreach(names, idx, jn_name) {
+    printf("%s\n", json_string_value(jn_name));
+}
+JSON_DECREF(names)
+```
 
 ---
 

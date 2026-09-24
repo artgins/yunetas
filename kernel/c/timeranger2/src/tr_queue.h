@@ -285,6 +285,10 @@ PUBLIC json_t *trq_answer(
     pending messages the load could not read. Said once with an ERROR,
     "Queue backup refused: its last load did not read every pending
     message"; refused until a trq_load() reads the queue whole.
+    -1 also when the backup FAILS (tranger2_backup_topic() answers NULL):
+    logged, "Queue backup failed: the queue goes on in its topic, not backed
+    up"; the queue keeps its topic, opened again by the backup, and the next
+    call tries again. Up to 7.25.4 the queue was left with no topic, and 0.
 */
 PUBLIC int trq_check_backup(tr_queue_t * trq);
 

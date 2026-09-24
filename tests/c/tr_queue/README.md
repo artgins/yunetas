@@ -9,6 +9,13 @@ periodic backup (`trq_check_backup()` / `tr2q_check_backup()`, called while
 the queue is empty) is refused and says so once, and after the md2 is put back
 a restart loads every pending message.
 
+`test_tr_queue_backup_failed` covers a backup that FAILS (the backup name
+taken by a file: the `rename()` fails): `trq_check_backup()` /
+`tr2q_check_backup()` answer -1, the queue keeps its topic (the backup opens
+it again), and appends, reads and acks work after it. Up to 7.25.4 the queue
+was left with no topic and the call answered 0; `tranger2_backup_topic()`
+also leaked the `topic_var` it had loaded (the memory check at the end).
+
 ## Run
 
 ```bash

@@ -753,6 +753,17 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     if(empty_string(queue_name)) {
         // Get list of queue names (topic directories on disk)
         jn_data = tranger2_list_topic_names(priv->tranger_queues);
+        if(!jn_data) {
+            // Error already logged
+            return msg_iev_build_response(gobj,
+                -1,
+                json_sprintf("%s: cannot list the queues (%s)",
+                    gobj_yuno_role_plus_name(), gobj_log_last_message()),
+                0,
+                0,
+                kw  // owned
+            );
+        }
     } else {
         if(!subdir_exists(directory, queue_name)) {
             return msg_iev_build_response(gobj,
@@ -828,6 +839,17 @@ PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *jn_queues = tranger2_list_topic_names(priv->tranger_queues);
+    if(!jn_queues) {
+        // Error already logged
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: cannot list the queues, nothing cleaned (%s)",
+                gobj_yuno_role_plus_name(), gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     json_t *jn_data = json_object();
     json_t *jn_data_queues = json_array();
     json_t *jn_data_sessions = json_array();

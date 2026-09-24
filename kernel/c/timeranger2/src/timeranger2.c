@@ -284,6 +284,12 @@ PRIVATE int count_flagged_file_again(
     const char *key,
     const char *file_id
 );
+PRIVATE int relist_key_before_append(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+);
 PRIVATE void cut_back_content(
     hgobj gobj,
     json_t *topic,
@@ -1864,9 +1870,25 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     /*-------------------------------------*
      *  Load keys and metadata from disk
      *-------------------------------------*/
-    build_topic_cache_from_disk(
+    if(build_topic_cache_from_disk(
         gobj, topic, json_is_true(json_object_get(tranger, "master"))
-    );
+    ) < 0) {
+        /*
+         *  keys/ cannot be listed: the topic is not opened. Opened empty, a
+         *  key nobody read looked like a key that does not exist (a treedb
+         *  create of its id was accepted), and no flag can name keys that
+         *  were never listed. The next tranger2_topic() tries again.
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Cannot open topic: its keys cannot be listed",
+            "directory",    "%s", directory,
+            NULL
+        );
+        json_object_del(json_object_get(tranger, "topics"), topic_name);
+        return NULL;
+    }
 
     /*
      *  Monitoring the disk to realtime disk lists
@@ -1997,28 +2019,59 @@ PUBLIC json_t *tranger2_list_topic_names( // return is yours, WARNING works in d
         gobj, tranger, "directory", "", KW_REQUIRED
     );
 
-    json_t *jn_list = json_array();
-
+    /*
+     *  A store that cannot be listed is a failure, not a store with no
+     *  topic: up to 7.25.4 it answered [] with no log, and
+     *  `mark-tm-order all=1` answered "0 topic(s)" OK.
+     */
     DIR *dir = opendir(directory);
-    if(dir) {
-        struct dirent *entry;
-        while((entry = readdir(dir)) != NULL) {
-            if(entry->d_name[0] == '.') {
-                continue;
-            }
-            char full_path[PATH_MAX];
-            snprintf(
-                full_path, sizeof(full_path),
-                "%s/%s", directory, entry->d_name
-            );
-            if(is_directory(full_path)) {
-                json_array_append_new(
-                    jn_list, json_string(entry->d_name)
-                );
-            }
-        }
-        closedir(dir);
+    if(!dir) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot list the topics of the store",
+            "path",         "%s", directory,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        gobj_log_set_last_message("Cannot list the topics of the store: %s", strerror(errno));
+        return NULL;
     }
+
+    json_t *jn_list = json_array();
+    struct dirent *entry;
+    while((errno = 0, entry = readdir(dir)) != NULL) {   // errno tells the end from a failure
+        if(entry->d_name[0] == '.') {
+            continue;
+        }
+        char full_path[PATH_MAX];
+        snprintf(
+            full_path, sizeof(full_path),
+            "%s/%s", directory, entry->d_name
+        );
+        if(is_directory(full_path)) {
+            json_array_append_new(
+                jn_list, json_string(entry->d_name)
+            );
+        }
+    }
+    if(errno != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot list the topics of the store, readdir() FAILED",
+            "path",         "%s", directory,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        gobj_log_set_last_message("Cannot list the topics of the store: %s", strerror(errno));
+        closedir(dir);
+        JSON_DECREF(jn_list)
+        return NULL;
+    }
+    closedir(dir);
 
     return jn_list;
 }
@@ -2288,11 +2341,43 @@ PUBLIC int tranger2_delete_topic(
 }
 
 /***************************************************************************
+ *  A backup that failed after the topic was closed: the topic is still
+ *  where it was, whole, and it is opened again. Up to 7.25.4 it was left
+ *  closed, and a queue whose backup failed (tr_queue) had no topic for the
+ *  rest of its life.
+ ***************************************************************************/
+PRIVATE void reopen_topic_not_backed_up(
+    hgobj gobj,
+    json_t *tranger,
+    const char *topic_name
+)
+{
+    if(!tranger2_open_topic(tranger, topic_name, TRUE)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Backup of topic failed, and the topic cannot be opened again",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        return;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TRANGER,
+        "msg",          "%s", "Backup of topic failed: the topic is opened again as it was, not backed up",
+        "topic_name",   "%s", topic_name,
+        NULL
+    );
+}
+
+/***************************************************************************
    Backup topic and re-create it.
    If ``backup_path`` is empty then it will be used the topic path
    If ``backup_name`` is empty then it will be used ``topic_name``.bak
    If overwrite_backup is TRUE and backup exists then it will be overwrited.
-   Return the new topic
+   Return the new topic, or NULL (logged): when the failure comes after the
+   topic was closed, the topic is opened again as it was.
  ***************************************************************************/
 PUBLIC json_t *tranger2_backup_topic(
     json_t *tranger,
@@ -2338,6 +2423,14 @@ PUBLIC json_t *tranger2_backup_topic(
      *  Check if topic already exists
      */
     if(!is_directory(directory)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot back up topic, its directory not found",
+            "topic_name",   "%s", topic_name,
+            "path",         "%s", directory,
+            NULL
+        );
         return 0;
     }
 
@@ -2398,6 +2491,7 @@ PUBLIC json_t *tranger2_backup_topic(
                 "path",         "%s", backup_directory,
                 NULL
             );
+            reopen_topic_not_backed_up(gobj, tranger, topic_name);
             return 0;
         }
     }
@@ -2424,6 +2518,7 @@ PUBLIC json_t *tranger2_backup_topic(
             "msg",          "%s", "Cannot load topic_desc.json",
             NULL
         );
+        reopen_topic_not_backed_up(gobj, tranger, topic_name);
         return 0;
     }
 
@@ -2473,6 +2568,8 @@ PUBLIC json_t *tranger2_backup_topic(
         );
         JSON_DECREF(topic_desc)
         JSON_DECREF(topic_cols)
+        JSON_DECREF(jn_topic_var)
+        reopen_topic_not_backed_up(gobj, tranger, topic_name);
         return 0;
     }
 
@@ -3516,6 +3613,18 @@ PUBLIC int tranger2_append_record(
     json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key_value);
 
     /*------------------------------------------------------*
+     *  A key flagged unlisted is listed again first
+     *------------------------------------------------------*/
+    if(json_object_get(key_cache, "unlisted")) {
+        if(relist_key_before_append(gobj, tranger, topic, key_value) < 0) {
+            // Error already logged
+            JSON_DECREF(record)
+            return -1;
+        }
+        key_cache = json_object_get(json_object_get(topic, "cache"), key_value);
+    }
+
+    /*------------------------------------------------------*
      *  A file flagged unreadable is counted again first
      *------------------------------------------------------*/
     if(json_array_size(json_object_get(key_cache, "unreadable")) > 0) {
@@ -4151,11 +4260,13 @@ PRIVATE void mirror_key_delete_to_disks(
     Removes the `keys/<key>/` directory and every instance it holds.
     Irrecoverable. Only the master can delete.
 
-    Propagates the deletion: first mirrors the rmrdir into
-    `topic/disks/<rt_id>/<key>/` so followers pick it up via inotify,
-    then fires in-process `key_deleted_callback`s on rt_mem /
-    iterators / rt_disk subscribers, then removes the live key dir.
-    Order matters — followers may read while reacting.
+    Removes the live key dir FIRST, and announces the delete only once it
+    is done: then it mirrors the rmrdir into `topic/disks/<rt_id>/<key>/`
+    so followers pick it up via inotify, and fires the in-process
+    `key_deleted_callback`s on rt_mem / iterators / rt_disk subscribers.
+    When the key dir cannot be removed (-1), nothing is announced: the
+    cache of the key is read again from what is left on disk, and its
+    iterators take their segments again from it.
  ***************************************************************************/
 PUBLIC int tranger2_delete_key(
     json_t *tranger,
@@ -4257,7 +4368,8 @@ PUBLIC int tranger2_delete_key(
                 gobj, topic_dir, key, json_is_true(json_object_get(tranger, "master"))
             );
             if(json_array_size(json_object_get(key_cache, "files")) > 0 ||
-                    json_array_size(json_object_get(key_cache, "unreadable")) > 0) {
+                    json_array_size(json_object_get(key_cache, "unreadable")) > 0 ||
+                    json_object_get(key_cache, "unlisted")) {
                 json_object_set_new(topic_cache, key, key_cache);
                 update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
             } else {
@@ -6425,12 +6537,14 @@ PRIVATE int scan_disks_key_for_new_file(
 {
     dir_array_t da;
 
-    find_files_with_suffix_array(
+    if(find_files_with_suffix_array(
         gobj,
         path,
         ".md2",
         &da
-    );
+    ) < 0) {
+        return -1;  // Error already logged
+    }
 
     dir_array_sort(&da);
 
@@ -6986,7 +7100,10 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
  *  Returns list of keys that exist on disk
  *  directory: path to search
  *  cb: callback called for each match
- *  Return: number of directories found
+ *  Return: number of directories found, or -1 (logged) when `keys/` exists
+ *  and cannot be listed: a topic read without its keys is a topic whose
+ *  history nothing flags as missing (up to 7.25.4 it opened EMPTY, and a
+ *  treedb accepted a create of an id whose records were never read).
  ***************************************************************************/
 struct find_keys_s {
     hgobj gobj;
@@ -7023,14 +7140,26 @@ PRIVATE int find_keys_in_disk(
 
     DIR *dir = opendir(full_path);
     if(!dir) {
+        if(errno == ENOENT) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "find tranger2 keys: directory not found",
+                "path",         "%s", full_path,
+               NULL
+            );
+            return 0;   // no keys/, no key on disk: nothing is missing
+        }
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "find tranger2 keys: directory not found",
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot list the keys of the topic",
             "path",         "%s", full_path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
            NULL
         );
-        return 0;
+        return -1;
     }
 
     struct find_keys_s find_keys = {
@@ -7054,7 +7183,7 @@ PRIVATE int find_keys_in_disk(
      *  back the same way as each other.
      */
     json_t *jn_keys = json_array();
-    while((entry = readdir(dir)) != NULL) {
+    while((errno = 0, entry = readdir(dir)) != NULL) {   // errno tells the end from a failure
         if(entry->d_name[0] == '.' &&
           (entry->d_name[1] == '\0' ||
            (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
@@ -7096,6 +7225,20 @@ PRIVATE int find_keys_in_disk(
         }
 
         json_array_append_new(jn_keys, json_string(entry->d_name));
+    }
+    if(errno != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot list the keys of the topic, readdir() FAILED",
+            "path",         "%s", full_path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+           NULL
+        );
+        closedir(dir);
+        json_decref(jn_keys);
+        return -1;
     }
 
     closedir(dir);
@@ -7384,6 +7527,32 @@ PRIVATE void flag_key_unreadable(
 }
 
 /***************************************************************************
+ *  A key whose directory the cache build cannot LIST: none of its files is
+ *  known, so none is flagged by name. The key is flagged whole,
+ *  `"unlisted": true` in its cache: every load of the key says
+ *  `load_failed` (tranger2_open_iterator), and an append into it lists the
+ *  key again first, or is refused (relist_key_before_append). Up to 7.25.4
+ *  it loaded as an EMPTY key that nothing flagged.
+ ***************************************************************************/
+PRIVATE void flag_key_unlisted(
+    hgobj gobj,
+    json_t *key_cache,
+    const char *topic_directory,
+    const char *key
+)
+{
+    gobj_log_error(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_TRANGER,
+        "msg",              "%s", "key directory cannot be listed when its cache was built: every load of the key says load_failed",
+        "topic_directory",  "%s", topic_directory,
+        "key",              "%s", key,
+        NULL
+    );
+    json_object_set_new(key_cache, "unlisted", json_true());
+}
+
+/***************************************************************************
  *  Index of `file_id` in the key's "unreadable" list, or -1
  ***************************************************************************/
 PRIVATE int flagged_file_index(json_t *topic, const char *key, const char *file_id)
@@ -7574,6 +7743,53 @@ PRIVATE int count_flagged_file_again(
 }
 
 /***************************************************************************
+ *  An append into a key flagged unlisted (flag_key_unlisted): none of its
+ *  files is in a cell, and a row appended now would be counted as the
+ *  first of its file -- a load read one of the OLD rows in its place. The
+ *  key is listed again first: if it can be listed now, its cache is built
+ *  again from the disk (and the append goes on); if not, the append is
+ *  refused.
+ *  Return 0 when the append can go on, -1 (logged) when not.
+ ***************************************************************************/
+PRIVATE int relist_key_before_append(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key
+)
+{
+    const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
+    json_t *key_cache = load_key_cache_from_disk(
+        gobj, topic_directory, key, json_is_true(json_object_get(tranger, "master"))
+    );
+    if(json_is_true(json_object_get(key_cache, "unlisted"))) {
+        JSON_DECREF(key_cache)
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Cannot append record, its key cannot be listed: its row would follow rows no cell counts",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+
+    json_object_set_new(json_object_get(topic, "cache"), key, key_cache);
+    update_totals_of_key_cache(gobj, topic, key);   // Errors already logged
+    retake_segments_of_key(gobj, tranger, topic, key);
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "key directory listed again: its files are counted, and the key is not flagged",
+        "topic",        "%s", tranger2_topic_name(topic),
+        "key",          "%s", key,
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
  *  An append whose md2 row was not written was not acknowledged: its
  *  content is cut back, so the file does not keep a record no row names.
  ***************************************************************************/
@@ -7658,12 +7874,16 @@ PRIVATE json_t *load_key_cache_from_disk(
      */
     dir_array_t da;
 
-    find_files_with_suffix_array(
+    if(find_files_with_suffix_array(
         gobj,
         full_path,
         master? NULL: ".md2",
         &da
-    );
+    ) < 0) {
+        // Error already logged, the cause
+        flag_key_unlisted(gobj, key_cache, topic_directory, key);
+        return key_cache;
+    }
 
     dir_array_sort(&da);
 
@@ -9389,8 +9609,17 @@ PUBLIC json_t *tranger2_mark_tm_order(
         size_t n_cells = json_array_size(cache_files);
         size_t cell_idx = 0;
 
+        /*
+         *  A key directory that cannot be listed fails the migration: its
+         *  files were not scanned, and a topic marked over them trusts tm
+         *  ranges nobody widened (up to 7.25.4 the key counted as 0 files
+         *  and the topic was marked: tm queries lost its rows).
+         */
         dir_array_t da;
-        find_files_with_suffix_array(gobj, key_directory, ".md2", &da);
+        if(find_files_with_suffix_array(gobj, key_directory, ".md2", &da) < 0) {
+            failed = TRUE;  // Error already logged
+            break;
+        }
         dir_array_sort(&da);
         for(int i = 0; i < da.count && !failed; i++) {
             char file_id[NAME_MAX];
@@ -9676,9 +9905,8 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
      *  stops where the first of those files is in its direction -- where a
      *  running tranger stops when the damage happens behind its back.
      */
-    json_t *unreadable = json_object_get(
-        json_object_get(json_object_get(topic, "cache"), key), "unreadable"
-    );
+    json_t *key_cache = json_object_get(json_object_get(topic, "cache"), key);
+    json_t *unreadable = json_object_get(key_cache, "unreadable");
     if(json_array_size(unreadable) > 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -9692,6 +9920,21 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         json_object_set_new(iterator, "load_failed", json_true());
     } else {
         unreadable = NULL;
+    }
+    /*
+     *  A key whose directory could not be listed (flag_key_unlisted) has
+     *  no cell at all: the load reads nothing, and says so.
+     */
+    if(json_object_get(key_cache, "unlisted")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "The history of the key is not whole: its directory could not be listed when its cache was built",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        json_object_set_new(iterator, "load_failed", json_true());
     }
 
     /*-------------------------------------------------------------------------*
