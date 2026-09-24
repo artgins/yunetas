@@ -63,10 +63,46 @@ Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 | `backlog` | `integer` | Listen backlog. |
 | `shared` | `bool` | Enable port sharing (`SO_REUSEPORT`). |
 | `crypto` | `json` | TLS configuration for accepted connections. |
-| `only_allowed_ips` | `bool` | Restrict connections to allowed IPs only. |
+| `only_allowed_ips` | `bool` | Accept only the peers in the yuno's `allowed_ips` list (whitelist mode). The `denied_ips` list applies with or without it. |
 | `connxs` | `integer` | Current connection count (stat). |
 | `tconnxs` | `integer` | Total connection count (stat). |
 | `clisrv_kw` | `json` | Extra kw passed to each child client/server. |
+
+(tcp_s_ip_lists)=
+### IP lists at accept
+
+The yuno keeps two lists of peer ips: `denied_ips` and `allowed_ips`
+(attributes of `__yuno__`, see [`is_ip_denied()`](#is_ip_denied)). `C_TCP_S`
+asks them for every accepted connection, before it builds a channel for the
+peer:
+
+1. A loopback peer (`127.0.0.x`, `::1`) is always accepted. A list cannot
+   lock out the local control plane.
+2. A peer in `denied_ips` is refused. This applies on every listener, with or
+   without `only_allowed_ips`, and it wins over `allowed_ips`.
+3. With `only_allowed_ips`, a peer that is not in `allowed_ips` is refused.
+
+A refused connection is closed at once and logged at info level, with the
+peer, as `TCP_S: Ip denied` or `TCP_S: Ip not allowed` (msgset
+`Connect Disconnect`). It does not use a channel of the pool.
+
+Example: ban one ip on every TCP listener of a yuno, and see the list:
+
+```bash
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=add-denied-ip ip=203.0.113.7 denied=1'
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=list-denied-ips'
+```
+
+`denied=1` is necessary: `add-denied-ip ip=X` alone writes `X: false`, which
+does not deny. The list is persistent (`SDF_PERSIST`). `remove-denied-ip
+ip=203.0.113.7` removes the ban.
+
+:::{note}
+Up to 7.25.4 the accept path asked only `allowed_ips`, and only with
+`only_allowed_ips`. A denied ip was refused only by an authenticating gate,
+at login (`C_AUTHZ`), after its channel was built, and a gate that does not
+authenticate (an MQTT or IoT field port) accepted it.
+:::
 
 ### Commands
 

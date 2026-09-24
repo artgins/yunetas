@@ -99,8 +99,17 @@ This function does not return a value.
 ## [`is_ip_allowed()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_yuno.c#L5936)
 
 Checks whether an IP address is in the allowed-IPs list.
-If the string contains a port (for example `"192.168.1.1:8080"`), the port part
-is stripped before lookup.
+The lookup key is the ip of the peername, without its port:
+
+| `peername` | key |
+|---|---|
+| `"192.168.1.1:8080"` | `192.168.1.1` |
+| `"[2001:db8::1]:443"` | `2001:db8::1` |
+| `"[::ffff:192.168.1.1]:80"` (an ipv4 on a dual-stack socket) | `192.168.1.1` |
+| `"192.168.1.1"`, `"2001:db8::1"` (no port) | the same |
+
+Up to 7.25.4 the port was cut at the first `:`, so no list could name an
+ipv6 peer.
 
 ```C
 BOOL is_ip_allowed(const char *peername);
@@ -119,6 +128,8 @@ BOOL is_ip_allowed(const char *peername);
 :::{note}
 Only the **read** half of the allowed/denied lists is public C API, because
 `c_tcp_s` asks it once per accepted connection and `c_authz` once per login.
+Since 7.25.5 `c_tcp_s` asks both lists at accept (see
+[IP lists at accept](#tcp_s_ip_lists)).
 Writing goes through the GClass interface: the `allowed_ips` / `denied_ips`
 attributes (`SDF_PERSIST`) and the `add-allowed-ip`, `remove-allowed-ip`,
 `add-denied-ip`, `remove-denied-ip` commands.
@@ -129,8 +140,16 @@ attributes (`SDF_PERSIST`) and the `add-allowed-ip`, `remove-allowed-ip`,
 (is_ip_denied)=
 ## [`is_ip_denied()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_yuno.c#L5979)
 
-Checks whether an IP address is in the denied-IPs list.
+Checks whether an IP address is in the denied-IPs list, with the same
+lookup key as [`is_ip_allowed()`](#is_ip_allowed).
 Denied IPs take precedence over allowed IPs.
+
+```C
+json_t *denied_ips = gobj_read_json_attr(gobj_yuno(), "denied_ips");
+json_object_set_new(denied_ips, "2001:db8::1", json_true());
+is_ip_denied("[2001:db8::1]:443");  // TRUE
+is_ip_denied("[2001:db8::2]:443");  // FALSE
+```
 
 ```C
 BOOL is_ip_denied(const char *peername);

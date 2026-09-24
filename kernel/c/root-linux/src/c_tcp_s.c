@@ -36,6 +36,7 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event);
+PRIVATE BOOL is_loopback_peer(const char *peername);
 PRIVATE int reload_ytls_from_attrs(hgobj gobj);
 PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_cert(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -552,6 +553,21 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 /***************************************************************************
+ *  A peer on this host: 127.0.0.x, ::1, or 127.0.0.x seen by a dual-stack
+ *  socket. The same exemption the allow-list always had.
+ ***************************************************************************/
+PRIVATE BOOL is_loopback_peer(const char *peername)
+{
+    const char *loopbacks[] = {"127.0.0.", "[::1]", "[::ffff:127.0.0.", 0};
+    for(int i=0; loopbacks[i]; i++) {
+        if(strncmp(peername, loopbacks[i], strlen(loopbacks[i]))==0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  Accept cb
  *  WARNING yev_callback() return -1 will break the loop of yevent
  ***************************************************************************/
@@ -645,24 +661,35 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
     set_cloexec(fd_clisrv);
 
-    if(priv->only_allowed_ips) {
-        char peername[80];
-        get_peername(peername, sizeof(peername), fd_clisrv);
-        const char *localhost = "127.0.0.";
-        if(strncmp(peername, localhost, strlen(localhost))!=0) {
-            if(!is_ip_allowed(peername)) {
-                gobj_log_info(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                    "msg",          "%s", "TCP_S: Ip not allowed",
-                    "msg2",         "%s", "🌐TCP_S: Ip not allowed",
-                    "url",          "%s", priv->url,
-                    "peername",     "%s", peername,
-                    NULL
-                );
-                close(fd_clisrv);
-                return 0;
-            }
+    /*
+     *  The yuno's ip lists, before anything is spent on the peer.
+     *  The deny-list applies whenever it names the peer; the allow-list only
+     *  with `only_allowed_ips`. Denied wins over allowed. Loopback is exempt
+     *  from both: the local control plane can never be locked out by a list.
+     *  Up to 7.25.4 only the allow-list was asked, so a denied ip was refused
+     *  only by an authenticating gate, at login, after its channel was built.
+     */
+    char peername[80];
+    get_peername(peername, sizeof(peername), fd_clisrv);
+    if(!is_loopback_peer(peername)) {
+        const char *refusal = NULL;
+        if(is_ip_denied(peername)) {
+            refusal = "TCP_S: Ip denied";
+        } else if(priv->only_allowed_ips && !is_ip_allowed(peername)) {
+            refusal = "TCP_S: Ip not allowed";
+        }
+        if(refusal) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", refusal,
+                "msg2",         "%s", refusal,
+                "url",          "%s", priv->url,
+                "peername",     "%s", peername,
+                NULL
+            );
+            close(fd_clisrv);
+            return 0;
         }
     }
 

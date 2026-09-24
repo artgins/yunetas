@@ -69,6 +69,10 @@ PUBLIC void set_yuno_must_die(void);
  *  Allowed ips for authz without jwt
  *      (in addition to local ip with yuneta user)
  *  Denied ips for authz without jwt (prevalence over allowed)
+ *  C_TCP_S asks both at accept: a denied peer is always refused, an
+ *  unlisted one only with `only_allowed_ips`; loopback is exempt.
+ *  The key is the ip of the peername, without its port:
+ *  "1.2.3.4:80" -> "1.2.3.4", "[2001:db8::1]:443" -> "2001:db8::1".
  *--------------------------------------------------*/
 /*
  *  Only the READ half is exported: c_tcp_s asks it once per accepted

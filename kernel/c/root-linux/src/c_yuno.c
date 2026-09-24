@@ -81,6 +81,7 @@ PRIVATE json_t *get_machine_memory_info(void);
  *  half (is_ip_allowed/is_ip_denied) is exported, because c_tcp_s and
  *  c_authz ask it once per connection.
  */
+PRIVATE void peername_to_ip(char *ip, size_t ip_size, const char *peername);
 PRIVATE int add_allowed_ip(const char *ip, BOOL allowed);
 PRIVATE int remove_allowed_ip(const char *ip);
 PRIVATE int add_denied_ip(const char *ip, BOOL denied);
@@ -5930,17 +5931,45 @@ PUBLIC void set_yuno_must_die(void)
 }
 
 /***************************************************************************
+ *  The ip of a peername, the key of the allowed/denied lists:
+ *      "1.2.3.4:5678"          -> "1.2.3.4"
+ *      "[2001:db8::1]:5678"    -> "2001:db8::1"
+ *      "[::ffff:1.2.3.4]:5678" -> "1.2.3.4"    (an ipv4 on a dual-stack socket)
+ *      "1.2.3.4", "2001:db8::1" (no port)      -> the same
+ *  Up to 7.25.4 the port was cut at the FIRST ':', so every ipv6 peer was
+ *  looked up as "[" and no list could name it.
+ ***************************************************************************/
+PRIVATE void peername_to_ip(char *ip, size_t ip_size, const char *peername)
+{
+    if(peername[0] == '[') {
+        snprintf(ip, ip_size, "%s", peername + 1);
+        char *p = strchr(ip, ']');
+        if(p) {
+            *p = 0;
+        }
+    } else {
+        snprintf(ip, ip_size, "%s", peername);
+        char *p = strchr(ip, ':');
+        if(p && !strchr(p + 1, ':')) {
+            *p = 0; // one ':' is the port of an ipv4; more is a bare ipv6
+        }
+    }
+
+    const char *v4_mapped = "::ffff:";
+    size_t len = strlen(v4_mapped);
+    if(strncasecmp(ip, v4_mapped, len)==0 && strchr(ip + len, '.')) {
+        memmove(ip, ip + len, strlen(ip + len) + 1);
+    }
+}
+
+/***************************************************************************
  *  Is ip or peername allowed?
  *  IP's must be numeric
  ***************************************************************************/
 PUBLIC BOOL is_ip_allowed(const char *peername)
 {
     char ip[NAME_MAX];
-    snprintf(ip, sizeof(ip), "%s", peername);
-    char *p = strchr(ip, ':');
-    if(p) {
-        *p = 0;
-    }
+    peername_to_ip(ip, sizeof(ip), peername);
     json_t *b = json_object_get(gobj_read_json_attr(gobj_yuno(), "allowed_ips"), ip);
     return json_is_true(b)?TRUE:FALSE;
 }
@@ -5979,11 +6008,7 @@ PRIVATE int remove_allowed_ip(const char *ip)
 PUBLIC BOOL is_ip_denied(const char *peername)
 {
     char ip[NAME_MAX];
-    snprintf(ip, sizeof(ip), "%s", peername);
-    char *p = strchr(ip, ':');
-    if(p) {
-        *p = 0;
-    }
+    peername_to_ip(ip, sizeof(ip), peername);
     json_t *b = json_object_get(gobj_read_json_attr(gobj_yuno(), "denied_ips"), ip);
     return json_is_true(b)?TRUE:FALSE;
 }
