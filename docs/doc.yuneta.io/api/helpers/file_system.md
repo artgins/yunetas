@@ -274,6 +274,8 @@ A symbolic link to a directory counts as a directory, as in `mkdir -p`. These ar
 
 Up to 7.25.4 the function returned `0` in both cases, with no directory there, and the log of a component in the middle of the path showed an old `errno`.
 
+A `path` of `PATH_MAX` bytes or more is refused: the log is *"Path too long, not created"*, and the function returns `-1`. Up to 7.25.4 the path was cut to `PATH_MAX` without a log, the cut path was created, and the function returned `0`.
+
 **Example**
 
 ```C
@@ -401,7 +403,7 @@ Returns 0 on success, or -1 if an error occurs.
 
 This function does not remove the root directory itself, only its contents. It skips special entries like `.` and `..` and handles both files and subdirectories recursively.
 
-A symbolic link inside the directory is removed as a link. The function never goes into it, so the files of the link target stay (see [`rmrdir()`](#rmrdir)). An entry that another process removes during the walk is not an error. Every failure is logged.
+A symbolic link inside the directory is removed as a link. The function never goes into it, so the files of the link target stay (see [`rmrdir()`](#rmrdir)). An entry that another process removes during the walk is not an error. Every failure is logged. A tree that is too long or too deep is refused, as in [`rmrdir()`](#rmrdir-deep-tree).
 
 **Example**
 
@@ -450,6 +452,9 @@ Up to 7.25.4 the function used `stat()`, which follows links. A link to a direct
 A `path` that does not exist returns `-1` without a log, because callers use `rmrdir()` to make sure that a directory is gone. Every other failure is logged.
 
 An entry inside the tree that another process removes during the walk (between `readdir()` and `lstat()`) is already gone, so it is not an error: the walk continues. Up to 7.25.4 that case returned `-1` with no log.
+
+(rmrdir-deep-tree)=
+A tree whose paths do not fit in `PATH_MAX`, or deeper than 1024 levels, is refused: the log is *"Path too long, the tree is not removed"* or *"Tree too deep, it is not removed"*, and the function returns `-1`. What the walk removed before it stays removed, the rest stays. The walk keeps one path buffer for the whole tree, and one open directory for each level. To remove such a tree, use `rm -rf`.
 
 **Example**
 

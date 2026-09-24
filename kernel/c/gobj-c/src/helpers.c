@@ -396,14 +396,14 @@ PRIVATE int ensure_one_directory(const char *path, int xpermission)
  *  A component that exists and is not a directory is an error, logged with
  *  ENOTDIR; so is a dangling symbolic link. Up to 7.25.4 the first check
  *  could never be true and the second was taken as "exists": both answered 0
- *  with no directory there.
+ *  with no directory there. A path longer than PATH_MAX is refused with a
+ *  log (-1).
  ***************************************************************************/
 PUBLIC int mkrdir(const char *path, int xpermission)
 {
     char tmp[PATH_MAX];
 
-    snprintf(tmp, sizeof(tmp), "%s", path);
-    size_t len = strlen(tmp);
+    size_t len = path? strlen(path): 0;
     if(len == 0) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -413,6 +413,23 @@ PUBLIC int mkrdir(const char *path, int xpermission)
         );
         return -1;
     }
+    if(len >= sizeof(tmp)) {
+        /*
+         *  Up to 7.25.4 the path was cut to PATH_MAX without a word, the
+         *  cut path was created, and the answer was 0
+         */
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Path too long, not created",
+            "path",         "%.256s", path,
+            "path_len",     "%d", (int)len,
+            "PATH_MAX",     "%d", (int)PATH_MAX,
+            NULL
+        );
+        return -1;
+    }
+    memcpy(tmp, path, len + 1);
     if(len > 1 && tmp[len - 1] == '/') {
         tmp[len - 1] = 0;
     }
@@ -469,18 +486,63 @@ PRIVATE int remove_non_directory(const char *path)
 }
 
 /****************************************************************************
+ *  The deepest tree that rmrdir() / rmrcontentdir() walk. Each level keeps
+ *  one directory open and one small stack frame (the path is ONE buffer
+ *  for the whole walk), and a path longer than PATH_MAX is refused, so a
+ *  deeper tree is refused with a log, never walked into.
+ ****************************************************************************/
+#ifdef ESP_PLATFORM
+#define MAX_TREE_DEPTH  16
+#else
+#define MAX_TREE_DEPTH  1024
+#endif
+
+/****************************************************************************
+ *  Append "/name" to the path of a walk (`path` of `path_len` bytes, in a
+ *  buffer of PATH_MAX). Refused with a log when it does not fit: up to
+ *  now build_path() dropped the name, and the walk went into the SAME
+ *  directory again, forever (a crash on a tree deeper than PATH_MAX).
+ *  build_path() is not used: the source and the destination are the same
+ *  buffer, and the length must be known before, to refuse.
+ ****************************************************************************/
+PRIVATE int walk_path_append(char *path, size_t path_len, const char *name)
+{
+    size_t name_len = strlen(name);
+    BOOL sep = (path_len > 0 && path[path_len-1] != '/')? TRUE: FALSE;
+    if(path_len + (sep? 1: 0) + name_len >= PATH_MAX) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Path too long, the tree is not removed",
+            "path",         "%.256s", path,
+            "name",         "%s", name,
+            "path_len",     "%d", (int)path_len,
+            "PATH_MAX",     "%d", (int)PATH_MAX,
+            NULL
+        );
+        return -1;
+    }
+    if(sep) {
+        path[path_len++] = '/';
+    }
+    memcpy(path + path_len, name, name_len + 1);
+    return 0;
+}
+
+/****************************************************************************
  *  Remove an entry of a walk and, if it is a directory, all its content.
+ *  `path` is the buffer of the walk (PATH_MAX): the names of the entries
+ *  are appended to it and cut again, so a level costs no path of its own.
  *  An entry that is already gone (another process removed it between the
  *  readdir() and here) is not an error: 0, no log. Up to 7.25.4 that
  *  case returned -1 with no log, and every level above answered -1 as
  *  "Error already logged". A symbolic link is removed, never descended.
  ****************************************************************************/
-PRIVATE int remove_tree_entry(const char *path)
+PRIVATE int remove_tree_walk(char *path, int depth)
 {
     struct stat statbuf;
     struct dirent *dir_entry;
     DIR *dir;
-    char full_path[PATH_MAX];
 
     if(stat_no_follow(path, &statbuf) != 0) {
         if(errno == ENOENT) {
@@ -502,6 +564,18 @@ PRIVATE int remove_tree_entry(const char *path)
         return remove_non_directory(path);
     }
 
+    if(depth > MAX_TREE_DEPTH) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Tree too deep, it is not removed",
+            "path",         "%.256s", path,
+            "max_depth",    "%d", MAX_TREE_DEPTH,
+            NULL
+        );
+        return -1;
+    }
+
     dir = opendir(path);
     if(dir == NULL) {
         if(errno == ENOENT) {
@@ -519,14 +593,19 @@ PRIVATE int remove_tree_entry(const char *path)
         return -1;
     }
 
+    size_t path_len = strlen(path);
     while((dir_entry = readdir(dir)) != NULL) {
         if(strcmp(dir_entry->d_name, ".") == 0 || strcmp(dir_entry->d_name, "..") == 0) {
             continue;
         }
 
-        build_path(full_path, sizeof(full_path), path, dir_entry->d_name, NULL);
-
-        if(remove_tree_entry(full_path) != 0) {
+        if(walk_path_append(path, path_len, dir_entry->d_name) < 0) {
+            closedir(dir);
+            return -1;  // Error already logged
+        }
+        int ret = remove_tree_walk(path, depth + 1);
+        path[path_len] = 0;
+        if(ret != 0) {
             closedir(dir);
             return -1;  // Error already logged
         }
@@ -554,6 +633,28 @@ PRIVATE int remove_tree_entry(const char *path)
 }
 
 /****************************************************************************
+ *  Copy a path to the buffer of a walk. Refused with a log when it does
+ *  not fit.
+ ****************************************************************************/
+PRIVATE int walk_path_start(char *bf, const char *path)
+{
+    size_t len = strlen(path);
+    if(len == 0 || len >= PATH_MAX) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", len? "Path too long": "path EMPTY",
+            "path",         "%.256s", path,
+            "path_len",     "%d", (int)len,
+            NULL
+        );
+        return -1;
+    }
+    memcpy(bf, path, len + 1);
+    return 0;
+}
+
+/****************************************************************************
  *  Function to recursively remove a directory and its contents
  *
  *  A symbolic link is removed as a link and NEVER descended: up to 7.25.4
@@ -563,7 +664,9 @@ PRIVATE int remove_tree_entry(const char *path)
  *  A path that does not exist returns -1 without a log: callers use
  *  rmrdir() to make sure a directory is gone. An entry INSIDE the tree
  *  that disappears during the walk is not an error (see
- *  remove_tree_entry()).
+ *  remove_tree_walk()). A tree whose paths do not fit in PATH_MAX, or
+ *  deeper than MAX_TREE_DEPTH, is refused with a log (-1): what was
+ *  walked before is removed, the rest stays.
  ****************************************************************************/
 PUBLIC int rmrdir(const char *path)
 {
@@ -572,7 +675,11 @@ PUBLIC int rmrdir(const char *path)
     if(stat_no_follow(path, &statbuf) != 0 && errno == ENOENT) {
         return -1;  // Nothing to remove, see the header
     }
-    return remove_tree_entry(path);  // on -1 error already logged
+    char bf[PATH_MAX];
+    if(walk_path_start(bf, path) < 0) {
+        return -1;  // Error already logged
+    }
+    return remove_tree_walk(bf, 0);  // on -1 error already logged
 }
 
 /****************************************************************************
@@ -583,8 +690,13 @@ PUBLIC int rmrcontentdir(const char *root_dir)
 {
     struct dirent *dent;
     DIR *dir;
+    char bf[PATH_MAX];
 
-    if (!(dir = opendir(root_dir))) {
+    if(walk_path_start(bf, root_dir) < 0) {
+        return -1;  // Error already logged
+    }
+
+    if (!(dir = opendir(bf))) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -597,15 +709,19 @@ PUBLIC int rmrcontentdir(const char *root_dir)
         return -1;
     }
 
+    size_t root_len = strlen(bf);
     while ((dent = readdir(dir))) {
         char *dname = dent->d_name;
         if (!strcmp(dname, ".") || !strcmp(dname, "..")) {
             continue;
         }
-        char path[PATH_MAX];
-        build_path(path, sizeof(path), root_dir, dname, NULL);
-
-        if(remove_tree_entry(path) < 0) {
+        if(walk_path_append(bf, root_len, dname) < 0) {
+            closedir(dir);
+            return -1;  // Error already logged
+        }
+        int ret = remove_tree_walk(bf, 1);
+        bf[root_len] = 0;
+        if(ret < 0) {
             closedir(dir);
             return -1;  // Error already logged
         }

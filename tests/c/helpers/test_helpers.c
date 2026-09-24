@@ -6,7 +6,8 @@
  *          caller's in-progress strtok() parse (the strtok -> strtok_r fix).
  *          And save_json_to_file(): a failure is never silent.
  *          And rmrdir() / rmrcontentdir() / mkrdir() with symbolic links,
- *          and with an entry that disappears during the walk.
+ *          and with an entry that disappears during the walk, and with
+ *          paths longer than PATH_MAX and deep trees.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -19,6 +20,8 @@
 #include <signal.h>
 #include <errno.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <dirent.h>
 #include <sys/stat.h>
 #include <yunetas.h>
 
@@ -580,6 +583,153 @@ PRIVATE void test_mkrdir_not_a_directory(void)
 }
 
 /***************************************************************************
+ *  A tree whose paths are longer than PATH_MAX, and a deep tree.
+ *
+ *  Up to now build_path() dropped the name of an entry that did not fit,
+ *  and the walk went into the same directory again, forever: a crash
+ *  (stack overflow) on a tree deeper than PATH_MAX. Now it is refused
+ *  with a log. And mkrdir() of a path longer than PATH_MAX cut it
+ *  without a word and answered 0: now it is refused with a log.
+ ***************************************************************************/
+#define DEEP_BASE "/tmp/test_helpers_deep"
+
+/*
+ *  Build `levels` directories of names of `name_len` chars, with fds
+ *  (a path of the whole tree does not fit in PATH_MAX)
+ */
+PRIVATE void make_deep_tree(const char *root, int levels, int name_len)
+{
+    mkdir(root, 0775);
+    int fd = open(root, O_RDONLY|O_DIRECTORY);
+    char name[NAME_MAX];
+    memset(name, 'd', (size_t)name_len);
+    name[name_len] = 0;
+    for(int i=0; i<levels && fd >= 0; i++) {
+        mkdirat(fd, name, 0775);
+        int fd2 = openat(fd, name, O_RDONLY|O_DIRECTORY);
+        close(fd);
+        fd = fd2;
+    }
+    if(fd >= 0) {
+        int f = openat(fd, "leaf.txt", O_CREAT|O_WRONLY, 0664);
+        if(f >= 0) {
+            close(f);
+        }
+        close(fd);
+    }
+}
+
+/*
+ *  Remove what rmrdir() refused, with fds (the test's own cleanup)
+ */
+PRIVATE void remove_at(int parent_fd, const char *name, int depth)
+{
+    if(depth > 200) {
+        return;
+    }
+    int fd = openat(parent_fd, name, O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+    if(fd < 0) {
+        unlinkat(parent_fd, name, 0);
+        return;
+    }
+    DIR *dir = fdopendir(fd);
+    if(!dir) {
+        close(fd);
+        return;
+    }
+    struct dirent *de;
+    while((de = readdir(dir)) != NULL) {
+        if(strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) {
+            continue;
+        }
+        remove_at(dirfd(dir), de->d_name, depth + 1);
+    }
+    closedir(dir);
+    unlinkat(parent_fd, name, AT_REMOVEDIR);
+}
+
+PRIVATE void check_ok(BOOL ok, const char *name)
+{
+    if(ok) {
+        printf("ok   %-40s\n", name);
+    } else {
+        printf("FAIL %-40s\n", name);
+        global_result += -1;
+    }
+}
+
+PRIVATE void test_rmrdir_deep_tree(void)
+{
+    remove_at(AT_FDCWD, DEEP_BASE, 0);
+
+    /*
+     *  50 levels of 100 chars: 5 000 chars, more than PATH_MAX
+     */
+    make_deep_tree(DEEP_BASE, 50, 100);
+    int errors_before = s_errors;
+    int ret = rmrdir(DEEP_BASE);
+    check_ok(ret == -1 && s_errors > errors_before && is_directory(DEEP_BASE),
+        "rmrdir: path > PATH_MAX refused, logged");
+    check_ok(strstr(s_last_error, "Path too long") != NULL,
+        "rmrdir: the log says the path is too long");
+
+    errors_before = s_errors;
+    ret = rmrcontentdir(DEEP_BASE);
+    check_ok(ret == -1 && s_errors > errors_before && is_directory(DEEP_BASE),
+        "rmrcontentdir: path > PATH_MAX refused");
+    remove_at(AT_FDCWD, DEEP_BASE, 0);
+
+    /*
+     *  300 levels of 2 chars (900 chars): walked and removed whole
+     */
+    make_deep_tree(DEEP_BASE, 300, 2);
+    errors_before = s_errors;
+    ret = rmrdir(DEEP_BASE);
+    struct stat st;
+    check_ok(ret == 0 && s_errors == errors_before && lstat(DEEP_BASE, &st) != 0,
+        "rmrdir: a tree of 300 levels removed");
+
+    make_deep_tree(DEEP_BASE, 300, 2);
+    errors_before = s_errors;
+    ret = rmrcontentdir(DEEP_BASE);
+    check_ok(ret == 0 && s_errors == errors_before && is_directory(DEEP_BASE) &&
+        rmdir(DEEP_BASE) == 0,
+        "rmrcontentdir: 300 levels, the root stays");
+    remove_at(AT_FDCWD, DEEP_BASE, 0);
+
+    /*
+     *  1 100 levels of 1 char (2 200 chars, it fits): deeper than the walk
+     *  goes (1 024), refused with a log, no crash
+     */
+    make_deep_tree(DEEP_BASE, 1100, 1);
+    errors_before = s_errors;
+    ret = rmrdir(DEEP_BASE);
+    check_ok(ret == -1 && s_errors > errors_before && is_directory(DEEP_BASE),
+        "rmrdir: a tree of 1100 levels refused, logged");
+    printf("     (%s)\n", strstr(s_last_error, "Tree too deep")? "tree too deep":
+        "stopped before: no more open files");
+    if(system("rm -rf " DEEP_BASE) != 0) {
+        printf("FAIL cannot remove %s\n", DEEP_BASE);
+        global_result += -1;
+    }
+
+    /*
+     *  mkrdir() of a path of 5 000 chars
+     */
+    char p[6000];
+    int n = snprintf(p, sizeof(p), "%s/m", DEEP_BASE);
+    while(n < 5000) {
+        n += snprintf(p + n, sizeof(p) - (size_t)n, "/%s",
+            "dddddddddddddddddddddddddddddddddddddddddddddddddd");
+    }
+    errors_before = s_errors;
+    ret = mkrdir(p, 02775);
+    check_ok(ret == -1 && s_errors - errors_before == 1 && !is_directory(DEEP_BASE),
+        "mkrdir: path > PATH_MAX refused, logged");
+    remove_at(AT_FDCWD, DEEP_BASE, 0);
+}
+
+/***************************************************************************
  *  find_files_with_suffix_array() lists regular files only: never a
  *  symbolic link, never a directory. Up to 7.25.4 the DT_UNKNOWN path
  *  (filesystems that give no d_type) used stat() and listed a link to a
@@ -643,6 +793,7 @@ PRIVATE int do_test(void)
     test_rmrdir_symlinks();
     test_rmrdir_entry_vanishes();
     test_mkrdir_not_a_directory();
+    test_rmrdir_deep_tree();
     test_find_files_with_suffix();
     test_base64_slice();
     test_split_basic();
