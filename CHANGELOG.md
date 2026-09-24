@@ -2,35 +2,42 @@
 
 ## Unreleased
 
-What changed after 7.25.4. It comes from the independent reviews of the 7.25.4
-fixes (none written by their reviewers) and the fix round after each. Each
-behaviour change has a test that fails on the code before it, except the four
-listed under "No red test" in `TODO.md`.
+What changed after 7.25.4. Each behaviour change has a test that fails on the
+code before it, except those listed under "No red test" in `TODO.md`.
 
 ### Upgrade steps (operators, read first)
 
 - **Nodes that build from source: rebuild the external libraries first.**
   linux-ext-libs is 1.22 (a patched jansson): run
   `cd kernel/c/linux-ext-libs && ./extrae.sh && ./configure-libs.sh`, then
-  `yunetas clean && yunetas build` (it refuses a stale `outputs_ext` until then).
-- **Migrate the timeranger2 topics once, after upgrading.** Topics created by
-  7.25.4 or earlier do `tm` queries (`from_tm` / `to_tm`) much slower than
-  7.25.4 did until they are migrated, because no file's tm range is trusted in
-  them. On the master, for each tranger service (find them with
-  `command-yuno id=<id> service=__yuno__ command=services`):
-  `command-yuno id=<id> service=<tranger> command=mark-tm-order all=1`. It reads
-  every md2 file once, is linear in the number of files, and blocks the yuno
-  while it runs (4 keys x 3 650 daily files: ~80 ms warm cache; 1 key x 30 files
-  x 20 000 rows: ~16 ms). On that 30-file topic a tm query took ~13 ms on
-  7.25.4, ~400 ms unmigrated and ~0.1 ms migrated. See `deploying-yunos.md`.
+  `yunetas clean && yunetas build` (it refuses a stale `outputs_ext` until
+  then).
 - **Before upgrading a node, look for md2 files that are not whole rows:**
   `find /yuneta/store /yuneta/realms -name '*.md2' -printf '%s %p\n' | awk '$1 % 32'`.
-  A file that 7.25.4 wrote after a torn row is not cut by this release: its key
-  fails every load (CRITICAL *"...not cut, repair it by hand"*) until it is
-  repaired (treedb.md, "A topic that did not load whole").
-- **If the main agent does not come back after the upgrade**, look for *"Cannot
-  start agent treedb"* in its log: when its treedb's schema is refused, the
-  agent now exits 0 and is not relaunched. Reach the node through
+  A file that 7.25.4 wrote after a torn row is not cut by this release: its
+  key fails every load (CRITICAL *"...not cut, repair it by hand"*) until it
+  is repaired. treedb.md, "A topic that did not load whole", gives the repair:
+  a script that is linear (86 400 rows in 0.13 s) and runs in a `set -e`
+  subshell. It names its backup `~/<topic>.<key>.<file>.orig` and refuses to
+  overwrite one, writes through `$f.tmp` + `mv` (a failure leaves the `.md2`
+  unchanged), and writes nothing when more than one boundary passes. A scan
+  of ~21 500 md2 files on four stores (local, wattyzer, both yunovatios)
+  found none.
+- **Migrate the timeranger2 topics once, after upgrading.** Until a topic
+  created by 7.25.4 or earlier is migrated, no file's tm range is trusted in
+  it, and a `tm` query (`from_tm` / `to_tm`) reads every md2 row of the key.
+  On the master, for each tranger service of each yuno (find them with
+  `command-yuno id=<id> service=__yuno__ command=services`):
+  `command-yuno id=<id> service=<tranger> command=mark-tm-order all=1`. The
+  agent is not a managed yuno; its own trangers are
+  `command-agent service=tranger_treedb_yuneta_agent command=mark-tm-order all=1`
+  and `command-agent service=tranger_system_schema command=mark-tm-order all=1`.
+  The migration reads every md2 file once, is linear in the number of files,
+  and blocks the yuno while it runs (1 key x 30 files x 20 000 rows: ~17 ms).
+  The price until then is under "Performance". See `deploying-yunos.md`.
+- **If the main agent does not come back after the upgrade**, look for
+  *"Cannot start agent treedb"* in its log: when its treedb's schema is
+  refused, the agent now exits 0 and is not relaunched. Reach the node through
   `yuneta_agent22`.
 - **Do not roll a node back to 7.25.4 or earlier** for topics created or
   migrated by this release without running `mark-tm-order` again after coming
@@ -40,554 +47,580 @@ listed under "No red test" in `TODO.md`.
 ### Security
 
 - **jansson overflowed its buffers on a long string** (v2.15.1; not fixed
-  upstream, and the distribution's libjansson does the same). Its lexer ignored
-  a failed save and wrote past its buffers: a json string longer than about half
-  of `MEM_MAX_BLOCK` (~8 MB with the default 16 MB) crashed the process that
-  parsed it -- any `json_load*()`, json received from a peer included.
-  linux-ext-libs 1.22 carries
-  `patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`: the lexer
-  stops with `json_error_out_of_memory`, and every allocation failure of the
-  parser now sets that error. `configure-libs.sh` applies `patches/<lib>/*.patch`
-  after the checkout. The ESP32 copy of jansson has the same fix.
+  upstream, and the distribution's libjansson does the same). Its lexer
+  ignored a failed save and wrote past its buffers: a json string longer than
+  about half of `MEM_MAX_BLOCK` (~8 MB with the default 16 MB) crashed the
+  process that parsed it -- any `json_load*()`, json received from a peer
+  included. linux-ext-libs 1.22 carries
+  `patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`: the
+  lexer stops with `json_error_out_of_memory`, and every allocation failure
+  of the parser now sets that error. `configure-libs.sh` applies
+  `patches/<lib>/*.patch` after the checkout. The ESP32 copy of jansson has
+  the same fix.
 - timeranger2: a record this process has not the memory to parse is reported
   (*"Cannot read the record, this process has not the memory to parse its
-  content (MEM_MAX_BLOCK)"*, with its `key`) instead of crashing the reader; a
-  torn md2 whose last row names such a record is flagged, not cut (the open
+  content (MEM_MAX_BLOCK)"*, with its `key`) instead of crashing the reader;
+  a torn md2 whose last row names such a record is flagged, not cut (the open
   crashed, or cut the file and lost the acknowledged row).
 
 ### Data loss and integrity
 
-- C_AUTHZ `disable-user`, `enable-user` and `set-max-sessions` ERASED the user's
-  local password (since 55266cbb5, 2025-11): they read the user without the
-  hidden `credentials` column and wrote the whole view back. They write only
-  `{id, <field>}`.
-- `gc-assets` with a snap ACTIVE took the assets of live nodes written after the
-  snap (since 7.18.1): memory holds the snap's photo. The gc refuses while any
-  snap is active in the tranger. A refused gc takes no asset row; `gc-assets`
-  still sweeps (and reports) orphan blobs, the bytes no asset row names. The
-  library's `treedb_gc_files()` takes nothing on a refusal; `treedb_gc_files2()`
-  returns the report.
-- **Damaged keys.** A key damaged on disk (an md2 that cannot be opened or read,
-  a record whose content cannot be read) makes every load of the key fail
-  (`load_failed`): a row or content that cannot be read fails the load that
-  meets it, and an md2 the cache build cannot count flags the key at the open,
-  also after a restart. The flag of a file is cleared when the file reads again
-  (an append into a file still unreadable is refused). A keyless
-  `tranger2_open_list()` still loads every readable key and opens its realtime
-  feed, and reports the failure as `load_failed` / `load_failed_keys`. treedb
-  remembers those keys and refuses what memory would answer wrong: a create of
-  such an id (it would shadow the stored record); shoot/activate and the
-  snapshot-guarded deletes when `__snaps__` is partial; `gc-assets` when a topic
-  with a `file` column or `__assets__` is partial. `treedb_delete_instance()`
-  refuses when it cannot read every row of the key, and the asset snapshot guard
-  fails closed when it cannot read. Recovery procedure in treedb.md ("A topic
-  that did not load whole"), from least to most destructive.
+- C_AUTHZ `disable-user`, `enable-user` and `set-max-sessions` ERASED the
+  user's local password (since 55266cbb5, 2025-11): they read the user
+  without the hidden `credentials` column and wrote the whole view back. They
+  write only `{id, <field>}`.
+- `gc-assets` with a snap ACTIVE took the assets of live nodes written after
+  the snap (since 7.18.1): memory holds the snap's photo. The gc refuses while
+  any snap is active in the tranger. A refused gc takes no asset row;
+  `gc-assets` still sweeps (and reports) orphan blobs, the bytes no asset row
+  names. The library's `treedb_gc_files()` takes nothing on a refusal; the
+  new `treedb_gc_files2()` returns the report.
+- **Damaged keys.** A key damaged on disk (an md2 that cannot be opened or
+  read, a record whose content cannot be read) makes every load of the key
+  fail (`load_failed`): a row or content that cannot be read fails the load
+  that meets it, and an md2 the cache build cannot count flags the key at the
+  open, also after a restart. The flag of a file is cleared when the file
+  reads again (an append into a file still unreadable is refused). A keyless
+  `tranger2_open_list()` still loads every readable key and opens its
+  realtime feed, and reports the failure as `load_failed` /
+  `load_failed_keys`. treedb remembers those keys and refuses what memory
+  would answer wrong: a create of such an id (it would shadow the stored
+  record); shoot/activate and the snapshot-guarded deletes when `__snaps__`
+  is partial; `gc-assets` when a topic with a `file` column or `__assets__`
+  is partial. `treedb_delete_instance()` refuses when it cannot read every
+  row of the key, and the asset snapshot guard fails closed when it cannot
+  read. Recovery procedure in treedb.md ("A topic that did not load whole"),
+  from least to most destructive.
 - **msg2db: an id whose history did not load whole** used to serve an older
-  message as current. It is now reloaded newest first, up to the damage: a pkey2
-  whose newest message comes after the damage is served as before; one whose
-  newest message is in the damage or before it is ABSENT (its state is unknown)
-  until its next message -- unless the damaged file is the one new messages go
-  to (the current period's file; the db_history trangers use one file per YEAR):
-  then every new message of that id is refused until the file is repaired
-  (treedb.md) or the period changes, and a second ERROR says so. A torn last md2
-  row is not damage (next bullet). An ERROR names the id with `served=N`, and
-  the new `msg2db_id_incomplete()` tells "unknown" from "none" while the msg2db
-  stays open. For the db_history alarms of the projects (wattyzer, yunovatios,
-  estadodelaire, hidraulia), until an absent alarm's next message: a device that
-  reports it active gets it announced as new (a notification may repeat), a
-  clear that was in the unread message is not announced, and
-  `msg2db_list_messages()` leaves it out. `tr_msg2db.md` shows how a consumer
-  can use `msg2db_id_incomplete()` to avoid the repeat; no project repo was
-  changed.
-- **An append that was never acknowledged is not damage.** When the md2 write of
-  an append fails, the content written for it is truncated back, BEFORE the
-  critical log (with the default `on_critical_error` the process exits there,
-  and 7.25.4 left the bytes behind); an md2 with 0 rows beside a non-empty
-  `.json` (a kill or a power cut between the two writes) is ignored with a
-  warning, and its key loads (7.25.4 ignored its rows too, without a warning).
-  **An md2 that ends in a part of a row** (a power cut during the 32-byte row
+  message as current. It is now reloaded newest first, up to the damage: a
+  pkey2 whose newest message comes after the damage is served as before; one
+  whose newest message is in the damage or before it is ABSENT (its state is
+  unknown) until its next message -- unless the damaged file is the one new
+  messages go to (the current period's file; the db_history trangers use one
+  file per YEAR): then every new message of that id is refused
+  (`msg2db_append_message()` answers NULL) until the file is repaired
+  (treedb.md) or the period changes, and a second ERROR says so. A torn last
+  md2 row is not damage (below, "An md2 that ends in a part of a row"). An
+  ERROR names the id with `served=N`, and the new `msg2db_id_incomplete()`
+  tells "unknown" from "none" while the msg2db stays open. For the db_history
+  alarms of the projects (wattyzer, yunovatios, estadodelaire, hidraulia),
+  until an absent alarm's next message: a device that reports it active gets
+  it announced as new (a notification may repeat), a clear that was in the
+  unread message is not announced, and `msg2db_list_messages()` leaves it
+  out. `tr_msg2db.md` shows how a consumer can use `msg2db_id_incomplete()`
+  to avoid the repeat; no project repo was changed.
+- **An append that was never acknowledged is not damage.** When the md2 write
+  of an append fails, the content written for it is truncated back, BEFORE
+  the critical log (with the default `on_critical_error` the process exits
+  there, and 7.25.4 left the bytes behind). An md2 with 0 rows beside a
+  non-empty `.json` (a kill or a power cut between the two writes) is ignored
+  with a warning, and its key loads (7.25.4 ignored its rows too, without a
+  warning).
+- **An md2 that ends in a part of a row** (a power cut during the 32-byte row
   write) is cut back to whole rows by the master when the file is first
-  examined, with one WARNING (*"md2 file of the key ends in a part of a row: an
-  append that was never acknowledged was cut back"*, with `old_size` /
-  `new_size`); the key loads whole and appends go on. An append that meets such
-  an md2 cuts it back the same way before it writes its row, so a row always
-  starts on a row boundary; if the cut fails, the append is refused with a
-  CRITICAL (*"Cannot append record, its md2 file ends in a part of a row that
-  cannot be cut back: the append is refused"*). An append that finds a tail it
-  must not cut is refused the same way (*"...that must not be cut back: the
-  append is refused"*). A tail is cut only when the last whole row and the row
-  before it are good (each names one whole record of the content, in order: one
-  json value and its NUL, or only zeros for a deleted instance), and the
-  end-aligned 32 bytes, read as a row, neither end the content nor name a whole
-  record: an md2 that 7.25.4 kept appending into after a torn row (its later
-  rows off the row boundary, with or without content after its last row) is NOT
-  cut, on a master or a replica -- it is flagged (`load_failed`, appends
-  refused) with a CRITICAL (*"md2 file of the key ends in a whole row that is
-  not on a row boundary: written by 7.25.4 after a torn row; not cut, repair it
-  by hand"*, with a `cause`), and treedb.md gives the repair. An append that
-  meets such a file refuses and flags it in memory at once (ERROR *"md2 file of
+  examined, with one WARNING (*"md2 file of the key ends in a part of a row:
+  an append that was never acknowledged was cut back"*, with `old_size` /
+  `new_size`); the key loads whole and appends go on. An append that meets
+  such an md2 cuts it back the same way before it writes its row, so a row
+  always starts on a row boundary; if the cut fails, the append is refused
+  with a CRITICAL (*"Cannot append record, its md2 file ends in a part of a
+  row that cannot be cut back: the append is refused"*). The cut removes only
+  the part of a row after the last whole row, never an acknowledged row, and
+  only when the last whole row and the row before it are good (each names one
+  whole record of the content, in order: one json value and its NUL, or only
+  zeros for a deleted instance), and the end-aligned 32 bytes, read as a row,
+  neither end the content nor name a whole record. A replica reads only the
+  whole rows and writes nothing. 7.25.4 logged a CRITICAL (*"Cannot read last
+  record, md2 file corrupted"*) and left the whole file out of the key, on a
+  master and on a replica: the acknowledged rows of that file were missing
+  from every load, and nothing failed. A replica also did this when it caught
+  a live master mid-write.
+- **An md2 that must not be cut is flagged.** An md2 that 7.25.4 kept
+  appending into after a torn row (its later rows off the row boundary, with
+  or without content after its last row) is NOT cut, on a master or a
+  replica: it is flagged (`load_failed`, appends refused) with a CRITICAL
+  (*"md2 file of the key ends in a whole row that is not on a row boundary:
+  written by 7.25.4 after a torn row; not cut, repair it by hand"*, with a
+  `cause`). The check of a node and the repair are in "Upgrade steps". An
+  append that meets such a file refuses (*"...that must not be cut back: the
+  append is refused"*) and flags it in memory at once (ERROR *"md2 file of
   the key flagged unreadable at an append: every load of the key says
   load_failed"*); with the default `on_critical_error` the yuno then exits at
-  the CRITICAL of the refused append. That is only when the check found a tail
-  that must not be cut: a check that cannot RUN (the `.json` cannot be opened or
-  read, no memory) refuses the append (*"Cannot append record, the torn tail of
-  its md2 file cannot be checked now: the append is refused, the file is not
-  flagged"*) and does not flag the file; the next append checks again. At an
-  open the file is still flagged. A candidate range larger than the largest
-  memory block of the reader is read in parts of 64 KiB, never allocated whole:
-  a NUL before its end still says it is not a record, and one whose only NUL
-  is its last byte is never cut on -- the file is flagged (it can be a record
-  written by a yuno with a larger `MEM_MAX_BLOCK`, which is set per yuno). A scan of ~21 500 md2 files on four stores
-  (local, wattyzer, both yunovatios) found none; to check a node:
-  `find /yuneta/store /yuneta/realms -name '*.md2' -printf '%s %p\n' | awk '$1 % 32'`.
-  With that check, the cut removes only the part of a row after the last whole
-  row, never an acknowledged row. A replica reads only the whole rows and writes
-  nothing. 7.25.4 logged a CRITICAL (*"Cannot read last record, md2 file
-  corrupted"*) and left the whole file out of the key, on a master and on a
-  replica: the acknowledged rows of that file were missing from every load, and
-  nothing failed. A replica also did this when it caught a live master
-  mid-write.
-- A record with a NUL in a string (`json_dumps()` writes it as `\u0000`) is read
-  back. 7.25.4 took it at the append, and every read failed (CRITICAL *"Bad
-  data, anystring2json() FAILED."*, `load_failed`). A read that fails now logs
-  *"Bad data, the content of the record is not json"*, with the jansson `error`
-  and `position`.
-- The repair of an md2 that 7.25.4 wrote after a torn row (treedb.md) is a
-  script that is linear (86 400 rows in 0.13 s) and runs in a `set -e`
-  subshell: it names its backup `~/<topic>.<key>.<file>.orig` and refuses to
-  overwrite one, writes through `$f.tmp` + `mv` (a failure leaves the `.md2`
-  unchanged), and writes nothing when more than one boundary passes.
-- A read that returns fewer bytes than asked logs *"... short read"* with `read`
-  / `expected` (it logged *"read FAILED"* with a stale errno); a short write
-  likewise logs *"... short write"*. A read error or short read of an md2's
-  first or last row at the cache build flags the file (it went on with a zeroed
-  row).
+  the CRITICAL of the refused append. A check that cannot RUN (the `.json`
+  cannot be opened or read, no memory) refuses the append (*"Cannot append
+  record, the torn tail of its md2 file cannot be checked now: the append is
+  refused, the file is not flagged"*) and does not flag the file; the next
+  append checks again. At an open the file is still flagged. A candidate
+  range larger than the largest memory block of the reader is read in parts
+  of 64 KiB, never allocated whole: a NUL before its end still says it is not
+  a record, and one whose only NUL is its last byte is never cut on -- the
+  file is flagged (it can be a record written by a yuno with a larger
+  `MEM_MAX_BLOCK`, which is set per yuno).
+- A record with a NUL in a string (`json_dumps()` writes it as `\u0000`) is
+  read back. 7.25.4 took it at the append, and every read of it failed with a
+  CRITICAL (*"Bad data, anystring2json() FAILED."*) and handed the record to
+  the callback as NULL. A read that fails now logs *"Bad data, the content of
+  the record is not json"*, with the jansson `error` and `position`.
+- A read that returns fewer bytes than asked logs *"... short read"* with
+  `read` / `expected` (it logged *"read FAILED"* with a stale errno); a short
+  write likewise logs *"... short write"*. A read error or short read of an
+  md2's first or last row at the cache build flags the file (it went on with
+  a zeroed row).
 - **A treedb write whose save fails is taken back in memory.** In 7.25.4
   `treedb_update_node()`, `treedb_link_nodes()`, `treedb_unlink_nodes()`,
-  `treedb_autolink()`, `treedb_clean_node()`, `treedb_replace_links()` and the
-  child unlinks of a forced delete changed the node (fields, fkeys, parent
-  hooks) before the save and kept the change when the save failed: a read then
-  answered a value the disk never had, and a retry of the same write found
-  nothing to write. Now the node goes back to what the disk has, and the call
-  answers `NULL` or -1. Link and unlink events, and the parent's
-  `EV_TREEDB_NODE_UPDATED` in the compatible mode, are told only after the
-  child is saved (same order as before); a write taken back tells no event.
+  `treedb_autolink()`, `treedb_clean_node()`, `treedb_replace_links()` and
+  the child unlinks of a forced delete changed the node (fields, fkeys,
+  parent hooks) before the save and kept the change when the save failed: a
+  read then answered a value the disk never had, and a retry of the same
+  write found nothing to write. Now the node goes back to what the disk has,
+  and the call answers `NULL` or -1; a write taken back tells no event.
   `treedb_autolink()`, `treedb_clean_node()` and `treedb_replace_links()`
   answer -1 when the save fails (7.25.4 ignored it); a link or unlink that
-  fails part way is taken back whole. A forced `treedb_delete_node()` that is refused changes
-  nothing: a child that cannot be saved unlinked stays linked ("Cannot delete
-  node: still has down links"), a key that cannot be deleted refuses it too,
-  and the children already unlinked are put back and saved again while the
-  node keeps its parents; in 7.25.4 the parent was deleted while a child on
-  disk still named it, and a delete refused by its key left the node unlinked
-  in memory and every child unlinked on disk. A stale fkey ref a write removed (its hook gone, or re-pointed to
-  another column) goes back into its field alone when the write is taken back,
-  never linked. A write that is taken back puts every child back in its
-  place in the hooks of its parents (list and dict hooks). A forced delete
-  tells the events of its unlinks after the node has left the indexes and
-  before `EV_TREEDB_NODE_DELETED`, and until it returns `treedb_save_node()`
-  refuses the node (*"Cannot save a node that is being deleted"*): a subscriber
-  that saved it from one of those events could bring it back on disk. A refused
-  delete that cannot put a child back tells that child's unlink events (the
-  unlink stays). `treedb_autolink()` refuses a ref whose hook fills another
-  column than the one the ref arrives in (*"fkey reference: its hook does not
-  link into this column"*), as `treedb_replace_links()` does; 7.25.4 linked it
-  through the other column. When memory cannot be taken
-  back whole, an ERROR says so: *"A write that did not reach the disk could not
-  be taken back whole in memory: the links in memory differ from the disk
-  until the treedb is opened again"*.
-- **C_NODE `update-node` with `autolink` is ONE write** (new
-  `treedb_update_node_and_links()`): fields, links and save; a failed save takes
-  all of it back and tells nothing. In 7.25.4 it was three calls, and a failed
-  save left memory with the fields and links, with `EV_TREEDB_NODE_LINKED`
-  told. It is also what C_AUTHZ does when it creates a user with a role.
+  fails part way is taken back whole. Link and unlink events, and the
+  parent's `EV_TREEDB_NODE_UPDATED` in the compatible mode, are told only
+  after the child is saved, in the same order among themselves (7.25.4 told
+  the link events before the save). A write that is taken back puts every
+  child back in its place in the hooks of its parents (list and dict hooks),
+  and a stale fkey ref it removed (its hook gone, or re-pointed to another
+  column) goes back into its field alone, never linked. When memory cannot
+  be taken back whole, an ERROR says so: *"A write that did not reach the
+  disk could not be taken back whole in memory: the links in memory differ
+  from the disk until the treedb is opened again"*. `treedb_autolink()`
+  refuses a ref whose hook fills another column than the one the ref arrives
+  in (*"fkey reference: its hook does not link into this column"*), as
+  `treedb_replace_links()` does; 7.25.4 linked it through the other column.
+- **A forced `treedb_delete_node()` that is refused changes nothing.** A
+  child that cannot be saved unlinked stays linked ("Cannot delete node:
+  still has down links"), a key that cannot be deleted refuses the delete
+  too, and the children already unlinked are put back and saved again while
+  the node keeps its parents. In 7.25.4 the parent was deleted while a child
+  on disk still named it, and a delete refused by its key left the node
+  unlinked in memory and every child unlinked on disk. A child that cannot be
+  put back stays unlinked, in memory as on disk, with an ERROR (*"A refused
+  delete cannot put back a child it had unlinked: the child stays unlinked,
+  in memory as on disk"*), and the events of its unlink are told. A forced
+  delete tells the events of its unlinks after the node has left the indexes
+  and before `EV_TREEDB_NODE_DELETED`, and until it returns
+  `treedb_save_node()` refuses the node (*"Cannot save a node that is being
+  deleted"*): a subscriber that saved it from one of those events could bring
+  it back on disk.
+- **C_NODE `update-node` with `autolink` is ONE write** (the new
+  `treedb_update_node_and_links()`): fields, links and save; a failed save
+  takes all of it back and tells nothing. In 7.25.4 it was three calls, and a
+  failed save left memory with the fields and links, with
+  `EV_TREEDB_NODE_LINKED` told. It is also what C_AUTHZ does when it creates
+  a user with a role.
 - The repair of several active snaps at open keeps a snap active in memory
   when its deactivation cannot be saved (7.25.4 made it inactive in memory
   only), and a replica does not try it.
-- **treedb writes are faster than 7.25.4** (100k ops, track-memory build):
-  memory-only update 3.96 -> 2.88 us/op, saved update 12.15 -> 10.95,
-  link+unlink 11.81 -> 11.37. An update deep-copied the node, with every child
-  its hooks hold, for the system schema's check on every treedb; now only on
-  the system schema. A forced delete costs ~0.3-0.5 us more CPU than
-  7.25.4 (under 1% of ~70 us): the hold of its events and the write of a node
-  that has parents, the price of a refused delete changing nothing.
-- **Lost lock.** A master that lost its lock while stopped (another process took
-  the store) writes nothing: every write path, including the three md2 flag
-  rewriters (`tranger2_write_user_flag`, `tranger2_set_user_flag`,
-  `tranger2_set_system_flag`, which on a replica logged a CRITICAL and exited),
-  retakes the lock first or refuses. If another process holds the lock the
-  revive is a CRITICAL at `on_critical_error`, as at startup; any other lock
-  failure demotes the tranger to replica (`master` false, `master_lost` true)
-  with an ERROR and the yuno keeps running -- watch for it. C_TRANGER and
-  C_TREEDB report the effective state (`master`, `stopped`).
+- **Lost lock.** A master that lost its lock while stopped (another process
+  took the store) writes nothing: every write path, including the three md2
+  flag rewriters (`tranger2_write_user_flag`, `tranger2_set_user_flag`,
+  `tranger2_set_system_flag`, which on a replica logged a CRITICAL and
+  exited), retakes the lock first or refuses. If another process holds the
+  lock the revive is a CRITICAL at `on_critical_error`, as at startup; any
+  other lock failure demotes the tranger to replica (`master` false,
+  `master_lost` true) with an ERROR and the yuno keeps running -- watch for
+  it. C_TRANGER's `master` reads the effective state, and so do the `master`
+  and `stopped` fields of C_TREEDB's `treedbs` rows.
 - `topic_var.json` (the rowid counter) and `topic_cols.json` are replaced
   through a fresh `.new` file (`O_EXCL|O_NOFOLLOW`) and a rename, never
-  rewritten in place; a topic_version change fsyncs, writes cols before var, and
-  on a failed write leaves the version on disk unchanged.
+  rewritten in place; a topic_version change fsyncs, writes cols before var,
+  and on a failed write leaves the version on disk unchanged.
 - tr_queue and tr2q_mqtt: a queue whose key did not load no longer saves a
   `first_rowid` past the pending messages (they were skipped for ever, even
-  after the md2 was repaired), and its periodic backup is refused until a load
-  reads every pending message.
+  after the md2 was repaired), and its periodic backup is refused until a
+  load reads every pending message.
 - C_NODE link, unlink and delete are refused on a replica before memory moves
   (direct C callers; the commands already checked).
 
-### Scans (timeranger2)
+### Scans and lists (timeranger2)
 
-- `tm` order is marked: in topics created from now on (or migrated), a file that
-  receives a record out of `tm` order gets a `<file>.tm_unordered` marker,
-  written BEFORE the md2 row (a marker that cannot be written is retried at the
-  next append to that file). A marked file's tm range is read from all its rows;
-  in a file known to be in tm order a row past the range ends the scan of that
-  FILE (not of the key).
-- A scan steps over the holes a tm filter leaves between files (7.25.4 logged a
-  false "next rowids not consecutive" and lost the rows after the hole).
+- `tm` order is marked: in topics created from now on (or migrated with the
+  new `tranger2_mark_tm_order()`), a file that receives a record out of `tm`
+  order gets a `<file>.tm_unordered` marker, written BEFORE the md2 row (a
+  marker that cannot be written is retried at the next append to that file).
+  A marked file's tm range is read from all its rows; in a file known to be
+  in tm order a row past the range ends the scan of that FILE (not of the
+  key). A marker name that does not fit makes the file be read whole
+  (logged).
+- A scan steps over the holes a tm filter leaves between files (7.25.4 logged
+  a false *"next rowids not consecutive"* and lost the rows after the hole).
 - After `delete_key` the iterators of that key drop their segments (7.25.4's
   segment stamp could miss a key deleted and written again with the same
   counts). The delete is announced only once its directory is gone.
-- A marker name that does not fit makes the file be read whole (logged).
+- rt disk ids: an empty id and a same-creator duplicate are warnings (peer
+  input) like another creator's; `tranger2_open_iterator()` no longer leaks
+  on a bad topic.
 
-### Performance (timeranger2), against 7.25.4
+### Performance, against 7.25.4
 
-Measured with the tests and benchmarks of the tree, variants relinked side by
-side and run alternated (medians; ext4, laptop NVMe).
+Measured with the benchmarks under `performance/c/` (`perf_timeranger2`,
+`perf_tr_treedb`, `perf_c_treedb`, new in this release) and the test
+`timeranger2/test_topic_pkey_integer`, each linked against the module of
+7.25.4 and of this release, run alternated (medians; RelWithDebInfo with
+memory tracking, ext4, laptop NVMe). The raw figures are in
+`performance/c/README.md`.
 
-- **An append is back to the speed of 7.25.4.** The tm marker made every
-  append search the cache cell of its file twice, each search building two file
-  names with `snprintf()`; it searches once now and `cmp_file_ids()` compares
-  in place (new test `timeranger2/test_cmp_file_ids`).
-  `test_topic_pkey_integer`, appends/s without / with an rt list: 7.25.4
-  209 535 / 158 040, now 208 910 / 160 967.
-- **A master opens a store 12% faster than 7.25.4** (2000 keys x 10 md2
-  files: 0.094 s -> 0.082 s): it finds the order markers in the listing of the
-  key directory it already reads, instead of a `stat()` per md2 file.
-- **Price kept, by decision:** a replica's open is ~12% slower than 7.25.4 (one
-  more `stat()` per md2 file): it looks for the markers on disk after reading
-  each file, because a listing taken before could miss a marker the master
-  writes during the open. Creating a topic makes 2 fsyncs and a
-  `topic_version` change 4 (7.25.4: none; ~5-7 ms each: 10 topics created in
-  115 ms against 6 ms, 10 version changes in 225 ms against 5 ms); opening an
-  existing store makes none. That is the price of durable topic files: a power
-  cut never leaves a new `topic_version` over a `topic_cols.json` that is not
-  on disk.
-- treedb writes: see "Data loss and integrity" (faster than 7.25.4).
-
-### Performance (C_TREEDB, JSON files), against 7.25.4
-
-- **A treedb open reads only its own nodes of `__system__`.** It read every
-  node of every treedb with its links: ~90 ms an open in a store of 40 treedbs
-  of 200 columns; now ~5 ms, and it does not grow with the store. The schema
-  file in use is read once (it was read twice).
+- **timeranger2.**
+    - An append is at the speed of 7.25.4. The tm marker made every append
+      search the cache cell of its file twice, each search building two file
+      names with `snprintf()`; it searches once and `cmp_file_ids()` compares
+      in place (new test `timeranger2/test_cmp_file_ids`).
+      `test_topic_pkey_integer`, appends/s without / with an rt list: 7.25.4
+      209 535 / 158 040, now 208 910 / 160 967.
+    - A master opens a store 13% faster (20 000 md2 files: 95 ms -> 83 ms):
+      it finds the order markers in the listing of the key directory it
+      already reads, instead of a `stat()` per md2 file.
+    - **Price kept, by decision:** a replica's open is ~18% slower (92 ms ->
+      108 ms, one more `stat()` per md2 file): it looks for the markers on
+      disk after reading each file, because a listing taken before could miss
+      a marker the master writes during the open. Creating a topic makes 2
+      fsyncs and a `topic_version` change 4 (7.25.4: none; 10 topics created
+      in 127 ms against 1.5 ms, 10 version changes in 226 ms against 0.8 ms);
+      opening an existing store makes none. That is the price of durable
+      topic files: a power cut never leaves a new `topic_version` over a
+      `topic_cols.json` that is not on disk.
+    - **Price until migrated:** a `tm` query on a topic created by 7.25.4 or
+      earlier reads every md2 row of the key until `mark-tm-order` runs (one
+      minute of 1 key x 30 files x 20 000 rows: 13 ms on 7.25.4, ~406 ms
+      unmigrated, ~7 ms migrated). See "Upgrade steps".
+- **treedb writes** (`perf_tr_treedb`, 100 000 operations): an update in
+  memory 3.90 -> 2.93 us, a saved update 11.76 -> 10.89 us, link+unlink
+  11.34 -> 11.28 us. An update deep-copied the node, with every child its
+  hooks hold, for the system schema's check on every treedb; now only on the
+  system schema. A forced delete costs ~2% more (68 -> 70 us): the hold of
+  its events and the write of a node that has parents, the price of a
+  refused delete changing nothing.
 - **A JSON file is read whole, then parsed** (`load_json_from_file()`,
-  `load_persistent_json()`): `json_loadfd()` made one `read()` per byte, 60 000
-  system calls for a 60 KB schema.
-- 40 treedbs x 10 topics x 20 columns, 40 opens, 8 alternated rounds, in
-  seconds (7.25.4 -> now): first projection (seed) 10.53 -> 11.26, newer literal
-  13.98 -> 13.65, same literal 1.84 -> 0.75.
-- **Price kept, by decision:** with the same JSON load on both sides, the first
-  projection of a treedb is ~17% slower than 7.25.4 (~40 ms a treedb): it writes
-  the record of the projection in progress whole, with its fsyncs, before its
-  first write, and stamps the treedb node last. That is the crash safety of the
-  projection.
+  `load_persistent_json()`, and tr2migrate): `json_loadfd()` made one
+  `read()` per byte, 60 000 system calls for a 60 KB schema.
+- **C_TREEDB opens** (`perf_c_treedb`, 40 treedbs x 10 topics x 20 columns,
+  seconds for 40 opens, 7.25.4 -> now): the same literal 1.84 -> 0.74, the
+  first projection (seed) 10.85 -> 10.55, a newer literal 13.56 -> 13.69.
+  An open reads only the nodes of `__system__` of its own treedb, and the
+  schema file in use once.
+- **Price kept, by decision:** against the C_TREEDB of 7.25.4 on the new JSON
+  load, an open costs more: the seed +7% (9.87 -> 10.55 s, ~17 ms a treedb),
+  a newer literal +4% (13.14 -> 13.69 s), the same literal +14% (0.65 ->
+  0.74 s, ~2 ms an open). The seed writes the record of the projection in
+  progress whole, with its fsyncs, before its first write, and stamps the
+  treedb node last: the crash safety of the projection. The share of each
+  check in the other two opens is not measured yet (`TODO.md`).
 
 ### Schemas (C_TREEDB)
 
 - **A newer C literal wins whole** (dynamic-schema treedb, impose off). As in
-  7.25.4, a literal with a `schema_version` higher than the schema file in use
-  replaces the whole file; an equal or older literal is not installed and the
-  file runs. New: `__system__` is projected from an installed literal whole --
-  topics, columns and attributes the literal no longer declares are removed from
-  `__system__` too (7.25.4 only added and updated). What the literal discards is
-  said in one WARNING and exposed as `withdrawn_at_open` per topic in `treedbs`
-  rows and `saved-schema` until the next open: `applied` (an applied schema
-  never opened), `in_use` (an applied schema that ran), `saved`, `unsaved`
-  (drafts). A topic whose columns the literal changes without raising its
-  `topic_version` keeps running its old columns in the store (tranger2 swaps
-  columns only on a version raise): the open warns.
-- **A projection says when it is unfinished, and records it.** A removal that is
-  refused (a snapshot of `__system__` holds the node), or a create, update or
-  link that fails, leaves the projection unfinished: one WARNING with
-  `not_removed` / `not_written` and how to finish it (for a removal, delete the
-  `__snaps__` row), and a record, `saved_schemas/<treedb>.unfinished.json`
-  (`schema_version`, `not_removed`, `not_written`, `leftovers`, `draft_kinds`,
-  `leftover_nodes`). While the record exists every open retries the projection
-  (INFO "Completing the projection into __system__, left unfinished by an
-  earlier open", or the imposed "Updating TreeDB schema in __system__"), the
-  leftovers it names, while they stay as the projection left them, are never
-  taken for an operator's draft nor reported as withdrawn work, a new
+  7.25.4, a literal with a `schema_version` higher than the schema file in
+  use replaces the whole file; an equal or older literal is not installed and
+  the file runs. New: `__system__` is projected from an installed literal
+  whole -- topics, columns and attributes the literal no longer declares are
+  removed from `__system__` too (7.25.4 only added and updated). What the
+  literal discards is said in one WARNING (*"Schema from C withdrew work on
+  the schema at open"*) and exposed as `withdrawn_at_open` per topic in
+  `treedbs` rows and `saved-schema` until the next open: `applied` (an
+  applied schema never opened), `in_use` (an applied schema that ran),
+  `saved`, `unsaved` (drafts). A topic whose columns the literal changes
+  without raising its `topic_version` keeps running its old columns in the
+  store (tranger2 swaps columns only on a version raise): the open warns.
+- **A projection says when it is unfinished, and records it.** A removal
+  that is refused (a snapshot of `__system__` holds the node), or a create,
+  update or link that fails, leaves the projection unfinished: one WARNING
+  with `not_removed` / `not_written` and how to finish it (for a removal,
+  delete the `__snaps__` row), and a record,
+  `saved_schemas/<treedb>.unfinished.json` (`schema_version`, `not_removed`,
+  `not_written`, `leftovers`, `draft_kinds`, `leftover_nodes`). While the
+  record exists every open retries the projection (INFO *"Completing the
+  projection into __system__, left unfinished by an earlier open"*, or the
+  imposed *"Updating TreeDB schema in __system__"*), the leftovers it names,
+  while they stay as the projection left them, are never taken for an
+  operator's draft nor reported as withdrawn work, a new
   `unfinished_projection` field says it in `treedbs` and `saved-schema`, and
-  `save-schema` refuses (it would publish the removed topic again). A projection
-  that completes removes the record; so does `delete-treedb`. The record is
-  written whole (a `.new` file and a rename); one that cannot be read still
-  means "unfinished" (one WARNING at each read, with its cause in `error`;
+  `save-schema` refuses (it would publish the removed topic again). A
+  projection that completes removes the record; so does `delete-treedb`. The
+  record is written whole (one buffer, a `.new` file, an fsync and a rename,
+  as the record of an apply); one that cannot be read still means
+  "unfinished" (one WARNING at each read, with its cause in `error`;
   `save-schema` refused; retried), and then what `__system__` holds over the
-  file is reported as an `unsaved` draft when the projection completes. The
-  record keeps `draft_kinds`, so the open that finally replaces a draft reports
-  its kind (a saved draft is `saved`). A treedbs node never stamped
-  (`schema_version` 0, no record, a file in use at `schema_version` 1 or more)
-  is a seed that died: the next open completes it and reports nothing.
-- **A draft is reported once, by the open that replaces it in `__system__`**,
-  whether it was made before the projection failed or while it was unfinished.
-  The part of a draft a projection could not replace stays a draft (in
-  `draft_changed`), never a leftover. A topic the operator deleted from
-  `__system__` is a draft too: when a newer literal re-creates it, it is
-  reported as `unsaved`, or `saved` when a pending save published the deletion.
-  A topic the operator added and did not save is `unsaved`, also when a save of
-  another topic is pending. An EDIT of a leftover is operator work too: the
-  record keeps `leftover_nodes` (what the projection left at each leftover), a
-  leftover that differs from it (edited, unlinked or deleted) is a draft
-  (`draft_changed`), and the open that replaces it reports it; an unedited
-  leftover is not reported. The record keeps only the attributes a projection
-  writes, and `system_schema_version`: an id whose write failed (`not_written`)
-  is taken as left, and a record kept under another meta-schema takes every
-  leftover as left, with a WARNING (*"Leftovers of an unfinished projection were
-  kept under another meta-schema: every leftover is taken as left, an edit of
-  one made meanwhile is not told apart"*).
-- A topic or column that the treedb's tree no longer reaches (an operator's
-  unlink, or a projection link that failed) no longer blocks a projection with
-  "Node already exists": a schema that declares it takes it over, otherwise it
-  is removed (INFO *"Node of the treedb that its tree does not reach: removed
-  from __system__"*); when it is operator work its topic is reported `unsaved`.
-  The topic rewrite runs before the columns are compared, so an attribute the
-  literal no longer declares (e.g. `pkey2s`) is cleared also when columns
-  change.
+  file is reported as an `unsaved` draft when the projection completes. A record that cannot be written is kept in memory and written
+  again at every open, and the treedb node says `c_schema_version: -1`;
+  after a restart the record is "lost" (a WARNING, `save-schema` refuses,
+  and what `__system__` holds over the file is reported, never deleted in
+  silence). The record keeps `draft_kinds`, so the open that finally replaces
+  a draft reports its kind (a saved draft is `saved`). A treedbs node never
+  stamped (`schema_version` 0, no record, a file in use at `schema_version`
+  1 or more) is a seed that died: the next open completes it and reports
+  nothing.
+- **A draft is reported once, by the open that replaces it in
+  `__system__`**, whether it was made before the projection failed or while
+  it was unfinished. The part of a draft a projection could not replace
+  stays a draft (in `draft_changed`), never a leftover; a column delete that
+  fails after its topic was removed keeps its draft. A topic the operator
+  deleted from `__system__` is a draft too: when a newer literal re-creates
+  it, it is reported as `unsaved`, or `saved` when a pending save published
+  the deletion. A topic the operator added and did not save is `unsaved`,
+  also when a save of another topic is pending. An EDIT of a leftover is
+  operator work too: the record keeps `leftover_nodes` (what the projection
+  left at each leftover), a leftover that differs from it (edited, unlinked,
+  deleted, moved to another topic, linked to one more, or left in no topic)
+  is a draft (`draft_changed`), and the open that replaces it reports it (a
+  move reports both topics); an unedited leftover is not reported. The
+  record keeps only the attributes a projection writes, and
+  `system_schema_version`: an id whose write failed (`not_written`) is taken
+  as left, and a record kept under another meta-schema takes every leftover
+  as left, with a WARNING (*"Leftovers of an unfinished projection were kept
+  under another meta-schema: every leftover is taken as left, an edit of one
+  made meanwhile is not told apart"*).
 - **A projection that dies half way invents no operator work.** Before its
-  first write a projection plans every write and records the plan (the record
-  of an unfinished projection, with `"in_progress": true`: `planned`,
+  first write a projection plans every write and records the plan (the
+  record of an unfinished projection, with `"in_progress": true`: `planned`,
   `target_nodes`, `replaced_kinds`); the projection that completes removes it
   after its WARNING. A process killed between two writes always leaves that
   record: the next open takes a node that is as it was, or as the projection
   writes it, for the projection's, completes the projection, and reports the
-  drafts it was replacing exactly once. Until then `unfinished_projection` lists
-  `planned` and `save-schema` refuses.
+  drafts it was replacing exactly once, also when the retry is killed too
+  (tests: `c_treedb_literal_wins`, scenarios CR and DC, a kill at every
+  write). Until then `unfinished_projection` lists `planned` and
+  `save-schema` refuses. A node stamped before its topics were written
+  (7.25.4 and earlier) is completed, not taken as done. The move of a
+  rowid-keyed projection to qualified ids can die at any write and completes
+  at the next open.
+- A topic or column that the treedb's tree no longer reaches (an operator's
+  unlink, or a projection link that failed) does not block a projection with
+  "Node already exists": a schema that declares it takes it over, otherwise
+  it is removed (INFO *"Node of the treedb that its tree does not reach:
+  removed from __system__"*); when it is operator work its topic is reported
+  `unsaved`.
 - Which treedb a node of `__system__` belongs to is read from the node, never
-  from a prefix of its id (a treedb `m2` took the nodes of a treedb `m2.b`).
-  `delete-treedb` deletes only the nodes of its treedb: a node of another
-  treedb, or of another topic, linked into it is only unlinked.
-- A column the operator moved to another topic, or linked to a second one, is
-  put back where the literal declares it in ONE open. A column linked to a
-  topic that does not declare it is only unlinked when the literal declares it
-  elsewhere or it belongs to another treedb; a topic of another treedb linked
-  here is unlinked (INFO *"Topic of another treedb, not declared by the schema
-  from C: unlinked from the treedb in __system__"*).
-- A topic whose write or link fails leaves what it holds untouched: the columns
-  of a new topic whose link failed are not written under it, and a take-over or
-  create that fails deletes no orphan node of the declared topic and reports it
-  once.
-- `save-schema` refuses a draft with no topics and `apply-schema` a saved schema
-  with no topics (WARNING, -1, the file in use unchanged): a treedb without
-  topics does not open. `saved-schema` answers `can_apply: false`, with the
-  reason, for such a saved schema (7.25.4 answered true and applied it).
+  from a prefix of its id (a treedb `m2` would take the nodes of a treedb
+  `m2.b`). A column whose topic node is gone and that more than one treedb
+  could own (`m2` and `m2.b`) belongs to the treedb whose record or schema
+  names it, or to the treedb projected now when none does; only that treedb
+  warns, once per node; no node is left for ever. `delete-treedb` deletes
+  every node of its treedb (a column moved to another of its topics and its
+  nodes in no topic included) and only those: a node of another treedb, or of
+  another topic, linked into it is only unlinked.
+- A column the operator moved to another topic, or linked to a second one,
+  is put back where the literal declares it in ONE open. A column linked to a
+  topic that does not declare it is only unlinked when the literal declares
+  it elsewhere or it belongs to another treedb; a topic of another treedb
+  linked here is unlinked (INFO *"Topic of another treedb, not declared by
+  the schema from C: unlinked from the treedb in __system__"*).
+- A topic whose write or link fails leaves what it holds untouched: the
+  columns of a new topic whose link failed are not written under it, and a
+  take-over or create that fails deletes no orphan node of the declared topic
+  and reports it once.
+- A schema whose elements get one qualified id in `__system__` (a name with a
+  dot: the column `x.y` of `u` and the column `y` of `u.x`; the topic `b.c`
+  of `m` and the topic `c` of `m.b`) is refused with ONE ERROR naming both:
+  the treedb does not open, `save-schema` does not save it, `apply-schema`
+  does not apply it. No id changes.
+- `save-schema` refuses a draft with no topics and `apply-schema` a saved
+  schema with no topics (WARNING, -1, the file in use unchanged): a treedb
+  without topics does not open. `saved-schema` answers `can_apply: false`,
+  with the reason, for such a saved schema (7.25.4 answered true and applied
+  it).
 - The numbers of a treedb's node in `__system__` (`schema_version`,
   `c_schema_version`) are written last, only when the whole projection
-  succeeded; a new node is created with them at 0 (7.25.4 wrote them first, so a
-  process that died half way left a projection that said it was complete).
-- **A second `open-treedb` of an open treedb is refused first** ("already open
-  here: close-treedb first, nothing was changed"); 7.25.4 reconciled
-  `__system__` first and then failed with "Internal error, tranger client NULL",
-  and with this release's whole projection that reconcile would delete topics
-  and withdraw the saved schema. A failed open destroys the tranger it created.
-  When the treedb's schema is refused (`treedb_open_db()` fails) the answer is
-  -1 ("did not open, its schema was refused (see the log): close-treedb it
-  before opening it again"); 7.25.4 answered 0 "Treedb opened!". Until
-  `close-treedb`, a second open of it answers -1 ("did not open at its last
-  open-treedb...") and its `treedbs` row says `opened: false`. `delete-treedb`
-  of it answers that it did not open and to close-treedb it first (7.25.4:
-  "while it is OPEN"). C_NODE gives a treedb that `treedb_open_db()` refused no
-  callback and does not close it at stop, so the failed open logs only its cause
-  and `close-treedb` logs nothing (7.25.4 logged "TreeDB not found" at the open
-  and twice at the close, with stacks); a write of `with_link_events` on it sets
-  no callback either. Every answer of `open-treedb`, `close-treedb` and
-  `delete-treedb` starts with the yuno.
-- **The agent stops when its treedb does not open.** The agent opens
-  `treedb_agentdb` with its schema imposed and exits 0 on a -1 answer ("Cannot
-  start agent treedb: ..."); ydaemon does not relaunch an exit 0, so the main
-  agent stays down until started again, and `yuneta_agent22` (which opens no
-  treedb) stays up as the way in. 7.25.4 answered 0 when the schema was refused,
-  and the agent ran without its treedb.
+  succeeded; a new node is created with them at 0 (7.25.4 wrote them first,
+  so a process that died half way left a projection that said it was
+  complete).
+- **A second `open-treedb` of an open treedb is refused first** ("already
+  open here: close-treedb first, nothing was changed"); 7.25.4 reconciled
+  `__system__` first and then failed with "Internal error, tranger client
+  NULL", and with this release's whole projection that reconcile would delete
+  topics and withdraw the saved schema. A failed open destroys the tranger it
+  created. When the treedb's schema is refused (`treedb_open_db()` fails) the
+  answer is -1 ("did not open, its schema was refused (see the log):
+  close-treedb it before opening it again"); 7.25.4 answered 0 "Treedb
+  opened!". Until `close-treedb`, a second open of it answers -1 ("did not
+  open at its last open-treedb...") and its `treedbs` row says `opened:
+  false`. `delete-treedb` of it answers that it did not open and to
+  close-treedb it first (7.25.4: "while it is OPEN"). C_NODE gives a treedb
+  that `treedb_open_db()` refused no callback and does not close it at stop,
+  so the failed open logs only its cause and `close-treedb` logs nothing
+  (7.25.4 logged "TreeDB not found" at the open and twice at the close, with
+  stacks); a write of `with_link_events` on it sets no callback either.
+  Every answer of `open-treedb`, `close-treedb` and `delete-treedb` starts
+  with the yuno.
+- **The agent stops when its treedb does not open.** The agent opens its
+  treedb (`treedb_yuneta_agent`) with its schema imposed and exits 0 on a -1
+  answer ("Cannot start agent treedb: ..."); ydaemon does not relaunch an exit
+  0, so the main agent stays down until started again, and `yuneta_agent22`
+  (which opens no treedb) stays up as the way in. 7.25.4 answered 0 when the
+  schema was refused, and the agent ran without its treedb.
 - **The client store decides.** If another process holds the client store's
   lock, the treedb opens as a replica and nothing is reconciled (INFO).
 - `apply-schema` records what it put in use in a new file,
   `saved_schemas/<treedb>.applied.json`:
-  `{"topics": {"<topic>": "applied"|"in_use"}}`. It lives as long as its file is
-  in use. It is written before the rename; `apply-schema` refuses when it cannot
+  `{"schema_version": N, "topics": {"<topic>": "applied"|"in_use"}}`, with
+  the record it replaced in `previous`. It lives as long as its file is in
+  use. It is written before the rename; `apply-schema` refuses when it cannot
   write it, and restores the previous record when the rename fails.
 - A seed from the schema file stamps `c_schema_version` with the literal's
   version only when the file IS the literal, 0 otherwise.
 - A saved draft that is reverted is withdrawn by the next `save-schema`
-  (`withdrawn` in the answer). A saved schema lives only as long as the file it
-  was saved against: applied, withdrawn or superseded files are removed; `saved`
-  now means "waiting to be applied", `stale` marks an old file, `broken` an
-  unreadable one (left out of an apply of every treedb).
+  (`withdrawn` in the answer). A saved schema lives only as long as the file
+  it was saved against: applied, withdrawn or superseded files are removed;
+  `saved` now means "waiting to be applied", `stale` marks an old file,
+  `broken` an unreadable one (left out of an apply of every treedb).
 - `schema_version` in `__system__` never goes down; `apply-schema` writes no
   derived `fkey` marks into the file in use; a column reorder is a difference
-  (only when the shared columns change order); no false "behind the schema in
-  use" line after a withdraw; precise warnings.
+  (only when the shared columns change order). The INFO *"TreeDB schema from
+  C is behind the schema in use, not applied"* is logged only when the
+  literal is behind the FILE in use (7.25.4 also logged it for a literal
+  equal to the file while a save was pending, and on every imposed open); an
+  imposed literal behind `__system__` logs *"TreeDB schema from C is imposed,
+  but it is behind __system__: the projection is kept"*.
 
-### C_TREEDB and yev_loop, last review
+### Event loop (yev_loop)
 
-- A leftover of an unfinished projection is compared with its PLACE too: a
-  leftover moved to another topic, linked to one more, or left in no topic is
-  the operator's draft, reported by the open that replaces it (a move reports
-  both topics); after a crash, an edit of a leftover column left in no topic is
-  no longer deleted in silence.
-- A column whose topic node is gone and that more than one treedb could own
-  (`m2` and `m2.b`) belongs to the treedb whose record or schema names it, or
-  to the treedb projected now when none does; only that treedb warns, once per
-  node; no node is left for ever.
-- `delete-treedb` deletes every node of its treedb, a column moved to another
-  of its topics and its nodes in no topic included.
-- A record of an unfinished projection that cannot be written no longer reads
-  as a complete projection: it is kept in memory and written again at every
-  open, and the treedb node says `c_schema_version: -1`; after a restart the
-  record is "lost" (a WARNING, `save-schema` refuses, and what `__system__`
-  holds over the file is reported, never deleted in silence).
-- A schema whose elements get one qualified id in `__system__` (a name with a
-  dot: the column `x.y` of `u` and the column `y` of `u.x`; the topic `b.c` of
-  `m` and the topic `c` of `m.b`) is refused with ONE ERROR naming both: the
-  treedb does not open, `save-schema` does not save it, `apply-schema` does not
-  apply it. No id changes.
-- A column delete that fails after its topic was removed keeps its draft. A
-  node stamped before its topics were written (7.25.4 and earlier) is completed,
-  not taken as done. The move of a rowid-keyed projection to qualified ids can
-  die at any write and completes at the next open.
-- The records in `saved_schemas/` (unfinished projection, and the record of an
-  apply, which was written in place) are written whole from one buffer, with
-  `.new` + fsync + rename: a 200 KB record takes 6.8 ms instead of 29.7 ms.
-- `io_uring_get_sqe()` returning NULL (a full submission queue) crashed 11
-  callers of yev_loop. The queue is flushed and the entry asked again; when the
-  kernel still takes nothing (on an older kernel a CQ overflow answers `EBUSY`
-  until the completions are reaped), the submission is KEPT and made at the
-  next cycle of the loop, in order (a timer is armed, a stop reaches its event).
-  A stop of a submission still kept reaches the callback as a cancel
-  (`STOPPED`, `-ECANCELED`). One WARNING when the loop starts keeping: *"Submission
-  queue full and the kernel takes nothing: kept for the next cycle"*. Test
-  `yev_events/test_yevent_sq_full`; the hot path does not move
-  (perf_yev_ping_pong, perf_c_tcp: within noise).
-- New scenario DC in `c_treedb_literal_wins`: a projection killed twice (at
-  every write; the retry completes, or is killed at its first or last write).
-  The drafts are reported exactly once, by the process that completes the
-  projection, and nothing else is reported.
+- A full submission queue ended the process in 7.25.4: of the 12 places that
+  ask `io_uring_get_sqe()` for an entry, 10 used the NULL entry (a crash) and
+  2 logged *"io_uring_get_sqe() FAILED"* and aborted. The queue is flushed
+  and the entry asked again; when the kernel still takes nothing (on an older
+  kernel a CQ overflow answers `EBUSY` until the completions are reaped), the
+  submission is KEPT and made at the next cycle of the loop, in order (a
+  timer is armed, a stop reaches its event). A stop of a submission still
+  kept reaches the callback as a cancel (`STOPPED`, `-ECANCELED`). One
+  WARNING when the loop starts keeping: *"Submission queue full and the
+  kernel takes nothing: kept for the next cycle"*. Only a submission that
+  there is no memory to keep fails: CRITICAL *"No memory to keep a
+  submission"*, then the caller's ERROR *"No memory to keep a submission:
+  <what did not happen>"*. Test `yev_events/test_yevent_sq_full`; the hot
+  path does not move (perf_yev_ping_pong, perf_c_tcp: within noise).
 
-### Agent and gobj-c
+### Agent, gobj-c and tools
 
 - **The agent removes old audit files.** New attribute `audit_keep_days`
   (default `7`; `0` keeps all, as 7.25.4 did) is the retention of
-  `/yuneta/realms/agent/agent/audit/`. At start and at each new audit file the
-  agent removes the audit files older than that (only names with the shape of
-  the audit mask, never a link) and logs one INFO *"Old audit files removed"*
-  with the names. Up to 7.25.4 nothing was removed (19 GB on wattyzer). An
-  existing large directory is swept at the first start: to keep more, set
-  `agent.audit_keep_days` in `yuneta_agent.json` before that start. New
-  `rotatory_remove_old_files()`, not on the write path.
-- **The agent's audit record is small and loses nothing.** A read-only command
-  (`list-*`, `view-*`, `get-*`, `info-*`, `dir-*`, help, stats, services,
-  nodes, treedb-info, topics, ...; the list is in DEBUGGING.md 5.5) is written
-  as `{command, date, user}` only. Any other command is written as
+  `/yuneta/realms/agent/agent/audit/`. At start and at each new audit file
+  the agent removes the audit files older than that (only names with the
+  shape of the audit mask, never a link) and logs one INFO *"Old audit files
+  removed"* with the names. Up to 7.25.4 nothing was removed (19 GB on
+  wattyzer). An existing large directory is swept at the first start: to
+  keep more, set `agent.audit_keep_days` in `yuneta_agent.json` before that
+  start. New `rotatory_remove_old_files()`, not on the write path.
+- **The agent's audit record is small and loses nothing.** A read-only
+  command (`list-*`, `view-*`, `get-*`, `info-*`, `dir-*`, help, stats,
+  services, nodes, treedb-info, topics, ...; the list is in DEBUGGING.md 5.5)
+  is written as `{command, date, user}` only. Any other command is written as
   `{command, date, user, source, kw}`: `__md_iev__` is no longer written, and
   `source` keeps the console purpose and each inter-yuno hop (role, yuno,
   service, user, host). A `content64` is never written: it becomes
-  `<N bytes sha256:HEX>` of the decoded content (the `sha256sum` of the binary).
-  An `install-binary` of a 32 MB yuno went from 134 MB to 541 bytes (wattyzer
-  wrote 0.6-1.2 GB of audit on a deploy day). A day of audit that crosses
-  `max_megas_audit_file` continues in `.OLD.1`, `.OLD.2`, ...: up to 7.25.4 each
-  size rotation removed the previous `.OLD`, so a day that crossed the limit
-  twice lost its first part (wattyzer lost the mornings of 22 and 23 September
-  2026). New `rotatory_keep_all_old_files()` (off by default: the yuno logs keep
-  their one `.OLD`).
-- `gbuffer_base64_to_binary()` decodes `base64_len` chars instead of reading up
-  to a `'\0'`: a slice of a longer text (a `content64='...'` inside a command
-  line) failed to decode.
-- `rmrdir()` and `rmrcontentdir()` no longer follow symbolic links: a link to a
-  directory inside the tree was walked into and the files of its TARGET were
-  deleted (outside the tree); a dangling link made the removal fail. A link is
-  removed as a link; their failures name the path, and `rmrcontentdir()` no
-  longer fails silently. `mkrdir()` over a path that exists and is not a
-  directory, or a dangling link, logs the real cause (`ENOTDIR`) and returns -1
-  (it returned 0, and logged a leftover errno).
-- `find_files_with_suffix_array()` never lists a symbolic link (on filesystems
-  without `d_type` it used `stat()` and listed a link to a file).
+  `<N bytes sha256:HEX>` of the decoded content (the `sha256sum` of the
+  binary). An `install-binary` of a 32 MB yuno went from 134 MB to 541 bytes
+  (wattyzer wrote 0.6-1.2 GB of audit on a deploy day). A day of audit that
+  crosses `max_megas_audit_file` continues in `.OLD.1`, `.OLD.2`, ...: up to
+  7.25.4 each size rotation removed the previous `.OLD`, so a day that
+  crossed the limit twice lost its first part (wattyzer lost the mornings of
+  22 and 23 September 2026). New `rotatory_keep_all_old_files()` (off by
+  default: the yuno logs keep their one `.OLD`).
+- `gbuffer_base64_to_binary()` decodes `base64_len` chars instead of reading
+  up to a `'\0'`: a slice of a longer text (a `content64='...'` inside a
+  command line) failed to decode.
+- `rmrdir()` and `rmrcontentdir()` no longer follow symbolic links: a link to
+  a directory inside the tree was walked into and the files of its TARGET
+  were deleted (outside the tree); a dangling link made the removal fail. A
+  link is removed as a link; their failures name the path, and
+  `rmrcontentdir()` no longer fails silently. `mkrdir()` over a path that
+  exists and is not a directory, or a dangling link, logs the real cause
+  (`ENOTDIR`) and returns -1 (it returned 0, and logged a leftover errno).
+- `find_files_with_suffix_array()` never lists a symbolic link (on
+  filesystems without `d_type` it used `stat()` and listed a link to a file).
+- `save_json_to_file()` checks `close()` -- a failed close is a CRITICAL at
+  `on_critical_error` -- and logs a missing directory when it may not create
+  it.
 - rotatory (the log files): a record is checked once and written whole. Up to
   7.25.4 each piece of a record rebuilt the file name (`localtime()`) and ran
   `access()` + `fstat()`: an agent audit record cost 7.2 us, now 0.59 us. A
   record is no longer split between two files at a size rotation. A log file
-  RENAMED by another program is no longer noticed (a removed one still is); the
-  free-disk check runs every 100 records instead of every 100 pieces.
-- rotatory: a full disk stops only the log file on it, and it writes again when
-  the space is back (checked every 100 records; one line on stdout/syslog when
-  it stops, one when it resumes with the number of dropped records). Up to
-  7.25.4 one full disk stopped EVERY file log and the agent audit of the
-  process until it was restarted. A handle closed by `rotatory_close()` /
-  `rotatory_end()` is never touched again (the logger keeps its handle): a
-  write, flush, truncate or second close through it does nothing; up to 7.25.4
-  it read freed memory and could close it twice.
+  RENAMED by another program is no longer noticed (a removed one still is);
+  the free-disk check runs every 100 records instead of every 100 pieces.
+- rotatory: a full disk stops only the log file on it, and it writes again
+  when the space is back (checked every 100 records; one line on
+  stdout/syslog when it stops, one when it resumes with the number of dropped
+  records). Up to 7.25.4 one full disk stopped EVERY file log and the agent
+  audit of the process until it was restarted. A handle closed by
+  `rotatory_close()` / `rotatory_end()` is never touched again (the logger
+  keeps its handle): a write, flush, truncate or second close through it does
+  nothing; up to 7.25.4 it read freed memory and could close it twice.
 - The entry point closes the log files last: up to 7.25.4 they were closed
-  before the final cleaning and the memory leak report, so *"system memory not
-  free"* never reached the yuno's log file.
+  before the final cleaning and the memory leak report, so *"system memory
+  not free"* never reached the yuno's log file.
+- yuno-skeleton: the four C templates logged with `MSGSET_INTERNAL_ERROR`,
+  which the unified msgsets renamed `MSGSET_INTERNAL` (2026-04): a gclass
+  generated from them did not compile. They use `MSGSET_INTERNAL`.
+- New benchmarks `performance/c/perf_timeranger2`, `perf_tr_treedb` and
+  `perf_c_treedb` (see "Performance"): each prints one line of JSON per
+  result, and ctest runs them with small sizes.
 
-### C_NODE, C_AUTHZ, C_TRANGER, gobj-c
+### C_NODE, C_AUTHZ, C_TRANGER
 
-- Every C_NODE and C_AUTHZ command comment starts with the yuno (except the "No
-  permission ... in service" refusals, which name the service), and none reads
-  `gobj_log_last_message()` (import-db still keys its error stats on it).
+- Every C_NODE and C_AUTHZ command comment starts with the yuno (except the
+  "No permission ... in service" refusals, which name the service), and none
+  reads `gobj_log_last_message()` (import-db still keys its error stats on
+  it).
 - `activate-snap` keeps the old snap active when the new one cannot be saved.
-- C_TRANGER `mark-tm-order [topic_name=<t> | all=1]` (master, `write`); with
-  `all=1` it skips, with an INFO, each directory of the store that is not a
-  topic (no `topic_desc.json`, e.g. `saved_schemas/`).
+- C_TRANGER `mark-tm-order [topic_name=<t> | all=1]` (master, `write`), over
+  the new `tranger2_mark_tm_order()`; with `all=1` it skips, with an INFO,
+  each directory of the store that is not a topic (no `topic_desc.json`,
+  e.g. `saved_schemas/`).
 - `gc-assets` answers a report (`dry_run`, `assets`, `blobs`, `refused`,
   `blobs_refused`) instead of the list of ids taken.
-- rt disk ids: an empty id and a same-creator duplicate are warnings (peer
-  input) like another creator's; `tranger2_open_iterator()` no longer leaks on a
-  bad topic.
-- `save_json_to_file()` checks `close()` -- a failed close is a CRITICAL at
-  `on_critical_error` -- and logs a missing directory when it may not create it.
 
 ### JS: gobj-ui 7.25.6 - 7.25.14, gui_agent 0.22.79 - 0.22.88, gui_treedb 0.17.58 - 0.17.61
 
 - Deployed to artgins.yunetacontrol.com and .ovh (gui_agent) and
   artgins.ytreedb.com (gui_treedb); every deploy console-checked (login,
   session, Schemas editor, forced reconnect, navigation and clicks during
-  loads): 0 errors. Includes the fix of a regression of gobj-ui 7.25.6 that was
-  live (navigating in the schema editor during a reload emptied the model).
-- Schema editor: the loading screen is honest (body cleared, toolbar disabled,
-  navigation waits for the load); a dialog opened on a model that a reload
-  replaced is closed with a message and nothing stamped with the old model is
-  written; a refused reload keeps the previous model; a transport drop ends the
-  cut load or write and the reconnect reloads; stale answers are ignored by
-  round; no load is asked out of session (the reconnect asks it); a late
-  successful write reloads and keeps its marks. A reload that was refused is
-  owed: the operator's next change runs it first (the change is refused with a
-  toast and the operator does it again once the schemas are in; a move, the
-  editor's own or the host's, is not refused and reads there); any load that
-  lands clears the debt (a Refresh included), and an import plan is dropped only
-  by a load that lands. A confirmation that arrives with no model is refused as
-  stale; the import plan lost to a reload is a warning and a toast.
+  loads): 0 errors. Includes the fix of a regression of gobj-ui 7.25.6 that
+  was live (navigating in the schema editor during a reload emptied the
+  model).
+- Schema editor: the loading screen is honest (body cleared, toolbar
+  disabled, navigation waits for the load); a dialog opened on a model that a
+  reload replaced is closed with a message and nothing stamped with the old
+  model is written; a refused reload keeps the previous model; a transport
+  drop ends the cut load or write and the reconnect reloads; stale answers
+  are ignored by round; no load is asked out of session (the reconnect asks
+  it); a late successful write reloads and keeps its marks. A reload that was
+  refused is owed: the operator's next change runs it first (the change is
+  refused with a toast and the operator does it again once the schemas are
+  in; a move, the editor's own or the host's, is not refused and reads
+  there); any load that lands clears the debt (a Refresh included), and an
+  import plan is dropped only by a load that lands. A confirmation that
+  arrives with no model is refused as stale; the import plan lost to a reload
+  is a warning and a toast.
 - Shell modals: every ✕ (toast, modal, confirmation), `MODAL_BACK` and every
-  `CONFIRM_BTN` carry a translatable title and aria-label; the schema editor's
-  export C/JSON switch is two buttons (`aria-pressed`), switched through the FSM
-  (`EV_EXPORT_VIEW`); its confirmations pass the keys `delete` / `cancel` (they
-  rendered in English in every locale).
-- gobj-ui 7.25.13 / 7.25.14: in `C_YUI_TREEDB_TOPICS`, a write cut by the drop
-  no longer asks for its topic out of session (the adapter logged "cannot
-  route 'nodes' -- not in session"). A drop marks the view, and the first edge
-  that finds the transport in session reads every open topic table again,
-  once: a node another writer created, changed or deleted during the drop
-  shows. An "up" before the transport is in session, or with no drop before
-  it, reads nothing. A form already answered by the edge is not answered a
-  second time.
+  `CONFIRM_BTN` carry a translatable title and aria-label; the schema
+  editor's export C/JSON switch is two buttons (`aria-pressed`), switched
+  through the FSM (`EV_EXPORT_VIEW`); its confirmations pass the keys
+  `delete` / `cancel` (they rendered in English in every locale).
+- gobj-ui 7.25.13 / 7.25.14: in `C_YUI_TREEDB_TOPICS`, a write cut by the
+  drop no longer asks for its topic out of session (the adapter logged
+  "cannot route 'nodes' -- not in session"). A drop marks the view, and the
+  first edge that finds the transport in session reads every open topic
+  table again, once: a node another writer created, changed or deleted during
+  the drop shows. An "up" before the transport is in session, or with no drop
+  before it, reads nothing. A form already answered by the edge is not
+  answered a second time.
 - gui_agent 0.22.87: an `apply` timeout decides with the answers that came.
   One treedb applied means restart, so kill / run / play goes on without the
   silent owners, and the toast names them and says their state is unknown
-  (7.25.4's tab stopped and left the applied schema for the next unrelated
-  restart). With nothing applied there is no restart, and the toast names the
-  silent owners. New locale keys (en, es). 0.22.88: only the gobj-ui range
-  (^7.25.14).
-- gui_treedb 0.17.58 - 0.17.61: only the gobj-ui range (^7.25.11 ... ^7.25.14).
-- gui_agent: the link answers every pending request on a close; request ids are
-  unique per page (two treedb views crossed answers and could fake a delete);
-  the deadline counts from the dispatch ack and is scaled for uploads; late
-  answers are logged and a late successful write is echoed; drafts and withdrawn
-  schemas are said; apply deadlines are `C_TIMER` children per step.
-- One toast per message on screen; each repeat keeps its own handle and timer.
+  (the tab of 7.25.4 stopped and left the applied schema for the next
+  unrelated restart). With nothing applied there is no restart, and the toast
+  names the silent owners. New locale keys (en, es). 0.22.88: only the
+  gobj-ui range (^7.25.14).
+- gui_treedb 0.17.58 - 0.17.61: only the gobj-ui range (^7.25.11 ...
+  ^7.25.14).
+- gui_agent: the link answers every pending request on a close; request ids
+  are unique per page (two treedb views crossed answers and could fake a
+  delete); the deadline counts from the dispatch ack and is scaled for
+  uploads; late answers are logged and a late successful write is echoed;
+  drafts and withdrawn schemas are said; apply deadlines are `C_TIMER`
+  children per step.
+- One toast per message on screen; each repeat keeps its own handle and
+  timer.
 
 ### BREAKING
 
@@ -600,91 +633,133 @@ side and run alternated (medians; ext4, laptop NVMe).
   `__snaps__`, `gc-assets` asset rows with a partial asset topic or an active
   snap.
 - The agent's audit record format changed (read-only commands minimal,
-  `source` instead of `__md_iev__`, no `content64`): tools that read the audit
-  must accept both formats (files written before the upgrade keep the old one).
+  `source` instead of `__md_iev__`, no `content64`): tools that read the
+  audit must accept both formats (files written before the upgrade keep the
+  old one).
 - The agent removes audit files older than `audit_keep_days` (default 7) at
   its first start; `mkrdir()` returns -1 over a non-directory.
 - `tranger2_write_topic_var()` / `tranger2_write_topic_cols()` return -1 when
   the file cannot be written (7.25.4 ignored the write and returned 0); the
   three md2 flag rewriters return -1 on a non-master; a revive whose store
-  another process holds exits at `on_critical_error` (default: exit), any other
-  revive failure demotes to replica; `save_json_to_file()`'s failed close is a
-  CRITICAL at `on_critical_error`.
-- New topics carry `marks_tm_unordered` in `topic_desc.json`.
-- `__system__` is projected whole from an installed literal: topics, columns and
-  attributes the literal no longer declares are deleted there (with their
+  another process holds exits at `on_critical_error` (default: exit), any
+  other revive failure demotes to replica; C_TRANGER's `master` reads the
+  effective state (it read the configuration); `save_json_to_file()`'s
+  failed close is a CRITICAL at `on_critical_error`.
+- New topics carry `marks_tm_unordered` in `topic_desc.json`, and a file of
+  theirs whose `tm` goes back gets a `<file>.tm_unordered` marker beside its
+  md2 (`mark-tm-order` writes them too); new `tranger2_mark_tm_order()`.
+- `__system__` is projected whole from an installed literal: topics, columns
+  and attributes the literal no longer declares are deleted there (with their
   instance history); a topic changed without a version raise now shows the
   literal's content, with a warning. Seeding with no literal installed comes
   from the file, with `c_schema_version` 0 unless the file is the literal.
-- `apply-schema` writes a new record, `saved_schemas/<treedb>.applied.json`, and
-  refuses when it cannot write it; `save-schema` refuses a draft with no topics,
-  and `apply-schema` a saved schema with no topics (without `treedb_name`, that
-  refuses every treedb); `save-schema` refuses while a projection is unfinished
-  (new record `saved_schemas/<treedb>.unfinished.json`); a failed create, update
-  or link of the projection leaves it unfinished and retried; a second
-  `open-treedb` is refused, and one whose schema is refused answers -1 (7.25.4:
-  0 "Treedb opened!") -- so a refused agent schema stops the agent (exit 0, not
+- `apply-schema` writes a new record, `saved_schemas/<treedb>.applied.json`,
+  and refuses when it cannot write it; `save-schema` refuses a draft with no
+  topics, and `apply-schema` a saved schema with no topics (without
+  `treedb_name`, that refuses every treedb); `save-schema` refuses while a
+  projection is unfinished (new record
+  `saved_schemas/<treedb>.unfinished.json`); a failed create, update or link
+  of the projection leaves it unfinished and retried; a second `open-treedb`
+  is refused, and one whose schema is refused answers -1 (7.25.4: 0 "Treedb
+  opened!") -- so a refused agent schema stops the agent (exit 0, not
   relaunched); new answer texts for `open-treedb` / `close-treedb` /
   `delete-treedb` ("Treedb opened!" -> "<yuno>: treedb opened: 'X'", "Treedb
-  closed!" -> "<yuno>: treedb closed: 'X'", "Treedb_name not found" -> "<yuno>:
-  treedb 'X' not found", ...); a client store locked by another process is not
-  reconciled. The log order at open changed (the client tranger's logs come
-  first).
-- msg2db: the pkey2s of an id that did not load whole whose newest message is in
-  the damage or before it are absent instead of stale (new
-  `msg2db_id_incomplete()`).
-- tr_queue / tr2q_mqtt: the `tr_queue_t` / `tr2_queue_t` structs grew (rebuild
-  their users); `trq_load()` / `tr2q_load()` return -1 when the load did not
-  read every pending message; `trq_check_backup()` / `tr2q_check_backup()`
-  return -1 while the backup is refused.
+  closed!" -> "<yuno>: treedb closed: 'X'", "Treedb_name not found" ->
+  "<yuno>: treedb 'X' not found", ...); a client store locked by another
+  process is not reconciled. The log order at open changed (the client
+  tranger's logs come first).
+- msg2db: the pkey2s of an id that did not load whole whose newest message is
+  in the damage or before it are absent instead of stale (new
+  `msg2db_id_incomplete()`); while the damaged file is the current period's,
+  every new message of such an id is refused (`msg2db_append_message()`
+  answers NULL).
+- tr_queue / tr2q_mqtt: the `tr_queue_t` / `tr2_queue_t` structs grew
+  (rebuild their users); `trq_load()` / `tr2q_load()` return -1 when the load
+  did not read every pending message; `trq_check_backup()` /
+  `tr2q_check_backup()` return -1 while the backup is refused.
 - timeranger2: an append into a file flagged unreadable returns -1. A master
-  cuts back an md2 that ends in a torn row (it writes the store at open). An md2
-  that 7.25.4 wrote after a torn row (also with content after its last row), or
-  whose last two whole rows are not good records, is not cut: its key fails
-  every load, on a master and a replica. Log texts: *"Cannot read last record,
-  md2 file corrupted"* is gone. A torn md2 is cut back with a WARNING; the other
-  shapes log a CRITICAL (*"md2 file of the key ends in a whole row that is not
-  on a row boundary: written by 7.25.4 after a torn row; not cut, repair it by
-  hand"* or *"md2 file of the key ends in a part of a row after a last whole row
-  that is not valid: not cut, repair it by hand"*), and an append into such a
-  file is refused (*"Cannot append record, its md2 file ends in a part of a row
-  that must not be cut back: the append is refused"*); *"Cannot read first/last
-  record of md2 file"* are now *"Cannot read a record of md2 file, read FAILED"*
-  or *"..., short read"* (with `row`: `first`, `last`, or `end` / `before last`
-  in the torn-tail check); a truncated md2 or content logs *"... short read"*
-  instead of *"read FAILED"*, and a write that stops part way logs *"... short
-  write: the file size limit or the disk is full"* (with `written` / `expected`)
-  instead of *"... write FAILED"* -- match on them if you alert on them. A
-  replica's rt_disk update makes no cache cell for an md2 with no whole row yet.
+  cuts back an md2 that ends in a torn row (it writes the store at open). An
+  md2 that 7.25.4 wrote after a torn row (also with content after its last
+  row), or whose last two whole rows are not good records, is not cut: its
+  key fails every load, on a master and a replica. A torn md2 is cut back
+  with a WARNING; the other shapes log a CRITICAL (*"md2 file of the key ends
+  in a whole row that is not on a row boundary: written by 7.25.4 after a
+  torn row; not cut, repair it by hand"* or *"md2 file of the key ends in a
+  part of a row after a last whole row that is not valid: not cut, repair it
+  by hand"*), and an append into such a file is refused (*"Cannot append
+  record, its md2 file ends in a part of a row that must not be cut back: the
+  append is refused"*). A replica's rt_disk update makes no cache cell for an
+  md2 with no whole row yet.
 - tr_treedb: a write whose save fails is taken back in memory and tells no
   event; `treedb_autolink()`, `treedb_clean_node()` and
-  `treedb_replace_links()` return -1 when the save fails (7.25.4: 0); a forced
-  `treedb_delete_node()` that cannot unlink a child, or delete its key, is
-  refused and changes nothing (7.25.4 deleted the parent); the events of a
-  link, unlink or update are told after the child's save (7.25.4 told link
-  events before it); new `treedb_update_node_and_links()`. New ERRORs: *"A
-  write that did not reach the disk could not be taken back whole in memory:
-  ..."*, *"A refused delete cannot put back a child it had unlinked: ..."*.
+  `treedb_replace_links()` return -1 when the save fails (7.25.4: 0); a
+  forced `treedb_delete_node()` that cannot unlink a child, or delete its
+  key, is refused and changes nothing (7.25.4 deleted the parent); the events
+  of a link, unlink or update are told after the child's save (7.25.4 told
+  link events before it); new `treedb_update_node_and_links()`.
 - C_TREEDB: every answer of every command starts with the yuno (create-topic
   "<role^name>: topic '<t>' created in treedb '<db>'", was "Topic created!";
   delete-topic "...deleted from treedb '<db>'", was "Topic deleted!";
-  "<role^name>: treedb '<db>' not found", was "Treedb_name not found: '<db>'";
-  the -403 answers); a schema whose qualified ids collide (names with dots) is
-  refused at open, save and apply; a record write failure logs *"Cannot write a
-  record of saved_schemas/"*.
+  "<role^name>: treedb '<db>' not found", was "Treedb_name not found:
+  '<db>'"; the -403 answers); a schema whose qualified ids collide (names
+  with dots) is refused at open, save and apply.
 - C_TREEDB answers carry new fields (`withdrawn`, `stale`, `broken`,
   `withdrawn_at_open`, `unfinished_projection`, `stopped`, and `master` and
-  `opened` in `treedbs` rows) and `saved` changed meaning; C_NODE `gc-assets`
-  `data` is a report, not a list; `instances` answers -1 on failure; command
-  comment texts of C_NODE and C_AUTHZ changed.
+  `opened` in `treedbs` rows) and `saved` changed meaning; C_NODE
+  `gc-assets` `data` is a report, not a list; `instances` answers -1 on
+  failure; command comment texts of C_NODE and C_AUTHZ changed.
+- **Log texts** -- match on the new ones if you alert on them:
+    - timeranger2: *"Cannot read last record, md2 file corrupted"* is gone
+      (see the md2 bullets above). *"Cannot read first/last record of md2
+      file"* are now *"Cannot read a record of md2 file, read FAILED"* or
+      *"..., short read"* (with `row`: `first`, `last`, or `end` / `before
+      last` in the torn-tail check); a truncated md2 or content logs *"...
+      short read"* instead of *"read FAILED"*, and a write that stops part
+      way logs *"... short write: the file size limit or the disk is full"*
+      (with `written` / `expected`) instead of *"... write FAILED"*.
+    - timeranger2: *"Bad data, anystring2json() FAILED."* is now *"Bad data,
+      the content of the record is not json"*, or *"Cannot read the record,
+      this process has not the memory to parse its content (MEM_MAX_BLOCK)"*.
+    - timeranger2: *"Cannot mark md2 file as unordered, file_id too long"* /
+      *"..., a reload will misread its time range"* are *"Cannot mark md2
+      file, file_id too long"* / *"Cannot mark md2 file, a reload will
+      misread its time range"*.
+    - timeranger2: *"next rowids not consecutive"* / *"previous rowids not
+      consecutive"* are *"next segment begins before the row just read"* /
+      *"previous segment ends after the row just read"*.
+    - timeranger2: *"Master lock NOT retaken after a stop, go on as not
+      master"* is three texts, *"Master lock NOT retaken after a stop: cannot
+      open the lock file, go on as not master"*, *"...: another process holds
+      it, ..."* and *"...: flock() FAILED, ..."*.
+    - timeranger2: the ERRORs *"what id?"* and *"Disk already exists"* of an
+      rt disk are the WARNINGs *"Invalid rt id (empty)"* and *"rt disk id
+      already in use by the same creator, refused"*.
+    - tr_treedb: new ERRORs *"A write that did not reach the disk could not
+      be taken back whole in memory: ..."* and *"A refused delete cannot put
+      back a child it had unlinked: ..."*.
+    - C_TREEDB: *"Topic from C differs from the one in use, but its
+      topic_version is not higher: not applied"* is *"Topic from C declares
+      other columns than the store runs, without raising its topic_version
+      past it: the store keeps running its own"*; *"Schema from C takes over
+      the file in use while __system__ holds a draft saved over it: ..."* is
+      gone, replaced by *"Schema from C withdrew work on the schema at
+      open"*; a record write failure logs *"Cannot write a record of
+      saved_schemas/"*.
+    - C_NODE: *"Cannot save the node after its links (autolink)"* is gone;
+      a create logs *"Node created, but its links cannot be saved
+      (autolink): the node stays without them"*.
+    - yev_loop: *"io_uring_get_sqe() FAILED"* is gone; *"Submission queue
+      full and the kernel takes nothing: kept for the next cycle"* (WARNING),
+      *"No memory to keep a submission"* (CRITICAL) and *"No memory to keep
+      a submission: <what did not happen>"* (ERROR) are new.
 
 ### Known limitations
 
-- `default: {}` placeholders are dropped by save + apply, so a `required` column
-  whose literal really declared `'default': {}` loses it.
+- `default: {}` placeholders are dropped by save + apply, so a `required`
+  column whose literal really declared `'default': {}` loses it.
 - A failed `open-treedb` withdraws the saved schema at once.
-- An md2 truncated to 0 rows behind the yuno's back loses its rows, as in 7.25.4
-  (now with a warning); check the `.json` size before repairing.
+- An md2 truncated to 0 rows behind the yuno's back loses its rows, as in
+  7.25.4 (now with a warning); check the `.json` size before repairing.
 
 ## v7.25.4 (2026-09-23)
 

@@ -176,6 +176,13 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
   estadodelaire, hidraulia) do not use `msg2db_id_incomplete()` yet: an alarm
   absent after a damaged load can be announced again as new
   (`tr_msg2db.md` has the code).
+- `perf_c_treedb` against the C_TREEDB of 7.25.4 linked with this release's
+  libraries (both with the new JSON load): the same-literal open costs +14%
+  (0.65 -> 0.74 s for 40 opens, ~2 ms an open) and a newer literal +4%. The
+  seed's +7% is the record written before the first write; the share of the
+  new checks (ownership read from the node, the record of an unfinished
+  projection, the leftover comparison) in the other two is not measured.
+  Profile them, then fix or name the price.
 - **No red test** for: `deactivate-snap` -1 on a failed save, the fs_watcher
   root, `save_json_to_file()`'s `close()` failure, the crash window between a
   marker and its md2 row. Not exercised live: a form Save through a real
@@ -183,6 +190,18 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
 - A test binary is not relinked by `cmake --build build` after `make install`
   of a library it links by name: a per-module test run can execute the old
   library. `yunetas clean && yunetas build && yunetas test` is not affected.
+
+## yuno-skeleton: the timer of three templates reaches nobody
+
+`gclass_service`, `gclass_child` and `yuno_citizen` create their timer with
+`gobj_create(gobj_name(gobj), C_TIMER, 0, gobj)`. `C_TIMER` subscribes its
+parent only when it is a pure child (`c_timer.c`, `mt_create`), so the
+`EV_TIMEOUT` of such a timer is published to nobody (*"Publish event WITHOUT
+subscribers"*) and the template's `ac_timeout` never runs. `yuno_standalone`
+creates it with `gobj_create_pure_child()`, which works. Found while writing
+`performance/c/perf_c_treedb` from the service template (it uses a pure
+child). Decide: a pure child in the three templates, or a `subscriber` in the
+kw.
 
 ## Agent: the spare agent is only refreshed on the package path
 
