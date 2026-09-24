@@ -832,8 +832,8 @@ NVMe). The raw figures, with their spread, are in `performance/c/README.md`.
 
 ### JS: gobj-js, gobj-ui, gui_agent, gui_treedb
 
-- The versions: gobj-js 7.25.1, gobj-ui 7.25.6 - 7.25.15, gui_agent 0.22.79 -
-  0.22.89, gui_treedb 0.17.58 - 0.17.62.
+- The versions: gobj-js 7.25.1 - 7.25.2, gobj-ui 7.25.6 - 7.25.16, gui_agent
+  0.22.79 - 0.22.90, gui_treedb 0.17.58 - 0.17.63.
 - Deployed to artgins.yunetacontrol.com and .ovh (gui_agent) and
   artgins.ytreedb.com (gui_treedb); every deploy console-checked (login,
   session, Schemas editor, forced reconnect, navigation and clicks during
@@ -893,6 +893,36 @@ NVMe). The raw figures, with their spread, are in `performance/c/README.md`.
   `EV_GRAPHS_WRITE_REFUSED {topic}`); it was recorded as saved before it left.
 - gui_agent 0.22.89, gui_treedb 0.17.58 - 0.17.62: the ranges (gobj-ui
   ^7.25.15, gobj-js ^7.25.1).
+- **gobj-js 7.25.2: `kw_get_list()`, `kw_get_dict()` and `kw_get_bool()`
+  answer like the C readers.** A value of the reader's type is the answer; an
+  absent key or a value of another type gives the default back as given.
+  `kw_get_list()` wrapped (`{x: [1, 2]}` gave `[[1, 2]]`, a default of `null`
+  gave `[null]`), `kw_get_dict()` turned a `null` default into `{}`, and
+  `kw_get_bool()` read the string `"false"` as true. `KW_CREATE` stores only a
+  default of the right type, `KW_EXTRACT` takes out only a value of the right
+  type, `KW_REQUIRED` logs a wrong type. `kw_set_subdict_value()` passed
+  `KW_REQUIRED` where it meant `KW_CREATE`, and `trace_json()` no longer needs
+  `window` (in a worker or node a `KW_REQUIRED` miss threw instead of
+  logging). No caller in the SDK or the project SPAs relied on the old
+  answers.
+- gobj-ui 7.25.16: `C_YUI_SCHEMA_EDITOR` hears a Refresh during a Save and
+  runs it when the writes end (it started the load at once and the rest of
+  the write queue was never sent, with no message). The Save of a form while
+  a reload is owed keeps what was typed: the load that lands opens the form
+  again on the schemas it read, with only the changed fields put back on top
+  (two new consumer i18n keys). `C_G6_NODES_TREE`: a refused `__graphs__`
+  write keeps Save lit until a Save writes it. The shell dialogs' default
+  labels are the i18n keys `ok`, `yes`, `no`, `delete`, `cancel` (they were
+  English literals no locale holds); `yui_install` asks `install this app`.
+  Every consumer SPA carries the `ok` key (yunovatios `gui-common` got it).
+- gui_agent 0.22.90: Apply is off while a Save of schemas is unanswered and
+  refused if it arrives anyway (confirmed before the Save answered, the apply
+  dropped the Save's answers and Save stayed off for good). The Apply dialog
+  closes, and says so, when a Save or a new round changes what it lists; an
+  Apply outside `ST_READY` is refused and said; a late answer of an apply step
+  is logged, not dropped; round numbers are counted per page, so a tab opened
+  again cannot take an old tab's answer. gui_treedb 0.17.63: the ranges
+  (gobj-ui ^7.25.16, gobj-js ^7.25.2) and the `ok` key.
 
 ### BREAKING
 
