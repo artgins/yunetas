@@ -178,8 +178,10 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
   (`tr_msg2db.md` has the code).
 - **No red test** for: `deactivate-snap` -1 on a failed save, the fs_watcher
   root, `save_json_to_file()`'s `close()` failure, the crash window between a
-  marker and its md2 row. Not exercised live: a form Save through a real
-  websocket drop.
+  marker and its md2 row, the `kw_incref()` of C_MQIOGATE's `view-channels`
+  and the `kw_update_missing()` of C_IEVENT_SRV's `EV_ON_CLOSE` (neither kw
+  carries a gbuffer today). Not exercised live: a form Save
+  through a real websocket drop.
 - A test binary is not relinked by `cmake --build build` after `make install`
   of a library it links by name: a per-module test run can execute the old
   library. `yunetas clean && yunetas build && yunetas test` is not affected.

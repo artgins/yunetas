@@ -37,6 +37,7 @@ ctest -R test_c_timer --output-on-failure --test-dir build
 | `tr_msg`, `tr_queue` | timeranger2 message wrapper and queue (msg2db) |
 | `timeranger2` | timeranger2 append / read / iterator tests |
 | `kw` | `kw_*` helpers from `gobj-c/kwid.c` |
+| `command_binary_kw` | A command, and `build_stats()`, whose kw carries a `gbuffer`: the handler's kw holds a reference of its own, and the caller's references are intact after the command |
 | `msg_interchange` | `msg_ievent` / `iev_msg` conversion |
 | `yev_loop` | io_uring event loop (TCP, TLS, timers) |
 

@@ -579,6 +579,19 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   crossed the limit twice lost its first part (wattyzer lost the mornings of
   22 and 23 September 2026). New `rotatory_keep_all_old_files()` (off by
   default: the yuno logs keep their one `.OLD`).
+- **A command whose kw carries a `gbuffer` releases it once.** The command
+  parser gives the handler a new kw with the keys of the caller's kw, and it
+  copied them with `json_object_update_missing()` (every command, with or
+  without a parameter schema); the default stats parser (`build_stats()`)
+  handed the kw on with `json_incref()`. Neither took a reference of the
+  gbuffer, and each `KW_DECREF` released it: *"BAD gbuf_decref()"*, or a
+  gbuffer freed while its owner still held it. The parser uses the new
+  `kw_update_missing()`, which takes that reference, and so does the
+  `EV_ON_CLOSE` of C_IEVENT_SRV; `build_stats()` and C_MQIOGATE's
+  `view-channels` use `kw_incref()`. C_NODE `create-node` / `update-node`
+  had worked around it (they took a second reference of the bytes of the
+  `file` columns); they take the command kw's own now. Test
+  `command_binary_kw`.
 - `gbuffer_base64_to_binary()` decodes `base64_len` chars instead of reading
   up to a `'\0'`: a slice of a longer text (a `content64='...'` inside a
   command line) failed to decode.

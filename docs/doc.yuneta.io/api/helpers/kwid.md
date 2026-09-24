@@ -1172,7 +1172,7 @@ Updates the dictionary `kw` with key-value pairs from `other`, excluding keys sp
 void kw_update_except(
     hgobj      gobj,
     json_t    *kw,          // not owned
-    json_t    *other,       // owned
+    json_t    *other,       // not owned
     const char **except_keys
 );
 ```
@@ -1183,7 +1183,7 @@ void kw_update_except(
 |---|---|---|
 | `gobj` | `hgobj` | Handle to the gobj (generic object) system. |
 | `kw` | `json_t *` | The target JSON dictionary to be updated. This parameter is not owned by the function. |
-| `other` | `json_t *` | The source JSON dictionary containing key-value pairs to update `kw`. This parameter is owned by the function. |
+| `other` | `json_t *` | The source JSON dictionary containing key-value pairs to update `kw`. This parameter is not owned by the function: the caller releases it. |
 | `except_keys` | `const char **` | A NULL-terminated array of keys that must be excluded from the update. |
 
 **Returns**
@@ -1193,6 +1193,51 @@ This function does not return a value.
 **Notes**
 
 Only the first level of `kw` is updated. Keys in `except_keys` are ignored during the update.
+
+---
+
+(kw_update_missing)=
+## [`kw_update_missing()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/kwid.c#L2270)
+
+Adds to `kw` the keys of `other` that `kw` does not have. A binary field (the `gbuffer` of an event) gets a reference of its own.
+
+```C
+int kw_update_missing(
+    hgobj   gobj,
+    json_t *kw,     // not owned
+    json_t *other   // not owned
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj that logs an error. |
+| `kw` | `json_t *` | The dictionary that gets the keys. Not owned. |
+| `other` | `json_t *` | The dictionary that gives the keys. Not owned. `NULL` adds nothing. |
+
+**Returns**
+
+`0`, or `-1` (with an error in the log) if `kw` or `other` is not an object. A `NULL` `other` is not an error.
+
+**Notes**
+
+Only the first level is read. A key that `kw` already has keeps its value. The values are shared (incref), not copied.
+
+A binary field registered with [`kw_add_binary_type()`](#kw_add_binary_type) gets one more reference, so `kw` and `other` can each be released with [`KW_DECREF`](#kw_decref). Do not use `json_object_update_missing()` on a kw that can carry a `gbuffer`: it shares the field without a reference, and the second `KW_DECREF` releases the gbuffer once too often (*"BAD gbuf_decref()"*). The command parser uses this function to give the command handler the keys of the caller's kw.
+
+**Example**
+
+```C
+json_t *kw_cmd = json_pack("{s:s}", "name", "x");
+kw_update_missing(gobj, kw_cmd, kw);    // kw carries "gbuffer": both hold a reference
+
+// ... the handler uses kw_cmd ...
+
+KW_DECREF(kw_cmd)   // releases its reference of the gbuffer
+KW_DECREF(kw)       // releases the other one
+```
 
 ---
 

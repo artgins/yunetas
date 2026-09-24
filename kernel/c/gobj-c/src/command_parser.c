@@ -475,7 +475,7 @@ PRIVATE json_t *build_cmd_kw(
     *result = 0;
 
     if(!input_parameters) {
-        json_object_update_missing(kw_cmd, kw);
+        kw_update_missing(gobj, kw_cmd, kw);
         return kw_cmd;
     }
     /*
@@ -650,7 +650,11 @@ PRIVATE json_t *build_cmd_kw(
         );
     }
 
-    json_object_update_missing(kw_cmd, kw); // HACK lo quité y dejó de funcionar el GUI
+    /*
+     *  The keys of kw that are not parameters reach the handler too;
+     *  callers (the GUI) depend on it.
+     */
+    kw_update_missing(gobj, kw_cmd, kw);
 
     return kw_cmd;
 }

@@ -619,7 +619,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "client_yuno_role", gobj_read_str_attr(gobj, "client_yuno_role"),
             "client_yuno_service", gobj_read_str_attr(gobj, "client_yuno_service")
         );
-        json_object_update_missing(kw_on_close, kw);
+        kw_update_missing(gobj, kw_on_close, kw);
 
         gobj_publish_event(gobj, EV_ON_CLOSE, kw_on_close);
     }

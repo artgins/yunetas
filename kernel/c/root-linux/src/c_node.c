@@ -2439,21 +2439,18 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Take the kw's ONE binary field out of the command kw, BEFORE the
- *  command can exit by any door.
+ *  Take the kw's ONE binary field out of the kw, BEFORE the command or
+ *  the action can exit by any door.
  *
- *  `expand_command()` builds the command kw by copying the caller's keys
- *  by VALUE (json_object_update_missing, command_parser.c), so the buffer
- *  is named by two kws and BOTH are KW_DECREF'd -- the command's answer
- *  releases one, command_parser the other, and a single reference is
- *  dropped twice. Extracted here, the command kw names it no more, and the
- *  caller's kw stays the one owner. The reference this returns is a NEW
- *  one, for whoever the bytes are handed to. The event path
- *  (ac_treedb_update_node) copies nothing, and says so with `kw_is_a_copy`.
+ *  A command kw holds a reference of its own: `expand_command()` copies
+ *  the caller's keys with kw_update_missing(), which increfs the binary
+ *  field, and the caller's kw keeps and releases its own. Extracted here,
+ *  the kw names the buffer no more, and its reference is the one this
+ *  returns, for whoever the bytes are handed to. An event kw is the same.
  *
  *  Return the buffer (YOURS, one reference) or NULL.
  ***************************************************************************/
-PRIVATE gbuffer_t *take_files_gbuffer(hgobj gobj, json_t *kw, BOOL kw_is_a_copy)
+PRIVATE gbuffer_t *take_files_gbuffer(hgobj gobj, json_t *kw)
 {
     json_t *jn_gbuffer = kw_get_dict_value(gobj, kw, "gbuffer", 0, KW_EXTRACT);
     if(!jn_gbuffer) {
@@ -2475,14 +2472,6 @@ PRIVATE gbuffer_t *take_files_gbuffer(hgobj gobj, json_t *kw, BOOL kw_is_a_copy)
             NULL
         );
         return NULL;
-    }
-    /*
-     *  A command kw is a COPY and the caller's kw still names the buffer:
-     *  ours is a new reference. An event kw is the only owner, so the
-     *  reference extracted IS the one, and taking another would leak it.
-     */
-    if(kw_is_a_copy) {
-        gbuffer_incref(gbuf);
     }
     return gbuf;
 }
@@ -2665,7 +2654,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*----------------------------------------*
      *  The kw's ONE binary field, before any exit
      *----------------------------------------*/
-    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw, TRUE);
+    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw);
 
     /*----------------------------------------*
      *  A replica cannot be written
@@ -2801,7 +2790,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*----------------------------------------*
      *  The kw's ONE binary field, before any exit
      *----------------------------------------*/
-    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw, TRUE);
+    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw);
 
     /*----------------------------------------*
      *  A replica cannot be written
@@ -6082,10 +6071,9 @@ PRIVATE int ac_treedb_update_node(hgobj gobj, gobj_event_t event, json_t *kw, hg
      *  The bytes of the 'file' columns, through the event door too: the
      *  kw's one binary field rides at ITS top level, and the record is a
      *  key inside it, so handed nothing the write path met a manifest
-     *  that "carries no bytes". No copy was made here (see
-     *  take_files_gbuffer), so the reference extracted is the only one.
+     *  that "carries no bytes".
      */
-    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw, FALSE);
+    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw);
     if(json_is_object(record)) {
         hand_files_to_record(gobj, kw, record, gbuf_files);
     } else {

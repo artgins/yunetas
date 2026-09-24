@@ -2229,7 +2229,7 @@ PUBLIC json_t *kw_get_subdict_value(
 PUBLIC void kw_update_except(
     hgobj gobj,
     json_t *kw,  // not owned
-    json_t *other,  // owned
+    json_t *other,  // not owned
     const char **except_keys
 )
 {
@@ -2254,6 +2254,53 @@ PRIVATE serialize_fields_t * get_serialize_field(const char *binary_field_name)
             return pf;
         }
         pf++;
+    }
+    return 0;
+}
+
+/***************************************************************************
+    Add to kw the keys of other that kw does not have. First level only.
+    The values are shared (incref), not copied. A binary field (the
+    `gbuffer` of an event) gets a reference of its own, because KW_DECREF
+    releases the binary fields of each kw: kw and other can each be
+    released with KW_DECREF.
+    A json_object_update_missing() in its place releases the gbuffer
+    once too often ("BAD gbuf_decref()").
+ ***************************************************************************/
+PUBLIC int kw_update_missing(
+    hgobj gobj,
+    json_t *kw,     // not owned
+    json_t *other   // not owned
+)
+{
+    if(!other) {
+        return 0;
+    }
+    if(!json_is_object(kw) || !json_is_object(other)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "kw and other must be objects",
+            NULL
+        );
+        return -1;
+    }
+
+    const char *key;
+    json_t *jn_value;
+    json_object_foreach(other, key, jn_value) {
+        if(json_object_get(kw, key)) {
+            continue;
+        }
+        json_object_set(kw, key, jn_value);
+
+        serialize_fields_t *pf = get_serialize_field(key);
+        if(pf && pf->incref_fn) {
+            void *binary = (void *)(uintptr_t)json_integer_value(jn_value);
+            if(binary) {
+                pf->incref_fn(binary);
+            }
+        }
     }
     return 0;
 }

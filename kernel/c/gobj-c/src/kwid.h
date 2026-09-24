@@ -391,8 +391,21 @@ PUBLIC json_t *kw_get_subdict_value(
 PUBLIC void kw_update_except(
     hgobj gobj,
     json_t *kw,  // not owned
-    json_t *other,  // owned
+    json_t *other,  // not owned
     const char **except_keys
+);
+
+/**rst**
+    Add to kw the keys of other that kw does not have. First level only.
+    The values are shared (incref). A binary field (the `gbuffer` of an
+    event) gets a reference of its own, so kw and other can each be
+    released with KW_DECREF. Return 0, or -1 if kw or other is not an object.
+    A NULL other adds nothing and is not an error.
+**rst**/
+PUBLIC int kw_update_missing(
+    hgobj gobj,
+    json_t *kw,     // not owned
+    json_t *other   // not owned
 );
 
 /**rst**

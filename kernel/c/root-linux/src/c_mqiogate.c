@@ -282,7 +282,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
     int idx; json_t *jn_child;
     json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
-        json_t *r = gobj_command(child, "view-channels", json_incref(kw), gobj);
+        json_t *r = gobj_command(child, "view-channels", kw_incref(kw), gobj);
         json_t *data = kw_get_dict_value(gobj, r, "data", 0, 0);
         if(data) {
             json_array_append(jn_resp, data);

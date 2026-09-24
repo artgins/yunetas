@@ -881,6 +881,12 @@ only two releases, and never both — anything else is one too many.
 before its first possible exit (`take_files_gbuffer()`), and nothing else
 releases it.
 
+The parser side was fixed after 7.25.4: `expand_command()` copies the
+caller's keys with `kw_update_missing()`, which gives the command kw a
+reference of its own. The command still takes the buffer out of its kw
+before its first exit, and the reference it takes out is now the command
+kw's own (no second `gbuffer_incref()`).
+
 ### 16.2 A NULL where `json_typeof()` is read
 
 `gc_scan_callback()` handed `filtra_fkeys()` the value of a column that a
