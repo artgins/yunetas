@@ -41,6 +41,30 @@ If the command requires authorization, it is checked before execution.
 If the command has a function handler, it is executed directly.
 If the command does not have a function handler, it is redirected as an event.
 
+The handler does not get `kw`: it gets a new kw, owned by the handler, with
+the parameters of the command and then every key of `kw` that is not a
+parameter ([`kw_update_missing()`](#kw_update_missing)). A binary field of
+`kw` (a `gbuffer`) is shared with a reference of its own: the handler releases
+its kw with `KW_DECREF`, and `command_parser()` releases `kw`. A handler that
+keeps the buffer takes it out of its kw, and the reference it takes is its
+own:
+
+```C
+PRIVATE json_t *cmd_upload(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *jn_gbuf = kw_get_dict_value(gobj, kw, "gbuffer", 0, KW_EXTRACT);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(jn_gbuf);
+    JSON_DECREF(jn_gbuf)
+
+    // ... gbuf is yours: hand it on, or GBUFFER_DECREF(gbuf) ...
+
+    return msg_iev_build_response(gobj, 0, 0, 0, 0, kw);  // releases kw
+}
+```
+
+Up to 7.25.4 the copy took no reference, and the gbuffer was released once
+too often (*"BAD gbuf_decref()"*).
+
 ---
 
 (gobj_build_cmds_doc)=
