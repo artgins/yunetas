@@ -45,10 +45,10 @@ For the caller nothing changes: [`yev_start_event()`](<#yev_start_event>),
 whose submission is still kept takes it back (the kernel never saw it,
 and handed over later it would run on an fd the stop closed): the loop
 completes it as a cancel does, and the callback gets the event `STOPPED`
-with result `-ECANCELED` at the next cycle. In 7.25.4 and earlier such a
-submission was logged (*"io_uring_get_sqe() FAILED, the submission queue
-is full"*) and LOST: a start answered `-1`, and a stop left the event
-`RUNNING`. The answer is `-1` now only when there is no memory to keep
+with result `-ECANCELED` at the next cycle. In 7.25.4 and earlier a full
+queue ended the process at each of the 12 places that ask for an entry: 10
+used the NULL entry (a crash), and 2 logged *"io_uring_get_sqe() FAILED"*
+and aborted. The answer is `-1` now only when there is no memory to keep
 the submission: a CRITICAL *"No memory to keep a submission"*, then an
 ERROR of the caller that says what did not happen (*"No memory to keep a
 submission: event NOT started"*, *"...: timer NOT started"*, *"...:
