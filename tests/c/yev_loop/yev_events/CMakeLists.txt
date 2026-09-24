@@ -71,6 +71,8 @@ set(SRCS
     test_yevent_timer_periodic1
 
     test_yevent_sq_full
+    test_yevent_sq_retry
+    test_yevent_sq_nomem
 )
 
 ##############################################
@@ -99,3 +101,7 @@ foreach(test ${SRCS})
     add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()
+
+#   These tests make io_uring_submit() fail on demand
+target_link_options(test_yevent_sq_retry PRIVATE "-Wl,--wrap=io_uring_submit")
+target_link_options(test_yevent_sq_nomem PRIVATE "-Wl,--wrap=io_uring_submit")

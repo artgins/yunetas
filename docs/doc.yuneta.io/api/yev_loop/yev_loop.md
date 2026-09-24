@@ -31,28 +31,48 @@ the submission queue has no free entry, the loop first flushes it
 `EBUSY` until the completions are reaped), the submission is **kept** by
 the loop, and one WARNING says it: *"Submission queue full and the kernel
 takes nothing: kept for the next cycle"* (with `ret` and `sret`, the
-error of the flush). The loop hands the kept submissions to the kernel at
-its next cycle, in the order they were made, after the completions of the
-cycle have made room. A submission made while others are kept is kept
+error of the flush). A submission made while others are kept is kept
 after them, so the kernel receives them in order (two writes of one
 socket).
+
+A failed `io_uring_submit()` can also leave its entry in the queue when the
+queue has room. The loop does not wait for that entry to be submitted by
+chance: at the start of each cycle it looks for submissions that the kernel
+did not take, kept or in the queue, and submits them again. One WARNING
+says it when this starts: *"Submissions the kernel did not take: submitted
+again at each cycle"* (with `kept` and `in_queue`). While some are not
+taken, the loop waits at most 10 ms for a completion and tries again (this
+is not the timeout of the loop: its callback is not called). After 100
+cycles an ERROR says that the operations still wait: *"Submissions not
+taken by the kernel for many cycles of the loop: their operations wait"*
+(with `cycles`, `kept`, `in_queue`, `ret` and `sret`). When the kernel
+takes them after that, an INFO says it: *"Submissions taken by the kernel
+again"*.
 
 For the caller nothing changes: [`yev_start_event()`](<#yev_start_event>),
 [`yev_start_timer_event()`](<#yev_start_timer_event>),
 [`yev_stop_event()`](<#yev_stop_event>) and
 [`yev_loop_stop()`](<#yev_loop_stop>) answer `0`, and the event is
-`RUNNING` (or `CANCELING`) as after any submission. A stop of an event
-whose submission is still kept takes it back (the kernel never saw it,
-and handed over later it would run on an fd the stop closed): the loop
-completes it as a cancel does, and the callback gets the event `STOPPED`
-with result `-ECANCELED` at the next cycle. In 7.25.4 and earlier a full
-queue ended the process at each of the 12 places that ask for an entry: 10
-used the NULL entry (a crash), and 2 logged *"io_uring_get_sqe() FAILED"*
-and aborted. The answer is `-1` now only when there is no memory to keep
+`RUNNING` (or `CANCELING`) as after any submission.
+
+A stop of an event whose submission the kernel did not take yet (kept, or
+still in the queue) takes it back. The kernel never saw it, and if it is
+submitted later it runs on an fd that the stop closed (a timer, a connect),
+maybe already used by a new event. The loop finds the submission by its
+event, not by its fd number. An entry in the queue becomes a NOP whose
+completion is not delivered. The loop completes the event as a cancel does,
+and the callback gets the event `STOPPED` with result `-ECANCELED` at the
+next cycle.
+
+In 7.25.4 and earlier, a full queue ended the process at each of the 12
+places that ask for an entry: 10 used the NULL entry (a crash), and 2
+logged *"io_uring_get_sqe() FAILED"* and aborted. An entry left in the
+queue by a failed submit waited for the next submit that worked, which
+could be never. The answer is `-1` now only when there is no memory to keep
 the submission: a CRITICAL *"No memory to keep a submission"*, then an
 ERROR of the caller that says what did not happen (*"No memory to keep a
 submission: event NOT started"*, *"...: timer NOT started"*, *"...:
-accept event NOT re-armed"*, ...).
+accept event NOT re-armed"*, ...). No caller aborts the process.
 
 ```C
 /*
@@ -62,9 +82,19 @@ accept event NOT re-armed"*, ...).
 yev_event_h timer = yev_create_timer_event(yev_loop, callback, gobj);
 yev_start_timer_event(timer, 100, FALSE);   // 0, the event is RUNNING
 yev_loop_run(yev_loop, 1);                  // submitted here; the callback gets it IDLE
+
+/*
+ *  Stopped before the kernel took it: the callback gets it STOPPED,
+ *  result -ECANCELED, and nothing runs on the closed fd
+ */
+yev_start_timer_event(timer, 10*1000, FALSE);
+yev_stop_event(timer);                      // 0
+yev_loop_run(yev_loop, 1);
 ```
 
-The test is `tests/c/yev_loop/yev_events/test_yevent_sq_full.c`.
+The tests are `tests/c/yev_loop/yev_events/test_yevent_sq_full.c` (a full
+queue), `test_yevent_sq_retry.c` (a failed submit, a stop with the fd used
+again, many cycles) and `test_yevent_sq_nomem.c` (no memory to keep).
 
 ## Static-build helpers
 
@@ -714,7 +744,7 @@ Returns `0` on success, or `-1` if an error occurs.
 
 If the event is a `connect`, `timer`, or `accept` event, the associated socket will be closed.
 If the event is in an idle state, it can be reused. Otherwise, a new event must be created.
-A `RUNNING` event whose submission the loop still keeps (see [A full submission queue](<#yev-loop-full-submission-queue>)) is not canceled in the kernel: the submission is taken back, and the callback gets the event `STOPPED` with result `-ECANCELED` at the next cycle, as after a cancel.
+A `RUNNING` event whose submission the kernel did not take yet, kept by the loop or still in the submission queue (see [A full submission queue](<#yev-loop-full-submission-queue>)), is not canceled in the kernel: the submission is taken back, so it never runs on the closed fd, and the callback gets the event `STOPPED` with result `-ECANCELED` at the next cycle, as after a cancel.
 
 ---
 
