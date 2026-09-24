@@ -118,6 +118,14 @@ PRIVATE int build_ref(
     const char *hook_name
 );
 PRIVATE const char *node_md_str(json_t *node, const char *key);
+PRIVATE json_t *topic_cols_dict(json_t *tranger, const char *topic_name);
+PRIVATE BOOL topic_has_hooks(hgobj gobj, json_t *tranger, const char *topic_name);
+PRIVATE const char *child_topic_not_loaded_whole(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name
+);
 PRIVATE BOOL dict_hook_takes_child(
     json_t *tranger,
     const char *treedb_name,
@@ -6199,10 +6207,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  was accepted, and every ref to the node was
      *  undecodable or cut.
      *-----------------------------------------------*/
-    json_t *topic_hooks = treedb_get_topic_hooks(tranger, treedb_name, topic_name);
-    BOOL has_hooks = json_array_size(topic_hooks) > 0;
-    JSON_DECREF(topic_hooks)
-    if(has_hooks && (strchr(id, '^') || strlen(id) >= NAME_MAX)) {
+    if((strchr(id, '^') || strlen(id) >= NAME_MAX) && topic_has_hooks(gobj, tranger, topic_name)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -7117,6 +7122,63 @@ PRIVATE json_t *topic_cols_dict(json_t *tranger, const char *topic_name)
         return json_incref(cols);
     }
     return tranger2_dict_topic_desc_cols(tranger, topic_name);
+}
+
+/***************************************************************************
+ *  Has the topic a hook column? Its ids are then in the refs its
+ *  children hold.
+ ***************************************************************************/
+PRIVATE BOOL topic_has_hooks(hgobj gobj, json_t *tranger, const char *topic_name)
+{
+    BOOL has_hooks = FALSE;
+    json_t *cols = topic_cols_dict(tranger, topic_name);
+    const char *col_name; json_t *col;
+    json_object_foreach(cols, col_name, col) {
+        if(kw_has_word(gobj, json_object_get(col, "flag"), "hook", 0)) {
+            has_hooks = TRUE;
+            break;
+        }
+    }
+    JSON_DECREF(cols)
+    return has_hooks;
+}
+
+/***************************************************************************
+ *  The first topic a hook of `topic_name` holds that did not load whole
+ *  (keys_not_loaded()), or NULL. A child of it that did not load may hang
+ *  from a node of `topic_name`, and memory does not know.
+ ***************************************************************************/
+PRIVATE const char *child_topic_not_loaded_whole(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name
+)
+{
+    const char *partial = NULL;
+    json_t *cols = topic_cols_dict(tranger, topic_name);
+    const char *col_name; json_t *col;
+    json_object_foreach(cols, col_name, col) {
+        if(!kw_has_word(gobj, json_object_get(col, "flag"), "hook", 0)) {
+            continue;
+        }
+        const char *child_topic; json_t *v;
+        json_object_foreach(json_object_get(col, "hook"), child_topic, v) {
+            if(!topic_loaded_whole(tranger, treedb_name, child_topic)) {
+                json_t *jn_name = json_object_get(
+                    json_object_get(json_object_get(tranger, "topics"), child_topic),
+                    "topic_name"
+                );
+                partial = json_is_string(jn_name)? json_string_value(jn_name) : "?";
+                break;
+            }
+        }
+        if(partial) {
+            break;
+        }
+    }
+    JSON_DECREF(cols)
+    return partial;
 }
 
 /***************************************************************************
@@ -8138,6 +8200,31 @@ PRIVATE int delete_node(
             JSON_DECREF(jn_options)
             return -1;
         }
+    }
+
+    /*-------------------------------*
+     *  A child that did not load
+     *
+     *  The links of a node are known from its children, and a child whose
+     *  key did not load is not in memory: it may hang from this node, and
+     *  no guard below sees it. Deleted, the node would leave that child
+     *  naming a parent that is gone. Refused, with or without `force`,
+     *  until the key is repaired or deleted.
+     *-------------------------------*/
+    const char *partial = child_topic_not_loaded_whole(gobj, tranger, treedb_name, topic_name);
+    if(partial) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot delete node: a topic its hooks hold did not load whole, a child that did not load may hang from it",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", id,
+            "child_topic",  "%s", partial,
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        return -1;
     }
 
     /*-------------------------------*

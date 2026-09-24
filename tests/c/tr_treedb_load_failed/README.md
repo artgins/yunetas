@@ -16,6 +16,7 @@ names, and its guards refuse what they would answer wrong.
 | 6 | After a restart, the content of `k2` cut to 0 bytes: the same. A record whose content cannot be read does not become a node with id `""`. |
 | 7 | After a restart, a `__snaps__` md2 that cannot be read (mode 000): shoot, activate and delete refuse. |
 | 8 | The recovery: after the key is deleted, a create of its id is accepted without a reopen of the treedb. |
+| 9 | A parent whose child topic did not load whole (`things`, key `t2` cut) is not deleted, forced or not, with or without children in memory: a child that did not load may hang from it. It used to unlink the children in memory, delete the parent, and leave `t2` naming a parent that is gone. |
 
 Cases 5 and 7 are skipped as root, because root can read a file of mode 000.
 A md2 whose last row is torn is not a case here: it is not damage, and a

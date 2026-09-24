@@ -955,6 +955,20 @@ Returns 0 on success, or a negative error code if the deletion fails.
 
 If the node has existing links and 'force' is not enabled, [`treedb_delete_node()`](<#treedb_delete_node>) will fail.
 
+**A node whose child topic did not load whole is not deleted**, forced or not:
+a topic one of its hooks holds has keys that did not load (see [A topic that
+did not load whole](<#treedb-topic-not-loaded-whole>)), a child that did not
+load may name the node, and memory does not know it. The delete answers `-1`
+with *"Cannot delete node: a topic its hooks hold did not load whole, a child
+that did not load may hang from it"* (`child_topic`), and nothing moves.
+Repair or delete the key that did not load, then delete the node (new after
+7.25.4; the node was deleted and that child named a parent that is gone).
+
+```C
+/*  boxes.things hooks things.box; the key of the thing t2, linked to b1, did not load  */
+treedb_delete_node(tranger, b1, json_pack("{s:b}", "force", 1));   // -1, b1 and t1 as they were
+```
+
 **With `force`, a delete that is refused changes nothing.** A child whose
 unlink cannot be saved stays linked, and the delete is refused (*"Cannot
 delete node: still has down links"*). A key that cannot be deleted refuses it
@@ -2064,6 +2078,7 @@ wrong, until the topic is opened again or the key is deleted:
 | `__snaps__` | also logs *"__snaps__ loaded without some snaps: the active snap is unknown, ..."*. The treedb is loaded from the live records (the active snap may be the one that did not load). [`treedb_shoot_snap()`](<#treedb_shoot_snap>) and [`treedb_activate_snap()`](<#treedb_activate_snap>) refuse; [`treedb_delete_node()`](<#treedb_delete_node>), `treedb_delete_instance()` and the delete of an asset refuse too, because which snap holds a record is unknown (*"cannot tell which snaps exist: __snaps__ did not load whole"*). `ignore_snaps` still overrides the node and instance deletes. |
 | a topic that links assets (a `file` column), or `__assets__`, in ANY treedb of the tranger | [`treedb_gc_files()`](<#treedb_gc_files>) refuses and takes nothing: *"gc refused: a topic that links assets did not load whole, the live links are unknown"*. |
 | `__assets__`, in any treedb of the tranger | the sweep of the blobs no row names ([`treedb_gc_files2()`](<#treedb_gc_files2>)) refuses too: *"gc: the blobs are not swept, __assets__ did not load whole"*. |
+| a topic a hook holds (the CHILD topic) | [`treedb_delete_node()`](<#treedb_delete_node>) of a node of the PARENT topic refuses, forced or not, with or without children in memory: *"Cannot delete node: a topic its hooks hold did not load whole, a child that did not load may hang from it"* (`child_topic` names the topic). A child that did not load may name the node, and the links of a node are known only from its children in memory: deleted, the node left that child naming a parent that is gone (new after 7.25.4). |
 
 A key deleted since ([`tranger2_delete_key()`](<timeranger2.md#tranger2_delete_key>),
 step 3 below) has no records on disk any more: treedb forgets it the next

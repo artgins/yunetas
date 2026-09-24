@@ -683,6 +683,114 @@ PRIVATE int test_snaps_damaged_at_restart(const char *path_root)
 }
 
 /***************************************************************************
+ *  9: the delete of a parent whose child topic did not load whole
+ *
+ *  boxes.things is a hook of things.box. t2 hangs from b1, and its key
+ *  does not load: memory does not know it hangs from b1. A delete of b1,
+ *  forced or not, is refused -- it unlinked t1, deleted b1, and left t2
+ *  naming a parent that is gone.
+ ***************************************************************************/
+static char schema_boxes[]= "\
+{                                                                   \n\
+    'id': 'treedb_load_failed_boxes',                               \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'topic_name': 'boxes',                                  \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {'header': 'Id', 'type': 'string', 'flag': ['persistent','required']}, \n\
+                'things': {'header': 'Things', 'type': 'array', 'flag': ['hook'], 'hook': {'things': 'box'}} \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'topic_name': 'things',                                 \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {'header': 'Id', 'type': 'string', 'flag': ['persistent','required']}, \n\
+                'box': {'header': 'Box', 'type': 'string', 'flag': ['fkey']} \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
+PRIVATE int test_delete_with_a_child_that_did_not_load(const char *path_root)
+{
+    int result = 0;
+    const char *database = "tr_treedb_load_failed_boxes";
+    const char *treedb_name = "treedb_load_failed_boxes";
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database), path_root, database, NULL);
+    rmrdir(path_database);
+    helper_quote2doublequote(schema_boxes);
+
+    set_expected_results("load failed boxes: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = open_tranger(path_root, database);
+    treedb_open_db(tranger, treedb_name, legalstring2json(schema_boxes, TRUE), 0);
+    json_t *b1 = treedb_create_node(tranger, treedb_name, "boxes", json_pack("{s:s}", "id", "b1"));
+    json_t *b2 = treedb_create_node(tranger, treedb_name, "boxes", json_pack("{s:s}", "id", "b2"));
+    json_t *t1 = treedb_create_node(tranger, treedb_name, "things", json_pack("{s:s}", "id", "t1"));
+    json_t *t2 = treedb_create_node(tranger, treedb_name, "things", json_pack("{s:s}", "id", "t2"));
+    if(!b1 || !b2 || !t1 || !t2 ||
+            treedb_link_nodes(tranger, "things", b1, t1) < 0 ||
+            treedb_link_nodes(tranger, "things", b1, t2) < 0) {
+        printf("%sERROR%s --> setup of boxes failed\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    treedb_close_db(tranger, treedb_name);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    result += cut_key(path_database, "things", "t2");
+    set_expected_results("load failed boxes: reopen", NULL, NULL, NULL, 0);
+    treedb_open_db(tranger, treedb_name, legalstring2json(schema_boxes, TRUE), 0);
+    test_json(NULL);    // the load of the cut key is case 1's
+
+    const char *test = "9. a parent whose child topic did not load whole is not deleted";
+    set_expected_results(test,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot delete node: a topic its hooks hold did not load whole, a child that did not load may hang from it",
+            "msg", "Cannot delete node: a topic its hooks hold did not load whole, a child that did not load may hang from it"
+        ),
+        NULL, NULL, 1
+    );
+    b1 = treedb_get_node(tranger, treedb_name, "boxes", "b1");
+    b2 = treedb_get_node(tranger, treedb_name, "boxes", "b2");
+    t1 = treedb_get_node(tranger, treedb_name, "things", "t1");
+    if(!b1 || !b2 || !t1 || treedb_get_node(tranger, treedb_name, "things", "t2")) {
+        printf("%sERROR%s --> %s: the reload is not b1, b2, t1 without t2\n",
+            On_Red BWhite, Color_Off, test);
+        result += -1;
+    } else {
+        if(treedb_delete_node(tranger, b1, json_pack("{s:b}", "force", 1)) >= 0) {
+            printf("%sERROR%s --> %s: the forced delete of b1 answered success\n",
+                On_Red BWhite, Color_Off, test);
+            result += -1;
+        }
+        if(treedb_delete_node(tranger, b2, 0) >= 0) {
+            printf("%sERROR%s --> %s: the delete of b2, with no child in memory, answered success\n",
+                On_Red BWhite, Color_Off, test);
+            result += -1;
+        }
+        if(!treedb_get_node(tranger, treedb_name, "boxes", "b1") ||
+                strcmp(kw_get_str(0, t1, "box", "", 0), "boxes^b1^things") != 0) {
+            printf("%sERROR%s --> %s: b1 is gone, or t1 was unlinked\n",
+                On_Red BWhite, Color_Off, test);
+            result += -1;
+        }
+    }
+    result += test_json(NULL);
+
+    set_expected_results("load failed boxes: close", NULL, NULL, NULL, 1);
+    treedb_close_db(tranger, treedb_name);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+    rmrdir(path_database);
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -700,6 +808,7 @@ PRIVATE int do_test(void)
     result += test_damaged_at_restart(path_root, "5. the md2 of k2 cannot be read, at restart", "md2", TRUE);
     result += test_damaged_at_restart(path_root, "6. content of k2 cut to 0 bytes, at restart", "json", FALSE);
     result += test_snaps_damaged_at_restart(path_root);
+    result += test_delete_with_a_child_that_did_not_load(path_root);
 
     return result;
 }
