@@ -373,7 +373,7 @@ for a permission that would not help.
 `gobj_unlink_nodes()` and `gobj_delete_node()` on a replica return `NULL` /
 `-1` and log *"Cannot write a node / link nodes / unlink nodes / delete a node
 on a READ-ONLY replica"*; `gobj_create_node()` is refused by
-`treedb_create_node()` itself. Until after 7.25.4 link, unlink and a forced
+`treedb_create_node()` itself. In 7.25.4 link, unlink and a forced
 delete moved the links in MEMORY first and met the refused save last: the
 caller got `-1` and the replica's memory said what its disk did not.
 
@@ -1623,9 +1623,7 @@ of its topics, or the topic that a column of it was moved to. So the cost
 of an open does not grow with the other treedbs of the store. For example,
 a store with 40 treedbs of 10 topics and 20 columns each: the open of
 `m3_39` with a newer literal reads its 220 topics and columns, not
-8 800. After 7.25.4 an open read every node of every treedb with its links,
-about 90 ms an open in that store; now it is about 5 ms. The same open
-reads the schema file in use once (it read it twice).
+8 800. The same open reads the schema file in use once.
 
 **A name with a dot can give two elements ONE id, and such a schema is
 refused.** An id is the parent's id, a dot and the name, so the column
@@ -2105,7 +2103,7 @@ open of that treedb:
 | Kind in `topics` | The literal replaced, or removed |
 |---|---|
 | `"applied"` | a topic of an apply that never ran: `apply-schema` wrote the file, and no open read it |
-| `"in_use"` | a topic of an apply that RAN: an open read it, and the treedb was running that dynamic schema (after 7.25.4) |
+| `"in_use"` | a topic of an apply that RAN: an open read it, and the treedb was running that dynamic schema (new after 7.25.4) |
 | `"saved"` | the draft of a topic that a pending `save-schema` published: an edit of the topic, or its deletion (the operator deleted the topic, and the saved schema does not declare it) |
 | `"unsaved"` | a draft never saved: a topic of `__system__` that differs from the file, a topic of the file that the operator deleted from `__system__`, or a topic that the operator added to `__system__` and the pending saved schema does not declare |
 
@@ -2203,11 +2201,11 @@ A treedb with no projection yet is seeded with what runs: the literal when it
 is installed or imposed, the FILE otherwise. Seeded from the file,
 `c_schema_version` is the literal's version only when the file IS the
 literal, and `0` otherwise, and that open says the tie or *"behind"* as any
-other open does. (Until after 7.25.4 it was the file's number, so after a
+other open does. (In 7.25.4 it was the file's number, so after a
 `delete-treedb` of a treedb running a dynamic schema, the tie with a literal
 of the same number was never said.)
 
-**`__system__`'s `schema_version` never goes down** (after 7.25.4). A
+**`__system__`'s `schema_version` never goes down** (new after 7.25.4). A
 literal can be higher than the file and lower than `__system__`, where a
 save raised the number. The treedb node keeps the higher number and
 `c_schema_version` records the literal: with `__system__` at 18 after a
@@ -2220,7 +2218,7 @@ lock of the client store, the treedb opens as a replica: it runs its file,
 and nothing is projected or withdrawn (INFO *"The store of the treedb is not
 written here: it opens as a replica and runs its schema file, __system__ is
 not reconciled"*). The next open as master installs the literal and projects
-it. (Until after 7.25.4 this was decided with the lock of `__system__`, so
+it. (In 7.25.4 this was decided with the lock of `__system__`, so
 `__system__` said a literal that the treedb did not run.)
 
 **A treedb already open here is refused first.** A second `open-treedb` of
@@ -2415,10 +2413,10 @@ too, but the persisted schema file still won when it was newer, so it did not
 revert anything.
 
 **A projection is whole: it deletes what the literal does not declare**
-(after 7.25.4). A topic or a column of `__system__` that the literal does not
-declare is deleted with `force` (it is linked), a topic with its columns, and
-an attribute the literal no longer declares is written back empty (its
-declared default, or the empty value of its type). Until 7.25.4 the
+(new after 7.25.4). A topic or a column of `__system__` that the literal does
+not declare is deleted with `force` (it is linked), a topic with its columns,
+and an attribute the literal no longer declares is written back empty (its
+declared default, or the empty value of its type). In 7.25.4 the
 projection was an upsert that deleted nothing: a topic the developer removed
 stayed in `__system__`, and the next `save-schema` published it again. A
 delete drops the history of the node (`instances`), and it is refused on a
@@ -2541,12 +2539,12 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    instead of getting `{}`. Send the field, or drop `required`. (7.25.4 did
    the same.)
 
-   **A draft taken back is withdrawn by the next save** (after 7.25.4). When
-   the draft is the file in use again -- an edit saved, then undone in the
-   editor -- and a saved schema newer than the file in use exists, the save
-   removes it, logs *"Saved schema withdrawn, the draft is the schema in
+   **A draft taken back is withdrawn by the next save** (new after 7.25.4).
+   When the draft is the file in use again -- an edit saved, then undone in
+   the editor -- and a saved schema newer than the file in use exists, the
+   save removes it, logs *"Saved schema withdrawn, the draft is the schema in
    use"*, and says so; `saved-schema` then answers `can_apply: false` and an
-   empty `draft_changed`. Before, the save answered *"nothing to save"*, the
+   empty `draft_changed`. In 7.25.4 the save answered *"nothing to save"*, the
    editor's mark never cleared, and `apply-schema` installed the change that
    had been taken back. The versions that save wrote into `__system__` stay (a
    number there never goes down).
@@ -2575,8 +2573,8 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
 2. **`saved-schema treedb_name=X`** answers what was saved, what it changes
    against the file in use (a `flat_diff` of the two: `added`, `removed`,
    `changed`, one row per leaf), and `can_apply`. Topics and columns are keyed
-   by name, and their ORDER is a leaf of its own (after 7.25.4; a save that
-   only moved a column showed nothing but its versions):
+   by name, and their ORDER is a leaf of its own (new after 7.25.4; in 7.25.4
+   a save that only moved a column showed nothing but its versions):
 
    ```json
    "changed": {
@@ -2591,9 +2589,8 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    in another order. A column added or removed is an `added` or `removed`
    leaf, not a moved one: a save that adds `phone` at the end answers
    `"added": {"topics`users`cols`phone`type": "string", ...}` and no
-   `__cols_order__` row (after 7.25.4; until then every added or removed
-   column read as a moved one too). When the order does change, the row
-   carries both whole orders, added and removed names included.
+   `__cols_order__` row. When the order does change, the row carries both
+   whole orders, added and removed names included.
 
    The same comparison decides whether a literal with the `schema_version` of
    the file in use is *"another content"*, so a literal that only reorders
@@ -2638,10 +2635,11 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    every column a hook points at), as `treedb_open_db()` writes it; until
    7.25.4 the apply wrote the parsed copy it had validated, marks included.
    Once in place, the saved schema IS the file in use, and it is removed
-   from `saved_schemas/` (after 7.25.4; it stayed, and `saved-schema` went on
-   answering `saved: true` for it). A saved schema with no topics is
-   refused, with the WARNING *"Saved treedb schema with no topics: not
-   applied, a treedb without topics does not open"*: `-1` *"<role>^<name>:
+   from `saved_schemas/` (new after 7.25.4; in 7.25.4 it stayed, and
+   `saved-schema` went on answering `saved: true` for it). A saved schema
+   with no topics is refused, with the WARNING *"Saved treedb schema with no
+   topics: not applied, a treedb without topics does not open"*: `-1`
+   *"<role>^<name>:
    the saved schema of 'treedb_x' has no topics: a treedb without topics
    does not open"*, and the file in use does not change. Without
    `treedb_name`, that refuses every treedb, as a saved schema that does not
