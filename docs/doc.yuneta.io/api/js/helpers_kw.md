@@ -10,7 +10,7 @@ description: >-
 A `kw` is the JSON payload that travels with every event. These helpers read
 it, write it, filter it and clone it.
 
-**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js)
+**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js)
 
 :::{important}
 A path uses the **back-tick** as its separator, not the point:
@@ -25,7 +25,7 @@ are the exceptions, and they take no `gobj`.
 ---
 
 (js_kw_flag_t)=
-## [`kw_flag_t`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L15)
+## [`kw_flag_t`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L15)
 
 The flags of the typed readers. Combine them with the bit-or operator.
 
@@ -45,37 +45,37 @@ The flags of the typed readers. Combine them with the bit-or operator.
 ## Read and write
 
 (js_kw_has_key)=
-### [`kw_has_key(kw, key)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1058)
+### [`kw_has_key(kw, key)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1058)
 
 Tells if `kw` has the key as its own property. It takes a key, not a path, and
 it takes no `gobj`. Returns a boolean.
 
 (js_kw_find_path)=
-### [`kw_find_path(gobj, kw, path, verbose)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1071)
+### [`kw_find_path(gobj, kw, path, verbose)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1071)
 
 Gives the value at a back-tick path. Returns `undefined` when the path does not
 exist. With `verbose` set to `true` the function writes a log error first.
 
 (js_kw_delete)=
-### [`kw_delete(gobj, kw, path)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1118)
+### [`kw_delete(gobj, kw, path)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1118)
 
 Deletes the key at a back-tick path. Returns `0`.
 
 (js_kw_pop)=
-### [`kw_pop(kw1, kw2)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1037)
+### [`kw_pop(kw1, kw2)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1037)
 
 Deletes from `kw1` every key that `kw2` names. `kw2` can be a string, an object
 or an array, and an array goes down into each of its elements. It takes no
 `gobj`, and it returns nothing.
 
 (js_kw_set_dict_value)=
-### [`kw_set_dict_value(gobj, kw, path, value)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1454)
+### [`kw_set_dict_value(gobj, kw, path, value)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1459)
 
 Writes a value at a back-tick path, and creates the intermediate objects that
 the path needs.
 
 (js_kw_set_subdict_value)=
-### [`kw_set_subdict_value(gobj, kw, path, key, value)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1492)
+### [`kw_set_subdict_value(gobj, kw, path, key, value)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1497)
 
 Writes `key` inside the object at `path`, and creates that object when it does
 not exist.
@@ -99,43 +99,56 @@ kw_get_pointer   (gobj, kw, path, default_value, flag)
 ```
 
 (js_kw_get_bool)=
-### [`kw_get_bool()`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1137)
+### [`kw_get_bool()`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1137)
 
 Reads a boolean.
 
 (js_kw_get_int)=
-### [`kw_get_int()`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1169)
+### [`kw_get_int()`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1169)
 
 Reads an integer.
 
 (js_kw_get_real)=
-### [`kw_get_real()`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1212)
+### [`kw_get_real()`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1212)
 
 Reads a real number.
 
 (js_kw_get_str)=
-### [`kw_get_str()`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1255)
+### [`kw_get_str()`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1260)
 
-Reads a string. The function puts the result through `String()`, so the return
-value is always a string.
+Reads a string. If the key has a string, you get that string. If the key is
+not there, or its value is not a string, you get the default **as you gave
+it**, as in C. Before gobj-js 7.25.1 the function put the default through
+`String()`, so a default of `0` or `null` came back as `"0"` or `"null"`, and
+an `if()` on the result was true.
+
+With `KW_CREATE`, a string default is written into the kw. Any other default
+is written as `null`.
+
+```js
+kw_get_str(gobj, {name: "x"}, "name", "", 0);     // "x"
+kw_get_str(gobj, {}, "name", "", 0);              // ""
+kw_get_str(gobj, {}, "name", null, 0);            // null (not "null")
+kw_get_str(gobj, {name: 5}, "name", "none", 0);   // "none": 5 is not a string
+```
 
 (js_kw_get_dict)=
-### [`kw_get_dict()`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1333)
+### [`kw_get_dict()`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1338)
 
 Reads an object.
 
 (js_kw_get_dict_value)=
-### [`kw_get_dict_value()`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1376)
+### [`kw_get_dict_value()`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1381)
 
 Reads a value of any type from an object.
 
 (js_kw_get_list)=
-### [`kw_get_list()`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1411)
+### [`kw_get_list()`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1416)
 
 Reads an array.
 
 (js_kw_get_pointer)=
-### [`kw_get_pointer()`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1298)
+### [`kw_get_pointer()`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1303)
 
 Reads a value that is not JSON, such as a gobj or a DOM node.
 
@@ -151,40 +164,40 @@ identifier, and find the object inside the action.
 ## Match and filter
 
 (js_kw_match_simple)=
-### [`kw_match_simple(kw, jn_filter)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1608)
+### [`kw_match_simple(kw, jn_filter)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1613)
 
 Tells if `kw` matches a filter. It compares strings and numbers only. An empty
 filter matches everything. It takes no `gobj`.
 
 (js_kw_select)=
-### [`kw_select(gobj, kw, jn_filter, match_fn)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1657)
+### [`kw_select(gobj, kw, jn_filter, match_fn)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1662)
 
 Gives a new list with a **deep copy** of each row that matches the filter. Use
 it when the caller changes the rows. With `match_fn` empty the function uses
 [`kw_match_simple()`](#js_kw_match_simple).
 
 (js_kw_collect)=
-### [`kw_collect(gobj, kw, jn_filter, match_fn)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1694)
+### [`kw_collect(gobj, kw, jn_filter, match_fn)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1699)
 
 Gives a new list with a **reference** to each row that matches the filter. It is
 [`kw_select()`](#js_kw_select) without the copy, so a change to a row changes
 the source.
 
 (js_kw_find_json_in_list)=
-### [`kw_find_json_in_list(gobj, kw_list, item, flag)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1625)
+### [`kw_find_json_in_list(gobj, kw_list, item, flag)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1630)
 
 Gives the index of a simple JSON item in a list. Returns `-1` when the list does
 not hold it.
 
 (js_kw_clone_by_keys)=
-### [`kw_clone_by_keys(gobj, kw, keys, verbose)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1736)
+### [`kw_clone_by_keys(gobj, kw, keys, verbose)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1741)
 
 Gives a new object with the keys that `keys` names. `keys` can be a string, an
 array of strings or an object. It is not a deep copy. With empty keys the
 function gives `kw` back.
 
 (js_kw_clone_by_not_keys)=
-### [`kw_clone_by_not_keys(gobj, kw, keys, verbose)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1788)
+### [`kw_clone_by_not_keys(gobj, kw, keys, verbose)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1793)
 
 Gives a new object without the keys that `keys` names. It is the opposite of
 [`kw_clone_by_keys()`](#js_kw_clone_by_keys).
@@ -197,20 +210,20 @@ These three helpers put a value in the local storage of the browser. The
 persistent attributes use them. See [Persistence](persistence.md).
 
 (js_kw_get_local_storage_value)=
-### [`kw_get_local_storage_value(key, default_value, create)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1839)
+### [`kw_get_local_storage_value(key, default_value, create)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1844)
 
 Reads an attribute from the local storage. With `create` set to `true` the
 function writes the default value when the key does not exist.
 
 (js_kw_set_local_storage_value)=
-### [`kw_set_local_storage_value(key, value)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1872)
+### [`kw_set_local_storage_value(key, value)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1877)
 
 Writes an attribute to the local storage. Returns `0` on success, and `-1` when
 the value did not reach the store. An older version returned nothing and only
 wrote to the console, so no caller saw the failure.
 
 (js_kw_remove_local_storage_value)=
-### [`kw_remove_local_storage_value(key)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1895)
+### [`kw_remove_local_storage_value(key)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1900)
 
 Deletes an attribute from the local storage.
 
@@ -223,25 +236,25 @@ objects, or an object of objects with the identifier as its key. These helpers
 read the three forms in the same way.
 
 (js_kwid_match_id)=
-### [`kwid_match_id(ids, id)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1916)
+### [`kwid_match_id(ids, id)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1921)
 
 Tells if `id` is in the collection `ids`. An empty `ids` matches every
 identifier, because no filter lets everything through.
 
 (js_kwid_collect)=
-### [`kwid_collect(gobj, kw, ids, jn_filter, match_fn)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1974)
+### [`kwid_collect(gobj, kw, ids, jn_filter, match_fn)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1979)
 
 Gives a new list with the records that match both `ids` and the filter. With
 `match_fn` empty the function uses [`kw_match_simple()`](#js_kw_match_simple).
 
 (js_kwid_find_one_record)=
-### [`kwid_find_one_record(gobj, kw, ids, jn_filter, match_fn)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L2130)
+### [`kwid_find_one_record(gobj, kw, ids, jn_filter, match_fn)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L2135)
 
 Gives the first record that matches. It takes the parameters of
 [`kwid_collect()`](#js_kwid_collect).
 
 (js_kwid_new_dict)=
-### [`kwid_new_dict(gobj, kw, path)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L2041)
+### [`kwid_new_dict(gobj, kw, path)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L2046)
 
 Builds an object of objects from a list of records, with the field `id` of each
 record as the key. With a `path` that is not empty the function reads the list
@@ -249,7 +262,7 @@ at that path first. The function gives an unchanged result for a `kw` that is
 an object already.
 
 (js_kwid_new_list)=
-### [`kwid_new_list(gobj, kw, path)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L2093)
+### [`kwid_new_list(gobj, kw, path)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L2098)
 
 Builds a list of records from an object of records, and writes the KEY of each
 record into the record as its `id`. With a `path` that is not empty the
@@ -272,7 +285,7 @@ place — the function makes no copy. That is the behaviour of the C twin
 :::
 
 (js_kwid_get_ids)=
-### [`kwid_get_ids(gobj, ids)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L2174)
+### [`kwid_get_ids(gobj, ids)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L2179)
 
 Gives the list of the identifiers of a collection. It accepts a string, a list
 of strings, a list of records or an object of records.
@@ -287,35 +300,35 @@ name is an internal detail, and a message that goes to a remote yuno and comes
 back keeps only what these helpers wrote.
 
 (js_msg_iev_write_key)=
-### [`msg_iev_write_key(kw, key, value)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L2405)
+### [`msg_iev_write_key(kw, key, value)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L2410)
 
 Writes a key in the metadata of the message, and creates the metadata object
 when it does not exist. It takes no `gobj`.
 
 (js_msg_iev_read_key)=
-### [`msg_iev_read_key(kw, key)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L2389)
+### [`msg_iev_read_key(kw, key)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L2394)
 
 Reads a key of the metadata. Returns `undefined` when the message has no
 metadata. It takes no `gobj`.
 
 (js_msg_iev_push_stack)=
-### [`msg_iev_push_stack(gobj, kw, stack, jn_data)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L2418)
+### [`msg_iev_push_stack(gobj, kw, stack, jn_data)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L2423)
 
 Puts `jn_data` on a stack with a name inside the metadata. The stack carries the
 data of one hop when a message goes through more than one yuno.
 
 (js_msg_iev_get_stack)=
-### [`msg_iev_get_stack(gobj, kw, stack, verbose)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L2446)
+### [`msg_iev_get_stack(gobj, kw, stack, verbose)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L2451)
 
 Reads the top of a stack with a name. It does not take the element out.
 
 (js_msg_iev_set_msg_type)=
-### [`msg_iev_set_msg_type(gobj, kw, msg_type)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L2495)
+### [`msg_iev_set_msg_type(gobj, kw, msg_type)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L2500)
 
 Writes the type of the message. An empty string deletes the key. Returns `0`.
 
 (js_msg_iev_get_msg_type)=
-### [`msg_iev_get_msg_type(gobj, kw)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L2512)
+### [`msg_iev_get_msg_type(gobj, kw)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L2517)
 
 Reads the type of the message. Returns an empty string when the message has
 none.
@@ -325,11 +338,11 @@ none.
 ## Metadata and private keys
 
 (js_is_metadata_key)=
-### [`is_metadata_key(key)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L996)
+### [`is_metadata_key(key)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L996)
 
 Tells if a key is a metadata key. A metadata key begins with two underscores.
 
 (js_is_private_key)=
-### [`is_private_key(key)`](https://github.com/artgins/gobj-js/blob/7.25.0/src/helpers.js#L1016)
+### [`is_private_key(key)`](https://github.com/artgins/gobj-js/blob/7.25.1/src/helpers.js#L1016)
 
 Tells if a key is a private key. A private key begins with one underscore.
