@@ -63,7 +63,8 @@ typedef struct node_write_s {
     json_t *absent;     // owned or NULL: [key] of the fields it adds
     char hook_ref[NAME_MAX];    // the first parent ref it unlinks, "" if none
     size_t hook_pos;            // the place of the node in that parent's hook before
-    json_t *hook_positions;     // owned or NULL: {ref: place before} of the other ones
+    json_t *hook_holder;        // owned or NULL: the instance of that parent that held it
+    json_t *hook_positions;     // owned or NULL: {ref: [place before, holder]} of the other ones
 } node_write_t;
 
 /***************************************************************
@@ -6852,6 +6853,7 @@ PRIVATE void begin_node_write(hgobj gobj, json_t *tranger, json_t *node, node_wr
     write->absent = NULL;
     write->hook_ref[0] = 0;
     write->hook_pos = 0;
+    write->hook_holder = NULL;
     write->hook_positions = NULL;
     hold_treedb_events(
         tranger,
@@ -6965,16 +6967,20 @@ PRIVATE void keep_node_fields(node_write_t *write, json_t *node, json_t *updates
 
 /***************************************************************************
  *  Keep in the write (begin_node_write) the place `pos` of the node in the
- *  hook of the parent that `ref` names, the first time the write unlinks
- *  it from there: a take-back puts it back in that place
- *  (put_child_in_hook_place()). Most writes unlink from one parent: it is
- *  kept without a dict.
+ *  hook of the parent that `ref` names, and the instance of that parent
+ *  that held it (`holder`), the first time the write unlinks it from
+ *  there: a take-back puts it back in that instance, in that place
+ *  (put_child_in_hook_place()). A ref names the parent by its id alone,
+ *  and the id of a topic with a pkey2 names several instances: the
+ *  primary is not always the one that held the child. Most writes unlink
+ *  from one parent: it is kept without a dict.
  ***************************************************************************/
-PRIVATE void keep_hook_position(node_write_t *write, const char *ref, size_t pos)
+PRIVATE void keep_hook_position(node_write_t *write, const char *ref, size_t pos, json_t *holder)
 {
     if(!write->hook_ref[0]) {
         snprintf(write->hook_ref, sizeof(write->hook_ref), "%s", ref);
         write->hook_pos = pos;
+        write->hook_holder = json_incref(holder);
         return;
     }
     if(strcmp(write->hook_ref, ref)==0 || json_object_get(write->hook_positions, ref)) {
@@ -6983,20 +6989,30 @@ PRIVATE void keep_hook_position(node_write_t *write, const char *ref, size_t pos
     if(!write->hook_positions) {
         write->hook_positions = json_object();
     }
-    json_object_set_new(write->hook_positions, ref, json_integer((json_int_t)pos));
+    json_t *kept = json_array();
+    json_array_append_new(kept, json_integer((json_int_t)pos));
+    json_array_append(kept, holder);
+    json_object_set_new(write->hook_positions, ref, kept);
 }
 
 /***************************************************************************
  *  The place the write kept for the parent `ref` (keep_hook_position()),
- *  or -1 when the write did not unlink the node from it.
+ *  or -1 when the write did not unlink the node from it. `holder` gets
+ *  the instance of the parent that held the node (NOT yours), or NULL.
  ***************************************************************************/
-PRIVATE json_int_t kept_hook_position(node_write_t *write, const char *ref)
+PRIVATE json_int_t kept_hook_position(node_write_t *write, const char *ref, json_t **holder)
 {
+    *holder = NULL;
     if(write->hook_ref[0] && strcmp(write->hook_ref, ref)==0) {
+        *holder = write->hook_holder;
         return (json_int_t)write->hook_pos;
     }
-    json_t *jn_pos = json_object_get(write->hook_positions, ref);
-    return jn_pos? json_integer_value(jn_pos) : -1;
+    json_t *kept = json_object_get(write->hook_positions, ref);
+    if(!kept) {
+        return -1;
+    }
+    *holder = json_array_get(kept, 1);
+    return json_integer_value(json_array_get(kept, 0));
 }
 
 /***************************************************************************
@@ -7123,7 +7139,9 @@ PRIVATE int restore_node_fkey(
         if(!child_field || strcmp(child_field, col_name)!=0) {
             continue;   /*  a stale ref, not a link: the field below keeps it  */
         }
-        json_t *parent_node = treedb_get_node(
+        json_t *holder;
+        json_int_t pos = kept_hook_position(write, ref, &holder);
+        json_t *parent_node = holder? holder : treedb_get_node(
             tranger, treedb_name, parent_topic_name, parent_id
         );
         if(!parent_node) {
@@ -7133,7 +7151,6 @@ PRIVATE int restore_node_fkey(
             failed++;   // Error already logged
             continue;
         }
-        json_int_t pos = kept_hook_position(write, ref);
         if(pos >= 0) {
             put_child_in_hook_place(parent_node, hook_name, node, (size_t)pos);
         }
@@ -7217,6 +7234,7 @@ PRIVATE void close_node_write(hgobj gobj, json_t *tranger, node_write_t *write, 
     JSON_DECREF(write->fkeys)
     JSON_DECREF(write->fields)
     JSON_DECREF(write->absent)
+    JSON_DECREF(write->hook_holder)
     JSON_DECREF(write->hook_positions)
 }
 
@@ -9771,7 +9789,7 @@ PRIVATE int _unlink_nodes(
                 json_array_foreach(parent_hook_data, idx, data) {
                     if(child_node == data) {
                         if(write) {
-                            keep_hook_position(write, pref, (size_t)idx);
+                            keep_hook_position(write, pref, (size_t)idx, parent_node);
                         }
                         json_array_remove(parent_hook_data, idx);
                         found = TRUE;
@@ -9811,7 +9829,7 @@ PRIVATE int _unlink_nodes(
                     const char *key; json_t *v;
                     json_object_foreach(parent_hook_data, key, v) {
                         if(strcmp(key, child_id)==0) {
-                            keep_hook_position(write, pref, pos);
+                            keep_hook_position(write, pref, pos, parent_node);
                             break;
                         }
                         pos++;

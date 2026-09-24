@@ -36,6 +36,9 @@
  *          A take-back puts every child back in its place in the hooks
  *          of its parents: the order of a hook is the one it had before
  *          the write.
+ *          And in the INSTANCE of the parent that held it: a ref names
+ *          the parent by its id, and a topic with a pkey2 has several
+ *          instances of one id; the primary is not always the holder.
  *
  *          treedb_autolink() refuses a ref whose hook fills another
  *          column than the one it arrives in, as treedb_replace_links()
@@ -162,6 +165,78 @@ static char schema_failed_save[]= "\
                     'hook': {                                       \n\
                         'users': 'departments'                      \n\
                     }                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
+/*
+ *  A parent topic with a pkey2: one id, several instances.
+ *  versions.items is a list hook of items.owner (a single fkey),
+ *  versions.tags a dict hook of items.tags (a list fkey).
+ */
+#define DATABASE_V      "tr_treedb_failed_save_versions"
+#define TREEDB_NAME_V   "treedb_failed_save_versions"
+static char schema_versions[]= "\
+{                                                                   \n\
+    'id': 'treedb_failed_save_versions',                            \n\
+    'schema_version': 1,                                            \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'topic_name': 'versions',                               \n\
+            'pkey': 'id',                                           \n\
+            'pkey2s': 'version',                                    \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'version': {                                        \n\
+                    'header': 'Version',                            \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'items': {                                          \n\
+                    'header': 'Items',                              \n\
+                    'type': 'array',                                \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'items': 'owner'                            \n\
+                    }                                               \n\
+                },                                                  \n\
+                'tags': {                                           \n\
+                    'header': 'Tags',                               \n\
+                    'type': 'object',                               \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'items': 'tags'                             \n\
+                    }                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'topic_name': 'items',                                  \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'owner': {                                          \n\
+                    'header': 'Owner',                              \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'tags': {                                           \n\
+                    'header': 'Tags',                               \n\
+                    'type': 'array',                                \n\
+                    'flag': ['fkey']                                \n\
                 }                                                   \n\
             }                                                       \n\
         }                                                           \n\
@@ -1324,6 +1399,134 @@ PRIVATE int test_too_many_active_snaps(void)
 }
 
 /***************************************************************************
+ *  A take-back puts the child back into the INSTANCE of the parent that
+ *  held it. versions has a pkey2: P/v1 (the primary) and P/v2 are two
+ *  instances of one id, and a ref names the id alone. The children hang
+ *  from P/v2 only; each write below fails its save, and must leave P/v2
+ *  holding them, in their place, and P/v1 and Q holding nothing.
+ ***************************************************************************/
+PRIVATE int test_take_back_into_its_instance(void)
+{
+    int result = 0;
+    const char *test = "a take-back puts the child back into the instance that held it";
+    char path_database_v[PATH_MAX];
+    build_path(path_database_v, sizeof(path_database_v), path_root, DATABASE_V, NULL);
+    rmrdir(path_database_v);
+
+    set_expected_results(test, json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        "msg", "Creating __timeranger2__.json",
+        "msg", "Creating TreeDB schema file",
+        "msg", "Creating topic",
+        "msg", "Creating topic",
+        "msg", "Creating topic",
+        "msg", "Creating topic",
+        "msg", "Creating topic"
+    ), NULL, NULL, 1);
+    json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", DATABASE_V,
+        "master", 1,
+        "on_critical_error", 0
+    ), 0);
+    helper_quote2doublequote(schema_versions);
+    json_t *jn_schema = legalstring2json(schema_versions, TRUE);
+    if(!jn_schema || !treedb_open_db(tranger, TREEDB_NAME_V, jn_schema, "persistent")) {
+        tranger2_shutdown(tranger);
+        return fail(test, "cannot open the treedb", NULL);
+    }
+    treedb_set_callback(tranger, TREEDB_NAME_V, treedb_callback, NULL, TREEDB_CALLBACK_LINK_EVENTS);
+
+    #define ITEM_(id) treedb_get_node(tranger, TREEDB_NAME_V, "items", id)
+    treedb_create_node(tranger, TREEDB_NAME_V, "versions",
+        json_pack("{s:s, s:s}", "id", "P", "version", "v1"));
+    treedb_create_node(tranger, TREEDB_NAME_V, "versions",
+        json_pack("{s:s, s:s}", "id", "P", "version", "v2"));
+    json_t *q = treedb_create_node(tranger, TREEDB_NAME_V, "versions",
+        json_pack("{s:s, s:s}", "id", "Q", "version", "v1"));
+    const char *items_[] = {"x", "y", "z", NULL};
+    for(int i = 0; items_[i]; i++) {
+        treedb_create_node(tranger, TREEDB_NAME_V, "items", json_pack("{s:s}", "id", items_[i]));
+    }
+    json_t *v1 = treedb_get_instance(tranger, TREEDB_NAME_V, "versions", "version", "P", "v1");
+    json_t *v2 = treedb_get_instance(tranger, TREEDB_NAME_V, "versions", "version", "P", "v2");
+    if(!q || !v1 || !v2 || v1 == v2 ||
+            treedb_get_node(tranger, TREEDB_NAME_V, "versions", "P") != v1 ||
+            treedb_link_nodes(tranger, "items", v2, ITEM_("x")) < 0 ||
+            treedb_link_nodes(tranger, "items", v2, ITEM_("z")) < 0 ||
+            treedb_link_nodes(tranger, "items", v2, ITEM_("y")) < 0 ||
+            treedb_link_nodes(tranger, "tags", v2, ITEM_("x")) < 0 ||
+            treedb_link_nodes(tranger, "tags", v2, ITEM_("y")) < 0) {
+        result += fail(test, "setup failed", NULL);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  An unlink from P/v2 whose save fails (list hook, single fkey)
+     */
+    set_expected_results(test, json_pack("[{s:s}]",
+        "msg", "Cannot append record, write FAILED"
+    ), NULL, NULL, 1);
+    build_path(fail_writes_key, sizeof(fail_writes_key) - 1, path_database_v, "items", "keys", "x", NULL);
+    strcat(fail_writes_key, "/");
+    events_told = 0;
+    int ret = treedb_unlink_nodes(tranger, "items", v2, ITEM_("x"));
+    fail_writes_of_key(NULL, NULL, 0);
+    if(ret >= 0 || events_told) {
+        result += fail(test, "the failed unlink answered success, or told events", NULL);
+    }
+    result += check_hook_order(test, v2, "items", json_pack("[s,s,s]", "x", "z", "y"));
+    result += check_hook_order(test, v1, "items", json_array());
+    result += test_json(NULL);
+
+    /*
+     *  An unlink from the dict hook of P/v2 whose save fails (list fkey)
+     */
+    set_expected_results(test, json_pack("[{s:s}]",
+        "msg", "Cannot append record, write FAILED"
+    ), NULL, NULL, 1);
+    build_path(fail_writes_key, sizeof(fail_writes_key) - 1, path_database_v, "items", "keys", "x", NULL);
+    strcat(fail_writes_key, "/");
+    events_told = 0;
+    ret = treedb_unlink_nodes(tranger, "tags", v2, ITEM_("x"));
+    fail_writes_of_key(NULL, NULL, 0);
+    if(ret >= 0 || events_told) {
+        result += fail(test, "the failed unlink of a dict hook answered success, or told events", NULL);
+    }
+    result += check_hook_order(test, v2, "tags", json_pack("[s,s]", "x", "y"));
+    result += check_hook_order(test, v1, "tags", json_array());
+    result += test_json(NULL);
+
+    /*
+     *  y moved from P/v2 to Q (a single fkey replaced), the save fails
+     */
+    set_expected_results(test, json_pack("[{s:s}]",
+        "msg", "Cannot append record, write FAILED"
+    ), NULL, NULL, 1);
+    build_path(fail_writes_key, sizeof(fail_writes_key) - 1, path_database_v, "items", "keys", "y", NULL);
+    strcat(fail_writes_key, "/");
+    events_told = 0;
+    ret = treedb_link_nodes(tranger, "items", q, ITEM_("y"));
+    fail_writes_of_key(NULL, NULL, 0);
+    if(ret >= 0 || events_told) {
+        result += fail(test, "the failed move answered success, or told events", NULL);
+    }
+    result += check_hook_order(test, v2, "items", json_pack("[s,s,s]", "x", "z", "y"));
+    result += check_hook_order(test, v1, "items", json_array());
+    result += check_hook_order(test, q, "items", json_array());
+    if(!field_is(ITEM_("y"), "owner", json_string("versions^P^items"))) {
+        result += fail(test, "y.owner is not taken back", ITEM_("y"));
+    }
+    result += test_json(NULL);
+    #undef ITEM_
+
+    json_check_refcounts(tranger, 1000, &result);
+    treedb_close_db(tranger, TREEDB_NAME_V);
+    tranger2_shutdown(tranger);
+    rmrdir(path_database_v);
+    return result;
+}
+
+/***************************************************************************
  *              Test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -1491,6 +1694,8 @@ PRIVATE int do_test(void)
     close_all(tranger);
 
     result += test_too_many_active_snaps();
+
+    result += test_take_back_into_its_instance();
 
     return result;
 }

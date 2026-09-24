@@ -34,7 +34,12 @@ disk says what memory said.
    node that is being deleted"*). A read-only file cannot make that second
    save fail (the files of the key are already open), so the test fails the
    writes of that key in its own `__wrap_write()` (see `CMakeLists.txt`).
-8. Two snaps active on disk: the open deactivates all but the last; a
+8. A take-back puts a child back into the INSTANCE of the parent that held
+   it. A parent topic with a pkey2 has several instances of one id, and a ref
+   names the id alone: an unlink from the second instance (list hook and
+   dict hook), and a move of a single fkey away from it, whose save fails,
+   leave the child in that instance, in its place, and nothing in the primary.
+9. Two snaps active on disk: the open deactivates all but the last; a
    deactivation that cannot be saved leaves the snap active in memory as on
    disk, and a replica does not try.
 
