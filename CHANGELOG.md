@@ -401,8 +401,12 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   drafts it was replacing exactly once, also when the retry is killed too
   (tests: `c_treedb_literal_wins`, scenarios CR and DC, a kill at every
   write). Until then `unfinished_projection` lists `planned` and
-  `save-schema` refuses. A node stamped before its topics were written
-  (7.25.4 and earlier) is completed, not taken as done. The move of a
+  `save-schema` refuses. A node stamped before its topics and columns were written (7.25.4
+  and earlier wrote the stamp first) is completed, not taken as done, with
+  `impose_c_schema` and without it: a column the dead projection did not write
+  gets the literal's content, and only what differs from both the old file and
+  the literal is a draft (tests: `c_treedb_literal_wins`, scenarios SE, SH, SI,
+  SJ, SK). The move of a
   rowid-keyed projection to qualified ids can die at any write and completes
   at the next open.
 - A topic or column that the treedb's tree no longer reaches (an operator's
