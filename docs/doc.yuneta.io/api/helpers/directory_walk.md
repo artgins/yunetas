@@ -28,13 +28,13 @@ int get_ordered_filename_array(
 |---|---|---|
 | `gobj` | `hgobj` | A handle to the GObj instance, used for logging and error reporting. |
 | `root_dir` | `const char *` | The root directory from which to retrieve filenames. |
-| `re` | `const char *` | A regex pattern to filter filenames. If NULL, all files are included. |
+| `re` | `const char *` | A regex pattern to filter filenames. If `NULL`, all entries are included (up to 7.25.4 a `NULL` crashed in `regcomp()`). |
 | `opt` | `wd_option` | Options for directory traversal, such as recursion and file type filtering. |
 | `da` | `dir_array_t *` | Pointer to a `dir_array_t` structure that will receive the results. |
 
 **Returns**
 
-Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory or cannot be opened, the pattern does not compile, or an entry cannot be kept (no memory). On error `da` is empty -- a listing that lost an entry is not the listing of the directory (up to 7.25.4 the entry was dropped, a root that could not be opened listed as empty, and the call answered `0`). The log says which: *"Cannot open directory"* (not a directory), *"regcomp() FAILED"*, *"Cannot list directory tree, the directory cannot be opened"* (with `errno`), *"Cannot list directory tree, no memory for an entry"*. Results are stored in the `da` structure. Free with `dir_array_free()`.
+Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory or cannot be opened, a directory of the tree cannot be READ (`readdir()` fails: `EIO`, `ESTALE`), the pattern does not compile, or an entry cannot be kept (no memory). On error `da` is empty -- a listing that lost an entry is not the listing of the directory (up to 7.25.4 the entry was dropped, a root that could not be opened listed as empty, a `readdir()` that failed was taken as the end of the directory, and the call answered `0`). The log says which: *"Cannot open directory"* (not a directory, or the root cannot be opened, with `errno`), *"Cannot read directory, readdir() FAILED"* (with `errno`), *"regcomp() FAILED"*, then *"Cannot list directory tree, the directory cannot be opened or read"*; or *"Cannot list directory tree, no memory for an entry"*. Results are stored in the `da` structure. Free with `dir_array_free()`.
 
 **Notes**
 
@@ -64,18 +64,35 @@ int walk_dir_tree(
 |---|---|---|
 | `gobj` | `hgobj` | A handle to the Yuneta framework object, used for logging and error handling. |
 | `root_dir` | `const char *` | The root directory from which the traversal begins. |
-| `pattern` | `const char *` | A regular expression pattern to match file or directory names. |
+| `pattern` | `const char *` | A regular expression pattern to match file or directory names. `NULL` matches every name. |
 | `opt` | `wd_option` | Options controlling the traversal behavior, such as recursion, hidden file inclusion, and file type matching. |
 | `cb` | `walkdir_cb` | A callback function that is invoked for each matching file or directory. |
 | `user_data` | `void *` | A user-defined pointer passed to the callback function. |
 
 **Returns**
 
-Returns 0 on success, or -1 if an error occurs (for example if `root_dir` does not exist or `pattern` is invalid).
+Returns 0 on success, or -1 (logged) if an error occurs: `root_dir` is not a directory, it exists and cannot be opened (*"Cannot open directory"*, with `errno`), a directory of the tree cannot be read (*"Cannot read directory, readdir() FAILED"*), or `pattern` is invalid. Every -1 is logged, so a caller may say *"Error already logged"*: up to 7.25.4 a root that existed and could not be opened (`EACCES`, mode `0`) answered -1 with nothing logged, and a `readdir()` that failed was taken as the end of the directory (0, with the entries not read yet never given to `cb`).
 
 **Notes**
 
-The callback function `cb` must return `TRUE` to continue traversal or `FALSE` to stop. The function uses `regcomp()` to compile the `pattern` and `regexec()` to match file names.
+The callback function `cb` must return `TRUE` to continue traversal or `FALSE` to stop. The function uses `regcomp()` to compile the `pattern` and `regexec()` to match file names. A SUBdirectory that cannot be opened is skipped (silently for `EACCES` and `ENOENT`); one that opens and cannot be read fails the walk.
+
+**Example**
+
+```C
+PRIVATE BOOL count_cb(hgobj gobj, void *user_data, wd_found_type type,
+    char *fullpath, const char *directory, char *name, int level, wd_option opt)
+{
+    (*(int *)user_data)++;
+    return TRUE;    // go on
+}
+
+int files = 0;
+if(walk_dir_tree(gobj, "/yuneta/store", NULL, WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
+        count_cb, &files) < 0) {
+    return -1;  // Error already logged
+}
+```
 
 ---
 
@@ -150,7 +167,7 @@ int find_files_with_suffix_array(
 
 **Returns**
 
-Returns `0` on success, or `-1` on error (logged): the directory cannot be opened, or an entry cannot be kept (no memory, *"Cannot list directory, no memory for an entry"*). On error `da` is empty -- a listing that lost an entry is not the listing of the directory (up to 7.25.4 the entry was dropped and the call answered `0`).
+Returns `0` on success, or `-1` on error (logged): the directory cannot be opened, cannot be read (`readdir()` fails: `EIO`, `ESTALE`; *"Cannot list directory, readdir() FAILED"*), or an entry cannot be kept (no memory, *"Cannot list directory, no memory for an entry"*). On error `da` is empty -- a listing that lost an entry is not the listing of the directory (up to 7.25.4 the entry was dropped, a `readdir()` that failed was taken as the end of the directory, and the call answered `0`: timeranger2 read a key without the `.md2` files not listed yet).
 
 **Notes**
 
@@ -198,7 +215,18 @@ int walk_dir_array(
 
 **Returns**
 
-Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory or cannot be opened (mode `0`, `EMFILE`), the pattern does not compile, or an entry cannot be kept (no memory). On error `da` is empty (up to 7.25.4 a lost entry was dropped, and a root that could not be opened listed as empty, and the call answered `0`). A SUBdirectory that cannot be opened is skipped, silently for `EACCES` and `ENOENT`.
+Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory or cannot be opened (mode `0`, `EMFILE`), a directory of the tree cannot be read (`readdir()` fails), the pattern does not compile, or an entry cannot be kept (no memory). On error `da` is empty (up to 7.25.4 a lost entry was dropped, a root that could not be opened listed as empty, a failed `readdir()` ended the directory, and the call answered `0`). A SUBdirectory that cannot be opened is skipped, silently for `EACCES` and `ENOENT`; one that opens and cannot be read fails the listing. `tests/c/helpers/test_dir_read_error`.
+
+```C
+dir_array_t da;
+if(walk_dir_array(gobj, "/yuneta/realms", NULL, WD_RECURSIVE|WD_MATCH_REGULAR_FILE, &da) < 0) {
+    return -1;  // Error already logged, da is empty
+}
+for(json_int_t i = 0; i < da.count; i++) {
+    printf("%s\n", da.items[i]);    // full paths, in the order of the walk
+}
+dir_array_free(&da);
+```
 
 ---
 

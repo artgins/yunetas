@@ -12,6 +12,11 @@
  *          no such directory) answered an EMPTY list with result 0, which
  *          reads as "the directory is empty".
  *
+ *          The comment sends to the log for the cause ("see the log"): it
+ *          does not read gobj_log_last_message(), a process-global buffer
+ *          that only an ERROR writes (7.25.5 before this fix read it, and a
+ *          failure logged below ERROR answered an older, unrelated error).
+ *
  *          Cases:
  *          1. a tree that can be listed: 0, its entries sorted;
  *          2. a directory of mode 0 (SKIPPED as root, which opens it): -1;
@@ -54,6 +59,7 @@ PRIVATE void check_listing(
     const char *expected_data   // the data as ugly json, NULL: none expected
 )
 {
+    gobj_log_set_last_message("%s", "an older, unrelated error");
     json_t *response = build_dir_listing_response(0, directory, match, json_object());
     int result = (int)kw_get_int(0, response, "result", -999, 0);
     const char *comment = kw_get_str(0, response, "comment", "", 0);
@@ -66,6 +72,10 @@ PRIVATE void check_listing(
     if(expected_result < 0) {
         snprintf(name, sizeof(name), "%s: the comment names the directory", what);
         ok_or_fail(strstr(comment, "cannot list") != NULL && strstr(comment, directory) != NULL, name);
+        snprintf(name, sizeof(name), "%s: the comment sends to the log, it does not read "
+            "the process-global last message", what);
+        ok_or_fail(strstr(comment, "see the log") != NULL &&
+            strstr(comment, "unrelated") == NULL, name);
         snprintf(name, sizeof(name), "%s: no list, not an empty one", what);
         ok_or_fail(!json_is_array(data), name);
     } else {

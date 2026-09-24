@@ -94,4 +94,14 @@ And a walk whose ROOT cannot be opened (mode 0) answers `-1` too; up to 7.25.4
 listed answers `0` with its entries sorted; a directory of mode 0 (SKIPPED as
 root), one that does not exist, and a `match` that is not a regular expression
 answer `-1` with a comment that names the directory, and no list. Up to 7.25.4
-each command answered an empty list with `0`.
+each command answered an empty list with `0`. The comment sends to the log for
+the cause (*"see the log"*): it does not read the process-global
+`gobj_log_last_message()`.
+
+`test_dir_read_error` fails the `readdir()` of one directory with `EIO`
+(`--wrap=opendir,--wrap=readdir`): `find_files_with_suffix_array()`,
+`walk_dir_array()` (its root, or a subdirectory) and `walk_dir_tree()` answer
+`-1`, empty, logged. Up to 7.25.4 the failure was taken as the end of the
+directory, and a SHORT listing answered `0`. It also checks `re` / `pattern`
+`NULL` (every entry; up to 7.25.4 a crash in `regcomp()`), and that
+`walk_dir_tree()` of a root of mode 0 logs its `-1` (SKIPPED as root).

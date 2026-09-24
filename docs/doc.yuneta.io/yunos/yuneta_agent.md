@@ -100,12 +100,13 @@ The data is the list of full paths, sorted:
 ycommand -c 'dir-store subdirectory=mqtt_broker match=.*\.json'
 ```
 
-A tree that cannot be listed -- the directory does not exist or cannot be
-opened, a `match` that is not a regular expression, no memory for an entry --
-answers `-1`, and says which directory:
+A tree that cannot be listed -- the directory does not exist, cannot be
+opened or cannot be read, a `match` that is not a regular expression, no
+memory for an entry -- answers `-1`, and says which directory; the cause is
+in the agent's log:
 
 ```text
--1: yuneta_agent^agent: cannot list '/yuneta/store/nope' (Cannot open directory)
+-1: yuneta_agent^agent: cannot list '/yuneta/store/nope', see the log
 ```
 
 Up to 7.25.4 each of them answered an EMPTY list with result `0`, which reads

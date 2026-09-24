@@ -3321,13 +3321,16 @@ PRIVATE int _walk_tree(
     DIR *dir;
     struct stat st;
     wd_found_type type;
+    BOOL cb_stopped = FALSE;
     level++;
 
     if (!(dir = opendir(root_dir))) {
-        // DO NOT take trace of:
+        // DO NOT take trace of, in a SUBdirectory (it is skipped):
         // EACCES Permission denied (when it is a file opened by another, for example)
         // ENOENT No such file or directory (Broken links, for example)
-        if(!(errno==EACCES ||errno==ENOENT)) {
+        // The ROOT that cannot be opened is a walk that fails: always logged
+        // (up to 7.25.4 an EACCES root answered -1 with nothing logged).
+        if(level == 1 || !(errno==EACCES ||errno==ENOENT)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
@@ -3341,7 +3344,12 @@ PRIVATE int _walk_tree(
         return -1;
     }
 
-    while ((dent = readdir(dir))) {
+    /*
+     *  errno tells the end of the directory from a failure of readdir()
+     *  (EIO, ESTALE): up to 7.25.4 a failure was taken as the end, and the
+     *  walk answered 0 with the entries it had not read yet missing.
+     */
+    while ((errno = 0, dent = readdir(dir))) {
         char *dname = dent->d_name;
         if(!strcmp(dname, ".") || !strcmp(dname, "..")) {
             continue;
@@ -3407,6 +3415,7 @@ PRIVATE int _walk_tree(
             if (regexec(reg, dname, 0, 0, 0)==0) {
                 if(!(cb)(gobj, user_data, type, path, root_dir, dname, level, opt)) {
                     // returning FALSE: don't want to continue traversing
+                    cb_stopped = TRUE;
                     break;
                 }
             }
@@ -3415,9 +3424,29 @@ PRIVATE int _walk_tree(
         /* recursively follow dirs */
         if(S_ISDIR(st.st_mode)) {
             if ((opt & WD_RECURSIVE)) {
-                _walk_tree(gobj, path, reg, user_data, opt, level, cb);
+                /*
+                 *  A subdirectory that cannot be opened is skipped (-1); one
+                 *  that cannot be READ (-2) fails the whole walk
+                 */
+                if(_walk_tree(gobj, path, reg, user_data, opt, level, cb) == -2) {
+                    closedir(dir);
+                    return -2;  // Error already logged
+                }
             }
         }
+    }
+    if(!cb_stopped && errno != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read directory, readdir() FAILED",
+            "path",         "%s", root_dir,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        closedir(dir);
+        return -2;
     }
     closedir(dir);
     return 0;
@@ -3462,9 +3491,12 @@ PUBLIC int walk_dir_tree(
         return -1;
     }
 
+    /*
+     *  A root that cannot be opened or read is logged by _walk_tree()
+     */
     ret = _walk_tree(gobj, root_dir, &r, user_data, opt, 0, cb);
     regfree(&r);
-    return ret;
+    return ret < 0? -1: 0;  // Error already logged
 }
 
 /***************************************************************************
@@ -3550,7 +3582,7 @@ PUBLIC int find_files_with_suffix_array(
         return -1;
     }
 
-    while((entry = readdir(dir)) != NULL) {
+    while((errno = 0, entry = readdir(dir)) != NULL) {   // errno tells the end from a failure
         if(entry->d_name[0] == '.' &&
           (entry->d_name[1] == '\0' ||
            (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
@@ -3621,6 +3653,28 @@ PUBLIC int find_files_with_suffix_array(
             dir_array_free(da);
             return -1;
         }
+    }
+
+    /*
+     *  A readdir() that fails (EIO, ESTALE) is not the end of the
+     *  directory: up to 7.25.4 it answered 0 with a short listing, and
+     *  timeranger2 read a key without the md2 files it had not listed.
+     */
+    if(errno != 0) {
+        int last_errno = errno;
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot list directory, readdir() FAILED",
+            "path",         "%s", directory,
+            "entries",      "%ld", (long)da->count,
+            "errno",        "%d", last_errno,
+            "serrno",       "%s", strerror(last_errno),
+            NULL
+        );
+        closedir(dir);
+        dir_array_free(da);
+        return -1;
     }
 
     closedir(dir);
@@ -3711,6 +3765,9 @@ PUBLIC int walk_dir_array(
         return -1;
     }
 
+    if(!re) {
+        re = ".*";  // NULL is every entry, as documented (up to 7.25.4 it crashed in regcomp)
+    }
     int ret = regcomp(&r, re, REG_EXTENDED | REG_NOSUB);
     if(ret!=0) {
         gobj_log_error(gobj, 0,
@@ -3728,22 +3785,22 @@ PUBLIC int walk_dir_array(
      */
     fill_array_t fill = {.da = da, .failed = FALSE};
     int ret_walk = _walk_tree(gobj, root_dir, &r, &fill, opt, 0, fill_array_cb);
-    int last_errno = errno;
     regfree(&r);
 
     /*
      *  The root that cannot be opened is a listing that failed, not an
      *  empty one (up to 7.25.4 it answered 0). A subdirectory that cannot
-     *  be opened is skipped, as before.
+     *  be opened is skipped, as before. A directory that cannot be READ
+     *  (readdir() fails), the root or a subdirectory, fails the listing:
+     *  up to 7.25.4 it was taken as the end of the directory. The cause
+     *  is logged by _walk_tree().
      */
     if(ret_walk < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot list directory tree, the directory cannot be opened",
+            "msg",          "%s", "Cannot list directory tree, the directory cannot be opened or read",
             "path",         "%s", root_dir,
-            "errno",        "%d", last_errno,
-            "serrno",       "%s", strerror(last_errno),
             NULL
         );
         dir_array_free(da);

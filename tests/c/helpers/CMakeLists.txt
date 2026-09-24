@@ -56,6 +56,7 @@ set(SRCS
     test_audit_record
     test_dir_array_nomem
     test_dir_listing
+    test_dir_read_error
 )
 
 ##############################################
@@ -92,6 +93,9 @@ target_link_options(test_helpers PUBLIC LINKER:--wrap=lstat)
 
 # test_rotatory fakes the free space of one directory, the clocks (wall and monotonic) and a failing rename (see its header)
 target_link_options(test_rotatory PUBLIC LINKER:--wrap=statvfs,--wrap=fstatvfs,--wrap=time,--wrap=clock_gettime,--wrap=rename)
+
+# test_dir_read_error fails the readdir() of one directory (see its header)
+target_link_options(test_dir_read_error PUBLIC LINKER:--wrap=opendir,--wrap=readdir)
 
 # test_audit_record tests the audit record builder of yuno_agent (its own source)
 target_sources(test_audit_record PRIVATE

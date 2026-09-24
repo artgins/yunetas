@@ -30,13 +30,18 @@ PUBLIC json_t *build_dir_listing_response(
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
         &da
     ) < 0) {
-        // Error already logged
+        /*
+         *  Error already logged, the cause there. Not read back from
+         *  gobj_log_last_message(): a process-global buffer that only an
+         *  ERROR writes, so a failure logged below that level would answer
+         *  with the text of an older, unrelated error.
+         */
         dir_array_free(&da);
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: cannot list '%s' (%s)",
-                gobj_yuno_role_plus_name(), directory, gobj_log_last_message()),
+            json_sprintf("%s: cannot list '%s', see the log",
+                gobj_yuno_role_plus_name(), directory),
             0,
             0,
             kw  // owned
