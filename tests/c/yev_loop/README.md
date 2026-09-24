@@ -8,6 +8,8 @@ Integration tests for the io_uring-based event loop: timers, TCP client/server e
 
 `yev_events/test_yevent_sq_nomem` limits the largest block to 100000 bytes, so the kept list cannot grow past 1024 entries. The 1025th write start answers `-1` with *"No memory to keep a submission: event NOT started"* (it aborted the process before), the 1024 kept writes complete, and the memory tracking is whole at the end.
 
+`yev_events/test_yevent_udp_zerocopy` sends UDP datagrams with zero-copy. A zero-copy send gives two completions: the result (`IORING_CQE_F_MORE`) and a notification (`IORING_CQE_F_NOTIF`). The test checks that the callback is called once for each send, that an event destroyed in its callback stays alive until its notification (the test holds a reference to the gbuffer of the event and reads its refcount), that an event sent again before its notification gets only its own completions, and that a failed send (`-EMSGSIZE`) is `STOPPED` with no warning. In 7.25.4 the event was freed at the first completion and the notification read the freed event.
+
 ## Run
 
 ```bash

@@ -96,6 +96,72 @@ The tests are `tests/c/yev_loop/yev_events/test_yevent_sq_full.c` (a full
 queue), `test_yevent_sq_retry.c` (a failed submit, a stop with the fd used
 again, many cycles) and `test_yevent_sq_nomem.c` (no memory to keep).
 
+(yev-loop-zero-copy-sends)=
+## Zero-copy sends
+
+A sendmsg event ([`yev_create_sendmsg_event()`](<#yev_create_sendmsg_event>),
+used by `C_UDP_S`) is sent with `io_uring_prep_sendmsg_zc()`. The kernel
+may not copy the data: it reads the buffer of the event until the datagram
+is transmitted. So one send gives **two** completions:
+
+| Completion | `res` | Flag | Meaning |
+|---|---|---|---|
+| 1st | bytes sent, or `-errno` | `IORING_CQE_F_MORE` | The result of the send. A second completion follows. |
+| 2nd | `0` | `IORING_CQE_F_NOTIF` | The kernel does not use the buffer any more. |
+
+An error can come with `IORING_CQE_F_MORE` too (`-EMSGSIZE`, `-EBADF`).
+When the first completion has no `IORING_CQE_F_MORE`, no second completion
+comes.
+
+The loop does this with them:
+
+- The callback is called **once**, at the first completion, with the
+  result. The notification does not call the callback.
+- The operation ends at the notification. An event destroyed in its
+  callback (or before the notification) is not freed at once: the loop
+  frees it, with its gbuffer, when the notification arrives.
+- A stop of a sendmsg event keeps its gbuffer while a completion is still
+  to come. The gbuffer is released when the event is freed.
+- The notification can arrive in any state of the event: the event can
+  be sent again, or stopped, before the notification of the last send.
+- When the kernel has no zero-copy sendmsg (the loop asks the kernel in
+  [`yev_loop_create()`](<#yev_loop_create>)), the event is sent with a
+  plain `io_uring_prep_sendmsg()`. It gives one completion, and the
+  callback sees no difference.
+
+```C
+/*
+ *  Send one datagram and destroy the event in its callback, as C_UDP_S
+ *  does when all the data is sent. The callback is called once. The loop
+ *  frees the event, and releases the gbuffer, after the notification.
+ */
+PRIVATE int send_callback(yev_event_h yev_event)
+{
+    if(yev_get_state(yev_event) == YEV_ST_IDLE) {
+        // yev_get_result(yev_event) = bytes sent
+    } else {
+        // STOPPED: yev_get_result(yev_event) = -errno, for example -EMSGSIZE
+    }
+    yev_destroy_event(yev_event);   // safe: the free waits for the notification
+    return 0;
+}
+
+gbuffer_t *gbuf = gbuffer_create(256, 256);
+gbuffer_append_string(gbuf, "hello");
+yev_event_h ev = yev_create_sendmsg_event(
+    yev_loop, send_callback, gobj, fd, gbuf, (struct sockaddr *)&dst_addr
+);
+yev_start_event(ev);
+```
+
+In 7.25.4 and earlier the loop counted one completion for each
+submission, and called the callback for both completions. An event
+destroyed at the first completion was freed there, and the notification
+read the freed event (a use-after-free). A callback that did not destroy
+the event was called a second time with result `0`.
+
+The test is `tests/c/yev_loop/yev_events/test_yevent_udp_zerocopy.c`.
+
 ## Static-build helpers
 
 `yev_loop.c` also exposes `yuneta_getaddrinfo()` /
@@ -840,6 +906,12 @@ yev_event_h yev_create_sendmsg_event(
 **Returns**
 
 Returns a `yev_event_h` handle to the newly created sendmsg event, or `NULL` on failure.
+
+**Notes**
+
+The send is zero-copy when the kernel has it: the callback is called once,
+and the loop frees a destroyed event only after the kernel releases the
+buffer. See [Zero-copy sends](<#yev-loop-zero-copy-sends>).
 
 ---
 

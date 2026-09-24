@@ -150,16 +150,19 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                     msg = "Server: What?";
                 }
 
-                if(yev_event->result <= 0) {
-                    /*
-                     *  HACK: with zerocopy there is a second YEV_SENDMSG_TYPE event
-                     *  indicating that the buffer can be deleted (result == 0).
-                     *
-                     *  Destroy the write event
-                     */
-                    yev_destroy_event(yev_event);
-                    yev_event = NULL;
-                }
+                /*
+                 *  Destroy the write event. The callback is called once per
+                 *  send: with zero-copy, the loop frees the event after the
+                 *  notification that the kernel released the buffer.
+                 */
+                gobj_log_info(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INFO,
+                    "msg",          "%s", msg,
+                    NULL
+                );
+                yev_destroy_event(yev_event);
+                yev_event = NULL;
             }
             break;
 

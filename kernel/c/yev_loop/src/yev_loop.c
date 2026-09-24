@@ -4,20 +4,32 @@
  *          Yunetas Event Loop
 
 1. Two-phase completion in zerocopy
-    When you use io_uring_prep_sendmsg_zc(), the kernel may send data without copying it from your buffer.
-    But your buffer cannot be freed immediately:
-        The kernel keeps referencing your buffer until it’s transmitted.
-        The zerocopy mechanism has to notify you when the buffer is finally safe to reuse.
+    A YEV_SENDMSG_TYPE event is sent with io_uring_prep_sendmsg_zc() when the
+    kernel has it (probed in yev_loop_create()), else with a plain
+    io_uring_prep_sendmsg(). A zero-copy send may not copy the data: the
+    kernel reads the buffer until the datagram is transmitted.
 
 2. Completion events
-    First CQE → The send request completed (data queued for sending).
-        cqe->res > 0 = number of bytes accepted for transmission.
-    Second CQE → The zerocopy buffer release notification:
-        cqe->res = 0 (no new data sent, just a notification).
-        This is delivered after the NIC has finished using your buffer.
-        It comes with a special flag:
-        cqe->flags & IORING_CQE_F_NOTIF
-        or sometimes IORING_CQE_F_MORE.
+    First CQE → the result of the send.
+        cqe->res >= 0 = bytes sent, < 0 = the error (an error too can come
+        with IORING_CQE_F_MORE).
+        cqe->flags & IORING_CQE_F_MORE: a second CQE follows.
+    Second CQE → the notification that the kernel released the buffer.
+        cqe->res = 0, cqe->flags & IORING_CQE_F_NOTIF.
+    Without IORING_CQE_F_MORE in the first CQE there is no second one.
+
+3. What the loop does with them
+    - A CQE with IORING_CQE_F_MORE does not end the operation: in_flight
+      is not decremented, so the event is not freed (a destroy is deferred).
+    - The callback is called once, at the first CQE.
+    - The notification is not delivered to the callback. It only ends the
+      operation: in_flight is decremented, and an event destroyed before it
+      is freed there, with its gbuffer.
+    - It can arrive in any state: the event may be sent again, or stopped,
+      before the notification of the previous send.
+    In 7.25.4 and earlier each submission counted one CQE: an event
+    destroyed at the first CQE (C_UDP_S when all the data is sent) was
+    freed, and the notification read the freed event.
 
 # io_uring Cancel CQEs
 
@@ -124,6 +136,12 @@ struct yev_loop_s {
      */
     unsigned pending_cycles;
     BOOL pending_told;
+
+    /*
+     *  The kernel has a zero-copy sendmsg (probed at create): if not, a
+     *  YEV_SENDMSG_TYPE event is sent with a plain sendmsg
+     */
+    BOOL sendmsg_zc;
 };
 
 /***************************************************************
@@ -319,6 +337,12 @@ retry:
 
     yev_loop->yuno = yuno;
     yev_loop->entries = entries;
+
+    struct io_uring_probe *probe = io_uring_get_probe_ring(&yev_loop->ring);
+    if(probe) {
+        yev_loop->sendmsg_zc = io_uring_opcode_supported(probe, IORING_OP_SENDMSG_ZC)? TRUE:FALSE;
+        io_uring_free_probe(probe);
+    }
     yev_loop->keep_alive = keep_alive?keep_alive:60;
     yev_loop->callback = callback;
 
@@ -391,8 +415,10 @@ PRIVATE void really_free_yev_event(yev_event_t *yev_event)
 /***************************************************************************
  *  Attach an event to an SQE and account for the CQE it will produce.
  *  Every event-carrying submit must go through here so in_flight stays
- *  balanced against the decrement in callback_cqe (multishot is disabled,
- *  so each submitted SQE yields exactly one CQE).
+ *  balanced against the decrement in callback_cqe. Multishot is disabled,
+ *  so each submitted SQE yields one CQE that ends it; a zero-copy send
+ *  yields one more (IORING_CQE_F_MORE, then IORING_CQE_F_NOTIF), and
+ *  callback_cqe does not count the first one (see the file header).
  ***************************************************************************/
 PRIVATE void track_submit(yev_event_t *yev_event, struct io_uring_sqe *sqe)
 {
@@ -750,12 +776,40 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
      *  destroy-while-in-flight safe: the struct stays alive until its
      *  CQEs drain, so this very handler never lands on freed memory.
      *------------------------------------------------------------------*/
-    if(yev_event->in_flight > 0) {
+    /*
+     *  A CQE with IORING_CQE_F_MORE is not the last of its operation: a
+     *  zero-copy send posts its notification (IORING_CQE_F_NOTIF) later,
+     *  and the kernel reads the buffer until then
+     */
+    if(yev_event->in_flight > 0 && !(cqe->flags & IORING_CQE_F_MORE)) {
         yev_event->in_flight--;
     }
     if(yev_event->destroy_requested) {
         if(yev_event->in_flight <= 0) {
             really_free_yev_event(yev_event);
+        }
+        return 0;
+    }
+
+    if(cqe->flags & IORING_CQE_F_NOTIF) {
+        /*
+         *  The buffer of a zero-copy send is released. The callback was told
+         *  the result at the first CQE: it is not called again. The event may
+         *  already run another send, or be stopped: its state is not touched.
+         */
+        if(gobj_global_trace_level() & TRACE_URING) {
+            gobj_log_debug(yev_loop->running && yev_loop->yuno? yev_event->gobj:0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "callback_cqe zero-copy notification",
+                "msg2",         "%s", "💥💥💥💥⏪ callback_cqe zero-copy notification",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "yev_state",    "%s", yev_get_state_name(yev_event),
+                "p",            "%p", yev_event,
+                "in_flight",    "%d", yev_event->in_flight,
+                "cqe->res",     "%d", (int)cqe->res,
+                NULL
+            );
         }
         return 0;
     }
@@ -873,10 +927,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             return 0;
 
         case YEV_ST_IDLE: // cqe ready
-            if(yev_event->type == YEV_SENDMSG_TYPE) {
-                break;
-            }
-            /* fall through */
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -2104,12 +2154,21 @@ PUBLIC int yev_start_event(
                     yev_event->iov.iov_base = gbuffer_cur_rd_pointer(yev_event->gbuf);
                     yev_event->iov.iov_len = gbuffer_leftbytes(yev_event->gbuf);
 
-                    io_uring_prep_sendmsg_zc(
-                        sqe,
-                        yev_event->fd,
-                        yev_event->msghdr,
-                        0
-                    );
+                    if(yev_loop->sendmsg_zc) {
+                        io_uring_prep_sendmsg_zc(
+                            sqe,
+                            yev_event->fd,
+                            yev_event->msghdr,
+                            0
+                        );
+                    } else {
+                        io_uring_prep_sendmsg(
+                            sqe,
+                            yev_event->fd,
+                            yev_event->msghdr,
+                            0
+                        );
+                    }
                     io_uring_submit(&yev_loop->ring);
                     yev_set_state(yev_event, YEV_ST_RUNNING);
                 } else {
@@ -2493,8 +2552,13 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
 
     /*---------------------------*
      *      Free
+     *  A send with a CQE still to come (it runs, or its zero-copy
+     *  notification has not arrived) keeps its gbuffer: the kernel may
+     *  read it. It is released when the event is freed.
      *---------------------------*/
-    GBUFFER_DECREF(yev_event->gbuf)
+    if(!(yev_event->type == YEV_SENDMSG_TYPE && yev_event->in_flight > 0)) {
+        GBUFFER_DECREF(yev_event->gbuf)
+    }
 
     /*-------------------------------*
      *      stopping

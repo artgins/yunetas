@@ -939,8 +939,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
                     } else {
                         /*
-                         *  HACK: with zerocopy there is a second YEV_SENDMSG_TYPE event
-                         *  indicating that the buffer can be deleted (result == 0).
+                         *  Not running, or nothing sent. The callback is called once
+                         *  per send: the notification of a zero-copy send is taken by
+                         *  the loop, which frees the event after it.
                          *
                          *  Destroy the write event
                          */
