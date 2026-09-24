@@ -2788,8 +2788,8 @@ Round-trip coverage:
 
 **`delete-treedb` deletes the schema, and only of a CLOSED treedb.** It
 removes the projection in `__system__` (`delete_client_treedb_schema()`: the
-`treedbs` node with `force`, which unlinks its `topics` and `cols` itself,
-then the topics and columns OF the treedb) and never touches the client
+columns OF the treedb, then their topics, then its nodes that no tree
+reaches, and the `treedbs` node LAST) and never touches the client
 treedb's store on disk. It deletes EVERY node of the treedb: a column the
 operator moved to another topic of it, and a topic or column of it that no
 tree reaches (the operator unlinked it). A node of another treedb that
@@ -2813,6 +2813,31 @@ also removes, from `saved_schemas/`, the treedb's saved schema
 command-yuno id=<id> service=treedbs command=close-treedb treedb_name=treedb_foo force=1
 command-yuno id=<id> service=treedbs command=delete-treedb treedb_name=treedb_foo force=1
 ```
+
+It answers what it deleted, in `data.deleted`:
+
+```
+{"result": 0,
+ "comment": "<role^name>: schema of 'treedb_foo' deleted, 5 nodes of __system__",
+ "data": {"treedb_name": "treedb_foo",
+          "deleted": ["treedb_foo.users.id", "treedb_foo.users.username",
+                      "treedb_foo.users", "treedb_foo.departments", "treedb_foo"]}}
+```
+
+**A `delete-treedb` cut half way is finished by the next one.** The node of
+the treedb goes last, so a process that dies half way leaves it, and the next
+`delete-treedb` finds its tree and deletes the rest. When the node of the
+treedb is already gone (a delete of 7.25.4 cut after its first write: 7.25.4
+deleted the node of the treedb FIRST), what is left is in no tree: it is
+still the treedb's, read from the nodes as a projection reads them
+(`orphan_nodes()`), and it goes. The saved schema and the records go too, and
+the answer is `0` with what was deleted. A treedb with nothing left answers
+`0` *"<role^name>: nothing of the schema of 'treedb_foo' was in
+__system__"*. A node that refuses the delete (a snapshot holds it) answers
+`-1`, keeps the node of the treedb, and lists in `data.deleted` what went; run
+it again once the cause is fixed. (In 7.25.4 a delete cut after its first
+write answered `-1` *"not projected in __system__"* at every run, and the
+topics and columns stayed.)
 
 Until 7.22.0 this page called the command broken -- "removes the parent before
 its children and passes collapsed views where pure nodes are required". Both

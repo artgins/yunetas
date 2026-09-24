@@ -164,7 +164,8 @@ PRIVATE const char *build_schema_node_id(
 );
 PRIVATE int delete_client_treedb_schema(
     hgobj gobj,
-    const char *treedb_name
+    const char *treedb_name,
+    json_t *deleted_ids
 );
 PRIVATE BOOL is_treedb_opened_here(
     hgobj gobj,
@@ -1326,7 +1327,12 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return build_readonly_response(gobj, gobj_name(priv->gobj_node_system), priv->tranger_system_, kw);
     }
 
-    int ret = delete_client_treedb_schema(gobj, treedb_name);
+    /*
+     *  A delete cut half way is finished by the next one (see
+     *  delete_client_treedb_schema): what is already gone is no error.
+     */
+    json_t *deleted_ids = json_array();
+    int ret = delete_client_treedb_schema(gobj, treedb_name, deleted_ids);
     json_object_del(priv->jn_c_schemas, treedb_name);
     json_object_del(priv->jn_forced_treedbs, treedb_name);
 
@@ -1335,8 +1341,8 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  yet, and the record of an unfinished projection: left in
      *  saved_schemas/, a treedb created again under the name found them.
      */
+    json_int_t removed_version = 0;
     if(ret == 0) {
-        json_int_t removed_version;
         ret = remove_saved_schema(gobj, treedb_name, &removed_version);  // Error already logged
         remove_apply_record(gobj, treedb_name);     // Error already logged
         remove_unfinished_record(gobj, treedb_name);    // Error already logged
@@ -1346,21 +1352,27 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(gobj,
             ret,
             json_sprintf(
-                "%s: cannot delete the schema of '%s': not projected in "
-                "__system__, one of its nodes refused the delete, or its saved "
-                "schema could not be removed (see the log)",
+                "%s: cannot delete the schema of '%s': one of its nodes refused "
+                "the delete, or its saved schema could not be removed (see the "
+                "log); what was deleted is in `deleted`, run it again once the "
+                "cause is fixed",
                 gobj_yuno_role_plus_name(), treedb_name
             ),
             0,
-            0,
+            json_pack("{s:s, s:o}", "treedb_name", treedb_name, "deleted", deleted_ids),
             kw  // owned
         );
     }
+    size_t n_deleted = json_array_size(deleted_ids);
     return msg_iev_build_response(gobj,
         0,
-        json_sprintf("%s: schema of '%s' deleted", gobj_yuno_role_plus_name(), treedb_name),
+        (n_deleted > 0 || removed_version > 0)?
+            json_sprintf("%s: schema of '%s' deleted, %d nodes of __system__",
+                gobj_yuno_role_plus_name(), treedb_name, (int)n_deleted) :
+            json_sprintf("%s: nothing of the schema of '%s' was in __system__",
+                gobj_yuno_role_plus_name(), treedb_name),
         0,
-        0,
+        json_pack("{s:s, s:o}", "treedb_name", treedb_name, "deleted", deleted_ids),
         kw  // owned
     );
 }
@@ -9163,32 +9175,30 @@ PRIVATE json_t *get_c_schema_to_impose(
 }
 
 /***************************************************************************
+ *  Delete the projection of a treedb from __system__: every node OF the
+ *  treedb, and the node of the treedb itself LAST. `deleted` gets the ids
+ *  deleted. -1 when a node refused the delete (logged), 0 otherwise.
  *
+ *  It can be cut half way (a process that dies), and run again it
+ *  finishes what the first run left: the columns go first, then their
+ *  topic, then the nodes no tree reaches, then the node of the treedb. So
+ *  a cut run leaves the node of the treedb, and the next run finds its
+ *  tree. A run cut while the node of the treedb went (or a treedb with no
+ *  node at all) leaves nodes that no tree reaches: they are still the
+ *  treedb's, read from the nodes (orphan_nodes, as a projection reads
+ *  them), and they go. A treedb with nothing in __system__ has nothing to
+ *  delete: 0. Before, the node of the treedb went first, and a run cut
+ *  after it answered -1 at every run, with its topics and columns left.
  ***************************************************************************/
 PRIVATE int delete_client_treedb_schema(
     hgobj gobj,
-    const char *treedb_name
+    const char *treedb_name,
+    json_t *deleted_ids     // not owned, the ids deleted are appended
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *treedb = gobj_node_tree(
-        priv->gobj_node_system,
-        "treedbs",
-        json_pack("{s:s}", "id", treedb_name),
-        0,
-        gobj
-    );
-    if(!treedb) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "Treedb schema not projected in __system__",
-            "treedb_name",  "%s", treedb_name,
-            NULL
-        );
-        return -1;
-    }
+    json_t *treedb = system_tree_of(gobj, treedb_name);    // NULL: no node of the treedb
 
     int ret = 0;
 
@@ -9211,7 +9221,7 @@ PRIVATE int delete_client_treedb_schema(
 
     json_t *plan = json_array();        // [{"topic": node, "cols": [node]}]
     json_t *deleted = json_object();    // {id: true} planned, then deleted
-    json_t *topics = kw_get_dict(gobj, treedb, "topics", 0, 0);
+    json_t *topics = treedb? kw_get_dict(gobj, treedb, "topics", 0, 0) : NULL;
     const char *topic_id; json_t *topic;
     json_object_foreach(topics, topic_id, topic) {
         char owner_[RECORD_KEY_VALUE_MAX];
@@ -9243,65 +9253,88 @@ PRIVATE int delete_client_treedb_schema(
     }
 
     /*
-     *  The PARENT first, and it is not an oversight: with `force`,
-     *  treedb_delete_node() unlinks every child itself, so the topics
-     *  below are orphans by the time this loop reaches them -- and a
-     *  delete addresses a node by its `id`, which is all `mt_delete_node`
-     *  reads of the collapsed view a tree hands it before re-resolving
-     *  the pure node from the index.
+     *  The CHILDREN first, the node of the treedb last: a run cut half
+     *  way leaves the node, and its tree says what is left. With `force`
+     *  a delete unlinks what still hangs from the node (a column of
+     *  another treedb linked into a topic of this one, a topic of another
+     *  treedb linked into this one), and a delete addresses a node by its
+     *  `id`, which is all `mt_delete_node` reads of the collapsed view a
+     *  tree hands it before re-resolving the pure node from the index.
      */
-    ret += gobj_delete_node(
-        priv->gobj_node_system,
-        "treedbs",
-        json_incref(treedb),
-        json_pack("{s:b}", "force", 1),
-        gobj
-    );
-
     int idx; json_t *step;
     json_array_foreach(plan, idx, step) {
-        ret += gobj_delete_node(
-            priv->gobj_node_system,
-            "topics",
-            json_incref(json_object_get(step, "topic")),
-            json_pack("{s:b}", "force", 1),
-            gobj
-        );
         int idx2; json_t *col;
         json_array_foreach(json_object_get(step, "cols"), idx2, col) {
-            ret += gobj_delete_node(
+            if(gobj_delete_node(
+                    priv->gobj_node_system,
+                    "cols",
+                    json_incref(col),
+                    json_pack("{s:b}", "force", 1),
+                    gobj
+                ) < 0) {
+                ret = -1;   // Error already logged
+            } else {
+                json_array_append_new(deleted_ids, json_string(kw_get_str(gobj, col, "id", "", 0)));
+            }
+        }
+        json_t *topic = json_object_get(step, "topic");
+        if(gobj_delete_node(
                 priv->gobj_node_system,
-                "cols",
-                json_incref(col),
+                "topics",
+                json_incref(topic),
                 json_pack("{s:b}", "force", 1),
                 gobj
-            );
+            ) < 0) {
+            ret = -1;   // Error already logged
+        } else {
+            json_array_append_new(deleted_ids, json_string(kw_get_str(gobj, topic, "id", "", 0)));
         }
     }
     JSON_DECREF(plan)
 
+    /*
+     *  The nodes no tree reaches: the columns, then the topics
+     */
     for(int pass = 0; pass < 2; pass++) {
         const char *orphan_id; json_t *orphan;
         json_object_foreach(orphans, orphan_id, orphan) {
             BOOL is_topic = json_is_true(json_object_get(orphan, "is_topic"));
-            if(is_topic != (pass == 0) || json_object_get(deleted, orphan_id)) {
+            if(is_topic != (pass == 1) || json_object_get(deleted, orphan_id)) {
                 continue;
             }
-            ret += gobj_delete_node(
+            if(gobj_delete_node(
+                    priv->gobj_node_system,
+                    is_topic? "topics" : "cols",
+                    json_pack("{s:s}", "id", orphan_id),
+                    json_pack("{s:b}", "force", 1),
+                    gobj
+                ) < 0) {
+                ret = -1;   // Error already logged
+            } else {
+                json_array_append_new(deleted_ids, json_string(orphan_id));
+            }
+            json_object_set_new(deleted, orphan_id, json_true());
+        }
+    }
+
+    if(treedb && ret == 0) {
+        if(gobj_delete_node(
                 priv->gobj_node_system,
-                is_topic? "topics" : "cols",
-                json_pack("{s:s}", "id", orphan_id),
+                "treedbs",
+                json_incref(treedb),
                 json_pack("{s:b}", "force", 1),
                 gobj
-            );
-            json_object_set_new(deleted, orphan_id, json_true());
+            ) < 0) {
+            ret = -1;   // Error already logged
+        } else {
+            json_array_append_new(deleted_ids, json_string(treedb_name));
         }
     }
 
     JSON_DECREF(deleted)
     JSON_DECREF(orphans)
     JSON_DECREF(index)
-    json_decref(treedb);
+    JSON_DECREF(treedb)
 
     return ret;
 }

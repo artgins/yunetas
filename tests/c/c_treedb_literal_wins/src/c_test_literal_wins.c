@@ -4344,6 +4344,136 @@ PRIVATE int scenario_delete_treedb_every_node(hgobj gobj)
 }
 
 /***************************************************************************
+ *  DTK: delete-treedb DIES at each of its writes of __system__, and is
+ *  run again. The second run finishes the delete: it answers 0, and no
+ *  node of the treedb is left -- also when the node of the treedb itself
+ *  is gone and what is left is in no tree (a delete of 7.25.4 cut after
+ *  its first write). Before, the node of the treedb went FIRST, and a
+ *  delete cut after it answered -1 ("not projected in __system__") at
+ *  every run, with the topics and columns still there.
+ ***************************************************************************/
+PRIVATE json_t *dtk_literal(const char *db)
+{
+    return schema_of(db, 1, json_pack("[o,o]",
+        topic_of("users", 1, json_pack("{s:o, s:o, s:o}",
+            "id", col_id(), "username", col_str("User"), "email", col_str("Email"))),
+        topic_of("departments", 1, json_pack("{s:o, s:o}", "id", col_id(), "name", col_str("Name")))
+    ));
+}
+
+/*
+ *  delete-treedb in a CHILD killed at the `kill_at`-th write of
+ *  __system__. 1 when it was killed, 0 when it completed, -1 on error
+ */
+PRIVATE int delete_treedb_killed(hgobj gobj, const char *db, int kill_at)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    fflush(stdout);
+    fflush(stderr);
+    pid_t pid = fork();
+    if(pid < 0) {
+        return test_fail(gobj, db, "TEST FAIL: DTK, fork() failed", json_string(strerror(errno)));
+    }
+    if(pid == 0) {
+        child_takes_its_own_ring();
+        priv->system_writes = 0;
+        priv->kill_at_write = kill_at;
+        watch_system_writes(gobj, TRUE);
+        json_t *jn_resp = treedb_cmd(gobj, db, "delete-treedb", json_pack("{s:b}", "force", 1));
+        JSON_DECREF(jn_resp)
+        _exit(3);
+    }
+    int status = 0;
+    if(waitpid(pid, &status, 0) < 0) {
+        return test_fail(gobj, db, "TEST FAIL: DTK, waitpid() failed", json_string(strerror(errno)));
+    }
+    if(WIFSIGNALED(status) && WTERMSIG(status) == SIGKILL) {
+        return 1;
+    }
+    if(WIFEXITED(status) && WEXITSTATUS(status) == 3) {
+        return 0;
+    }
+    return test_fail(gobj, db, "TEST FAIL: DTK, the child process ended some other way",
+        json_integer(status));
+}
+
+PRIVATE int scenario_delete_treedb_killed(hgobj gobj)
+{
+    int result = 0;
+    int kills = 0;
+    for(int k = 0; k <= 40; k++) {
+        char db[64];
+        snprintf(db, sizeof(db), "tw_dtk%d", k);
+        if(open_db(gobj, db, dtk_literal(db), FALSE) < 0) {
+            return result - 1;
+        }
+        close_db(gobj, db);
+
+        /*
+         *  k 0: a delete of 7.25.4 cut after its first write, which was
+         *  the node of the treedb (emulated: that node deleted by hand)
+         */
+        int killed = 1;
+        if(k == 0) {
+            if(gobj_delete_node(gobj_find_service(SYSTEM_TREEDB, FALSE), "treedbs",
+                    json_pack("{s:s}", "id", db), json_pack("{s:b}", "force", 1), gobj) < 0) {
+                result += test_fail(gobj, db, "TEST FAIL: DTK, the node of the treedb could not be deleted", NULL);
+            }
+        } else {
+            killed = delete_treedb_killed(gobj, db, k);
+        }
+        if(killed < 0) {
+            return result - 1;
+        }
+        restart_system(gobj);
+
+        json_int_t e0 = log_count(gobj, "error");
+        json_t *jn_resp = treedb_cmd(gobj, db, "delete-treedb", json_pack("{s:b}", "force", 1));
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 || log_count(gobj, "error") - e0 != 0) {
+            result += test_fail(gobj, db,
+                "TEST FAIL: DTK, the delete-treedb run after a cut one did not finish it, or logged an error",
+                json_pack("{s:i, s:O}", "k", k, "answer", jn_resp));
+        }
+        JSON_DECREF(jn_resp)
+
+        static const char *nodes[][2] = {
+            {"treedbs", ""},
+            {"topics", ".users"},
+            {"topics", ".departments"},
+            {"cols", ".users.id"},
+            {"cols", ".users.username"},
+            {"cols", ".users.email"},
+            {"cols", ".departments.id"},
+            {"cols", ".departments.name"},
+            {NULL, NULL}
+        };
+        for(int i = 0; nodes[i][0]; i++) {
+            char id[NAME_MAX];
+            snprintf(id, sizeof(id), "%s%s", db, nodes[i][1]);
+            result += check_absent(gobj, db, "TEST FAIL: DTK, a node of the treedb is left",
+                nodes[i][0], id);
+        }
+        json_t *record = unfinished_record(gobj, db);
+        if(record) {
+            result += test_fail(gobj, db, "TEST FAIL: DTK, a record of the treedb is left",
+                json_incref(record));
+        }
+        JSON_DECREF(record)
+
+        if(killed == 0) {
+            break;
+        }
+        kills++;
+    }
+    if(kills < 5) {
+        result += test_fail(gobj, "tw_dtk", "TEST FAIL: DTK, the delete was killed at too few writes",
+            json_integer(kills));
+    }
+    return result;
+}
+
+/***************************************************************************
  *  RU: the record of an unfinished projection CANNOT BE WRITTEN
  *  (saved_schemas/ read-only) while a snapshot refuses a delete. The
  *  projection does not read as complete for that: the node of the treedb
@@ -5437,6 +5567,7 @@ PRIVATE int (*late_scenarios[])(hgobj gobj) = {
     scenario_ambiguous_owner,
     scenario_ambiguous_after_crash,
     scenario_delete_treedb_every_node,
+    scenario_delete_treedb_killed,
     scenario_record_unwritable,
     scenario_record_lost,
     scenario_colliding_ids,
