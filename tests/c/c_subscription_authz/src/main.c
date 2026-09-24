@@ -73,9 +73,15 @@ PRIVATE char variable_config[]= "\
             'autoplay': false                                       \n\
         },                                                          \n\
         {                                                           \n\
+            'name': 'treedb_host',                                  \n\
+            'gclass': 'C_TEST_TREEDB_HOST',                         \n\
+            'autostart': true,                                      \n\
+            'autoplay': false                                       \n\
+        },                                                          \n\
+        {                                                           \n\
             'name': '__input_side__',                               \n\
             'gclass': 'C_IOGATE',                                   \n\
-            'autostart': false,                                     \n\
+            'autostart': true,                                     \n\
             'autoplay': false,                                      \n\
             'children': [                                           \n\
                 {                                                   \n\
@@ -252,7 +258,7 @@ time_measure_t time_measure;
 
 /***************************************************************************
  *  Authentication without a C_AUTHZ: the user is the `jwt` of the identity
- *  card, and it may reach the `publisher` service. What C_AUTHZ leaves on
+ *  card, and it may reach the `publisher` and `treedb_subs_authz` services. What C_AUTHZ leaves on
  *  the gate is repeated: `__username__` on the C_IEVENT_SRV (src).
  ***************************************************************************/
 static json_t *test_authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)
@@ -260,12 +266,13 @@ static json_t *test_authentication_parser(hgobj gobj_service, json_t *kw, hgobj 
     const char *username = kw_get_str(gobj_service, kw, "jwt", "", 0);
     gobj_write_str_attr(src, "__username__", username);
 
-    json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:{s:[]}}",
+    json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:{s:[], s:[]}}",
         "result", 0,
         "comment", "test authentication",
         "username", username,
         "services_roles",
-            "publisher"
+            "publisher",
+            "treedb_subs_authz"
     );
     KW_DECREF(kw)
     return jn_resp;
@@ -310,10 +317,12 @@ static int register_yuno_and_more(void)
     set_expected_results(
         APP_NAME,
         /*  Strict FIFO of the warnings and errors (the capture handler of
-         *  main() takes nothing below a warning): the one refusal, of
-         *  `nobody` subscribing EV_TEST_FEED with the gate on. A wrong
-         *  result is an error, which is not in this list.  */
-        json_pack("[{s:s}]",
+         *  main() takes nothing below a warning): the two refusals of
+         *  `nobody` with the gate on, EV_TEST_FEED of `publisher` and
+         *  EV_TREEDB_NODE_UPDATED of the C_NODE. A wrong result is an
+         *  error, which is not in this list.  */
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "No permission to subscribe event",
             "msg", "No permission to subscribe event"
         ),
         NULL,   // expected

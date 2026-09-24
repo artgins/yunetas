@@ -15,6 +15,11 @@
  *              EV_TEST_FEED    EVF_AUTHZ_SUBSCRIBE
  *              EV_TEST_OPEN    no authz
  *
+ *          C_TEST_TREEDB_HOST (service `treedb_host`) opens a treedb in a
+ *          real C_NODE, the service TREEDB_SERVICE, whose five
+ *          EV_TREEDB_NODE_* are EVF_AUTHZ_SUBSCRIBE and whose `read` carries
+ *          the `__subscribe_event__` alias.
+ *
  *          C_TEST_SUBS_AUTHZ (service `subscriber`) drives the test through
  *          three C_IEVENT_CLI of the same yuno, connected by websocket over
  *          loopback (the stack of the agent and of the SPAs) to
@@ -22,15 +27,34 @@
  *          its `jwt` (see the authentication parser of main.c):
  *
  *              1. gate OFF, `nobody` subscribes EV_TEST_FEED   -> accepted
+ *                           `nobody` subscribes EV_TREEDB_NODE_UPDATED
+ *                                                          -> accepted
  *              2. gate ON,  `nobody` subscribes EV_TEST_FEED   -> REFUSED
  *                           `nobody` subscribes EV_TEST_OPEN   -> accepted
  *                           `reader` subscribes EV_TEST_FEED   -> accepted,
- *                           the checker being asked `read`
- *              3. the publisher publishes both events: EV_TEST_FEED arrives
- *                 twice (the subscriptions of 1 and of `reader`), and
- *                 EV_TEST_OPEN once.
- *              4. every subscription is withdrawn, the refused one too: it
- *                 was never made, and its withdrawal is not an error.
+ *                           `nobody` subscribes EV_TREEDB_NODE_UPDATED
+ *                                                          -> REFUSED
+ *                           `reader` subscribes EV_TREEDB_NODE_UPDATED
+ *                                                          -> accepted,
+ *                           the checker being asked `read` every time
+ *              3. the publisher publishes both events and a node of the
+ *                 treedb is updated: EV_TEST_FEED and EV_TREEDB_NODE_UPDATED
+ *                 arrive twice each (the subscriptions of 1 and of
+ *                 `reader`), and EV_TEST_OPEN once.
+ *              4. every subscription but those of `reader` is withdrawn, the
+ *                 refused ones too: they were never made, and their
+ *                 withdrawal is not an error.
+ *              5. `reader` is stopped with its two remote subscriptions
+ *                 still open, and they are withdrawn right after, before the
+ *                 close of its transport arrives. Nothing may be sent to the
+ *                 transport that is stopping (up to 7.25.4: "Event NOT
+ *                 DEFINED in state" from C_WEBSOCKET or C_TCP); the server
+ *                 drops them when the channel closes.
+ *
+ *          The gate `__input_side__` is an autostart service: the yuno
+ *          starts its tree and stops it with a plain gobj_stop(), and every
+ *          protocol gobj of its channels has to stop with it (up to 7.25.4
+ *          each C_WEBSOCKET stayed running: "Destroying a RUNNING gobj").
  *
  *          A wrong result is logged as an error, which the expected-logs
  *          check of main.c does not expect.
@@ -44,6 +68,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+#define TREEDB_NAME     "treedb_subs_authz"
 
 /***************************************************************************
  *              Structures
@@ -59,6 +84,7 @@ PRIVATE int check_subscriptions(
     const char *usernames   // expected, sorted, joined by ','
 );
 PRIVATE int check_count(hgobj gobj, const char *what, int expected, int got);
+PRIVATE json_t *kw_treedb_service(void);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -107,6 +133,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj publisher;
+    hgobj treedb;
     hgobj cli_off;
     hgobj cli_nobody;
     hgobj cli_reader;
@@ -114,7 +141,42 @@ typedef struct _PRIVATE_DATA {
     int step;
     int feeds_received;
     int opens_received;
+    int nodes_received;
 } PRIVATE_DATA;
+
+typedef struct _PRIVATE_DATA_HOST {
+    hgobj gobj_node;
+    json_t *tranger;
+} PRIVATE_DATA_HOST;
+
+/***************************************************************************
+ *  The treedb of C_TEST_TREEDB_HOST: one topic, one node to update
+ ***************************************************************************/
+PRIVATE char schema_subs_authz[] = "\
+{                                                                   \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'topic_name': 'items',                                  \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'name': {                                           \n\
+                    'header': 'Name',                               \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','writable']               \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
 
 
 
@@ -158,10 +220,9 @@ PRIVATE int mt_stop(hgobj gobj)
     gobj_stop(priv->timer);
 
     /*
-     *  The gate is this service's, like the agent's __input_side__: a
-     *  channel whose peer left keeps its protocol gobj running until then.
+     *  The gate `__input_side__` is not stopped here: it is an autostart
+     *  service, and the yuno stops it.
      */
-    gobj_stop_tree(gobj_find_service("__input_side__", TRUE));
     return 0;
 }
 
@@ -173,13 +234,15 @@ PRIVATE int mt_play(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->publisher = gobj_find_service("publisher", TRUE);
+    priv->treedb = gobj_find_service(TREEDB_NAME, TRUE);
     priv->cli_off = gobj_find_service("cli_off", TRUE);
     priv->cli_nobody = gobj_find_service("cli_nobody", TRUE);
     priv->cli_reader = gobj_find_service("cli_reader", TRUE);
 
     /*
      *  All events (event NULL) is a local subscription: C_IEVENT_CLI sends
-     *  only explicit events to the remote side.
+     *  only explicit events to the remote side. The gate is already
+     *  running: it is an autostart service.
      */
     hgobj input_side = gobj_find_service("__input_side__", TRUE);
     gobj_subscribe_event(input_side, NULL, 0, gobj);
@@ -187,7 +250,6 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_subscribe_event(priv->cli_nobody, NULL, 0, gobj);
     gobj_subscribe_event(priv->cli_reader, NULL, 0, gobj);
 
-    gobj_start_tree(input_side);
     gobj_start_tree(priv->cli_off);
     gobj_start_tree(priv->cli_nobody);
     gobj_start_tree(priv->cli_reader);
@@ -312,6 +374,18 @@ PRIVATE int check_count(hgobj gobj, const char *what, int expected, int got)
 
 
 
+/***************************************************************************
+ *  The kw of a remote (un)subscription to the treedb service instead of the
+ *  client's `remote_yuno_service`
+ ***************************************************************************/
+PRIVATE json_t *kw_treedb_service(void)
+{
+    return json_pack("{s:s}", "__service__", TREEDB_NAME);
+}
+
+
+
+
                     /***************************
                      *      Actions
                      ***************************/
@@ -333,6 +407,9 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              *  1. gate OFF: a flagged event is subscribed as today
              */
             gobj_subscribe_event(priv->cli_off, EV_TEST_FEED, 0, gobj);
+            gobj_subscribe_event(
+                priv->cli_off, EV_TREEDB_NODE_UPDATED, kw_treedb_service(), gobj
+            );
             set_timeout(priv->timer, 300);
         }
     }
@@ -359,6 +436,8 @@ PRIVATE int ac_test_feed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(event == EV_TEST_FEED) {
         priv->feeds_received++;
+    } else if(event == EV_TREEDB_NODE_UPDATED) {
+        priv->nodes_received++;
     } else {
         priv->opens_received++;
     }
@@ -373,10 +452,12 @@ PRIVATE int ac_test_feed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *node;
 
     switch(priv->step++) {
         case 0:
             check_subscriptions(gobj, priv->publisher, EV_TEST_FEED, "nobody");
+            check_subscriptions(gobj, priv->treedb, EV_TREEDB_NODE_UPDATED, "nobody");
             check_count(gobj, "authz asked with the gate off",
                 0, authz_asked_read + authz_asked_other
             );
@@ -388,47 +469,91 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_subscribe_event(priv->cli_nobody, EV_TEST_FEED, 0, gobj);
             gobj_subscribe_event(priv->cli_nobody, EV_TEST_OPEN, 0, gobj);
             gobj_subscribe_event(priv->cli_reader, EV_TEST_FEED, 0, gobj);
+            gobj_subscribe_event(
+                priv->cli_nobody, EV_TREEDB_NODE_UPDATED, kw_treedb_service(), gobj
+            );
+            gobj_subscribe_event(
+                priv->cli_reader, EV_TREEDB_NODE_UPDATED, kw_treedb_service(), gobj
+            );
             set_timeout(priv->timer, 300);
             break;
 
         case 1:
             check_subscriptions(gobj, priv->publisher, EV_TEST_FEED, "nobody,reader");
             check_subscriptions(gobj, priv->publisher, EV_TEST_OPEN, "nobody");
-            check_count(gobj, "authz asked for 'read'", 2, authz_asked_read);
+            check_subscriptions(gobj, priv->treedb, EV_TREEDB_NODE_UPDATED, "nobody,reader");
+            check_count(gobj, "authz asked for 'read'", 4, authz_asked_read);
             check_count(gobj, "authz asked for another permission", 0, authz_asked_other);
 
             /*
-             *  3. the feed reaches only the authorized subscriptions
+             *  3. the feeds reach only the authorized subscriptions
              */
             gobj_send_event(priv->publisher, EV_TEST_EMIT, json_object(), gobj);
+            node = gobj_update_node(
+                priv->treedb,
+                "items",
+                json_pack("{s:s, s:s}", "id", "item-1", "name", "updated"),
+                0,
+                gobj
+            );
+            if(!node) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST FAIL: cannot update the node",
+                    NULL
+                );
+            }
+            JSON_DECREF(node)
             set_timeout(priv->timer, 300);
             break;
 
         case 2:
             check_count(gobj, "EV_TEST_FEED received", 2, priv->feeds_received);
             check_count(gobj, "EV_TEST_OPEN received", 1, priv->opens_received);
+            check_count(gobj, "EV_TREEDB_NODE_UPDATED received", 2, priv->nodes_received);
 
             /*
-             *  Orderly end: the remote subscriptions are withdrawn while the
-             *  sessions are up, then the clients go, then the gate.
+             *  4. the remote subscriptions are withdrawn while the sessions
+             *  are up, all but those of `reader`
              */
             gobj_unsubscribe_event(priv->cli_off, EV_TEST_FEED, 0, gobj);
+            gobj_unsubscribe_event(
+                priv->cli_off, EV_TREEDB_NODE_UPDATED, kw_treedb_service(), gobj
+            );
             gobj_unsubscribe_event(priv->cli_nobody, EV_TEST_FEED, 0, gobj);
             gobj_unsubscribe_event(priv->cli_nobody, EV_TEST_OPEN, 0, gobj);
-            gobj_unsubscribe_event(priv->cli_reader, EV_TEST_FEED, 0, gobj);
+            gobj_unsubscribe_event(
+                priv->cli_nobody, EV_TREEDB_NODE_UPDATED, kw_treedb_service(), gobj
+            );
             set_timeout(priv->timer, 300);
             break;
 
         case 3:
-            check_subscriptions(gobj, priv->publisher, EV_TEST_FEED, "");
+            check_subscriptions(gobj, priv->publisher, EV_TEST_FEED, "reader");
             check_subscriptions(gobj, priv->publisher, EV_TEST_OPEN, "");
+            check_subscriptions(gobj, priv->treedb, EV_TREEDB_NODE_UPDATED, "reader");
+
+            /*
+             *  5. `reader` goes with its subscriptions open, and they are
+             *  withdrawn before the close of its transport arrives.
+             */
             gobj_stop_tree(priv->cli_off);
             gobj_stop_tree(priv->cli_nobody);
             gobj_stop_tree(priv->cli_reader);
+            gobj_unsubscribe_event(priv->cli_reader, EV_TEST_FEED, 0, gobj);
+            gobj_unsubscribe_event(
+                priv->cli_reader, EV_TREEDB_NODE_UPDATED, kw_treedb_service(), gobj
+            );
             set_timeout(priv->timer, 300);
             break;
 
         default:
+            /*
+             *  The server dropped the subscriptions of the closed channel
+             */
+            check_subscriptions(gobj, priv->publisher, EV_TEST_FEED, "");
+            check_subscriptions(gobj, priv->treedb, EV_TREEDB_NODE_UPDATED, "");
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
@@ -459,6 +584,98 @@ PRIVATE int ac_test_emit(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 
 /***************************************************************************
+ *      Framework Methods of C_TEST_TREEDB_HOST: a C_NODE service on its
+ *      own tranger
+ ***************************************************************************/
+PRIVATE void host_mt_create(hgobj gobj)
+{
+    PRIVATE_DATA_HOST *priv = gobj_priv_data(gobj);
+
+    const char *home = getenv("HOME");
+    char path_root[PATH_MAX];
+    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    mkrdir(path_root, 02770);
+
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database), path_root, "c_subscription_authz", NULL);
+    rmrdir(path_database);
+
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", "c_subscription_authz",
+        "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK
+    );
+    priv->tranger = tranger2_startup(0, jn_tranger, 0);
+
+    helper_quote2doublequote(schema_subs_authz);
+    json_t *jn_schema = legalstring2json(schema_subs_authz, TRUE);
+
+    json_t *kw_node = json_pack("{s:I, s:s, s:o, s:i}",
+        "tranger", (json_int_t)(uintptr_t)priv->tranger,
+        "treedb_name", TREEDB_NAME,
+        "treedb_schema", jn_schema,
+        "exit_on_error", LOG_OPT_TRACE_STACK
+    );
+
+    /*
+     *  A service: C_IEVENT_SRV routes a remote subscription by service name
+     */
+    priv->gobj_node = gobj_create_service(TREEDB_NAME, C_NODE, kw_node, gobj);
+}
+
+PRIVATE int host_mt_start(hgobj gobj)
+{
+    PRIVATE_DATA_HOST *priv = gobj_priv_data(gobj);
+
+    gobj_start(priv->gobj_node);
+
+    json_t *node = gobj_create_node(
+        priv->gobj_node,
+        "items",
+        json_pack("{s:s, s:s}", "id", "item-1", "name", "created"),
+        0,
+        gobj
+    );
+    if(!node) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: cannot create the node",
+            NULL
+        );
+        return -1;
+    }
+    JSON_DECREF(node)
+    return 0;
+}
+
+PRIVATE int host_mt_stop(hgobj gobj)
+{
+    PRIVATE_DATA_HOST *priv = gobj_priv_data(gobj);
+
+    gobj_stop(priv->gobj_node);
+    return 0;
+}
+
+PRIVATE void host_mt_destroy(hgobj gobj)
+{
+    PRIVATE_DATA_HOST *priv = gobj_priv_data(gobj);
+
+    /*
+     *  The children, the C_NODE among them, are destroyed before this
+     *  method, and C_NODE closes its treedb then.
+     */
+    if(priv->tranger) {
+        tranger2_shutdown(priv->tranger);
+        priv->tranger = NULL;
+    }
+}
+
+
+
+
+/***************************************************************************
  *                          FSM
  ***************************************************************************/
 /*---------------------------------------------*
@@ -474,12 +691,19 @@ PRIVATE const GMETHODS gmt = {
 PRIVATE const GMETHODS gmt_pub = {
     0
 };
+PRIVATE const GMETHODS gmt_host = {
+    .mt_create = host_mt_create,
+    .mt_start = host_mt_start,
+    .mt_stop = host_mt_stop,
+    .mt_destroy = host_mt_destroy,
+};
 
 /*------------------------*
  *      GClass name
  *------------------------*/
 GOBJ_DEFINE_GCLASS(C_TEST_SUBS_AUTHZ);
 GOBJ_DEFINE_GCLASS(C_TEST_PUB_AUTHZ);
+GOBJ_DEFINE_GCLASS(C_TEST_TREEDB_HOST);
 
 /*------------------------*
  *      States
@@ -515,6 +739,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,               ac_on_close,                0},
         {EV_TEST_FEED,              ac_test_feed,               0},
         {EV_TEST_OPEN,              ac_test_feed,               0},
+        {EV_TREEDB_NODE_UPDATED,    ac_test_feed,               0},
         {0,0,0}
     };
 
@@ -529,6 +754,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,               0},
         {EV_TEST_FEED,              EVF_PUBLIC_EVENT},
         {EV_TEST_OPEN,              EVF_PUBLIC_EVENT},
+        {EV_TREEDB_NODE_UPDATED,    EVF_PUBLIC_EVENT},
         {0, 0}
     };
 
@@ -614,9 +840,61 @@ PRIVATE int create_gclass_pub(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int create_gclass_host(gclass_name_t gclass_name)
+{
+    static hgclass __gclass__ = 0;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    ev_action_t st_idle[] = {
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_IDLE,                   st_idle},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        {0, 0}
+    };
+
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt_host,
+        0,  // lmt,
+        attrs_table,
+        sizeof(PRIVATE_DATA_HOST),
+        0,  // authz_table,
+        0,  // command_table,
+        s_user_trace_level,  // s_user_trace_level,
+        0   // gcflag_t
+    );
+    if(!__gclass__) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC int register_c_test_subs_authz(void)
 {
     int ret = create_gclass(C_TEST_SUBS_AUTHZ);
     ret += create_gclass_pub(C_TEST_PUB_AUTHZ);
+    ret += create_gclass_host(C_TEST_TREEDB_HOST);
     return ret;
 }

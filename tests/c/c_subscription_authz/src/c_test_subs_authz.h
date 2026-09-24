@@ -19,6 +19,7 @@ extern "C"{
  ***************************************************************/
 GOBJ_DECLARE_GCLASS(C_TEST_SUBS_AUTHZ);     // the driver, and the remote subscriber
 GOBJ_DECLARE_GCLASS(C_TEST_PUB_AUTHZ);      // the service subscribed to
+GOBJ_DECLARE_GCLASS(C_TEST_TREEDB_HOST);    // hosts a C_NODE service, subscribed to
 
 /*
  *  What the authz checker of main.c was asked, to check the permission name

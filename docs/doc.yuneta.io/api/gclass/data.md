@@ -284,6 +284,27 @@ Only `help` and `authzs` ask nothing. `system-schema`, `trace` and the
 C_NODE's command table (`tests/c/c_node_authz`), so a command added without a
 permission fails it.
 
+`read` also guards the treedb's feed: the five `EV_TREEDB_NODE_*` events are
+`EVF_AUTHZ_SUBSCRIBE`, and `read` carries the `__subscribe_event__` alias, so
+in a yuno that sets `enable_subscription_authz` a peer needs `read` on the
+treedb service to subscribe to them (new after 7.25.4; in 7.25.4 any
+authenticated user got the feed). The gate is off by default, and it goes in
+the yuno's config:
+
+```json
+{
+    "yuno": {
+        "enable_subscription_authz": true
+    }
+}
+```
+
+A peer without `read` is refused and the channel stays open: ERROR *"No
+permission to subscribe event"*, with `service`, `event`, `permission: read`
+and `username`. See [`YUNO_AUTH.md`](../../../../yunos/c/yuno_agent/YUNO_AUTH.md) §4.6
+and the test `tests/c/c_subscription_authz`, which subscribes to a real
+`C_NODE`.
+
 `update-node` with `options.create=1` also asks for `create` when the node
 does not exist yet. A refusal answers `-403`, and nothing is written.
 

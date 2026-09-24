@@ -608,7 +608,10 @@ subscriptions. The peer still holds a refused subscription and withdraws it
 (for example when a view closes): that is logged at info level (*"UNSUBSCRIBING
 event never subscribed, its subscription was refused"*), not as an error.
 
-How a gclass declares a guarded feed (a publisher with a `read` permission):
+How a gclass declares a guarded feed (a publisher with a `read` permission).
+`C_NODE` declares its feed this way since 7.25.5: its five `EV_TREEDB_NODE_*`
+are `EVF_AUTHZ_SUBSCRIBE`, and its `read` carries the alias, so with the gate
+on the feed of a treedb asks what `nodes` and `node` ask:
 
 ```c
 PRIVATE const char *read_alias[] = {"__subscribe_event__", 0};
@@ -647,8 +650,9 @@ The regression test is
 Three `C_IEVENT_CLI` connect to a `C_IEVENT_SRV` over loopback and cover four
 cases: gate off → subscribed, gate on without `read` → refused and logged,
 an event without the flag → subscribed, and gate on with `read` → subscribed,
-with the checker asked for `read`. The feed then reaches only the accepted
-subscriptions.
+with the checker asked for `read`. It runs the cases against a test publisher
+and against a real `C_NODE` (`EV_TREEDB_NODE_UPDATED`). The feed then reaches
+only the accepted subscriptions.
 
 ### 4.7 Where authz **is** enforced today
 

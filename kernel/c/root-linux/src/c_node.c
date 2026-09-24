@@ -447,12 +447,18 @@ SDATAPM0 (DTP_STRING,    "id",               0,          "record`id",    "Node I
 SDATA_END()
 };
 
+/*
+ *  `read` also guards a subscription to the EV_TREEDB_NODE_* feed, when the
+ *  yuno sets `enable_subscription_authz` (see C_IEVENT_SRV).
+ */
+PRIVATE const char *read_alias[] = {"__subscribe_event__", 0};
+
 PRIVATE sdata_desc_t authz_table[] = {
-/*-AUTHZ-- type---------name------------flag----alias---items---------------description--*/
-SDATAAUTHZ (DTP_SCHEMA, "create",       0,      0,      pm_authz_create,    "Permission to create nodes"),
-SDATAAUTHZ (DTP_SCHEMA, "update",       0,      0,      pm_authz_write,     "Permission to update nodes"),
-SDATAAUTHZ (DTP_SCHEMA, "read",         0,      0,      pm_authz_read,      "Permission to read nodes"),
-SDATAAUTHZ (DTP_SCHEMA, "delete",       0,      0,      pm_authz_delete,    "Permission to delete nodes"),
+/*-AUTHZ-- type---------name------------flag----alias-------items---------------description--*/
+SDATAAUTHZ (DTP_SCHEMA, "create",       0,      0,          pm_authz_create,    "Permission to create nodes"),
+SDATAAUTHZ (DTP_SCHEMA, "update",       0,      0,          pm_authz_write,     "Permission to update nodes"),
+SDATAAUTHZ (DTP_SCHEMA, "read",         0,      read_alias, pm_authz_read,      "Permission to read nodes, and to subscribe to their events"),
+SDATAAUTHZ (DTP_SCHEMA, "delete",       0,      0,          pm_authz_delete,    "Permission to delete nodes"),
 SDATA_END()
 };
 
@@ -6306,11 +6312,11 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_TREEDB_UPDATE_NODE,     0},     // internal only, see ac_treedb_update_node
-        {EV_TREEDB_NODE_CREATED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_TREEDB_NODE_UPDATED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_TREEDB_NODE_DELETED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_TREEDB_NODE_LINKED,     EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_TREEDB_NODE_UNLINKED,   EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_TREEDB_NODE_CREATED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS|EVF_AUTHZ_SUBSCRIBE},
+        {EV_TREEDB_NODE_UPDATED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS|EVF_AUTHZ_SUBSCRIBE},
+        {EV_TREEDB_NODE_DELETED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS|EVF_AUTHZ_SUBSCRIBE},
+        {EV_TREEDB_NODE_LINKED,     EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS|EVF_AUTHZ_SUBSCRIBE},
+        {EV_TREEDB_NODE_UNLINKED,   EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS|EVF_AUTHZ_SUBSCRIBE},
         {0, 0}
     };
 
