@@ -152,6 +152,12 @@ an error (since CLI 0.11.1):
   "already exists" — it falls through to `deactivate-snap`, the step that
   promotes the new releases. (Before 0.11.1 it aborted *before* the
   restart, and the operator had to run `deactivate-snap` by hand.)
+- Since SDK 7.25.5 the agent itself tells these rows apart: `find-new-yunos`
+  lists a registered-but-not-promoted row as
+  `already registered, pending promotion (deactivate-snap): create-yuno id=...`,
+  and `find-new-yunos create=1` skips it instead of answering "already
+  exists". The preview is still not empty, so `upgrade-yunos` still goes on
+  to `deactivate-snap`.
 
 A genuine (non-idempotent) error still fails closed, and the agent's comments are
 printed so a mixed result stays visible. So the safe recovery from any

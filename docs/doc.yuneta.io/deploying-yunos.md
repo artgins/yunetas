@@ -263,6 +263,24 @@ that moves the node to the new release.
 5. **Promote and restart** — `deactivate-snap` starts the agent's
    `restart_nodes()`.
 
+The preview has one line for each yuno that has a newer binary or
+configuration. A line is the `create-yuno` command that registers the yuno at
+the new release. When an earlier run already registered that release and
+nothing promoted it (the old release stays primary until `deactivate-snap`),
+the line says so, and `create=1` does not run it again:
+
+```bash
+ycommand -c 'find-new-yunos'
+#   → comment: "yuneta_agent^<node>: 1 yuno(s) already registered at the new release,
+#               pending promotion: run deactivate-snap"
+#   → data:
+#     "create-yuno id=mqtt_broker realm_id=... yuno_role=mqtt_broker role_version=7.25.5 ..."
+#     "already registered, pending promotion (deactivate-snap): create-yuno id=emailsender ..."
+```
+
+In 7.25.4 and before, the preview listed the second row as a row to create,
+and `find-new-yunos create=1` failed on it with *"Yuno already exists"*.
+
 The snap comes after the preview, and this order is intentional. A snap tags
 every current record, and it clones each record that another snap tagged
 before. When there is nothing to upgrade, a snap does that work for no reason.

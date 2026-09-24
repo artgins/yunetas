@@ -26,6 +26,7 @@
 #include "c_agent.h"
 #include "audit_record.h"
 #include "dir_listing.h"
+#include "find_new_yunos.h"
 #include "treedb_schema_yuneta_agent.c"
 
 /***************************************************************************
@@ -1675,7 +1676,7 @@ PRIVATE json_t *cmd_dir_logs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
 
-    char yuno_log_path[NAME_MAX];
+    char yuno_log_path[PATH_MAX];
     build_yuno_log_path(gobj, node, yuno_log_path, sizeof(yuno_log_path), FALSE);
 
     json_decref(node);
@@ -4400,61 +4401,13 @@ PRIVATE json_t *cmd_list_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
- *  Take a candidate release only when it moves FORWARD, and say out loud
- *  which way it moves. Returns TRUE to take it.
- *
- *  A version is only ever supposed to go forward, and until now the
- *  comparison that picked the candidate was the ONLY thing standing between
- *  a deploy and a downgrade. When that comparison was wrong -- get_n_v()
- *  overflowed an int and read 1.9.0.0-2 as NEGATIVE -- nothing else noticed:
- *  the agent re-appended the older release as the primary at every restart
- *  for eleven days on a client node, and no log line said so, because a
- *  comparison that comes out backwards says nothing.
- *
- *  So the direction is named in the log whichever way it goes, and going
- *  backwards needs `force=1` from whoever is asking.
- ***************************************************************************/
-PRIVATE BOOL accept_new_release(
-    hgobj gobj,
-    const char *what,       // "binary" or "config", for the log
-    const char *id,
-    const char *current,
-    const char *candidate,
-    BOOL force
-)
-{
-    if(version_cmp(candidate, current) > 0) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_STARTUP,
-            "msg",          "%s", "new release found",
-            "what",         "%s", what,
-            "id",           "%s", id,
-            "from",         "%s", current,
-            "to",           "%s", candidate,
-            NULL
-        );
-        return TRUE;
-    }
-
-    gobj_log_warning(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_STARTUP,
-        "msg",          "%s", force?
-                                "release does NOT move forward, taken anyway (force=1)":
-                                "release does NOT move forward, NOT taken",
-        "what",         "%s", what,
-        "id",           "%s", id,
-        "from",         "%s", current,
-        "to",           "%s", candidate,
-        NULL
-    );
-
-    return force?TRUE:FALSE;
-}
-
-/***************************************************************************
- *
+ *  The create-yuno rows of the yunos with a newer binary or configuration
+ *  (find_new_yunos.c). A row whose instance at the new release already
+ *  exists -- a create=1 of an upgrade that was never promoted -- is not a
+ *  row to create: create-yuno would answer "Yuno already exists". The
+ *  preview still lists it, marked, because there IS something left to do
+ *  (deactivate-snap promotes it), and `yunetas upgrade-yunos` stops at an
+ *  empty preview; create=1 skips it.
  ***************************************************************************/
 PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -4463,183 +4416,75 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
     BOOL create = kw_get_bool(gobj, kw, "create", 0, KW_WILD_NUMBER);
     BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
-    /*
-     *  Get a iter of matched resources.
-     */
-    json_t *iter = gobj_list_nodes(
+    json_t *jn_rows = find_new_yunos(
+        gobj,
         priv->resource,
-        "yunos",
-        kw_incref(kw), // filter
-        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        kw_incref(kw),  // filter
+        force,
         src
     );
 
-    json_t *jn_data = json_array();
+    json_t *jn_data = json_array();     // the preview
+    json_t *jn_commands = json_array(); // what create=1 runs
+    int registered = 0;
 
-    int idx; json_t *yuno;
-    json_array_foreach(iter, idx, yuno) {
-        const char *id = SDATA_GET_ID(yuno);
-        const char *realm_id = SDATA_GET_STR(yuno, "realm_id`0");
-        const char *yuno_role = SDATA_GET_STR(yuno, "yuno_role");
-        const char *yuno_name = SDATA_GET_STR(yuno, "yuno_name");
-        const char *role_version = SDATA_GET_STR(yuno, "role_version");
-        const char *name_version = SDATA_GET_STR(yuno, "name_version");
-
-        /*
-         *  Find a greater config version
-         */
-        char config_name[NAME_MAX];
-        snprintf(config_name, sizeof(config_name), "%s.%s", yuno_role, yuno_name);
-        json_t *configs = gobj_list_instances(
-            priv->resource,
-            "configurations",
-            "",
-            json_pack("{s:s}", "id", config_name),
-            json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
-            src
-        );
-        json_t *config_found = 0;
-        int ix; json_t *config;
-        json_array_foreach(configs, ix, config) {
-            const char *name_version_ = SDATA_GET_STR(config, "version");
-            if(config_found) {
-                if(version_cmp(SDATA_GET_STR(config_found, "version"), name_version_) < 0) {
-                    config_found = config;
-                }
-            } else {
-                if(version_cmp(name_version, name_version_) < 0) {
-                    config_found = config;
-                }
-            }
+    int idx; json_t *jn_row;
+    json_array_foreach(jn_rows, idx, jn_row) {
+        const char *command = kw_get_str(gobj, jn_row, "command", "", KW_REQUIRED);
+        if(kw_get_bool(gobj, jn_row, "registered", 0, KW_REQUIRED)) {
+            registered++;
+            json_array_append_new(
+                jn_data,
+                json_sprintf("already registered, pending promotion (deactivate-snap): %s", command)
+            );
+        } else {
+            json_array_append_new(jn_data, json_string(command));
+            json_array_append_new(jn_commands, json_string(command));
         }
-        json_incref(config_found);
-        JSON_DECREF(configs);
-
-        /*
-         *  Find a greater role version
-         */
-        json_t *binaries = gobj_list_instances(
-            priv->resource,
-            "binaries",
-            "",
-            json_pack("{s:s}", "id", yuno_role),
-            json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
-            src
-        );
-        json_t *binary_found = 0;
-        json_t *binary;
-        json_array_foreach(binaries, ix, binary) {
-            const char *role_version_ = SDATA_GET_STR(binary, "version");
-            if(binary_found) {
-                if(version_cmp(SDATA_GET_STR(binary_found, "version"), role_version_) < 0) {
-                    binary_found = binary;
-                }
-            } else {
-                if(version_cmp(role_version, role_version_) < 0) {
-                    binary_found = binary;
-                }
-            }
-        }
-        json_incref(binary_found);
-        JSON_DECREF(binaries);
-
-        /*
-         *  Both picks above are "the greatest one, if greater than what we
-         *  run". Check the direction ONE more time, on its own, so it lands
-         *  in the log either way and a backwards move needs force=1. See
-         *  accept_new_release().
-         */
-        if(config_found) {
-            if(!accept_new_release(
-                    gobj, "config", id, name_version,
-                    SDATA_GET_STR(config_found, "version"), force)) {
-                JSON_DECREF(config_found)
-            }
-        }
-        if(binary_found) {
-            if(!accept_new_release(
-                    gobj, "binary", id, role_version,
-                    SDATA_GET_STR(binary_found, "version"), force)) {
-                JSON_DECREF(binary_found)
-            }
-        }
-
-        if(!config_found && !binary_found) {
-            continue;
-        }
-        const char *new_name_version = config_found?
-            SDATA_GET_STR(config_found, "version"):
-            SDATA_GET_STR(yuno, "name_version");
-
-        const char *new_role_version = binary_found?
-            SDATA_GET_STR(binary_found, "version"):
-            SDATA_GET_STR(yuno, "role_version");
-
-        /*
-         *  Inherit the operator-set node placement from the prior primary row.
-         *  Without this a version-bump deploy would reset start_priority /
-         *  sched_priority / cpu_core to the schema defaults, collapsing the
-         *  launch tiers and forcing a re-run of tools/agent/set_start_priorities.py.
-         */
-        json_array_append_new(
-            jn_data,
-            json_sprintf(
-                "create-yuno id=%s realm_id=%s yuno_role=%s role_version=%s "
-                "yuno_name=%s name_version=%s yuno_tag=%s yuno_multiple=%d "
-                "start_priority=%d sched_priority=%d cpu_core=%d",
-                id,
-                realm_id,
-                yuno_role,
-                new_role_version,
-                yuno_name,
-                new_name_version,
-                SDATA_GET_STR(yuno, "yuno_tag"),
-                SDATA_GET_BOOL(yuno, "yuno_multiple"),
-                (int)kw_get_int(gobj, yuno, "start_priority", 5, KW_REQUIRED),
-                (int)kw_get_int(gobj, yuno, "sched_priority", 20, KW_REQUIRED),
-                (int)kw_get_int(gobj, yuno, "cpu_core", 0, KW_REQUIRED)
-            )
-        );
-
-        json_decref(binary_found);
-        json_decref(config_found);
     }
-    json_decref(iter);
+    json_decref(jn_rows);
+
+    json_t *jn_comment = 0;
+    if(registered > 0) {
+        jn_comment = json_sprintf(
+            "%s: %d yuno(s) already registered at the new release, pending promotion: run deactivate-snap",
+            gobj_yuno_role_plus_name(),
+            registered
+        );
+    }
 
     int ret = 0;
     json_t *schema = 0;
     if(create) {
-        if(json_array_size(jn_data)) {
-            json_t *new_jn_data = json_array();
-            int idx; json_t *jn_command;
-            json_array_foreach(jn_data, idx, jn_command) {
-                const char *command = json_string_value(jn_command);
-                json_t *webix = gobj_command(
-                    gobj,
-                    command,
-                    0,
-                    gobj
-                );
-                if(kw_get_int(gobj, webix, "result", 0, KW_REQUIRED)<0) {
-                    json_t *c = kw_get_dict_value(gobj, webix, "comment", 0, KW_REQUIRED);
-                    json_array_append(new_jn_data, c);
-                    ret += -1;
-                } else {
-                    json_t *d = kw_get_dict_value(gobj, webix, "data", 0, KW_REQUIRED);
-                    json_array_extend(new_jn_data, d);
-                }
-                json_decref(webix);
+        json_t *new_jn_data = json_array();
+        json_array_foreach(jn_commands, idx, jn_row) {
+            const char *command = json_string_value(jn_row);
+            json_t *webix = gobj_command(
+                gobj,
+                command,
+                0,
+                gobj
+            );
+            if(kw_get_int(gobj, webix, "result", 0, KW_REQUIRED)<0) {
+                json_t *c = kw_get_dict_value(gobj, webix, "comment", 0, KW_REQUIRED);
+                json_array_append(new_jn_data, c);
+                ret += -1;
+            } else {
+                json_t *d = kw_get_dict_value(gobj, webix, "data", 0, KW_REQUIRED);
+                json_array_extend(new_jn_data, d);
             }
-            json_decref(jn_data);
-            jn_data = new_jn_data;
-            if(ret == 0) {
-                schema = tranger2_list_topic_desc_cols(
-                    gobj_read_pointer_attr(priv->resource, "tranger"),
-                    "yunos"
-                );
-            }
+            json_decref(webix);
+        }
+        json_decref(jn_data);
+        jn_data = new_jn_data;
+        if(ret == 0 && json_array_size(jn_commands)) {
+            schema = tranger2_list_topic_desc_cols(
+                gobj_read_pointer_attr(priv->resource, "tranger"),
+                "yunos"
+            );
         }
     }
+    json_decref(jn_commands);
 
     /*
      *  Inform
@@ -4647,7 +4492,7 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
     return msg_iev_build_response(
         gobj,
         ret,
-        0,
+        jn_comment,
         schema,
         jn_data, // owned
         kw  // owned
@@ -9341,18 +9186,13 @@ PRIVATE json_t *find_configuration_version(
 PRIVATE int build_release_name(
     hgobj gobj, char *bf, int bfsize, json_t *hs_binary, json_t *hs_config
 ) {
-    int len;
-    char *p = bf;
-
-    const char *binary_version = SDATA_GET_STR(hs_binary, "version");
-    snprintf(p, bfsize, "%s", binary_version);
-    len = (int)strlen(p); p += len; bfsize -= len;
-
-    const char *version_ = SDATA_GET_STR(hs_config, "version");
-
-    snprintf(p, bfsize, "-%s", version_);
-    len = (int)strlen(p); p += len; bfsize -= len;
-    return 0;
+    return build_yuno_release_name(
+        gobj,
+        bf,
+        (size_t)bfsize,
+        SDATA_GET_STR(hs_binary, "version"),
+        SDATA_GET_STR(hs_config, "version")
+    );
 }
 
 /***************************************************************************

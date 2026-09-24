@@ -720,7 +720,11 @@ ycommand -c 'install-binary id=<role> content64=$$(<role>)'
 #       <id> <realm> <role>  <yuno_release=OLD>
 #       <id> <realm> <role>  <yuno_release=NEW>
 #    Visible via `list-yunos-instances`; `list-yunos` still shows OLD
-#    as primary.
+#    as primary. Until step 4 promotes it, a new `find-new-yunos` lists
+#    the row as "already registered, pending promotion (deactivate-snap):
+#    create-yuno id=<id> ..." and create=1 skips it (7.25.4 and before
+#    listed it as a row to create, and create=1 failed with
+#    "Yuno already exists").
 ycommand -c 'find-new-yunos create=1'
 
 # 4. Force the agent to promote the newest release to primary and restart
