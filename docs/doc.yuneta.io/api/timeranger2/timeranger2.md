@@ -632,7 +632,30 @@ json_t *tranger2_create_topic(
 Returns a JSON object representing the topic metadata. The returned JSON object is not owned by the caller and must not be modified or freed.
 
 `NULL` (logged) for a refused name, a topic that does not exist on a replica,
-an empty `pkey` or no key type.
+an empty `pkey`, no key type, a NEW topic that cannot be made whole (below), a
+`topic_cols.json` / `topic_var.json` that cannot be written at a version
+change, or a topic that cannot then be opened (see
+[`tranger2_open_topic()`](#tranger2_open_topic)).
+
+**A new topic is made whole, or not at all.** The master creates the topic
+directory, `topic_desc.json`, `topic_cols.json`, `topic_var.json`, `keys/` and
+`disks/`. When any of them cannot be made (no space, a `mkdir` that fails),
+the directory it made is removed, nothing is opened or kept in memory, the
+call answers `NULL` and logs *"Cannot create topic: it is not whole, what was
+made is removed"* after the cause; the next create starts again from nothing.
+Before this fix each failure was logged and the create went on: a topic
+whose `keys/` (or `disks/`) could not be made was opened and returned as
+created, and a queue backup (see
+[`tranger2_backup_topic()`](#tranger2_backup_topic)) took that half topic as
+the queue's new one.
+
+```C
+json_t *topic = tranger2_create_topic(tranger, "devices", "id", "tm", NULL,
+    sf_string_key, json_pack("{s:s, s:I}", "id", "", "tm", (json_int_t)0), 0);
+if(!topic) {
+    return -1;  // Error already logged; nothing of "devices" on disk or in memory
+}
+```
 
 **Notes**
 

@@ -310,10 +310,15 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
 
    Return: the topic — NOT YOURS (it lives inside tranger["topics"]). NULL on
    error (empty topic_name, directory missing on a non-master, empty pkey, no
-   resolvable key type, topic_cols.json or topic_var.json that cannot be
-   written at a version change, or the topic that cannot then be OPENED: see
-   the causes of tranger2_open_topic(), a topic_desc.json missing or not
-   loading, keys/ that cannot be listed).
+   resolvable key type, a NEW topic that cannot be made whole, topic_cols.json
+   or topic_var.json that cannot be written at a version change, or the topic
+   that cannot then be OPENED: see the causes of tranger2_open_topic(), a
+   topic_desc.json missing or not loading, keys/ that cannot be listed).
+   A new topic is made whole or not at all: when its directory,
+   topic_desc.json, topic_cols.json, topic_var.json, keys/ or disks/ cannot
+   be made, the directory it made is removed, nothing is kept in memory, and
+   NULL is answered ("Cannot create topic: it is not whole, what was made is
+   removed"); the next create starts again from nothing.
 */
 PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,    // If the topic exists then only needs (tranger, topic_name) parameters

@@ -1264,6 +1264,27 @@ PRIVATE int replace_topic_var(
 }
 
 /***************************************************************************
+ *  A create that failed half way: the topic directory it made is removed
+ *  (it did not exist before the create), so the next create starts again
+ *  from nothing, and no half topic is ever opened.
+ ***************************************************************************/
+PRIVATE void abandon_topic_create(hgobj gobj, const char *directory, const char *topic_name)
+{
+    if(is_directory(directory)) {
+        rmrdir(directory);  // a failure is logged by rmrdir
+    }
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TRANGER,
+        "msg",          "%s", "Cannot create topic: it is not whole, what was made is removed",
+        "topic",        "%s", topic_name,
+        "directory",    "%s", directory,
+        NULL
+    );
+    gobj_log_set_last_message("Cannot create topic '%s': it is not whole", topic_name);
+}
+
+/***************************************************************************
    Create topic if not exist. Alias create table.
    HACK IDEMPOTENT function
  ***************************************************************************/
@@ -1364,6 +1385,11 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
+            abandon_topic_create(gobj, directory, topic_name);
+            JSON_DECREF(jn_cols)
+            JSON_DECREF(jn_var)
+            JSON_DECREF(jn_topic_ext)
+            return NULL;
         }
 
         gobj_log_info(gobj, 0,
@@ -1422,7 +1448,8 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             jn_topic_desc, // owned
             topic_fields
         );
-        save_json_to_file(
+        BOOL created = TRUE;
+        if(save_json_to_file(
             gobj,
             directory,
             "topic_desc.json",
@@ -1432,7 +1459,9 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             master? TRUE:FALSE, //create
             TRUE,  //only_read
             topic_desc  // owned
-        );
+        ) < 0) {
+            created = FALSE;    // Error already logged
+        }
 
         if(gobj_global_trace_level() & TRACE_FS) {
             gobj_log_info(gobj, 0,
@@ -1448,12 +1477,16 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         /*----------------------------------------*
          *      Create topic_cols.json
          *----------------------------------------*/
-        JSON_INCREF(jn_cols)
-        tranger2_write_topic_cols(
-            tranger,
-            topic_name,
-            jn_cols
-        );
+        if(created) {
+            JSON_INCREF(jn_cols)
+            if(tranger2_write_topic_cols(
+                tranger,
+                topic_name,
+                jn_cols
+            ) < 0) {
+                created = FALSE;    // Error already logged
+            }
+        }
         if(gobj_global_trace_level() & TRACE_FS) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1468,12 +1501,16 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         /*----------------------------------------*
          *      Create topic_var.json
          *----------------------------------------*/
-        JSON_INCREF(jn_var)
-        tranger2_write_topic_var(
-            tranger,
-            topic_name,
-            jn_var
-        );
+        if(created) {
+            JSON_INCREF(jn_var)
+            if(tranger2_write_topic_var(
+                tranger,
+                topic_name,
+                jn_var
+            ) < 0) {
+                created = FALSE;    // Error already logged
+            }
+        }
         if(gobj_global_trace_level() & TRACE_FS) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1492,7 +1529,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         snprintf(full_path, sizeof(full_path), "%s/keys",
             directory
         );
-        if(mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+        if(created && mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", full_path,
@@ -1502,6 +1539,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
+            created = FALSE;
         }
 
         /*----------------------------------------*
@@ -1510,7 +1548,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         snprintf(full_path, sizeof(full_path), "%s/disks",
             directory
         );
-        if(mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+        if(created && mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", full_path,
@@ -1520,6 +1558,23 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
+            created = FALSE;
+        }
+
+        /*
+         *  A topic that is not whole is not a topic: what was made is
+         *  removed, and nothing is opened. Up to this fix every failure
+         *  here was logged and the create went on, and a topic without
+         *  its keys/ (or disks/) was opened and returned as created: a
+         *  queue backup took it as the new topic, and a replica had no
+         *  disks/ to watch.
+         */
+        if(!created) {
+            abandon_topic_create(gobj, directory, topic_name);
+            JSON_DECREF(jn_cols)
+            JSON_DECREF(jn_var)
+            JSON_DECREF(jn_topic_ext)
+            return NULL;
         }
 
     } else if (master) {

@@ -22,6 +22,13 @@
  *  in the backup, nothing was opened (the queue had no topic until a
  *  restart) and, its size read as 0, the backup was never tried again.
  *
+ *  And a create that fails only at the mkdir of the topic's keys/ (all
+ *  the rest written): tranger2_create_topic() answers NULL and leaves
+ *  nothing, on disk or in memory, and a backup that meets it moves the
+ *  queue's topic back. Before this fix the create logged the failure and
+ *  answered a topic with no keys/ -- and a backup took that half topic as
+ *  the queue's new one.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -48,6 +55,7 @@
 #define MSG_RENAME      "cannot backup topic"
 #define MSG_REOPENED    "Backup of topic failed: the topic is opened again as it was, not backed up"
 #define MSG_QUEUE       "Queue backup failed: the queue goes on in its topic, not backed up"
+#define MSG_ABANDON     "Cannot create topic: it is not whole, what was made is removed"
 
 /***************************************************************
  *              A mkdir() that fails (no space)
@@ -264,20 +272,11 @@ PRIVATE int test_trq_create_fails(void)
 
     set_expected_results(
         "trq_create: the new topic cannot be created",
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", MSG_MOVING,
             "msg", "newdir() FAILED",   // the topic directory, ENOSPC
             "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED",
-            "msg", "Creating topic",
-            "msg", "newdir() FAILED",   // what the create writes in it
-            "msg", "Cannot create directory",
-            "msg", "Cannot replace topic_cols.json, cannot create the temporary file",
-            "msg", "Cannot replace topic_var.json, cannot create the temporary file",
-            "msg", "newdir() FAILED",
-            "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED",
-            "msg", "newdir() FAILED",
-            "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED",
-            "msg", "tranger_open_topic(): directory not found",
+            "msg", MSG_ABANDON,         // the create stops there, nothing half made
             "msg", MSG_REOPENED,        // moved back, and opened again
             "msg", MSG_QUEUE
         ),
@@ -321,6 +320,105 @@ PRIVATE int test_trq_create_fails(void)
 }
 
 /***************************************************************************
+ *  A create whose keys/ cannot be made (only that mkdir fails)
+ ***************************************************************************/
+PRIVATE int test_create_keys_fails(void)
+{
+    int result = 0;
+    rmrdir(path_database);
+
+    set_expected_results("keys: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup();
+    test_json(NULL);    // the setup logs are not what is tested
+
+    /*
+     *  1. The create itself
+     */
+    const char *direct = "t_keys";
+    char topic_dir[PATH_MAX];
+    build_path(topic_dir, sizeof(topic_dir), path_database, direct, NULL);
+    build_path(failing_mkdir, sizeof(failing_mkdir), topic_dir, "keys", NULL);
+    set_expected_results(
+        "keys: a create whose keys/ cannot be made",
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Creating topic",
+            "msg", "newdir() FAILED",
+            "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED",
+            "msg", MSG_ABANDON
+        ),
+        NULL, NULL, 1
+    );
+    json_t *topic = tranger2_create_topic(tranger, direct, "id", "tm", NULL, sf_string_key,
+        json_pack("{s:s, s:I}", "id", "", "tm", (json_int_t)0), 0);
+    failing_mkdir[0] = 0;
+    result += expect_int("keys: tranger2_create_topic() answers NULL", topic? 1: 0, 0);
+    result += expect_int("keys: nothing of the topic on disk", (json_int_t)is_directory(topic_dir), 0);
+    result += expect_int("keys: nothing of the topic in memory",
+        json_object_get(json_object_get(tranger, "topics"), direct)? 1: 0, 0);
+    result += test_json(NULL);
+
+    set_expected_results("keys: the next create makes it whole",
+        json_pack("[{s:s}]", "msg", "Creating topic"), NULL, NULL, 1);
+    topic = tranger2_create_topic(tranger, direct, "id", "tm", NULL, sf_string_key,
+        json_pack("{s:s, s:I}", "id", "", "tm", (json_int_t)0), 0);
+    char keys_dir[PATH_MAX];
+    build_path(keys_dir, sizeof(keys_dir), topic_dir, "keys", NULL);
+    result += expect_int("keys: the next create answers the topic", topic? 1: 0, 1);
+    result += expect_int("keys: with its keys/", (json_int_t)is_directory(keys_dir), 1);
+    result += test_json(NULL);
+
+    /*
+     *  2. A queue backup that meets it: the queue keeps its topic
+     */
+    const char *topic_name = "trq_keys";
+    set_expected_results("keys: queue setup", NULL, NULL, NULL, 0);
+    tr_queue_t *trq = trq_open(tranger, topic_name, "tm", 0, 1 /* backup_queue_size */);
+    trq_load(trq);
+    q_msg_t *msg = trq_append2(trq, 946684801, json_pack("{s:i, s:I}", "n", 1, "tm", (json_int_t)946684801), 0);
+    trq_unload_msg(msg, 0);
+    test_json(NULL);
+
+    char bak_name[NAME_MAX];
+    char backup_dir[PATH_MAX];
+    snprintf(bak_name, sizeof(bak_name), "%s.bak", topic_name);
+    build_path(backup_dir, sizeof(backup_dir), path_database, bak_name, NULL);
+    build_path(topic_dir, sizeof(topic_dir), path_database, topic_name, NULL);
+    build_path(failing_mkdir, sizeof(failing_mkdir), topic_dir, "keys", NULL);
+    set_expected_results(
+        "keys: a queue backup whose new topic has no keys/",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", MSG_MOVING,
+            "msg", "Creating topic",
+            "msg", "newdir() FAILED",
+            "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED",
+            "msg", MSG_ABANDON,
+            "msg", MSG_REOPENED,
+            "msg", MSG_QUEUE
+        ),
+        NULL, NULL, 1
+    );
+    int ret = trq_check_backup(trq);
+    failing_mkdir[0] = 0;
+    result += expect_int("keys: trq_check_backup() answers -1", ret, -1);
+    if(!trq->topic || trq->topic != tranger2_topic(tranger, topic_name)) {
+        printf("%sERROR%s --> keys: the queue has no topic after the failed backup\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += expect_int("keys: the queue keeps its message",
+        (json_int_t)tranger2_topic_size(tranger, topic_name), 1);
+    result += expect_int("keys: the backup was moved back", (json_int_t)is_directory(backup_dir), 0);
+    result += test_json(NULL);
+
+    set_expected_results("keys: shutdown", NULL, NULL, NULL, 1);
+    trq_close(trq);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -333,6 +431,7 @@ PRIVATE int do_test(void)
     result += test_trq();
     result += test_tr2q();
     result += test_trq_create_fails();
+    result += test_create_keys_fails();
 
     rmrdir(path_database);
     return result;

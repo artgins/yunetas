@@ -19,6 +19,11 @@ And a backup that fails AFTER the move: the new topic cannot be created (the
 `mkdir` of its directory fails with `ENOSPC`, by `--wrap=mkdir`). The backup
 is moved back, the queue keeps its topic whole, and the next call backs it up.
 Before this fix the messages stayed in the backup and the queue had no topic.
+And a create that fails only at the `mkdir` of its `keys/`:
+`tranger2_create_topic()` answers `NULL` and leaves nothing on disk or in
+memory, the next create makes it whole, and a queue backup that meets it keeps
+the queue's topic. Before this fix the create answered a topic with no `keys/`,
+and the backup took it as the queue's new topic.
 
 ## Run
 
