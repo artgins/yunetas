@@ -48,6 +48,16 @@ stores only the config id, not the version — the asymmetry the fixes handle.
    - A reference whose id part does not fit the decode is refused (*"Wrong
      reference: a part of it is too long"*), not cut.
 
+6. **Parents of an older store** (`test_parents_of_before`): parents written
+   with an id of `NAME_MAX` and an id holding `^` (a create refuses both now).
+   - A link to them is refused (*"Cannot build the reference of a node: a part
+     of it is too long, or holds a '^'"*), and nothing moves. It answered `0`:
+     the long ref was lost at the reopen, the ref with `^` was refused by the
+     save.
+   - A save that meets a wrong ref in an fkey column leaves out that ref alone
+     (logged), and the valid refs of the column are on disk after a reopen. The
+     save dropped the whole column.
+
 ## Run
 
 ```bash

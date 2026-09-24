@@ -596,6 +596,138 @@ PRIVATE int test_ids_and_refs(json_t *tranger)
 }
 
 /***************************************************************************
+ *  Parents of a store of before, whose ids a create refuses now (6): one
+ *  with an id of NAME_MAX, one with an id holding '^'. They load, but
+ *  their id cannot make a reference.
+ *
+ *    8. A link to them answered 0: the ref of NAME_MAX was saved and lost
+ *       at the reopen ("a part of it is too long"), the ref with a '^'
+ *       was refused by the save. Now the link is refused, and nothing
+ *       moves.
+ *    9. A save that met one wrong ref in an fkey column saved the record
+ *       WITHOUT the column: the valid refs of it were lost at the reopen.
+ *       Now the wrong ref alone is left out, and logged.
+ ***************************************************************************/
+PRIVATE int test_parents_of_before(json_t *tranger)
+{
+    int result = 0;
+    const char *treedb_name = "treedb_ids";
+    const char *test = "parents of before: setup";
+    char long_id[NAME_MAX + 1];
+    memset(long_id, 'L', NAME_MAX);
+    long_id[NAME_MAX] = 0;
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    md2_record_ex_t md;
+    if(tranger2_append_record(tranger, "owners", 0, 0, &md, json_pack("{s:s}", "id", long_id)) < 0 ||
+            tranger2_append_record(tranger, "owners", 0, 0, &md, json_pack("{s:s}", "id", "a^b")) < 0) {
+        printf("%s  FAIL: %s: the parents of before were not written%s\n", On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    json_t *jn_schema = legalstring2json(schema_ids, TRUE);
+    if(!jn_schema || !treedb_open_db(tranger, treedb_name, jn_schema, 0)) {
+        printf("%s  FAIL: cannot open treedb_ids%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    json_t *p_long = treedb_get_node(tranger, treedb_name, "owners", long_id);
+    json_t *p_caret = treedb_get_node(tranger, treedb_name, "owners", "a^b");
+    json_t *owner = treedb_get_node(tranger, treedb_name, "owners", "O");
+    json_t *u1 = treedb_create_node(tranger, treedb_name, "users", json_pack("{s:s}", "id", "u1"));
+    json_t *u2 = treedb_create_node(tranger, treedb_name, "users", json_pack("{s:s}", "id", "u2"));
+    json_t *u3 = treedb_create_node(tranger, treedb_name, "users", json_pack("{s:s}", "id", "u3"));
+    if(!p_long || !p_caret || !owner || !u1 || !u2 || !u3) {
+        printf("%s  FAIL: %s: the nodes are not there%s\n", On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  8. A link to a parent whose id cannot make a ref is refused
+     */
+    test = "a link to a parent whose id cannot make a ref is refused";
+    set_expected_results(test,
+        json_pack("[{s:s}, {s:s}, {s:s}]",
+            "msg", "Cannot build the reference of a node: a part of it is too long, or holds a '^'",
+            "msg", "Cannot build the reference of a node: a part of it is too long, or holds a '^'",
+            "msg", "Cannot build the reference of a node: a part of it is too long, or holds a '^'"
+        ),
+        NULL, NULL, 1
+    );
+    if(treedb_link_nodes(tranger, "members", p_long, u1) >= 0) {
+        printf("%s  FAIL: %s: the link to the id of NAME_MAX answered success%s\n",
+            On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    if(treedb_link_nodes(tranger, "members", p_caret, u2) >= 0) {
+        printf("%s  FAIL: %s: the link to the id with a '^' answered success%s\n",
+            On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    if(treedb_link_nodes(tranger, "tagged", owner, u3) < 0) {
+        printf("%s  FAIL: %s: the link of u3 to O failed%s\n", On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    if(treedb_link_nodes(tranger, "tagged", p_caret, u3) >= 0) {
+        printf("%s  FAIL: %s: the tag to the id with a '^' answered success%s\n",
+            On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    if(strcmp(kw_get_str(0, u1, "owner", "?", 0), "")!=0 ||
+            strcmp(kw_get_str(0, u2, "owner", "?", 0), "")!=0 ||
+            json_array_size(json_object_get(p_long, "members")) != 0 ||
+            json_array_size(json_object_get(p_caret, "members")) != 0 ||
+            json_object_size(json_object_get(p_caret, "tagged")) != 0 ||
+            json_array_size(json_object_get(u3, "tags")) != 1) {
+        printf("%s  FAIL: %s: a refused link moved something%s\n", On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  9. A wrong ref in an fkey column: the save keeps the valid ones
+     */
+    test = "a save leaves out a wrong ref, not the whole column";
+    set_expected_results(test,
+        json_pack("[{s:s}]",
+            "msg", "Wrong fkey reference: must be \"topic_name^id^hook_name\""
+        ),
+        NULL, NULL, 1
+    );
+    json_array_append_new(json_object_get(u3, "tags"), json_string("owners^a^b^tagged"));
+    if(treedb_save_node(tranger, u3) < 0) {
+        printf("%s  FAIL: %s: the save failed%s\n", On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    json_check_refcounts(tranger, 1000, &result);
+    treedb_close_db(tranger, treedb_name);
+
+    test = "a save leaves out a wrong ref, not the whole column: reopen";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    jn_schema = legalstring2json(schema_ids, TRUE);
+    if(!jn_schema || !treedb_open_db(tranger, treedb_name, jn_schema, 0)) {
+        printf("%s  FAIL: cannot open treedb_ids%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    u3 = treedb_get_node(tranger, treedb_name, "users", "u3");
+    owner = treedb_get_node(tranger, treedb_name, "owners", "O");
+    json_t *tags = json_object_get(u3, "tags");
+    if(json_array_size(tags) != 1 ||
+            strcmp(json_string_value(json_array_get(tags, 0)), "owners^O^tagged")!=0 ||
+            json_object_get(json_object_get(owner, "tagged"), "u3") != u3) {
+        printf("%s  FAIL: %s: the valid tag of u3 is lost%s\n", On_Red BWhite, test, Color_Off);
+        gobj_trace_json(0, u3, "u3");
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    json_check_refcounts(tranger, 1000, &result);
+    treedb_close_db(tranger, treedb_name);
+    return result;
+}
+
+/***************************************************************************
  *              do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -673,6 +805,7 @@ PRIVATE int do_test(void)
     result += test_force_delete_unlinks_all_array_children(tranger, treedb_name);
     result += test_failed_open_no_desc_leak(tranger);
     result += test_ids_and_refs(tranger);
+    result += test_parents_of_before(tranger);
 
     /*------------------------------------*
      *  Shutdown

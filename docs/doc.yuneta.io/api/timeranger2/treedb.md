@@ -161,6 +161,17 @@ This function is used to extract child references from hierarchical tree structu
 A part that does not fit its buffer is refused, not cut: the function logs
 *"Wrong reference: a part of it is too long"* and returns `FALSE` (new after
 7.25.4; it cut the part in silence, and the cut id named another node or none).
+Decode into buffers of `NAME_MAX`. A child reference is what a hook gives with
+the `refs` option, for example `"users^alice"`:
+
+```C
+char topic_name[NAME_MAX], id[NAME_MAX];
+if(!decode_child_ref("users^alice",
+        topic_name, sizeof(topic_name), id, sizeof(id))) {
+    // malformed, or a part too long (logged)
+}
+// topic_name is "users", id is "alice"
+```
 
 ---
 
@@ -1522,9 +1533,25 @@ treedb_link_nodes(tranger, "tagged", owner, user_x);    // 0
 treedb_link_nodes(tranger, "tagged", owner, group_x);   // -1: the slot "x" is the user's
 ```
 
-A reference that does not fit (`topic^id^hook` with a part longer than
-`NAME_MAX`) is refused with *"Cannot build the reference of a node: it does
-not fit"*, and nothing moves (it was cut in silence).
+A link is refused, and nothing moves, when the reference of the parent
+(`topic^id^hook`) cannot be decoded back: a part of `NAME_MAX` or more, or a
+part that holds a `^` (the separator). It logs *"Cannot build the reference of
+a node: a part of it is too long, or holds a '^'"*. A create refuses such an
+id for a topic with hooks, but a parent loaded from an older store can have
+one. Until 7.25.4 the link answered `0`: a long reference was saved and lost
+at the next open, and a reference with a `^` was refused by the save:
+
+```C
+/*  "a^b" is a parent of an older store: its id holds the separator  */
+treedb_link_nodes(tranger, "members", a_caret_b, user_u2);  // -1
+/*  u2["owner"] is still "", a_caret_b hooks nothing                  */
+```
+
+A save never drops a whole fkey column for one wrong reference in it. The
+wrong reference is left out and logged (*"Wrong fkey reference: must be
+\"topic_name^id^hook_name\""*), and the valid references of the column are
+saved. Until 7.25.4 the record was saved without the column, and all its
+links were lost at the next open.
 
 **A save that fails takes the link back.** The link moves the child's fkey
 and the parents' hooks in memory first, then saves the child. When the save
@@ -1583,6 +1610,17 @@ delete puts back. In 7.25.4 nothing was taken back.
 /*  sales["users"] holds bob, erin, frank; the files of erin are read-only  */
 treedb_clean_node(tranger, erin, TRUE);     // -1
 /*  sales["users"] holds bob, erin, frank again, in that order             */
+```
+
+A reference names the parent by its **id**, so all the instances of a parent
+with a `pkey2` can hold the same child. An unlink takes the child out of all
+of them, and a take-back puts it back into all of them, each one in its place:
+
+```C
+/*  x hangs from the two instances P/v1 and P/v2 of the parent P,
+ *  P/v2["items"] holds w, x; the files of the key of x are read-only   */
+treedb_unlink_nodes(tranger, "items", p_v1, x);    // -1
+/*  P/v1["items"] holds x, P/v2["items"] holds w, x again             */
 ```
 
 ---

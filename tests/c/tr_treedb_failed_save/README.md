@@ -42,6 +42,10 @@ disk says what memory said.
 9. Two snaps active on disk: the open deactivates all but the last; a
    deactivation that cannot be saved leaves the snap active in memory as on
    disk, and a replica does not try.
+10. A take-back puts a child back into EVERY instance of the parent that
+    held it. x hangs from P/v1 and P/v2 (list hook and dict hook): an unlink
+    from P/v1 whose save fails, and a forced delete of P/v1 refused by a
+    failed save, leave x in both instances, in its place.
 
 ## Run
 

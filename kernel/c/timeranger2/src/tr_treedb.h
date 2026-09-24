@@ -420,7 +420,10 @@ PUBLIC int set_volatil_values(
     A forced delete that is refused changes nothing: when a child cannot be
     saved unlinked, the node cannot be unlinked from its parents, or the
     key cannot be deleted, the children already unlinked are put back and
-    saved again, the node keeps its links, and no event is told.
+    saved again, the node keeps its links, and no event of the delete is
+    told. One case is different: a child that cannot be saved again when
+    it is put back stays unlinked, in memory as on disk (logged), and the
+    events of ITS unlink are told, because that unlink stays.
 
     A node of `__assets__` is refused while a snapshot links it, and also
     when that cannot be told (a tagged record of an existing snap cannot be

@@ -272,7 +272,7 @@ PRIVATE BOOL link_col_type_is_valid(hgobj gobj, const char *col_name, json_t *co
 PRIVATE int check_hook_fkey_columns(hgobj gobj, const char *topic_name, json_t *cols);
 PRIVATE int link_file_columns(hgobj gobj, json_t *tranger, json_t *node, json_t *kw, BOOL is_new, BOOL *moved, node_write_t *write);
 PRIVATE int remove_blob(hgobj gobj, json_t *tranger, json_t *node);
-PRIVATE json_t *filtra_fkeys(const char *topic_name, const char *col_name, const char *type, json_t *value);
+PRIVATE json_t *filtra_fkeys(const char *topic_name, const char *col_name, const char *type, json_t *value, BOOL skip_wrong);
 PRIVATE const char *files_default_types[];
 PRIVATE json_t *_list_children(
     hgobj gobj,
@@ -3042,14 +3042,22 @@ PUBLIC json_t *topic_desc_fkey_names(
 
 
 /***************************************************************************
- *  Usado en convert_node2tranger(), to write the fkey in tranger file
- *  type: "list", "dict", "string"
+ *  The refs of an fkey value, as a list, a dict or a string (`type`:
+ *  "list", "dict", "string").
+ *
+ *  `skip_wrong` FALSE (a value to write, from outside): a wrong ref
+ *  refuses the whole value, NULL is returned (logged).
+ *  `skip_wrong` TRUE (the save of a node, convert_node2tranger(), or a
+ *  read of a record): a wrong ref is left out, logged, and the other refs
+ *  are kept. A save that refused the whole value saved the record without
+ *  the column, and the valid refs of it were lost at the next open.
  ***************************************************************************/
 PRIVATE json_t *filtra_fkeys(
     const char *topic_name,
     const char *col_name,
     const char *type,
-    json_t *value  // not owned
+    json_t *value,  // not owned
+    BOOL skip_wrong
 )
 {
     hgobj gobj = 0;
@@ -3078,6 +3086,9 @@ PRIVATE json_t *filtra_fkeys(
                             "ref",          "%s", id,
                             NULL
                         );
+                        if(skip_wrong) {
+                            continue;
+                        }
                         json_decref(jn_list);
                         return NULL;
                     }
@@ -3097,12 +3108,19 @@ PRIVATE json_t *filtra_fkeys(
                             "ref",          "%j", v,
                             NULL
                         );
+                        if(skip_wrong) {
+                            continue;
+                        }
                         json_decref(jn_list);
                         return NULL;
                     }
                     if(build_ref(gobj, temp, sizeof(temp), topic_name_, id, hook_name)<0) {
+                        // Error already logged
+                        if(skip_wrong) {
+                            continue;
+                        }
                         json_decref(jn_list);
-                        return NULL;    // Error already logged
+                        return NULL;
                     }
                     json_array_append_new(jn_list, json_string(temp));
                 }
@@ -3126,6 +3144,9 @@ PRIVATE json_t *filtra_fkeys(
                         "v",            "%j", v,
                         NULL
                     );
+                    if(skip_wrong) {
+                        continue;
+                    }
                     json_decref(jn_list);
                     return NULL;
                 }
@@ -3150,8 +3171,10 @@ PRIVATE json_t *filtra_fkeys(
                     "ref",          "%s", id,
                     NULL
                 );
-                json_decref(jn_list);
-                return NULL;
+                if(!skip_wrong) {
+                    json_decref(jn_list);
+                    return NULL;
+                }
             }
         }
         break;
@@ -4247,7 +4270,8 @@ PRIVATE json_t *convert_node2tranger(
                             topic_name,
                             field,
                             "list",
-                            value
+                            value,
+                            TRUE
                         );
                         if(!mix_ids) {
                             // Error already logged
@@ -4262,7 +4286,8 @@ PRIVATE json_t *convert_node2tranger(
                             topic_name,
                             field,
                             "dict",
-                            value
+                            value,
+                            TRUE
                         );
                         if(!mix_ids) {
                             // Error already logged
@@ -4276,7 +4301,8 @@ PRIVATE json_t *convert_node2tranger(
                             topic_name,
                             field,
                             "string",
-                            value
+                            value,
+                            TRUE
                         );
                         if(!mix_ids) {
                             // Error already logged
@@ -4597,10 +4623,23 @@ PRIVATE int load_pkey2_callback(
 }
 
 /***************************************************************************
+ *  Can `part` be a part of a reference? It is decoded into a buffer of
+ *  NAME_MAX (copy_ref_part()), and '^' is the separator of the parts.
+ ***************************************************************************/
+PRIVATE BOOL is_ref_part(const char *part)
+{
+    return (part && strlen(part) < NAME_MAX && !strchr(part, '^'))? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  Write the reference "topic_name^id^hook_name" into `bf`, or the child
- *  reference "topic_name^id" when `hook_name` is NULL. Return 0, or -1 when
- *  it does not fit (logged): a reference cut short names another node, or
- *  none, and it used to be cut in silence.
+ *  reference "topic_name^id" when `hook_name` is NULL. Return 0, or -1
+ *  (logged) when a part cannot be decoded back (too long, or holding a
+ *  '^'), or the reference does not fit: a reference cut short names
+ *  another node, or none, and it used to be cut in silence; a reference
+ *  that cannot be decoded is lost at the next open, or refused by the
+ *  save. A parent loaded from a store of before can have such an id (a
+ *  create refuses it now): a link to it is refused, nothing moves.
  ***************************************************************************/
 PRIVATE int build_ref(
     hgobj gobj,
@@ -4611,6 +4650,20 @@ PRIVATE int build_ref(
     const char *hook_name   // NULL: a child reference
 )
 {
+    if(!is_ref_part(topic_name) || !is_ref_part(id) || (hook_name && !is_ref_part(hook_name))) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot build the reference of a node: a part of it is too long, or holds a '^'",
+            "topic_name",   "%s", topic_name? topic_name : "",
+            "id",           "%s", id? id : "",
+            "hook_name",    "%s", hook_name? hook_name : "",
+            "max",          "%d", NAME_MAX - 1,
+            NULL
+        );
+        *bf = 0;
+        return -1;
+    }
     int written = hook_name?
         snprintf(bf, bfsize, "%s^%s^%s", topic_name, id, hook_name) :
         snprintf(bf, bfsize, "%s^%s", topic_name, id);
@@ -5390,9 +5443,21 @@ PRIVATE int load_links(
             if(!has_refs) {
                 continue;   // an empty column links nothing, and loses nothing
             }
-            if(orphan_cols) {
-                char key[NAME_MAX];
-                snprintf(key, sizeof(key), "%s`%s", topic_name, col_name);
+            char key[TREEDB_REF_MAX];
+            int written = orphan_cols?
+                snprintf(key, sizeof(key), "%s`%s", topic_name, col_name) : 0;
+            if(written < 0 || (size_t)written >= sizeof(key)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "Cannot count the nodes of an fkey column no hook fills: its topic and col names are too long, said for this node",
+                    "treedb_name",  "%s", treedb_name,
+                    "topic_name",   "%s", topic_name,
+                    "col_name",     "%s", col_name,
+                    NULL
+                );
+                warn_fkey_col_without_hook(gobj, treedb_name, topic_name, col_name, 1);
+            } else if(orphan_cols) {
                 json_t *jn_count = json_object_get(orphan_cols, key);
                 json_object_set_new(orphan_cols, key,
                     json_integer(json_integer_value(jn_count) + 1)
@@ -5530,11 +5595,21 @@ PRIVATE int load_all_links(
 
     const char *key; json_t *jn_count;
     json_object_foreach(orphan_cols, key, jn_count) {
-        char topic_col[NAME_MAX];
-        snprintf(topic_col, sizeof(topic_col), "%s", key);
-        char *col_name = strchr(topic_col, '`');
+        char topic_col[TREEDB_REF_MAX];
+        int written = snprintf(topic_col, sizeof(topic_col), "%s", key);
+        char *col_name = (written >= 0 && (size_t)written < sizeof(topic_col))?
+            strchr(topic_col, '`') : NULL;
         if(!col_name) {
-            continue;   // every key is "topic`col"
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Cannot say an fkey column no hook fills: its key is not \"topic`col\"",
+                "treedb_name",  "%s", treedb_name,
+                "key",          "%s", key,
+                "nodes",        "%d", (int)json_integer_value(jn_count),
+                NULL
+            );
+            continue;
         }
         *col_name++ = 0;
         warn_fkey_col_without_hook(
@@ -10769,7 +10844,8 @@ PRIVATE int autolink_in_memory(
             topic_name,
             col_name,
             "list",
-            fv
+            fv,
+            FALSE
         );
         if(!jn_fkeys) {
             // Error already logged
@@ -11170,7 +11246,7 @@ PRIVATE int replace_links_in_memory(
             );
             new_refs = json_array();
         } else {
-            new_refs = filtra_fkeys(topic_name, col_name, "list", new_value);
+            new_refs = filtra_fkeys(topic_name, col_name, "list", new_value, FALSE);
             if(!new_refs) {
                 // Error already logged: the column keeps the links it has
                 ret = -1;
@@ -14973,7 +15049,7 @@ PRIVATE int gc_scan_callback(
     json_t *ids = json_array();
     json_t *jn_value = json_object_get(jn_record, col);
     if(jn_value) {
-        json_t *refs = filtra_fkeys("", col, "list", jn_value);
+        json_t *refs = filtra_fkeys("", col, "list", jn_value, TRUE);
         int idx; json_t *jn_ref;
         json_array_foreach(refs, idx, jn_ref) {
             char parent_topic[NAME_MAX];
