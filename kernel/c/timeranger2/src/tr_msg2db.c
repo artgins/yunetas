@@ -428,6 +428,15 @@ PUBLIC json_t *msg2db_open_db(
             json_array_foreach(failed_keys, kidx, jn_key) {
                 const char *key = json_string_value(jn_key);
                 if(!key) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "msg2db: load_failed_keys holds an item that is not a string: that key is not reloaded",
+                        "msg2db_name",  "%s", msg2db_name,
+                        "topic_name",   "%s", topic_name,
+                        NULL
+                    );
+                    gobj_trace_json(gobj, jn_key, "load_failed_keys item that is not a string");
                     continue;
                 }
                 json_object_del(indexx, key);
