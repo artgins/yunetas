@@ -127,6 +127,56 @@ else()
 
 endif()
 
+#--------------------------------------------------#
+#   An installed archive that CHANGED is newer than its consumers
+#
+#   Everything links the INSTALLED archives (outputs/lib), so `make` relinks
+#   a consumer only when the installed file is newer than the consumer. But
+#   `install()` keeps the mtime of the file it copies, which is the time the
+#   archive was BUILT, not installed. A consumer linked between the two
+#   moments -- the unified build/ tree builds the libraries, then links the
+#   tests against the old installed copies, then installs -- looks newer than
+#   the library it was not linked with, and is never relinked: a later
+#   `cmake --build build --target <test>` runs the previous library.
+#
+#   So, before the library is installed: when the built archive differs from
+#   the installed one, stamp the built one with the current time, and the
+#   copy carries it. An archive that did not change is not stamped, is not
+#   copied again ("Up-to-date"), and relinks nobody.
+#
+#   The stamp waits for the next whole second first: the copy keeps the
+#   mtime in whole seconds (x.000000000), so an archive stamped at 12:00:07.3
+#   is installed as 12:00:07.0 -- OLDER than a test linked at 12:00:07.1,
+#   which then is not relinked. Up to one second per CHANGED library.
+#
+#   It runs in every directory that includes this file, and does nothing
+#   where no lib${PROJECT_NAME}.a is built (yunos, tests, utils).
+#--------------------------------------------------#
+if(NOT ESP_PLATFORM)
+    set(_yuneta_built_archive "${CMAKE_CURRENT_BINARY_DIR}/lib${PROJECT_NAME}.a")
+    install(CODE "
+        set(_built \"${_yuneta_built_archive}\")
+        set(_installed \"\$ENV{DESTDIR}${LIB_DEST_DIR}/lib${PROJECT_NAME}.a\")
+        if(EXISTS \"\${_built}\")
+            execute_process(
+                COMMAND \"\${CMAKE_COMMAND}\" -E compare_files \"\${_built}\" \"\${_installed}\"
+                RESULT_VARIABLE _same
+                OUTPUT_QUIET
+                ERROR_QUIET
+            )
+            if(NOT _same EQUAL 0)
+                string(TIMESTAMP _second \"%s\")
+                string(TIMESTAMP _now \"%s\")
+                while(_now STREQUAL _second)
+                    execute_process(COMMAND \"\${CMAKE_COMMAND}\" -E sleep 0.05)
+                    string(TIMESTAMP _now \"%s\")
+                endwhile()
+                file(TOUCH_NOCREATE \"\${_built}\")
+            endif()
+        endif()
+    ")
+endif()
+
 #----------------------------------------#
 #   Default if not specified
 #----------------------------------------#

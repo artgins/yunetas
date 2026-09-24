@@ -279,6 +279,33 @@ event traces and error logs.
 
 **Source:** `tests/c/msg_interchange/`
 
+## Which library a test runs
+
+A test binary links the **installed** archives in `outputs/lib`, not the ones
+in the build tree. So a change in kernel source reaches a test only after the
+library is **installed**, and then the next build relinks the test:
+
+```bash
+# 1. change kernel/c/timeranger2/src/timeranger2.c, then install the library
+cd kernel/c/timeranger2/build && make install
+#   -- Installing: .../outputs/lib/libtimeranger2.a
+
+# 2. the next build of the test relinks it against the new archive
+cmake --build build --target test_tr_treedb_rowid
+#   [  0%] Linking C executable test_tr_treedb_rowid
+```
+
+`cmake --build build --target <test>` alone, without step 1, rebuilds the
+library in `build/` but links the test against the OLD installed copy.
+
+Before 7.25.5 step 2 could also print only *"Built target"* and keep the old
+library. `install()` keeps the mtime of the file it copies, in whole seconds,
+which is the time the archive was BUILT: a test linked between that moment
+and the install looked newer than the archive. `tools/cmake/project.cmake` now
+stamps an archive that changed with the time of its install, rounded up to
+the next whole second. An archive that did not change is not copied
+(*"Up-to-date"*) and relinks nothing.
+
 ## Debugging a test that corrupts the heap
 
 A test that dies with *"corrupted double-linked list"* or *"free(): chunks in
