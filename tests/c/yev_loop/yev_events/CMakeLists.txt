@@ -66,6 +66,7 @@ set(SRCS
 
     test_yevent_udp_traffic1
     test_yevent_udp_zerocopy
+    test_yevent_udp_ipv6
 
     test_yevent_timer_once1
     test_yevent_timer_once2

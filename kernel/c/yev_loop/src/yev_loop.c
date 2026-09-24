@@ -150,6 +150,7 @@ struct yev_loop_s {
 PRIVATE yev_state_t yev_set_state(yev_event_t *yev_event, yev_state_t new_state);
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
 PRIVATE void forget_kept(yev_loop_t *yev_loop, yev_event_t *yev_event);
+PRIVATE void host_without_brackets(char *host);
 
 /***************************************************************
  *              Data
@@ -1065,7 +1066,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         io_uring_prep_accept(
                             sqe,
                             yev_event->fd,
-                            &yev_event->sock_info->addr,
+                            (struct sockaddr *)&yev_event->sock_info->addr,
                             &yev_event->sock_info->addrlen,
                             SOCK_CLOEXEC | SOCK_NONBLOCK
                         );
@@ -1120,6 +1121,10 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 if(cqe_res > 0 && yev_event->gbuf) {
                     // Mark the written bytes of reading fd
                     gbuffer_set_wr(yev_event->gbuf, cqe_res);
+                }
+                if(cqe_res >= 0 && yev_event->type == YEV_RECVMSG_TYPE) {
+                    // The length of the peer address the kernel wrote in sock_info->addr
+                    yev_event->sock_info->addrlen = yev_event->msghdr->msg_namelen;
                 }
 
                 /*
@@ -1888,7 +1893,7 @@ PUBLIC int yev_start_event(
                 io_uring_prep_connect(
                     sqe,
                     yev_event->fd,
-                    &yev_event->sock_info->addr,
+                    (struct sockaddr *)&yev_event->sock_info->addr,
                     yev_event->sock_info->addrlen
                 );
                 io_uring_submit(&yev_loop->ring);
@@ -1947,7 +1952,7 @@ PUBLIC int yev_start_event(
                         io_uring_prep_accept(
                             sqe,
                             yev_event->fd,
-                            &yev_event->sock_info->addr,
+                            (struct sockaddr *)&yev_event->sock_info->addr,
                             &yev_event->sock_info->addrlen,
                             SOCK_CLOEXEC | SOCK_NONBLOCK
                         );
@@ -2134,14 +2139,16 @@ PUBLIC int yev_start_event(
                     return -1;
                 }
 
-                if(!yev_event->msghdr->msg_name || yev_event->msghdr->msg_namelen <= 0) {
+                if(!yev_event->msghdr->msg_name || yev_event->msghdr->msg_namelen <= 0 ||
+                        yev_event->msghdr->msg_namelen > sizeof(struct sockaddr_storage)) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_LIBURING,
-                        "msg",          "%s", "Cannot start event: sendmsg addr NULL",
+                        "msg",          "%s", "Cannot start event: sendmsg addr NULL or bad addr length",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
+                        "addrlen",      "%d", (int)yev_event->msghdr->msg_namelen,
                         NULL
                     );
                     return -1;
@@ -2243,6 +2250,11 @@ PUBLIC int yev_start_event(
 
                 yev_event->iov.iov_base = gbuffer_cur_wr_pointer(yev_event->gbuf);
                 yev_event->iov.iov_len = gbuffer_freebytes(yev_event->gbuf);
+                /*
+                 *  The kernel sets msg_namelen to the length of the peer
+                 *  address it writes: give it all the room at each receive
+                 */
+                yev_event->msghdr->msg_namelen = sizeof(yev_event->sock_info->addr);
 
                 io_uring_prep_recvmsg(
                     sqe,
@@ -3004,6 +3016,7 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
         // Error already logged
         return -1;
     }
+    host_without_brackets(dst_host);
 
     /*
      *  If no explicit port in the URL, use the well-known default for the schema
@@ -3316,6 +3329,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         // Error already logged
         return NULL;
     }
+    host_without_brackets(host);
 
     /*
      *  If no explicit port in the URL, use the well-known default for the schema
@@ -3859,7 +3873,8 @@ PUBLIC yev_event_h yev_create_sendmsg_event(
     hgobj gobj,
     int fd,
     gbuffer_t *gbuf,
-    struct sockaddr *dst_addr
+    const struct sockaddr *dst_addr,
+    socklen_t dst_addrlen
 ) {
     yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
     yev_event_t *yev_event = create_event(yev_loop, callback, gobj, fd);
@@ -3876,8 +3891,8 @@ PUBLIC yev_event_h yev_create_sendmsg_event(
     yev_event->msghdr->msg_iovlen = 1;
     yev_event->gbuf = gbuf;
 
-    yev_event->msghdr->msg_name = dst_addr;
-    yev_event->msghdr->msg_namelen = sizeof(struct sockaddr);
+    yev_event->msghdr->msg_name = (void *)dst_addr;
+    yev_event->msghdr->msg_namelen = dst_addrlen;
 
     if(gobj_trace_level(yev_loop->yuno?gobj:0) & (TRACE_URING)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
@@ -3898,6 +3913,19 @@ PUBLIC yev_event_h yev_create_sendmsg_event(
     }
 
     return yev_event;
+}
+
+/***************************************************************************
+ *  An IPv6 literal of a url comes in brackets, as parse_url() gives it
+ *  ("[::1]"): the resolver takes it without them
+ ***************************************************************************/
+PRIVATE void host_without_brackets(char *host)
+{
+    size_t len = strlen(host);
+    if(len >= 2 && host[0] == '[' && host[len-1] == ']') {
+        memmove(host, host + 1, len - 2);
+        host[len-2] = 0;
+    }
 }
 
 /***************************************************************************

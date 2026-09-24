@@ -149,7 +149,8 @@ PRIVATE int send_callback(yev_event_h yev_event)
 gbuffer_t *gbuf = gbuffer_create(256, 256);
 gbuffer_append_string(gbuf, "hello");
 yev_event_h ev = yev_create_sendmsg_event(
-    yev_loop, send_callback, gobj, fd, gbuf, (struct sockaddr *)&dst_addr
+    yev_loop, send_callback, gobj, fd, gbuf,
+    (struct sockaddr *)&dst_addr, sizeof(dst_addr)
 );
 yev_start_event(ev);
 ```
@@ -161,6 +162,66 @@ read the freed event (a use-after-free). A callback that did not destroy
 the event was called a second time with result `0`.
 
 The test is `tests/c/yev_loop/yev_events/test_yevent_udp_zerocopy.c`.
+
+(yev-loop-ipv6-peers)=
+## IPv6 peers
+
+A peer address is kept with its real length. An IPv4 address
+(`struct sockaddr_in`) has 16 bytes, an IPv6 address
+(`struct sockaddr_in6`) has 28 bytes:
+
+- `sock_info_t.addr` is a `struct sockaddr_storage`, and
+  `sock_info_t.addrlen` is its length. An accept, connect or recvmsg
+  event keeps its IPv4 or IPv6 address there
+  (`yev_get_sock_info()`).
+- A recvmsg event gives the kernel the full `sockaddr_storage` at each
+  receive. After a receive, `msghdr->msg_namelen` is the length of the
+  peer address.
+- [`yev_create_sendmsg_event()`](<#yev_create_sendmsg_event>) takes the
+  length of the destination address, and gives it to the kernel.
+- The gbuffer keeps the peer with its length:
+  [`gbuffer_setaddr()`](../helpers/gbuffer.md#gbuffer_setaddr),
+  [`gbuffer_getaddr()`](../helpers/gbuffer.md#gbuffer_getaddr),
+  [`gbuffer_getaddrlen()`](../helpers/gbuffer.md#gbuffer_getaddrlen).
+- A url can have an IPv6 literal in brackets: `udp://[::1]:5000`,
+  `tcp://[2001:db8::10]:443`. The loop removes the brackets before it
+  resolves the host.
+
+An echo, as `C_UDP_S` does it. It works for an IPv4 or an IPv6 peer:
+
+```C
+PRIVATE int recv_callback(yev_event_h yev_event)
+{
+    if(yev_get_state(yev_event) == YEV_ST_IDLE) {
+        gbuffer_t *gbuf = yev_get_gbuf(yev_event);
+
+        // The peer, with the length that the kernel gave
+        gbuffer_setaddr(
+            gbuf,
+            yev_event->msghdr->msg_name,
+            yev_event->msghdr->msg_namelen
+        );
+
+        // The address lives in the gbuffer, and the send event holds the gbuffer
+        yev_event_h yev_reply = yev_create_sendmsg_event(
+            yev_get_loop(yev_event), send_callback, gobj, yev_get_fd(yev_event),
+            gbuffer_incref(gbuf),
+            gbuffer_getaddr(gbuf),
+            gbuffer_getaddrlen(gbuf)
+        );
+        yev_start_event(yev_reply);
+    }
+    return 0;
+}
+```
+
+In 7.25.4 and earlier the address was a `struct sockaddr` (16 bytes) in
+`sock_info_t` and in the gbuffer, and a sendmsg event always gave the
+kernel 16 bytes. An accept or connect event refused an IPv6 address, a
+received IPv6 peer was cut to 16 bytes, and the kernel refused a reply to
+it (`-EINVAL`). So `C_UDP_S` could not answer an IPv6 peer.
+
+The test is `tests/c/yev_loop/yev_events/test_yevent_udp_ipv6.c`.
 
 ## Static-build helpers
 
@@ -874,6 +935,14 @@ yev_event_h yev_create_recvmsg_event(
 
 Returns a `yev_event_h` handle to the newly created recvmsg event, or `NULL` on failure.
 
+**Notes**
+
+After a receive, the peer address is in `msghdr->msg_name` (the `addr` of
+`yev_get_sock_info()`, a
+`struct sockaddr_storage`) and its length in `msghdr->msg_namelen`: 16
+bytes for an IPv4 peer, 28 bytes for an IPv6 peer. See
+[IPv6 peers](<#yev-loop-ipv6-peers>).
+
 ---
 
 (yev_create_sendmsg_event)=
@@ -888,7 +957,8 @@ yev_event_h yev_create_sendmsg_event(
     hgobj gobj,
     int fd,
     gbuffer_t *gbuf,
-    struct sockaddr *dst_addr
+    const struct sockaddr *dst_addr,
+    socklen_t dst_addrlen
 );
 ```
 
@@ -901,7 +971,8 @@ yev_event_h yev_create_sendmsg_event(
 | `gobj` | `hgobj` | The associated GObj instance for event handling. |
 | `fd` | `int` | The socket file descriptor to send messages on. |
 | `gbuf` | `gbuffer_t *` | The buffer containing the data to be sent. |
-| `dst_addr` | `struct sockaddr *` | Pointer to the destination socket address. |
+| `dst_addr` | `const struct sockaddr *` | Pointer to the destination socket address. It is not copied: it must live as long as the event (`C_UDP_S` gives the address kept in the gbuffer of the event). |
+| `dst_addrlen` | `socklen_t` | The length of `dst_addr`: `sizeof(struct sockaddr_in)` for IPv4, `sizeof(struct sockaddr_in6)` for IPv6. |
 
 **Returns**
 
@@ -912,6 +983,23 @@ Returns a `yev_event_h` handle to the newly created sendmsg event, or `NULL` on 
 The send is zero-copy when the kernel has it: the callback is called once,
 and the loop frees a destroyed event only after the kernel releases the
 buffer. See [Zero-copy sends](<#yev-loop-zero-copy-sends>).
+
+**BREAKING** in 7.25.5: the `dst_addrlen` parameter is new. Up to 7.25.4 the
+event gave the kernel `sizeof(struct sockaddr)` (16 bytes), and a send to an
+IPv6 address failed with `-EINVAL`. See [IPv6 peers](<#yev-loop-ipv6-peers>).
+
+```C
+struct sockaddr_in6 dst = {0};
+dst.sin6_family = AF_INET6;
+dst.sin6_addr = in6addr_loopback;
+dst.sin6_port = htons(5000);
+
+yev_event_h ev = yev_create_sendmsg_event(
+    yev_loop, send_callback, gobj, fd, gbuf,
+    (struct sockaddr *)&dst, sizeof(dst)
+);
+yev_start_event(ev);
+```
 
 ---
 

@@ -491,7 +491,7 @@ PRIVATE int write_data(hgobj gobj)
     uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level & TRACE_TRAFFIC) {
         struct sockaddr *addr = gbuffer_getaddr(gbuf);
-        char peername[60];
+        char peername[80];
         print_socket_address(peername, sizeof(peername), addr);
         gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
             gobj_short_name(gobj),
@@ -528,15 +528,14 @@ PRIVATE int write_data(hgobj gobj)
          *  Transmit
          */
         int fd =yev_get_fd(priv->yev_server_udp);
-        struct sockaddr *addr = gbuffer_getaddr(gbuf);
-
         yev_event_h yev_write_event = yev_create_sendmsg_event(
             yuno_event_loop(),
             yev_callback,
             gobj,
             fd,
             gbuffer_incref(gbuf),
-            addr
+            gbuffer_getaddr(gbuf),      // it lives in the gbuffer, held by the event
+            gbuffer_getaddrlen(gbuf)
         );
 
         priv->tx_in_progress++;
@@ -802,7 +801,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         json_decref(jn_flags);
     }
 
-    char peername[60];
+    char peername[80];
     if(trace_level) {
         print_socket_address(peername, sizeof(peername), yev_event->msghdr->msg_name);
     } else {
@@ -818,11 +817,18 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                  *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
                  */
                 gbuffer_t *gbuf = yev_get_gbuf(yev_event);
-                if(gbuf) {
-                    gbuffer_setaddr(gbuf, yev_event->msghdr->msg_name);
-                }
 
                 if(yev_state == YEV_ST_IDLE) {
+                    /*
+                     *  The peer, with the length the kernel gave: an answer
+                     *  written in this gbuffer goes back to it (write_data)
+                     */
+                    gbuffer_setaddr(
+                        gbuf,
+                        yev_event->msghdr->msg_name,
+                        yev_event->msghdr->msg_namelen
+                    );
+
                     /*
                      *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
                      */

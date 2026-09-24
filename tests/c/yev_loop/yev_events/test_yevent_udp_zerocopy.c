@@ -175,7 +175,8 @@ PRIVATE yev_event_h create_send(int fd, struct sockaddr_in *addr, size_t size, c
         NULL,   // gobj
         fd,
         gbuf,   // owned by the event
-        (struct sockaddr *)addr
+        (struct sockaddr *)addr,
+        sizeof(*addr)
     );
 }
 

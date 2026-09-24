@@ -1551,7 +1551,7 @@ it by hand, run the script.
 
 24. [**`yev_create_recvmsg_event`**](yev_loop/yev_loop.md#yev_create_recvmsg_event) — `PUBLIC yev_event_h yev_create_recvmsg_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, gbuffer_t *gbuf )`
 
-25. [**`yev_create_sendmsg_event`**](yev_loop/yev_loop.md#yev_create_sendmsg_event) — `PUBLIC yev_event_h yev_create_sendmsg_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, gbuffer_t *gbuf, struct sockaddr *dst_addr )`
+25. [**`yev_create_sendmsg_event`**](yev_loop/yev_loop.md#yev_create_sendmsg_event) — `PUBLIC yev_event_h yev_create_sendmsg_event( yev_loop_h yev_loop, yev_callback_t callback, hgobj gobj, int fd, gbuffer_t *gbuf, const struct sockaddr *dst_addr, socklen_t dst_addrlen )`
 
 26. [**`yev_event_type_name`**](yev_loop/yev_loop.md#yev_event_type_name) — `PUBLIC const char *yev_event_type_name(yev_event_h yev_event)`
 

@@ -430,6 +430,119 @@ This function is useful when using [`gbuffer_t`](#gbuffer_t) as a write buffer. 
 
 ---
 
+(gbuffer_setaddr)=
+## `gbuffer_setaddr()`
+
+`gbuffer_setaddr()` keeps a peer address in the [`gbuffer_t *`](#gbuffer_t), with its length. `C_UDP_S` keeps there the address of the peer that sent the datagram, and sends an answer written in the same gbuffer back to it.
+
+```C
+static inline int gbuffer_setaddr(
+    gbuffer_t *gbuf,
+    const struct sockaddr *addr,
+    socklen_t addrlen
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gbuf` | `gbuffer_t *` | The gbuffer that keeps the address. |
+| `addr` | `const struct sockaddr *` | The address: a `struct sockaddr_in` (IPv4), a `struct sockaddr_in6` (IPv6), or any other address that fits in a `struct sockaddr_storage`. It is copied. |
+| `addrlen` | `socklen_t` | The length of `addr`. |
+
+**Returns**
+
+Returns `0` on success. If `gbuf` or `addr` is `NULL`, or `addrlen` is `0` or bigger than `sizeof(struct sockaddr_storage)`, an error is logged and `-1` is returned.
+
+**Notes**
+
+**BREAKING** in 7.25.5: the `addrlen` parameter is new, and the gbuffer keeps a `struct sockaddr_storage`. Up to 7.25.4 it kept a `struct sockaddr` (16 bytes), too small for an IPv6 address (28 bytes).
+
+```C
+// A datagram received with a recvmsg event: keep its peer
+gbuffer_setaddr(gbuf, yev_event->msghdr->msg_name, yev_event->msghdr->msg_namelen);
+
+// An address made by hand
+struct sockaddr_in6 dst = {0};
+dst.sin6_family = AF_INET6;
+dst.sin6_addr = in6addr_loopback;
+dst.sin6_port = htons(5000);
+gbuffer_setaddr(gbuf, (struct sockaddr *)&dst, sizeof(dst));
+```
+
+---
+
+(gbuffer_getaddr)=
+## `gbuffer_getaddr()`
+
+`gbuffer_getaddr()` returns the peer address kept in the [`gbuffer_t *`](#gbuffer_t) by [`gbuffer_setaddr()`](#gbuffer_setaddr).
+
+```C
+static inline struct sockaddr *gbuffer_getaddr(
+    gbuffer_t *gbuf
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gbuf` | `gbuffer_t *` | The gbuffer. |
+
+**Returns**
+
+A pointer to the address inside the gbuffer. It is valid while the gbuffer lives. Its length is [`gbuffer_getaddrlen()`](#gbuffer_getaddrlen).
+
+**Notes**
+
+Use it with its length, never alone:
+
+```C
+yev_event_h yev_reply = yev_create_sendmsg_event(
+    yev_loop, callback, gobj, fd,
+    gbuffer_incref(gbuf),       // the event holds the gbuffer, and so the address
+    gbuffer_getaddr(gbuf),
+    gbuffer_getaddrlen(gbuf)
+);
+
+char peername[80];
+print_socket_address(peername, sizeof(peername), gbuffer_getaddr(gbuf));
+```
+
+---
+
+(gbuffer_getaddrlen)=
+## `gbuffer_getaddrlen()`
+
+`gbuffer_getaddrlen()` returns the length of the peer address kept in the [`gbuffer_t *`](#gbuffer_t).
+
+```C
+static inline socklen_t gbuffer_getaddrlen(
+    gbuffer_t *gbuf
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gbuf` | `gbuffer_t *` | The gbuffer. |
+
+**Returns**
+
+The length given to [`gbuffer_setaddr()`](#gbuffer_setaddr): 16 for an IPv4 address, 28 for an IPv6 address. `0` when no address is set.
+
+**Notes**
+
+```C
+if(gbuffer_getaddrlen(gbuf) == sizeof(struct sockaddr_in6)) {
+    // an IPv6 peer
+}
+```
+
+---
+
 (gbuffer_setlabel)=
 ## [`gbuffer_setlabel()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gbuffer.c#L539)
 

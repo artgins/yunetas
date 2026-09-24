@@ -113,7 +113,7 @@ typedef struct yev_event_s yev_event_t;
 typedef yev_event_t *yev_event_h;
 
 typedef struct {
-    struct sockaddr addr;
+    struct sockaddr_storage addr;   // IPv4 or IPv6 (up to 7.25.4 a struct sockaddr: IPv4 only)
     socklen_t addrlen;
     int ai_family;              // default: AF_UNSPEC,  Allow IPv4 or IPv6
     int ai_flags;               // default: AI_V4MAPPED | AI_ADDRCONFIG
@@ -409,7 +409,8 @@ PUBLIC yev_event_h yev_create_sendmsg_event(
     hgobj gobj,
     int fd,
     gbuffer_t *gbuf,
-    struct sockaddr *dst_addr
+    const struct sockaddr *dst_addr, // not copied: it must live as long as the event
+    socklen_t dst_addrlen   // sizeof(struct sockaddr_in) or sizeof(struct sockaddr_in6)
 );
 
 PUBLIC const char *yev_event_type_name(yev_event_h yev_event);

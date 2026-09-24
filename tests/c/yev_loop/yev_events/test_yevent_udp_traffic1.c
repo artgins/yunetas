@@ -98,7 +98,8 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                         NULL,   // gobj
                         yev_get_fd(yev_event),
                         gbuffer_incref(gbuf_rx),
-                        &sock_info->addr
+                        (struct sockaddr *)&sock_info->addr,
+                        sock_info->addrlen
                     );
                     yev_start_event(yev_response);
 

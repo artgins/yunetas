@@ -34,7 +34,8 @@ typedef struct gbuffer_s {
 
     char *label;                /* like user_data */
     size_t mark;                /* like user_data */
-    struct sockaddr addr;       /* like user_data, mainly to use in udp */
+    struct sockaddr_storage addr;   /* like user_data, mainly to use in udp: the peer */
+    socklen_t addrlen;          /* length of addr, 0 when no address is set */
 
     size_t data_size;           /* nº bytes allocated for data */
     size_t max_memory_size;     /* maximum size in memory */
@@ -298,14 +299,42 @@ static inline size_t gbuffer_getmark(gbuffer_t *gbuf)
     return gbuf->mark;
 }
 
-static inline void gbuffer_setaddr(gbuffer_t *gbuf, struct sockaddr *addr)
+/*
+ *  The peer address of the data (UDP), with its length: a struct sockaddr
+ *  holds an IPv4 address only, an IPv6 one needs 28 bytes.
+ *  Up to 7.25.4 the gbuffer kept a struct sockaddr (16 bytes) and no length.
+ */
+static inline int gbuffer_setaddr(
+    gbuffer_t *gbuf,
+    const struct sockaddr *addr,
+    socklen_t addrlen
+)
 {
-    gbuf->addr = *addr;
+    if(!gbuf || !addr || addrlen == 0 || addrlen > sizeof(gbuf->addr)) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "gbuffer_setaddr() with NULL gbuf or a bad address",
+            "gbuf",         "%p", gbuf,
+            "addr",         "%p", addr,
+            "addrlen",      "%d", (int)addrlen,
+            NULL
+        );
+        return -1;
+    }
+    memcpy(&gbuf->addr, addr, addrlen);
+    gbuf->addrlen = addrlen;
+    return 0;
 }
 
 static inline struct sockaddr *gbuffer_getaddr(gbuffer_t *gbuf)
 {
-    return &gbuf->addr;
+    return (struct sockaddr *)&gbuf->addr;
+}
+
+static inline socklen_t gbuffer_getaddrlen(gbuffer_t *gbuf)
+{
+    return gbuf->addrlen;
 }
 
 PUBLIC int gbuf2file(
