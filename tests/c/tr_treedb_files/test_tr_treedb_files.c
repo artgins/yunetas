@@ -1924,8 +1924,7 @@ PRIVATE int test_replica_writes_nothing(const char *path_root)
  *  file column. A tagged record whose content could not be read "held
  *  nothing", and a topic whose walk did not load was skipped: the gc took
  *  the blob a snapshot needs, and so did a delete of the asset -- the
- *  bytes are gone for good (M2 of the 2026-09-23 independent review of
- *  7.25.4). The node and instance guards were made to fail closed for the
+ *  bytes are gone for good (7.25.4). The node and instance guards were made to fail closed for the
  *  same case in b5625fdeb; this one was not.
  *
  *  Self-contained (own database): the content of the device is cut

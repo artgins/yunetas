@@ -581,7 +581,7 @@ PRIVATE int phase_snap_freezes_the_layout(json_t *tranger, const char *treedb_na
  *  the new one (saved). When the second save failed, the old snap stayed
  *  deactivated: the treedb was left with no active snap, and the next
  *  load went to the latest instances instead of the snap the operator had
- *  (L1 of the 2026-09-23 independent review of 7.25.4).
+ *  (7.25.4).
  *
  *  Self-contained (own database): the md2 of the new snap is made
  *  read-only behind treedb's back, so its save cannot open it.

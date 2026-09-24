@@ -245,8 +245,7 @@ PRIVATE void test_version_cmp(void)
  ***************************************************************************/
 /***************************************************************************
  *  save_json_to_file(): every failure leaves a trace. With create=FALSE a
- *  missing directory answered -1 and logged nothing (L5 of the C_NODE /
- *  C_AUTHZ part of the 2026-09-23 independent review).
+ *  missing directory answered -1 and logged nothing.
  ***************************************************************************/
 PRIVATE int s_errors = 0;
 

@@ -245,7 +245,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
 
-    /*  L-2: departments' store directory removed, v2 changes it: nothing
+    /*  GONE: departments' store directory removed, v2 changes it: nothing
      *  withdrawn, nothing said; the topic is created again  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -360,7 +360,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Cannot write a record of saved_schemas/",
     "Schema applied",
 
-    /*  M1: a snapshot holds departments; v2 leaves it (unfinished), the
+    /*  UNF: a snapshot holds departments; v2 leaves it (unfinished), the
      *  operator adds users.email; the retry replaces it and SAYS so; a
      *  column added to departments; once the snapshot is gone the
      *  projection completes and says departments  */
@@ -388,7 +388,7 @@ PRIVATE const char *expected_log_msgs[] = {
     M_REMOVED,
     M_WITHDREW,
 
-    /*  M2 imposed: v1 with groups, a snapshot, v2 without (unfinished),
+    /*  LEFT imposed: v1 with groups, a snapshot, v2 without (unfinished),
      *  snapshot gone, v2 again: completed, groups not reported  */
     "Creating __timeranger2__.json",
     "impose_c_schema forced by the code of the yuno, over the attribute",
@@ -412,7 +412,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Updating TreeDB schema in __system__",
     M_REMOVED,
 
-    /*  M2 dynamic: the same, then a NEWER literal v3 once the snapshot is
+    /*  LEFT dynamic: the same, then a NEWER literal v3 once the snapshot is
      *  gone: groups goes, not reported  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -433,7 +433,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
 
-    /*  L1: users applied, delete-treedb, seeded from the file (behind),
+    /*  SEED0: users applied, delete-treedb, seeded from the file (behind),
      *  drafts, then the file itself as the literal: nothing projected  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -447,7 +447,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
 
-    /*  L3: users applied and run, a crashed record, departments applied,
+    /*  APCR: users applied and run, a crashed record, departments applied,
      *  v4: users "in_use", departments "applied"  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -472,7 +472,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
 
-    /*  L4: delete-treedb, a file whose column has a flag the meta-schema
+    /*  SEEDF: delete-treedb, a file whose column has a flag the meta-schema
      *  refuses (the store refuses the topic too): the seed fails, is
      *  recorded, retried at the next open; the file fixed, completed  */
     "Creating __timeranger2__.json",
@@ -499,7 +499,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
 
-    /*  L6: a literal refused by C_TREEDB (hook and fkey), then a schema
+    /*  FAIL: a literal refused by C_TREEDB (hook and fkey), then a schema
      *  file with no topics: treedb_open_db() fails, the open answers -1
      *  (and nothing else: C_NODE neither sets the callback of a treedb
      *  that never opened nor closes it)  */
@@ -515,7 +515,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "No topics found",
 
-    /*  M1b: a snapshot holds departments, v2 leaves it (unfinished), the
+    /*  UNF2: a snapshot holds departments, v2 leaves it (unfinished), the
      *  operator adds departments.budget; a retry that cannot finish keeps
      *  it a draft and says nothing; the open that removes it says it  */
     "Creating __timeranger2__.json",
@@ -538,7 +538,7 @@ PRIVATE const char *expected_log_msgs[] = {
     M_REMOVED,
     M_WITHDREW,
 
-    /*  M2b on a removed topic (tw_m2r): the draft on departments stays a
+    /*  KEEP on a removed topic (tw_m2r): the draft on departments stays a
      *  draft through two refused deletes, and is said once, by the open
      *  that removes it  */
     "Creating __timeranger2__.json",
@@ -561,7 +561,7 @@ PRIVATE const char *expected_log_msgs[] = {
     M_REMOVED,
     M_WITHDREW,
 
-    /*  M2b on a kept topic (tw_m2c): users.budget and departments are
+    /*  KEEP on a kept topic (tw_m2c): users.budget and departments are
      *  both refused; users is said once, by the open that removes it  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -585,7 +585,7 @@ PRIVATE const char *expected_log_msgs[] = {
     M_REMOVED,
     M_WITHDREW,
 
-    /*  L1b: the record is torn: every read of it says so (saved-schema
+    /*  TORN: the record is torn: every read of it says so (saved-schema
      *  reads it twice, save-schema and the next open once); the retry
      *  writes it again; with no leftovers known, the open that completes
      *  it reports departments  */
@@ -613,7 +613,7 @@ PRIVATE const char *expected_log_msgs[] = {
     M_REMOVED,
     M_WITHDREW,
 
-    /*  L2b: first open, projected whole  */
+    /*  STAMP: first open, projected whole  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
@@ -622,7 +622,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
 
-    /*  L3b + L4b: a schema file with no topics: the open fails, the
+    /*  FAIL2 + YUNO: a schema file with no topics: the open fails, the
      *  second one is refused up front, delete-treedb is refused, and
      *  close-treedb logs nothing  */
     "Creating __timeranger2__.json",
@@ -633,7 +633,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "No topics found",
 
-    /*  N7 unsaved (tw_n7u): the operator deletes departments; a newer
+    /*  DEL unsaved (tw_n7u): the operator deletes departments; a newer
      *  literal re-creates it and says it  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -646,7 +646,7 @@ PRIVATE const char *expected_log_msgs[] = {
     M_WITHDREW,
     "Re-Creating TreeDB schema file",
 
-    /*  N7 saved (tw_n7s): the same, with the deletion saved  */
+    /*  DEL saved (tw_n7s): the same, with the deletion saved  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
@@ -659,7 +659,7 @@ PRIVATE const char *expected_log_msgs[] = {
     M_WITHDREW,
     "Re-Creating TreeDB schema file",
 
-    /*  N1: delete-treedb, a seed that died (node 0/0): the next open
+    /*  EMPTY: delete-treedb, a seed that died (node 0/0): the next open
      *  completes it; save-schema and apply-schema refuse no topics  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -672,7 +672,7 @@ PRIVATE const char *expected_log_msgs[] = {
     M_NO_TOPICS_SAVE,
     M_NO_TOPICS_APPLY,
 
-    /*  N4: a saved draft on departments, the delete refused: the first
+    /*  SAVRM: a saved draft on departments, the delete refused: the first
      *  open says the saved schema; the one that completes says the
      *  draft, "saved"  */
     "Creating __timeranger2__.json",

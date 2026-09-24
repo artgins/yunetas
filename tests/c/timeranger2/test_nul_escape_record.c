@@ -4,11 +4,13 @@
  *  A record with a string that holds NUL characters. An append writes it
  *  with json_dumps(), which writes each NUL of a string as the escape
  *  "\u0000": the content file has no NUL byte inside the record, only the
- *  one after it. Jansson reads "\u0000" only with JSON_ALLOW_NUL. Up to
+ *  one after it. Jansson reads "\u0000" only with JSON_ALLOW_NUL. In
  *  7.25.4 the read of a record did not give that flag: the append took
- *  such a record, and no read could read it back (a CRITICAL "Bad data",
- *  and the list said load_failed). The check of a torn md2 tail did not
- *  give it either: a torn row after such a record was flagged, not cut.
+ *  such a record, and every read of it failed (a CRITICAL "Bad data,
+ *  anystring2json() FAILED.") and handed the record to the callback as
+ *  NULL. The check of a torn md2 tail, new after 7.25.4, gives the flag
+ *  too: without it a torn row after such a record would be flagged, not
+ *  cut.
  *
  *  What an append takes, a read reads back:
  *      1. a master appends records with NULs in a string: the list hands

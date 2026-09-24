@@ -2050,7 +2050,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*
      *  Only the column this command changes. The node read above is a VIEW:
      *  its hidden `credentials` come as a null mask, and writing that view
-     *  back erased the local password (HIGH of the 2026-09-23 review).
+     *  back erased the local password (7.25.4 and earlier, since 55266cbb5).
      */
     user = gobj_update_node(
         priv->gobj_treedb,
@@ -2130,7 +2130,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     /*
      *  Only the column this command changes. The node read above is a VIEW:
      *  its hidden `credentials` come as a null mask, and writing that view
-     *  back erased the local password (HIGH of the 2026-09-23 review).
+     *  back erased the local password (7.25.4 and earlier, since 55266cbb5).
      */
     user = gobj_update_node(
         priv->gobj_treedb,
@@ -2742,7 +2742,7 @@ PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hg
         /*
          *  Only the column this command changes: the view read above masks
          *  the hidden `credentials` as null, and writing it back erased the
-         *  local password (HIGH of the 2026-09-23 review).
+         *  local password (7.25.4 and earlier, since 55266cbb5).
          */
         json_t *updated = gobj_update_node(
             priv->gobj_treedb,

@@ -31,15 +31,11 @@
  *      4. The store of 3 with a record of dev1 whose pkey2 is empty in its
  *         first file (read by the forward load) and another in its last
  *         file (read only by the backward reload). Both are dropped, and
- *         "Records NOT loaded, 'pkey2' empty" says 2: it said 1, because
- *         the count of the forward load was put back after the reload.
+ *         "Records NOT loaded, 'pkey2' empty" says 2.
  *      5. The md2 of dev1's new message ends in a part of a row (a power
  *         cut during the write of a row). That is an append that was never
  *         acknowledged, not damage: the md2 is cut back with one warning,
- *         dev1 is whole, and its next message is stored and served. Since
- *         7.25.4 (unreleased work) it was damage, and every new message of
- *         dev1 was refused until the period changed -- a year for the
- *         alarms of the projects ("filename_mask": "%Y").
+ *         dev1 is whole, and its next message is stored and served.
  *
  *  Cases 2, 3 and 4 make a md2 unreadable with mode 000: they are skipped
  *  as root, who reads it anyway.

@@ -567,7 +567,7 @@ PRIVATE int test_durable_delete_across_reopen(void)
  *  a one-shot iterator of the key. It ignored the iterator's load_failed:
  *  a read that stopped half way tombstoned what it had read (or nothing),
  *  dropped the secondary slot, answered 0 -- and the instance came back at
- *  the next open (M1 of the 2026-09-23 independent review of 7.25.4). And a
+ *  the next open (7.25.4). And a
  *  row whose CONTENT could not be read was taken, silently, as a row of
  *  another instance.
  *

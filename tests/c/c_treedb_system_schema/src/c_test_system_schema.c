@@ -5492,8 +5492,7 @@ PRIVATE int run_tests(hgobj gobj)
      *  projected, over the draft, and a warning says
      *  the draft went. Judged by __system__'s 10 it was
      *  "behind", never projected, and the next save put
-     *  the draft back over it (the second medium of M36,
-     *  2026-09-23 review). Its topics land, and the
+     *  the draft back over it. Its topics land, and the
      *  treedb's schema_version stays 10: a number of
      *  __system__ never goes down. Then 11 lands as
      *  usual, under its own number. Nobody invents one.

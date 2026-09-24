@@ -3192,9 +3192,8 @@ PRIVATE json_t *cmd_apply_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
 /***************************************************************************
  *  apply-schema with no `treedb_name`: every treedb opened here whose saved
- *  schema can be applied, ALL OR NONE UP TO THE RENAMES (M2 of the
- *  2026-09-23 review). Phase 3 below can be partial, and each row's
- *  `applied` is what says so.
+ *  schema can be applied, ALL OR NONE UP TO THE RENAMES. Phase 3 below can be
+ *  partial, and each row's `applied` is what says so.
  *
  *  It applied them one by one: A replaced, B refused, answer -1 -- and a
  *  console that reads -1 as "nothing happened" did not restart, so A went

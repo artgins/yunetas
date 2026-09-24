@@ -1025,7 +1025,7 @@ PRIVATE int scenario_imposed_removed_topic(hgobj gobj)
 }
 
 /***************************************************************************
- *  L-2: a topic whose store directory is gone (its topic_var.json with it)
+ *  GONE: a topic whose store directory is gone (its topic_var.json with it)
  *  is no APPLIED topic: nobody applied anything. Inferred from the file's
  *  topic_version being above the store's -- 0 for a topic with no
  *  topic_var.json -- it would read as "applied". The literal changes it:
@@ -1055,8 +1055,8 @@ PRIVATE int scenario_missing_topic_dir_is_no_apply(hgobj gobj)
         )), FALSE) < 0) {
         return result - 1;
     }
-    result += check_agree(gobj, db, "TEST FAIL: L-2, a topic whose directory is gone");
-    result += check_withdrawn(gobj, db, "TEST FAIL: L-2, a topic with no topic_var.json read as applied",
+    result += check_agree(gobj, db, "TEST FAIL: GONE, a topic whose directory is gone");
+    result += check_withdrawn(gobj, db, "TEST FAIL: GONE, a topic with no topic_var.json read as applied",
         0, json_object());
     close_db(gobj, db);
     return result;
@@ -1545,7 +1545,7 @@ PRIVATE int write_schema_file(hgobj gobj, const char *treedb_name, json_t *jn_sc
 }
 
 /***************************************************************************
- *  M1 + L2: an operator's work in __system__ while a projection is
+ *  UNF: an operator's work in __system__ while a projection is
  *  unfinished. The leftover (departments, held by a snapshot) is nobody's
  *  draft: saved-schema does not name it in `draft_changed`, and nothing
  *  withdraws it. The column the operator ADDS to users meanwhile is a
@@ -1573,11 +1573,11 @@ PRIVATE int scenario_draft_while_unfinished(hgobj gobj)
         return result - 1;
     }
     result += check_draft_changed(gobj, db,
-        "TEST FAIL: M1/L2, the leftover of an unfinished projection reads as a draft", json_object());
+        "TEST FAIL: UNF, the leftover of an unfinished projection reads as a draft", json_object());
 
     result += add_draft_col(gobj, db, "users", "email");
     result += check_draft_changed(gobj, db,
-        "TEST FAIL: M1/L2, the operator's column is not the only draft",
+        "TEST FAIL: UNF, the operator's column is not the only draft",
         json_pack("{s:b}", "users", 1));
     close_db(gobj, db);
 
@@ -1588,10 +1588,10 @@ PRIVATE int scenario_draft_while_unfinished(hgobj gobj)
     }
     if(system_has_col(gobj, db, "users", "email")) {
         result += test_fail(gobj, db,
-            "TEST FAIL: M1, the retry of the projection did not replace the operator's column", NULL);
+            "TEST FAIL: UNF, the retry of the projection did not replace the operator's column", NULL);
     }
     result += check_withdrawn(gobj, db,
-        "TEST FAIL: M1, the operator's column went and nothing said it",
+        "TEST FAIL: UNF, the operator's column went and nothing said it",
         0, json_pack("{s:s}", "users", "unsaved"));
     close_db(gobj, db);
 
@@ -1605,7 +1605,7 @@ PRIVATE int scenario_draft_while_unfinished(hgobj gobj)
     }
     result += add_draft_col(gobj, db, "departments", "budget");
     result += check_draft_changed(gobj, db,
-        "TEST FAIL: M1, a column added to a leftover topic is not a draft",
+        "TEST FAIL: UNF, a column added to a leftover topic is not a draft",
         json_pack("{s:b}", "departments", 1));
     close_db(gobj, db);
 
@@ -1615,16 +1615,16 @@ PRIVATE int scenario_draft_while_unfinished(hgobj gobj)
         )), FALSE) < 0) {
         return result - 1;
     }
-    result += check_agree(gobj, db, "TEST FAIL: M1, the projection was not completed");
+    result += check_agree(gobj, db, "TEST FAIL: UNF, the projection was not completed");
     result += check_withdrawn(gobj, db,
-        "TEST FAIL: M1, completing the projection did not say the column added to the leftover",
+        "TEST FAIL: UNF, completing the projection did not say the column added to the leftover",
         0, json_pack("{s:s}", "departments", "unsaved"));
     close_db(gobj, db);
     return result;
 }
 
 /***************************************************************************
- *  M2: the leftovers of an unfinished projection are not withdrawn work on
+ *  LEFT: the leftovers of an unfinished projection are not withdrawn work on
  *  ANY path: the imposed retry, and a NEWER literal that arrives while the
  *  projection is unfinished. Both reported the leftover `groups` as
  *  "unsaved" once the snapshot was gone.
@@ -1649,7 +1649,7 @@ PRIVATE int scenario_leftovers_on_every_path(hgobj gobj)
             )), imposed) < 0) {
             return result - 1;
         }
-        result += check_withdrawn(gobj, db, "TEST FAIL: M2, an unfinished projection withdrew work",
+        result += check_withdrawn(gobj, db, "TEST FAIL: LEFT, an unfinished projection withdrew work",
             0, json_object());
         close_db(gobj, db);
 
@@ -1663,11 +1663,11 @@ PRIVATE int scenario_leftovers_on_every_path(hgobj gobj)
             return result - 1;
         }
         if(system_has_topic(gobj, db, "groups")) {
-            result += test_fail(gobj, db, "TEST FAIL: M2, the leftover is still in __system__", NULL);
+            result += test_fail(gobj, db, "TEST FAIL: LEFT, the leftover is still in __system__", NULL);
         }
         result += check_withdrawn(gobj, db,
-            imposed? "TEST FAIL: M2, the imposed retry reported the leftover as withdrawn work" :
-                "TEST FAIL: M2, a newer literal reported the leftover as withdrawn work",
+            imposed? "TEST FAIL: LEFT, the imposed retry reported the leftover as withdrawn work" :
+                "TEST FAIL: LEFT, a newer literal reported the leftover as withdrawn work",
             0, json_object());
         close_db(gobj, db);
     }
@@ -1675,7 +1675,7 @@ PRIVATE int scenario_leftovers_on_every_path(hgobj gobj)
 }
 
 /***************************************************************************
- *  L1: a projection whose c_schema_version is 0 because it was SEEDED from
+ *  SEED0: a projection whose c_schema_version is 0 because it was SEEDED from
  *  a dynamic file (not because anything was left unfinished), then the
  *  developer takes that file into C, same schema_version. Nothing is
  *  installed, nothing is projected: the operator's drafts stay, nothing is
@@ -1698,7 +1698,7 @@ PRIVATE int scenario_seed_is_not_unfinished(hgobj gobj)
 
     json_t *jn_resp = treedb_cmd(gobj, db, "delete-treedb", json_pack("{s:b}", "force", 1));
     if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
-        result += test_fail(gobj, db, "TEST FAIL: L1, delete-treedb", json_incref(jn_resp));
+        result += test_fail(gobj, db, "TEST FAIL: SEED0, delete-treedb", json_incref(jn_resp));
     }
     JSON_DECREF(jn_resp)
 
@@ -1716,23 +1716,22 @@ PRIVATE int scenario_seed_is_not_unfinished(hgobj gobj)
         return result - 1;
     }
     if(!system_has_col(gobj, db, "users", "phone")) {
-        result += test_fail(gobj, db, "TEST FAIL: L1, the operator's column went", NULL);
+        result += test_fail(gobj, db, "TEST FAIL: SEED0, the operator's column went", NULL);
     }
-    result += check_header(gobj, db, "TEST FAIL: L1, the operator's header draft was overwritten",
+    result += check_header(gobj, db, "TEST FAIL: SEED0, the operator's header draft was overwritten",
         "users", "username", "Operator user", "Operator user", "Draft header");
-    result += check_withdrawn(gobj, db, "TEST FAIL: L1, a literal equal to the file withdrew work",
+    result += check_withdrawn(gobj, db, "TEST FAIL: SEED0, a literal equal to the file withdrew work",
         0, json_object());
     close_db(gobj, db);
     return result;
 }
 
 /***************************************************************************
- *  L3: the process died between the record of an apply and its rename.
+ *  APCR: the process died between the record of an apply and its rename.
  *  The record on disk is then of the apply that never happened, and its
  *  `previous` is the record of the file still in use (an apply that RAN).
  *  The next apply must keep the topics of that one: a newer literal then
- *  reports `users` as "in_use". It kept nothing, because it only looked at
- *  the record itself, not at its `previous`.
+ *  reports `users` as "in_use".
  ***************************************************************************/
 PRIVATE int scenario_apply_after_a_crash(hgobj gobj)
 {
@@ -1764,7 +1763,7 @@ PRIVATE int scenario_apply_after_a_crash(hgobj gobj)
     json_t *in_use_record = load_json_from_file(gobj, record_dir, "tw_l3.applied.json", 0);
     json_t *expected_topics = json_pack("{s:s}", "users", "in_use");
     if(!in_use_record || !json_equal(json_object_get(in_use_record, "topics"), expected_topics)) {
-        result += test_fail(gobj, db, "TEST FAIL: L3, the apply that ran is not recorded in_use",
+        result += test_fail(gobj, db, "TEST FAIL: APCR, the apply that ran is not recorded in_use",
             json_incref(in_use_record));
     }
     JSON_DECREF(expected_topics)
@@ -1794,14 +1793,14 @@ PRIVATE int scenario_apply_after_a_crash(hgobj gobj)
         return result - 1;
     }
     result += check_withdrawn(gobj, db,
-        "TEST FAIL: L3, the apply after a crash lost the topics of the apply that ran",
+        "TEST FAIL: APCR, the apply after a crash lost the topics of the apply that ran",
         0, json_pack("{s:s, s:s}", "users", "in_use", "departments", "applied"));
     close_db(gobj, db);
     return result;
 }
 
 /***************************************************************************
- *  L4: a projection SEEDED from the file that fails (here a column with a
+ *  SEEDF: a projection SEEDED from the file that fails (here a column with a
  *  flag the meta-schema does not know). It is recorded as unfinished, so it is
  *  retried at every open and what it wrote is no draft; save-schema
  *  refuses meanwhile. Once the file is right, the next open completes it.
@@ -1838,11 +1837,11 @@ PRIVATE int scenario_failed_seed_is_retried(hgobj gobj)
             return result - 1;
         }
         result += check_draft_changed(gobj, db,
-            "TEST FAIL: L4, the partial projection of a failed seed reads as a draft", json_object());
+            "TEST FAIL: SEEDF, the partial projection of a failed seed reads as a draft", json_object());
         jn_resp = treedb_cmd(gobj, db, "save-schema", json_object());
         if(kw_get_int(gobj, jn_resp, "result", -1, 0) >= 0) {
             result += test_fail(gobj, db,
-                "TEST FAIL: L4, save-schema published a failed seed", json_incref(jn_resp));
+                "TEST FAIL: SEEDF, save-schema published a failed seed", json_incref(jn_resp));
         }
         JSON_DECREF(jn_resp)
         close_db(gobj, db);
@@ -1855,13 +1854,13 @@ PRIVATE int scenario_failed_seed_is_retried(hgobj gobj)
         return result - 1;
     }
     if(!system_has_col(gobj, db, "users", "note")) {
-        result += test_fail(gobj, db, "TEST FAIL: L4, the seed was not completed", NULL);
+        result += test_fail(gobj, db, "TEST FAIL: SEEDF, the seed was not completed", NULL);
     }
     result += check_draft_changed(gobj, db,
-        "TEST FAIL: L4, a completed seed differs from the file", json_object());
+        "TEST FAIL: SEEDF, a completed seed differs from the file", json_object());
     jn_resp = treedb_cmd(gobj, db, "saved-schema", json_object());
     if(json_array_size(kw_get_list(gobj, jn_resp, "data`unfinished_projection", 0, 0)) != 0) {
-        result += test_fail(gobj, db, "TEST FAIL: L4, a completed seed still reads as unfinished",
+        result += test_fail(gobj, db, "TEST FAIL: SEEDF, a completed seed still reads as unfinished",
             json_incref(jn_resp));
     }
     JSON_DECREF(jn_resp)
@@ -1870,7 +1869,7 @@ PRIVATE int scenario_failed_seed_is_retried(hgobj gobj)
 }
 
 /***************************************************************************
- *  L6: an open that fails is never "Treedb opened!". Refused by C_TREEDB
+ *  FAIL: an open that fails is never "Treedb opened!". Refused by C_TREEDB
  *  (the literal has a column both hook and fkey), or by the library
  *  (treedb_open_db() finds no topics in the schema file in use): the
  *  answer is -1 and names the yuno; the second one says what to do.
@@ -1890,7 +1889,7 @@ PRIVATE int scenario_open_that_fails(hgobj gobj)
     snprintf(prefix, sizeof(prefix), "%s:", gobj_yuno_role_plus_name());
     const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
     if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 || strncmp(comment, prefix, strlen(prefix))!=0) {
-        result += test_fail(gobj, db, "TEST FAIL: L6, a refused schema does not name the yuno",
+        result += test_fail(gobj, db, "TEST FAIL: FAIL, a refused schema does not name the yuno",
             json_incref(jn_resp));
     }
     JSON_DECREF(jn_resp)
@@ -1909,7 +1908,7 @@ PRIVATE int scenario_open_that_fails(hgobj gobj)
     comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
     if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 ||
             strncmp(comment, prefix, strlen(prefix))!=0 || !strstr(comment, "close-treedb")) {
-        result += test_fail(gobj, db, "TEST FAIL: L6, an open that failed answered as opened",
+        result += test_fail(gobj, db, "TEST FAIL: FAIL, an open that failed answered as opened",
             json_incref(jn_resp));
     }
     JSON_DECREF(jn_resp)
@@ -1955,7 +1954,7 @@ PRIVATE json_t *unfinished_record(hgobj gobj, const char *treedb_name)
 }
 
 /***************************************************************************
- *  M1b: a column the operator adds to the LEFTOVER topic stays a draft
+ *  UNF2: a column the operator adds to the LEFTOVER topic stays a draft
  *  through every retry that cannot finish, and is reported by the open
  *  that removes it. A retry while the snapshot still holds the topic does
  *  not take the column into the record's leftovers: saved-schema goes on
@@ -1977,7 +1976,7 @@ PRIVATE int scenario_draft_on_leftover_across_retries(hgobj gobj)
     }
     result += add_draft_col(gobj, db, "departments", "budget");
     result += check_draft_changed(gobj, db,
-        "TEST FAIL: M1b, a column added to a leftover topic is not a draft",
+        "TEST FAIL: UNF2, a column added to a leftover topic is not a draft",
         json_pack("{s:b}", "departments", 1));
     close_db(gobj, db);
 
@@ -1988,10 +1987,10 @@ PRIVATE int scenario_draft_on_leftover_across_retries(hgobj gobj)
         return result - 1;
     }
     result += check_draft_changed(gobj, db,
-        "TEST FAIL: M1b, a retry that cannot finish took the operator's column for a leftover",
+        "TEST FAIL: UNF2, a retry that cannot finish took the operator's column for a leftover",
         json_pack("{s:b}", "departments", 1));
     result += check_withdrawn(gobj, db,
-        "TEST FAIL: M1b, a retry that removed nothing reported withdrawn work",
+        "TEST FAIL: UNF2, a retry that removed nothing reported withdrawn work",
         0, json_object());
     json_t *record = unfinished_record(gobj, db);
     json_t *leftovers = json_object_get(record, "leftovers");
@@ -1999,7 +1998,7 @@ PRIVATE int scenario_draft_on_leftover_across_retries(hgobj gobj)
     json_array_foreach(leftovers, idx, jn_id) {
         if(strcmp(json_string_value(jn_id)? json_string_value(jn_id) : "", "tw_m1b.departments.budget")==0) {
             result += test_fail(gobj, db,
-                "TEST FAIL: M1b, the record names the operator's column as a leftover",
+                "TEST FAIL: UNF2, the record names the operator's column as a leftover",
                 json_incref(record));
         }
     }
@@ -2011,18 +2010,18 @@ PRIVATE int scenario_draft_on_leftover_across_retries(hgobj gobj)
         return result - 1;
     }
     if(system_has_col(gobj, db, "departments", "budget")) {
-        result += test_fail(gobj, db, "TEST FAIL: M1b, the projection was not completed", NULL);
+        result += test_fail(gobj, db, "TEST FAIL: UNF2, the projection was not completed", NULL);
     }
-    result += check_agree(gobj, db, "TEST FAIL: M1b, the projection was not completed");
+    result += check_agree(gobj, db, "TEST FAIL: UNF2, the projection was not completed");
     result += check_withdrawn(gobj, db,
-        "TEST FAIL: M1b, the operator's column went and nothing said it",
+        "TEST FAIL: UNF2, the operator's column went and nothing said it",
         0, json_pack("{s:s}", "departments", "unsaved"));
     close_db(gobj, db);
     return result;
 }
 
 /***************************************************************************
- *  M2b: the report of a draft does not depend on whether the write that
+ *  KEEP: the report of a draft does not depend on whether the write that
  *  replaces it succeeds. A draft stays a draft while a projection cannot
  *  replace it, and it is reported ONCE, by the open that replaces it.
  *
@@ -2055,10 +2054,10 @@ PRIVATE int scenario_draft_where_the_projection_fails(hgobj gobj)
                 return result - 1;
             }
             result += check_withdrawn(gobj, db,
-                "TEST FAIL: M2b, a draft still in __system__ was reported as withdrawn",
+                "TEST FAIL: KEEP, a draft still in __system__ was reported as withdrawn",
                 0, json_object());
             result += check_draft_changed(gobj, db,
-                "TEST FAIL: M2b, a draft the projection could not replace is no longer a draft",
+                "TEST FAIL: KEEP, a draft the projection could not replace is no longer a draft",
                 json_pack("{s:b}", topic, 1));
             close_db(gobj, db);
         }
@@ -2067,9 +2066,9 @@ PRIVATE int scenario_draft_where_the_projection_fails(hgobj gobj)
         if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
             return result - 1;
         }
-        result += check_agree(gobj, db, "TEST FAIL: M2b, the projection was not completed");
+        result += check_agree(gobj, db, "TEST FAIL: KEEP, the projection was not completed");
         result += check_withdrawn(gobj, db,
-            "TEST FAIL: M2b, the open that replaced the draft did not say it",
+            "TEST FAIL: KEEP, the open that replaced the draft did not say it",
             0, json_pack("{s:s}", topic, "unsaved"));
         close_db(gobj, db);
     }
@@ -2077,7 +2076,7 @@ PRIVATE int scenario_draft_where_the_projection_fails(hgobj gobj)
 }
 
 /***************************************************************************
- *  L1b: a record of an unfinished projection that cannot be read (torn)
+ *  TORN: a record of an unfinished projection that cannot be read (torn)
  *  still says the projection is unfinished: saved-schema answers it,
  *  save-schema refuses, and the next open retries and writes it again.
  ***************************************************************************/
@@ -2101,7 +2100,7 @@ PRIVATE int scenario_unreadable_unfinished_record(hgobj gobj)
         "tw_l1b.unfinished.json", NULL);
     int fd = open(path, O_WRONLY|O_TRUNC);
     if(fd < 0 || write(fd, "{\"schema_version\": 2, \"not_rem", 30) != 30) {
-        result += test_fail(gobj, db, "TEST FAIL: L1b, cannot tear the record", NULL);
+        result += test_fail(gobj, db, "TEST FAIL: TORN, cannot tear the record", NULL);
     }
     if(fd >= 0) {
         close(fd);
@@ -2110,13 +2109,13 @@ PRIVATE int scenario_unreadable_unfinished_record(hgobj gobj)
     json_t *jn_resp = treedb_cmd(gobj, db, "saved-schema", json_object());
     if(json_array_size(kw_get_list(gobj, jn_resp, "data`unfinished_projection", 0, 0)) == 0) {
         result += test_fail(gobj, db,
-            "TEST FAIL: L1b, an unreadable record reads as a finished projection", json_incref(jn_resp));
+            "TEST FAIL: TORN, an unreadable record reads as a finished projection", json_incref(jn_resp));
     }
     JSON_DECREF(jn_resp)
     jn_resp = treedb_cmd(gobj, db, "save-schema", json_object());
     if(kw_get_int(gobj, jn_resp, "result", -1, 0) >= 0) {
         result += test_fail(gobj, db,
-            "TEST FAIL: L1b, save-schema published past an unreadable record", json_incref(jn_resp));
+            "TEST FAIL: TORN, save-schema published past an unreadable record", json_incref(jn_resp));
     }
     JSON_DECREF(jn_resp)
     close_db(gobj, db);
@@ -2130,7 +2129,7 @@ PRIVATE int scenario_unreadable_unfinished_record(hgobj gobj)
     json_t *record = unfinished_record(gobj, db);
     if(!json_is_object(record) || json_array_size(json_object_get(record, "not_removed")) == 0) {
         result += test_fail(gobj, db,
-            "TEST FAIL: L1b, the retry did not write the record again", json_incref(record));
+            "TEST FAIL: TORN, the retry did not write the record again", json_incref(record));
     }
     JSON_DECREF(record)
     close_db(gobj, db);
@@ -2140,21 +2139,21 @@ PRIVATE int scenario_unreadable_unfinished_record(hgobj gobj)
         return result - 1;
     }
     if(system_has_topic(gobj, db, "departments")) {
-        result += test_fail(gobj, db, "TEST FAIL: L1b, the projection was not completed", NULL);
+        result += test_fail(gobj, db, "TEST FAIL: TORN, the projection was not completed", NULL);
     }
-    result += check_agree(gobj, db, "TEST FAIL: L1b, the projection was not completed");
+    result += check_agree(gobj, db, "TEST FAIL: TORN, the projection was not completed");
 
     /*
      *  What the torn record left is unknown: it is taken for a draft, and
      *  reported, never deleted in silence
      */
     result += check_withdrawn(gobj, db,
-        "TEST FAIL: L1b, what a torn record left went and nothing said it",
+        "TEST FAIL: TORN, what a torn record left went and nothing said it",
         0, json_pack("{s:s}", "departments", "unsaved"));
     record = unfinished_record(gobj, db);
     if(record) {
         result += test_fail(gobj, db,
-            "TEST FAIL: L1b, a completed projection left its record", json_incref(record));
+            "TEST FAIL: TORN, a completed projection left its record", json_incref(record));
     }
     JSON_DECREF(record)
     close_db(gobj, db);
@@ -2162,7 +2161,7 @@ PRIVATE int scenario_unreadable_unfinished_record(hgobj gobj)
 }
 
 /***************************************************************************
- *  L2b: the node of a treedb in __system__ is created WITHOUT its numbers
+ *  STAMP: the node of a treedb in __system__ is created WITHOUT its numbers
  *  (schema_version and c_schema_version 0), and stamped last, when the
  *  whole projection is written. 7.25.4 created it with them: a crash
  *  before the topics were written left a projection that said it was of
@@ -2188,11 +2187,11 @@ PRIVATE int scenario_first_projection_stamped_last(hgobj gobj)
             kw_get_int(gobj, first, "schema_version", -1, KW_WILD_NUMBER) != 0 ||
             kw_get_int(gobj, first, "c_schema_version", -1, KW_WILD_NUMBER) != 0) {
         result += test_fail(gobj, db,
-            "TEST FAIL: L2b, the node of the treedb was created with its numbers, before its topics",
+            "TEST FAIL: STAMP, the node of the treedb was created with its numbers, before its topics",
             json_incref(data));
     }
     if(system_c_schema_version(gobj, db) != 1) {
-        result += test_fail(gobj, db, "TEST FAIL: L2b, the complete projection was not stamped",
+        result += test_fail(gobj, db, "TEST FAIL: STAMP, the complete projection was not stamped",
             json_integer(system_c_schema_version(gobj, db)));
     }
     if(iterator) {
@@ -2204,11 +2203,11 @@ PRIVATE int scenario_first_projection_stamped_last(hgobj gobj)
 }
 
 /***************************************************************************
- *  L3b: after an open that failed (treedb_open_db() refused the schema
+ *  FAIL2: after an open that failed (treedb_open_db() refused the schema
  *  file in use), a second open says THAT, not "already open", and the
  *  `treedbs` row says the treedb did not open.
  *
- *  L4b: every answer of open-treedb and close-treedb names the yuno.
+ *  YUNO: every answer of open-treedb and close-treedb names the yuno.
  ***************************************************************************/
 PRIVATE int check_comment_prefix(hgobj gobj, const char *treedb_name, const char *label,
     json_t *jn_resp, const char *must_say) // jn_resp owned
@@ -2237,7 +2236,7 @@ PRIVATE int scenario_failed_open_says_so(hgobj gobj)
 
     json_t *jn_resp = open_db_resp(gobj, db, users_only_v2(db));
     if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0) {
-        result += test_fail(gobj, db, "TEST FAIL: L3b, a failed open answered as opened",
+        result += test_fail(gobj, db, "TEST FAIL: FAIL2, a failed open answered as opened",
             json_incref(jn_resp));
     }
     JSON_DECREF(jn_resp)
@@ -2249,18 +2248,18 @@ PRIVATE int scenario_failed_open_says_so(hgobj gobj)
      */
     hgobj gobj_node = gobj_find_service(db, FALSE);
     if(!gobj_node) {
-        result += test_fail(gobj, db, "TEST FAIL: L3b, no C_NODE after the failed open", NULL);
+        result += test_fail(gobj, db, "TEST FAIL: FAIL2, no C_NODE after the failed open", NULL);
     } else {
         gobj_write_bool_attr(gobj_node, "with_link_events", TRUE);
     }
 
     jn_resp = open_db_resp(gobj, db, users_only_v2(db));
     if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0) {
-        result += test_fail(gobj, db, "TEST FAIL: L3b, a second open was accepted",
+        result += test_fail(gobj, db, "TEST FAIL: FAIL2, a second open was accepted",
             json_incref(jn_resp));
     }
     result += check_comment_prefix(gobj, db,
-        "TEST FAIL: L3b, the second open does not say that the first one failed",
+        "TEST FAIL: FAIL2, the second open does not say that the first one failed",
         jn_resp, "did not open");
 
     json_t *jn_rows = gobj_command(priv->gobj_treedbs, "treedbs", json_object(), gobj);
@@ -2272,7 +2271,7 @@ PRIVATE int scenario_failed_open_says_so(hgobj gobj)
         }
     }
     if(!row_found || !json_is_false(json_object_get(row_found, "opened"))) {
-        result += test_fail(gobj, db, "TEST FAIL: L3b, the treedbs row does not say it did not open",
+        result += test_fail(gobj, db, "TEST FAIL: FAIL2, the treedbs row does not say it did not open",
             json_incref(jn_rows));
     }
     JSON_DECREF(jn_rows)
@@ -2283,11 +2282,11 @@ PRIVATE int scenario_failed_open_says_so(hgobj gobj)
      */
     jn_resp = treedb_cmd(gobj, db, "delete-treedb", json_pack("{s:b}", "force", 1));
     if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0) {
-        result += test_fail(gobj, db, "TEST FAIL: L3b, delete-treedb of a treedb that did not open",
+        result += test_fail(gobj, db, "TEST FAIL: FAIL2, delete-treedb of a treedb that did not open",
             json_incref(jn_resp));
     }
     result += check_comment_prefix(gobj, db,
-        "TEST FAIL: L3b, delete-treedb does not say the treedb did not open",
+        "TEST FAIL: FAIL2, delete-treedb does not say the treedb did not open",
         jn_resp, "did not open");
 
     /*
@@ -2296,28 +2295,28 @@ PRIVATE int scenario_failed_open_says_so(hgobj gobj)
      */
     jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
         json_pack("{s:s, s:b}", "treedb_name", db, "force", 1), gobj);
-    result += check_comment_prefix(gobj, db, "TEST FAIL: L4b, close-treedb does not name the yuno",
+    result += check_comment_prefix(gobj, db, "TEST FAIL: YUNO, close-treedb does not name the yuno",
         jn_resp, NULL);
 
     /*
-     *  L4b: the refusals of the parameters name the yuno too
+     *  YUNO: the refusals of the parameters name the yuno too
      */
     jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb",
         json_pack("{s:s}", "filename_mask", "%Y"), gobj);
     result += check_comment_prefix(gobj, db,
-        "TEST FAIL: L4b, open-treedb with no treedb_name does not name the yuno", jn_resp, NULL);
+        "TEST FAIL: YUNO, open-treedb with no treedb_name does not name the yuno", jn_resp, NULL);
     jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb",
         json_pack("{s:s, s:s}", "treedb_name", db, "filename_mask", ""), gobj);
     result += check_comment_prefix(gobj, db,
-        "TEST FAIL: L4b, open-treedb with no filename_mask does not name the yuno", jn_resp, NULL);
+        "TEST FAIL: YUNO, open-treedb with no filename_mask does not name the yuno", jn_resp, NULL);
     jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
         json_pack("{s:b}", "force", 1), gobj);
     result += check_comment_prefix(gobj, db,
-        "TEST FAIL: L4b, close-treedb with no treedb_name does not name the yuno", jn_resp, NULL);
+        "TEST FAIL: YUNO, close-treedb with no treedb_name does not name the yuno", jn_resp, NULL);
     jn_resp = gobj_command(priv->gobj_treedbs, "close-treedb",
         json_pack("{s:s, s:b}", "treedb_name", "tw_nothing", "force", 1), gobj);
     result += check_comment_prefix(gobj, db,
-        "TEST FAIL: L4b, close-treedb of an unknown treedb does not name the yuno", jn_resp, NULL);
+        "TEST FAIL: YUNO, close-treedb of an unknown treedb does not name the yuno", jn_resp, NULL);
     return result;
 }
 
@@ -2357,7 +2356,7 @@ PRIVATE int delete_system_topic(hgobj gobj, const char *treedb_name, const char 
 }
 
 /***************************************************************************
- *  N7: the operator's draft DELETES a whole topic in __system__, and a
+ *  DEL: the operator's draft DELETES a whole topic in __system__, and a
  *  newer literal declares it: the projection re-creates it, and that
  *  replaces the draft, so it is reported -- "unsaved" (tw_n7u), or
  *  "saved" when a save published the deletion (tw_n7s, with the withdrawn
@@ -2375,7 +2374,7 @@ PRIVATE int scenario_deleted_topic_draft(hgobj gobj)
         }
         result += delete_system_topic(gobj, db, "departments");
         result += check_draft_changed(gobj, db,
-            "TEST FAIL: N7, a topic the operator deleted is not a draft",
+            "TEST FAIL: DEL, a topic the operator deleted is not a draft",
             json_pack("{s:b}", "departments", 1));
         if(saved) {
             result += save_schema(gobj, db);
@@ -2389,11 +2388,11 @@ PRIVATE int scenario_deleted_topic_draft(hgobj gobj)
             return result - 1;
         }
         if(!system_has_topic(gobj, db, "departments")) {
-            result += test_fail(gobj, db, "TEST FAIL: N7, the literal did not re-create the topic", NULL);
+            result += test_fail(gobj, db, "TEST FAIL: DEL, the literal did not re-create the topic", NULL);
         }
-        result += check_agree(gobj, db, "TEST FAIL: N7, the projection is not the literal");
+        result += check_agree(gobj, db, "TEST FAIL: DEL, the projection is not the literal");
         result += check_withdrawn(gobj, db,
-            "TEST FAIL: N7, the deletion the literal replaced was not reported",
+            "TEST FAIL: DEL, the deletion the literal replaced was not reported",
             saved? 2 : 0, json_pack("{s:s}", "departments", saved? "saved" : "unsaved"));
         close_db(gobj, db);
     }
@@ -2401,7 +2400,7 @@ PRIVATE int scenario_deleted_topic_draft(hgobj gobj)
 }
 
 /***************************************************************************
- *  N1: a seed that died before its end (after delete-treedb, the node of
+ *  EMPTY: a seed that died before its end (after delete-treedb, the node of
  *  the treedb is created with 0 / 0 and nothing else; emulated by hand)
  *  is completed by the next open, although the file runs and there is no
  *  record: nothing is reported, and __system__ is the file again. Not
@@ -2429,7 +2428,7 @@ PRIVATE int scenario_seed_that_died(hgobj gobj)
     JSON_DECREF(nodes)
     json_t *jn_resp = treedb_cmd(gobj, db, "delete-treedb", json_pack("{s:b}", "force", 1));
     if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
-        result += test_fail(gobj, db, "TEST FAIL: N1, delete-treedb", json_incref(jn_resp));
+        result += test_fail(gobj, db, "TEST FAIL: EMPTY, delete-treedb", json_incref(jn_resp));
     }
     JSON_DECREF(jn_resp)
     json_t *node = gobj_create_node(sys, "treedbs",
@@ -2437,7 +2436,7 @@ PRIVATE int scenario_seed_that_died(hgobj gobj)
             "system_schema_version", meta_version),
         json_pack("{s:b}", "refs", 1), gobj);
     if(!node) {
-        result += test_fail(gobj, db, "TEST FAIL: N1, cannot emulate the seed that died", NULL);
+        result += test_fail(gobj, db, "TEST FAIL: EMPTY, cannot emulate the seed that died", NULL);
     }
     JSON_DECREF(node)
 
@@ -2446,11 +2445,11 @@ PRIVATE int scenario_seed_that_died(hgobj gobj)
     }
     if(!system_has_topic(gobj, db, "users") || !system_has_topic(gobj, db, "departments") ||
             system_c_schema_version(gobj, db) != 1) {
-        result += test_fail(gobj, db, "TEST FAIL: N1, the seed that died was not completed",
+        result += test_fail(gobj, db, "TEST FAIL: EMPTY, the seed that died was not completed",
             json_integer(system_c_schema_version(gobj, db)));
     }
-    result += check_agree(gobj, db, "TEST FAIL: N1, the seed that died was not completed");
-    result += check_withdrawn(gobj, db, "TEST FAIL: N1, a seed that died reported withdrawn work",
+    result += check_agree(gobj, db, "TEST FAIL: EMPTY, the seed that died was not completed");
+    result += check_withdrawn(gobj, db, "TEST FAIL: EMPTY, a seed that died reported withdrawn work",
         0, json_object());
 
     /*
@@ -2461,7 +2460,7 @@ PRIVATE int scenario_seed_that_died(hgobj gobj)
     jn_resp = treedb_cmd(gobj, db, "save-schema", json_object());
     if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 ||
             !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "no topics")) {
-        result += test_fail(gobj, db, "TEST FAIL: N1, save-schema saved a schema with no topics",
+        result += test_fail(gobj, db, "TEST FAIL: EMPTY, save-schema saved a schema with no topics",
             json_incref(jn_resp));
     }
     JSON_DECREF(jn_resp)
@@ -2475,14 +2474,14 @@ PRIVATE int scenario_seed_that_died(hgobj gobj)
     snprintf(filename, sizeof(filename), "%s.treedb_schema.json", db);
     if(save_json_to_file(gobj, saved_dir, filename, 02770, 0660, 0, TRUE, FALSE,
             json_pack("{s:s, s:i, s:[]}", "id", db, "schema_version", 5, "topics")) < 0) {
-        result += test_fail(gobj, db, "TEST FAIL: N1, cannot write the saved schema", NULL);
+        result += test_fail(gobj, db, "TEST FAIL: EMPTY, cannot write the saved schema", NULL);
     }
     jn_resp = treedb_cmd(gobj, db, "saved-schema", json_object());
     if(!kw_get_bool(gobj, jn_resp, "data`saved", 0, 0) ||
             kw_get_bool(gobj, jn_resp, "data`can_apply", 1, 0) ||
             !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "no topics")) {
         result += test_fail(gobj, db,
-            "TEST FAIL: N1, saved-schema says a saved schema with no topics can be applied",
+            "TEST FAIL: EMPTY, saved-schema says a saved schema with no topics can be applied",
             json_incref(jn_resp));
     }
     JSON_DECREF(jn_resp)
@@ -2490,13 +2489,13 @@ PRIVATE int scenario_seed_that_died(hgobj gobj)
     if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 ||
             kw_get_bool(gobj, jn_resp, "data`applied", 0, 0) ||
             !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "no topics")) {
-        result += test_fail(gobj, db, "TEST FAIL: N1, apply-schema applied a schema with no topics",
+        result += test_fail(gobj, db, "TEST FAIL: EMPTY, apply-schema applied a schema with no topics",
             json_incref(jn_resp));
     }
     JSON_DECREF(jn_resp)
     json_t *file = load_schema_file(gobj, db);
     if(kw_get_int(gobj, file, "schema_version", 0, KW_WILD_NUMBER) != 1) {
-        result += test_fail(gobj, db, "TEST FAIL: N1, the file in use changed", json_incref(file));
+        result += test_fail(gobj, db, "TEST FAIL: EMPTY, the file in use changed", json_incref(file));
     }
     JSON_DECREF(file)
     file_remove(saved_dir, filename);
@@ -2505,11 +2504,10 @@ PRIVATE int scenario_seed_that_died(hgobj gobj)
 }
 
 /***************************************************************************
- *  N4: a SAVED draft on the topic the literal removes, and a snapshot
+ *  SAVRM: a SAVED draft on the topic the literal removes, and a snapshot
  *  refuses the delete. The first open withdraws the saved schema and says
  *  that; the draft stays one. The open that finally replaces it says it
- *  as "saved" -- the kind is kept in the record. It said "unsaved": the
- *  saved schema was gone by then.
+ *  as "saved" -- the kind is kept in the record.
  ***************************************************************************/
 PRIVATE int scenario_saved_draft_across_retries(hgobj gobj)
 {
@@ -2528,15 +2526,15 @@ PRIVATE int scenario_saved_draft_across_retries(hgobj gobj)
         return result - 1;
     }
     result += check_withdrawn(gobj, db,
-        "TEST FAIL: N4, the first open did not say the saved schema it withdrew",
+        "TEST FAIL: SAVRM, the first open did not say the saved schema it withdrew",
         2, json_object());
     result += check_draft_changed(gobj, db,
-        "TEST FAIL: N4, a draft the projection could not replace is no longer a draft",
+        "TEST FAIL: SAVRM, a draft the projection could not replace is no longer a draft",
         json_pack("{s:b}", "departments", 1));
     json_t *record = unfinished_record(gobj, db);
     json_t *expected_kinds = json_pack("{s:s}", "departments", "saved");
     if(!json_equal(json_object_get(record, "draft_kinds"), expected_kinds)) {
-        result += test_fail(gobj, db, "TEST FAIL: N4, the record does not keep the kind of the draft",
+        result += test_fail(gobj, db, "TEST FAIL: SAVRM, the record does not keep the kind of the draft",
             json_incref(record));
     }
     JSON_DECREF(expected_kinds)
@@ -2547,9 +2545,9 @@ PRIVATE int scenario_saved_draft_across_retries(hgobj gobj)
     if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
         return result - 1;
     }
-    result += check_agree(gobj, db, "TEST FAIL: N4, the projection was not completed");
+    result += check_agree(gobj, db, "TEST FAIL: SAVRM, the projection was not completed");
     result += check_withdrawn(gobj, db,
-        "TEST FAIL: N4, a saved draft was reported as unsaved",
+        "TEST FAIL: SAVRM, a saved draft was reported as unsaved",
         0, json_pack("{s:s}", "departments", "saved"));
     close_db(gobj, db);
     return result;
@@ -4632,7 +4630,7 @@ PRIVATE int scenario_colliding_ids(hgobj gobj)
 }
 
 /***************************************************************************
- *  L8: the literal removes `departments`; the operator had added the
+ *  COLF: the literal removes `departments`; the operator had added the
  *  column `budget` to it (a draft). The topic is deleted, and the deletes
  *  of its columns FAIL (the directory of the keys of `cols` is read-only).
  *  The draft is still in __system__, so it is not said at that open: the
@@ -4657,15 +4655,15 @@ PRIVATE int scenario_gone_topic_col_undeletable(hgobj gobj)
     json_t *jn_resp = open_db_resp(gobj, db, users_only_v2(db));
     chmod(keys, 02770);
     if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
-        result += test_fail(gobj, db, "TEST FAIL: L8, open-treedb failed", json_incref(jn_resp));
+        result += test_fail(gobj, db, "TEST FAIL: COLF, open-treedb failed", json_incref(jn_resp));
     }
     JSON_DECREF(jn_resp)
-    result += check_withdrawn(gobj, db, "TEST FAIL: L8, a draft still in __system__ was said",
+    result += check_withdrawn(gobj, db, "TEST FAIL: COLF, a draft still in __system__ was said",
         0, json_object());
     json_t *record = unfinished_record(gobj, db);
     json_t *expected_kinds = json_pack("{s:s}", "departments", "unsaved");
     if(!json_equal(json_object_get(record, "draft_kinds"), expected_kinds)) {
-        result += test_fail(gobj, db, "TEST FAIL: L8, the record does not keep the kind of the draft",
+        result += test_fail(gobj, db, "TEST FAIL: COLF, the record does not keep the kind of the draft",
             json_incref(record));
     }
     JSON_DECREF(expected_kinds)
@@ -4675,10 +4673,10 @@ PRIVATE int scenario_gone_topic_col_undeletable(hgobj gobj)
     if(open_db(gobj, db, users_only_v2(db), FALSE) < 0) {
         return result - 1;
     }
-    result += check_withdrawn(gobj, db, "TEST FAIL: L8, the open that removed the draft did not say it",
+    result += check_withdrawn(gobj, db, "TEST FAIL: COLF, the open that removed the draft did not say it",
         0, json_pack("{s:s}", "departments", "unsaved"));
-    result += check_agree(gobj, db, "TEST FAIL: L8, the projection was not completed");
-    result += check_absent(gobj, db, "TEST FAIL: L8, a column stayed", "cols", "tw_l8.departments.budget");
+    result += check_agree(gobj, db, "TEST FAIL: COLF, the projection was not completed");
+    result += check_absent(gobj, db, "TEST FAIL: COLF, a column stayed", "cols", "tw_l8.departments.budget");
     close_db(gobj, db);
     return result;
 }

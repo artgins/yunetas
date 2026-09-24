@@ -8541,8 +8541,8 @@ PUBLIC int treedb_delete_instance(
          *  A walk that stopped half way (a row that cannot be read) found
          *  SOME of the rows of the instance: tombstoning those and dropping
          *  the slot answered 0, and the instance came back at the next
-         *  open from a row the walk never reached (M1 of the 2026-09-23
-         *  independent review). Nothing is tombstoned, nothing dropped.
+         *  open from a row the walk never reached (7.25.4). Nothing is
+         *  tombstoned, nothing dropped.
          */
         const char *unread = NULL;
         if(json_is_true(json_object_get(it, "load_failed"))) {
@@ -14502,7 +14502,7 @@ PRIVATE int gc_scan_callback(
  *  not read everything it needs (logged): the caller must refuse to take
  *  any asset, since it cannot tell which a snapshot still needs. It used
  *  to skip what it could not read, and the gc took a blob a snapshot
- *  needed (M2 of the 2026-09-23 independent review).
+ *  needed (7.25.4).
  ***************************************************************************/
 PRIVATE json_t *assets_held_by_snaps(
     hgobj gobj,
@@ -16333,8 +16333,8 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
         /*
          *  The old snap was already saved inactive: left so, the treedb had
          *  no active snap, and its next load went to the latest instances
-         *  instead of the snap the operator had (L1 of the 2026-09-23
-         *  independent review). It is made the active one again.
+         *  instead of the snap the operator had (7.25.4). It is made the
+         *  active one again.
          */
         json_object_set_new(snap, "active", json_false());  // Error already logged
         BOOL restored = TRUE;

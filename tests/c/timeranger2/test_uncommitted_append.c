@@ -28,7 +28,7 @@
  *         file still unreadable is refused: its row would follow rows no
  *         cell counts. A filtered iterator opened while the file was
  *         flagged takes its index again at the recount: the rowids after
- *         the file moved, and it used to be emptied for good.
+ *         the file moved.
  *      5. The rollback of 3 with the production default on_critical_error
  *         (LOG_OPT_EXIT_ZERO), in a child process: the process exits, and
  *         the content was cut back BEFORE it did.

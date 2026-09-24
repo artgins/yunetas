@@ -564,9 +564,6 @@ PUBLIC int tranger2_write_topic_cols(
    synchronous: the yuno's event loop is blocked while it runs. Measured with
    a warm page cache: 16 ms for 1 key of 30 files x 20000 rows (600000 rows);
    72-88 ms for 4 keys of 3650 daily files of one row each (14600 files).
-   (Its first version, never released, found each file's cell by walking the
-   cells from the first, quadratic in the files of a key: 2.5 s for those
-   14600 files.)
 
    A file that needs a marker and whose name leaves no room for one
    (`<file_id>.tm_unordered` longer than NAME_MAX) is skipped and logged:
