@@ -127,6 +127,7 @@ typedef struct _PRIVATE_DATA {
     int tx_in_progress;
 
     BOOL trace_tls;
+    BOOL only_allowed_ips;
 
     char bfinput[BFINPUT_SIZE];
 
@@ -156,6 +157,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(url,               gobj_read_str_attr)
     SET_PRIV(exitOnError,       gobj_read_bool_attr)
     SET_PRIV(trace_tls,         gobj_read_bool_attr)
+    SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
 
     /*
      *  CHILD subscription model
@@ -173,6 +175,10 @@ PRIVATE void mt_create(hgobj gobj)
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    IF_EQ_SET_PRIV(trace_tls,           gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
+    END_EQ_SET_PRIV()
 
     /*
      * If the 'crypto' attribute is written while the listener is running with
@@ -364,26 +370,40 @@ PRIVATE int mt_start(hgobj gobj)
     /*-------------------------------*
      *      Setup reading event
      *-------------------------------*/
-    if(!priv->yev_reading) {
-        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
-        priv->yev_reading = yev_create_recvmsg_event(
-            yuno_event_loop(),
-            yev_callback,
-            gobj,
-            yev_get_fd(priv->yev_server_udp),
-            gbuffer_create(rx_buffer_size, rx_buffer_size)
+    /*
+     *  A new read, on the NEW socket. The read of a previous start keeps
+     *  the number of the socket its stop closed: up to 7.25.4 it was
+     *  started again on that number, which by then could be any other
+     *  file of the process (logcenter opens its log file before it
+     *  starts its listener), and the server stopped reading with nothing
+     *  logged. A read still canceling (a start in the same turn as the
+     *  stop) is destroyed too: the loop frees it at the end of its cancel,
+     *  without calling back.
+     */
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
+
+    json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
+    priv->yev_reading = yev_create_recvmsg_event(
+        yuno_event_loop(),
+        yev_callback,
+        gobj,
+        yev_get_fd(priv->yev_server_udp),
+        gbuffer_create(rx_buffer_size, rx_buffer_size)
+    );
+    if(!priv->yev_reading || yev_start_event(priv->yev_reading) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot start the read of the UDP server",
+            "url",          "%s", priv->url,
+            NULL
         );
-    }
-
-    if(priv->yev_reading) {
-        if(!yev_get_gbuf(priv->yev_reading)) {
-            json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
-            yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
-        } else {
-            gbuffer_clear(yev_get_gbuf(priv->yev_reading));
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_server_udp)
+        if(priv->exitOnError) {
+            exit(0); //WARNING exit with 0 to stop daemon watcher!
         }
-
-        yev_start_event(priv->yev_reading);
+        return -1;
     }
 
     gobj_change_state(gobj, ST_IDLE);
@@ -774,16 +794,83 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         to_wait_stopped = TRUE;
     }
 
+    /*
+     *  What waits to be sent goes with the stop. The datagram in flight
+     *  is held by its send event, which completes on its own. Up to 7.25.4
+     *  gbuf_txing was kept: after a start every datagram waited behind it
+     *  in the queue, and nothing was sent again.
+     */
+    size_t queued = dl_size(&priv->dl_tx);
+    if(queued > 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "UDP server stopped: the datagrams waiting to be sent are dropped",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "dropped",      "%d", (int)queued,
+            NULL
+        );
+    }
+    GBUFFER_DECREF(priv->gbuf_txing)
+    dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+
     if(to_wait_stopped) {
         gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
-        if(gobj_current_state(gobj)==ST_DISCONNECTED) {
-            gobj_change_state(gobj, ST_STOPPED);
-        } else {
-            gobj_change_state(gobj, ST_STOPPED);
-            // set_disconnected(gobj);
+        gobj_change_state(gobj, ST_STOPPED);
+        gobj_publish_event(gobj, EV_STOPPED, 0);
+    }
+}
+
+/***************************************************************************
+ *  The peer of a recvmsg or sendmsg event, "ip:port" or "[ipv6]:port"
+ ***************************************************************************/
+PRIVATE void get_peer_of_event(char *peername, size_t size, yev_event_h yev_event)
+{
+    peername[0] = 0;
+    if(yev_event->msghdr && yev_event->msghdr->msg_name &&
+            yev_event->msghdr->msg_namelen > 0) {
+        if(print_socket_address(peername, size, yev_event->msghdr->msg_name) < 0) {
+            peername[0] = 0;
         }
     }
+}
+
+/***************************************************************************
+ *  A peer on this host: 127.0.0.x, ::1, or 127.0.0.x seen by a dual-stack
+ *  socket. The same exemption as in C_TCP_S.
+ ***************************************************************************/
+PRIVATE BOOL is_loopback_peer(const char *peername)
+{
+    const char *loopbacks[] = {"127.0.0.", "[::1]", "[::ffff:127.0.0.", 0};
+    for(int i=0; loopbacks[i]; i++) {
+        if(strncmp(peername, loopbacks[i], strlen(loopbacks[i]))==0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Why the datagram of this peer is not heard, or NULL: the yuno's ip lists,
+ *  as C_TCP_S asks them at accept. A loopback peer is exempt from both; a
+ *  peer in `denied_ips` is refused always, and wins; with
+ *  `only_allowed_ips`, a peer not in `allowed_ips` is refused.
+ ***************************************************************************/
+PRIVATE const char *peer_refusal(hgobj gobj, const char *peername)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(is_loopback_peer(peername)) {
+        return NULL;
+    }
+    if(is_ip_denied(peername)) {
+        return "UDP_S: Ip denied, datagram dropped";
+    }
+    if(priv->only_allowed_ips && !is_ip_allowed(peername)) {
+        return "UDP_S: Ip not allowed, datagram dropped";
+    }
+    return NULL;
 }
 
 /***************************************************************************
@@ -823,12 +910,14 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         json_decref(jn_flags);
     }
 
+    /*
+     *  The peer, always: it is the label of the EV_RX_DATA gbuffer, and
+     *  C_GSS_UDP_S keys its channels by it. Up to 7.25.4 it was written
+     *  only when tracing: every peer shared the channel "", and the pieces
+     *  of the long messages of two peers were joined in one frame.
+     */
     char peername[80];
-    if(trace_level) {
-        print_socket_address(peername, sizeof(peername), yev_event->msghdr->msg_name);
-    } else {
-        peername[0] = 0;
-    }
+    get_peer_of_event(peername, sizeof(peername), yev_event);
 
     yev_state_t yev_state = yev_get_state(yev_event);
 
@@ -851,9 +940,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         yev_event->msghdr->msg_namelen
                     );
 
-                    /*
-                     *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
-                     */
                     if(trace_level & TRACE_TRAFFIC) {
                         gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
                             gobj_short_name(gobj),
@@ -861,6 +947,28 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             " ⏪ ",
                             peername
                         );
+                    }
+
+                    const char *refusal = peer_refusal(gobj, peername);
+                    if(refusal) {
+                        /*
+                         *  Up to 7.25.4 `only_allowed_ips` was documented
+                         *  and never read, and the deny-list not asked:
+                         *  every peer was heard
+                         */
+                        gobj_log_warning(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", refusal,
+                            "msg2",         "%s", refusal,
+                            "url",          "%s", priv->url,
+                            "peername",     "%s", peername,
+                            "len",          "%d", (int)gbuffer_leftbytes(gbuf),
+                            NULL
+                        );
+                        gbuffer_clear(gbuf);
+                        yev_start_event(yev_event);
+                        break;
                     }
 
                     priv->rxMsgs++;
@@ -909,18 +1017,30 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
                 } else {
                     /*
-                     *  Disconnected
+                     *  The read ends: canceled by a stop, or the socket failed
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
-                    if(trace) {
+                    if(gobj_is_running(gobj) && yev_get_result(yev_event) != -ECANCELED) {
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "UDP: read FAILED, the server stops listening",
+                            "msg2",         "%s", "🌐UDP: read FAILED, the server stops listening",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
+                            "fd",           "%d", yev_get_fd(yev_event),
+                            NULL
+                        );
+                    } else if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                            "msg",          "%s", "UDP: read FAILED",
-                            "msg2",         "%s", "🌐UDP: read FAILED",
+                            "msg",          "%s", "UDP: read stopped",
+                            "msg2",         "%s", "🌐UDP: read stopped",
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                            "remote-addr",  "%s", peername,
                             "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
                             "errno",        "%d", -yev_get_result(yev_event),
                             "strerror",     "%s", strerror(-yev_get_result(yev_event)),
@@ -939,78 +1059,81 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             {
                 priv->tx_in_progress--;
 
+                /*
+                 *  The completion of the datagram being sent, not of one
+                 *  sent before a stop and a start (its gbuffer was dropped
+                 *  by the stop)
+                 */
+                BOOL is_txing = priv->gbuf_txing &&
+                    yev_get_gbuf(yev_event) == priv->gbuf_txing;
+
+                if(!gobj_is_running(gobj)) {
+                    /*
+                     *  A stop waits for its sends: destroy the write event
+                     */
+                    yev_destroy_event(yev_event);
+                    try_to_stop_yevents(gobj);
+                    break;
+                }
+
                 if(yev_state == YEV_ST_IDLE) {
-                    if(gobj_is_running(gobj) && yev_get_result(yev_event) > 0) {
-                        /*
-                         *  See if all data was transmitted
-                         */
-                        priv->txBytes += (json_int_t)yev_get_result(yev_event);
-                        if(gbuffer_leftbytes(yev_get_gbuf(yev_event)) > 0) {
-                            if(trace_level & TRACE_MACHINE) {
-                                trace_machine("🔄🍄🍄mach(%s%s^%s), st: %s transmit PENDING data %ld",
-                                    !gobj_is_running(gobj)?"!!":"",
-                                    gobj_gclass_name(gobj), gobj_name(gobj),
-                                    gobj_current_state(gobj),
-                                    (long)gbuffer_leftbytes(yev_get_gbuf(yev_event))
-                                );
-                            }
+                    int sent = yev_get_result(yev_event);
+                    if(sent > 0) {
+                        priv->txBytes += (json_int_t)sent;
+                    }
 
-                            priv->tx_in_progress++;
-                            yev_start_event(yev_event);
-                            break;
+                    /*
+                     *  See if all data was transmitted
+                     */
+                    gbuffer_t *gbuf = yev_get_gbuf(yev_event);
+                    if(sent > 0 && gbuf && gbuffer_leftbytes(gbuf) > 0) {
+                        if(trace_level & TRACE_MACHINE) {
+                            trace_machine("🔄🍄🍄mach(%s%s^%s), st: %s transmit PENDING data %ld",
+                                !gobj_is_running(gobj)?"!!":"",
+                                gobj_gclass_name(gobj), gobj_name(gobj),
+                                gobj_current_state(gobj),
+                                (long)gbuffer_leftbytes(gbuf)
+                            );
                         }
 
-                        /*
-                         *  The next datagram. Up to 7.25.4 this asked for
-                         *  ST_CONNECTED, a state C_UDP_S does not have: the
-                         *  first datagram was sent, and every later one
-                         *  waited in the queue for ever.
-                         */
-                        if(gobj_in_this_state(gobj, ST_IDLE)) {
-                            try_more_writes(gobj);
-                        }
-                        yev_destroy_event(yev_event);
-
-                    } else {
-                        /*
-                         *  Not running, or nothing sent. The callback is called once
-                         *  per send: the notification of a zero-copy send is taken by
-                         *  the loop, which frees the event after it.
-                         *
-                         *  Destroy the write event
-                         */
-                        yev_destroy_event(yev_event);
-                        try_to_stop_yevents(gobj);
+                        priv->tx_in_progress++;
+                        yev_start_event(yev_event);
+                        break;
                     }
 
                 } else {
                     /*
-                     *  Disconnected
+                     *  The kernel refused THIS datagram (a peer port 0 or an
+                     *  address of another family: EINVAL, EAFNOSUPPORT; a
+                     *  broadcast without set_broadcast: EACCES; too big:
+                     *  EMSGSIZE). It is dropped and the next one is sent.
+                     *  Up to 7.25.4 it was taken as a disconnection: the
+                     *  whole server stopped, and only a trace said so.
                      */
-                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
-
-                    if(trace) {
-                        gobj_log_debug(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                            "msg",          "%s", "UDP: write FAILED",
-                            "msg2",         "%s", "🌐UDP: write FAILED",
-                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                            "remote-addr",  "%s", peername,
-                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                            "errno",        "%d", -yev_get_result(yev_event),
-                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
-                            "p",            "%p", yev_event,
-                            "fd",           "%d", yev_get_fd(yev_event),
-                            NULL
-                        );
-                    }
-
-                    yev_destroy_event(yev_event);
-
-                    try_to_stop_yevents(gobj);
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                        "msg",          "%s", "UDP: datagram refused by the kernel, dropped",
+                        "msg2",         "%s", "🌐UDP: datagram refused by the kernel, dropped",
+                        "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                        "remote-addr",  "%s", peername,
+                        "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                        "errno",        "%d", -yev_get_result(yev_event),
+                        "strerror",     "%s", strerror(-yev_get_result(yev_event)),
+                        NULL
+                    );
                 }
 
+                /*
+                 *  The next datagram. Up to 7.25.4 this asked for
+                 *  ST_CONNECTED, a state C_UDP_S does not have: the
+                 *  first datagram was sent, and every later one
+                 *  waited in the queue for ever.
+                 */
+                if(is_txing && gobj_in_this_state(gobj, ST_IDLE)) {
+                    try_more_writes(gobj);
+                }
+                yev_destroy_event(yev_event);
             }
             break;
 
@@ -1278,7 +1401,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_DATA,            0},
         {EV_RX_DATA,            EVF_OUTPUT_EVENT},
         {EV_TX_READY,           EVF_OUTPUT_EVENT},
-        {ST_STOPPED,            EVF_OUTPUT_EVENT},
+        {EV_STOPPED,            EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

@@ -1,47 +1,47 @@
 /***********************************************************************
- *          C_TEST_UDP_TX.C
+ *          C_TEST_UDP_RESTART.C
  *
- *          Driver of the C_UDP_S transmit test.
+ *          Driver of the C_UDP_S restart test: a stop and a start again,
+ *          as logcenter does at pause-yuno and play-yuno.
  *
- *          A C_UDP_S child is asked to send four datagrams (EV_TX_DATA):
+ *              1. "one" is sent, and C_UDP_S is stopped at once: the
+ *                 send is in flight, the read is canceling. The stop
+ *                 ends (EV_STOPPED) once both are done.
+ *              2. A file is opened: it takes the number of the socket the
+ *                 stop closed (logcenter opens its log file just before it
+ *                 starts its listener). C_UDP_S is started again, "two" is
+ *                 sent, and the peer sends "hello" to the server.
+ *                 Up to 7.25.4 the read was started again on the number of
+ *                 the OLD socket -- the file by then -- and the server
+ *                 stopped reading with nothing logged; and the datagram of
+ *                 the stop was kept as the one being sent, so "two" waited
+ *                 behind it for ever.
+ *              3. A stop and a start in the SAME turn (the read of the
+ *                 stop is still canceling), and the peer sends "again".
+ *                 Up to 7.25.4 the start re-armed the canceling read
+ *                 ("is CANCELING") and the server had no read at all.
  *
- *              1. a gbuffer with NO peer address: yev_start_event()
- *                 refuses the sendmsg, and C_UDP_S drops the datagram with
- *                 an error. Up to 7.25.4 the send event and its gbuffer
- *                 leaked, tx_in_progress never went back to 0, and
- *                 gbuf_txing held every later datagram in the queue.
- *              2. a datagram to the port 0 of the peer: the kernel refuses
- *                 the sendmsg (EINVAL), and C_UDP_S drops the datagram with
- *                 a warning that names the peer and the cause. Up to 7.25.4
- *                 a refused send was taken as a disconnection: the whole
- *                 server stopped (reading too), and only a trace said so.
- *              3. "one", to a plain UDP socket of the test.
- *              4. "two", to the same socket. Up to 7.25.4 the send
- *                 completion asked for ST_CONNECTED before sending the
- *                 next datagram, a state C_UDP_S does not have: the first
- *                 datagram went, and every later one waited for ever.
- *
- *          After 500 ms the socket must have "one" and "two", in order,
- *          and C_UDP_S must still be in ST_IDLE. Then C_UDP_S is stopped
- *          (it publishes EV_STOPPED) and the yuno dies: the memory check at
- *          the end catches a leaked event or gbuffer.
+ *          At the end the peer must have "one two", C_UDP_S must have
+ *          received "hello" and "again", and be listening (ST_IDLE).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include "c_test_udp_tx.h"
+#include "c_test_udp_restart.h"
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define UDP_S_URL   "udp://127.0.0.1:34281"
-#define RX_PORT     34282
+#define UDP_S_PORT  34283
+#define UDP_S_URL   "udp://127.0.0.1:34283"
+#define RX_PORT     34284
 
 /***************************************************************************
  *              Structures
@@ -50,6 +50,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int send_datagram(hgobj gobj, const char *text);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -79,6 +80,12 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj gobj_udp;
     int rx_fd;
+    int file_fd;
+    int phase;
+    int stopped;
+    char server_received[256];
+    struct sockaddr_in rx_addr;
+    struct sockaddr_in server_addr;
 } PRIVATE_DATA;
 
 
@@ -99,6 +106,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->rx_fd = -1;
+    priv->file_fd = -1;
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->gobj_udp = gobj_create(
         "udp",
@@ -121,6 +129,10 @@ PRIVATE void mt_destroy(hgobj gobj)
     if(priv->rx_fd >= 0) {
         close(priv->rx_fd);
         priv->rx_fd = -1;
+    }
+    if(priv->file_fd >= 0) {
+        close(priv->file_fd);
+        priv->file_fd = -1;
     }
 }
 
@@ -163,14 +175,17 @@ PRIVATE int mt_play(hgobj gobj)
     /*
      *  The peer: a plain UDP socket of the test
      */
-    struct sockaddr_in rx_addr;
-    memset(&rx_addr, 0, sizeof(rx_addr));
-    rx_addr.sin_family = AF_INET;
-    rx_addr.sin_port = htons(RX_PORT);
-    rx_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    memset(&priv->rx_addr, 0, sizeof(priv->rx_addr));
+    priv->rx_addr.sin_family = AF_INET;
+    priv->rx_addr.sin_port = htons(RX_PORT);
+    priv->rx_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+    priv->server_addr = priv->rx_addr;
+    priv->server_addr.sin_port = htons(UDP_S_PORT);
 
     priv->rx_fd = socket(AF_INET, SOCK_DGRAM|SOCK_NONBLOCK, 0);
-    if(priv->rx_fd < 0 || bind(priv->rx_fd, (struct sockaddr *)&rx_addr, sizeof(rx_addr)) < 0) {
+    if(priv->rx_fd < 0 ||
+            bind(priv->rx_fd, (struct sockaddr *)&priv->rx_addr, sizeof(priv->rx_addr)) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -183,27 +198,13 @@ PRIVATE int mt_play(hgobj gobj)
         return -1;
     }
 
-    struct sockaddr_in port0_addr = rx_addr;
-    port0_addr.sin_port = 0;
+    /*
+     *  1. A send in flight and a stop
+     */
+    send_datagram(gobj, "one");
+    gobj_stop(priv->gobj_udp);
 
-    const char *datagrams[] = {"no address", "port 0", "one", "two"};
-    for(int i = 0; i < 4; i++) {
-        gbuffer_t *gbuf = gbuffer_create(64, 64);
-        gbuffer_append_string(gbuf, datagrams[i]);
-        if(i == 1) {
-            gbuffer_setaddr(gbuf, (struct sockaddr *)&port0_addr, sizeof(port0_addr));
-        } else if(i > 1) {
-            gbuffer_setaddr(gbuf, (struct sockaddr *)&rx_addr, sizeof(rx_addr));
-        }
-        gobj_send_event(
-            priv->gobj_udp,
-            EV_TX_DATA,
-            json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),  // the kw owns the gbuffer
-            gobj
-        );
-    }
-
-    set_timeout(priv->timer, 500);
+    set_timeout(priv->timer, 100);
     return 0;
 }
 
@@ -236,6 +237,47 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 
+/***************************************************************************
+ *  Send a datagram to the peer through C_UDP_S
+ ***************************************************************************/
+PRIVATE int send_datagram(hgobj gobj, const char *text)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = gbuffer_create(64, 64);
+    gbuffer_append_string(gbuf, text);
+    gbuffer_setaddr(gbuf, (struct sockaddr *)&priv->rx_addr, sizeof(priv->rx_addr));
+    return gobj_send_event(
+        priv->gobj_udp,
+        EV_TX_DATA,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),  // the kw owns the gbuffer
+        gobj
+    );
+}
+
+/***************************************************************************
+ *  The peer sends a datagram to the server
+ ***************************************************************************/
+PRIVATE void peer_sends(hgobj gobj, const char *text)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(sendto(priv->rx_fd, text, strlen(text), 0,
+            (struct sockaddr *)&priv->server_addr, sizeof(priv->server_addr)) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "TEST: sendto() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+}
+
+
+
+
                     /***************************
                      *      Actions
                      ***************************/
@@ -244,11 +286,49 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 /***************************************************************************
- *  What the peer received
+ *  The phases
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->phase++;
+
+    if(priv->phase == 1) {
+        if(priv->stopped != 1 || !gobj_in_this_state(priv->gobj_udp, ST_STOPPED)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: the stop did not end",
+                "state",        "%s", gobj_current_state(priv->gobj_udp),
+                "stopped",      "%d", priv->stopped,
+                NULL
+            );
+        }
+
+        /*
+         *  2. A file takes the number of the closed socket, then a start
+         */
+        priv->file_fd = open("/dev/null", O_RDONLY|O_CLOEXEC);
+        gobj_start(priv->gobj_udp);
+        send_datagram(gobj, "two");
+        peer_sends(gobj, "hello");
+        set_timeout(priv->timer, 200);
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    if(priv->phase == 2) {
+        /*
+         *  3. A stop and a start in the same turn
+         */
+        gobj_stop(priv->gobj_udp);
+        gobj_start(priv->gobj_udp);
+        peer_sends(gobj, "again");
+        set_timeout(priv->timer, 200);
+        KW_DECREF(kw)
+        return 0;
+    }
 
     char received[256] = "";
     char bf[128];
@@ -259,31 +339,27 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         snprintf(received + ln, sizeof(received) - ln, "%s%s", ln? " ": "", bf);
     }
 
-    if(strcmp(received, "one two") != 0) {
+    if(strcmp(received, "one two") != 0 ||
+            strcmp(priv->server_received, "hello again") != 0 ||
+            !gobj_in_this_state(priv->gobj_udp, ST_IDLE)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "TEST: the peer did not get the datagrams",
-            "received",     "%s", received,
-            "expected",     "%s", "one two",
+            "msg",          "%s", "TEST: C_UDP_S did not work again after a stop",
+            "peer_received",    "%s", received,
+            "peer_expected",    "%s", "one two",
+            "server_received",  "%s", priv->server_received,
+            "server_expected",  "%s", "hello again",
+            "state",        "%s", gobj_current_state(priv->gobj_udp),
             NULL
         );
     } else {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "TEST: the peer got the datagrams",
-            "received",     "%s", received,
-            NULL
-        );
-    }
-
-    if(!gobj_in_this_state(priv->gobj_udp, ST_IDLE)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "TEST: C_UDP_S is not listening any more",
-            "state",        "%s", gobj_current_state(priv->gobj_udp),
+            "msg",          "%s", "TEST: C_UDP_S works again after a stop",
+            "peer_received",    "%s", received,
+            "server_received",  "%s", priv->server_received,
             NULL
         );
     }
@@ -296,16 +372,22 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  C_UDP_S publishes what it receives: nothing is sent to it here
+ *  What the server received
  ***************************************************************************/
 PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    gobj_log_error(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL,
-        "msg",          "%s", "TEST: C_UDP_S received a datagram, nobody sent one",
-        NULL
-    );
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    if(gbuf) {
+        size_t ln = strlen(priv->server_received);
+        snprintf(priv->server_received + ln, sizeof(priv->server_received) - ln, "%s%.*s",
+            ln? " ": "",
+            (int)gbuffer_leftbytes(gbuf),
+            (const char *)gbuffer_cur_rd_pointer(gbuf)
+        );
+    }
+
     KW_DECREF(kw)
     return 0;
 }
@@ -315,6 +397,10 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->stopped++;
+
     KW_DECREF(kw)
     return 0;
 }
@@ -337,7 +423,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_TEST_UDP_TX);
+GOBJ_DEFINE_GCLASS(C_TEST_UDP_RESTART);
 
 /*------------------------*
  *      States
@@ -415,7 +501,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int register_c_test_udp_tx(void)
+PUBLIC int register_c_test_udp_restart(void)
 {
-    return create_gclass(C_TEST_UDP_TX);
+    return create_gclass(C_TEST_UDP_RESTART);
 }

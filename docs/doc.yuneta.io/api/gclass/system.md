@@ -152,19 +152,44 @@ Over-the-air update manager — downloads and applies firmware updates.
 ## C_GSS_UDP_S
 
 Gossamer UDP server — manages multiple virtual channels over a single
-UDP socket.
+UDP socket. It is what logcenter listens with: a
+[`C_UDP_S`](#gclass-c-udp-s) child, one CHANNEL per peer, and the frames of
+each channel joined until a NUL (the log handler of a yuno sends a log line
+longer than one datagram in pieces, the NUL after the last one).
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_IDLE` |
-| **Input events** | `EV_RX_DATA`, `EV_TX_DATA`, `EV_TIMEOUT`, `EV_STOPPED` |
-| **Output events** | `EV_ON_MESSAGE`, `EV_ON_OPEN`, `EV_ON_CLOSE` |
+| **States** | `ST_IDLE` |
+| **Input events** | `EV_SEND_MESSAGE` (a gbuffer to send, to the peer set with `gbuffer_setaddr()`), and from its `C_UDP_S`: `EV_RX_DATA`, `EV_TX_READY`, `EV_STOPPED`; `EV_TIMEOUT_PERIODIC` from its timer |
+| **Output events** | `EV_ON_OPEN` (a new channel), `EV_ON_MESSAGE` (a whole frame, its gbuffer in the kw, without the NUL), `EV_ON_CLOSE` (a channel with no datagram for `seconds_inactivity`) |
+
+A channel is keyed by the PEER of the datagram, the label `C_UDP_S` writes in
+the gbuffer (`"ip:port"`). So the pieces of the frames of two peers never mix,
+however they interleave:
+
+```text
+peer A "a1"   peer B "b1"   peer A "a2\0"   peer B "b2\0"
+-> EV_ON_OPEN, EV_ON_OPEN, EV_ON_MESSAGE "a1a2", EV_ON_MESSAGE "b1b2"
+```
+
+Up to 7.25.4 `C_UDP_S` wrote that label only when tracing, every peer was the
+channel `""`, and the same datagrams came out as `"a1b1a2"` and `"b2"` -- on
+logcenter, corrupt log records whenever two yunos sent long lines at the same
+time. `tests/c/c_udp_s_rx`.
+
+```C
+json_t *kw_gss = json_pack("{s:s, s:I}",
+    "url", "udp://127.0.0.1:1992",
+    "seconds_inactivity", (json_int_t)300
+);
+hgobj gss = gobj_create("logs", C_GSS_UDP_S, kw_gss, gobj);    // gobj hears EV_ON_*
+```
 
 ### Key attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `url` | `string` | UDP listening URL. |
-| `timeout_base` | `integer` | Base timeout in seconds. |
-| `seconds_inactivity` | `integer` | Channel inactivity timeout. |
-| `disable_end_of_frame` | `bool` | Disable end-of-frame detection. |
+| `timeout_base` | `integer` | Period of the inactivity check, in milliseconds (default `5000`). |
+| `seconds_inactivity` | `integer` | Seconds without a datagram before a channel is closed (default `300`). |
+| `disable_end_of_frame` | `bool` | Publish every datagram as it comes (`EV_ON_MESSAGE` with the `EV_RX_DATA` kw), without joining until a NUL. |

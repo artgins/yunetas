@@ -1,20 +1,20 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Main of test_c_udp_s_tx: C_UDP_S drops a datagram it cannot send,
- *          and goes on sending the next ones
+ *          Main of test_c_udp_s_rx: the peer of each datagram, and the
+ *          peers C_UDP_S does not hear (only_allowed_ips)
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
-#include "c_test_udp_tx.h"
+#include "c_test_udp_rx.h"
 
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_c_udp_s_tx"
-#define APP_DOC         "Test the transmit of C_UDP_S"
+#define APP_NAME        "test_c_udp_s_rx"
+#define APP_DOC         "Test the receive of C_UDP_S"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -60,8 +60,8 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'test_udp_tx',                                     \n\
-            'gclass': 'C_TEST_UDP_TX',                               \n\
+            'name': 'test_udp_rx',                                     \n\
+            'gclass': 'C_TEST_UDP_RX',                               \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
@@ -89,7 +89,7 @@ static int register_yuno_and_more(void)
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    result += register_c_test_udp_tx();
+    result += register_c_test_udp_rx();
 
     /*------------------------------------------------*
      *          Traces
@@ -106,11 +106,11 @@ static int register_yuno_and_more(void)
         json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "UDP listening ...",
-            "msg", "Cannot start event: sendmsg addr NULL or bad addr length",
-            "msg", "Cannot send datagram: dropped",
+            "msg", "UDP listening ...",
             "msg", "Playing yuno",
-            "msg", "UDP: datagram refused by the kernel, dropped",
-            "msg", "TEST: the peer got the datagrams",
+            "msg", "UDP_S: Ip not allowed, datagram dropped",
+            "msg", "UDP_S: Ip denied, datagram dropped",
+            "msg", "TEST: every peer has its channel, and a peer not allowed is not heard",
             "msg", "Exit to die",
             "msg", "Pausing yuno",
             "msg", "Yuno stopped, gobj end"

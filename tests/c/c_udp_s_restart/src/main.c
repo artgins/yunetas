@@ -1,20 +1,20 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Main of test_c_udp_s_tx: C_UDP_S drops a datagram it cannot send,
- *          and goes on sending the next ones
+ *          Main of test_c_udp_s_restart: C_UDP_S reads and sends again
+ *          after a stop and a start
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
-#include "c_test_udp_tx.h"
+#include "c_test_udp_restart.h"
 
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_c_udp_s_tx"
-#define APP_DOC         "Test the transmit of C_UDP_S"
+#define APP_NAME        "test_c_udp_s_restart"
+#define APP_DOC         "Test a stop and a start of C_UDP_S"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -60,8 +60,8 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'test_udp_tx',                                     \n\
-            'gclass': 'C_TEST_UDP_TX',                               \n\
+            'name': 'test_udp_restart',                                     \n\
+            'gclass': 'C_TEST_UDP_RESTART',                               \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
@@ -89,7 +89,7 @@ static int register_yuno_and_more(void)
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    result += register_c_test_udp_tx();
+    result += register_c_test_udp_restart();
 
     /*------------------------------------------------*
      *          Traces
@@ -103,14 +103,13 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "UDP listening ...",
-            "msg", "Cannot start event: sendmsg addr NULL or bad addr length",
-            "msg", "Cannot send datagram: dropped",
             "msg", "Playing yuno",
-            "msg", "UDP: datagram refused by the kernel, dropped",
-            "msg", "TEST: the peer got the datagrams",
+            "msg", "UDP listening ...",
+            "msg", "UDP listening ...",
+            "msg", "TEST: C_UDP_S works again after a stop",
             "msg", "Exit to die",
             "msg", "Pausing yuno",
             "msg", "Yuno stopped, gobj end"
