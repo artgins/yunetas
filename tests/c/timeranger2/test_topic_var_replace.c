@@ -25,6 +25,10 @@
  *  It is replaced the same way now, and the memory takes the new cols only
  *  when the file did.
  *
+ *  A short write (a file size limit, a full disk) fails the dump and does
+ *  not set errno: it is logged as a short write, not with the errno an
+ *  earlier call left.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -34,6 +38,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
+#include <errno.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -333,6 +339,41 @@ PRIVATE int do_test(void)
     result += expect("topic_cols.json has the new cols",
         json_object_get(cols_now, "v8")? "the new ones": "the old ones", "the new ones");
     JSON_DECREF(cols_now)
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A short write: json_dumpfd() fails
+     *  and errno is not set. 7.25.4 logged
+     *  "write FAILED" with the errno that an
+     *  earlier call left.
+     *-------------------------------------*/
+    set_expected_results(
+        "topic_var: a short write is logged as a short write",
+        json_pack("[{s:s}]",
+            "msg", "Cannot replace topic_var.json, short write: the file size limit or the disk is full"
+        ),
+        NULL, NULL, 1
+    );
+    struct rlimit rl_saved;
+    getrlimit(RLIMIT_FSIZE, &rl_saved);
+    struct rlimit rl_small = rl_saved;
+    rl_small.rlim_cur = 3;      // the third write() of the dump crosses it
+    signal(SIGXFSZ, SIG_IGN);
+    setrlimit(RLIMIT_FSIZE, &rl_small);
+    errno = ENOENT;             // what an earlier call left
+    ret = tranger2_write_topic_var(tranger, TOPIC_NAME,
+        json_pack("{s:I}", "last_rowid_id", (json_int_t)6)
+    );
+    setrlimit(RLIMIT_FSIZE, &rl_saved);
+    result += expect("write_topic_var answers -1 on a short write", ret < 0? "-1": "0", "-1");
+    var_now = json_load_file(path_var, 0, 0);
+    result += expect("topic_var.json is the old one after a short write",
+        json_integer_value(json_object_get(var_now, "topic_version")) == 8? "8": "other", "8");
+    JSON_DECREF(var_now)
+    if(is_regular_file(path_new)) {
+        printf("%sERROR%s --> the temporary file is left behind after a short write\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
     result += test_json(NULL);
 
     set_expected_results("topic_var: shutdown", NULL, NULL, NULL, 1);

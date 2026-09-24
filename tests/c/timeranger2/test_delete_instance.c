@@ -8,6 +8,8 @@
  *                               the live rows, so total_rows agrees with what
  *                               the pages return.
  *      - do_test_zero_payload:  __size__ bytes at __offset__ are zeroed when opt-in.
+ *      - do_test_zero_payload_short_write: a wipe cut by a file size limit is
+ *                               logged as a short write, not with a stale errno.
  *      - do_test_idempotent:    second delete of the same instance is a no-op (0, no log error).
  *      - do_test_non_master:    non-master callers are refused with a logged error.
  *
@@ -24,6 +26,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/resource.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -477,6 +480,86 @@ PRIVATE int do_test_zero_payload(void)
 }
 
 /***************************************************************************
+ *  do_test_zero_payload_short_write
+ *  The wipe of the payload stops part way (a file size limit): write()
+ *  returns a count and does not set errno. 7.25.4 logged "write() zero
+ *  payload FAILED" with the errno an earlier call left.
+ ***************************************************************************/
+PRIVATE int do_test_zero_payload_short_write(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+
+    set_expected_results(
+        "zero short write: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tranger = startup_master(path_root);
+    if(!tranger || create_topic(tranger) < 0) {
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        return -1;
+    }
+    md2_record_ex_t md[3];
+    if(append_n(tranger, 3, md) < 0) {
+        tranger2_shutdown(tranger);
+        return -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  The limit cuts the wipe of the third payload after 4 bytes, and
+     *  leaves room for the re-write of its md2 row (3 rows of 32 bytes)
+     */
+    rlim_t limit = (rlim_t)md[2].__offset__ + 4;
+    if(limit < 3*32) {
+        printf("%sERROR%s --> zero short write: the limit %lu cuts the md2 row too\n",
+            On_Red BWhite, Color_Off, (unsigned long)limit);
+        result += -1;
+    }
+
+    set_expected_results(
+        "zero short write: logged as a short write",
+        json_pack("[{s:s}]",
+            "msg", "Cannot zero the payload, short write: the file size limit or the disk is full"
+        ),
+        NULL, NULL, 1
+    );
+    struct rlimit rl_saved;
+    getrlimit(RLIMIT_FSIZE, &rl_saved);
+    struct rlimit rl_small = rl_saved;
+    rl_small.rlim_cur = limit;
+    signal(SIGXFSZ, SIG_IGN);
+    setrlimit(RLIMIT_FSIZE, &rl_small);
+    errno = ENOENT;     // what an earlier call left
+    int ret = tranger2_delete_instance(
+        tranger, TOPIC_NAME, KEY_STR,
+        md[2].__t__, md[2].rowid, TRUE /* zero_payload */
+    );
+    setrlimit(RLIMIT_FSIZE, &rl_saved);
+    if(ret != -1) {
+        printf("%sERROR%s --> zero short write: expected -1, got %d\n",
+            On_Red BWhite, Color_Off, ret);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("zero short write: shutdown", NULL, NULL, NULL, 1);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  do_test_idempotent
  *  Second delete of the same instance: returns 0, no log entry.
  ***************************************************************************/
@@ -675,6 +758,7 @@ int main(int argc, char *argv[])
     result += do_test_history_skip();
     result += do_test_paged_skip();
     result += do_test_zero_payload();
+    result += do_test_zero_payload_short_write();
     result += do_test_idempotent();
     result += do_test_non_master();
     result += global_result;

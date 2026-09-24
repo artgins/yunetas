@@ -1131,14 +1131,25 @@ PRIVATE int replace_json_file(
     }
 
     const char *failed = NULL;
+    int err = 0;
     if(fchmod(fd, (mode_t)mode) < 0) {
         failed = "fchmod() FAILED";     // the umask of the process took bits off
-    } else if(json_dumpfd(jn, fd, JSON_INDENT(4)) < 0) {
-        failed = "write FAILED";
-    } else if(durable && fsync(fd) < 0) {
-        failed = "fsync() FAILED";
+        err = errno;
+    } else {
+        /*
+         *  json_dumpfd() fails on a short write too, and a short write
+         *  does not set errno: errno says something only if a call set it
+         */
+        errno = 0;
+        if(json_dumpfd(jn, fd, JSON_INDENT(4)) < 0) {
+            err = errno;
+            failed = err? "write FAILED" :
+                "short write: the file size limit or the disk is full";
+        } else if(durable && fsync(fd) < 0) {
+            failed = "fsync() FAILED";
+            err = errno;
+        }
     }
-    int err = errno;
     if(close(fd) < 0 && !failed) {
         failed = "close() FAILED";
         err = errno;
@@ -1149,15 +1160,25 @@ PRIVATE int replace_json_file(
     }
     if(failed) {
         snprintf(msg, sizeof(msg), "Cannot replace %s, %s", filename, failed);
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", msg,
-            "path",         "%s", path,
-            "errno",        "%d", err,
-            "serrno",       "%s", strerror(err),
-            NULL
-        );
+        if(err) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", msg,
+                "path",         "%s", path,
+                "errno",        "%d", err,
+                "serrno",       "%s", strerror(err),
+                NULL
+            );
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", msg,
+                "path",         "%s", path,
+                NULL
+            );
+        }
         unlink(path_new);
         return -1;
     }
@@ -5002,7 +5023,7 @@ PUBLIC int tranger2_delete_instance(
         while(remaining > 0) {
             size_t chunk = (remaining > sizeof(buf))? sizeof(buf) : (size_t)remaining;
             ssize_t wrote = write(data_fd, buf, chunk);
-            if(wrote != (ssize_t)chunk) {
+            if(wrote < 0) {
                 gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM,
@@ -5012,6 +5033,23 @@ PUBLIC int tranger2_delete_instance(
                     "remaining",    "%lu", (unsigned long)remaining,
                     "errno",        "%d", errno,
                     "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+                return -1;
+            }
+            if(wrote != (ssize_t)chunk) {
+                /*
+                 *  A short write returns a count and leaves errno as it was
+                 */
+                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot zero the payload, short write: the file size limit or the disk is full",
+                    "topic",        "%s", topic_name,
+                    "key",          "%s", key,
+                    "remaining",    "%lu", (unsigned long)remaining,
+                    "written",      "%ld", (long)wrote,
+                    "expected",     "%ld", (long)chunk,
                     NULL
                 );
                 return -1;

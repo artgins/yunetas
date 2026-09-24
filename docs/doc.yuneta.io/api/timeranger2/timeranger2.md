@@ -233,6 +233,17 @@ CRITICAL read_md2_row: Cannot read a record of md2 file, short read
          path=<store>/items/keys/A/2000-01-02.md2 row=last offset=64 read=16 expected=32
 ```
 
+The same holds for the files that are replaced whole (`topic_var.json`,
+`topic_cols.json`) and for the zero wipe of
+[`tranger2_delete_instance()`](#tranger2_delete_instance):
+
+```text
+ERROR    replace_json_file: Cannot replace topic_var.json, short write: the file size limit or
+         the disk is full  path=<store>/items/topic_var.json
+CRITICAL tranger2_delete_instance: Cannot zero the payload, short write: the file size limit or
+         the disk is full  topic=items key=A remaining=53 written=4 expected=53
+```
+
 **A row always goes on a row boundary.** When the md2 row of a failed append
 was written in part and the cut of that part failed too (*"Cannot cut back the
 md2 of an append whose row was not written whole: its size is not a whole
@@ -819,6 +830,11 @@ Side effects to be aware of:
   refreshed. If the deleted instance was the min/max t/tm of its file,
   the cell rollup can lie. Cheap to fix on next cold reload. Expensive
  to fix incrementally. Deferred until a consumer needs it.
+- With `zero_payload`, the row is marked deleted BEFORE the wipe. A wipe
+  that fails answers `-1` with the row already dead; a wipe cut part way
+  (the file size limit, a full disk) is logged as *"Cannot zero the
+  payload, short write: the file size limit or the disk is full"*, with the
+  bytes `written` and `expected`, not with an `errno`.
 
 ---
 
@@ -2951,6 +2967,11 @@ this on every create of a rowid-key node (the `last_rowid_id` counter lives
 here), so it does not `fsync()`: it is safe against the death of the process,
 not against a power cut. A `topic_version` change
 ([`tranger2_create_topic()`](#tranger2_create_topic)) does fsync.
+
+A write that fails leaves the old `topic_var.json` as it was and answers `-1`.
+A write cut part way (the file size limit, a full disk) is logged as *"Cannot
+replace topic_var.json, short write: the file size limit or the disk is full"*,
+without an `errno`: a short write does not set one.
 
 ```C
 tranger2_write_topic_var(tranger, "items", json_pack("{s:I}", "last_rowid_id", (json_int_t)42));
