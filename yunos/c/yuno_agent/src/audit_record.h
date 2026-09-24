@@ -19,12 +19,16 @@ extern "C"{
  ***************************************************************/
 /*
  *  Build the audit record of a command. `kw` is not owned and not
- *  modified. Return a new json object (yours), NULL on error (logged).
+ *  modified. `command_table` is the command table of the agent: the
+ *  command word is looked up in it as the command parser does (any case,
+ *  quotes, aliases); NULL = lower case only. Return a new json object
+ *  (yours), NULL on error (logged).
  */
 PUBLIC json_t *audit_record_build(
     const char *command,
     json_t *kw,         // not owned
-    const char *date
+    const char *date,
+    const sdata_desc_t *command_table   // not owned, optional
 );
 
 /*
@@ -35,8 +39,9 @@ PUBLIC json_t *audit_record_build(
  *
  *  The writes of one user (same user and same source) into one console
  *  make a BURST, which lasts `burst_seconds` from its first write. The
- *  first write of a burst is recorded at once, alone, so that a crash of
- *  the agent cannot lose who typed:
+ *  first write of a burst is recorded at once, alone (and the agent
+ *  flushes every record it writes to the file), so that a crash of the
+ *  agent cannot lose who typed:
  *      {"command":"write-tty","date":D1,"user":U,"console":C,
  *       "writes":1,"bytes":1,"source":{...}}
  *  The other writes of the burst make one record when the burst ends:
@@ -51,7 +56,9 @@ PUBLIC json_t *audit_record_build(
  *  The records to write now are appended to `jn_records` (a list).
  *  Call it for EVERY command, before audit_record_build(): it returns TRUE
  *  when the command is a write-tty (its records are made here, do not call
- *  audit_record_build()), FALSE otherwise.
+ *  audit_record_build()), FALSE otherwise. write-tty and close-console are
+ *  told as the command parser tells them (see audit_record_build()):
+ *  WRITE-TTY, 'write-tty' and EV_WRITE_TTY are write-tty.
  */
 PUBLIC BOOL audit_tty_command(
     json_t *jn_bursts,      // not owned
@@ -59,6 +66,23 @@ PUBLIC BOOL audit_tty_command(
     json_t *kw,             // not owned
     const char *date,
     unsigned burst_seconds,
+    const sdata_desc_t *command_table,  // not owned, optional
+    json_t *jn_records      // not owned
+);
+
+/*
+ *  The records of one command, appended to `jn_records`: those of
+ *  audit_tty_command(), or else the one of audit_record_build(). The
+ *  command word is looked up once for both. Call it for EVERY command.
+ *  Return 0, -1 on error (logged).
+ */
+PUBLIC int audit_command_records(
+    json_t *jn_bursts,      // not owned
+    const char *command,
+    json_t *kw,             // not owned
+    const char *date,
+    unsigned burst_seconds,
+    const sdata_desc_t *command_table,  // not owned, optional
     json_t *jn_records      // not owned
 );
 

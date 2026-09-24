@@ -15,6 +15,16 @@
  *
  *          Now:
  *
+ *          - The command word is taken as the command parser takes it: the
+ *            first word (blanks are ' ' and '\t'), without its quotes, and
+ *            looked up in the command table of the agent, which knows the
+ *            case (strcasecmp) and the aliases (EV_WRITE_TTY, "1", ...).
+ *            WRITE-TTY, 'write-tty' and EV_WRITE_TTY are write-tty. A word
+ *            the table does not know is compared in lower case. The
+ *            command carried by command-agent is looked up the same way
+ *            (it runs in the agent); the one carried by command-yuno runs
+ *            in another yuno, whose table is not known here: lower case.
+ *
  *          - A content64 value is never written: it is replaced by
  *            `<N bytes sha256:HEX>`, the size and the sha256 of the DECODED
  *            content (the same as `sha256sum` of the binary on disk). A
@@ -26,16 +36,37 @@
  *
  *          - A secret is never written: its value is replaced by
  *            `<redacted>`. A secret is a parameter whose name holds (any
- *            case) "passw", "pwd", "secret", "token", "jwt", or "priv" and
- *            "key": password, user_passw, client_secret, access_token,
- *            private_key, ... And the `value` of a write-attr whose
- *            `attribute` has such a name.
+ *            case) one of secret_name_parts[], or one of
+ *            secret_name_joined[] once '_', '-', '.' and blanks are taken
+ *            out, or "priv" and "key": password, user_passw, client_secret,
+ *            access_token, api_key, x-api-key, http_cookie, private_key,
+ *            ... (see those lists for why each one is there). And the
+ *            `value` of a write-attr whose `attribute` has such a name (any
+ *            case, in the text, in the kw, or in the same json object).
+ *            And the token after "Bearer ", and anything with the shape of
+ *            a JWT (eyJ..., three parts), wherever they are.
  *
  *          - Both apply everywhere in the record: to a kw key of that name
  *            at any depth, and inside any string (the command text,
  *            __command__, the `command` carried by command-yuno, a json
  *            given as text) to `name=value` (quoted or not, blanks around
- *            the `=` as the command parser allows) and to `"name": value`.
+ *            the `=` as the command parser allows) and to `"name": value`
+ *            (the name of a json key is read with its escapes: "\u0070"
+ *            is "p").
+ *
+ *          - The scan of a string is ONE pass, without recursion, in
+ *            linear time: a value inside a quoted value is followed with a
+ *            small stack of regions (MAX_REGIONS), and the key of a json
+ *            member is the last string seen before its ':'. The audit
+ *            runs before the parser and the authz, on the text that any
+ *            peer sends: a first version went one level of recursion
+ *            deeper for each '=' in a run without blanks (O(n^2) time,
+ *            O(n) stack), and 150 000 '=' in one command crashed the
+ *            agent. And the work of one record has a cap
+ *            (AUDIT_SCAN_BUDGET bytes scanned): a string beyond it is not
+ *            scanned and not written, only its size and its sha256:
+ *            `<N bytes, not scanned, sha256:HEX>`, and for the command
+ *            text its first word before that.
  *
  *          - __md_iev__ is not written. In its place, `source`:
  *              {
@@ -61,8 +92,8 @@
  *            (stats=__reset__ resets the counters) is a write.
  *            command-yuno / command-agent are judged by the command they
  *            carry, taken where the command parser takes it: the last
- *            top-level `command=` of the text, else kw.command. That
- *            command is named in the record.
+ *            top-level `command=` of the text (the key in any case), else
+ *            kw.command. That command is named in the record.
  *            Commands that read files of the node (read-file, read-json,
  *            read-binary-file), check a password (check-user-pwd) or open
  *            something (open-list, open-treedb, ...) keep the full record.
@@ -90,6 +121,20 @@
 #define RESET_VALUE     "__reset__"
 #define TTY_WRITE       "write-tty"
 #define CLOSE_CONSOLE   "close-console"
+
+/*
+ *  The bytes scanned for one record (all its strings). An install-binary of
+ *  a 96 MB binary (128 MB of base64) is still scanned: its record says the
+ *  size and the sha256 of the binary.
+ */
+#define AUDIT_SCAN_BUDGET   (128*1024*1024)
+
+/*
+ *  Quoted values inside quoted values that the scan follows. Deeper, the
+ *  scan goes on over the text all the same (nothing is left unscanned):
+ *  only the end of a value is then the end of the outer one.
+ */
+#define MAX_REGIONS     16
 
 /*
  *  Read-only commands, by name
@@ -120,23 +165,46 @@ PRIVATE const char *read_only_commands[] = {
 /*
  *  Commands that carry another command in their `command` parameter
  */
-PRIVATE const char *wrapper_commands[] = {
-    "command-yuno",
-    "command-agent",
+#define COMMAND_AGENT   "command-agent"
+#define COMMAND_YUNO    "command-yuno"
+
+/*
+ *  A parameter whose name holds one of these (any case) is a secret.
+ *  Taken from the attributes and parameters of the SDK and of the projects
+ *  (a scan of every SDATA / SDATAPM name, 2026-09-24):
+ */
+PRIVATE const char *secret_name_parts[] = {
+    "passw",        // password, passwd, user_passw
+    "pwd",
+    "passphrase",   // the key of a private key file
+    "secret",       // secret, client_secret, kc_admin_client_secret, sign_secret
+    "token",        // token, access_token, refresh_token
+    "jwt",
+    "bearer",
+    "authorization",// an HTTP Authorization header: "Bearer <token>", "Basic <user:pass>"
+    "cookie",       // http_cookie (the session of a browser); cookie_domain is redacted too
+    "credential",
+    "salt",         // visitor_salt of webstats: with it the visitors can be told again
     0
 };
 
 /*
- *  A parameter whose name holds one of these (any case) is a secret
+ *  ... or one of these, once '_', '-', '.' and blanks are taken out
+ *  (api_key, apikey, x-api-key, ESIOS_API_KEY; session_id, __session_id__)
  */
-PRIVATE const char *secret_name_parts[] = {
-    "passw",    // password, passwd, user_passw
-    "pwd",
-    "secret",   // secret, client_secret, kc_admin_client_secret
-    "token",    // token, access_token, refresh_token
-    "jwt",
+PRIVATE const char *secret_name_joined[] = {
+    "apikey",       // api_key of wattyzer gate_pvpc (write-attr attribute=api_key value=...)
+    "sessionid",    // __session_id__ of c_ievent_srv / c_prot_mqtt2
+    "sessionkey",
+    "authdata",     // auth_data of c_prot_mqtt2 (the MQTT 5 auth data)
     0
 };
+/*
+ *  Not secrets, and kept: the PATH of a key or a certificate
+ *  (ssl_certificate_key, ssl_trusted_certificate), cert_pem (a public
+ *  certificate), the ids of treedb (pkey, rkey, tkey), in_session,
+ *  mqtt_clean_session, max_sessions, authz, auth_method, ignore_private.
+ */
 
 /***************************************************************************
  *              Structures
@@ -150,6 +218,7 @@ typedef enum {
 typedef struct {
     BOOL tty;               // content64 of a console write: its size only
     BOOL value_is_secret;   // write-attr of a secret attribute: `value` is a secret
+    size_t budget;          // bytes that can still be scanned for this record
 } redact_ctx_t;
 
 /*
@@ -162,35 +231,175 @@ typedef struct {
     size_t out_len;
     size_t out_size;
     BOOL no_memory;
-    const redact_ctx_t *ctx;
+    redact_ctx_t *ctx;
 } redact_scan_t;
+
+/*
+ *  The state of the scan of one string
+ */
+typedef struct {
+    const char *lo;         // the region: where a key can begin
+    const char *hi;         //   and where a value ends (its closing quote)
+    int depth;
+    const char *region_begin[MAX_REGIONS];
+    const char *region_end[MAX_REGIONS];
+    const char *q_last;     // the last '"' not escaped, and the one before:
+    const char *q_prev;     //   a json key is the string between them
+    size_t backslashes;     // the run of '\' just before the current byte
+} scan_state_t;
 
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE char *redact_text(const char *text, size_t len, const redact_ctx_t *ctx);
-PRIVATE json_t *redacted_copy(json_t *jn, const redact_ctx_t *ctx);
+PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx);
+PRIVATE json_t *redacted_copy(json_t *jn, redact_ctx_t *ctx);
 
 /***************************************************************************
- *  The first word of a command text
+ *  The descriptor of the command `word` (a word without blanks), found as
+ *  command_get_cmd_desc() finds it: the same order, any case, an alias
+ *  first when the command has no json_fn. Without its copy of the text
+ *  and with a look at the first letter before the compare: the audit
+ *  runs it twice for every command (test_audit_record checks that both
+ *  answer the same).
  ***************************************************************************/
-PRIVATE void first_word(const char *s, char *bf, size_t bfsize)
+PRIVATE BOOL same_word(const char *name, const char *word, int first)
 {
-    while(*s && isspace((unsigned char)*s)) {
+    return (tolower((unsigned char)name[0]) == first && strcasecmp(name, word) == 0)?
+        TRUE: FALSE;
+}
+
+PRIVATE BOOL alias_matches(const char **alias, const char *word, int first)
+{
+    while(alias && *alias) {
+        if(same_word(*alias, word, first)) {
+            return TRUE;
+        }
+        alias++;
+    }
+    return FALSE;
+}
+
+PRIVATE const sdata_desc_t *find_command_in_table(const sdata_desc_t *command_table, const char *word)
+{
+    int first = tolower((unsigned char)word[0]);
+    const sdata_desc_t *pcmd = command_table;
+    while(pcmd->name) {
+        BOOL alias_checked = FALSE;
+        if(!pcmd->json_fn && pcmd->alias) {
+            alias_checked = TRUE;
+            if(alias_matches(pcmd->alias, word, first)) {
+                return pcmd;
+            }
+        }
+        if(same_word(pcmd->name, word, first)) {
+            return pcmd;
+        }
+        if(!alias_checked && alias_matches(pcmd->alias, word, first)) {
+            return pcmd;
+        }
+        pcmd++;
+    }
+    return NULL;
+}
+
+/*
+ *  The last words looked up: a few commands come again and again (the
+ *  polling of a GUI, the keystrokes of a console). The tables are static
+ *  arrays of the gclasses, so an answer stays valid.
+ */
+#define LOOKUP_CACHE_SIZE   16
+
+typedef struct {
+    const sdata_desc_t *command_table;
+    char word[64];
+    const sdata_desc_t *cmd_desc;
+} lookup_cache_t;
+
+PRIVATE lookup_cache_t lookup_cache[LOOKUP_CACHE_SIZE];   // one place for each hash of a word
+
+PRIVATE const sdata_desc_t *find_command(const sdata_desc_t *command_table, const char *word)
+{
+    size_t len = strlen(word);
+    if(len >= sizeof(lookup_cache[0].word)) {
+        return find_command_in_table(command_table, word);
+    }
+    unsigned hash = (unsigned)len;
+    for(size_t i=0; i<len; i++) {
+        hash = hash*31 + (unsigned char)word[i];
+    }
+    lookup_cache_t *c = &lookup_cache[hash % LOOKUP_CACHE_SIZE];
+    if(c->command_table == command_table && strcmp(c->word, word) == 0) {
+        return c->cmd_desc;
+    }
+    const sdata_desc_t *cmd_desc = find_command_in_table(command_table, word);
+    c->command_table = command_table;
+    memcpy(c->word, word, len + 1);
+    c->cmd_desc = cmd_desc;
+    return cmd_desc;
+}
+
+/***************************************************************************
+ *  The command word of a text, taken as the command parser takes it
+ *  (get_parameter(), then command_get_cmd_desc()): the first word after
+ *  ' ' and '\t', without its quotes if they close, looked up in the
+ *  command table (any case, aliases). The name of the command if the
+ *  table knows it, else the word in lower case.
+ ***************************************************************************/
+PRIVATE void command_word(
+    const char *text,
+    const sdata_desc_t *command_table,
+    char *bf,
+    size_t bfsize
+)
+{
+    const char *s = text;
+    while(*s == ' ' || *s == '\t') {
         s++;
     }
-    size_t i = 0;
-    while(*s && !isspace((unsigned char)*s) && i < bfsize - 1) {
-        bf[i++] = *s++;
+    const char *e = NULL;
+    if(*s == '\'' || *s == '"') {
+        const char *q = strchr(s + 1, *s);
+        if(q) {
+            e = q;
+            s++;
+        }
     }
-    bf[i] = 0;
+    if(!e) {
+        e = s;
+        while(*e && *e != ' ' && *e != '\t') {
+            e++;
+        }
+    }
+
+    size_t len = (size_t)(e - s);
+    if(len >= bfsize) {
+        len = bfsize - 1;   // not a command name: the parser does not know it either
+    }
+    memcpy(bf, s, len);
+    bf[len] = 0;
+
+    if(command_table && len > 0 && !strpbrk(bf, " \t")) {
+        const sdata_desc_t *cmd_desc = find_command(command_table, bf);
+        if(cmd_desc && cmd_desc->name) {
+            size_t name_len = strlen(cmd_desc->name);
+            if(name_len >= bfsize) {
+                name_len = bfsize - 1;
+            }
+            memcpy(bf, cmd_desc->name, name_len);
+            bf[name_len] = 0;
+            return;
+        }
+    }
+    for(size_t i=0; i<len; i++) {
+        bf[i] = (char)tolower((unsigned char)bf[i]);
+    }
 }
 
 /***************************************************************************
  *  The value of the top-level parameter `name` of a command text, taken as
  *  the command parser takes it (get_parameter() for the command, then
- *  get_key_value_parameter(); the last one wins). NULL if absent.
- *  Free the result with gbmem_free().
+ *  get_key_value_parameter(), the key in any case; the last one wins).
+ *  NULL if absent. Free the result with gbmem_free().
  ***************************************************************************/
 PRIVATE char *text_param(const char *text, const char *name)
 {
@@ -211,7 +420,7 @@ PRIVATE char *text_param(const char *text, const char *name)
         if(!key) {
             break;
         }
-        if(strcmp(key, name) == 0) {
+        if(strcasecmp(key, name) == 0) {
             found = value;
         }
     }
@@ -260,30 +469,40 @@ PRIVATE BOOL verb_is_read_only(const char *verb)
     return name_in_list(verb, read_only_commands);
 }
 
+PRIVATE BOOL is_wrapper(const char *verb)
+{
+    return (strcmp(verb, COMMAND_AGENT) == 0 || strcmp(verb, COMMAND_YUNO) == 0)? TRUE: FALSE;
+}
+
 /***************************************************************************
  *  The command carried by a wrapper (command-yuno, command-agent), "" if
  *  none. Where the parser takes it: the text wins over the kw.
+ *  command-agent runs it in the agent: looked up in its table.
  ***************************************************************************/
 PRIVATE void inner_command(
     const char *command,
     json_t *kw,
+    const char *verb,
+    const sdata_desc_t *command_table,
     char *bf,
     size_t bfsize,
     BOOL *in_text
 )
 {
+    const sdata_desc_t *table = (strcmp(verb, COMMAND_AGENT) == 0)? command_table: NULL;
+
     *bf = 0;
     *in_text = FALSE;
     char *value = text_param(command, "command");
     if(value) {
         *in_text = TRUE;
-        first_word(value, bf, bfsize);
+        command_word(value, table, bf, bfsize);
         gbmem_free(value);
         return;
     }
     json_t *jn_inner = json_is_object(kw)? json_object_get(kw, "command"): NULL;
     if(json_is_string(jn_inner)) {
-        first_word(json_string_value(jn_inner), bf, bfsize);
+        command_word(json_string_value(jn_inner), table, bf, bfsize);
     }
 }
 
@@ -310,28 +529,95 @@ PRIVATE BOOL has_reset(const char *command, json_t *kw)
 }
 
 /***************************************************************************
- *  TRUE if `name` (of `len` bytes) is the name of a secret parameter
+ *  TRUE if `name` (of `len` bytes) is the name of a secret parameter.
+ *  One pass over the name, no copy: at each byte, only the parts that
+ *  begin with that letter are compared. Any case; for the joined parts the
+ *  bytes '_', '-', '.' and blanks of the name are skipped.
  ***************************************************************************/
+PRIVATE BOOL is_joiner(char c)
+{
+    return (c == '_' || c == '-' || c == '.' || c == ' ' || c == '\t')? TRUE: FALSE;
+}
+
+PRIVATE char ascii_lower(char c)
+{
+    return (c >= 'A' && c <= 'Z')? (char)(c + ('a' - 'A')): c;
+}
+
+/*
+ *  TRUE if `part` (lower case) begins at name[i]
+ */
+PRIVATE BOOL part_at(const char *name, size_t len, size_t i, const char *part, BOOL joined)
+{
+    size_t j = i;
+    size_t k = 0;
+    while(part[k]) {
+        if(j >= len) {
+            return FALSE;
+        }
+        char c = name[j];
+        if(joined && k > 0 && is_joiner(c)) {
+            j++;
+            continue;
+        }
+        if(ascii_lower(c) != part[k]) {
+            return FALSE;
+        }
+        j++;
+        k++;
+    }
+    return TRUE;
+}
+
+/*
+ *  The letters that begin a part (made once from the lists): at any other
+ *  byte of a name nothing is compared
+ */
+PRIVATE BOOL first_letters_done = FALSE;
+PRIVATE BOOL first_letters[256];
+
+PRIVATE void make_first_letters(void)
+{
+    for(int p=0; secret_name_parts[p]; p++) {
+        first_letters[(unsigned char)secret_name_parts[p][0]] = TRUE;
+    }
+    for(int p=0; secret_name_joined[p]; p++) {
+        first_letters[(unsigned char)secret_name_joined[p][0]] = TRUE;
+    }
+    first_letters['p'] = TRUE;  // priv
+    first_letters['k'] = TRUE;  // key
+    first_letters_done = TRUE;
+}
+
 PRIVATE BOOL is_secret_name(const char *name, size_t len)
 {
-    char lower[NAME_MAX];
-    if(len == 0) {
-        return FALSE;
+    if(!first_letters_done) {
+        make_first_letters();
     }
-    if(len >= sizeof(lower)) {
-        len = sizeof(lower) - 1;
-    }
+    BOOL has_priv = FALSE;
+    BOOL has_key = FALSE;
     for(size_t i=0; i<len; i++) {
-        lower[i] = (char)tolower((unsigned char)name[i]);
-    }
-    lower[len] = 0;
-
-    for(int i=0; secret_name_parts[i]; i++) {
-        if(strstr(lower, secret_name_parts[i])) {
-            return TRUE;
+        char c = ascii_lower(name[i]);
+        if(!first_letters[(unsigned char)c]) {
+            continue;
+        }
+        for(int p=0; secret_name_parts[p]; p++) {
+            if(secret_name_parts[p][0] == c && part_at(name, len, i, secret_name_parts[p], FALSE)) {
+                return TRUE;
+            }
+        }
+        for(int p=0; secret_name_joined[p]; p++) {
+            if(secret_name_joined[p][0] == c && part_at(name, len, i, secret_name_joined[p], TRUE)) {
+                return TRUE;
+            }
+        }
+        if(c == 'p' && !has_priv) {
+            has_priv = part_at(name, len, i, "priv", FALSE);
+        } else if(c == 'k' && !has_key) {
+            has_key = part_at(name, len, i, "key", FALSE);
         }
     }
-    return (strstr(lower, "priv") && strstr(lower, "key"))? TRUE: FALSE;
+    return (has_priv && has_key)? TRUE: FALSE;
 }
 
 PRIVATE key_kind_t key_kind(const char *key, size_t len, const redact_ctx_t *ctx)
@@ -342,42 +628,148 @@ PRIVATE key_kind_t key_kind(const char *key, size_t len, const redact_ctx_t *ctx
     if(is_secret_name(key, len)) {
         return KEY_SECRET;
     }
-    if(ctx->value_is_secret && len == 5 && strncmp(key, "value", 5) == 0) {
+    if(ctx->value_is_secret && len == 5 && strncasecmp(key, "value", 5) == 0) {
         return KEY_SECRET;
     }
     return KEY_PLAIN;
 }
 
 /***************************************************************************
- *  TRUE if a write-attr names a secret attribute (its `value` is then a
- *  secret), in the text, anywhere, or in kw.attribute
+ *  The kind of a json key written in a text: its escapes are decoded
+ *  first ("pass\u0077ord" is "password"). A \u of a code point that is
+ *  not ASCII becomes a byte that no secret name holds.
  ***************************************************************************/
-PRIVATE BOOL names_secret_attribute(const char *text, json_t *kw)
+PRIVATE int hex_value(char c)
 {
-    json_t *jn_attribute = json_is_object(kw)? json_object_get(kw, "attribute"): NULL;
-    if(json_is_string(jn_attribute) &&
-            is_secret_name(json_string_value(jn_attribute), json_string_length(jn_attribute))) {
+    if(c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    c = (char)tolower((unsigned char)c);
+    if(c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+    return -1;
+}
+
+PRIVATE key_kind_t json_key_kind(const char *key, size_t len, const redact_ctx_t *ctx)
+{
+    if(!memchr(key, '\\', len)) {
+        return key_kind(key, len, ctx);
+    }
+
+    char *bf = gbmem_malloc(len + 1);
+    if(!bf) {
+        return KEY_SECRET;  // Error already logged. Never write what cannot be judged
+    }
+    size_t n = 0;
+    for(size_t i=0; i<len; i++) {
+        char c = key[i];
+        if(c != '\\' || i + 1 >= len) {
+            bf[n++] = c;
+            continue;
+        }
+        char e = key[++i];
+        switch(e) {
+            case 'b':
+                bf[n++] = '\b';
+                break;
+            case 'f':
+                bf[n++] = '\f';
+                break;
+            case 'n':
+                bf[n++] = '\n';
+                break;
+            case 'r':
+                bf[n++] = '\r';
+                break;
+            case 't':
+                bf[n++] = '\t';
+                break;
+            case 'u':
+                {
+                    int code = 0;
+                    BOOL ok = (i + 4 < len)? TRUE: FALSE;
+                    for(int h=1; ok && h<=4; h++) {
+                        int v = hex_value(key[i+h]);
+                        if(v < 0) {
+                            ok = FALSE;
+                        } else {
+                            code = code*16 + v;
+                        }
+                    }
+                    if(ok) {
+                        bf[n++] = (code < 0x80)? (char)code: (char)0x80;
+                        i += 4;
+                    } else {
+                        bf[n++] = e;
+                    }
+                }
+                break;
+            default:    // '"', '\\', '/' and anything else: the char itself
+                bf[n++] = e;
+                break;
+        }
+    }
+    key_kind_t kind = key_kind(bf, n, ctx);
+    gbmem_free(bf);
+    return kind;
+}
+
+/***************************************************************************
+ *  TRUE if a write-attr names a secret attribute (its `value` is then a
+ *  secret): `attribute=<name>` or `"attribute": "<name>"` (the key in any
+ *  case, blanks and quotes around), anywhere in the text, or
+ *  kw.attribute. One pass over the text.
+ ***************************************************************************/
+#define ATTRIBUTE_KEY   "attribute"
+
+PRIVATE BOOL kw_names_secret_attribute(json_t *kw)
+{
+    if(!json_is_object(kw)) {
+        return FALSE;
+    }
+    const char *key;
+    json_t *value;
+    json_object_foreach(kw, key, value) {
+        if((key[0] == 'a' || key[0] == 'A') && strcasecmp(key, ATTRIBUTE_KEY) == 0 &&
+                json_is_string(value) &&
+                is_secret_name(json_string_value(value), json_string_length(value))) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+PRIVATE BOOL names_secret_attribute(const char *text, size_t len, json_t *kw)
+{
+    if(kw_names_secret_attribute(kw)) {
         return TRUE;
     }
 
+    size_t key_len = strlen(ATTRIBUTE_KEY);
+    const char *end = text + strnlen(text, len);   // strcasestr() stops at a nul
     const char *p = text;
-    while((p = strstr(p, "attribute")) != NULL) {
-        p += strlen("attribute");
-        const char *v = p;
-        while(*v == ' ' || *v == '\t' || *v == '"') {
+    while(p + key_len <= end && (p = strcasestr(p, ATTRIBUTE_KEY)) != NULL) {
+        const char *v = p + key_len;
+        while(v < end && (*v == ' ' || *v == '\t' || *v == '"' || *v == '\'')) {
             v++;
         }
-        if(*v != '=' && *v != ':') {
+        if(v >= end || (*v != '=' && *v != ':')) {
+            p = v;
             continue;
         }
         v++;
-        while(*v == ' ' || *v == '\t' || *v == '\'' || *v == '"') {
+        while(v < end && (*v == ' ' || *v == '\t' || *v == '\'' || *v == '"')) {
             v++;
         }
-        size_t n = strcspn(v, " \t'\",}");
-        if(is_secret_name(v, n)) {
+        const char *e = v;
+        while(e < end && !strchr(" \t'\",}", *e)) {
+            e++;
+        }
+        if(is_secret_name(v, (size_t)(e - v))) {
             return TRUE;
         }
+        p = (e > p)? e: p + 1;
     }
     return FALSE;
 }
@@ -397,7 +789,7 @@ PRIVATE BOOL command_is_read_only(
         return FALSE;
     }
     if(wrapper) {
-        if(!*inner || name_in_list(inner, wrapper_commands)) {
+        if(!*inner || is_wrapper(inner)) {
             return FALSE;
         }
         return verb_is_read_only(inner);
@@ -532,6 +924,7 @@ PRIVATE void content64_summary(
     snprintf(bf, bfsize, "<%zu chars, not base64, sha256 of the text:%s>", len, hex);
 }
 
+
 /***************************************************************************
  *  The copy of a text: append
  ***************************************************************************/
@@ -593,97 +986,118 @@ PRIVATE void replace_value(
 }
 
 /***************************************************************************
- *  `key=value` at `eq`, the parser's way: the key is the last word before
- *  the '=' (blanks allowed around it); the value is quoted ('' or "",
- *  up to the same quote, or to the end if it never closes) or runs to a
- *  blank. Return where the scan goes on.
+ *  The scan jumped over a value: what came before is no json key
  ***************************************************************************/
-PRIVATE void scan_range(redact_scan_t *sc, const char *begin, const char *end);
+PRIVATE void forget_quotes(scan_state_t *st)
+{
+    st->q_last = NULL;
+    st->q_prev = NULL;
+    st->backslashes = 0;
+}
 
-PRIVATE const char *scan_param(
-    redact_scan_t *sc,
-    const char *begin,
-    const char *end,
-    const char *eq
-)
+PRIVATE BOOL is_blank(char c)
+{
+    return (c == ' ' || c == '\t')? TRUE: FALSE;
+}
+
+/***************************************************************************
+ *  `key=value` at `eq`, the parser's way: the key is the last word before
+ *  the '=' (blanks allowed around it, or a quoted word); the value is
+ *  quoted ('' or "", up to the same quote, or to the end of the region if
+ *  it never closes) or runs to a blank. A plain value is not skipped: the
+ *  scan goes on inside it (a command or a json inside the value), and a
+ *  quoted one becomes a region. Return where the scan goes on.
+ ***************************************************************************/
+PRIVATE const char *scan_param(redact_scan_t *sc, scan_state_t *st, const char *eq)
 {
     const char *k_end = eq;
-    while(k_end > begin && (k_end[-1] == ' ' || k_end[-1] == '\t')) {
+    while(k_end > st->lo && is_blank(k_end[-1])) {
         k_end--;
     }
     const char *k = k_end;
-    while(k > begin && !strchr(" \t'\"=", k[-1])) {
-        k--;
+    if(k_end > st->lo && (k_end[-1] == '\'' || k_end[-1] == '"')) {
+        /*
+         *  A quoted key ('password'=x): the parser keeps the quotes in the
+         *  key, the audit judges the word between them
+         */
+        char quote = k_end[-1];
+        k_end--;
+        k = k_end;
+        while(k > st->lo && k[-1] != quote) {
+            k--;
+        }
+    } else {
+        while(k > st->lo && !strchr(" \t'\"=", k[-1])) {
+            k--;
+        }
     }
     key_kind_t kind = key_kind(k, (size_t)(k_end - k), sc->ctx);
 
     const char *v = eq + 1;
     if(kind != KEY_PLAIN) {
-        while(v < end && (*v == ' ' || *v == '\t')) {
+        while(v < st->hi && is_blank(*v)) {
             v++;    // the value goes to the next word, better said than written
         }
     }
 
-    const char *v_begin = v;
-    const char *v_end = end;
-    const char *next = end;
-    if(v < end && (*v == '\'' || *v == '"')) {
+    const char *v_begin;
+    const char *v_end;
+    const char *next;
+    if(v < st->hi && (*v == '\'' || *v == '"')) {
+        const char *q = memchr(v + 1, *v, (size_t)(st->hi - (v + 1)));
+        if(kind == KEY_PLAIN) {
+            if(q && st->depth < MAX_REGIONS) {
+                st->region_begin[st->depth] = v + 1;
+                st->region_end[st->depth] = q;
+                st->depth++;
+                st->lo = v + 1;
+                st->hi = q;
+            }
+            forget_quotes(st);
+            return v + 1;
+        }
         v_begin = v + 1;
-        const char *q = memchr(v_begin, *v, (size_t)(end - v_begin));
-        if(q) {
-            v_end = q;
-            next = q + 1;
-        }
+        v_end = q? q: st->hi;
+        next = q? q + 1: st->hi;
     } else {
-        const char *b = v;
-        while(b < end && *b != ' ' && *b != '\t') {
-            b++;
+        if(kind == KEY_PLAIN) {
+            return eq + 1;
         }
-        v_end = b;
-        next = b;
+        v_begin = v;
+        v_end = v;
+        while(v_end < st->hi && !is_blank(*v_end)) {
+            v_end++;
+        }
+        next = v_end;
     }
 
-    if(kind == KEY_PLAIN) {
-        scan_range(sc, v_begin, v_end);     // a command or a json inside the value
-    } else {
-        replace_value(sc, kind, v_begin, v_end);
-    }
+    replace_value(sc, kind, v_begin, v_end);
+    forget_quotes(st);
     return next;
 }
 
 /***************************************************************************
  *  `"key": value` at `colon` (a json inside a string). The key is the
- *  string before the ':'. The value is a string (with its escapes), an
- *  object or a list (up to the bracket that closes it), or a scalar.
- *  Return where the scan goes on.
+ *  last string before the ':' (only blanks between). The value is a
+ *  string (with its escapes), an object or a list (up to the bracket that
+ *  closes it), or a scalar. Return where the scan goes on.
  ***************************************************************************/
-PRIVATE const char *scan_json_member(
-    redact_scan_t *sc,
-    const char *begin,
-    const char *end,
-    const char *colon
-)
+PRIVATE const char *scan_json_member(redact_scan_t *sc, scan_state_t *st, const char *colon)
 {
     const char *k_end = colon;
-    while(k_end > begin && isspace((unsigned char)k_end[-1])) {
+    while(k_end > st->lo && isspace((unsigned char)k_end[-1])) {
         k_end--;
     }
-    if(k_end <= begin || k_end[-1] != '"') {
+    if(!st->q_last || !st->q_prev || k_end - 1 != st->q_last || st->q_prev < st->lo) {
         return colon + 1;
     }
-    k_end--;
-    const char *k = k_end;
-    while(k > begin && k[-1] != '"') {
-        k--;
-    }
-    if(k <= begin) {
-        return colon + 1;
-    }
-    key_kind_t kind = key_kind(k, (size_t)(k_end - k), sc->ctx);
+    const char *k = st->q_prev + 1;
+    key_kind_t kind = json_key_kind(k, (size_t)(st->q_last - k), sc->ctx);
     if(kind == KEY_PLAIN) {
         return colon + 1;
     }
 
+    const char *end = st->hi;
     const char *v = colon + 1;
     while(v < end && isspace((unsigned char)*v)) {
         v++;
@@ -701,6 +1115,7 @@ PRIVATE const char *scan_json_member(
             e++;
         }
         replace_value(sc, kind, v + 1, e);  // the quotes stay
+        forget_quotes(st);
         return (e < end)? e + 1: end;
     }
 
@@ -735,23 +1150,124 @@ PRIVATE const char *scan_json_member(
         }
     }
     out_replace(sc, v, e, "\"" REDACTED "\"");
+    forget_quotes(st);
     return e;
 }
 
 /***************************************************************************
- *  Scan the bytes [begin, end) of the text
+ *  "Bearer <token>" at `p` (any case, a word of its own): the token is
+ *  redacted. Return where the scan goes on, NULL if it is not one.
  ***************************************************************************/
-PRIVATE void scan_range(redact_scan_t *sc, const char *begin, const char *end)
+#define BEARER_WORD     "bearer"
+
+PRIVATE const char *scan_bearer(redact_scan_t *sc, scan_state_t *st, const char *p)
 {
+    size_t word_len = strlen(BEARER_WORD);
+    if((size_t)(st->hi - p) <= word_len || strncasecmp(p, BEARER_WORD, word_len) != 0) {
+        return NULL;
+    }
+    if(p > st->lo && isalnum((unsigned char)p[-1])) {
+        return NULL;
+    }
+    const char *t = p + word_len;
+    if(!is_blank(*t)) {
+        return NULL;
+    }
+    while(t < st->hi && is_blank(*t)) {
+        t++;
+    }
+    const char *e = t;
+    while(e < st->hi && !is_blank(*e) && !strchr("'\",;}]", *e)) {
+        e++;
+    }
+    if(e == t) {
+        return NULL;
+    }
+    out_replace(sc, t, e, REDACTED);
+    forget_quotes(st);
+    return e;
+}
+
+/***************************************************************************
+ *  A JWT at `p` ("eyJ" = base64url of '{"', three parts joined by '.'):
+ *  redacted. Return where the scan goes on (the end of the run of
+ *  base64url bytes, a JWT or not: it holds no '=', ':' or quote).
+ ***************************************************************************/
+PRIVATE BOOL is_b64url(char c)
+{
+    return (isalnum((unsigned char)c) || c == '-' || c == '_')? TRUE: FALSE;
+}
+
+PRIVATE const char *scan_jwt(redact_scan_t *sc, scan_state_t *st, const char *p)
+{
+    if(st->hi - p < 3 || p[0] != 'e' || p[1] != 'y' || p[2] != 'J') {
+        return NULL;
+    }
+    if(p > st->lo && (is_b64url(p[-1]) || p[-1] == '.')) {
+        return NULL;
+    }
+    const char *e = p;
+    int dots = 0;
+    while(e < st->hi && (is_b64url(*e) || *e == '.')) {
+        if(*e == '.') {
+            dots++;
+        }
+        e++;
+    }
+    if(dots == 2 && e[-1] != '.') {
+        out_replace(sc, p, e, REDACTED);
+        forget_quotes(st);
+    }
+    return e;
+}
+
+/***************************************************************************
+ *  Scan the bytes [begin, end) of the text: one pass, no recursion
+ ***************************************************************************/
+PRIVATE void scan_text(redact_scan_t *sc, const char *begin, const char *end)
+{
+    scan_state_t st;    // the regions are written before they are read: no memset
+    st.lo = begin;
+    st.hi = end;
+    st.depth = 0;
+    st.q_last = NULL;
+    st.q_prev = NULL;
+    st.backslashes = 0;
+
     const char *p = begin;
     while(p < end) {
-        if(*p == '=') {
-            p = scan_param(sc, begin, end, p);
-        } else if(*p == ':') {
-            p = scan_json_member(sc, begin, end, p);
-        } else {
-            p++;
+        while(st.depth > 0 && p >= st.hi) {
+            /*
+             *  The end of a quoted value (its closing quote): back to the
+             *  region around it
+             */
+            st.depth--;
+            st.lo = st.depth? st.region_begin[st.depth-1]: begin;
+            st.hi = st.depth? st.region_end[st.depth-1]: end;
         }
+
+        char c = *p;
+        const char *next = NULL;
+        if(c == '=') {
+            next = scan_param(sc, &st, p);
+        } else if(c == ':') {
+            next = scan_json_member(sc, &st, p);
+        } else if((c == 'b' || c == 'B') && st.hi - p > 1 && ascii_lower(p[1]) == 'e') {
+            next = scan_bearer(sc, &st, p);
+        } else if(c == 'e' && st.hi - p > 2 && p[1] == 'y' && p[2] == 'J') {
+            next = scan_jwt(sc, &st, p);
+        }
+        if(next) {
+            p = next;
+            continue;
+        }
+
+        if(c == '"' && (st.backslashes % 2) == 0) {
+            st.q_prev = st.q_last;
+            st.q_last = p;
+        }
+        st.backslashes = (c == '\\')? st.backslashes + 1: 0;
+        p++;
     }
 }
 
@@ -760,18 +1276,26 @@ PRIVATE void scan_range(redact_scan_t *sc, const char *begin, const char *end)
  *  header). NULL if there is nothing to replace (use the text as it is).
  *  Free the result with gbmem_free().
  ***************************************************************************/
-PRIVATE char *redact_text(const char *text, size_t len, const redact_ctx_t *ctx)
+PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx)
 {
-    if(!memchr(text, '=', len) && !memchr(text, ':', len)) {
-        return NULL;
+    if(len > ctx->budget) {
+        ctx->budget = 0;
+        char hex[SHA256_HEX_LEN + 1];
+        if(sha256_hex(text, len, hex, sizeof(hex)) < 0) {
+            snprintf(hex, sizeof(hex), "?");    // Error already logged
+        }
+        char bf[SHA256_HEX_LEN + 64];
+        snprintf(bf, sizeof(bf), "<%zu bytes, not scanned, sha256:%s>", len, hex);
+        return gbmem_strdup(bf);
     }
+    ctx->budget -= len;
 
     redact_scan_t sc = {
         .text = text,
         .from = text,
         .ctx = ctx
     };
-    scan_range(&sc, text, text + len);
+    scan_text(&sc, text, text + len);
 
     if(sc.from == text) {
         return NULL;    // Nothing replaced
@@ -789,35 +1313,47 @@ PRIVATE char *redact_text(const char *text, size_t len, const redact_ctx_t *ctx)
  *  A copy of a json value with every content64 and secret replaced
  *  (see the header). Values with nothing to redact are shared, not copied.
  ***************************************************************************/
-PRIVATE json_t *redacted_member(const char *key, json_t *value, const redact_ctx_t *ctx)
+PRIVATE json_t *redacted_member(const char *key, json_t *value, redact_ctx_t *ctx)
 {
     key_kind_t kind = key_kind(key, strlen(key), ctx);
     if(kind == KEY_SECRET) {
         return json_string(REDACTED);
     }
     if(kind == KEY_CONTENT64 && json_is_string(value)) {
+        size_t len = json_string_length(value);
         char summary[SHA256_HEX_LEN + 128];
-        content64_summary(
-            json_string_value(value),
-            json_string_length(value),
-            ctx->tty,
-            summary,
-            sizeof(summary)
-        );
+        if(len > ctx->budget) {
+            ctx->budget = 0;
+            char *s = redact_text(json_string_value(value), len, ctx);  // not scanned: its sha256
+            json_t *jn = json_string(s? s: "");
+            GBMEM_FREE(s);
+            return jn;
+        }
+        ctx->budget -= len;
+        content64_summary(json_string_value(value), len, ctx->tty, summary, sizeof(summary));
         return json_string(summary);
     }
     return redacted_copy(value, ctx);
 }
 
-PRIVATE json_t *redacted_copy(json_t *jn, const redact_ctx_t *ctx)
+PRIVATE json_t *redacted_copy(json_t *jn, redact_ctx_t *ctx)
 {
     if(json_is_object(jn)) {
+        /*
+         *  A write-attr given as a json object ({"attribute": "api_key",
+         *  "value": ...}): its `value` is a secret, at this level and below
+         */
+        BOOL value_is_secret = ctx->value_is_secret;
+        if(!value_is_secret && kw_names_secret_attribute(jn)) {
+            ctx->value_is_secret = TRUE;
+        }
         json_t *jn_copy = json_object();
         const char *key;
         json_t *value;
         json_object_foreach(jn, key, value) {
             json_object_set_new(jn_copy, key, redacted_member(key, value, ctx));
         }
+        ctx->value_is_secret = value_is_secret;
         return jn_copy;
     }
 
@@ -949,42 +1485,67 @@ PRIVATE const char *command_user(json_t *kw)
 }
 
 /***************************************************************************
- *  Build the audit record of a command
+ *  The command text of the record: redacted, or beyond the budget its
+ *  first word, size and sha256 only. NULL if the text is written as it
+ *  is. Free with gbmem_free().
  ***************************************************************************/
-PUBLIC json_t *audit_record_build(
+PRIVATE char *record_command_text(const char *command, const char *verb, redact_ctx_t *ctx)
+{
+    size_t len = strlen(command);
+    if(len > ctx->budget) {
+        ctx->budget = 0;
+        char hex[SHA256_HEX_LEN + 1];
+        if(sha256_hex(command, len, hex, sizeof(hex)) < 0) {
+            snprintf(hex, sizeof(hex), "?");    // Error already logged
+        }
+        char bf[NAME_MAX + SHA256_HEX_LEN + 64];
+        snprintf(bf, sizeof(bf), "%s <%zu bytes, not scanned, sha256:%s>", verb, len, hex);
+        return gbmem_strdup(bf);
+    }
+    return redact_text(command, len, ctx);
+}
+
+/***************************************************************************
+ *  Build the audit record of a command whose word is `verb`
+ ***************************************************************************/
+PRIVATE json_t *record_build(
     const char *command,
-    json_t *kw,         // not owned
-    const char *date
+    json_t *kw,
+    const char *date,
+    const sdata_desc_t *command_table,
+    const char *verb
 )
 {
-    if(!command) {
-        command = "";
-    }
-    if(!date) {
-        date = "";
-    }
-
-    char verb[NAME_MAX];
-    first_word(command, verb, sizeof(verb));
     char inner[NAME_MAX] = "";
     BOOL inner_in_text = FALSE;
-    BOOL wrapper = name_in_list(verb, wrapper_commands);
-    if(wrapper) {
-        inner_command(command, kw, inner, sizeof(inner), &inner_in_text);
+    BOOL wrapper = is_wrapper(verb);
+    size_t command_len = strlen(command);
+    if(wrapper && command_len <= AUDIT_SCAN_BUDGET) {
+        inner_command(command, kw, verb, command_table, inner, sizeof(inner), &inner_in_text);
     }
 
     redact_ctx_t ctx = {
         .tty = (strcmp(verb, TTY_WRITE) == 0 || strcmp(inner, TTY_WRITE) == 0)? TRUE: FALSE,
-        .value_is_secret = names_secret_attribute(command, kw)
+        .value_is_secret = FALSE,
+        .budget = AUDIT_SCAN_BUDGET
     };
+    if(command_len <= AUDIT_SCAN_BUDGET) {
+        ctx.value_is_secret = names_secret_attribute(command, command_len, kw);
+    } else {
+        ctx.value_is_secret = kw_names_secret_attribute(kw);
+    }
     if(!ctx.value_is_secret && wrapper && json_is_object(kw)) {
         json_t *jn_inner = json_object_get(kw, "command");
-        if(json_is_string(jn_inner)) {
-            ctx.value_is_secret = names_secret_attribute(json_string_value(jn_inner), NULL);
+        if(json_is_string(jn_inner) && json_string_length(jn_inner) <= AUDIT_SCAN_BUDGET) {
+            ctx.value_is_secret = names_secret_attribute(
+                json_string_value(jn_inner),
+                json_string_length(jn_inner),
+                NULL
+            );
         }
     }
 
-    char *command_redacted = redact_text(command, strlen(command), &ctx);
+    char *command_redacted = record_command_text(command, verb, &ctx);
     const char *command_text = command_redacted? command_redacted: command;
     json_t *jn_record = NULL;
 
@@ -1035,9 +1596,7 @@ PUBLIC json_t *audit_record_build(
         }
     }
 
-    if(command_redacted) {
-        gbmem_free(command_redacted);
-    }
+    GBMEM_FREE(command_redacted);
     if(!jn_record) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -1048,6 +1607,27 @@ PUBLIC json_t *audit_record_build(
         );
     }
     return jn_record;
+}
+
+/***************************************************************************
+ *  Build the audit record of a command, see audit_record.h
+ ***************************************************************************/
+PUBLIC json_t *audit_record_build(
+    const char *command,
+    json_t *kw,         // not owned
+    const char *date,
+    const sdata_desc_t *command_table
+)
+{
+    if(!command) {
+        command = "";
+    }
+    if(!date) {
+        date = "";
+    }
+    char verb[NAME_MAX];
+    command_word(command, command_table, verb, sizeof(verb));
+    return record_build(command, kw, date, command_table, verb);
 }
 
 /***************************************************************************
@@ -1145,37 +1725,21 @@ PUBLIC void audit_tty_close_bursts(json_t *jn_bursts, json_t *jn_records)
 }
 
 /***************************************************************************
- *  Console writes, see audit_record.h
+ *  Console writes of a command whose word is `verb`: TRUE if it is a
+ *  write-tty (its records are made here)
  ***************************************************************************/
-PUBLIC BOOL audit_tty_command(
+PRIVATE BOOL tty_command(
     json_t *jn_bursts,
     const char *command,
     json_t *kw,
     const char *date,
     unsigned burst_seconds,
+    const char *verb,
     json_t *jn_records
 )
 {
-    if(!json_is_object(jn_bursts) || !json_is_array(jn_records)) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "jn_bursts must be a dict and jn_records a list",
-            NULL
-        );
-        return FALSE;
-    }
-    if(!command) {
-        command = "";
-    }
-    if(!date) {
-        date = "";
-    }
-
     tty_close_bursts(jn_bursts, FALSE, jn_records);
 
-    char verb[NAME_MAX];
-    first_word(command, verb, sizeof(verb));
     if(strcmp(verb, CLOSE_CONSOLE) == 0) {
         tty_close_bursts(jn_bursts, TRUE, jn_records);
         return FALSE;   // close-console has its own record
@@ -1184,8 +1748,9 @@ PUBLIC BOOL audit_tty_command(
         return FALSE;
     }
 
-    char *console = param_value(command, kw, "name");
-    char *content64 = param_value(command, kw, CONTENT64_KEY);
+    const char *text = (strlen(command) <= AUDIT_SCAN_BUDGET)? command: "";    // beyond: the kw only
+    char *console = param_value(text, kw, "name");
+    char *content64 = param_value(text, kw, CONTENT64_KEY);
     ssize_t size = content64? base64_decoded_size(content64, strlen(content64)): -1;
     json_int_t bytes = (size > 0)? (json_int_t)size: 0;
     const char *user = command_user(kw);
@@ -1242,4 +1807,83 @@ PUBLIC BOOL audit_tty_command(
     GBMEM_FREE(console);
     GBMEM_FREE(content64);
     return TRUE;
+}
+
+/***************************************************************************
+ *  Parameters of the public functions
+ ***************************************************************************/
+PRIVATE BOOL bursts_and_records_ok(json_t *jn_bursts, json_t *jn_records, const char *fn)
+{
+    if(!json_is_object(jn_bursts) || !json_is_array(jn_records)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", fn,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "jn_bursts must be a dict and jn_records a list",
+            NULL
+        );
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  Console writes, see audit_record.h
+ ***************************************************************************/
+PUBLIC BOOL audit_tty_command(
+    json_t *jn_bursts,
+    const char *command,
+    json_t *kw,
+    const char *date,
+    unsigned burst_seconds,
+    const sdata_desc_t *command_table,
+    json_t *jn_records
+)
+{
+    if(!bursts_and_records_ok(jn_bursts, jn_records, __FUNCTION__)) {
+        return FALSE;
+    }
+    if(!command) {
+        command = "";
+    }
+    if(!date) {
+        date = "";
+    }
+    char verb[NAME_MAX];
+    command_word(command, command_table, verb, sizeof(verb));
+    return tty_command(jn_bursts, command, kw, date, burst_seconds, verb, jn_records);
+}
+
+/***************************************************************************
+ *  The records of one command, see audit_record.h
+ ***************************************************************************/
+PUBLIC int audit_command_records(
+    json_t *jn_bursts,
+    const char *command,
+    json_t *kw,
+    const char *date,
+    unsigned burst_seconds,
+    const sdata_desc_t *command_table,
+    json_t *jn_records
+)
+{
+    if(!bursts_and_records_ok(jn_bursts, jn_records, __FUNCTION__)) {
+        return -1;
+    }
+    if(!command) {
+        command = "";
+    }
+    if(!date) {
+        date = "";
+    }
+    char verb[NAME_MAX];
+    command_word(command, command_table, verb, sizeof(verb));   // once for both
+    if(tty_command(jn_bursts, command, kw, date, burst_seconds, verb, jn_records)) {
+        return 0;
+    }
+    json_t *jn_record = record_build(command, kw, date, command_table, verb);
+    if(!jn_record) {
+        return -1;  // Error already logged
+    }
+    json_array_append_new(jn_records, jn_record);
+    return 0;
 }

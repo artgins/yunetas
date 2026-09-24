@@ -16,6 +16,9 @@ and the files outside the tree stay. An entry (a file, a directory) that
 another process removes during the walk is not an error (the test binary is
 linked with `--wrap=lstat` and removes the entry at its `lstat()`). And
 `mkrdir()` over a file (error) and through a link to a directory (works).
+And a deep tree: 300 levels are removed; paths longer than `PATH_MAX` and a
+tree of 1100 levels are refused with a log, not walked into (the code before
+crashed); `mkrdir()` of a path longer than `PATH_MAX` is refused with a log.
 
 `test_rotatory` covers `rotatory_remove_old_files()`, the retention of the
 agent's audit directory: only the old files of the mask (and their `.OLD`) go;
@@ -31,6 +34,11 @@ And after `rotatory_end()`, a write, flush, truncate or close through an old
 handle does nothing. And a clock set back across midnight, and forward again,
 empties no file (the audit mask and the `W` mask; the file of last week of a
 `W` mask is still emptied): the clock is faked with `--wrap=time`.
+And a piece of 0 bytes stops nothing, a write that fails (a file size limit)
+is followed by a record that opens the file again, the open of an old `W`
+file empties it (a mask with the year never), and a new day on a full disk
+calls the newfile callback (the retention) and writes again when it frees the
+space.
 
 `test_audit_record` compiles the audit record builder of `yuneta_agent`
 (`yunos/c/yuno_agent/src/audit_record.c`) and checks it: a `content64` (in
@@ -45,8 +53,16 @@ write. The carried command of `command-yuno` is the one of the text, as the
 parser takes it. Blanks around the `=` of `content64`, many short values and a
 quote that never ends leak nothing. Bad data from a peer logs no error. A
 console write (`write-tty`) keeps only the fact, one record per burst, with no
-hash. It prints the size of a record, 7.25.4's way and now,
-and what one record costs. `test_rotatory` also covers
+hash. Texts made to be hard to scan (`list-yunos x` + 1 500 000 `=`, and
+eleven other shapes) and 3000 random texts: every record is built, in linear
+time, and a `password=` never survives; a text beyond the cap of a record
+(128 MB) is written as its first word, size and sha256. The command word is
+the one the parser takes (`WRITE-TTY`, `'write-tty'`, `EV_WRITE_TTY`,
+`CLOSE-CONSOLE`, `1`, `ATTRIBUTE=… VALUE=…`), checked against
+`command_get_cmd_desc()`. More secret names (`api_key`, `x-api-key`,
+`http_cookie`, `__session_id__`, `auth_data`, `passphrase`, …), json keys with
+`\u` escapes, `Bearer` tokens and JWTs. It prints the size of a record,
+7.25.4's way and now, and what one record costs. `test_rotatory` also covers
 `rotatory_keep_all_old_files()` (numbered `.OLD.<n>` pieces, none removed, and
 the retention matches them).
 

@@ -528,22 +528,40 @@ nearest first:
   so you can check it on the node:
 
   ```bash
-  sha256sum /yuneta/repos/*/auth_bff/*/auth_bff
+  sha256sum /yuneta/repos/yuneta/utils/auth_bff/*/auth_bff
+  # /yuneta/repos/<domain>/<class>/<role>/<version>/<role>
   ```
 
   A value that is not base64 (a path, for example) is replaced by
   `<N chars, not base64, sha256 of the text:HEX>`. A bad base64 gives no error
   in the audit: the command itself answers the error.
 - **A secret is never written.** Its value is replaced by `<redacted>`. A
-  secret is a parameter whose name holds, in any case, `passw`, `pwd`,
-  `secret`, `token` or `jwt`, or both `priv` and `key`: `password`,
-  `user_passw`, `client_secret`, `kc_admin_client_secret`, `access_token`,
-  `jwt`, `private_key`, …. Also the `value` of a `write-attr` whose `attribute`
-  has such a name. This applies to a kw key at any depth, to `name=value` in
-  any string (quoted or not, with blanks around the `=`), to the command carried
-  by `command-yuno`, and to `"name": value` in a JSON given as text. Up to
-  7.25.4 `check-user-pwd` and `set-user-pwd` wrote the password in clear
-  text. For example:
+  secret is a parameter whose name holds, in any case:
+  - `passw`, `pwd`, `passphrase`, `secret`, `token`, `jwt`, `bearer`,
+    `authorization`, `cookie`, `credential` or `salt`,
+  - or, with `_`, `-`, `.` and blanks taken out, `apikey`, `sessionid`,
+    `sessionkey` or `authdata`,
+  - or both `priv` and `key`.
+
+  For example `password`, `user_passw`, `client_secret`,
+  `kc_admin_client_secret`, `access_token`, `api_key`, `x-api-key`,
+  `http_cookie`, `__session_id__`, `auth_data`, `visitor_salt`, `private_key`.
+  The list comes from a scan of every attribute and command parameter of the
+  SDK and of the projects. The path of a key or a certificate
+  (`ssl_certificate_key`), a certificate (`cert_pem`) and the ids of treedb
+  (`pkey`, `rkey`) are not secrets, and stay. `cookie_domain` is redacted
+  too: it holds `cookie`.
+
+  Also the `value` of a `write-attr` whose `attribute` has such a name (the
+  keys in any case, as the parser takes them: `ATTRIBUTE=api_key VALUE=…`),
+  also when `attribute` and `value` come in a JSON object of the kw. Also the
+  token after `Bearer `, and anything with the shape of a JWT (`eyJ…`, three
+  parts joined by `.`), wherever they are. This applies to a kw key at any
+  depth, to `name=value` in any string (quoted or not, with blanks around the
+  `=`), to the command carried by `command-yuno`, and to `"name": value` in a
+  JSON given as text. The name of a JSON key is read with its escapes:
+  `"pass\u0077ord"` is `password`. Up to 7.25.4 `check-user-pwd` and
+  `set-user-pwd` wrote the password in clear text. For example:
 
   ```json
   {"command":"set-user-pwd username=bob password=<redacted>","date":"…","user":"yuneta",
@@ -552,6 +570,24 @@ nearest first:
    "kw":{"username":"bob","password":"<redacted>"}}
   ```
 - `__command__` is left out when it repeats the command text.
+- **The command word is taken as the command parser takes it**: the first
+  word, without its quotes, looked up in the command table of the agent (any
+  case, and the aliases). So `WRITE-TTY`, `'write-tty'`, `"Write-Tty"` and
+  `EV_WRITE_TTY` are `write-tty`, `1` is `list-yunos` (read-only), and
+  `CLOSE-CONSOLE` ends the bursts of the console writes. The command carried by
+  `command-agent` is looked up the same way. The command carried by
+  `command-yuno` runs in another yuno, whose table the agent does not have: it
+  is compared in lower case.
+- **A text that is hard to scan costs no more than its size.** The scan of a
+  string is one pass, in linear time, without recursion: the audit runs
+  before the parser and the authz, on the text that any peer sends. One
+  record scans at most 128 MB: a string beyond it is not scanned and
+  not written, only its size and its sha256 (and, for the command text, its
+  first word before that):
+
+  ```json
+  {"command":"set-user-pwd <136314912 bytes, not scanned, sha256:7f3a…>","date":"…","user":"…","kw":{}}
+  ```
 
 Up to 7.25.4 the record was the command, the date and the WHOLE kw. The sizes,
 measured with the same commands:
@@ -578,9 +614,10 @@ give the typed text (and a typed password) back.
 The writes of one user (the same user and the same `source`) into one console
 make a **burst**. A burst lasts 60 seconds from its first write.
 
-- The first write of a burst is written at once, alone. So a crash of the
-  agent cannot lose who typed into a console, even if what was typed made the
-  agent stop.
+- The first write of a burst is written at once, alone, and flushed to the
+  file (every audit record is flushed: one `write()` for each command, before
+  the command runs). So a crash of the agent cannot lose who typed into a
+  console, even if what was typed made the agent stop.
 - The other writes of the burst make one more record when the burst ends:
   `date` is the time of its first write, `until` the time of its last one.
 
@@ -644,7 +681,7 @@ sweep that removes something writes one INFO line to the agent log:
 | `use_audit_command_file` | `1` | Write the audit files. |
 | `max_megas_audit_file` | `500` | Size of one piece of a day, in MB. A bigger day continues in `.OLD.<n>` pieces. |
 | `audit_keep_days` | `7` | Days of audit files kept. `0` keeps all (the behaviour up to 7.25.4). |
-| `min_free_disk_percentage` | `20` | Stop writing the audit when the disk has less free space (checked every 100 records), and write it again when the space is back. |
+| `min_free_disk_percentage` | `20` | Stop writing the audit when the disk has less free space (checked every 100 records), and write it again when the space is back. A new day still runs the retention while the disk is full: the retention is what frees the space. |
 
 With the new record format the directory is a few MB a week. The retention
 still bounds it by days, whatever a day writes.

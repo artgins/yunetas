@@ -9252,23 +9252,25 @@ PRIVATE int audit_command_cb(const char *command, json_t *kw, void *user_data)
         json_t *jn_records = json_array();
 
         /*
-         *  A console write (one per keystroke) keeps only the fact, one
-         *  record per burst: see audit_tty_command()
+         *  The command word is told as the parser tells it: by the command
+         *  table of the agent (any case, quotes, aliases such as EV_WRITE_TTY)
          */
-        if(!audit_tty_command(
-                priv->audit_tty_bursts,
-                command,
-                kw,             // not owned
-                date,
-                AUDIT_TTY_BURST_SECONDS,
-                jn_records
-            )) {
-            json_t *jn_record = audit_record_build(command, kw, date);  // kw not owned
-            if(jn_record) {
-                json_array_append_new(jn_records, jn_record);
-            }
-            // else error already logged
-        }
+        const sdata_desc_t *command_table = gobj_command_desc(gobj, NULL, FALSE);
+
+        /*
+         *  A console write (one per keystroke) keeps only the fact, one
+         *  record per burst: see audit_tty_command(). Any other command,
+         *  its record: see audit_record_build().
+         */
+        audit_command_records(  // on -1 error already logged
+            priv->audit_tty_bursts,
+            command,
+            kw,             // not owned
+            date,
+            AUDIT_TTY_BURST_SECONDS,
+            command_table,
+            jn_records
+        );
         write_audit_records(gobj, jn_records);
         JSON_DECREF(jn_records)
     }
@@ -9276,11 +9278,20 @@ PRIVATE int audit_command_cb(const char *command, json_t *kw, void *user_data)
 }
 
 /***************************************************************************
- *  Write the records to the audit file
+ *  Write the records to the audit file, and flush them: a record reaches
+ *  the file (one write()) before the command runs, so a crash of the
+ *  agent loses no record, not even the first write of a console burst
+ *  (who typed). Up to now they waited in the buffer of the file for the
+ *  flush of C_YUNO (every 2 seconds). A command costs one write(), about
+ *  0.7 us more per record (perf_rotatory, audit_record_flush).
  ***************************************************************************/
 PRIVATE void write_audit_records(hgobj gobj, json_t *jn_records)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(json_array_size(jn_records) == 0) {
+        return;
+    }
 
     size_t idx;
     json_t *jn_record;
@@ -9299,6 +9310,7 @@ PRIVATE void write_audit_records(hgobj gobj, json_t *jn_records)
         rotatory_write(priv->audit_file, LOG_AUDIT, "\n", 1);  // double new line: the separator field
         gbmem_free(audit);
     }
+    rotatory_flush(priv->audit_file);
 }
 
 /***************************************************************************

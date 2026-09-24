@@ -13,6 +13,11 @@
  *          - bad data from a peer gives warnings, never an error,
  *          - a console write keeps only the fact (who, when, which
  *            console, how many bytes): one record per burst,
+ *          - a text made to be hard to scan, and random texts: linear
+ *            time, no crash; a text beyond the cap is not written,
+ *          - the command word is the one the parser takes (any case,
+ *            quotes, aliases), and more secret names (api_key, ...),
+ *            json keys with escapes, Bearer tokens and JWTs,
  *          and what one record costs, 7.25.4's way and the new way.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -32,6 +37,26 @@
 PRIVATE int global_result = 0;
 PRIVATE const char *DATE = "2026-09-24T10:00:00.000000000+0200";
 PRIVATE int s_errors = 0;
+
+/*
+ *  The entries of the command table of the agent (c_agent.c) that the
+ *  audit tells apart: names, aliases (as the parser takes them)
+ */
+PRIVATE const char *a_write_tty[] = {"EV_WRITE_TTY", 0};
+PRIVATE const char *a_help[] = {"h", "?", 0};
+PRIVATE const char *a_list_yunos[] = {"1", 0};
+PRIVATE sdata_desc_t command_table[] = {
+/*-CMD2--type-----------name----------------flag----------------alias---------------items-----------json_fn---------description---------- */
+SDATACM2 (DTP_SCHEMA,   "help",             0,                  a_help,             0,              0,              "Command's help"),
+SDATACM2 (DTP_SCHEMA,   "",                 0,                  0,                  0,              0,              "\nAgent\n-----------"),
+SDATACM2 (DTP_SCHEMA,   "close-console",    0,                  0,                  0,              0,              "Close console"),
+SDATACM2 (DTP_SCHEMA,   "command-agent",    SDF_WILD_CMD,       0,                  0,              0,              "Command to agent"),
+SDATACM2 (DTP_SCHEMA,   "command-yuno",     SDF_WILD_CMD,       0,                  0,              0,              "Command to yuno"),
+SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,        0,              0,              "Write data to tty"),
+SDATACM2 (DTP_SCHEMA,   "list-yunos",       0,                  a_list_yunos,       0,              0,              "List yunos"),
+SDATACM2 (DTP_SCHEMA,   "run-yuno",         0,                  0,                  0,              0,              "Run yuno"),
+SDATA_END()
+};
 
 /***************************************************************************
  *
@@ -156,7 +181,7 @@ PRIVATE void test_content64(void)
 
     size_t old_size = size_of_old_record(line, kw);
     uint64_t t0 = time_in_milliseconds_monotonic();
-    json_t *jn_record = audit_record_build(line, kw, DATE);
+    json_t *jn_record = audit_record_build(line, kw, DATE, command_table);
     uint64_t t1 = time_in_milliseconds_monotonic();
     char *record = json2uglystr(jn_record);
     size_t new_size = record? strlen(record): 0;
@@ -186,7 +211,7 @@ PRIVATE void test_content64(void)
         "content64", b64, (int)b64_len,
         "__username__", "claudia@artgins.com"
     );
-    jn_record = audit_record_build("install-binary", kw, DATE);
+    jn_record = audit_record_build("install-binary", kw, DATE, command_table);
     record = json2uglystr(jn_record);
     snprintf(expected, sizeof(expected), "\"content64\":\"<%zu bytes sha256:%s>\"", bin_len, expected_hex);
     check(record && strstr(record, expected) != NULL && strlen(record) < 1024,
@@ -199,7 +224,7 @@ PRIVATE void test_content64(void)
      *  Not base64 (a path, as ycommand also accepts): hashed as text
      */
     kw = json_pack("{s:s}", "content64", "/yuneta/bin/auth_bff?");
-    jn_record = audit_record_build("install-binary", kw, DATE);
+    jn_record = audit_record_build("install-binary", kw, DATE, command_table);
     record = json2uglystr(jn_record);
     check(record && strstr(record, "/yuneta/bin/auth_bff") == NULL &&
         strstr(record, "not base64") != NULL,
@@ -223,7 +248,7 @@ PRIVATE void test_source_summary(void)
         "__username__", "claudia@artgins.com",
         "__md_iev__", md_iev_via_controlcenter("run-yuno id=gate_mqtts")
     );
-    json_t *jn_record = audit_record_build("run-yuno", kw, DATE);
+    json_t *jn_record = audit_record_build("run-yuno", kw, DATE, command_table);
     json_t *jn_kw = json_object_get(jn_record, "kw");
     json_t *jn_source = json_object_get(jn_record, "source");
     json_t *jn_hops = json_object_get(jn_source, "hops");
@@ -271,7 +296,7 @@ PRIVATE void test_read_only(void)
             "__username__", "claudia@artgins.com",
             "__md_iev__", md_iev_via_controlcenter(read_only[i])
         );
-        json_t *jn_record = audit_record_build(read_only[i], kw, DATE);
+        json_t *jn_record = audit_record_build(read_only[i], kw, DATE, command_table);
         char name[128];
         snprintf(name, sizeof(name), "(c) %s: command, date and user only", read_only[i]);
         check(only_command_date_user(jn_record), name);
@@ -291,21 +316,21 @@ PRIVATE void test_read_only(void)
     json_t *kw = json_pack("{s:s, s:s, s:s}",
         "id", "gate_mqtts", "service", "__yuno__", "command", "view-attrs"
     );
-    json_t *jn_record = audit_record_build("command-yuno", kw, DATE);
+    json_t *jn_record = audit_record_build("command-yuno", kw, DATE, command_table);
     check(only_command_date_user(jn_record) &&
         strstr(kw_get_str(0, jn_record, "command", "", 0), "view-attrs") != NULL,
         "(c) command-yuno command=view-attrs: minimal, and it says view-attrs");
     JSON_DECREF(jn_record)
     JSON_DECREF(kw)
 
-    jn_record = audit_record_build("command-yuno id=gate_mqtts service=__yuno__ command=view-attrs", NULL, DATE);
+    jn_record = audit_record_build("command-yuno id=gate_mqtts service=__yuno__ command=view-attrs", NULL, DATE, command_table);
     check(only_command_date_user(jn_record), "(c) the same as a command line: minimal");
     JSON_DECREF(jn_record)
 
     kw = json_pack("{s:s, s:s, s:s, s:s}",
         "id", "gate_mqtts", "service", "__yuno__", "command", "write-attr", "attribute", "x"
     );
-    jn_record = audit_record_build("command-yuno", kw, DATE);
+    jn_record = audit_record_build("command-yuno", kw, DATE, command_table);
     check(!only_command_date_user(jn_record) && json_object_get(jn_record, "kw"),
         "(c) command-yuno command=write-attr: the full record");
     JSON_DECREF(jn_record)
@@ -316,7 +341,7 @@ PRIVATE void test_read_only(void)
         "set-global-trace", "find-new-yunos", "read-file", "check-user-pwd", 0
     };
     for(int i=0; not_read_only[i]; i++) {
-        jn_record = audit_record_build(not_read_only[i], NULL, DATE);
+        jn_record = audit_record_build(not_read_only[i], NULL, DATE, command_table);
         char name[128];
         snprintf(name, sizeof(name), "(c) %s: the full record", not_read_only[i]);
         check(!only_command_date_user(jn_record) && json_object_get(jn_record, "kw"), name);
@@ -346,7 +371,7 @@ PRIVATE BOOL record_holds(json_t *jn_record, const char *text)
  ***************************************************************************/
 PRIVATE void check_no_secret(const char *command, json_t *kw, const char *secret, const char *name)
 {
-    json_t *jn_record = audit_record_build(command, kw, DATE);
+    json_t *jn_record = audit_record_build(command, kw, DATE, command_table);
     char *s = record_text(jn_record);
     BOOL ok = jn_record && !strstr(s, secret) && strstr(s, "<redacted>");
     check(ok, name);
@@ -426,7 +451,7 @@ PRIVATE void test_secrets(void)
      *  Not a secret: stays
      */
     kw = json_pack("{s:s, s:s}", "username", "bob", "authz", "create-node");
-    json_t *jn_record = audit_record_build("create-user", kw, DATE);
+    json_t *jn_record = audit_record_build("create-user", kw, DATE, command_table);
     check(record_holds(jn_record, "\"bob\"") && record_holds(jn_record, "create-node") &&
         !record_holds(jn_record, "<redacted>"),
         "(d) what is not a secret stays");
@@ -443,28 +468,28 @@ PRIVATE void test_stats_reset(void)
         "id", "gate_x", "stats", "__reset__", "__username__", "claudia@artgins.com",
         "__md_iev__", md_iev_via_controlcenter("stats-yuno")
     );
-    json_t *jn_record = audit_record_build("stats-yuno", kw, DATE);
+    json_t *jn_record = audit_record_build("stats-yuno", kw, DATE, command_table);
     check(json_object_get(jn_record, "source") && json_object_get(jn_record, "kw") &&
         record_holds(jn_record, "__reset__"),
         "(e) stats-yuno with kw stats=__reset__: the full record, with source");
     JSON_DECREF(jn_record)
     JSON_DECREF(kw)
 
-    jn_record = audit_record_build("stats-agent stats=__reset__", NULL, DATE);
+    jn_record = audit_record_build("stats-agent stats=__reset__", NULL, DATE, command_table);
     check(!only_command_date_user(jn_record), "(e) stats-agent stats=__reset__ (text): the full record");
     JSON_DECREF(jn_record)
 
-    jn_record = audit_record_build("stats-yuno id=\"gate_x\" stats=\"__reset__\"", NULL, DATE);
+    jn_record = audit_record_build("stats-yuno id=\"gate_x\" stats=\"__reset__\"", NULL, DATE, command_table);
     check(!only_command_date_user(jn_record), "(e) stats-yuno stats=\"__reset__\" (gui_agent): the full record");
     JSON_DECREF(jn_record)
 
     kw = json_pack("{s:s, s:s}", "command", "stats-yuno", "stats", "__reset__");
-    jn_record = audit_record_build("command-yuno", kw, DATE);
+    jn_record = audit_record_build("command-yuno", kw, DATE, command_table);
     check(!only_command_date_user(jn_record), "(e) command-yuno command=stats-yuno with a reset: the full record");
     JSON_DECREF(jn_record)
     JSON_DECREF(kw)
 
-    jn_record = audit_record_build("stats-yuno id=gate_x", NULL, DATE);
+    jn_record = audit_record_build("stats-yuno id=gate_x", NULL, DATE, command_table);
     check(only_command_date_user(jn_record), "(e) stats-yuno without a reset: still read-only");
     JSON_DECREF(jn_record)
 }
@@ -485,7 +510,7 @@ PRIVATE void test_content64_blank_before_equal(void)
     for(int i=0; forms[i]; i++) {
         char line[512];
         snprintf(line, sizeof(line), forms[i], b64);
-        json_t *jn_record = audit_record_build(line, NULL, DATE);
+        json_t *jn_record = audit_record_build(line, NULL, DATE, command_table);
         char name[128];
         snprintf(name, sizeof(name), "(f) no base64 in the record: %.40s", forms[i]);
         check(jn_record && !record_holds(jn_record, "f0VMRgIB"), name);
@@ -501,7 +526,7 @@ PRIVATE void test_short_content64_values(void)
     const char *line = "update-binary id=x content64=QQ== content64=QQ== content64=QQ== "
         "content64=QQ== content64=QQ== id2=tail";
     int errors = s_errors;
-    json_t *jn_record = audit_record_build(line, NULL, DATE);
+    json_t *jn_record = audit_record_build(line, NULL, DATE, command_table);
     const char *command = kw_get_str(0, jn_record, "command", "", 0);
     check(strstr(command, "id2=tail") != NULL && strstr(command, "QQ==") == NULL,
         "(g) 5 short content64 values: all redacted, the end of the command kept");
@@ -522,7 +547,7 @@ PRIVATE void test_long_read_only(void)
     gbuffer_printf(gbuf, "\"last\"]}' options='{\"list_dict\":true}'");
     const char *line = gbuffer_cur_rd_pointer(gbuf);
 
-    json_t *jn_record = audit_record_build(line, NULL, DATE);
+    json_t *jn_record = audit_record_build(line, NULL, DATE, command_table);
     const char *command = kw_get_str(0, jn_record, "command", "", 0);
     check(only_command_date_user(jn_record) && strcmp(command, line) == 0,
         "(h) a read-only command of 6000 chars is recorded whole");
@@ -538,7 +563,7 @@ PRIVATE void test_wrapper_text_wins(void)
     json_t *kw = json_pack("{s:s, s:s}", "command", "list-yunos", "__username__", "claudia@artgins.com");
     json_t *jn_record = audit_record_build(
         "command-yuno id=treedb service=treedb_x command='delete-node topic_name=users id=bob force=1'",
-        kw, DATE
+        kw, DATE, command_table
     );
     check(!only_command_date_user(jn_record) && json_object_get(jn_record, "kw"),
         "(i) command-yuno: kw.command=list-yunos, text command='delete-node': the full record");
@@ -546,7 +571,7 @@ PRIVATE void test_wrapper_text_wins(void)
     JSON_DECREF(kw)
 
     kw = json_pack("{s:s}", "command", "delete-node id=bob");
-    jn_record = audit_record_build("command-yuno id=treedb command=list-yunos", kw, DATE);
+    jn_record = audit_record_build("command-yuno id=treedb command=list-yunos", kw, DATE, command_table);
     check(only_command_date_user(jn_record),
         "(i) command-yuno: text command=list-yunos wins over kw.command: minimal");
     JSON_DECREF(jn_record)
@@ -563,18 +588,18 @@ PRIVATE void test_peer_bad_data(void)
         "__md_iev__", "ievent_gate_stack",
             "src_role", "controlcenter", "user", 5, "host"
     );
-    json_t *jn_record = audit_record_build("run-yuno", kw, DATE);
+    json_t *jn_record = audit_record_build("run-yuno", kw, DATE, command_table);
     check(jn_record && s_errors == errors, "(j) a hop with fields that are not strings: no error");
     JSON_DECREF(jn_record)
     JSON_DECREF(kw)
 
     kw = json_pack("{s:s, s:{s:s}}", "id", "x", "__md_iev__", "ievent_gate_stack", "not a list");
-    jn_record = audit_record_build("run-yuno", kw, DATE);
+    jn_record = audit_record_build("run-yuno", kw, DATE, command_table);
     check(jn_record && s_errors == errors, "(j) an ievent_gate_stack that is not a list: no error");
     JSON_DECREF(jn_record)
     JSON_DECREF(kw)
 
-    jn_record = audit_record_build("install-binary id=x content64=AB==", NULL, DATE);
+    jn_record = audit_record_build("install-binary id=x content64=AB==", NULL, DATE, command_table);
     check(jn_record && s_errors == errors && record_holds(jn_record, "not base64"),
         "(j) content64=AB== (bad base64): no error, said as not base64");
     JSON_DECREF(jn_record)
@@ -586,7 +611,7 @@ PRIVATE void test_peer_bad_data(void)
 PRIVATE void test_tty_keystroke_in_a_wrapper(void)
 {
     json_t *kw = json_pack("{s:s, s:s, s:s}", "command", "write-tty", "name", "console-1", "content64", "cg==");
-    json_t *jn_record = audit_record_build("command-agent", kw, DATE);
+    json_t *jn_record = audit_record_build("command-agent", kw, DATE, command_table);
     check(jn_record && !record_holds(jn_record, "sha256") && !record_holds(jn_record, "cg==") &&
         record_holds(jn_record, "<1 bytes>"),
         "(k) command-agent command=write-tty: the size of the keystroke only");
@@ -619,7 +644,7 @@ PRIVATE BOOL type_keys(json_t *jn_bursts, const char *user, const char *console,
     for(size_t i=0; keys[i]; i++) {
         char key[2] = {keys[i], 0};
         json_t *kw = keystroke_kw(user, console, key);
-        if(!audit_tty_command(jn_bursts, "write-tty", kw, DATE, burst_seconds, jn_records)) {
+        if(!audit_tty_command(jn_bursts, "write-tty", kw, DATE, burst_seconds, command_table, jn_records)) {
             all_tty = FALSE;
         }
         JSON_DECREF(kw)
@@ -662,10 +687,10 @@ PRIVATE void test_tty_bursts(void)
     );
 
     json_t *kw = json_pack("{s:s}", "__username__", "claudia@artgins.com");
-    BOOL taken = audit_tty_command(jn_bursts, "list-yunos", kw, DATE, 3600, jn_records);
+    BOOL taken = audit_tty_command(jn_bursts, "list-yunos", kw, DATE, 3600, command_table, jn_records);
     check(!taken && json_array_size(jn_records) == 1,
         "(l) another command: not taken, the burst goes on");
-    taken = audit_tty_command(jn_bursts, "close-console name=console-1", kw, DATE, 3600, jn_records);
+    taken = audit_tty_command(jn_bursts, "close-console name=console-1", kw, DATE, 3600, command_table, jn_records);
     JSON_DECREF(kw)
     json_t *jn_tail = json_array_get(jn_records, 1);
     check(!taken && json_array_size(jn_records) == 2 &&
@@ -748,6 +773,442 @@ PRIVATE void test_tty_bursts(void)
 }
 
 /***************************************************************************
+ *  (m) A text made to be hard to scan: time linear in its size, no crash.
+ *
+ *  Up to 7.25.5 the scan went one level of recursion deeper for each '='
+ *  in a run without blanks: "list-yunos x" + 100 000 '=' took 1.7 s, and
+ *  150 000 crashed the agent (the audit runs before the parser and the
+ *  authz, on any command of any peer).
+ ***************************************************************************/
+PRIVATE double seconds_to_build(const char *text, json_t *kw)
+{
+    uint64_t t0 = time_in_milliseconds_monotonic();
+    json_t *jn_record = audit_record_build(text, kw, DATE, command_table);
+    uint64_t t1 = time_in_milliseconds_monotonic();
+    JSON_DECREF(jn_record)
+    return (double)(t1 - t0)/1000.0;
+}
+
+/*
+ *  "<head>" + `unit` repeated to `size` bytes
+ */
+PRIVATE char *repeated_text(const char *head, const char *unit, size_t size)
+{
+    size_t head_len = strlen(head);
+    size_t unit_len = strlen(unit);
+    char *s = gbmem_malloc(size + 1);
+    if(!s) {
+        return NULL;
+    }
+    memcpy(s, head, head_len);
+    size_t n = head_len;
+    while(n + unit_len <= size) {
+        memcpy(s + n, unit, unit_len);
+        n += unit_len;
+    }
+    s[n] = 0;
+    return s;
+}
+
+PRIVATE void test_hard_texts(void)
+{
+    struct {
+        const char *head;
+        const char *unit;
+    } shapes[] = {
+        {"list-yunos x",                    "="},           // the shape of the crash
+        {"run-yuno ",                       "a="},
+        {"run-yuno x=",                     "'a="},
+        {"run-yuno x=",                     "\"a="},
+        {"run-yuno x='",                    "\"k\":"},
+        {"run-yuno x='{",                   "\\\":"},
+        {"run-yuno ",                       "attribute="},
+        {"run-yuno ",                       "'password'="},
+        {"run-yuno ",                       "eyJ"},
+        {"run-yuno ",                       "Bearer "},
+        {"run-yuno ",                       "\"a\" :"},
+        {"run-yuno content='{\"password\":", "["},
+        {0, 0}
+    };
+    size_t small = 100*1000;
+    size_t big = 1000*1000;
+
+    for(int i=0; shapes[i].head; i++) {
+        char *s_small = repeated_text(shapes[i].head, shapes[i].unit, small);
+        char *s_big = repeated_text(shapes[i].head, shapes[i].unit, big);
+        double t_small = seconds_to_build(s_small, NULL);
+        double t_big = seconds_to_build(s_big, NULL);
+
+        /*
+         *  The same text as a kw string of a write, too
+         */
+        json_t *kw = json_pack("{s:s}", "data", s_big);
+        double t_kw = seconds_to_build("run-yuno", kw);
+        JSON_DECREF(kw)
+
+        char name[160];
+        snprintf(name, sizeof(name), "(m) \"%s\" + \"%s\" x N: 1 MB in %.3f s (100 KB %.3f s, kw %.3f s)",
+            shapes[i].head, shapes[i].unit, t_big, t_small, t_kw);
+        check(t_big < 1.0 && t_kw < 1.0 && t_big <= 30*t_small + 0.05, name);
+        GBMEM_FREE(s_small);
+        GBMEM_FREE(s_big);
+    }
+
+    /*
+     *  The size of the crash, ten times
+     */
+    char *s = repeated_text("list-yunos x", "=", 1500*1000);
+    double t = seconds_to_build(s, NULL);
+    char name[128];
+    snprintf(name, sizeof(name), "(m) \"list-yunos x\" + 1 500 000 '=': no crash, %.3f s", t);
+    check(t < 2.0, name);
+    GBMEM_FREE(s);
+}
+
+/***************************************************************************
+ *  (n) Random texts of the bytes that drive the scan: no crash, nothing
+ *  left in memory, time linear, and a secret with a clear key never
+ *  survives
+ ***************************************************************************/
+PRIVATE uint32_t s_rand = 0x2545F491;
+
+PRIVATE uint32_t next_rand(void)
+{
+    s_rand ^= s_rand << 13;
+    s_rand ^= s_rand >> 17;
+    s_rand ^= s_rand << 5;
+    return s_rand;
+}
+
+PRIVATE char *random_text(size_t size)
+{
+    static const char *pieces[] = {
+        "=", "'", "\"", " ", ":", "\\", "{", "}", "[", "]", ",", ".", "\t",
+        "a", "x", "password", "content64", "attribute", "value", "Bearer ", "eyJ",
+        "command=", "write-tty", "QQ==", "__reset__", "api_key", "\\u0077",
+        0
+    };
+    int n_pieces = 0;
+    while(pieces[n_pieces]) {
+        n_pieces++;
+    }
+    char *s = gbmem_malloc(size + 1);
+    if(!s) {
+        return NULL;
+    }
+    size_t n = 0;
+    while(n < size) {
+        const char *piece = pieces[next_rand() % (uint32_t)n_pieces];
+        size_t len = strlen(piece);
+        if(n + len > size) {
+            break;
+        }
+        memcpy(s + n, piece, len);
+        n += len;
+    }
+    s[n] = 0;
+    return s;
+}
+
+PRIVATE void test_random_texts(void)
+{
+    int errors = s_errors;
+    BOOL all_built = TRUE;
+    BOOL no_secret = TRUE;
+    uint64_t t0 = time_in_milliseconds_monotonic();
+    for(int i=0; i<3000; i++) {
+        char *s = random_text(1 + next_rand() % 2000);
+
+        /*
+         *  A secret with a clear key, somewhere in the text
+         */
+        gbuffer_t *gbuf = gbuffer_create(4096, 4096);
+        gbuffer_printf(gbuf, "run-yuno %s password=S3CR3TVALUE %s", s, s);
+        char *text = gbuffer_cur_rd_pointer(gbuf);
+
+        json_t *kw = json_pack("{s:s, s:s}", "data", s, "token", "S3CR3TVALUE");
+        json_t *jn_record = audit_record_build(text, kw, DATE, command_table);
+        if(!jn_record) {
+            all_built = FALSE;
+        } else if(record_holds(jn_record, "S3CR3TVALUE")) {
+            /*
+             *  The random text may open a quote that never closes, and
+             *  then password= is inside a value: it is still a key there
+             */
+            no_secret = FALSE;
+            if(no_secret == FALSE) {
+                char *r = record_text(jn_record);
+                printf("     secret written: %.300s\n", r);
+                GBMEM_FREE(r);
+            }
+        }
+        JSON_DECREF(jn_record)
+        JSON_DECREF(kw)
+
+        json_t *jn_bursts = json_object();
+        json_t *jn_records = json_array();
+        audit_tty_command(jn_bursts, s, NULL, DATE, 60, command_table, jn_records);
+        audit_tty_close_bursts(jn_bursts, jn_records);
+        JSON_DECREF(jn_records)
+        JSON_DECREF(jn_bursts)
+
+        GBUFFER_DECREF(gbuf)
+        GBMEM_FREE(s);
+    }
+    uint64_t t1 = time_in_milliseconds_monotonic();
+    char name[128];
+    snprintf(name, sizeof(name), "(n) 3000 random texts: every record built (%.2f s)", (double)(t1-t0)/1000.0);
+    check(all_built && s_errors == errors, name);
+    check(no_secret, "(n) 3000 random texts: password=<secret> never written");
+
+    /*
+     *  Linear: 1 MB against 100 KB of random text
+     */
+    char *s_small = random_text(100*1000);
+    char *s_big = random_text(1000*1000);
+    double t_small = seconds_to_build(s_small, NULL);
+    double t_big = seconds_to_build(s_big, NULL);
+    snprintf(name, sizeof(name), "(n) random text: 1 MB in %.3f s, 100 KB in %.3f s", t_big, t_small);
+    check(t_big < 1.0 && t_big <= 30*t_small + 0.05, name);
+    GBMEM_FREE(s_small);
+    GBMEM_FREE(s_big);
+}
+
+/***************************************************************************
+ *  (o) The work of one record has a cap: a text beyond it is not scanned
+ *  and not written, only its first word, size and sha256
+ ***************************************************************************/
+PRIVATE void test_scan_budget(void)
+{
+    size_t size = 130*1024*1024;
+    char *s = repeated_text("set-user-pwd password=S3CR3TVALUE ", "x", size);
+    char hex[SHA256_HEX_LEN + 1];
+    sha256_hex(s, strlen(s), hex, sizeof(hex));
+
+    uint64_t t0 = time_in_milliseconds_monotonic();
+    json_t *jn_record = audit_record_build(s, NULL, DATE, command_table);
+    uint64_t t1 = time_in_milliseconds_monotonic();
+    char expected[256];
+    snprintf(expected, sizeof(expected), "set-user-pwd <%zu bytes, not scanned, sha256:%s>", strlen(s), hex);
+    char name[160];
+    snprintf(name, sizeof(name), "(o) a text of 130 MB: its word, size and sha256 only (%" PRIu64 " ms)", t1 - t0);
+    check(jn_record && strcmp(kw_get_str(0, jn_record, "command", "", 0), expected) == 0, name);
+    check(jn_record && !record_holds(jn_record, "S3CR3TVALUE"), "(o) a text of 130 MB: nothing of it written");
+    JSON_DECREF(jn_record)
+
+    json_t *kw = json_pack("{s:s}", "data", s);
+    jn_record = audit_record_build("run-yuno", kw, DATE, command_table);
+    check(jn_record && record_holds(jn_record, "not scanned") && !record_holds(jn_record, "S3CR3TVALUE"),
+        "(o) a kw string of 130 MB: its size and sha256 only");
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+    GBMEM_FREE(s);
+}
+
+/***************************************************************************
+ *  (p) The command word as the parser takes it: any case, quotes, aliases
+ ***************************************************************************/
+PRIVATE BOOL tty_taken(const char *text, json_t *kw)
+{
+    json_t *jn_bursts = json_object();
+    json_t *jn_records = json_array();
+    BOOL taken = audit_tty_command(jn_bursts, text, kw, DATE, 60, command_table, jn_records);
+    JSON_DECREF(jn_records)
+    JSON_DECREF(jn_bursts)
+    return taken;
+}
+
+PRIVATE void test_command_word(void)
+{
+    /*
+     *  Every name and alias of the table in several cases and quotes:
+     *  write-tty for the audit exactly when the parser says write-tty
+     */
+    const char *words[] = {
+        "write-tty", "WRITE-TTY", "Write-Tty", "EV_WRITE_TTY", "ev_write_tty", "Ev_Write_Tty",
+        "'write-tty'", "\"Write-Tty\"", "'EV_WRITE_TTY'", "'write-tty", "write-tty'",
+        "write_tty", "writetty", "close-console", "list-yunos", "1", "h", "?", "help",
+        "command-agent", "", " ", "\twrite-tty", "  WRITE-TTY", 0
+    };
+    BOOL same = TRUE;
+    for(int i=0; words[i]; i++) {
+        char text[128];
+        snprintf(text, sizeof(text), "%s name=c content64=QQ==", words[i]);
+        const sdata_desc_t *cmd_desc = command_get_cmd_desc(command_table, text);
+        BOOL parser_tty = (cmd_desc && strcmp(cmd_desc->name, "write-tty") == 0)? TRUE: FALSE;
+        BOOL audit_tty = tty_taken(text, NULL);
+        if(parser_tty != audit_tty) {
+            same = FALSE;
+            printf("     [%s]: the parser says %s, the audit says %s\n", text,
+                parser_tty? "write-tty": "no", audit_tty? "write-tty": "no");
+        }
+    }
+    check(same, "(p) write-tty for the audit exactly when the parser runs write-tty");
+
+    /*
+     *  The reviewer's forms: no hash of the keystroke anywhere
+     */
+    const char *hA = "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd";   // sha256 of "A"
+    const char *forms[] = {
+        "EV_WRITE_TTY name=c content64=QQ==",
+        "WRITE-TTY name=c content64=QQ==",
+        "'write-tty' name=c content64=QQ==",
+        "\"Write-Tty\" name=c content64=QQ==",
+        "command-agent command='WRITE-TTY name=c content64=QQ=='",
+        "command-agent command='EV_WRITE_TTY name=c content64=QQ=='",
+        "COMMAND-AGENT command='write-tty name=c content64=QQ=='",
+        "command-agent COMMAND='write-tty name=c content64=QQ=='",
+        0
+    };
+    for(int i=0; forms[i]; i++) {
+        json_t *jn_bursts = json_object();
+        json_t *jn_records = json_array();
+        if(!audit_tty_command(jn_bursts, forms[i], NULL, DATE, 60, command_table, jn_records)) {
+            json_t *jn_record = audit_record_build(forms[i], NULL, DATE, command_table);
+            if(jn_record) {
+                json_array_append_new(jn_records, jn_record);
+            }
+        }
+        audit_tty_close_bursts(jn_bursts, jn_records);
+        char *s = json2uglystr(jn_records);
+        char name[160];
+        snprintf(name, sizeof(name), "(p) %s: no hash of the keystroke", forms[i]);
+        check(s && !strstr(s, hA) && !strstr(s, "QQ=="), name);
+        GBMEM_FREE(s);
+        JSON_DECREF(jn_records)
+        JSON_DECREF(jn_bursts)
+    }
+
+    json_t *kw = json_pack("{s:s, s:s}", "name", "c", "content64", "QQ==");
+    check(tty_taken("Write-Tty", kw) && tty_taken("EV_WRITE_TTY", kw), "(p) Write-Tty, EV_WRITE_TTY with a kw: write-tty");
+    JSON_DECREF(kw)
+
+    /*
+     *  CLOSE-CONSOLE ends the bursts too
+     */
+    json_t *jn_bursts = json_object();
+    json_t *jn_records = json_array();
+    kw = keystroke_kw("claudia@artgins.com", "console-1", "a");
+    audit_tty_command(jn_bursts, "write-tty", kw, DATE, 3600, command_table, jn_records);
+    audit_tty_command(jn_bursts, "write-tty", kw, DATE, 3600, command_table, jn_records);
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s}", "__username__", "claudia@artgins.com");
+    audit_tty_command(jn_bursts, "CLOSE-CONSOLE name=console-1", kw, DATE, 3600, command_table, jn_records);
+    JSON_DECREF(kw)
+    check(json_object_size(jn_bursts) == 0 && json_array_size(jn_records) == 2,
+        "(p) CLOSE-CONSOLE ends the burst");
+    JSON_DECREF(jn_records)
+    JSON_DECREF(jn_bursts)
+
+    /*
+     *  audit_command_records(), what the agent calls: one lookup, the
+     *  records of either kind
+     */
+    jn_bursts = json_object();
+    jn_records = json_array();
+    kw = keystroke_kw("claudia@artgins.com", "console-9", "a");
+    int ret1 = audit_command_records(jn_bursts, "EV_WRITE_TTY", kw, DATE, 3600, command_table, jn_records);
+    int ret2 = audit_command_records(jn_bursts, "Write-Tty", kw, DATE, 3600, command_table, jn_records);
+    JSON_DECREF(kw)
+    int ret3 = audit_command_records(jn_bursts, "1", NULL, DATE, 3600, command_table, jn_records);
+    check(ret1 == 0 && ret2 == 0 && ret3 == 0 && json_array_size(jn_records) == 2 &&
+        kw_get_int(0, json_array_get(jn_records, 0), "writes", 0, 0) == 1 &&
+        only_command_date_user(json_array_get(jn_records, 1)),
+        "(p) audit_command_records(): a keystroke (first of its burst), then list-yunos");
+    audit_tty_close_bursts(jn_bursts, jn_records);
+    check(json_array_size(jn_records) == 3, "(p) audit_command_records(): the burst counted the second write");
+    JSON_DECREF(jn_records)
+    JSON_DECREF(jn_bursts)
+
+    /*
+     *  An alias of a read-only command is read-only; case of a write-attr
+     */
+    json_t *jn_record = audit_record_build("1", NULL, DATE, command_table);
+    check(only_command_date_user(jn_record), "(p) \"1\" (list-yunos): command, date and user only");
+    JSON_DECREF(jn_record)
+
+    check_no_secret("write-attr ATTRIBUTE=password VALUE=S3CR3TVALUE", NULL, "S3CR3TVALUE",
+        "(p) ATTRIBUTE=password VALUE=<secret>");
+    check_no_secret("command-yuno id=x command=write-attr Attribute=api_key Value=S3CR3TVALUE", NULL,
+        "S3CR3TVALUE", "(p) Attribute=api_key Value=<secret>");
+}
+
+/***************************************************************************
+ *  (q) More secret names (the attributes of the SDK and of the projects),
+ *  and json keys written with escapes
+ ***************************************************************************/
+PRIVATE void test_more_secrets(void)
+{
+    const char *secret_keys[] = {
+        "api_key", "apikey", "x-api-key", "API_KEY", "esios_api_key", "api.key",
+        "http_cookie", "cookie", "__session_id__", "session_key", "auth_data",
+        "passphrase", "credentials", "authorization", "visitor_salt", "assets_sign_secret",
+        0
+    };
+    for(int i=0; secret_keys[i]; i++) {
+        char name[128];
+        snprintf(name, sizeof(name), "(q) a kw key named %s", secret_keys[i]);
+        json_t *kw = json_pack("{s:s}", secret_keys[i], "S3CR3TVALUE");
+        check_no_secret("set-config", kw, "S3CR3TVALUE", name);
+        JSON_DECREF(kw)
+
+        char command[256];
+        snprintf(command, sizeof(command), "set-config %s=S3CR3TVALUE x=1", secret_keys[i]);
+        snprintf(name, sizeof(name), "(q) %s= in the command text", secret_keys[i]);
+        check_no_secret(command, NULL, "S3CR3TVALUE", name);
+    }
+
+    /*
+     *  The runbook of wattyzer gate_pvpc
+     */
+    check_no_secret("command-yuno id=5006 command=write-attr attribute=api_key value=S3CR3TVALUE", NULL,
+        "S3CR3TVALUE", "(q) command-yuno write-attr attribute=api_key value=<token>");
+    json_t *kw = json_pack("{s:s, s:{s:s, s:s}}", "command", "write-attr",
+        "kw", "attribute", "token", "value", "S3CR3TVALUE");
+    check_no_secret("command-yuno id=x", kw, "S3CR3TVALUE", "(q) {attribute, value} in a nested kw object");
+    JSON_DECREF(kw)
+
+    /*
+     *  Not secrets: they stay
+     */
+    kw = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+        "ssl_certificate_key", "/yuneta/store/certs/private/key.pem",
+        "cert_pem", "-----BEGIN CERTIFICATE-----",
+        "pkey", "id",
+        "in_session", "yes",
+        "authz", "create-node"
+    );
+    json_t *jn_record = audit_record_build("set-config", kw, DATE, command_table);
+    check(!record_holds(jn_record, "<redacted>") && record_holds(jn_record, "key.pem"),
+        "(q) key paths, certificates, pkey, in_session, authz: not secrets");
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+
+    /*
+     *  Escapes in the name of a json key ("pass" "w" "ord")
+     */
+    check_no_secret(
+        "command-yuno id=x service=s command=update-node topic_name=t record='{\"pass\\" "u0077ord\":\"S3CR3TVALUE\"}'",
+        NULL, "S3CR3TVALUE", "(q) a json key with a \\u escape, in the text"
+    );
+    kw = json_pack("{s:s}", "record", "{\"\\" "u0070assword\":\"S3CR3TVALUE\"}");
+    check_no_secret("update-node", kw, "S3CR3TVALUE", "(q) a json key with a \\u escape, in a kw string");
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s}", "record", "{\"a\\\"b\":1, \"to\\" "u006ben\":\"S3CR3TVALUE\"}");
+    check_no_secret("update-node", kw, "S3CR3TVALUE", "(q) an escaped quote before, a \\u escape in the key");
+    JSON_DECREF(kw)
+
+    /*
+     *  A token by its shape
+     */
+    check_no_secret("x headers='Authorization: Bearer S3CR3TVALUE'", NULL, "S3CR3TVALUE",
+        "(q) Bearer <token> after a plain key");
+    kw = json_pack("{s:s}", "note", "use eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJTM0NSM1QifQ.S3CR3TVALUESIG now");
+    check_no_secret("run-yuno", kw, "S3CR3TVALUE", "(q) a JWT in a string of a plain key");
+    JSON_DECREF(kw)
+}
+
+/***************************************************************************
  *  What one record costs (the agent serializes it too)
  ***************************************************************************/
 PRIVATE void test_cost(void)
@@ -769,7 +1230,7 @@ PRIVATE void test_cost(void)
         }
         uint64_t t1 = time_in_milliseconds_monotonic();
         for(int i=0; i<n; i++) {
-            json_t *jn = audit_record_build(commands[c], kw, DATE);
+            json_t *jn = audit_record_build(commands[c], kw, DATE, command_table);
             char *s = json2uglystr(jn);
             GBMEM_FREE(s);
             JSON_DECREF(jn)
@@ -844,6 +1305,11 @@ int main(int argc, char *argv[])
     test_peer_bad_data();
     test_tty_keystroke_in_a_wrapper();
     test_tty_bursts();
+    test_hard_texts();
+    test_random_texts();
+    test_scan_budget();
+    test_command_word();
+    test_more_secrets();
     test_cost();
 
     gobj_end();

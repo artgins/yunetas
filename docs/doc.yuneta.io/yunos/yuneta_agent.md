@@ -41,7 +41,14 @@ The agent writes every command that it runs to a daily audit file in
 - A `content64` (a binary, a config) is never written: only its size and the
   sha256 of the decoded content.
 - A secret (a parameter named like `password`, `pwd`, `secret`, `token`, `jwt`,
-  `private_key`, …) is never written: its value is `<redacted>`.
+  `api_key`, `cookie`, `authorization`, `private_key`, …) is never written:
+  its value is `<redacted>`. So are the token after `Bearer ` and anything
+  with the shape of a JWT.
+- The command word is taken as the command parser takes it (any case,
+  quotes, aliases): `WRITE-TTY` and `EV_WRITE_TTY` are `write-tty`.
+- The scan of a command is one pass in linear time, and one record scans at
+  most 128 MB: a longer string is written as its size and sha256 only.
+- Every record is flushed to the file before the command runs.
 - A console keystroke (`write-tty`) keeps only the fact: who, when, which
   console, how many writes and bytes. Nothing of what was typed, not even a
   hash. The writes of one user into one console make one burst of up to 60
@@ -62,7 +69,8 @@ times); now it writes about 500 bytes.
 A day that crosses `max_megas_audit_file` (500 MB) continues in `.OLD.1`,
 `.OLD.2`, …; no piece of a day is removed. The attribute `audit_keep_days`
 (default `7`, `0` = keep all) is the retention: at start, and when a new audit
-file begins (inside the write of its first record), the agent removes the
+file begins (inside the write of its first record, also while the disk is
+below `min_free_disk_percentage`), the agent removes the
 audit files older than that and logs one INFO line with their names. Only
 files with the name shape of the audit mask are removed. A clock set back
 across midnight empties no audit file. For example, to keep 30 days, put this in
