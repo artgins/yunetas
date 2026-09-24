@@ -4997,6 +4997,15 @@ PRIVATE int scenario_imposed_draft_kept(hgobj gobj)
  *  qualified copy that the next move failed to create ("Node already
  *  exists"), and the legacy node stayed.
  ***************************************************************************/
+/*
+ *  The nodes are what the projector of 7.13.1 (the last before qualified
+ *  ids) wrote, field for field: a topic {value, pkey, system_flag, tkey,
+ *  topic_version, system_topic}, a column {value, header, fillspace, type,
+ *  flag} (build_topic_projection / build_col_projection of 7.13.1), keyed by
+ *  rowid, with no `order`: it did not exist before 7.14.0. Loaded by this
+ *  release, a record gets the defaults of the fields it lacks, `order`
+ *  9999 among them, and so does a node created here: the same node.
+ */
 PRIVATE int build_legacy_projection(hgobj gobj, const char *db)
 {
     hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
@@ -5008,8 +5017,9 @@ PRIVATE int build_legacy_projection(hgobj gobj, const char *db)
             "system_schema_version", 1),
         json_pack("{s:b}", "refs", 1), gobj);
     json_t *topic = gobj_create_node(sys, "topics",
-        json_pack("{s:s, s:s, s:s, s:s, s:i}", "id", topic_rowid, "value", "users", "pkey", "id",
-            "system_flag", "sf_string_key", "topic_version", 1),
+        json_pack("{s:s, s:s, s:s, s:s, s:s, s:i, s:b}", "id", topic_rowid, "value", "users",
+            "pkey", "id", "system_flag", "sf_string_key", "tkey", "", "topic_version", 1,
+            "system_topic", 0),
         json_pack("{s:b}", "refs", 1), gobj);
     if(!treedb || !topic ||
             gobj_link_nodes(sys, "topics", "treedbs", json_incref(treedb), "topics",
@@ -6442,8 +6452,10 @@ PRIVATE int scenario_dict_file_projected(hgobj gobj)
  *  topic an older release left (`departments`, no schema declares it):
  *
  *    - the first open moves the ids FIRST, then reads what an older
- *      release left: no WARNING (nothing is removed), `draft_changed`
- *      does not name `departments`, and the record of the upgrade names it at its
+ *      release left: no WARNING (nothing is removed), `draft_changed` {}
+ *      -- `users`, the file's topic, included: a node written before
+ *      `order` existed says nothing about its place, and that is no
+ *      reorder --, and the record of the upgrade names `departments` at its
  *      qualified ids and no rowid id;
  *    - the next literal removes `departments` and reports it as
  *      `left_by_older_release`, never "unsaved".
@@ -6452,7 +6464,9 @@ PRIVATE int scenario_dict_file_projected(hgobj gobj)
  *  the same open. Every legacy node was "left" (the declared `users`
  *  too), the removal of all of them was said in a false WARNING, the
  *  record was written empty, and `departments` read as a draft, withdrawn
- *  "unsaved" by the next literal.
+ *  "unsaved" by the next literal. And `users` read as a draft: the default
+ *  `order` (9999) of its nodes against the position a projection writes
+ *  today, so the next literal withdrew it "unsaved" too.
  ***************************************************************************/
 PRIVATE int scenario_legacy_ids_before_the_upgrade_record(hgobj gobj)
 {
@@ -6470,8 +6484,9 @@ PRIVATE int scenario_legacy_ids_before_the_upgrade_record(hgobj gobj)
     json_t *treedb = gobj_get_node(sys, "treedbs", json_pack("{s:s}", "id", db),
         json_pack("{s:b}", "refs", 1), gobj);
     json_t *topic = gobj_create_node(sys, "topics",
-        json_pack("{s:s, s:s, s:s, s:s, s:i}", "id", tid, "value", "departments", "pkey", "id",
-            "system_flag", "sf_string_key", "topic_version", 1),
+        json_pack("{s:s, s:s, s:s, s:s, s:s, s:i, s:b}", "id", tid, "value", "departments",
+            "pkey", "id", "system_flag", "sf_string_key", "tkey", "", "topic_version", 1,
+            "system_topic", 0),
         json_pack("{s:b}", "refs", 1), gobj);
     json_t *col = gobj_create_node(sys, "cols",
         json_pack("{s:s, s:s, s:s, s:s, s:i, s:[s]}", "id", cid, "value", "name",
@@ -6504,7 +6519,8 @@ PRIVATE int scenario_legacy_ids_before_the_upgrade_record(hgobj gobj)
     {
         json_t *rows = treedb_cmd(gobj, db, "save-schema", json_pack("{s:b}", "dry_run", 1));
         json_t *saved = treedb_cmd(gobj, db, "saved-schema", json_object());
-        if(kw_get_dict_value(gobj, saved, "data`draft_changed`departments", 0, 0)) {
+        json_t *draft_changed = kw_get_dict(gobj, saved, "data`draft_changed", 0, 0);
+        if(!draft_changed || json_object_size(draft_changed) > 0) {
             result += test_fail(gobj, db,
                 "TEST FAIL: LQ, what an older release left in a rowid projection reads as a draft",
                 json_pack("{s:O, s:O}", "saved_schema", saved, "save_dry_run", rows));
@@ -6542,18 +6558,14 @@ PRIVATE int scenario_legacy_ids_before_the_upgrade_record(hgobj gobj)
         return result - 1;
     }
     /*
-     *  Only `departments` is asked: the legacy nodes this test builds by
-     *  hand are not what a projector writes, so `users` differs from the
-     *  file and is a draft of its own
+     *  `users` too: its column `operator_col` is no schema's, so an older
+     *  release left it; the rest of `users` is the file
      */
-    json_t *jn_resp = treedb_cmd(gobj, db, "saved-schema", json_object());
-    const char *kind = kw_get_str(gobj, jn_resp, "data`withdrawn_at_open`topics`departments", "", 0);
-    if(strcmp(kind, "left_by_older_release")!=0) {
-        result += test_fail(gobj, db,
-            "TEST FAIL: LQ, the next literal reported what an older release left as operator work",
-            json_incref(jn_resp));
-    }
-    JSON_DECREF(jn_resp)
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: LQ, the next literal reported what an older release left as operator work", 0,
+        json_pack("{s:s, s:s}",
+            "departments", "left_by_older_release",
+            "users", "left_by_older_release"));
     close_db(gobj, db);
     drop_treedb(gobj, db);
     return result;

@@ -120,6 +120,13 @@ PRIVATE const char *schema_col_skip[] = {
     "id", "value", "topics", "_geometry", "__md_treedb__", NULL
 };
 
+/*
+ *  The `order` of a node that says nothing about its place: the default of
+ *  `order` in treedb_system_schema.c (a node created by hand, or written
+ *  before `order` existed -- 7.14.0 -- and loaded with the default)
+ */
+#define ORDER_SAYS_NOTHING      9999
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -10599,6 +10606,37 @@ PRIVATE BOOL is_declared_default(
 }
 
 /***************************************************************************
+ *  Take `order` out of the comparison, in the projected node `projected`
+ *  (MUTATED), when the stored node says nothing about its place (absent,
+ *  or ORDER_SAYS_NOTHING):
+ *  that is no reorder anybody made. A projection written before `order`
+ *  existed (before 7.14.0: every projection keyed by rowid, and the
+ *  qualified ones of 7.13.2) is loaded with the default, and compared
+ *  with the position a projection writes today it read as a change of
+ *  every topic and column after the first: each topic an operator's draft,
+ *  withdrawn "unsaved" by the next literal with a WARNING of work nobody
+ *  did, and published by a save as a change of every topic. Only the
+ *  comparison of drafts forgives it (diff_treedb_schema): the projector
+ *  still writes the position when it rewrites the node.
+ ***************************************************************************/
+PRIVATE void drop_order_the_stored_node_does_not_say(
+    json_t *projected,  // not owned, MUTATED
+    json_t *stored      // not owned
+)
+{
+    json_t *stored_order = json_object_get(stored, "order");
+    if(!json_is_integer(stored_order)) {
+        json_object_del(projected, "order");
+    } else if(json_integer_value(stored_order) == ORDER_SAYS_NOTHING) {
+        /*
+         *  The same value, not none: a topic has no descriptor to forgive
+         *  a stored default with (see diff_node_attrs)
+         */
+        json_object_set(projected, "order", stored_order);
+    }
+}
+
+/***************************************************************************
  *  Append one difference.
  ***************************************************************************/
 PRIVATE int add_diff_row(
@@ -10810,6 +10848,7 @@ PRIVATE json_t *diff_treedb_schema(
          *  build_topic_projection() applies the topic defaults itself
          *  (pkey, tkey, order), so the two sides are already symmetric.
          */
+        drop_order_the_stored_node_does_not_say(projected_topic, stored_topic);
         diff_node_attrs(
             gobj, rows, treedb_name, topic_name, NULL, projected_topic, stored_topic,
             schema_topic_skip, NULL
@@ -10857,6 +10896,7 @@ PRIVATE json_t *diff_treedb_schema(
                 continue;
             }
 
+            drop_order_the_stored_node_does_not_say(projected_col, stored_col);
             diff_node_attrs(
                 gobj,
                 rows,

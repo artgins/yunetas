@@ -1505,6 +1505,17 @@ move with a failed write was followed by the projection of the same open,
 whose stamp raised the meta-schema version, so no later open moved what was
 left and the projection deleted it as a topic no schema declares.)
 
+A projection written before `order` existed (before 7.14.0: every projection
+keyed by rowid, and the qualified ones of 7.13.2) is loaded with the default
+`order` 9999, *"says nothing about its place"*. The comparison of drafts
+(`draft_changed`, `diff-schema`, what a newer literal withdraws) takes a stored
+`order` that says nothing as no reorder: the node is the file. A projection
+that rewrites the node still writes its position. (Until this release every
+topic of such a projection, and every column after the first, read as a draft
+for its `order`: `draft_changed` named every topic, a newer literal withdrew
+them `"unsaved"` with a WARNING of work nobody did, and a save published a
+change of every topic.)
+
 The keying is also why the descriptor used to validate a *user* column is
 derived, not copied, from that topic: `_treedb_create_topic_cols_desc()`
 renames `value` back to `id` and drops the storage-only fields (`id`,
