@@ -69,6 +69,7 @@ set(SRCS
     test_yevent_udp_ipv6
     test_yevent_stop_in_flight
     test_yevent_loop_end_drain
+    test_yevent_connect_src_url
 
     test_yevent_timer_once1
     test_yevent_timer_once2

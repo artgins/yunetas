@@ -165,6 +165,14 @@ PRIVATE yev_state_t yev_set_state(yev_event_t *yev_event, yev_state_t new_state)
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
 PRIVATE void forget_kept(yev_loop_t *yev_loop, yev_event_t *yev_event);
 PRIVATE void host_without_brackets(char *host);
+PRIVATE int bind_src_url(
+    hgobj gobj,
+    int fd,
+    const char *src_url,
+    int ai_family,
+    int ai_socktype,
+    int ai_protocol
+);
 PRIVATE void free_dying_events(yev_loop_t *yev_loop);
 PRIVATE unsigned queue_entries_of(yev_loop_t *yev_loop, yev_event_t *yev_event, BOOL take);
 
@@ -3136,7 +3144,7 @@ PUBLIC yev_event_h yev_create_connect_event( // create the socket to connect in 
     yev_loop_h yev_loop_,
     yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     const char *dst_url,
-    const char *src_url,    /* local bind, only host:port */
+    const char *src_url,    /* local bind: "host:port", "[ipv6]:port" or "schema://host:port" */
     int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
     int ai_flags,           /* default: AI_V4MAPPED | AI_ADDRCONFIG */
     hgobj gobj
@@ -3190,7 +3198,7 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
                                     // To recreate fd, previously close it and set -1
     yev_event_h yev_event_,
     const char *dst_url,
-    const char *src_url,    /* local bind, only host:port */
+    const char *src_url,    /* local bind: "host:port", "[ipv6]:port" or "schema://host:port" */
     int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
     int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
 ) {
@@ -3336,67 +3344,10 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
          *  Option to bind to local host/port
          *--------------------------------------*/
         if(!empty_string(src_url)) {
-            char src_host[120] = {0};
-            char src_port[10] = {0};
-            if(!empty_string(src_host)) {
-                ret = parse_url(
-                    gobj,
-                    src_url,
-                    0, 0,
-                    src_host, sizeof(src_host),
-                    src_port, sizeof(src_port),
-                    0, 0,
-                    0, 0,
-                    true
-                );
-                if(ret < 0) {
-                    close(fd);
-                    // Error already logged
-                    return -1;
-                }
-            }
-
-            struct addrinfo *res;
-            uint64_t t_resolv_src = time_in_milliseconds_monotonic();
-            ret = getaddrinfo(
-                src_host,
-                src_port,
-                &hints,
-                &res
-            );
-            warn_if_slow_resolution(gobj, __FUNCTION__, src_host, t_resolv_src);
-            if(ret != 0) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_LIBURING,
-                    "msg",          "%s", "getaddrinfo() src_url FAILED",
-                    "url",          "%s", src_url,
-                    "host",         "%s", src_host,
-                    "port",         "%s", src_port,
-                    "errno",        "%d", errno,
-                    "strerror",     "%s", strerror(errno),
-                    NULL
-                );
+            if(bind_src_url(gobj, fd, src_url, rp->ai_family, rp->ai_socktype, rp->ai_protocol)<0) {
+                // Error already logged
                 close(fd);
-                return -1;
-            }
-
-            ret = bind(fd, res->ai_addr, (socklen_t) res->ai_addrlen);
-            if (ret == -1) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_LIBURING,
-                    "msg",          "%s", "bind() FAILED",
-                    "url",          "%s", src_url,
-                    "addrinfo",     "%s", saddr,
-                    "errno",        "%d", errno,
-                    "strerror",     "%s", strerror(errno),
-                    NULL
-                );
-            }
-            freeaddrinfo(res);
-            if(ret == -1) {
-                close(fd);
+                freeaddrinfo(results);
                 return -1;
             }
         }
@@ -4137,6 +4088,121 @@ PUBLIC yev_event_h yev_create_sendmsg_event(
     }
 
     return yev_event;
+}
+
+/***************************************************************************
+ *  Bind the socket of a connect to its local address, src_url:
+ *  "host:port", "[ipv6]:port" or "schema://host:port". The host is
+ *  resolved in the family of the socket. An empty host binds any address
+ *  of the family, a port 0 (or none) any port.
+ *  Up to 7.25.4 the src_url was never parsed, and the socket was bound to
+ *  a port of the kernel's choice: the src_url was ignored without a word.
+ ***************************************************************************/
+PRIVATE int bind_src_url(
+    hgobj gobj,
+    int fd,
+    const char *src_url,
+    int ai_family,
+    int ai_socktype,
+    int ai_protocol
+)
+{
+    char url[PATH_MAX];
+    char src_host[120];
+    char src_port[10];
+
+    /*
+     *  parse_url() splits "host:port" at the first colon, so an IPv6
+     *  literal is parsed as the authority of a url
+     */
+    int n;
+    if(strstr(src_url, "://")) {
+        n = snprintf(url, sizeof(url), "%s", src_url);
+    } else {
+        n = snprintf(url, sizeof(url), "src://%s", src_url);
+    }
+    if(n < 0 || (size_t)n >= sizeof(url)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Bad src_url: cannot bind the connect",
+            "src_url",      "%s", src_url,
+            "reason",       "%s", "too long",
+            NULL
+        );
+        return -1;
+    }
+    int ret = parse_url(
+        gobj,
+        url,
+        0, 0,
+        src_host, sizeof(src_host),
+        src_port, sizeof(src_port),
+        0, 0,
+        0, 0,
+        false
+    );
+    size_t len = strlen(src_host);
+    if(ret < 0 || (len > 0 && src_host[0] == '[' && src_host[len-1] != ']')) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Bad src_url: cannot bind the connect",
+            "src_url",      "%s", src_url,
+            NULL
+        );
+        return -1;
+    }
+    host_without_brackets(src_host);
+
+    struct addrinfo hints = {
+        .ai_family = ai_family,
+        .ai_socktype = ai_socktype,
+        .ai_protocol = ai_protocol,
+        .ai_flags = AI_PASSIVE,
+    };
+    struct addrinfo *res;
+    uint64_t t_resolv_src = time_in_milliseconds_monotonic();
+    ret = getaddrinfo(
+        empty_string(src_host)? NULL:src_host,
+        empty_string(src_port)? "0":src_port,
+        &hints,
+        &res
+    );
+    warn_if_slow_resolution(gobj, __FUNCTION__, src_host, t_resolv_src);
+    if(ret != 0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBURING,
+            "msg",          "%s", "getaddrinfo() src_url FAILED",
+            "src_url",      "%s", src_url,
+            "host",         "%s", src_host,
+            "port",         "%s", src_port,
+            "ai_family",    "%d", ai_family,
+            "gai_ret",      "%d", ret,
+            "gai_strerror", "%s", gai_strerror(ret),
+            NULL
+        );
+        return -1;
+    }
+
+    ret = bind(fd, res->ai_addr, (socklen_t) res->ai_addrlen);
+    if(ret == -1) {
+        char saddr[80];
+        print_addrinfo(gobj, saddr, sizeof(saddr), res, atoi(src_port));
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBURING,
+            "msg",          "%s", "bind() src_url FAILED",
+            "src_url",      "%s", src_url,
+            "addrinfo",     "%s", saddr,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+    }
+    freeaddrinfo(res);
+    return ret;
 }
 
 /***************************************************************************

@@ -16,6 +16,8 @@ Integration tests for the io_uring-based event loop: timers, TCP client/server e
 
 `yev_events/test_yevent_loop_end_drain` ends a loop (stop and destroy, nothing reaped) with destroyed events whose completions have not come: a read destroyed from a timer while the loop runs, a zero-copy send destroyed in its callback before its notification, and a read destroyed after the loop ended. `yev_loop_destroy()` frees each of them (the test holds a reference to the gbuffer and reads its refcount), and the memory is whole at the end. An event whose completion never comes (the test counts one operation more) is freed after 1 second, with an ERROR. In 7.25.4 the first two leaked, and the third was freed while the kernel still had its read.
 
+`yev_events/test_yevent_connect_src_url` connects with a local address to bind (`src_url`): `127.0.0.1:<port>`, `[::1]:<port>` and `tcp://127.0.0.1:<port>`. The listener must see the peer at that port. A bad `src_url` (`[::1:5000`) gives no socket and an error. In 7.25.4 the `src_url` was never parsed: the socket got a port of the kernel's choice, and a bad `src_url` was ignored.
+
 ## Run
 
 ```bash

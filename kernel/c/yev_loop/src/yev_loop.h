@@ -337,7 +337,7 @@ PUBLIC yev_event_h yev_create_connect_event( // create the socket to connect in 
     yev_loop_h yev_loop,
     yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     const char *dst_url,
-    const char *src_url,    /* local bind, only host:port */
+    const char *src_url,    /* local bind: "host:port", "[ipv6]:port" or "schema://host:port" */
     int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
     int ai_flags,           /* default: AI_V4MAPPED | AI_ADDRCONFIG */
     hgobj gobj
@@ -348,7 +348,7 @@ PUBLIC int yev_rearm_connect_event( // re-create the socket to connect in yev_ev
                                     // To recreate fd, previously close it and set -1
     yev_event_h yev_event,
     const char *dst_url,
-    const char *src_url,    /* local bind, only host:port */
+    const char *src_url,    /* local bind: "host:port", "[ipv6]:port" or "schema://host:port" */
     int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
     int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
 );

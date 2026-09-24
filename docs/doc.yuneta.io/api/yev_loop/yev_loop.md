@@ -398,7 +398,7 @@ yev_event_h yev_create_connect_event(
 | `yev_loop` | `yev_loop_h` | The event loop handle in which the connect event will be created. |
 | `callback` | `yev_callback_t` | The callback function to be invoked when the event is triggered. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break. |
 | `dst_url` | `const char *` | Destination URL to connect to (for example `"tcp://host:port"`). |
-| `src_url` | `const char *` | Source URL for local binding (`host:port` only), or `NULL`. |
+| `src_url` | `const char *` | The local address to bind before the connect: `"host:port"`, `"[ipv6]:port"` or `"schema://host:port"`, or `NULL`. An empty host binds any address, port `0` any port. A bad `src_url` is an error: logged, and the event has no socket. |
 | `ai_family` | `int` | Address family (for example `AF_UNSPEC`, `AF_INET`, `AF_INET6`). |
 | `ai_flags` | `int` | Address info flags (for example `AI_V4MAPPED \| AI_ADDRCONFIG`). |
 | `gobj` | `hgobj` | The associated GObj instance for event handling. |
@@ -406,6 +406,21 @@ yev_event_h yev_create_connect_event(
 **Returns**
 
 Returns a `yev_event_h` handle to the newly created connect event, or `NULL` on failure.
+
+**Notes**
+
+The host is resolved in the family of the destination address. Up to 7.25.4 the `src_url` was never parsed: the socket was bound to a port of the kernel's choice, and a `src_url` (good or bad) was ignored without a log.
+
+```C
+// Connect to [::1]:5000 from the local port 40000
+yev_event_h ev = yev_create_connect_event(
+    yev_loop, callback, "tcp://[::1]:5000", "[::1]:40000", AF_UNSPEC, 0, gobj
+);
+if(yev_get_fd(ev) < 0) {
+    // bad url or src_url: already logged
+}
+yev_start_event(ev);
+```
 
 ---
 
@@ -1196,7 +1211,7 @@ int yev_rearm_connect_event(
 |---|---|---|
 | `yev_event` | `yev_event_h` | Handle to the connect event to rearm. |
 | `dst_url` | `const char *` | Destination URL to connect to (for example `"tcp://host:port"`). |
-| `src_url` | `const char *` | Source URL for local binding (`host:port` only), or `NULL`. |
+| `src_url` | `const char *` | The local address to bind before the connect: `"host:port"`, `"[ipv6]:port"` or `"schema://host:port"`, or `NULL`. An empty host binds any address, port `0` any port. A bad `src_url` is an error: logged, and the event has no socket. |
 | `ai_family` | `int` | Address family (for example `AF_UNSPEC`, `AF_INET`, `AF_INET6`). |
 | `ai_flags` | `int` | Address info flags (for example `AI_V4MAPPED \| AI_ADDRCONFIG`). |
 
