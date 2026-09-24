@@ -189,18 +189,22 @@ change that looks up the key cache once per append):
 | `mark_tm_order` (the same topic) | -- | 19.3 +- 1.5 (19.9) | |
 | `tm_query_migrated` | -- | 7.4 +- 0.1 (7.3) | |
 
-`perf_tr_treedb` (us per operation, N = 100 000; 20 rounds, the order of
-the two binaries swapped at each round):
+`perf_tr_treedb` (CPU us per operation, N = 100 000; 14 rounds x 4 link
+layouts, paired alternated runs, `taskset -c 6`):
 
 | Case | 7.25.4 | 7.25.5 | Change |
 |------|--------|--------|--------|
-| `update_memory` | 3.88 +- 0.10 (3.89) | 2.89 +- 0.08 (2.88) | -25.4% |
-| `update_saved` | 11.45 +- 0.26 (11.54) | 10.36 +- 0.26 (10.38) | -9.6% |
-| `link_unlink` | 10.96 +- 0.25 (11.00) | 10.77 +- 0.24 (10.81) | -1.7% |
-| `create_link_half` | 69.9 +- 1.4 (69.8) | 70.3 +- 1.1 (70.1) | +0.6% |
-| `reopen` (per node) | 391.5 +- 12.8 (388.8) | 389.3 +- 13.4 (388.3) | -0.6% |
-| `delete_force` | 66.3 +- 1.4 (66.3) | 67.3 +- 1.3 (67.4) | +1.6% |
-| `delete_parent` (per parent of 200 children) | 3061 +- 40 (3053) | 3087 +- 63 (3072) | +0.9% |
+| `update_memory` | 3.92 +- 0.08 (3.94) | 2.92 +- 0.53 (2.79) | -25.6% |
+| `update_saved` | 11.75 +- 0.42 (11.73) | 10.81 +- 1.51 (10.44) | -8.0% |
+| `link_unlink` | 11.27 +- 0.27 (11.20) | 11.09 +- 1.24 (10.85) | -1.6% |
+| `create_link_half` | 53.92 +- 1.88 (53.55) | 54.26 +- 7.47 (52.60) | +0.6% (medians -1..-2%) |
+| `reopen` (per node) | 396.6 +- 13.8 (395.5) | 401.9 +- 51.4 (394.4) | +1.3% (medians -1.8..+1.0%) |
+| `delete_force` | 53.12 +- 3.17 (52.65) | 54.05 +- 5.50 (53.20) | +1.7% |
+| `delete_parent` (per parent of 200 children) | 2952 +- 375 (2896) | 2781 +- 427 (2711) | -5.8% |
+
+An earlier measurement in wall time on one layout gave +0.9% for
+`delete_parent`; in CPU time it was +3%, caused by the events held until the
+delete lands, and it is fixed (the delete tells its children's events itself).
 
 `timeranger2/test_topic_pkey_integer` (appends/s, 180 000 appends; 20
 rounds, the order swapped at each round):

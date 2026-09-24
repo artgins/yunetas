@@ -260,6 +260,16 @@ code before it, except those listed under "No red test" in `TODO.md`.
 - The repair of several active snaps at open keeps a snap active in memory
   when its deactivation cannot be saved (7.25.4 made it inactive in memory
   only), and a replica does not try it.
+- A take-back (a write whose save fails, a refused forced delete) puts the
+  child back into EVERY instance of a `pkey2` parent that held it, each in its
+  place; only the instance it was unlinked from got it back.
+- A link to a parent whose id cannot make a reference (an id of `NAME_MAX` or
+  more, or holding `^`, loaded from an older store) is refused and nothing
+  moves (*"Cannot build the reference of a node: a part of it is too long, or
+  holds a '^'"*); it answered 0 and the link was lost at the next open. A save
+  that meets a wrong reference in an fkey column leaves out that reference
+  alone, and logs it: it saved the record without the whole column, so the
+  valid links of the column were lost at the next open (7.25.4 too).
 - **Lost lock.** A master that lost its lock while stopped (another process
   took the store) writes nothing: every write path, including the three md2
   flag rewriters (`tranger2_write_user_flag`, `tranger2_set_user_flag`,
@@ -340,15 +350,15 @@ with their spread, are in `performance/c/README.md`.
       earlier reads every md2 row of the key until `mark-tm-order` runs (one
       minute of 1 key x 30 files x 20 000 rows: 13 ms on 7.25.4, ~392 ms
       unmigrated, ~7 ms migrated). See "Upgrade steps".
-- **treedb writes** (`perf_tr_treedb`, 100 000 operations): an update in
-  memory 3.88 -> 2.89 us, a saved update 11.45 -> 10.36 us, link+unlink
-  10.96 -> 10.77 us. An update deep-copied the node, with every child its
-  hooks hold, for the system schema's check on every treedb; now only on the
-  system schema. A forced delete costs ~1.6% more (66.3 -> 67.3 us), and a
-  forced delete of a parent with 200 children ~1% more (3061 -> 3087 us, the
-  new `delete_parent` case): the hold of its events and a write per child
-  (its fkey list and its place in the hook kept), the price of a refused
-  delete changing nothing.
+- **treedb writes** (`perf_tr_treedb`, 100 000 operations, CPU time, 4 link
+  layouts): an update in memory 3.92 -> 2.92 us, a saved update 11.75 ->
+  10.81 us, link+unlink 11.27 -> 11.09 us. An update deep-copied the node, with
+  every child its hooks hold, for the system schema's check on every treedb;
+  now only on the system schema. A forced delete of a parent with 200 children
+  is ~5% faster (2952 -> 2781 us): it tells its children's events itself
+  instead of holding two per child. **Price:** a forced delete of a leaf costs
+  ~1.7% more (53.1 -> 54.1 us, ~1 us): the hold of its events and the kept
+  column that let a refused delete change nothing.
 - **A JSON file is read whole, then parsed** (`load_json_from_file()`,
   `load_persistent_json()`, and tr2migrate): `json_loadfd()` made one
   `read()` per byte, 60 000 system calls for a 60 KB schema.
