@@ -133,51 +133,16 @@ PRIVATE int new_record_md_to_file(
  ***************************************************************/
 
 /***************************************************************************
- *
+ *  Read whole, then parsed (load_json_from_file()): json_loadfd() made
+ *  one read() per byte. A missing file answers NULL in silence, any other
+ *  failure is logged.
  ***************************************************************************/
 PRIVATE json_t *load_variable_json(
     const char *directory,
     const char *filename
 )
 {
-    /*
-     *  Full path
-     */
-    char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, filename, NULL);
-
-    if(access(full_path, 0)!=0) {
-        return 0;
-    }
-
-    int fd = open(full_path, O_RDONLY|O_NOFOLLOW);
-    if(fd<0) {
-        gobj_log_critical(0, 0,
-            "gobj",         "%s", __FILE__,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot open json file",
-            "path",         "%s", full_path,
-            "errno",        "%s", strerror(errno),
-            NULL
-        );
-        return 0;
-    }
-
-    json_t *jn = json_loadfd(fd, 0, 0);
-    if(!jn) {
-        gobj_log_critical(0, 0,
-            "gobj",         "%s", __FILE__,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON,
-            "msg",          "%s", "Cannot load json file, bad json",
-            NULL
-        );
-        close(fd);
-        return 0;
-    }
-    close(fd);
-    return jn;
+    return load_json_from_file(0, directory, filename, 0);
 }
 
 /***************************************************************************
@@ -3340,7 +3305,7 @@ PUBLIC json_t *tranger_read_record_content(
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Bad data, json_loadfd() FAILED.",
+                "msg",          "%s", "Bad data, the content of the record is not json",
                 "topic",        "%s", tranger_topic_name(topic),
                 "__t__",        "%lu", (unsigned long)md_record->__t__,
                 "__size__",     "%lu", (unsigned long)md_record->__size__,
