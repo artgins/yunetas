@@ -184,18 +184,6 @@ The independent reviews of the 7.25.4 fixes and the fix round after each
   of a library it links by name: a per-module test run can execute the old
   library. `yunetas clean && yunetas build && yunetas test` is not affected.
 
-## yuno-skeleton: the timer of three templates reaches nobody
-
-`gclass_service`, `gclass_child` and `yuno_citizen` create their timer with
-`gobj_create(gobj_name(gobj), C_TIMER, 0, gobj)`. `C_TIMER` subscribes its
-parent only when it is a pure child (`c_timer.c`, `mt_create`), so the
-`EV_TIMEOUT` of such a timer is published to nobody (*"Publish event WITHOUT
-subscribers"*) and the template's `ac_timeout` never runs. `yuno_standalone`
-creates it with `gobj_create_pure_child()`, which works. Found while writing
-`performance/c/perf_c_treedb` from the service template (it uses a pure
-child). Decide: a pure child in the three templates, or a `subscriber` in the
-kw.
-
 ## Agent: the spare agent is only refreshed on the package path
 
 `install.sh` restarts `yuneta_agent22` after an upgrade, once the main agent is

@@ -571,6 +571,12 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
 - yuno-skeleton: the four C templates logged with `MSGSET_INTERNAL_ERROR`,
   which the unified msgsets renamed `MSGSET_INTERNAL` (2026-04): a gclass
   generated from them did not compile. They use `MSGSET_INTERNAL`.
+- yuno-skeleton: the timer of `gclass_service`, `gclass_child` and
+  `yuno_citizen` reached nobody. They created it with `gobj_create()`, and
+  `C_TIMER` subscribes its parent only when it is a pure child: its
+  `EV_TIMEOUT` was published without subscribers and the template's
+  `ac_timeout` never ran. They create it with `gobj_create_pure_child()`, as
+  `yuno_standalone` and the kernel gclasses do. The JS template already did.
 - New benchmarks `performance/c/perf_timeranger2`, `perf_tr_treedb` and
   `perf_c_treedb` (see "Performance"): each prints one line of JSON per
   result, and ctest runs them with small sizes.
