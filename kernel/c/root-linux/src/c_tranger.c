@@ -1807,8 +1807,8 @@ PRIVATE json_t *mark_tm_order_of_topic(
  *
  *  SYNCHRONOUS: the yuno's loop is blocked until the last topic is marked.
  *  The cost is one sequential read of every md2 file, linear in rows and
- *  in files (timeranger2's own measure, warm page cache: 16 ms for 600000
- *  rows in 30 files; 72-88 ms for 4 keys of 3650 daily files).
+ *  in files (performance/c/perf_timeranger2: 19 ms for 600000 rows in 30
+ *  files).
  ***************************************************************************/
 PRIVATE json_t *cmd_mark_tm_order(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {

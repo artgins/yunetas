@@ -61,14 +61,15 @@ created by 7.25.4 or earlier (no file's `tm` range can be trusted there), a
 `tm` condition skips rows and ends nothing.
 
 Such a topic reads every md2 row of the key on a `tm` query, so its cost grows
-with the files of the key: on one key of 30 files x 20000 rows, a query of 26
-rows took 13.6 ms in 7.25.4, 408 ms now, and 0.09 ms once the topic is marked.
+with the files of the key: on one key of 30 files x 20000 rows, a `tm` query
+of one minute took 12.7 ms in 7.25.4, 392 ms now, and 7.4 ms once the topic is
+marked (`performance/c/perf_timeranger2`, figures in `performance/c/README.md`).
 Mark it, once, with `tranger2_mark_tm_order()` (the `mark-tm-order` command of
 `C_TRANGER`): it reads every md2 file once, writes the markers the files
 need, and sets `"marks_tm_unordered": true`. Its cost is linear in the rows
-and in the files, and it blocks the yuno while it runs: 16 ms for those 30
-files x 20000 rows, 72-88 ms for 4 keys of 3650 daily files (warm page cache).
-Run it again after a rollback to a binary that appends without markers.
+and in the files, and it blocks the yuno while it runs: 19 ms for those 30
+files x 20000 rows. Run it again after a rollback to a binary that appends
+without markers.
 
 ```C
 json_t *report = tranger2_mark_tm_order(tranger, "readings");  // master only

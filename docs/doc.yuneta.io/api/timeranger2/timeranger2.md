@@ -1379,14 +1379,13 @@ segments again.
 
 It is synchronous -- the yuno's event loop is blocked while it runs -- and
 costs a listing of each key's directory and one sequential read of every md2
-file, 32 bytes a row: linear in the rows and in the files. Measured with a
-warm page cache:
+file, 32 bytes a row: linear in the rows and in the files. Measured with
+`performance/c/perf_timeranger2` (case `mark_tm_order`, figures in
+`performance/c/README.md`):
 
 | Store | Time |
 |---|---|
-| 1 key, 30 files x 20000 rows (600000 rows) | 16 ms |
-| 4 keys, 365 daily files of one row each | 21-32 ms |
-| 4 keys, 3650 daily files of one row each (14600 files) | 72-88 ms |
+| 1 key, 30 files x 20000 rows (600000 rows) | 19 ms |
 
 Run it on a quiet node.
 
@@ -1757,12 +1756,12 @@ The two axes are not ordered the same way, and the scan knows it:
   in `tm` order, and no file's `tm` range is trusted: a `tm` condition leaves
   no file out and ends no scan, it skips rows. Correct, and it reads every
   md2 row of the key, so the cost grows with the files of the key. Measured on
-  one key of 30 day files x 20000 rows, a `from_tm`..`to_tm` query of 26 rows
-  (best of 5, warm page cache): 13.6 ms in 7.25.4 (which trusted the first and
-  the last row of each file, and so could miss rows), 408 ms on such a topic
-  now, 0.09 ms once the topic is marked. Mark it with
+  one key of 30 day files x 20000 rows, a `from_tm`..`to_tm` query of one
+  minute (`performance/c/perf_timeranger2`): 12.7 ms in 7.25.4 (which trusted
+  the first and the last row of each file, and so could miss rows), 392 ms on
+  such a topic now, 7.4 ms once the topic is marked. Mark it with
   [`tranger2_mark_tm_order()`](<#tranger2_mark_tm_order>) (the `mark-tm-order`
-  command of `C_TRANGER`): 16 ms for those 600000 rows in 30 files; its
+  command of `C_TRANGER`): 19 ms for those 600000 rows in 30 files; its
   cost is linear in the rows and in the files, and it blocks the yuno while
   it runs.
 - **The marker goes down before the row.** The master writes the marker of a

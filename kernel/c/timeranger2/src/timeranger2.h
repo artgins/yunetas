@@ -562,8 +562,8 @@ PUBLIC int tranger2_write_topic_cols(
    Cost: a listing of each key's directory and ONE sequential read of every
    md2 file, 32 bytes a row -- linear in the rows and in the files. It is
    synchronous: the yuno's event loop is blocked while it runs. Measured with
-   a warm page cache: 16 ms for 1 key of 30 files x 20000 rows (600000 rows);
-   72-88 ms for 4 keys of 3650 daily files of one row each (14600 files).
+   performance/c/perf_timeranger2: 19 ms for 1 key of 30 files x 20000 rows
+   (600000 rows).
 
    A file that needs a marker and whose name leaves no room for one
    (`<file_id>.tm_unordered` longer than NAME_MAX) is skipped and logged:
