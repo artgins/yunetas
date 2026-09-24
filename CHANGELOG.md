@@ -550,16 +550,29 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   removed"* with the names. Up to 7.25.4 nothing was removed (19 GB on
   wattyzer). An existing large directory is swept at the first start: to
   keep more, set `agent.audit_keep_days` in `yuneta_agent.json` before that
-  start. New `rotatory_remove_old_files()`, not on the write path.
-- **The agent's audit record is small and loses nothing.** A read-only
-  command (`list-*`, `view-*`, `get-*`, `info-*`, `dir-*`, help, stats,
-  services, nodes, treedb-info, topics, ...; the list is in DEBUGGING.md 5.5)
-  is written as `{command, date, user}` only. Any other command is written as
-  `{command, date, user, source, kw}`: `__md_iev__` is no longer written, and
-  `source` keeps the console purpose and each inter-yuno hop (role, yuno,
-  service, user, host). A `content64` is never written: it becomes
+  start. New `rotatory_remove_old_files()`; the sweep at a new audit file runs inside
+  the write of its first record (once a day, or at a size rotation).
+- **The agent's audit record is small, and holds no secret and no keystroke.**
+  A read-only command (`list-*`, `view-*`, `get-*`, `info-*`, `dir-*`, help,
+  stats, services, nodes, treedb-info, topics, ...; the list is in DEBUGGING.md
+  5.5) is written as `{command, date, user}` only. A command with a `__reset__`
+  value (`stats-yuno stats=__reset__`) is a write. `command-yuno` /
+  `command-agent` are judged by the command they carry, taken where the parser
+  takes it. Any other command is written as `{command, date, user, source,
+  kw}`: `__md_iev__` is no longer written, and `source` keeps the console
+  purpose and each inter-yuno hop (role, yuno, service, user, host). A
+  `content64` is never written (blanks around the `=` included): it becomes
   `<N bytes sha256:HEX>` of the decoded content (the `sha256sum` of the
-  binary). An `install-binary` of a 32 MB yuno went from 134 MB to 541 bytes
+  binary). A secret is never written: the value of a parameter named like
+  `password`, `pwd`, `secret`, `token`, `jwt` or `private_key` (and the `value`
+  of a `write-attr` of such an attribute) is `<redacted>`, in the kw at any
+  depth and in any string; up to 7.25.4 `check-user-pwd` and `set-user-pwd`
+  wrote the password in clear text. A console keystroke (`write-tty`) keeps
+  only who, when, which console, and how many writes and bytes: one record at
+  the first write of a burst (one user, one console, up to 60 s) and one for
+  the rest when the burst ends; up to 7.25.4 each keystroke wrote the whole kw
+  with the keystroke in base64 (1000 keystrokes: 922 KB, now 945 bytes). Bad
+  data from a peer in `__md_iev__` is a WARNING, not an ERROR. An `install-binary` of a 32 MB yuno went from 134 MB to 541 bytes
   (wattyzer wrote 0.6-1.2 GB of audit on a deploy day). A day of audit that
   crosses `max_megas_audit_file` continues in `.OLD.1`, `.OLD.2`, ...: up to
   7.25.4 each size rotation removed the previous `.OLD`, so a day that
@@ -573,7 +586,7 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   a directory inside the tree was walked into and the files of its TARGET
   were deleted (outside the tree); a dangling link made the removal fail. A
   link is removed as a link; their failures name the path, and
-  `rmrcontentdir()` no longer fails silently. `mkrdir()` over a path that
+  `rmrcontentdir()` no \1 An entry that another process removes during the walk is not an\n  error (it returned -1 with no log). `mkrdir()` over a path that
   exists and is not a directory, or a dangling link, logs the real cause
   (`ENOTDIR`) and returns -1 (it returned 0, and logged a leftover errno).
 - `find_files_with_suffix_array()` never lists a symbolic link (on
@@ -595,6 +608,13 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   `rotatory_close()` / `rotatory_end()` is never touched again (the logger
   keeps its handle): a write, flush, truncate or second close through it does
   nothing; up to 7.25.4 it read freed memory and could close it twice.
+- rotatory: a clock set back across midnight empties no log file. Up to 7.25.4
+  each new file name was opened with `"w"`: a step back at 00:00:05 emptied the
+  file of the day before, and the step forward emptied today's file with its
+  first records (the agent audit and the yuno logs). Now an existing file is
+  emptied only when it was last written before the day its name is used for
+  (last week's file of a `W` mask, as intended); a handle with
+  `rotatory_keep_all_old_files()` never empties a file.
 - The entry point closes the log files last: up to 7.25.4 they were closed
   before the final cleaning and the memory leak report, so *"system memory
   not free"* never reached the yuno's log file.
@@ -697,9 +717,11 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
 - treedb refuses creates of unloaded ids, snapshot ops with a partial
   `__snaps__`, `gc-assets` asset rows with a partial asset topic or an active
   snap.
-- The agent's audit record format changed (read-only commands minimal,
-  `source` instead of `__md_iev__`, no `content64`): tools that read the
-  audit must accept both formats (files written before the upgrade keep the
+- The agent's audit record format changed: read-only commands are minimal,
+  `source` replaces `__md_iev__`, there is no `content64`, secrets are written
+  as `<redacted>`, and `write-tty` is written as burst records `{command, date,
+  user, console, writes, bytes, until, source}` with no `kw`. Tools that read
+  the audit must accept both formats (files written before the upgrade keep the
   old one).
 - The agent removes audit files older than `audit_keep_days` (default 7) at
   its first start; `mkrdir()` returns -1 over a non-directory.
