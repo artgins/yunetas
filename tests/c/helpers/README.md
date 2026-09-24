@@ -71,3 +71,10 @@ the retention matches them).
 ```bash
 ctest -R 'helpers/' --output-on-failure --test-dir build
 ```
+
+`test_dir_array_nomem` checks a directory listing that cannot keep an entry
+(no memory: the largest block is set to 4 KB, under the first array of
+entries): `find_files_with_suffix_array()`, `walk_dir_array()` and
+`get_ordered_filename_array()` answer `-1` with the listing empty, and log it.
+Up to 7.25.4 the entry was dropped and the listing answered `0`, so
+timeranger2 read a key without the md2 file the listing lost.

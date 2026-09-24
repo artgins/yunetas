@@ -54,6 +54,7 @@ set(SRCS
     test_helpers
     test_rotatory
     test_audit_record
+    test_dir_array_nomem
 )
 
 ##############################################

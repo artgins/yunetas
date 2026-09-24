@@ -226,6 +226,17 @@ The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in string
 **Source:** `tests/c/tr_treedb/`, `tests/c/tr_treedb_load_failed/`,
 `tests/c/c_treedb_literal_wins/`
 
+## Helpers (gobj-c)
+
+| Binary | Description |
+|--------|-------------|
+| **`test_helpers`** | String, file and directory helpers: `split2()`, `save_json_to_file()`, `rmrdir()` / `mkrdir()` with links, deep trees and entries that vanish during the walk. |
+| **`test_rotatory`** | `rotatory_remove_old_files()` and the rotatory log writer: size rotation, a full disk, a clock set back. |
+| **`test_audit_record`** | The audit record builder of `yuneta_agent`: secrets redacted, `content64` never written. |
+| **`test_dir_array_nomem`** | A directory listing that cannot keep an entry (no memory) answers `-1` with the listing empty, and logs it: `find_files_with_suffix_array()`, `walk_dir_array()`, `get_ordered_filename_array()`. |
+
+**Source:** `tests/c/helpers/`
+
 ## Keyword matching
 
 | Binary | Description |

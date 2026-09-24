@@ -747,6 +747,12 @@ typedef struct dir_array_s {
     json_int_t capacity;
 } dir_array_t;
 
+/*
+ *  find_files_with_suffix_array(), walk_dir_array(), get_ordered_filename_array():
+ *  0 on success; -1 (logged) when the directory cannot be opened or an entry
+ *  cannot be kept (no memory), and then 'da' is EMPTY: a listing that lost an
+ *  entry is not the listing of the directory.
+ */
 PUBLIC int find_files_with_suffix_array( // Remember to free 'da' with dir_array_free()
     hgobj gobj,
     const char *directory,

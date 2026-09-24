@@ -3516,7 +3516,11 @@ PRIVATE int dir_array_add(
         da->capacity = new_capacity;
     }
 
-    da->items[da->count] = gbmem_strdup(name);
+    char *item = gbmem_strdup(name);
+    if(!item) {
+        return -1;  // Error already logged
+    }
+    da->items[da->count] = item;
     da->count++;
     return 0;
 }
@@ -3599,7 +3603,24 @@ PUBLIC int find_files_with_suffix_array(
             }
         }
 
-        dir_array_add(da, entry->d_name);
+        /*
+         *  A listing that lost an entry is not the listing of the
+         *  directory: up to 7.25.4 the entry was dropped and the listing
+         *  answered 0, and timeranger2 read a key without the file.
+         */
+        if(dir_array_add(da, entry->d_name) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "Cannot list directory, no memory for an entry",
+                "path",         "%s", directory,
+                "entries",      "%ld", (long)da->count,
+                NULL
+            );
+            closedir(dir);
+            dir_array_free(da);
+            return -1;
+        }
     }
 
     closedir(dir);
@@ -3628,6 +3649,11 @@ PUBLIC void dir_array_sort(
 /****************************************************************************
  *
  ****************************************************************************/
+typedef struct {
+    dir_array_t *da;
+    BOOL failed;
+} fill_array_t;
+
 PRIVATE BOOL fill_array_cb(
     hgobj gobj,
     void *user_data,
@@ -3638,13 +3664,22 @@ PRIVATE BOOL fill_array_cb(
     int level,
     wd_option opt
 ) {
-    dir_array_t *da = user_data;
+    fill_array_t *fill = user_data;
+    if(fill->failed) {
+        return FALSE;   // Error already logged
+    }
 
-    if(opt & WD_ONLY_NAMES) {
-        dir_array_add(da, filename);
-
-    } else {
-        dir_array_add(da, fullpath);
+    if(dir_array_add(fill->da, (opt & WD_ONLY_NAMES)? filename: fullpath) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "Cannot list directory tree, no memory for an entry",
+            "path",         "%s", fullpath,
+            "entries",      "%ld", (long)fill->da->count,
+            NULL
+        );
+        fill->failed = TRUE;
+        return FALSE;   // stop traversing tree
     }
 
     return TRUE; // continue traversing tree
@@ -3691,8 +3726,14 @@ PUBLIC int walk_dir_array(
     /*
      *  Fill the array
      */
-    _walk_tree(gobj, root_dir, &r, da, opt, 0, fill_array_cb);
+    fill_array_t fill = {.da = da, .failed = FALSE};
+    _walk_tree(gobj, root_dir, &r, &fill, opt, 0, fill_array_cb);
     regfree(&r);
+
+    if(fill.failed) {
+        dir_array_free(da);  // Error already logged
+        return -1;
+    }
 
     return 0;
 }

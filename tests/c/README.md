@@ -82,7 +82,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 |---|---|
 | `c_node_failed_save`, `c_treedb_literal_wins`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
 | `gbuffer` | `test_gbmem_realloc_refused` |
-| `helpers` | `test_audit_record`, `test_rotatory` |
+| `helpers` | `test_audit_record`, `test_rotatory`, `test_dir_array_nomem` |
 | `timeranger2` | `test_tm_order`, `test_lost_lock`, `test_topic_var_replace`, `test_key_reborn_pages`, `test_open_list_history`, `test_unreadable_at_open`, `test_mark_tm_order`, `test_uncommitted_append`, `test_torn_md2_tail`, `test_md2_read_error`, `test_md2_short_write`, `test_nul_escape_record`, `test_torn_tail_check_fails`, `test_cmp_file_ids` |
 | `tr_msg2db` | `test_msg2db_load_failed` |
 | `tr_queue` | `test_tr_queue_load_failed` |
