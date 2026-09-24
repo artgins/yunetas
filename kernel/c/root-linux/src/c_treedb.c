@@ -34,9 +34,9 @@
  *          are (user decision, 2026-09-23). An operator edits it there, and an
  *          edit is a DRAFT: it moves no version and reaches no treedb until
  *          save-schema publishes it and apply-schema puts it in the file the
- *          treedb opens from. Until the owner's design of M36 (2026-09-21) it
- *          was the source: every write raised the versions, so an edit half
- *          made was the schema of the next start.
+ *          treedb opens from. It used to be the source: every write raised
+ *          the versions, so an edit half made was the schema of the next
+ *          start.
  *
  *          A projection is written whole or it says it is not: a delete that
  *          a snapshot of __system__ refuses (or a write that fails) leaves it
@@ -97,19 +97,19 @@
  *              Constants
  ***************************************************************************/
 /*
- *  Attributes of a __system__ node that say how it is STORED, never what it
- *  declares: the qualified id, the name (it is the identity being compared),
- *  the links to parent and children, the version stamp, the editor geometry
- *  and the treedb metadata. Shared by diff-schema and the projector, so both
- *  agree on what "the same" means.
- */
-/*
  *  The `c_schema_version` of a treedb node whose projection is unfinished
  *  and whose record could not be written (mark_projection_unfinished): no
  *  literal has that version.
  */
 #define C_SCHEMA_UNFINISHED     (-1)
 
+/*
+ *  Attributes of a __system__ node that say how it is STORED, never what it
+ *  declares: the qualified id, the name (it is the identity being compared),
+ *  the links to parent and children, the version stamp, the editor geometry
+ *  and the treedb metadata. Shared by diff-schema and the projector, so both
+ *  agree on what "the same" means.
+ */
 PRIVATE const char *schema_topic_skip[] = {
     "id", "value", "treedbs", "cols", "topic_version", "_geometry", "__md_treedb__", NULL
 };
@@ -2299,8 +2299,7 @@ PRIVATE BOOL system_is_written_here(hgobj gobj)
 }
 
 /***************************************************************************
- *  Publish the draft of a schema: the owner's design of M36 (2026-09-21
- *  review).
+ *  Publish the draft of a schema.
  *
  *  An edit of __system__ is a draft and moves no version. This compares
  *  the draft with the schema file the treedb is USING, raises the
@@ -2731,15 +2730,14 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *  The topics whose DRAFT in __system__ is not saved: what the schema
      *  editor marks as unsaved. It kept that mark in the memory of one
      *  session only, so a reload of the page lost it while __system__ still
-     *  differed from the file (N13 of the 2026-09-22 review); this is the
-     *  data it is rebuilt from.
+     *  differed from the file; this is the data it is rebuilt from.
      *
      *  Not saved means different from the SAVED schema when there is one
      *  newer than the file in use: diffed against the file in use, every
      *  topic a save had just published was still "changed", and the editor
      *  said "unsaved changes" until an Apply -- for ever on an imposed
-     *  treedb (M1 of the 2026-09-23 review). Saved but not in use is the
-     *  other question, and `diff` / `can_apply` already answer it.
+     *  treedb. Saved but not in use is the other question, and `diff` /
+     *  `can_apply` already answer it.
      */
     json_t *draft_base = pending? saved : in_use;
     json_t *draft_changed = json_object();
@@ -5854,9 +5852,10 @@ PRIVATE json_t *load_apply_record(hgobj gobj, const char *treedb_name)
 
 /***************************************************************************
  *  Write the record WHOLE (write_record_whole), as the record of an
- *  unfinished projection is: written in place, a process that died half
- *  way left a torn file, and nothing could say which apply was in use.
- *  -1 when it could not be written (logged), with the old one untouched.
+ *  unfinished projection is: a process that dies half way leaves the old
+ *  record or the new one, never a torn file, so the record always says
+ *  which apply is in use. -1 when it could not be written (logged), with
+ *  the old one untouched.
  ***************************************************************************/
 PRIVATE int write_apply_record(hgobj gobj, const char *treedb_name, json_t *record) // owned
 {
@@ -7192,8 +7191,7 @@ PRIVATE BOOL col_of_treedb(
  *  "m2.b") is taken by the one that says it owns it (settle_owner), or by
  *  the treedb projected now when none says it: ONE WARNING, by the treedb
  *  that takes it, naming it and the others that could have. The others
- *  say nothing (7.25.4's successor warned at the projection of every
- *  treedb, the unrelated ones too, and left the node to none, for ever).
+ *  say nothing.
  *
  *  Return is YOURS, {id: {"topic": <topic name>, "is_topic": bool,
  *  "node": <the node>}}.
@@ -7959,28 +7957,34 @@ PRIVATE json_t *drafts_over_file(
 }
 
 /***************************************************************************
- *  Does the projection of a treedb miss part of `jn_schema`: a topic or a
- *  column it declares that __system__ does not hold, or a topic whose
- *  topic_version there is behind (diff_treedb_schema: rows "only_in_c",
- *  and "version" of a topic)?
+ *  Does the projection of a treedb differ from `jn_schema`
+ *  (diff_treedb_schema)? A topic or a column it declares that __system__
+ *  does not hold ("only_in_c"), or a topic whose topic_version there is
+ *  behind ("version" of a topic), always counts. With `any_row`, every
+ *  other difference counts too: an attribute that is not the literal's.
  ***************************************************************************/
-PRIVATE BOOL projection_misses_literal(hgobj gobj, const char *treedb_name, json_t *jn_schema)
+PRIVATE BOOL projection_differs_from_literal(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_schema,  // not owned
+    BOOL any_row
+)
 {
     json_t *rows = json_array();
     json_t *summary = diff_treedb_schema(gobj, treedb_name, jn_schema, rows);
-    BOOL misses = summary? FALSE : TRUE;    // unreadable: not taken as complete (logged)
+    BOOL differs = summary? FALSE : TRUE;   // unreadable: not taken as complete (logged)
     JSON_DECREF(summary)
     int idx; json_t *row;
     json_array_foreach(rows, idx, row) {
         const char *kind = kw_get_str(gobj, row, "kind", "", 0);
-        if(strcmp(kind, "only_in_c")==0 ||
+        if(any_row || strcmp(kind, "only_in_c")==0 ||
                 (strcmp(kind, "version")==0 && !empty_string(kw_get_str(gobj, row, "topic", "", 0)))) {
-            misses = TRUE;
+            differs = TRUE;
             break;
         }
     }
     JSON_DECREF(rows)
-    return misses;
+    return differs;
 }
 
 /***************************************************************************
@@ -8017,6 +8021,14 @@ PRIVATE BOOL projection_misses_literal(hgobj gobj, const char *treedb_name, json
  *  literal is newer than __system__ (or the projection is unfinished),
  *  left as it is when it is not -- a dynamic change published there stays
  *  readable with diff-schema, and turning the flag off takes it back.
+ *
+ *  A node that says the literal (schema_version and c_schema_version) while
+ *  the file in use is older, or missing, was stamped and the file was not
+ *  installed: the open died in between, or before (7.25.4 wrote the stamp
+ *  FIRST, then the topics, then their columns). With impose_c_schema or
+ *  without it, the projection is compared with the literal, and completed
+ *  when it differs. What it holds over the literal counts as a draft only
+ *  where it differs from the file too (see projection_differs_from_literal).
  *
  *  A treedb with no projection yet is seeded with what runs: the literal
  *  when it is installed or imposed, the FILE otherwise -- and then
@@ -8157,7 +8169,33 @@ PRIVATE int project_literal_into_system(
     BOOL completing = FALSE;
     BOOL stamped_early = FALSE;
 
-    if(imposing) {
+    BOOL stamped_as_literal = (installed && !unfinished_before &&
+        stored_c_version == new_version && stored_version == new_version &&
+        (!file_in_use || in_use_version < new_version))? TRUE : FALSE;
+
+    if(stamped_as_literal) {
+        /*
+         *  Every difference counts when there is a file: what differs from
+         *  the file too is a draft, the rest is what the dead projection did
+         *  not write. With no file nothing tells the two apart, and only
+         *  what is missing counts
+         */
+        if(!projection_differs_from_literal(gobj, treedb_name, jn_schema,
+                file_in_use? TRUE : FALSE)) {
+            return 0;   /*  the projection is of this literal already  */
+        }
+        stamped_early = TRUE;
+        gobj_log_info(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INFO,
+            "msg",              "%s", "Completing the projection into __system__: it says it is of the schema from C, and part of it is not (the stamp was written first, by an older release, and the process died)",
+            "treedb_name",      "%s", treedb_name,
+            "schema_version",   "%d", (int)new_version,
+            "imposed",          "%d", imposing? 1 : 0,
+            NULL
+        );
+
+    } else if(imposing) {
         if(new_version <= stored_version && !unfinished_before) {
             if(new_version < stored_version) {
                 gobj_log_info(gobj, 0,
@@ -8200,34 +8238,6 @@ PRIVATE int project_literal_into_system(
             "source",           "%s", source == jn_schema? "schema from C" : "schema file in use",
             "schema_version",   "%d", (int)schema_version_of(gobj, source),
             "stored_version",   "%d", (int)stored_version,
-            NULL
-        );
-
-    } else if(stored_c_version == new_version && stored_version == new_version &&
-            !unfinished_before && !projection_misses_literal(gobj, treedb_name, jn_schema)) {
-        /*
-         *  The projection is of this literal already: a schema file that
-         *  was missing is written again from it, and the drafts over it
-         *  are drafts over the same schema
-         */
-        return 0;
-
-    } else if(stored_c_version == new_version && stored_version == new_version &&
-            !unfinished_before) {
-        /*
-         *  It says so and it is not: a node stamped BEFORE its topics were
-         *  written (7.25.4 and earlier wrote the numbers first), and the
-         *  process died. Completed, from the literal it says it is of: what
-         *  it holds over the literal is the operator's, not over a file
-         *  it was never projected from
-         */
-        stamped_early = TRUE;
-        gobj_log_info(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INFO,
-            "msg",              "%s", "Completing the projection into __system__: it says it is of the schema from C, and it misses part of it (stamped before its topics were written, by an older release)",
-            "treedb_name",      "%s", treedb_name,
-            "schema_version",   "%d", (int)new_version,
             NULL
         );
 
@@ -8290,7 +8300,7 @@ PRIVATE int project_literal_into_system(
             /*
              *  What the projection that died wrote of the literal differs
              *  from the file, and is not a draft: only what differs from
-             *  BOTH is (see projection_misses_literal)
+             *  BOTH is (see projection_differs_from_literal)
              */
             json_t *ids2 = NULL;
             json_t *left2 = NULL;
@@ -9031,8 +9041,9 @@ PRIVATE json_t *get_client_treedb_schema(
      */
     if(input_schema_ok) {
         /*
-         *  The file in use is read ONCE for the open: what runs is decided
-         *  on it, twice (the collision check, the reconcile)
+         *  C_TREEDB reads the file in use once, for its two decisions (the
+         *  collision check, the reconcile); treedb_open_db() reads it again
+         *  to run it
          */
         json_t *file_in_use = load_schema_file_in_use(gobj, treedb_name);
         if(schema_to_run_collides(gobj, treedb_name, jn_client_treedb_schema, file_in_use, FALSE)) {
@@ -9062,9 +9073,9 @@ PRIVATE json_t *get_client_treedb_schema(
      *  which is what apply-schema makes it.
      *
      *  __system__ is not read here. It is where a schema is EDITED: a draft
-     *  there reaches a treedb only through save-schema + apply-schema (the
-     *  owner's design of M36, 2026-09-21 review). It used to be the source,
-     *  so every edit, half made or not, was the schema of the next start.
+     *  there reaches a treedb only through save-schema + apply-schema. It
+     *  used to be the source, so every edit, half made or not, was the
+     *  schema of the next start.
      */
     /*
      *  So the schema the treedb opens with IS the literal, the object
@@ -9707,8 +9718,8 @@ PRIVATE json_t *diff_treedb_schema(
  *  of a node opened with impose off before the draft model carries a DICT
  *  keyed by topic name, written from get_treedb_schema() as it was. Read as
  *  no topic at all, that file made every topic "changed" and every version
- *  was bumped and written again (N11 of the 2026-09-22 review). A dict's
- *  topic takes its name as `id` when it carries none. Return is YOURS.
+ *  was bumped and written again. A dict's topic takes its name as `id`
+ *  when it carries none. Return is YOURS.
  ***************************************************************************/
 PRIVATE json_t *schema_topics_as_list(hgobj gobj, json_t *jn_schema)
 {

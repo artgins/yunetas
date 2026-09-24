@@ -4054,9 +4054,7 @@ PRIVATE int open_counting(hgobj gobj, const char *treedb_name, json_t *jn_schema
  *  a leftover. The operator MOVES its column `name` to `users` (unlinks it
  *  from `departments`, links it to `users`): the place of a leftover is
  *  part of "as left", so the move is a draft of both topics. The open that
- *  completes the projection deletes the column and says both. Before, the
- *  column was found wherever it was and compared by its attributes only:
- *  the move was nobody's work, and the column was deleted in silence.
+ *  completes the projection deletes the column and says both.
  ***************************************************************************/
 PRIVATE int scenario_leftover_moved(hgobj gobj)
 {
@@ -4104,9 +4102,7 @@ PRIVATE int scenario_leftover_moved(hgobj gobj)
  *  edits that column before the next open: its header (`variant` 0), or
  *  a link to `users` (1). A node in no topic is still there, and it is
  *  compared: the edit is a draft, and the open that completes the
- *  projection deletes the column and says it. Before, a node in no topic
- *  read as "nothing", which is what a delete leaves: the edit was deleted
- *  in silence.
+ *  projection deletes the column and says it.
  ***************************************************************************/
 PRIVATE int scenario_orphaned_leftover_edited(hgobj gobj, int variant)
 {
@@ -4180,8 +4176,6 @@ PRIVATE int scenario_orphaned_leftover_edited(hgobj gobj, int variant)
  *  declares `departments.name`. An unrelated treedb and `tw_am` say
  *  nothing; the newer literal of `tw_am.b` takes the columns (ONE WARNING
  *  each, naming it) and deletes them, and says the operator's delete.
- *  Before, every projection of every treedb warned for each node, naming
- *  itself, and the nodes were left to none, for ever.
  ***************************************************************************/
 PRIVATE json_t *users_only(const char *db, int v)
 {
@@ -4244,8 +4238,7 @@ PRIVATE int scenario_ambiguous_owner(hgobj gobj)
  *  `departments` and the delete of its columns. Its record plans them:
  *  that settles the owner. The next open completes the projection, deletes
  *  the columns, says nothing of them as the operator's work, and warns
- *  once per column that it took it; the one after says nothing. Before,
- *  the record was removed and the columns stayed for ever.
+ *  once per column that it took it; the one after says nothing.
  ***************************************************************************/
 PRIVATE int scenario_ambiguous_after_crash(hgobj gobj)
 {
@@ -4298,8 +4291,8 @@ PRIVATE int scenario_ambiguous_after_crash(hgobj gobj)
 /***************************************************************************
  *  DTM: delete-treedb deletes EVERY node of its treedb: a column the
  *  operator moved to another of its topics, and a column the operator
- *  left in no topic. Before, a column whose id names another topic was
- *  skipped, even of the same treedb, and a node in no topic was not seen.
+ *  left in no topic. Before, a node in no topic was not seen, and it
+ *  stayed.
  ***************************************************************************/
 PRIVATE int scenario_delete_treedb_every_node(hgobj gobj)
 {
@@ -4357,8 +4350,6 @@ PRIVATE int scenario_delete_treedb_every_node(hgobj gobj)
  *  says it (`c_schema_version` -1), the record is kept in memory, the
  *  leftover is not a draft, `save-schema` refuses, and every open writes
  *  the record again. The open that completes the projection says nothing.
- *  Before, the next open read the projection as complete, showed the
- *  leftover as a draft, and a save published it.
  *
  *  RL: the same, and the process that kept the record in memory is gone
  *  (a child that dies). The node still says unfinished: the record is
@@ -4524,8 +4515,8 @@ PRIVATE int scenario_record_lost(hgobj gobj)
  *  Such a schema is refused, loudly, naming both: the treedb does not
  *  open, and nothing is written in __system__. A draft that collides is
  *  not saved, and a saved schema that collides is not applied. Before, the
- *  two were one node with no error ((a)), or the second treedb failed at
- *  every open with "Cannot update node: it does not exist" ((b)).
+ *  two were one node with no error ((a)), or the second treedb opened and
+ *  logged "Node already exists" for its columns ((b)).
  ***************************************************************************/
 PRIVATE int open_refused(hgobj gobj, const char *treedb_name, json_t *jn_schema, // owned
     const char *label)
@@ -4635,7 +4626,6 @@ PRIVATE int scenario_colliding_ids(hgobj gobj)
  *  of its columns FAIL (the directory of the keys of `cols` is read-only).
  *  The draft is still in __system__, so it is not said at that open: the
  *  record keeps its kind. The open that removes the columns says it.
- *  Before, the topic was said at the open that left part of its draft.
  ***************************************************************************/
 PRIVATE int scenario_gone_topic_col_undeletable(hgobj gobj)
 {
@@ -4688,8 +4678,7 @@ PRIVATE int scenario_gone_topic_col_undeletable(hgobj gobj)
  *  holds no topic, and there is no schema file. The open with the literal
  *  2 does not take it as done: it completes the projection, and says
  *  nothing (what is missing is the projection's, not the operator's).
- *  Before, it returned early ("the projection is of this literal
- *  already"), at every open.
+ *  Before, it was taken as done, at every open.
  ***************************************************************************/
 PRIVATE int scenario_stamped_before_its_topics(hgobj gobj)
 {
@@ -4723,6 +4712,148 @@ PRIVATE int scenario_stamped_before_its_topics(hgobj gobj)
     result += check_withdrawn(gobj, db, "TEST FAIL: SE, the projection's own gaps were said",
         0, json_object());
     result += check_agree(gobj, db, "TEST FAIL: SE, a projection stamped before its topics was taken as done");
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  SH, SI: 7.25.4 wrote the numbers of the treedb node first, then each
+ *  topic, then its columns. Its process died after the write of the topic
+ *  `users` (raised to topic_version 2) and before the write of its column
+ *  `username`, whose header the literal 2 changes. The open with the
+ *  literal 2 completes the projection: __system__ says the literal, no
+ *  draft is left, and the next literal withdraws nothing, because nobody
+ *  did anything. SH opens with the file, SI with impose_c_schema.
+ ***************************************************************************/
+PRIVATE json_t *sh_literal(const char *db, int version, const char *header)
+{
+    return schema_of(db, version, json_pack("[o,o]",
+        topic_of("users", version, json_pack("{s:o, s:o}",
+            "id", col_id(), "username", col_str(header))),
+        topic_of("departments", 1, json_pack("{s:o, s:o}",
+            "id", col_id(), "name", col_str("Name")))
+    ));
+}
+
+PRIVATE int stamped_before_its_columns(hgobj gobj, const char *db, BOOL imposed)
+{
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, db, sh_literal(db, 1, "User"), imposed) < 0) {
+        return -1;
+    }
+    close_db(gobj, db);
+
+    json_t *node = gobj_update_node(sys, "treedbs",
+        json_pack("{s:s, s:i, s:i}", "id", db, "schema_version", 2, "c_schema_version", 2),
+        json_pack("{s:b}", "refs", 1), gobj);
+    char topic_id[NAME_MAX];
+    snprintf(topic_id, sizeof(topic_id), "%s.users", db);
+    json_t *topic = gobj_update_node(sys, "topics",
+        json_pack("{s:s, s:i}", "id", topic_id, "topic_version", 2),
+        json_pack("{s:b}", "refs", 1), gobj);
+    if(!node || !topic) {
+        result += test_fail(gobj, db, "TEST FAIL: SH, the state of the crash could not be made", NULL);
+    }
+    JSON_DECREF(node)
+    JSON_DECREF(topic)
+
+    if(open_db(gobj, db, sh_literal(db, 2, "User v2"), imposed) < 0) {
+        return -1;
+    }
+    result += check_header(gobj, db,
+        "TEST FAIL: SH, a column the projection that died did not write was taken as written",
+        "users", "username", "User v2", "User v2", "User v2");
+    result += check_agree(gobj, db, "TEST FAIL: SH, a projection stamped before its columns was taken as done");
+    result += check_withdrawn(gobj, db, "TEST FAIL: SH, the projection's own gaps were said",
+        0, json_object());
+    close_db(gobj, db);
+
+    if(open_db(gobj, db, sh_literal(db, 3, "User v2"), imposed) < 0) {
+        return -1;
+    }
+    result += check_withdrawn(gobj, db, "TEST FAIL: SH, the next literal withdrew work nobody did",
+        0, json_object());
+    result += check_agree(gobj, db, "TEST FAIL: SH, the next literal does not agree");
+    close_db(gobj, db);
+    return result;
+}
+
+PRIVATE int scenario_stamped_before_its_columns(hgobj gobj)
+{
+    return stamped_before_its_columns(gobj, "tw_sh", FALSE);
+}
+
+PRIVATE int scenario_imposed_stamped_before_its_columns(hgobj gobj)
+{
+    return stamped_before_its_columns(gobj, "tw_si", TRUE);
+}
+
+/***************************************************************************
+ *  SJ: SE with impose_c_schema. The node of the treedb says the literal 2,
+ *  it holds no topic, and there is no schema file. The imposed open with
+ *  the literal 2 completes the projection, and there is no draft.
+ ***************************************************************************/
+PRIVATE int scenario_imposed_stamped_before_its_topics(hgobj gobj)
+{
+    const char *db = "tw_sj";
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, "tw_sj0", sh_literal("tw_sj0", 1, "User"), TRUE) < 0) {
+        return -1;
+    }
+    close_db(gobj, "tw_sj0");
+    json_t *meta = gobj_list_nodes(sys, "treedbs", json_pack("{s:s}", "id", "tw_sj0"), 0, gobj);
+    json_int_t meta_version = kw_get_int(gobj, json_array_get(meta, 0), "system_schema_version",
+        0, KW_WILD_NUMBER);
+    JSON_DECREF(meta)
+    json_t *node = gobj_create_node(sys, "treedbs",
+        json_pack("{s:s, s:i, s:i, s:I}", "id", db, "schema_version", 2, "c_schema_version", 2,
+            "system_schema_version", meta_version),
+        json_pack("{s:b}", "refs", 1), gobj);
+    if(!node) {
+        result += test_fail(gobj, db, "TEST FAIL: SJ, the stamped node could not be made", NULL);
+    }
+    JSON_DECREF(node)
+
+    if(open_db(gobj, db, sh_literal(db, 2, "User v2"), TRUE) < 0) {
+        return -1;
+    }
+    result += check_withdrawn(gobj, db, "TEST FAIL: SJ, the projection's own gaps were said",
+        0, json_object());
+    result += check_agree(gobj, db,
+        "TEST FAIL: SJ, an imposed projection stamped before its topics was taken as done");
+    close_db(gobj, db);
+    return result;
+}
+
+/***************************************************************************
+ *  SK: with impose_c_schema, a draft over a COMPLETE projection is the
+ *  operator's, and an open with the same literal keeps it: it is not
+ *  taken for a projection that died.
+ ***************************************************************************/
+PRIVATE int scenario_imposed_draft_kept(hgobj gobj)
+{
+    const char *db = "tw_sk";
+    int result = 0;
+
+    if(open_db(gobj, db, sh_literal(db, 1, "User"), TRUE) < 0) {
+        return -1;
+    }
+    result += edit_header(gobj, db, "users", "username", "Operator");
+    close_db(gobj, db);
+
+    if(open_db(gobj, db, sh_literal(db, 1, "User"), TRUE) < 0) {
+        return -1;
+    }
+    result += check_header(gobj, db, "TEST FAIL: SK, the operator's draft was replaced",
+        "users", "username", "User", "User", "Operator");
+    result += check_draft_changed(gobj, db, "TEST FAIL: SK, the operator's draft is not a draft",
+        json_pack("{s:b}", "users", 1));
+    result += check_withdrawn(gobj, db, "TEST FAIL: SK, an open said a draft it kept",
+        0, json_object());
     close_db(gobj, db);
     return result;
 }
@@ -4904,9 +5035,9 @@ PRIVATE int scenario_legacy_move_killed(hgobj gobj)
  *  a child that dies is counted too. Across the whole sequence the
  *  operator's drafts (a header edited in `users`, a column added to
  *  `groups`) are reported EXACTLY ONCE, by whichever process completes
- *  the projection, and nothing that nobody did is reported: the review's
- *  sweep read a retry that completed in the second child as the parent
- *  saying nothing (26 "failures", one per k1). The parent's first open
+ *  the projection, and nothing that nobody did is reported: a retry that
+ *  completes in the second child reports there, so a count made only in
+ *  the parent reads it as one failure per k1. The parent's first open
  *  logs no error and one warning when it is the one that reports; its
  *  second open reports nothing. Without drafts nothing is reported
  *  anywhere (k2 1 and not killed).
@@ -5286,7 +5417,7 @@ PRIVATE int run_tests(hgobj gobj)
 }
 
 /***************************************************************************
- *  The scenarios of the 13th review, one per timeout (see ac_timeout).
+ *  The late scenarios, one per timeout (see ac_timeout).
  *  They count the errors and warnings of each open instead of comparing
  *  the log line by line (open_counting): several of them fork, or kill.
  ***************************************************************************/
@@ -5311,6 +5442,10 @@ PRIVATE int (*late_scenarios[])(hgobj gobj) = {
     scenario_colliding_ids,
     scenario_gone_topic_col_undeletable,
     scenario_stamped_before_its_topics,
+    scenario_stamped_before_its_columns,
+    scenario_imposed_stamped_before_its_columns,
+    scenario_imposed_stamped_before_its_topics,
+    scenario_imposed_draft_kept,
     scenario_legacy_move_killed,
     scenario_double_crash,
     NULL

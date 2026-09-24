@@ -1611,9 +1611,7 @@ schema file of `m2.b` declares `departments.name`, so a newer literal of
 `m2` leaves the columns alone, and a newer literal of `m2.b` without
 `departments` takes them (`how: "schema"`), deletes them, and reports the
 operator's delete: `withdrawn_at_open: {"topics": {"departments":
-"unsaved"}, ...}`. (Until this release every projection of every treedb
-warned for each such node, naming itself, and the node was left to none,
-for ever.)
+"unsaved"}, ...}`.
 
 **What an open reads of `__system__`.** It reads the treedb nodes, and the
 topics and columns whose id starts with the name of the treedb and a dot:
@@ -1643,9 +1641,9 @@ of treedb 'm2.b'"` and `second: "a topic of treedb 'm2', a node of
 __system__"`. A collision with another treedb is looked for only when one
 treedb name is the other's and a dot (`m2` and `m2.b`). The ids are not
 escaped: no id of an existing store changes, and no schema of the SDK or of
-the projects has a dot in a name. (Until this release the two elements were
-one node with no error, or the second treedb failed at every open with
-*"Cannot update node: it does not exist"*.)
+the projects has a dot in a name. (In 7.25.4 the two elements were one node
+with no error, or the second treedb opened and logged *"Node already
+exists"* for its columns.)
 
 What the operator LINKED differently is replaced in the same open:
 
@@ -1863,11 +1861,7 @@ While the record is there:
   removes `departments` deletes the column and answers
   `withdrawn_at_open: {"topics": {"departments": "unsaved", "users":
   "unsaved"}, ...}`. The topic of an edited leftover is reported by the open
-  that replaces it, wherever the node went. (Until this release a leftover
-  was found in whatever topic held it and compared by its attributes only,
-  and a node in no topic read as "nothing", which is also what a delete
-  leaves: a move, and an edit of a column in no topic, were deleted in
-  silence.) What is NOT an edit: the editor geometry (`_geometry`) and the
+  that replaces it, wherever the node went. What is NOT an edit: the editor geometry (`_geometry`) and the
   metadata. A node kept before the place was recorded (no `__parents__`) is
   compared by its attributes only. A record without
   `leftover_nodes` takes every leftover as left, and so does a record whose
@@ -1918,8 +1912,6 @@ While the record is there:
   `saved_schemas/` read-only and a snapshot that holds `departments`, the
   open with a literal without `departments` leaves `c_schema_version: -1`,
   `unfinished_projection: ["treedb_x.departments"]` and `draft_changed: {}`.
-  (Until this release the next open read the projection as complete, showed
-  the leftover as a draft, and a save published it.)
 - A record that cannot be READ (not json, or not this shape) still means
   UNFINISHED. At every read ONE WARNING says *"Record of an unfinished
   projection cannot be read: the projection is unfinished, what it left is
@@ -2077,22 +2069,34 @@ projects `users` and `departments` again and stamps
 stamps 1 or more. A file that declares `schema_version` 0 has no version,
 and its projection is never retried this way.
 
-**A projection stamped before its topics is completed too.** 7.25.4 and
-earlier wrote the numbers of the node FIRST: a process that died then left a
-node that says the literal (`schema_version` and `c_schema_version` equal to
-it) over a projection with part of the topics, or none. With the file in use
-missing or behind the literal, an open used to take it as done ("the
-projection is of this literal already") at every open. Now that open
-compares `__system__` with the literal: when a topic or a column the literal
-declares is missing, or a topic's `topic_version` is behind, it completes
-the projection (INFO *"Completing the projection into __system__: it says it
-is of the schema from C, and it misses part of it (stamped before its
-topics were written, by an older release)"*). What differs from the old file
-AND from the literal is the operator's draft, and reported; what differs from
-one of them only is the projection's. For example, a node
-`{"id": "treedb_x", "schema_version": 2, "c_schema_version": 2}` with no
-topic and no schema file: the open with the literal 2 projects its topics,
-stamps them and reports nothing.
+**A projection stamped before it was written is completed too.** 7.25.4
+and earlier wrote the numbers of the node FIRST, then each topic, then its
+columns: a process that died left a node that says the literal
+(`schema_version` and `c_schema_version` equal to it) over a projection with
+part of the topics or columns, or none. When the file in use is missing or
+behind the literal, an open with that literal compares `__system__` with it,
+with `impose_c_schema` or without it. With a file in use, every difference
+counts. With no file, only a topic or a column the literal declares that is
+missing, or a topic whose `topic_version` is behind, counts: nothing then
+tells a draft from a gap. When the projection differs, the open completes it
+(INFO *"Completing the projection into __system__: it says it is of the
+schema from C, and part of it is not (the stamp was written first, by an
+older release, and the process died)"*). What differs from the old file AND
+from the literal is the operator's draft, and reported; what differs from
+one of them only is the projection's. In 7.25.4 the open took it as done, at
+every open. Two examples:
+
+- A node `{"id": "treedb_x", "schema_version": 2, "c_schema_version": 2}`
+  with no topic and no schema file: the open with the literal 2 projects its
+  topics, stamps them and reports nothing.
+- A node stamped 2 whose topic `users` is at `topic_version` 2 while its
+  column `username` still has the header of the file 1: the open with the
+  literal 2 writes the header of the literal, leaves no draft, and the next
+  literal reports nothing.
+
+With `impose_c_schema` and a file at the literal's version the projection
+is complete (7.25.4 wrote the file after the projection), so a draft over
+it stays a draft.
 
 **What the literal withdraws is said.** A literal that wins replaces the
 operator's work over the old file. The open logs ONE warning, *"Schema from C
@@ -2132,8 +2136,8 @@ An apply is RECORDED, not guessed. `apply-schema` writes
 the version it put in use and the topics whose `topic_version` it raised.
 It is written WHOLE, as the record of an unfinished projection is: to a
 `.new` file created `O_EXCL|O_NOFOLLOW`, flushed, renamed over the old one,
-and the directory flushed (until this release it was written in place, and
-a process that died half way left a torn file). A record that cannot be
+and the directory flushed: a process that dies half way leaves the old
+record or the new one, never a torn file. A record that cannot be
 written is ONE ERROR, *"Cannot write a record of saved_schemas/"*, with
 `record: "apply"`:
 
@@ -2790,9 +2794,8 @@ treedb's store on disk. It deletes EVERY node of the treedb: a column the
 operator moved to another topic of it, and a topic or column of it that no
 tree reaches (the operator unlinked it). A node of another treedb that
 somebody linked into it is only unlinked: deleted, it would be taken from the
-schema it belongs to. (Until this release a column whose id names another
-topic was skipped even when that topic is of the same treedb, and a node in
-no topic was not seen.) `force=1` is required and
+schema it belongs to. (In 7.25.4 a node in no topic was not seen, and it
+stayed.) `force=1` is required and
 means "yes, delete the schema"; it does not lift the refusal of an OPEN
 treedb, because an open one goes on answering from its copy in memory with a
 schema that exists nowhere, and the next `open-treedb` dies on the C_TRANGER
