@@ -417,6 +417,16 @@ PRIVATE int mt_subscription_added(
         return 0;
     }
 
+    if(!gobj_is_running(gobj)) {
+        /*
+         *  Stopped, and the close of the transport has not arrived yet (it
+         *  keeps the FSM in ST_SESSION so EV_ON_CLOSE is still published):
+         *  the transport is stopping and takes nothing. The subscription is
+         *  kept, and on_open sends it if this gobj starts again.
+         */
+        return 0;
+    }
+
     if(priv->inside_on_open) {
         // avoid duplicates of subscriptions
         return 0;
@@ -436,6 +446,18 @@ PRIVATE int mt_subscription_deleted(
 
     if(gobj_current_state(gobj) != ST_SESSION) {
         // Nothing to do. On open this subscription will be not sent.
+        return 0;
+    }
+
+    if(!gobj_is_running(gobj)) {
+        /*
+         *  Stopped, and the close of the transport has not arrived yet (it
+         *  keeps the FSM in ST_SESSION so EV_ON_CLOSE is still published).
+         *  Nothing to send: the transport is stopping and takes nothing
+         *  ("Event NOT DEFINED in state" from C_WEBSOCKET or C_TCP, up to
+         *  7.25.4), and the peer's C_IEVENT_SRV drops every subscription of
+         *  the channel when it closes. Same as gobj-js.
+         */
         return 0;
     }
 

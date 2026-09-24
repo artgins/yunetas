@@ -5,6 +5,7 @@
  *          Inter-event server side
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
 ***********************************************************************/
 #include <string.h>
@@ -219,6 +220,22 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
+
+    /*
+     *  Each layer of a channel stops the one below it (C_CHANNEL, C_IEVENT_CLI,
+     *  C_WEBSOCKET, C_PROT_TCP4H), so a plain gobj_stop() of the gate reaches
+     *  the transport. This one did not: the protocol gobj (C_WEBSOCKET,
+     *  C_PROT_TCP4H) stayed running after its gate was stopped with
+     *  gobj_stop() -- the way the yuno stops an autostart service -- and the
+     *  yuno died with "Destroying a RUNNING gobj".
+     *
+     *  NOT when the peer leaves: the protocol gobj of a static channel tree
+     *  lives as long as its gate, and serves every connection accepted on it.
+     */
+    hgobj gobj_bottom = gobj_bottom_gobj(gobj);
+    if(gobj_bottom && gobj_is_running(gobj_bottom)) {
+        gobj_stop(gobj_bottom);
+    }
     return 0;
 }
 

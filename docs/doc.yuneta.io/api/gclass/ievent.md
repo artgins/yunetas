@@ -31,6 +31,21 @@ subscription management.
 | `jwt` | `string` | JSON Web Token for authentication. |
 | `timeout_idack` | `integer` | Identity-card ack timeout in seconds. |
 
+### Stopping with remote subscriptions open
+
+`gobj_stop()` closes the transport, but the FSM stays in `ST_SESSION` until
+the close arrives, so `EV_ON_CLOSE` is still published. A subscription added
+or withdrawn in that window is not sent to the peer. The peer's
+`C_IEVENT_SRV` drops every subscription of the channel when the channel
+closes, and an added subscription is sent at the next open. Up to 7.25.4 the
+`__unsubscribing__` frame went down to the stopping transport, and
+`C_WEBSOCKET` or `C_TCP` logged *"Event NOT DEFINED in state"*. Example:
+
+```c
+gobj_stop_tree(priv->gobj_remote);                          // the transport starts to close
+gobj_unsubscribe_event(priv->gobj_remote, EV_X, 0, gobj);   // not sent, and not an error
+```
+
 ---
 
 (gclass-c-ievent-srv)=
@@ -57,6 +72,44 @@ services, and handles WebSocket upgrade.
 | `client_yuno_name` | `string` | Name of the connected client yuno. |
 | `this_service` | `string` | Local service name this gate serves. |
 | `authenticated` | `bool` | Whether the connection is authenticated. |
+
+### Lifecycle of a channel
+
+The tree of a channel (`C_CHANNEL` → `C_IEVENT_SRV` → `C_WEBSOCKET` or
+`C_PROT_TCP4H` → `C_TCP`) belongs to its gate, not to one connection.
+`gobj_start_tree()` of the gate starts it. When the peer leaves, only its
+`C_TCP` stops: the protocol gobj stays running and serves the next connection
+that the channel accepts.
+
+When the gate stops, all of the tree stops: each layer stops the one below
+it, and `C_IEVENT_SRV` stops its protocol gobj since 7.25.5. Up to 7.25.4 a
+gate stopped with a plain `gobj_stop()` (the way the yuno stops an
+autostart service) left each `C_WEBSOCKET` or `C_PROT_TCP4H` running, and the
+yuno exited with *"Destroying a RUNNING gobj"*. Only an owner that called
+`gobj_stop_tree()` on the gate stopped it all.
+
+Start and stop the gate as a pair. Either declare it `"autostart": true` in
+the config and let the yuno start and stop it, or do both in the owner:
+
+```c
+PRIVATE int mt_play(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
+    gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
+    gobj_start_tree(priv->gobj_input_side);
+    return 0;
+}
+
+PRIVATE int mt_pause(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_stop_tree(priv->gobj_input_side);
+    return 0;
+}
+```
 
 ### Subscription authz
 
