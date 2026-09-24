@@ -172,18 +172,21 @@ release and put before the libraries (`tr_treedb.c` for `perf_tr_treedb`,
 `yev_loop.c` for the network benchmarks, `rotatory.c` for the log files). The
 two binaries run alternated, on ext4 on a laptop NVMe, with a `sync` and a
 pause before each run. The figures are mean +- standard deviation (median),
-and the last column is the change of the mean.
+and the last column is the change of the mean. Every figure of this section
+was measured with `CONFIG_DEBUG_TRACK_MEMORY` on (the `.config` of the build
+machine); the older sections above do not say how their binaries were built.
 
-`perf_timeranger2` (ms; 10 rounds, the two append rows 20 rounds after the
-change that looks up the key cache once per append):
+`perf_timeranger2` (ms; 10 rounds, the two append rows 20 rounds; the
+`create_topic` and `topic_version_change` rows 20 rounds of each of the 4
+padded links described below, n = 80, measured again on 2026-09-24):
 
 | Case | 7.25.4 | 7.25.5 | Change |
 |------|--------|--------|--------|
 | `build_appends` (400 000 appends, 2000 keys x 10 files) | 1733.5 +- 31.2 (1740.3) | 1712.6 +- 32.3 (1701.5) | -1.2% |
 | `open_master` (20 000 md2 files) | 92.5 +- 1.9 (91.7) | 80.8 +- 1.9 (80.1) | -12.7% |
 | `open_replica` | 89.7 +- 2.1 (88.9) | 106.5 +- 2.0 (105.9) | +18.7% |
-| `create_topic` (10 topics) | 1.4 +- 0.0 (1.4) | 159.6 +- 14.2 (167.6) | x114 |
-| `topic_version_change` (10) | 8.8 +- 4.0 (10.6) | 276.6 +- 25.0 (286.2) | x31 |
+| `create_topic` (10 topics) | 3.6 +- 1.3 (4.3) | 118.9 +- 13.1 (115.9) | x33 |
+| `topic_version_change` (10) | 1.7 +- 0.9 (1.4) | 231.5 +- 23.4 (224.2) | x134 |
 | `tm_build_appends` (600 000 appends, 1 key x 30 files) | 1635.0 +- 29.3 (1642.9) | 1627.3 +- 32.8 (1626.1) | -0.5% |
 | `tm_query_unmigrated` (1 key, 30 files x 20 000 rows) | 12.7 +- 0.2 (12.7) | 391.6 +- 8.2 (387.4) | x31 |
 | `mark_tm_order` (the same topic) | -- | 19.3 +- 1.5 (19.9) | |
@@ -202,10 +205,6 @@ layouts, paired alternated runs, `taskset -c 6`):
 | `delete_force` | 53.12 +- 3.17 (52.65) | 54.05 +- 5.50 (53.20) | +1.7% |
 | `delete_parent` (per parent of 200 children) | 2952 +- 375 (2896) | 2781 +- 427 (2711) | -5.8% |
 
-An earlier measurement in wall time on one layout gave +0.9% for
-`delete_parent`; in CPU time it was +3%, caused by the events held until the
-delete lands, and it is fixed (the delete tells its children's events itself).
-
 `timeranger2/test_topic_pkey_integer` (appends/s, 180 000 appends; 20
 rounds, the order swapped at each round):
 
@@ -220,41 +219,43 @@ lands at another address, and the speed of that code changes with its
 address. `json_dumps()` is about 40% of the cycles of an append here. With
 the same `timeranger2.c` of 7.25.4, only the addresses of the libraries
 moved (in steps of 64 bytes), the test goes from 217 557 to 222 951
-appends/s. So a difference of 2% between two links is not a difference of
-the code.
+appends/s (+2.5%). So a difference of 2.5% between two links is not a
+difference of the code.
 
 To remove this effect, each module is padded to the same `.text` size and
-linked 4 times, with the libraries moved by 0, 320, 704 and 1472 bytes. 20
-rounds of each of the 4 links, all 12 binaries alternated (n = 80 for each
-column):
+linked 4 times, with the libraries moved by 0, 320, 704 and 1472 bytes. The
+module of each release is compiled alone (`gcc -O2 -g -DNDEBUG`, the flags of
+the module's build, with the headers of this release). A second object, made
+with the assembler from `.section .text` / `.skip N, 0xcc`, is linked right
+after it. N is the larger `.text` of the two modules rounded up to 64, minus
+the `.text` of this module, plus the shift. Each binary is linked with
+`gcc -O2 -g -DNDEBUG -static`, in the order of the benchmark's own
+`link.txt`: its object, the module, the padding, then the libraries. So the
+libraries start at the same address in both releases, and the shift moves
+them by the same amount in both. 20 rounds of each of the 4 links, all the
+binaries alternated (n = 80 for each column):
 
 | Case | 7.25.4 | 7.25.5 | Change |
 |------|--------|--------|--------|
 | without an rt list | 220 120 +- 4 544 (220 070) | 221 588 +- 4 753 (220 424) | +0.7% |
 | with an rt list | 166 498 +- 3 354 (165 816) | 167 381 +- 3 306 (166 189) | +0.5% |
 
-Before the change, the same measurement gave 217 720 +- 3 979 (219 238),
--1.1%, and 166 363 +- 3 682 (168 054), -0.1%.
-
 Cycles in `tranger2_append_record()` (`rdtsc` probes in copies of the
-module, median of 6 runs, both phases of the test): 7.25.4 14 580, before
-the change 15 352, now 14 484. Where the append of 7.25.5 spends differently
-(cycles an append, 7.25.4 / before / now):
+module, median of 6 runs, both phases of the test): 7.25.4 14 580, 7.25.5
+14 484. Where the append of 7.25.5 spends differently (cycles an append):
 
-| Step | 7.25.4 | before | now |
-|------|--------|--------|--------|
-| master check, topic | 168 | 229 | 203 |
-| file id, flagged-file check | 373 | 540 | 450 |
-| md2 open, `lseek()`, torn-tail check | 658 | 656 | 668 |
-| find the cell, order marker | -- | 577 | 544 |
-| cache update (7.25.4: with the find of the cell) | 1 617 | 1 278 | 934 |
-| `json_dumps()` (the same code in all three) | 5 784 | 6 002 | 5 791 |
+| Step | 7.25.4 | 7.25.5 |
+|------|--------|--------|
+| master check, topic | 168 | 203 |
+| file id, flagged-file check | 373 | 450 |
+| md2 open, `lseek()`, torn-tail check | 658 | 668 |
+| find the cell, order marker | -- | 544 |
+| cache update (7.25.4: with the find of the cell) | 1 617 | 934 |
+| `json_dumps()` (the same code in both) | 5 784 | 5 791 |
 
 The torn-tail check costs nothing when the md2 ends on a row boundary (one
-`%`). Before the change, the key's cache was looked up four times an append
-(flagged-file check, find of the cell, cache update, totals). Now it is
-looked up once. The `json_dumps()` row shows the layout effect of the
-paragraph above: the same code, 218 cycles apart.
+`%`). The append of 7.25.5 looks up the key's cache once, and searches the
+cache cell of its file once.
 
 yev_loop (8 rounds):
 
@@ -308,6 +309,16 @@ in a copy of `c_treedb.c` (ms an open, means of 3 runs):
 
 `treedb_open_db()` reads the schema file in use again (as in 7.25.4): the
 file is read twice an open, once to decide what runs and once to run it.
+
+ctest timing trend (`build/*.txt`, 15 runs of `yunetas test` from 2026-09-23
+to 2026-09-24): of the tests whose code did not change after 7.25.4, only
+`test_treedb_schema_fidelity` moved more than 10%, from 1.14-1.26 s to
+1.55-1.69 s (+30%). It opens four treedbs in four new stores, and its fsyncs
+(88 in the current build) take ~0.56 s: the price of the durable topic files
+and of the projection record. `test_c_treedb_system_schema`,
+`test_c_treedb_literal_wins` (2.3 s -> 138 s: a kill at every write of a
+projection) and `test_tr_treedb_files` gained cases, so their times cannot be
+compared. `timeranger2/test_topic_pkey_integer` stays at 1.84-2.12 s.
 
 ### Key takeaways
 
