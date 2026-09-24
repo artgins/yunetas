@@ -86,10 +86,11 @@ not exist.
 
 Every reader takes the same five parameters, and each one gives the type of its
 name. A value of a different type, or a key that is not there, gives the
-default value back **as you gave it**, as the C readers do. `KW_CREATE` writes
+default value back **as you gave it**, as the C readers do. With
+`KW_REQUIRED` a missing key or a value of a different type writes a log error.
+In `kw_get_bool()`, `kw_get_dict()` and `kw_get_list()`, `KW_CREATE` writes
 only a default of the right type, and `KW_EXTRACT` deletes only a value of the
-right type. With `KW_REQUIRED` a missing key or a value of a different type
-writes a log error. Before gobj-js 7.25.2, `kw_get_list()`, `kw_get_dict()` and
+right type, as in C. Before gobj-js 7.25.2, `kw_get_list()`, `kw_get_dict()` and
 `kw_get_bool()` did not keep this rule (see each one below).
 
 ```javascript
