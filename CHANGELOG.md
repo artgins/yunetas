@@ -1049,6 +1049,12 @@ their spread, are in `performance/c/README.md`.
   `perf_c_treedb` (see "Performance") and `perf_rotatory` (the rotatory
   figures, with a case that flushes each record): each prints one line of
   JSON per result, and ctest runs them with small sizes.
+- The test harness (`capture_log_write()`, gobj-c `testing.c`) no longer
+  counts *"io_uring_queue_init_params() pinned-memory pressure, retrying"* as
+  an unexpected log: it speaks of the machine (other processes held locked
+  pages when the test created its loop), and the loop retries and goes on. A
+  full suite run beside other work failed `test_yevent_listen1` on it; the
+  message is still printed.
 
 ### C_NODE, C_AUTHZ, C_TRANGER
 

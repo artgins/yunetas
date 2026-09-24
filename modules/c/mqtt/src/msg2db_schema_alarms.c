@@ -1,3 +1,41 @@
+/*
+    Generated from the literal below by schema_to_diagram() (gobj-ui).
+    This file holds this comment and the literal, nothing else: replace
+    it whole with an export of the schema editor.
+
+    msg2db_alarms  (schema_version 2)
+
+    {}  dict hook   (N unique children)
+    []  list hook   (n not-unique children)
+    ()  string hook (1 unique child)
+    (↖) 1 fkey      (1 parent)
+    [↖] n fkeys     (n parents)
+    {↖} N fkeys     (N parents)
+
+    (2) pkey2 - secondary key
+    (t) tkey  - time key
+    *   field required
+    =   field inherited
+
+
+                       alarms
+            ┌───────────────────────────┐
+            │* id                       │
+            │* tm (t)                   │
+            │  name                     │
+            │* alarm                    │
+            │  active                   │
+            │  validated                │
+            │  description              │
+            │  triggers                 │
+            │  _old_triggers            │
+            │  sent                     │
+            │  notified                 │
+            │  _yuno                    │
+            │  _client_type             │
+            └───────────────────────────┘
+*/
+
 static char msg2db_schema_alarms[]= "\
 {                                                                   \n\
     'id': 'msg2db_alarms',                                          \n\

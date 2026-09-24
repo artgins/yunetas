@@ -32,11 +32,23 @@ int capture_log_write(
 
 **Returns**
 
-Returns `-1` to indicate that the log message was processed internally.
+Always `0`: the message goes on to the other log handlers too (the stdout
+handler still prints it).
 
 **Notes**
 
 If a log message matches an expected message, it is removed from the expected list. Otherwise, it is added to the unexpected log messages list.
+
+One message is never taken for a result: *"io_uring_queue_init_params()
+pinned-memory pressure, retrying"*. It speaks of the machine (other processes
+held locked pages when the test created its loop), the loop retries and goes
+on, and a test that counted it failed only because the suite ran beside
+something else. It is still printed:
+
+```
+WARNING: {..., "function": "yev_loop_create", "msg": "io_uring_queue_init_params() pinned-memory pressure, retrying", "attempt": 1, "delay_ms": 100, ...}
+<-- OK   "test_yevent_listen1"
+```
 
 ---
 

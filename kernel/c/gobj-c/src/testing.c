@@ -8,6 +8,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <inttypes.h>
+#include <string.h>
 
 #include "kwid.h"
 #include "testing.h"
@@ -55,6 +56,18 @@ PUBLIC int measuring_cur_type = 0;
 PUBLIC int capture_log_write(void* v, int priority, const char* bf, size_t len)
 {
     json_t *msg = string2json(bf, FALSE);
+
+    /*
+     *  A retry of the io_uring ring on pinned-memory pressure speaks of
+     *  the MACHINE (other processes holding locked pages at that moment),
+     *  not of the code under test: the loop retries and goes on. It is
+     *  still printed by the other log handlers.
+     */
+    if(strcmp(kw_get_str(0, msg, "msg", "", 0),
+            "io_uring_queue_init_params() pinned-memory pressure, retrying")==0) {
+        JSON_DECREF(msg)
+        return 0;
+    }
 
     if(expected_log_messages && expected_unordered) {
         /*
