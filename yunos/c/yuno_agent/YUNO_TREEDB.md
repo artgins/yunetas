@@ -2413,6 +2413,21 @@ ycommand -c 'command-yuno id=<id> service=treedbs command=close-treedb treedb_na
 (In 7.25.4 that close logged *"TreeDB not found"* twice, with a stack, and
 `delete-treedb` answered *"while it is OPEN"*.)
 
+**Known limitation: a failed open has already withdrawn the saved schema.** An
+open that installs a newer literal withdraws the treedb's saved schema while
+it reconciles `__system__`, BEFORE `treedb_open_db()` runs (WARNING *"Schema
+from C withdrew work on the schema at open"*, with `saved_schema_version`).
+When `treedb_open_db()` then refuses the schema, the saved schema is gone all
+the same, and `saved-schema` answers no pending save for that treedb. It could
+wait for an open that succeeds; until it does, keep a copy of a saved schema
+you need before deploying a literal you are not sure of:
+
+```bash
+ycommand -c 'command-yuno id=<id> service=treedbs command=saved-schema treedb_name=treedb_x'
+# data: {"treedb_name": "treedb_x", "saved": true, "saved_schema_version": 4, "path": ".../__system__/saved_schemas/treedb_x.treedb_schema.json", ...}
+cp .../__system__/saved_schemas/treedb_x.treedb_schema.json ~/
+```
+
 Every answer of every command of `C_TREEDB` starts with the yuno
 (`<role^name>: ...`), the refusals of their parameters and of a permission
 too (*"<role^name>: what treedb_name?"*, *"<role^name>: No permission to

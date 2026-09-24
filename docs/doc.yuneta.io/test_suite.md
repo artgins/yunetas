@@ -83,6 +83,13 @@ Low-level tests for the io_uring event loop, without the GObj layer.
 | **`test_yevent_timer_once1–2`** | One-shot timer expiration. |
 | **`test_yevent_timer_periodic1`** | Periodic (recurring) timer. |
 | **`test_yevent_sq_full`** | A full submission queue: the loop flushes it and asks again; when the kernel takes nothing, the submission is kept for the next cycle (a start answers `0`, a stop of a kept start gets `STOPPED` with `-ECANCELED`). |
+| **`test_yevent_sq_nomem`** | No memory to keep a submission (largest block 100 000 bytes): the 1025th write start answers `-1` with *"No memory to keep a submission: event NOT started"*, the 1024 kept writes complete, and the memory tracking is whole at the end. |
+| **`test_yevent_sq_retry`** | `io_uring_submit()` failing on demand: an entry left in the queue is submitted again at the next cycle and the timer fires; a stop takes back a read still in the queue, so a new timer with the same fd number fires; 100 cycles without the kernel taking anything log one ERROR, and one INFO when it takes them again. |
+| **`test_yevent_stop_in_flight`** | A stop of a read, a write to a full socket and a recvmsg the kernel has: the event keeps its gbuffer until the completion of the cancel, and the callback gets it `STOPPED`, `-ECANCELED`, without gbuffer. |
+| **`test_yevent_udp_ipv6`** | IPv6 peers on `[::1]`: a UDP listener on `udp://[::1]:0`, a datagram received from an IPv6 client and sent back to it (the peer address in the gbuffer with its length), and a TCP connect to `tcp://[::1]`. Skipped without IPv6 on the host. |
+| **`test_yevent_udp_zerocopy`** | A zero-copy UDP send gives two completions: the callback is called once, an event destroyed in its callback lives until its notification, and a failed send (`-EMSGSIZE`) is `STOPPED` with no warning. |
+| **`test_yevent_loop_end_drain`** | A loop ended with destroyed events whose completions have not come: `yev_loop_destroy()` frees each of them, and one whose completion never comes after 1 second, with an ERROR. |
+| **`test_yevent_connect_src_url`** | A connect bound to a local address (`src_url`): `127.0.0.1:<port>`, `[::1]:<port>` and `tcp://127.0.0.1:<port>`; the listener sees the peer at that port, and a bad `src_url` (`[::1:5000`) gives no socket and an error. |
 | **`test_yevent_stop_nomem`** | A stop without memory for its cancel answers `-1` and gives up nothing: the timer keeps its fd, the read its gbuffer, and the read then completes with its data. A loop destroyed with no room for the cancel of its dying events says so before the final error. |
 | **`test_yevent_kept_after_post`** | A posted action (`gobj_post_event()`) stops a timer whose start is kept: the `STOPPED` reaches the callback at the next cycle, not at the timeout of the run. |
 
@@ -210,7 +217,7 @@ crash or leak cannot mask neighbours.
 
 **Source:** `tests/c/timeranger2/`
 
-The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in strings, short reads and writes, directories that cannot be listed, ...) are listed in `tests/c/timeranger2/README.md`.
+The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in strings, short reads and writes, file ids compared in place (`test_cmp_file_ids`), directories that cannot be listed (`test_unlistable_dirs`), ...) are listed in `tests/c/timeranger2/README.md`.
 
 ## TR_MSG & TR_QUEUE
 
@@ -237,17 +244,19 @@ The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in string
 **Source:** `tests/c/tr_treedb/`, `tests/c/tr_treedb_load_failed/`,
 `tests/c/c_treedb_literal_wins/`
 
-## Helpers (gobj-c)
+## gobj-c helpers and commands
 
 | Binary | Description |
 |--------|-------------|
 | **`test_helpers`** | String, file and directory helpers: `split2()`, `save_json_to_file()`, `rmrdir()` / `mkrdir()` with links, deep trees and entries that vanish during the walk. |
-| **`test_rotatory`** | `rotatory_remove_old_files()` and the rotatory log writer: size rotation, a full disk, a clock set back. |
-| **`test_audit_record`** | The audit record builder of `yuneta_agent`: secrets redacted, `content64` never written. |
+| **`test_rotatory`** | `rotatory_remove_old_files()` and the rotatory log writer: size rotation, a full disk, a clock set back, a write that fails and the file opened again (no newfile callback for the same file), a keep_all size rotation whose rename fails (tried once, every record kept), a fixed name never emptied, an `MM` mask judged by its month. |
+| **`test_audit_record`** | The audit record builder of `yuneta_agent`: secrets redacted, `content64` never written, the command word read as the parser reads it (`COMMAND=list-yunos` with a kw `command=delete-yuno` gets the full record). |
+| **`test_gbmem_realloc_refused`** | A `gbmem_realloc()` refused because the new size is larger than the largest block leaves the old block valid and tracked: the later free logs nothing and the memory counter stays right. |
+| **`test_command_binary_kw`** | A command, and `build_stats()`, whose kw carries a `gbuffer`: the handler's kw holds a reference of its own, and the caller's references are intact after the command (no *"BAD gbuf_decref()"*). |
 | **`test_dir_array_nomem`** | A directory listing that cannot keep an entry (no memory), or whose root cannot be opened, answers `-1` with the listing empty, and logs it: `find_files_with_suffix_array()`, `walk_dir_array()`, `get_ordered_filename_array()`. |
 | **`test_dir_listing`** | The answer of the agent's `dir-*` commands: a tree that cannot be listed answers `-1` with a comment that names the directory, never an empty list. |
 
-**Source:** `tests/c/helpers/`
+**Source:** `tests/c/helpers/`, `tests/c/gbuffer/`, `tests/c/command_binary_kw/`
 
 ## Keyword matching
 

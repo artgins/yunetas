@@ -100,9 +100,10 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
 **Tests nobody has** (in order of damage): `delete_instance` with links.
 C_NODE commands with no ctest: `node`, `instances`, `pkey2s`, `jtree`,
 `parents`, `children`, `hooks`, `links`, `treedb-info`, the snap commands
-(their permissions are tested, their behaviour is not), `export-db` and
-`print-tranger`; `import-db` is tested only for its error count by cause
-(`c_node_link_events`, test 14). The refusals on a replica are tested since
+(their permissions are tested, their behaviour is not) and
+`print-tranger`; `import-db` and `export-db` are tested only for their error
+count by cause, their link failures and abort, and the file name of the
+export (`c_node_link_events`, tests 14-17). The refusals on a replica are tested since
 7.25.0 (`test_c_node_authz`) and, for C_TREEDB, since 7.25.4.
 In gobj-ui, the treedb views got their first wiring tests on 2026-09-23
 (`test/dom_double.js`); the save kw as it leaves `publish_treedb_write` is

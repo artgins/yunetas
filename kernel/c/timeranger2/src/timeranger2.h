@@ -105,8 +105,9 @@
  *
  *  HACK tranger is only append. No update, no insert.
  *  A whole record (a primary key + every instance under it) can be
- *  deleted via `tranger2_delete_key()` — irrecoverable. There is no
- *  per-instance delete in v7 today (see TODO.md / `sf_deleted_instance`).
+ *  deleted via `tranger2_delete_key()` — irrecoverable. One instance of a
+ *  key is deleted with `tranger2_delete_instance()` (its rows zeroed and
+ *  flagged `sf_deleted_instance`).
  *  Only the master can write or delete, non-master only can read.
  *  The metadata `md2_record_t` can be updated only in cases:
  *    - any bit in `user_flag`
@@ -608,10 +609,22 @@ PUBLIC int tranger2_write_topic_cols(
          are what the disk holds, so they only make the answers exact.
    Run it again once the cause is fixed.
 
-   Example, the whole store of a yuno, key by key reported:
+   Example, the whole store of a yuno, key by key reported. A directory of
+   the store is a topic only when it holds its topic_desc.json (C_TREEDB
+   keeps `saved_schemas/` in the store of __system__): skip the others, as
+   C_TRANGER's `mark-tm-order all=1` does.
        json_t *names = tranger2_list_topic_names(tranger);
+       if(!names) {
+           return -1;  // the store cannot be listed (logged)
+       }
+       const char *directory = json_string_value(json_object_get(tranger, "directory"));
        size_t i; json_t *jn_name;
        json_array_foreach(names, i, jn_name) {
+           char topic_dir[PATH_MAX];
+           build_path(topic_dir, sizeof(topic_dir), directory, json_string_value(jn_name), NULL);
+           if(!file_exists(topic_dir, "topic_desc.json")) {
+               continue;   // not a topic
+           }
            json_t *report = tranger2_mark_tm_order(tranger, json_string_value(jn_name));
            if(!report) {
                break;  // logged; the topics already marked stay marked

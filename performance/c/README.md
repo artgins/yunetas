@@ -186,11 +186,29 @@ padded links described below, n = 80, measured again on 2026-09-24):
 | `open_master` (20 000 md2 files) | 92.5 +- 1.9 (91.7) | 80.8 +- 1.9 (80.1) | -12.7% |
 | `open_replica` | 89.7 +- 2.1 (88.9) | 106.5 +- 2.0 (105.9) | +18.7% |
 | `create_topic` (10 topics) | 3.6 +- 1.3 (4.3) | 118.9 +- 13.1 (115.9) | x33 |
-| `topic_version_change` (10) | 1.7 +- 0.9 (1.4) | 231.5 +- 23.4 (224.2) | x134 |
+| `topic_version_change` (10) | 1.7 +- 0.9 (1.4) | 231.5 +- 23.4 (224.2) | x136 |
 | `tm_build_appends` (600 000 appends, 1 key x 30 files) | 1635.0 +- 29.3 (1642.9) | 1627.3 +- 32.8 (1626.1) | -0.5% |
 | `tm_query_unmigrated` (1 key, 30 files x 20 000 rows) | 12.7 +- 0.2 (12.7) | 391.6 +- 8.2 (387.4) | x31 |
 | `mark_tm_order` (the same topic) | -- | 19.3 +- 1.5 (19.9) | |
 | `tm_query_migrated` | -- | 7.4 +- 0.1 (7.3) | |
+
+The last fixes of timeranger2 (a key or a topic that cannot be listed, a
+failed backup: commits 4538d0a5b and 8702a472e), measured as an A/B of that
+change alone, 10 alternated rounds, on a machine shared with other builds
+(ms, mean +- standard deviation):
+
+| Case | before | after | Change |
+|------|--------|-------|--------|
+| `build_appends` | 1927 +- 81 | 1874 +- 68 | -2.8% |
+| `open_master` | 89.1 +- 6.2 | 87.1 +- 3.6 | -2.2% |
+| `open_replica` | 117.1 +- 6.5 | 116.0 +- 4.1 | -0.9% |
+
+And the retry of a flag at each load and at each notification (commit
+9d43b317f), 6 alternated rounds, change of the mean: `open_master` +0.8%,
+`open_replica` +0.4%, `tm_query_migrated` -1.4%, `tm_query_unmigrated` -2.8%,
+`build_appends` +0.1%, `mark_tm_order` +1.4%. Every difference is inside the
+noise; with nothing flagged the retry costs two dict lookups per iterator open
+and one per notification.
 
 `perf_tr_treedb` (CPU us per operation, N = 100 000; 14 rounds x 4 link
 layouts, paired alternated runs, `taskset -c 6`):
@@ -204,6 +222,22 @@ layouts, paired alternated runs, `taskset -c 6`):
 | `reopen` (per node) | 396.6 +- 13.8 (395.5) | 401.9 +- 51.4 (394.4) | +1.3% (medians -1.8..+1.0%) |
 | `delete_force` | 53.12 +- 3.17 (52.65) | 54.05 +- 5.50 (53.20) | +1.7% |
 | `delete_parent` (per parent of 200 children) | 2952 +- 375 (2896) | 2781 +- 427 (2711) | -5.8% |
+
+The delete guard that counts every child a hook holds instead of building a
+reference string for each (commit 2ab843d1d), as an A/B of that change alone
+(only `tr_treedb.o` differs; 12 rounds x 4 layouts, alternated, `taskset -c
+6`, N = 100 000, CPU us per operation, mean +- standard deviation (median);
+another day and a busier machine, so the absolute figures are higher than in
+the table above):
+
+| Case | before | after | Paired change |
+|------|--------|-------|---------------|
+| `delete_force` | 71.33 +- 3.47 (71.41) | 70.86 +- 3.49 (69.89) | -0.50% +- 0.84% |
+| `delete_parent` | 3253 +- 486 (3139, one outlier) | 3085 +- 123 (3076) | -3.85% +- 1.43% |
+
+`delete_parent` moved -0.7%, -2.6%, +1.7% and -4.8% in the four layouts; by
+the median it is 2.0% faster, because the per-child strings are no longer
+built.
 
 `timeranger2/test_topic_pkey_integer` (appends/s, 180 000 appends; 20
 rounds, the order swapped at each round):
@@ -265,12 +299,34 @@ yev_loop (8 rounds):
 | `perf_tcp_test4` (ops/s) | 38 706 +- 685 (38 841) | 39 344 +- 771 (39 831) | +1.6% |
 | `perf_tcp_test5` (ops/s) | 30 421 +- 641 (30 386) | 30 181 +- 597 (30 323) | -0.8% |
 
+The last fixes of yev_loop (a take-back that wakes the loop, a stop without
+memory that gives up nothing: commit 8702a472e), as an A/B of that change
+alone, 6 rounds: `perf_yev_ping_pong` 142.2 +- 2.2 -> 141.6 +- 2.5 K msg/s
+(-0.4%), noise.
+
 rotatory (ns for one record of 300 bytes written with two `rotatory_write()`
 calls, as the agent audit writes it; 300 000 records a run, 8 rounds;
 `perf_rotatory`, case `audit_record`): 7.25.4
 6 194 +- 135 (6 140), 7.25.5 554 +- 10 (555). The agent audit flushes each
 record since 7.25.5 (`audit_record_flush`, a busier run): 7.25.4 7 623 +- 1 105
 (7 252), 7.25.5 1 475 +- 491 (1 309).
+
+The last fixes of rotatory (the newfile callback for a new file only, the
+keep_all retry of a failed rename, a fixed name never emptied: commit
+c72442d56), as an A/B of that change alone, 12 alternated rounds (ns a
+record, mean +- standard deviation; another day, so the absolute figures
+differ from the ones above):
+
+| Case | before | after | Change |
+|------|--------|-------|--------|
+| `audit_record` | 591.5 +- 22.3 | 597.8 +- 21.3 | +1.1% |
+| `audit_record_retention` | 576.9 +- 19.8 | 590.3 +- 18.8 | +2.3% |
+| `audit_record_flush` | 1 336.8 +- 35.0 | 1 342.4 +- 45.3 | +0.4% |
+| `log_record` | 401.9 +- 11.0 | 403.6 +- 13.5 | +0.4% |
+
+Every difference is within one standard deviation; the only change on the
+path of a record is one test of a bool. The flush of each record costs
+0.7-0.9 us (`audit_record_flush` against `audit_record`).
 
 `perf_c_treedb` (seconds for 40 opens). The 7.25.4 columns are the
 `c_treedb.c` of 7.25.4 compiled with the headers of 7.25.5 and linked before
@@ -310,10 +366,33 @@ in a copy of `c_treedb.c` (ms an open, means of 3 runs):
 `treedb_open_db()` reads the schema file in use again (as in 7.25.4): the
 file is read twice an open, once to decide what runs and once to run it.
 
+The probes cover only the steps listed. The benchmark says more: +24.3 ms an
+open for `seed` and +27.5 ms for `newer_literal` ((10.84 - 9.87) / 40,
+(13.89 - 12.79) / 40, against the probes' 16.5 and 21.9), so ~6-8 ms an open
+is spent outside those steps.
+
+The last schema fixes (a literal with other content under the file's
+`schema_version` said at every open, and the move of a rowid-keyed
+projection before the upgrade record: commit 2f692ac1d) cost `same_literal`
+one `schema_diff()` and one more lookup of `treedbs`. A/B of that change
+alone, 8 alternated rounds, ms an open, mean +- standard deviation (the
+"before" is the 7.25.5 column above: 0.613 s / 40 = 15.3 ms):
+
+| Case | before | after | Change |
+|------|--------|-------|--------|
+| `seed` | 282.5 +- 15.6 | 283.4 +- 14.0 | +0.3% |
+| `newer_literal` | 345.1 +- 20.1 | 348.5 +- 15.8 | +1.0% |
+| `same_literal` | 15.33 +- 1.46 | 16.20 +- 0.66 | +5.7% |
+
+`same_literal` pays ~0.9 ms an open, the price of those two correctness fixes:
+~0.648 s for 40 opens, still ~4% below 7.25.4's 0.672 s (the two figures come
+from different runs). The "before" binary was linked against the installed
+libraries as they were before the build of the change.
+
 ctest timing trend (`build/*.txt`, 15 runs of `yunetas test` from 2026-09-23
 to 2026-09-24): of the tests whose code did not change after 7.25.4, only
 `test_treedb_schema_fidelity` moved more than 10%, from 1.14-1.26 s to
-1.55-1.69 s (+30%). It opens four treedbs in four new stores, and its fsyncs
+1.55-1.69 s (+34% .. +36%). It opens four treedbs in four new stores, and its fsyncs
 (88 in the current build) take ~0.56 s: the price of the durable topic files
 and of the projection record. `test_c_treedb_system_schema`,
 `test_c_treedb_literal_wins` (2.3 s -> 138 s: a kill at every write of a

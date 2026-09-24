@@ -20,7 +20,8 @@ range or row id.
 tranger2_startup(...) / tranger2_shutdown(...)
 tranger2_open_topic(...) / tranger2_close_topic(...)
 tranger2_append_record(...)
-tranger2_iterator_open(...) / tranger2_iterator_next(...) / _close(...)
+tranger2_open_iterator(...) / tranger2_iterator_get_page(...) / tranger2_close_iterator(...)
+tranger2_open_list(...) / tranger2_close_list(...)
 ```
 
 ## Persistence semantics
@@ -57,8 +58,13 @@ on-disk changes. See the **fs_watcher** page in the sidebar.
 
 ## Tests
 
-`tests/c/timeranger2`, `tests/c/tr_msg`, `tests/c/tr_queue`,
-`tests/c/tr_treedb`, `tests/c/tr_treedb_link_events`.
+`tests/c/timeranger2`, `tests/c/tr_dt_unknown`, `tests/c/tr_msg`,
+`tests/c/tr_msg2db`, `tests/c/tr_queue`, `tests/c/tr_treedb` and the other
+`tests/c/tr_treedb_*` directories (`tr_treedb_load_failed`,
+`tr_treedb_failed_save`, `tr_treedb_link_events`, `tr_treedb_files`,
+`tr_treedb_hook_hygiene`, ...), and, through `C_TREEDB`,
+`tests/c/c_treedb_literal_wins`. The [test suite](../../test_suite.md) lists
+them, and each directory has a `README.md`.
 
 ## Source code
 
@@ -1862,12 +1868,20 @@ The two axes are not ordered the same way, and the scan knows it:
   written is logged (*"Cannot mark md2 file, a reload will misread its time
   range"*); the master still reads that file whole, and writes the marker at
   the next append to the file (*"md2 file marked, the marker missed earlier is
-  written"*). Neither is fsync'ed, like the append itself. A marker lost all
+  written"*). A file whose name leaves no room for a marker
+  (`<file_id>.tm_unordered` longer than `NAME_MAX`) is logged once
+  (*"Cannot mark md2 file, file_id too long"*) and read whole at every load.
+  Neither is fsync'ed, like the append itself. A marker lost all
   the same (a crash, a power cut, a rollback to a binary that appends without
   markers) is written again by `tranger2_mark_tm_order()`.
 - A file left out by `tm` is a **hole** in the rowids the scan walks: the
   scan steps over it, and a `from_rowid` / `to_rowid` that falls in it begins
-  at the next row the scan can read.
+  at the next row the scan can read. A hole is not an error. The scan logs an
+  ERROR only when the segments overlap the row it just read, a broken
+  invariant: *"next segment begins before the row just read"* (forward) or
+  *"previous segment ends after the row just read"* (backward), with
+  `cur_rowid` and the segment's first or last row (7.25.4 logged *"next
+  rowids not consecutive"* for every hole, and lost the rows after it).
 
 Both hold in both directions, and for a paged iterator too. With the rows
 `t=100 E1`, `t=50000 E2`, `t=200 E3` (late) in one file:
@@ -2007,7 +2021,7 @@ What the callers in the SDK do with it:
 | treedb (every topic, `__snaps__`, `__graphs__`) | remembers the keys; refuses a create of such an id, refuses shoot/activate of a snap when `__snaps__` has any, and its asset guards fail closed (see [TreeDB](treedb.md)). |
 | treedb's snapshot guard of the assets | a walk that did not load everything fails closed: the gc and the delete of an asset refuse. |
 | `tr_queue` / `tr2q_mqtt` (`trq_load()`, `tr2q_load()`) | the pending messages read are in memory; those of a row that cannot be read are not, and are not delivered. The load returns -1 and does NOT move nor save the queue's `first_rowid`, so the next load, once the store is repaired, finds them (up to 7.25.4 it saved the size of the topic, and they were skipped for ever). |
-| msg2db | nothing more than the library's log: the messages of that key are not in the index. |
+| msg2db | reloads the key newest first, up to the damage; the id is marked incomplete ([`msg2db_id_incomplete()`](tr_msg2db.md#msg2db_id_incomplete)) and an ERROR names it with `served=N`. See [tr_msg2db](tr_msg2db.md). |
 
 Until 7.25.4 such a list was handed over silently, with the key missing.
 
@@ -2030,9 +2044,12 @@ json_t *list = tranger2_open_list(
     "", FALSE, "me"
 );
 if(!list) {
-    // refused, or some key's history could not be read: what load_cb got
-    // is not the whole topic
+    // refused (logged)
 } else {
+    if(json_is_true(json_object_get(list, "load_failed"))) {
+        // some key's history could not be read: what load_cb got is not the
+        // whole topic, and "load_failed_keys" names those keys
+    }
     tranger2_close_list(tranger, list);
 }
 ```

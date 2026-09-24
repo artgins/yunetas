@@ -389,9 +389,13 @@ grep -a '"msg":"Event NOT DEFINED in state"' …               # the canonical F
 
 The [`rotatory`](#rotatory_open) library makes the file name from the mask and
 the local date, so the file changes at midnight (the first record after it). With the `W` mask,
-the first write of a new day opens the file of the same week day with `"w"`,
-which empties last week's file. So a yuno keeps **7 days** of log, and the mask
-is the retention.
+the first record of a new day, and the first record after the yuno starts,
+empties the file of the same week day when it was last written before today:
+that is last week's file. So a yuno keeps **7 days** of log, and the mask is
+the retention. A file written today is appended to, so a restart keeps it, and
+a clock set back across midnight empties nothing. A mask with no date letter
+(a fixed name such as `logcenter.log`) is never emptied by a date. The table of
+which masks empty a file is in [File names and rotation](#rotatory-file-names).
 
 The library also rotates the file when it crosses a size threshold (default
 8 MB, configurable via `max_megas_rotatoryfile_size`,
@@ -401,6 +405,31 @@ the file again. There is no cron. Both rotations happen on the next write.
 The file is checked once for each record, never between the pieces of a record,
 so a record is never split between two files. A log file removed by hand is
 created again by the next record.
+
+A log file RENAMED by another program (a `logrotate` with its default
+`create` mode) is not noticed: the yuno goes on writing into the renamed file
+until its next new file (up to 7.25.4 it was noticed). To rotate a yuno log
+from outside, copy and truncate it (`logrotate` with `copytruncate`), or
+remove it:
+
+```bash
+cp /yuneta/realms/agent/agent/logs/yuneta_agent-4.log /tmp/ \
+    && truncate -s 0 /yuneta/realms/agent/agent/logs/yuneta_agent-4.log
+```
+
+**A full disk stops only that file.** Every 100 records the handle checks the
+free space of its own disk; below `min_free_disk_percentage` (default 10%) it
+drops its records, and it writes again by itself when the space is back. It
+prints one line to stdout and syslog when it stops and one when it resumes
+(up to 7.25.4 one full disk stopped every file log of the process until it
+was restarted):
+
+```text
+rotatory(): stop logging to '/yuneta/realms/agent/agent/logs/yuneta_agent-4.log' because full disk: 9% free (<10%)
+rotatory(): logging to '/yuneta/realms/agent/agent/logs/yuneta_agent-4.log' again: 12% free (>=10%), 5210 records were dropped
+```
+
+See [a full disk](#rotatory-disk-full) in the rotatory page.
 
 With the defaults, one yuno uses at most 7 × 2 × 8 MB = 112 MB of log.
 
@@ -535,7 +564,9 @@ nearest first:
   hop, with the role `ycommand`, the user of the shell and the host name of the
   node. Only a command that the agent sends to itself has no `source`. A field
   of a hop that is not a string is written as `""`, and the agent logs one
-  WARNING (msgset `Protocol`, no stack): it is data of a peer.
+  WARNING (msgset `Protocol`, no stack): it is data of a peer. For example a
+  hop that arrives as `{"src_role": 7}` is written `"role": ""` with the log
+  line *"Audit: bad __md_iev__ from a peer, written as empty"*.
 - **A `content64` is never written.** Everywhere (in the command text, where
   `ycommand` puts it, with or without blanks around the `=`, and in any kw key
   named `content64`), the value is replaced by `<N bytes sha256:HEX>`: the size

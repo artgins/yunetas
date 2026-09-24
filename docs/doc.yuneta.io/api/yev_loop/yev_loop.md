@@ -62,7 +62,11 @@ maybe already used by a new event. The loop finds the submission by its
 event, not by its fd number. An entry in the queue becomes a NOP whose
 completion is not delivered. The loop completes the event as a cancel does,
 and the callback gets the event `STOPPED` with result `-ECANCELED` at the
-next cycle.
+next cycle. That completion needs a place in a list of the loop: when there
+is no memory for it, the take-back is not made, a CRITICAL says so (*"No
+memory to keep a completion: submission handed over as it is"*): the
+submission goes to the kernel as it is, and the stop cancels it there as it
+cancels any operation the kernel has.
 
 In 7.25.4 and earlier, a full queue ended the process at each of the 12
 places that ask for an entry: 10 used the NULL entry (a crash), and 2
@@ -424,6 +428,8 @@ Returns a `yev_event_h` handle to the newly created connect event, or `NULL` on 
 **Notes**
 
 The host is resolved in the family of the destination address. Up to 7.25.4 the `src_url` was never parsed: the socket was bound to a port of the kernel's choice, and a `src_url` (good or bad) was ignored without a log.
+
+A `src_url` that fails is an ERROR, and the event has no socket: *"Bad src_url: cannot bind the connect"* for a `src_url` that cannot be parsed (`"[::1:5000"`, a missing `]`) or does not fit, *"getaddrinfo() src_url FAILED"* for a host that does not resolve in the family of the destination, *"bind() src_url FAILED"* for a bind the kernel refuses (a port in use, an address that is not the node's), with `errno`.
 
 ```C
 // Connect to [::1]:5000 from the local port 40000
@@ -1014,7 +1020,7 @@ A `RUNNING` event whose submission the kernel did not take yet, kept by the loop
 The gbuffer of an event with a completion to come is released at its LAST completion, not by the stop. See [A stop keeps the gbuffer](<#yev-loop-stop-keeps-gbuffer>).
 A take-back made by a posted action (`gobj_post_event()`) is delivered at the next cycle too: the loop does not block while it holds a completion of its own. Up to 7.25.4 it could block, and the `STOPPED` waited for an unrelated completion.
 
-`-1` without memory for the cancel (the submission queue full, the kernel taking nothing, and no memory to keep the submission): *"No memory to keep a submission: event NOT canceled"*. The event is left exactly as it was -- `RUNNING`, with its gbuffer and its fd -- and its operation completes normally later, with its callback. Up to 7.25.4 the stop had already scheduled the release of the gbuffer and closed the fd of a timer or a connect: the read completed as `IDLE` with a result and no gbuffer.
+`-1` without memory for the cancel (the submission queue full, the kernel taking nothing, and no memory to keep the submission): *"No memory to keep a submission: event NOT canceled"*. The event is left exactly as it was -- `RUNNING`, with its gbuffer and its fd -- and its operation completes normally later, with its callback. In 7.25.4 a stop on a full submission queue released the gbuffer and closed the fd of a timer or a connect first, and then used a NULL entry: the process crashed.
 
 A stop does not reach the callback of an event that is `IDLE` and not a timer (it becomes `STOPPED` at once), of an `IDLE` zero-copy send whose notification is still to come, and of a `RUNNING` event stopped by `yev_destroy_event()` while the loop is stopping (its callback is dropped). An `IDLE` timer gets its callback at once, `STOPPED` with `-ECANCELED`.
 
@@ -1138,6 +1144,12 @@ buffer. See [Zero-copy sends](<#yev-loop-zero-copy-sends>).
 **BREAKING** in 7.25.5: the `dst_addrlen` parameter is new. Up to 7.25.4 the
 event gave the kernel `sizeof(struct sockaddr)` (16 bytes), and a send to an
 IPv6 address failed with `-EINVAL`. See [IPv6 peers](<#yev-loop-ipv6-peers>).
+A start with no address, or with a length of 0 or larger than a `struct
+sockaddr_storage`, is refused: [`yev_start_event()`](<#yev_start_event>)
+answers `-1` and logs *"Cannot start event: sendmsg addr NULL or bad addr
+length"* (7.25.4: *"Cannot start event: sendmsg addr NULL"*). `C_UDP_S` then
+drops that datagram (*"Cannot send datagram: dropped"*) and sends the next
+one.
 
 ```C
 struct sockaddr_in6 dst = {0};

@@ -1518,7 +1518,12 @@ hook is a new relationship in memory even when nothing is written.
 
 A link into a **single-valued** fkey (a `string` column) replaces the old one:
 the child is first unlinked from the parent its string names, which emits
-`EV_TREEDB_NODE_UNLINKED` for it. [`treedb_unlink_nodes()`](<#treedb_unlink_nodes>)
+`EV_TREEDB_NODE_UNLINKED` for it. When the string the child holds is longer
+than a reference can be (a record of an older store, 765 bytes or more), the
+link is refused and nothing moves (*"Cannot link, the reference the child has
+is too long"*, with `ref`): for example a `users.department_id` loaded as a
+string of 800 bytes refuses `treedb_link_nodes(tranger, "users", dept,
+user)` with `-1`. [`treedb_unlink_nodes()`](<#treedb_unlink_nodes>)
 from a parent the child does not name is refused (*"Cannot unlink, the child
 does not hang from that parent"*): nothing moves, no event, no save.
 
@@ -1543,7 +1548,10 @@ on disk loads the first one and says so for the second (*"A dict hook holds a
 node of another topic with this id: this link is not loaded"*). Until 7.25.4
 the membership of a hook was tested by the bare id: the second link of a list
 hook was a duplicate that was skipped, and the second one of a dict hook took
-the first one's place.
+the first one's place. An unlink of the second one from a dict hook does not
+delete the first one's entry: it finds the slot taken by the other topic's
+node, leaves it, and logs *"Child data not found in dict parent hook: its slot
+holds a node of another topic"*.
 
 ```C
 /*  owners.members is a list hook, owners.tagged a dict hook, both of users and groups  */
@@ -2133,7 +2141,7 @@ wrong, until the topic is opened again or the key is deleted:
 | What | With a topic that did not load whole |
 |---|---|
 | [`treedb_create_node()`](<#treedb_create_node>) of such an id | refused: *"Cannot create node, its id has records on disk that could not be loaded"*. Its record would become the newest of the key, over records nobody read. Other ids are created as usual. |
-| `__snaps__` | also logs *"__snaps__ loaded without some snaps: the active snap is unknown, ..."*. The treedb is loaded from the live records (the active snap may be the one that did not load). [`treedb_shoot_snap()`](<#treedb_shoot_snap>) and [`treedb_activate_snap()`](<#treedb_activate_snap>) refuse; [`treedb_delete_node()`](<#treedb_delete_node>), `treedb_delete_instance()` and the delete of an asset refuse too, because which snap holds a record is unknown (*"cannot tell which snaps exist: __snaps__ did not load whole"*). `ignore_snaps` still overrides the node and instance deletes. |
+| `__snaps__` | also logs *"__snaps__ loaded without some snaps: the active snap is unknown, ..."*. The treedb is loaded from the live records (the active snap may be the one that did not load). [`treedb_shoot_snap()`](<#treedb_shoot_snap>) and [`treedb_activate_snap()`](<#treedb_activate_snap>) refuse (*"Cannot shoot a snap: __snaps__ did not load whole, the active snap is unknown"*, *"Cannot activate a snap: __snaps__ did not load whole, the active snap is unknown"*; the command `shoot-snap name=s3` answers `-1: <role^name>: cannot shoot snap 's3' (see the log)`); [`treedb_delete_node()`](<#treedb_delete_node>), `treedb_delete_instance()` and the delete of an asset refuse too, because which snap holds a record is unknown (*"cannot tell which snaps exist: __snaps__ did not load whole"*). `ignore_snaps` still overrides the node and instance deletes. |
 | a topic that links assets (a `file` column), or `__assets__`, in ANY treedb of the tranger | [`treedb_gc_files()`](<#treedb_gc_files>) refuses and takes nothing: *"gc refused: a topic that links assets did not load whole, the live links are unknown"*. |
 | `__assets__`, in any treedb of the tranger | the sweep of the blobs no row names ([`treedb_gc_files2()`](<#treedb_gc_files2>)) refuses too: *"gc: the blobs are not swept, __assets__ did not load whole"*. |
 | a topic a hook holds (the CHILD topic) | [`treedb_delete_node()`](<#treedb_delete_node>) of a node of the PARENT topic refuses, forced or not, with or without children in memory: *"Cannot delete node: a topic its hooks hold did not load whole, a child that did not load may hang from it"* (`child_topic` names the topic). A child that did not load may name the node, and the links of a node are known only from its children in memory: deleted, the node left that child naming a parent that is gone (new after 7.25.4). |

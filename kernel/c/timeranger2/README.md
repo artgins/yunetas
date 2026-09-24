@@ -523,4 +523,9 @@ Full account, including the defects found after the implementation (§16):
 
 ## Tests
 
-`tests/c/timeranger2`, `tests/c/tr_msg`, `tests/c/tr_queue`, `tests/c/tr_treedb`, `tests/c/tr_treedb_link_events`, `tests/c/tr_treedb_files`.
+`tests/c/timeranger2`, `tests/c/tr_dt_unknown`, `tests/c/tr_msg`,
+`tests/c/tr_msg2db`, `tests/c/tr_queue`, `tests/c/tr_treedb` and the other
+`tests/c/tr_treedb_*` directories (`tr_treedb_load_failed`,
+`tr_treedb_failed_save`, `tr_treedb_link_events`, `tr_treedb_files`,
+`tr_treedb_hook_hygiene`, ...), and, through `C_TREEDB`,
+`tests/c/c_treedb_literal_wins`. `tests/c/README.md` lists them all.

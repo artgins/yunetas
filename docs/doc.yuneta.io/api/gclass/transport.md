@@ -131,18 +131,16 @@ gobj_send_event(gobj_udp_s, EV_TX_DATA,
 A datagram that cannot be sent -- a gbuffer with no peer address, or no
 memory to keep the submission -- is DROPPED with an ERROR (*"Cannot send
 datagram: dropped"*, after the cause logged by `yev_start_event()`), and the
-next one in the queue is sent. Up to 7.25.4 such a send leaked its event and
-its gbuffer, left `tx_in_progress` above 0 (a stop waited for ever in
-`ST_WAIT_STOPPED`), and held every later datagram in the queue. And up to
-7.25.4 only the FIRST datagram of a queue was sent: the completion asked for a
-state `C_UDP_S` does not have (`ST_CONNECTED`) before sending the next one.
-`tests/c/c_udp_s_tx`.
+next one in the queue is sent; nothing leaks, and a stop does not wait for
+it in `ST_WAIT_STOPPED`. Up to 7.25.4 only the FIRST datagram of a queue was
+sent: the completion asked for a state `C_UDP_S` does not have
+(`ST_CONNECTED`) before sending the next one. `tests/c/c_udp_s_tx`.
 
 ### Key attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `url` | `string` | Listening URL. |
+| `url` | `string` | Listening URL: `udp://0.0.0.0:5000`, or an IPv6 literal in brackets, `udp://[::1]:5000` (since 7.25.5: an IPv6 peer is kept with its real length and answered; up to 7.25.4 its address was cut to 16 bytes and the reply refused, `-EINVAL`). |
 | `shared` | `bool` | Enable port sharing. |
 | `set_broadcast` | `bool` | Enable broadcast. |
 | `only_allowed_ips` | `bool` | Restrict to allowed IPs only. |

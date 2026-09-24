@@ -741,7 +741,8 @@ failure is logged: a missing directory with `create` `FALSE` as an ERROR
 failure to create the directory, or to create, write or **close** the file, as
 a CRITICAL at `on_critical_error` (with the default it exits). The close is
 checked because a delayed write fails there (`EIO`, `ENOSPC`): since 7.25.5 a
-failed close returns `-1` (7.25.4 reported the file saved). If `only_read` is
+failed close returns `-1` with *"Cannot close json file, what was written may
+be lost"* (7.25.4 reported the file saved). If `only_read` is
 `TRUE`, the file is set to `0440` after writing.
 
 **Example**
