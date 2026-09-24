@@ -31,6 +31,20 @@ Each UDP datagram from the `to_udp` handler is:
 logged under the `debug` trace), strips both, then files the message. If the
 message body is JSON (`{...}`) it is also folded into the summary tree.
 
+A record longer than one datagram (1500 bytes) is sent in PIECES, a NUL after
+the last one. [`C_GSS_UDP_S`](#gclass-c-gss-udp-s) joins the pieces per PEER,
+`"ip:port"` of the sending yuno, so the long records of two yunos that arrive
+interleaved come out whole. Up to 7.25.4 every peer shared one channel, and
+such records were joined into one corrupt record -- one real cause of
+*"json_load_callback() FAILED"* on logcenter, written off until then as UDP
+noise.
+
+`pause-yuno` and `play-yuno` of `logcenter` stop and start its UDP server,
+which opens a new socket and a new read on it. Up to 7.25.4 the read went on
+with the number of the socket the pause had closed -- the log file opened by
+the play just before could have it -- and `logcenter` stopped receiving with
+nothing logged. See [`C_UDP_S`](#gclass-c-udp-s) (*Stop and start again*).
+
 ## What it does with each record
 
 ```{figure} ../_static/logcenter_pipeline.svg
@@ -46,9 +60,13 @@ One datagram fans out three ways; only JSON bodies reach the summary tree.
    named from `log_filename` (mask `DD/MM/CCYY-W-ZZZ`). Rotation is bounded by
    `max_rotatoryfile_size` and pauses when free disk drops below
    `min_free_disk`. Each NEW file (a new day, or a size rotation) sends the
-   summary e-mail and resets the counters. The same file opened again after a
-   write that failed (a quota, no inodes, `EIO`) or after an `rm` is not a new
-   file: no e-mail. A `log_filename` with no date letter (`logcenter.log`) is
+   summary e-mail and then resets the counters and the summary trees. With
+   `send_summary_disabled` it does neither: no e-mail, and the counters go on
+   adding up until `reset-counters` or a restart (they are not persistent).
+   The same file opened again after a write that failed (a quota, no inodes,
+   `EIO`) or after an `rm` is not a new file: no e-mail. When the new file of
+   a day cannot be opened at once, its e-mail goes at the first open that
+   works, once. A `log_filename` with no date letter (`logcenter.log`) is
    one file for ever: it is appended to at every start, never emptied by a
    date. See [rotatory](#rotatory-file-names).
 3. **Aggregates** JSON records into a summary grouped by `msgset` → `msg` →
