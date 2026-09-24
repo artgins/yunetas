@@ -119,7 +119,17 @@ typedef struct _PRIVATE_DATA {
      *  The scenarios run one per timeout (see ac_timeout)
      */
     int step;                   // 0: run_tests(), then late_scenarios[step - 1]
+    BOOL repeat_step;           // the late scenario of this step runs again at the next
     int result;
+
+    /*
+     *  DC: where the sweep of the double crash is (scenario_double_crash)
+     */
+    int dc_phase;               // 0: with drafts, 1: without, 2: done
+    int dc_k1;                  // the write the first process dies at, 0: not started
+    int dc_writes;              // the writes of the whole projection
+    int dc_combos;
+    int dc_completed;           // combos where the second process completed the projection
 } PRIVATE_DATA;
 
 
@@ -3384,8 +3394,9 @@ PRIVATE BOOL system_node_links(hgobj gobj, const char *system_topic, const char 
 /***************************************************************************
  *  A forked child has the io_uring rings of its parent mapped SHARED, and
  *  its own copy of their head and tail: a child that submits moves the
- *  kernel's head under the parent, whose next submissions all answer that
- *  the queue is full (yev_loop logs "io_uring_get_sqe() FAILED"), and the
+ *  kernel's head under the parent, whose next submissions all find the
+ *  queue full (yev_loop keeps them, "Submission queue full and the kernel
+ *  takes nothing"), and the
  *  completions of the child's operations reach the parent with pointers
  *  into memory that is not the parent's. So the child takes a ring of its
  *  own before anything else: the parent's operations in flight stay the
@@ -4884,6 +4895,334 @@ PRIVATE int scenario_legacy_move_killed(hgobj gobj)
 }
 
 /***************************************************************************
+ *  DC: the process dies TWICE. As CR, a child opens v2 and is killed at
+ *  the write k1 of the projection; then a second child retries it and is
+ *  killed at the write k2 of the retry, or completes it (k2 0); then the
+ *  parent opens, twice. For every k1 of the projection: the retry not
+ *  killed, and (with drafts) killed at its first write and at its last.
+ *
+ *  Every process says what it REPORTS (the warning of withdrawn work) in
+ *  a file, the moment it logs it (dc_report_log_write): a report made by
+ *  a child that dies is counted too. Across the whole sequence the
+ *  operator's drafts (a header edited in `users`, a column added to
+ *  `groups`) are reported EXACTLY ONCE, by whichever process completes
+ *  the projection, and nothing that nobody did is reported: the review's
+ *  sweep read a retry that completed in the second child as the parent
+ *  saying nothing (26 "failures", one per k1). The parent's first open
+ *  logs no error and one warning when it is the one that reports; its
+ *  second open reports nothing. Without drafts nothing is reported
+ *  anywhere (k2 1 and not killed).
+ ***************************************************************************/
+PRIVATE char dc_reports_path[PATH_MAX] = "";
+PRIVATE const char *dc_who = "";
+PRIVATE BOOL dc_append_failed = FALSE;   // a line of reports that could not be written
+
+/*
+ *  Append a line to the file of reports: {"who": ..., <what>}
+ */
+PRIVATE void dc_append(json_t *line) // owned
+{
+    char *s = json_dumps(line, JSON_COMPACT|JSON_SORT_KEYS);
+    int fd = open(dc_reports_path, O_WRONLY|O_CREAT|O_APPEND|O_CLOEXEC, 0660);
+    if(fd < 0 || !s || write(fd, s, strlen(s)) < 0 || write(fd, "\n", 1) < 0) {
+        dc_append_failed = TRUE;    /*  a child cannot say it: its file says less, and the sequence fails  */
+    }
+    if(fd >= 0) {
+        close(fd);
+    }
+    if(s) {
+        gbmem_free(s);
+    }
+    JSON_DECREF(line)
+}
+
+PRIVATE int dc_report_log_write(void *h, int priority, const char *bf, size_t len)
+{
+    if(empty_string(dc_reports_path) ||
+            !strstr(bf, "Schema from C withdrew work on the schema at open")) {
+        return 0;
+    }
+    json_t *jn = json_loadb(bf, len, 0, 0);
+    json_t *topics = NULL;
+    const char *st = kw_get_str(0, jn, "topics", 0, 0);
+    if(st) {
+        /*
+         *  A "%j" field reaches the log as a string with single quotes
+         */
+        char *copy = gbmem_strdup(st);
+        for(char *c = copy; c && *c; c++) {
+            if(*c == '\'') {
+                *c = '"';
+            }
+        }
+        topics = copy? json_loads(copy, 0, 0) : NULL;
+        GBMEM_FREE(copy)
+    }
+    JSON_DECREF(jn)
+    dc_append(json_pack("{s:s, s:o}", "who", dc_who, "topics", topics? topics : json_null()));
+    return 0;
+}
+
+/*
+ *  Open `db` with v2 in a CHILD process (`who`) killed at the `kill_at`-th
+ *  write of __system__ (0: never). A child that completes says how many
+ *  writes it made. 1 when it was killed, 0 when it completed, -1 on error.
+ */
+PRIVATE int dc_open_child(hgobj gobj, const char *db, int kill_at, const char *who)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    fflush(stdout);
+    fflush(stderr);
+    pid_t pid = fork();
+    if(pid < 0) {
+        return test_fail(gobj, db, "TEST FAIL: DC, fork() failed", json_string(strerror(errno)));
+    }
+    if(pid == 0) {
+        child_takes_its_own_ring();
+        dc_who = who;
+        priv->system_writes = 0;
+        priv->kill_at_write = kill_at;
+        watch_system_writes(gobj, TRUE);
+        open_db(gobj, db, cr_v2(db), FALSE);
+        dc_append(json_pack("{s:s, s:i}", "who", who, "writes", priv->system_writes));
+        _exit(3);
+    }
+
+    int status = 0;
+    if(waitpid(pid, &status, 0) < 0) {
+        return test_fail(gobj, db, "TEST FAIL: DC, waitpid() failed", json_string(strerror(errno)));
+    }
+    if(WIFSIGNALED(status) && WTERMSIG(status) == SIGKILL) {
+        return 1;
+    }
+    if(WIFEXITED(status) && WEXITSTATUS(status) == 3) {
+        return 0;
+    }
+    return test_fail(gobj, db, "TEST FAIL: DC, the child process ended some other way",
+        json_integer(status));
+}
+
+/*
+ *  One sequence: k1, then k2 (0: the retry completes). `*p_retry_writes`
+ *  gets the writes of a retry that completed. 1 when the first child was
+ *  not killed at k1 (k1 is beyond the projection), else 0 or what failed.
+ */
+PRIVATE int dc_sequence(hgobj gobj, BOOL drafts, int k1, int k2, int *p_retry_writes)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    char db[NAME_MAX];
+    snprintf(db, sizeof(db), "tw_dc%s_%d_%d", drafts? "d" : "n", k1, k2);
+    char filename[NAME_MAX + sizeof(".reports")];
+    snprintf(filename, sizeof(filename), "%s.reports", db);
+    build_path(dc_reports_path, sizeof(dc_reports_path), priv->path_database, filename, NULL);
+    unlink(dc_reports_path);
+
+    dc_who = "prepare";
+    if(cr_prepare(gobj, db, drafts) < 0) {
+        dc_who = "";
+        return -1;
+    }
+    int killed = dc_open_child(gobj, db, k1, "child1");
+    if(killed != 1) {
+        dc_who = "";
+        return killed < 0? -1 : 1;
+    }
+    restart_system(gobj);
+    int killed2 = dc_open_child(gobj, db, k2, "child2");
+    if(killed2 < 0 || (k2 > 0 && killed2 != 1) || (k2 == 0 && killed2 != 0)) {
+        dc_who = "";
+        return test_fail(gobj, db, "TEST FAIL: DC, the second child did not end where it should",
+            json_pack("{s:i, s:i, s:i}", "k1", k1, "k2", k2, "killed", killed2));
+    }
+    restart_system(gobj);
+
+    dc_who = "parent1";
+    json_int_t e0 = log_count(gobj, "error");
+    json_int_t w0 = log_count(gobj, "warning");
+    if(open_db(gobj, db, cr_v2(db), FALSE) < 0) {
+        dc_who = "";
+        return -1;
+    }
+    json_int_t errors = log_count(gobj, "error") - e0;
+    json_int_t warnings = log_count(gobj, "warning") - w0;
+    result += check_agree(gobj, db, "TEST FAIL: DC, the open after the two crashes did not complete");
+    json_t *record = unfinished_record(gobj, db);
+    if(record) {
+        result += test_fail(gobj, db, "TEST FAIL: DC, a completed projection left its record",
+            json_incref(record));
+    }
+    JSON_DECREF(record)
+    close_db(gobj, db);
+    dc_who = "parent2";
+    if(open_db(gobj, db, cr_v2(db), FALSE) < 0) {
+        result--;
+    } else {
+        close_db(gobj, db);
+    }
+    dc_who = "";
+
+    /*
+     *  What each process reported
+     */
+    json_t *times = json_object();      // {topic: times reported}
+    json_t *kinds = json_object();      // {topic: kind}
+    json_t *reports = json_array();     // the lines of the reports
+    int parent1_reports = 0;
+    int parent2_reports = 0;
+    FILE *file = fopen(dc_reports_path, "r");
+    char line[4096];
+    while(file && fgets(line, sizeof(line), file)) {
+        json_t *jn = json_loads(line, 0, 0);
+        const char *who = kw_get_str(gobj, jn, "who", "", 0);
+        if(strcmp(who, "child2")==0 && json_object_get(jn, "writes")) {
+            *p_retry_writes = (int)kw_get_int(gobj, jn, "writes", 0, 0);
+        }
+        json_t *topics = json_object_get(jn, "topics");
+        if(topics) {
+            json_array_append(reports, jn);
+            if(strcmp(who, "parent1")==0) {
+                parent1_reports++;
+            } else if(strcmp(who, "parent2")==0) {
+                parent2_reports++;
+            }
+        }
+        const char *topic; json_t *kind;
+        json_object_foreach(topics, topic, kind) {
+            json_object_set_new(times, topic,
+                json_integer(json_integer_value(json_object_get(times, topic)) + 1));
+            json_object_set(kinds, topic, kind);
+        }
+        JSON_DECREF(jn)
+    }
+    if(file) {
+        fclose(file);
+    }
+
+    if(dc_append_failed) {
+        dc_append_failed = FALSE;
+        result += test_fail(gobj, db, "TEST FAIL: DC, a report could not be written to its file",
+            json_string(dc_reports_path));
+    }
+
+    json_t *expected = drafts?
+        json_pack("{s:s, s:s}", "users", "unsaved", "groups", "unsaved") : json_object();
+    BOOL once = TRUE;
+    const char *topic; json_t *jn_times;
+    json_object_foreach(times, topic, jn_times) {
+        if(json_integer_value(jn_times) != 1) {
+            once = FALSE;
+        }
+    }
+    if(!once || !json_equal(kinds, expected) || parent2_reports > 0) {
+        result += test_fail(gobj, db,
+            "TEST FAIL: DC, the drafts are not reported exactly once, or work nobody did is reported",
+            json_pack("{s:i, s:i, s:O, s:O}", "k1", k1, "k2", k2, "reports", reports, "expected", expected));
+    }
+    if(errors != 0 || warnings != parent1_reports) {
+        result += test_fail(gobj, db,
+            "TEST FAIL: DC, the open after the two crashes logged errors, or warnings it did not report",
+            json_pack("{s:i, s:i, s:I, s:I, s:i}", "k1", k1, "k2", k2,
+                "errors", errors, "warnings", warnings, "reports", parent1_reports));
+    }
+    JSON_DECREF(expected)
+    JSON_DECREF(times)
+    JSON_DECREF(kinds)
+    JSON_DECREF(reports)
+
+    priv->dc_combos++;
+    if(k2 == 0) {
+        priv->dc_completed++;
+    }
+    return result;
+}
+
+/*
+ *  ONE k1 per step (see ac_timeout): the loop runs between two
+ */
+PRIVATE int scenario_double_crash(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    BOOL drafts = (priv->dc_phase == 0)? TRUE : FALSE;
+
+    if(priv->dc_k1 == 0) {
+        if(priv->dc_phase == 0) {
+            gobj_log_register_handler("dc_reports", 0, dc_report_log_write, 0);
+            gobj_log_add_handler("dc_reports", "dc_reports", LOG_OPT_UP_WARNING, 0);
+        }
+
+        /*
+         *  How many writes the projection makes: an open nobody kills
+         */
+        char db[NAME_MAX];
+        snprintf(db, sizeof(db), "tw_dc%s_all", drafts? "d" : "n");
+        result += cr_prepare(gobj, db, drafts);
+        priv->system_writes = 0;
+        priv->kill_at_write = 0;
+        watch_system_writes(gobj, TRUE);
+        if(open_db(gobj, db, cr_v2(db), FALSE) == 0) {
+            close_db(gobj, db);
+        }
+        watch_system_writes(gobj, FALSE);
+        priv->dc_writes = priv->system_writes;
+        if(priv->dc_writes < 10) {
+            return result + test_fail(gobj, db, "TEST FAIL: DC, too few writes seen",
+                json_integer(priv->dc_writes));
+        }
+        priv->dc_k1 = 1;
+    }
+
+    /*
+     *  First the retry that completes: it says how many writes a retry
+     *  makes after a crash at k1, and so where its last write is. With
+     *  drafts the retry is then killed at its first write and at its last
+     *  (after the stamp, before the record is removed); without drafts
+     *  only the retry that completes is run: nothing may be reported
+     */
+    int k1 = priv->dc_k1;
+    int retry_writes = 0;
+    int r = dc_sequence(gobj, drafts, k1, 0, &retry_writes);
+    if(r == 1) {
+        result += test_fail(gobj, "tw_dc", "TEST FAIL: DC, the first child was not killed at its write",
+            json_integer(k1));
+    } else {
+        result += r;
+        if(drafts && retry_writes < 1) {
+            result += test_fail(gobj, "tw_dc", "TEST FAIL: DC, a retry that completed made no write",
+                json_integer(k1));
+        } else if(drafts) {
+            int unused = 0;
+            result += dc_sequence(gobj, drafts, k1, 1, &unused);
+            if(retry_writes > 1) {
+                result += dc_sequence(gobj, drafts, k1, retry_writes, &unused);
+            }
+        }
+    }
+
+    priv->dc_k1++;
+    if(priv->dc_k1 <= priv->dc_writes) {
+        priv->repeat_step = TRUE;
+        return result;
+    }
+    printf("DC (%s): a projection of %d writes, killed at each one and its retry killed or not: %d sequences, %d where the retry completed\n",
+        drafts? "with drafts" : "no drafts", priv->dc_writes, priv->dc_combos, priv->dc_completed);
+    priv->dc_combos = 0;
+    priv->dc_completed = 0;
+    priv->dc_k1 = 0;
+    priv->dc_phase++;
+    if(priv->dc_phase < 2) {
+        priv->repeat_step = TRUE;
+    } else {
+        gobj_log_del_handler("dc_reports");
+        dc_reports_path[0] = 0;
+    }
+    return result;
+}
+
+/***************************************************************************
  *  Run every scenario
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -4975,6 +5314,7 @@ PRIVATE int (*late_scenarios[])(hgobj gobj) = {
     scenario_gone_topic_col_undeletable,
     scenario_stamped_before_its_topics,
     scenario_legacy_move_killed,
+    scenario_double_crash,
     NULL
 };
 
@@ -5028,8 +5368,11 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  ONE step per timeout: the loop runs between two, and completes what
      *  the treedbs closed in a step cancelled. The whole test in one
      *  callback filled the completion queue of io_uring, and nothing more
-     *  could be submitted (yev_loop says so, "the submission queue is full")
+     *  could be submitted (yev_loop keeps such submissions now, "Submission
+     *  queue full and the kernel takes nothing", until the loop runs). A
+     *  late scenario that sets `repeat_step` runs again at the next step
      */
+    priv->repeat_step = FALSE;
     if(priv->step == 0) {
         priv->result += run_tests(gobj);
         gobj_log_register_handler("counting", 0, counting_log_write, 0);
@@ -5037,7 +5380,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         priv->result += late_scenarios[priv->step - 1](gobj);
     }
-    priv->step++;
+    if(!priv->repeat_step) {
+        priv->step++;
+    }
     if(late_scenarios[priv->step - 1]) {
         set_timeout(priv->timer, 10);
         KW_DECREF(kw)
