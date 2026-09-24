@@ -7,7 +7,10 @@
  *          - Create a __system__ timeranger
  *          - Create a treedb_system_schema (C_NODE) over the __system__ timeranger
  *
- *          - With commands (by events not yet ready) you can open/close services of treedb
+ *          - With commands you can open/close services of treedb. The public
+ *            events EV_OPEN_TREEDB / EV_CLOSE_TREEDB are NOT implemented:
+ *            each one logs an ERROR and does nothing (they did nothing in
+ *            silence up to 7.25.4)
  *
  *          "open-treedb"   -> create a timeranger and a treedb (C_NODE) with the schema passed;
  *                             refused, before anything is touched, for a treedb already open here
@@ -163,7 +166,8 @@ PRIVATE json_t *get_c_schema_to_impose(
 );
 PRIVATE json_t *get_treedb_schema(
     hgobj gobj,
-    const char *treedb_name
+    const char *treedb_name,
+    json_t *left_out    // not owned, {id: true} of topics and columns to leave out, may be NULL
 );
 PRIVATE const char *build_schema_node_id(
     hgobj gobj,
@@ -228,6 +232,13 @@ PRIVATE json_t *rows_without_leftovers(
     json_t *tree,       // not owned, the node tree of the treedb, may be NULL
     json_t *rows,       // owned
     json_t *leftovers   // not owned, ids of __system__, may be NULL
+);
+PRIVATE json_t *load_pending_saved_schema(hgobj gobj, const char *treedb_name, json_int_t in_use_version);
+PRIVATE BOOL topic_holds_other_cols(
+    hgobj gobj,
+    json_t *tree,
+    const char *topic_id,
+    json_t *leftover_ids
 );
 PRIVATE json_t *leftovers_as_left(
     hgobj gobj,
@@ -2226,7 +2237,13 @@ PRIVATE json_t *for_every_treedb(
     json_t *failed = json_array();
     const char *name; json_t *jn_schema;
     json_object_foreach(priv->jn_c_schemas, name, jn_schema) {
-        json_t *kw_one = json_deep_copy(kw);
+        /*
+         *  A kw copy, not a json copy: each answer releases its kw with
+         *  KW_DECREF, which releases a binary field (a `gbuffer`) too, so
+         *  each copy takes a reference of its own (json_deep_copy() took
+         *  none: "BAD gbuf_decref()", and the caller's gbuffer freed)
+         */
+        json_t *kw_one = kw_duplicate(gobj, kw);
         json_object_set_new(kw_one, "treedb_name", json_string(name));
         json_t *answer = one(gobj, cmd, kw_one, src);
         int r = (int)kw_get_int(gobj, answer, "result", -1, 0);
@@ -2348,6 +2365,11 @@ PRIVATE BOOL system_is_written_here(hgobj gobj)
  *  A draft that is the file in use again (an edit taken back after a save)
  *  has nothing to save, and WITHDRAWS a saved schema newer than the file in
  *  use: the file is removed and the answer says `withdrawn`.
+ *
+ *  What an older release left in __system__, as it left it, is nobody's
+ *  draft: it is neither compared nor written, and the answer names its ids
+ *  (`left_by_older_release`), the same set saved-schema leaves out of
+ *  `draft_changed`.
  ***************************************************************************/
 PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -2413,11 +2435,57 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     /*
-     *  What the draft changes against the file in use, by topic
+     *  What the draft changes against the file in use, by topic.
+     *
+     *  Without what an older release left in __system__ (see
+     *  new_upgrade_record, left_by_older_release_now): that is nobody's
+     *  draft, and saved-schema leaves it out of `draft_changed`. A save
+     *  compared the raw tree and wrote it whole, so the first save after
+     *  the upgrade published it -- a topic or a column a literal had
+     *  removed, never shown as unsaved -- and the next apply put it back
+     *  in the treedb. It is left out of the rows and of the schema written
+     *  now; an edit of it makes it the operator's, and then it is saved.
      */
     json_t *rows = json_array();
     json_t *summary = diff_treedb_schema(gobj, treedb_name, in_use, rows);
     JSON_DECREF(summary)
+
+    json_t *left_ids = json_array();
+    json_t *left_out = json_object();   // {id: true}, what the rebuilt schema leaves out
+    {
+        json_t *pending_saved = load_pending_saved_schema(
+            gobj, treedb_name, schema_version_of(gobj, in_use)
+        );
+        json_t *upgrade = load_upgrade_record(gobj, treedb_name);
+        json_t *left = left_by_older_release_now(gobj, treedb_name, upgrade, in_use, pending_saved);
+        JSON_DECREF(upgrade)
+        JSON_DECREF(pending_saved)
+
+        const char *left_id; json_t *v;
+        json_object_foreach(left, left_id, v) {
+            json_array_append_new(left_ids, json_string(left_id));
+        }
+        if(json_array_size(left_ids) > 0) {
+            json_t *tree = system_tree_of(gobj, treedb_name);
+            json_t *tree_topics = tree? kw_get_dict(gobj, tree, "topics", 0, 0) : NULL;
+            json_object_foreach(left, left_id, v) {
+                /*
+                 *  A left topic that holds a column somebody added since
+                 *  is a draft (rows_without_leftovers keeps its row): it
+                 *  stays, without its left columns
+                 */
+                if(json_object_get(tree_topics, left_id) &&
+                        topic_holds_other_cols(gobj, tree, left_id, left)) {
+                    continue;
+                }
+                json_object_set_new(left_out, left_id, json_true());
+            }
+            rows = rows_without_leftovers(gobj, treedb_name, tree, rows, left_ids);
+            JSON_DECREF(tree)
+        }
+        JSON_DECREF(left)
+    }
+
     json_t *changed = draft_changed_from_rows(gobj, rows);
 
     char saved_dir[PATH_MAX];
@@ -2446,6 +2514,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         BOOL withdraw = (saved_version > in_use_version)? TRUE: FALSE;
         JSON_DECREF(changed)
         JSON_DECREF(in_use)
+        JSON_DECREF(left_out)
 
         if(withdraw && !dry_run) {
             if(file_remove(saved_dir, filename) < 0) {
@@ -2459,6 +2528,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                     NULL
                 );
                 JSON_DECREF(rows)
+                JSON_DECREF(left_ids)
                 return msg_iev_build_response(gobj, -1,
                     json_sprintf("%s: the draft of '%s' is the schema in use, but its saved "
                         "schema_version %d could not be withdrawn from %s (see the log)",
@@ -2491,18 +2561,20 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(gobj, 0,
             comment,
             0,
-            json_pack("{s:s, s:b, s:I, s:s, s:o}",
+            json_pack("{s:s, s:b, s:I, s:s, s:o, s:o}",
                 "treedb_name", treedb_name,
                 "withdrawn", withdraw,
                 "schema_version", withdraw? saved_version : in_use_version,
                 "path", saved_path,
-                "changes", rows
+                "changes", rows,
+                "left_by_older_release", left_ids
             ),
             kw
         );
     }
 
-    json_t *schema = get_treedb_schema(gobj, treedb_name);
+    json_t *schema = get_treedb_schema(gobj, treedb_name, left_out);
+    JSON_DECREF(left_out)
     if(schema) {
         prune_schema(schema);
     }
@@ -2510,6 +2582,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         JSON_DECREF(changed)
         JSON_DECREF(in_use)
         JSON_DECREF(rows)
+        JSON_DECREF(left_ids)
         return msg_iev_build_response(gobj, -1,
             json_sprintf("%s: cannot rebuild the draft of '%s' from __system__",
                 gobj_yuno_role_plus_name(), treedb_name),
@@ -2526,6 +2599,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         JSON_DECREF(schema)
         JSON_DECREF(changed)
         JSON_DECREF(in_use)
+        JSON_DECREF(left_ids)
         json_t *comment = json_sprintf("%s: cannot save the schema of '%s': %s and %s get "
             "the same id '%s' in __system__, rename one of them",
             gobj_yuno_role_plus_name(), treedb_name,
@@ -2556,6 +2630,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         JSON_DECREF(schema)
         JSON_DECREF(changed)
         JSON_DECREF(in_use)
+        JSON_DECREF(left_ids)
         return msg_iev_build_response(gobj, -1,
             json_sprintf("%s: cannot save the schema of '%s': its draft in __system__ has "
                 "no topics, and a treedb without topics does not open",
@@ -2634,23 +2709,19 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         JSON_DECREF(node)
 
         if(ret == 0) {
-            mkrdir(saved_dir, (int)gobj_read_integer_attr(gobj, "xpermission"));
-            ret = save_json_to_file(
-                gobj,
-                saved_dir,
-                filename,
-                (int)gobj_read_integer_attr(gobj, "xpermission"),
-                (int)gobj_read_integer_attr(gobj, "rpermission"),
-                0,
-                TRUE,   // create or overwrite
-                FALSE,
-                json_incref(schema)
-            );
+            /*
+             *  WHOLE, as the records beside it: through a temporary file
+             *  and a rename. It was truncated and rewritten in place, so a
+             *  save that died or hit a full disk halfway left a torn file
+             *  where a pending save had been
+             */
+            ret = write_record_whole(gobj, treedb_name, filename, schema, "saved schema");
         }
         if(ret < 0) {
             JSON_DECREF(schema)
             JSON_DECREF(versions)
             JSON_DECREF(rows)
+            JSON_DECREF(left_ids)
             return msg_iev_build_response(gobj, -1,
                 json_sprintf("%s: cannot save the schema of '%s': the versions of its draft "
                     "or the file %s could not be written (see the log)",
@@ -2677,13 +2748,14 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             (int)schema_version,
             dry_run? "": "; apply-schema puts it in use"),
         0,
-        json_pack("{s:s, s:I, s:o, s:s, s:o, s:o}",
+        json_pack("{s:s, s:I, s:o, s:s, s:o, s:o, s:o}",
             "treedb_name", treedb_name,
             "schema_version", schema_version,
             "topic_versions", versions,
             "path", saved_path,
             "changes", rows,
-            "schema", schema
+            "schema", schema,
+            "left_by_older_release", left_ids
         ),
         kw
     );
@@ -3797,9 +3869,18 @@ PRIVATE json_t *move_schema_node(
  *  copy is linked; the legacy nodes still in the tree are what the next
  *  run finds, and the meta-schema version of the treedb node is not
  *  raised here (the projection stamps it), so the next open runs it
- *  again. A legacy node whose copy fails stays, with its error.
+ *  again. A legacy node whose copy fails stays, with its error, and the
+ *  move answers -1: the open then projects NOTHING (see
+ *  reconcile_treedb_schema), so nothing stamps the meta-schema version
+ *  and the next open runs the move again. It answered the nodes moved
+ *  even then, the same open went on to the projection, whose stamp (or
+ *  its reset on a failure) raised the meta-schema version: no later open
+ *  moved what was left, and the projection deleted it as a topic no
+ *  schema declares -- an operator's column that sat only under a legacy
+ *  id included.
  *
- *  Return the number of nodes moved, or -1.
+ *  Return the number of nodes moved, or -1 (a node could not be moved,
+ *  logged).
  ***************************************************************************/
 PRIVATE int migrate_schema_ids_to_qualified(
     hgobj gobj,
@@ -3947,6 +4028,19 @@ PRIVATE int migrate_schema_ids_to_qualified(
     JSON_DECREF(treedb)
     JSON_DECREF(legacy_topic_ids)
 
+    if(failed > 0) {
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_TREEDB,
+            "msg",              "%s", "TreeDB schema ids moved to qualified names only in part: nothing is projected at this open, every open retries the move, save-schema refuses until then (see the errors before this)",
+            "treedb_name",      "%s", treedb_name,
+            "moved",            "%d", moved,
+            "failed",           "%d", failed,
+            NULL
+        );
+        return -1;
+    }
+
     gobj_log_info(gobj, 0,
         "function",         "%s", __FUNCTION__,
         "msgset",           "%s", MSGSET_INFO,
@@ -3958,6 +4052,62 @@ PRIVATE int migrate_schema_ids_to_qualified(
     );
 
     return moved;
+}
+
+/***************************************************************************
+ *  Move the projection of `treedb_name` to qualified ids when its node was
+ *  written with an older meta-schema (`system_schema_version`): it may
+ *  still be keyed by rowid (see migrate_schema_ids_to_qualified). That is
+ *  STRUCTURE, and it is moved before anything reads the projection: the
+ *  record of the upgrade compares the ids of the tree with the ids a
+ *  schema declares, and a rowid id is declared by none -- read before the
+ *  move, every legacy node was "left by an older release" (the declared
+ *  ones too, and the removal said of all of them, falsely), while the
+ *  qualified copies the same open made were in no record, and what an
+ *  older release did leave read as the operator's draft.
+ *
+ *  Nothing is re-projected for a meta-schema change: the schema in use may
+ *  be a dynamic one, and a projection of the literal would overwrite it.
+ *
+ *  0 when there is nothing to move or all of it moved, -1 when something
+ *  could not be (logged). The MASTER only, its caller holds the guard.
+ ***************************************************************************/
+PRIVATE int move_legacy_projection(hgobj gobj, const char *treedb_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Ask with a list: it is silent when the treedb has no projection yet
+     */
+    json_t *stored = gobj_list_nodes(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        0,
+        gobj
+    );
+    size_t found = json_array_size(stored);
+    json_int_t stored_meta = found? kw_get_int(
+        gobj, json_array_get(stored, 0), "system_schema_version", 0, KW_WILD_NUMBER
+    ) : 0;
+    JSON_DECREF(stored)
+    if(found == 0 || stored_meta >= priv->system_schema_version) {
+        return 0;
+    }
+
+    json_t *legacy = gobj_node_tree(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        json_object(),
+        gobj
+    );
+    if(!legacy) {
+        return -1;  // Error already logged
+    }
+    int moved = migrate_schema_ids_to_qualified(gobj, treedb_name, legacy);
+    JSON_DECREF(legacy)
+    return moved < 0? -1 : 0;   // Error already logged
 }
 
 /***************************************************************************
@@ -4877,7 +5027,15 @@ PRIVATE int upsert_treedb_schema(
     json_t *planned = json_object();
     json_t *plan_kinds = json_object();
 
-    json_t *jn_topics = kw_get_list(gobj, kw, "topics", 0, 0);
+    /*
+     *  A list or a DICT (schema_topics_as_list): the file in use of a node
+     *  opened with impose off before the draft model holds a dict, and it
+     *  is projected too (a seed from the file, the completion of an
+     *  unfinished projection). Read as a list only, it projected no topic
+     *  and was stamped complete, while declared_schema_ids() -- which reads
+     *  both shapes -- kept what the "gone" loop below would have deleted
+     */
+    json_t *jn_topics = schema_topics_as_list(gobj, kw);
     int idx; json_t *jn_topic;
     json_array_foreach(jn_topics, idx, jn_topic) {
         const char *topic_name = kw_get_str(gobj, jn_topic, "id", "", 0);
@@ -5117,6 +5275,7 @@ PRIVATE int upsert_treedb_schema(
             "claimed", claimed
         ));
     }
+    JSON_DECREF(jn_topics)
 
     /*
      *  A topic `kw` does not declare goes: deleted with its columns of the
@@ -6250,8 +6409,9 @@ PRIVATE json_t *load_unfinished_record(hgobj gobj, const char *treedb_name)
  *  or the new one, never a torn one. The temporary is unlinked first and
  *  created O_EXCL|O_NOFOLLOW (one left behind by a process that died is
  *  not reused, one that is a symlink is not followed), fsync'ed before the
- *  rename, and the directory after it. Used for the record of an
- *  unfinished projection and for the record of an apply.
+ *  rename, and the directory after it. Used for the records of an
+ *  unfinished projection, of an apply and of the upgrade, and for the
+ *  saved schema that save-schema writes.
  *
  *  The json is dumped into ONE buffer and written with one write(): the
  *  record of a projection of a big __system__ is a few hundred KB, and
@@ -6767,10 +6927,17 @@ PRIVATE void say_literal_not_installed(
             "stored_version",   "%d", (int)stored_version,
             NULL
         );
-    } else if(stored_c_version != new_version) {
+    } else {
         /*
          *  Two schemas under one number: the file wins, as ties always
-         *  do, and it is said at every open until the literal moves on
+         *  do, and it is said at every open until the literal moves on.
+         *
+         *  Compared whatever __system__'s c_schema_version says: it was
+         *  asked first (up to 7.25.4 and after), and a file that came from
+         *  an earlier literal of the SAME number -- a column added to the
+         *  literal without raising its schema_version, the classic mistake
+         *  -- says that number, so the change reached nothing and nothing
+         *  was said. The price is one schema_diff at an open that ties
          */
         json_t *diff = schema_diff(file_in_use, jn_schema);
         BOOL differs = json_object_size(json_object_get(diff, "added")) > 0 ||
@@ -8952,13 +9119,6 @@ PRIVATE int project_literal_into_system(
         0,
         KW_WILD_NUMBER
     );
-    json_int_t stored_meta = kw_get_int(
-        gobj,
-        stored_treedb,
-        "system_schema_version",
-        0,
-        KW_WILD_NUMBER
-    );
     json_int_t stored_c_version = kw_get_int(
         gobj,
         stored_treedb,
@@ -8980,30 +9140,10 @@ PRIVATE int project_literal_into_system(
         TRUE : FALSE;
 
     /*
-     *  A projection written with an older meta-schema may still be keyed by
-     *  rowid, and the qualified key cannot live beside it (see
-     *  migrate_schema_ids_to_qualified). That is STRUCTURE, and it moves.
-     *  Nothing is re-projected for a meta-schema change, though: the schema
-     *  in use may be a dynamic one, and a projection of the literal would
-     *  overwrite it.
+     *  A projection written with an older meta-schema, keyed by rowid, was
+     *  moved to qualified ids before (move_legacy_projection, in
+     *  reconcile_treedb_schema): what is read here is qualified.
      */
-    if(stored_meta < priv->system_schema_version) {
-        json_t *legacy = gobj_node_tree(
-            priv->gobj_node_system,
-            "treedbs",
-            json_pack("{s:s}", "id", treedb_name),
-            json_object(),
-            gobj
-        );
-        if(!legacy) {
-            return -1;  // Error already logged
-        }
-        int moved = migrate_schema_ids_to_qualified(gobj, treedb_name, legacy);
-        JSON_DECREF(legacy)
-        if(moved < 0) {
-            return -1;  // Error already logged
-        }
-    }
 
     /*
      *  A node stamped with the version of the file in use, at the FIRST
@@ -9504,6 +9644,28 @@ PRIVATE int reconcile_treedb_schema(
         return 0;
     }
 
+    /*
+     *  STRUCTURE first: a projection keyed by rowid moves to qualified ids
+     *  before anything reads it (see move_legacy_projection). A move that
+     *  does not finish projects nothing: the next open moves the rest.
+     *  Until then the projection is UNFINISHED (a record naming the
+     *  treedb, unless one is there already), so save-schema refuses to
+     *  publish a tree that holds both kinds of ids.
+     */
+    if(move_legacy_projection(gobj, treedb_name) < 0) {
+        json_t *record = load_unfinished_record(gobj, treedb_name);
+        if(!record) {
+            record = new_unfinished(0);
+            add_unfinished(record, "not_written", treedb_name, NULL);
+            json_array_clear(json_object_get(record, "leftovers"));
+            if(write_unfinished_record(gobj, treedb_name, record) < 0) {
+                mark_projection_unfinished(gobj, treedb_name);  // Error already logged
+            }
+        }
+        JSON_DECREF(record)
+        return -1;  // Error already logged
+    }
+
     json_int_t new_version = schema_version_of(gobj, jn_schema);
     json_int_t in_use_version = schema_version_of(gobj, file_in_use);
     BOOL installed = (!file_in_use ||
@@ -9784,7 +9946,8 @@ PRIVATE json_t *order_schema_nodes(
  ***************************************************************************/
 PRIVATE json_t *get_treedb_schema(
     hgobj gobj,
-    const char *treedb_name
+    const char *treedb_name,
+    json_t *left_out    // not owned, {id: true} of topics and columns to leave out, may be NULL
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -9836,6 +9999,9 @@ PRIVATE json_t *get_treedb_schema(
 
     const char *stored_topic_id; json_t *topic;
     json_object_foreach(stored_topics, stored_topic_id, topic) {
+        if(json_object_get(left_out, stored_topic_id)) {
+            continue;
+        }
         const char *topic_name = kw_get_str(gobj, topic, "value", 0, KW_REQUIRED);
         if(empty_string(topic_name)) {
             continue;
@@ -9860,6 +10026,9 @@ PRIVATE json_t *get_treedb_schema(
         json_t *new_cols = json_object();
         const char *col_name; json_t *col;
         json_object_foreach(cols, col_name, col) {
+            if(json_object_get(left_out, col_name)) {
+                continue;
+            }
             const char *value = kw_get_str(gobj, col, "value", 0, KW_REQUIRED);
             if(empty_string(value)) {
                 continue;
@@ -10810,9 +10979,21 @@ PRIVATE json_t *schema_topics_as_list(hgobj gobj, json_t *jn_schema)
  ***************************************************************************/
 PRIVATE int ac_open_treedb(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-
+    /*
+     *  Not implemented. The event is public, so a peer can send it: it
+     *  opened nothing and said nothing. Said now, and refused: the command
+     *  open-treedb is the way in, and it asks its permission first
+     */
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "EV_OPEN_TREEDB is not implemented: nothing opened, use the command open-treedb",
+        "src",          "%s", gobj_full_name(src),
+        "treedb_name",  "%s", kw_get_str(gobj, kw, "treedb_name", "", 0),
+        NULL
+    );
     KW_DECREF(kw)
-    return 0; // TODO
+    return -1;
 }
 
 /***************************************************************************
@@ -10820,9 +11001,20 @@ PRIVATE int ac_open_treedb(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
  ***************************************************************************/
 PRIVATE int ac_close_treedb(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-
+    /*
+     *  Not implemented, as EV_OPEN_TREEDB: the command close-treedb is the
+     *  way in
+     */
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "EV_CLOSE_TREEDB is not implemented: nothing closed, use the command close-treedb",
+        "src",          "%s", gobj_full_name(src),
+        "treedb_name",  "%s", kw_get_str(gobj, kw, "treedb_name", "", 0),
+        NULL
+    );
     KW_DECREF(kw)
-    return -1; // TODO
+    return -1;
 }
 
 /***************************************************************************

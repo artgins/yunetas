@@ -9,6 +9,11 @@
  *          and that an update-node with autolink moves only the links
  *          that change and saves the record even when a link fails.
  *
+ *          And import-db / export-db: an import counts its errors by cause,
+ *          a link it cannot make is a `link failure`, an import that
+ *          aborts or fails answers -1; export-db names its file with the
+ *          integer schema_version.
+ *
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -107,6 +112,7 @@ typedef struct _PRIVATE_DATA {
  ***************************************************************************/
 PRIVATE char schema_link_test[] = "\
 {                                                                   \n\
+    'schema_version': 1,                                            \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'topic_name': 'users',                                  \n\
@@ -908,6 +914,175 @@ PRIVATE int run_tests(hgobj gobj)
         }
         JSON_DECREF(expected)
         JSON_DECREF(jn_resp)
+    }
+
+    /*-----------------------------------------------*
+     *  Test 15: import-db counts a link it cannot make.
+     *  The record names a parent that does not exist:
+     *  it is created without the link, and the answer
+     *  says "link failure": 1 and result -1. The update
+     *  with autolink saves the record and answers the
+     *  node, saying the refused link only in
+     *  `links_refused`: import-db counted it a success
+     *  and answered 0 with no comment (up to 7.25.4 and
+     *  after).
+     *-----------------------------------------------*/
+    {
+        json_t *jn_db = json_pack("{s:[{s:s, s:s, s:[s]}]}",
+            "users",
+                "id", "dangling_user", "username", "d",
+                "departments", "departments^no_such_dept^users"
+        );
+        char *s_db = json_dumps(jn_db, JSON_COMPACT);
+        gbuffer_t *gbuf_b64 = gbuffer_binary_to_base64(s_db, strlen(s_db));
+        jn_resp = gobj_command(priv->gobj_node, "import-db",
+            json_pack("{s:s, s:s}",
+                "content64", gbuffer_cur_rd_pointer(gbuf_b64),
+                "if-resource-exists", "skip"
+            ),
+            gobj
+        );
+        GBUFFER_DECREF(gbuf_b64)
+        gbmem_free(s_db);
+        JSON_DECREF(jn_db)
+
+        json_t *node = treedb_get_node(priv->tranger, treedb_name, "users", "dangling_user");
+        if(kw_get_int(gobj, jn_resp, "result", 0, 0) != -1 ||
+                kw_get_int(gobj, jn_resp, "data`link failure", -1, 0) != 1 ||
+                kw_get_int(gobj, jn_resp, "data`added", -1, 0) != 1 ||
+                !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "1 link failure") ||
+                !node || json_array_size(json_object_get(node, "departments")) != 0) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset", "%s", MSGSET_INTERNAL,
+                "msg", "%s", "TEST FAIL: import-db did not count a link it could not make",
+                "got", "%j", jn_resp,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+    }
+
+    /*-----------------------------------------------*
+     *  Test 16: an import that ABORTS (the default mode,
+     *  a record that exists) answers -1 and says so. It
+     *  answered 0 with no comment: only data`abort told.
+     *-----------------------------------------------*/
+    {
+        json_t *jn_db = json_pack("{s:[{s:s, s:s}]}",
+            "users",
+                "id", "alice", "username", "alice_again"
+        );
+        char *s_db = json_dumps(jn_db, JSON_COMPACT);
+        gbuffer_t *gbuf_b64 = gbuffer_binary_to_base64(s_db, strlen(s_db));
+        jn_resp = gobj_command(priv->gobj_node, "import-db",
+            json_pack("{s:s}",
+                "content64", gbuffer_cur_rd_pointer(gbuf_b64)
+            ),
+            gobj
+        );
+        GBUFFER_DECREF(gbuf_b64)
+        gbmem_free(s_db);
+        JSON_DECREF(jn_db)
+
+        if(kw_get_int(gobj, jn_resp, "result", 0, 0) != -1 ||
+                kw_get_int(gobj, jn_resp, "data`abort", -1, 0) != 1 ||
+                !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "ABORTED")) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset", "%s", MSGSET_INTERNAL,
+                "msg", "%s", "TEST FAIL: an import-db that aborted answered a success",
+                "got", "%j", jn_resp,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+    }
+
+    /*-----------------------------------------------*
+     *  Test 17: export-db with no filename names the
+     *  file with the schema_version, an INTEGER. It was
+     *  read as a string: an ERROR with a stack, and the
+     *  version left out of the name.
+     *-----------------------------------------------*/
+    {
+        char root[PATH_MAX];
+        build_path(root, sizeof(root), getenv("HOME"), "tests_yuneta", NULL);
+        char realm[PATH_MAX];
+        build_path(realm, sizeof(realm), root, "c_node_link_events_realm", NULL);
+        rmrdir(realm);
+        register_yuneta_environment(root, "c_node_link_events_realm", 02770, 0660);
+
+        jn_resp = gobj_command(priv->gobj_node, "export-db", json_object(), gobj);
+        const char *filename = kw_get_str(gobj, jn_resp, "data`filename", "", 0);
+        const char *suffix = ".trdb.json";
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) != 0 ||
+                strncmp(filename, "treedb_link_test-1-", strlen("treedb_link_test-1-"))!=0 ||
+                strlen(filename) < strlen(suffix) ||
+                strcmp(filename + strlen(filename) - strlen(suffix), suffix)!=0) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset", "%s", MSGSET_INTERNAL,
+                "msg", "%s", "TEST FAIL: export-db did not name the file with the schema_version",
+                "got", "%j", jn_resp,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+        register_yuneta_environment(NULL, NULL, 02775, 0664);
+        rmrdir(realm);
+    }
+
+    /*-----------------------------------------------*
+     *  Test 18: link-nodes / unlink-nodes name a child
+     *  whose id holds '^', or is RECORD_KEY_VALUE_MAX - 1
+     *  bytes long: legal in a topic without hooks
+     *  (`users`), and listed by the treedb as "users^<id>".
+     *  The child ref is split at its FIRST '^'. Both were
+     *  refused ("Wrong child ref"): decode_child_ref()
+     *  wants one '^' and an id shorter than NAME_MAX.
+     *-----------------------------------------------*/
+    {
+        char long_id[RECORD_KEY_VALUE_MAX];
+        memset(long_id, 'x', sizeof(long_id) - 1);
+        long_id[sizeof(long_id) - 1] = 0;
+        const char *ids[] = {"caret^user", long_id, NULL};
+        for(int i = 0; ids[i]; i++) {
+            json_t *created = treedb_create_node(priv->tranger, treedb_name, "users",
+                json_pack("{s:s, s:s}", "id", ids[i], "username", "odd id"));
+            char child_ref[RECORD_KEY_VALUE_MAX + NAME_MAX];
+            snprintf(child_ref, sizeof(child_ref), "users^%s", ids[i]);
+
+            for(int unlink = 0; unlink < 2; unlink++) {
+                jn_resp = gobj_command(priv->gobj_node, unlink? "unlink-nodes" : "link-nodes",
+                    json_pack("{s:s, s:s}",
+                        "parent_ref", "departments^engineering^users",
+                        "child_ref", child_ref
+                    ),
+                    gobj
+                );
+                json_t *node = treedb_get_node(priv->tranger, treedb_name, "users", ids[i]);
+                size_t links = json_array_size(json_object_get(node, "departments"));
+                if(!created || kw_get_int(gobj, jn_resp, "result", -1, 0) != 0 ||
+                        links != (unlink? 0 : 1)) {
+                    gobj_log_error(gobj, 0,
+                        "function", "%s", __FUNCTION__,
+                        "msgset", "%s", MSGSET_INTERNAL,
+                        "msg", "%s", "TEST FAIL: a child whose id holds '^' or is long cannot be (un)linked by name",
+                        "child_ref", "%s", child_ref,
+                        "unlink", "%d", unlink,
+                        "links", "%d", (int)links,
+                        "got", "%j", jn_resp,
+                        NULL
+                    );
+                    result += -1;
+                }
+                JSON_DECREF(jn_resp)
+            }
+        }
     }
 
     if(result == 0) {

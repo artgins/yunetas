@@ -9,6 +9,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <errno.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <limits.h>
@@ -62,6 +63,12 @@ PRIVATE int export_treedb(
     BOOL with_metadata,
     BOOL without_rowid,
     hgobj src
+);
+PRIVATE BOOL split_child_ref(
+    hgobj gobj,
+    const char *child_ref,
+    char *topic_name, size_t topic_name_size,
+    char *id, size_t id_size
 );
 
 PRIVATE int apply_initial_load(hgobj gobj);
@@ -3164,14 +3171,15 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     }
 
     char child_topic_name[NAME_MAX];
-    char child_id[NAME_MAX];
+    char child_id[RECORD_KEY_VALUE_MAX];
 
-    if(!decode_child_ref(
+    if(!split_child_ref(
+        gobj,
         child_ref,
         child_topic_name, sizeof(child_topic_name),
         child_id, sizeof(child_id)
     )) {
-        // It's not a child ref
+        // Error already logged
         return msg_iev_build_response(
             gobj,
             -1,
@@ -3323,14 +3331,15 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     }
 
     char child_topic_name[NAME_MAX];
-    char child_id[NAME_MAX];
+    char child_id[RECORD_KEY_VALUE_MAX];
 
-    if(!decode_child_ref(
+    if(!split_child_ref(
+        gobj,
         child_ref,
         child_topic_name, sizeof(child_topic_name),
         child_id, sizeof(child_id)
     )) {
-        // It's not a child ref
+        // Error already logged
         return msg_iev_build_response(
             gobj,
             -1,
@@ -4892,9 +4901,14 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
         time(&t);
         tm = localtime(&t);
         strftime(date, sizeof(date), "%Y-%m-%d", tm);
-        snprintf(name, sizeof(name), "%s-%s-%s.trdb.json",
+        /*
+         *  An integer, as everywhere else it is read: read as a string an
+         *  integer schema_version logged an ERROR with a stack and the whole
+         *  schema, and left the version out of the name
+         */
+        snprintf(name, sizeof(name), "%s-%lld-%s.trdb.json",
             priv->treedb_name,
-            kw_get_str(gobj, priv->treedb_schema, "schema_version", "", KW_REQUIRED),
+            (long long)kw_get_int(gobj, priv->treedb_schema, "schema_version", 0, KW_WILD_NUMBER),
             date
         );
     } else {
@@ -5122,11 +5136,21 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     }
 
     /*
-     *  Create links
+     *  Create links.
+     *
+     *  An update with autolink that saves the record but cannot make a
+     *  link it names (a parent that does not exist) answers the node, and
+     *  says it only in `links_refused` (see mt_update_node), as
+     *  update-node reads it: counted as a success, the import answered
+     *  "link failure": 0 and the link was lost. Kept apart across the
+     *  call, as update-node does: a treedb event of this update can bring
+     *  another update into this service.
      */
     json_object_foreach(jn_loaded, topic_name, topic_records) {
         int idx; json_t *record;
         json_array_foreach(topic_records, idx, record) {
+            BOOL links_refused_outer = priv->links_refused;
+            priv->links_refused = FALSE;
             json_t *node = gobj_update_node(
                 gobj,
                 topic_name,
@@ -5134,12 +5158,16 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 json_pack("{s:b}", "autolink", 1),
                 src
             );
-            if(node) {
-                //gobj_trace_json(gobj, node, "node added");
+            BOOL links_refused = priv->links_refused;
+            priv->links_refused = links_refused_outer;
+            if(node && !links_refused) {
                 json_decref(node);
             } else {
                 link_failure++;
-                gobj_trace_json(gobj, record, "link_failure");
+                gobj_trace_json(gobj, record, "import-db link failure: %s",
+                    node? "the record is saved, a link it names cannot be made" :
+                        "the record cannot be updated");
+                JSON_DECREF(node)
             }
         }
     }
@@ -5148,8 +5176,23 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     json_decref(jn_loaded);
 
     /*
-     *  Inform
+     *  Inform. An import that stopped half way, or with a record or a link
+     *  that failed, is no success: it answered 0 with no comment, so a
+     *  script (or ycommand's exit code) read a clean import
      */
+    json_t *comment = 0;
+    if(abort || failure || link_failure) {
+        ret = -1;
+        comment = json_sprintf("%s: import-db %s: %d added, %d overwritten, %d ignored, "
+            "%d failed, %d link failure(s) (see the log)",
+            gobj_yuno_role_plus_name(),
+            abort? "ABORTED" : "incomplete",
+            new, overwrite, ignored, failure, link_failure);
+    } else {
+        comment = json_sprintf("%s: import-db: %d added, %d overwritten, %d ignored",
+            gobj_yuno_role_plus_name(), new, overwrite, ignored);
+    }
+
     json_t *jn_data = json_pack("{s:i, s:i, s:i, s:i, s:i, s:i, s:o}",
         "abort", abort,
         "added", new,
@@ -5162,7 +5205,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     return msg_iev_build_response(gobj,
         ret,
-        0,
+        comment,
         0,
         jn_data,
         kw  // owned
@@ -5987,6 +6030,48 @@ PRIVATE void mark_copy_not_pure(json_t *jn)
 }
 
 /***************************************************************************
+ *  The child ref of link-nodes and unlink-nodes, "child_topic_name^child_id":
+ *  the topic is up to the FIRST '^' (a topic name has none), and the id is
+ *  ALL the rest. A child id is never written into a ref the treedb keeps
+ *  (only the child's fkey is, naming its parent), so a topic without hooks
+ *  holds ids with '^' or of RECORD_KEY_VALUE_MAX - 1 bytes (an MQTT client
+ *  id), and the treedb lists them (`refs`) as "topic^id" as they are.
+ *  decode_child_ref() refused such a ref (more than one '^', or an id of
+ *  NAME_MAX bytes), so those children could be listed and never linked or
+ *  unlinked by name. FALSE (logged) when the topic or the id is empty or
+ *  does not fit.
+ ***************************************************************************/
+PRIVATE BOOL split_child_ref(
+    hgobj gobj,
+    const char *child_ref,
+    char *topic_name, size_t topic_name_size,
+    char *id, size_t id_size
+)
+{
+    *topic_name = 0;
+    *id = 0;
+
+    const char *sep = child_ref? strchr(child_ref, '^') : NULL;
+    size_t topic_len = sep? (size_t)(sep - child_ref) : 0;
+    const char *child_id = sep? sep + 1 : "";
+    if(!sep || topic_len == 0 || topic_len >= topic_name_size ||
+            empty_string(child_id) || strlen(child_id) >= id_size) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Wrong child reference: must be \"child_topic_name^child_id\", neither empty, the id of RECORD_KEY_VALUE_MAX - 1 bytes at most",
+            "child_ref",    "%s", child_ref? child_ref : "",
+            NULL
+        );
+        return FALSE;
+    }
+
+    snprintf(topic_name, topic_name_size, "%.*s", (int)topic_len, child_ref);
+    snprintf(id, id_size, "%s", child_id);
+    return TRUE;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int export_treedb(
@@ -6028,8 +6113,22 @@ PRIVATE int export_treedb(
 
     json_decref(topics_list);
 
-    json_dump_file(jn_db, path, JSON_INDENT(4));
+    int ret = json_dump_file(jn_db, path, JSON_INDENT(4));
+    int err = errno;
     json_decref(jn_db);
+    if(ret < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot write the export of the treedb",
+            "treedb_name",  "%s", priv->treedb_name,
+            "path",         "%s", path,
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
+            NULL
+        );
+        return -1;
+    }
 
     return 0;
 }

@@ -1486,14 +1486,24 @@ update — an editor saving a column appended a second one instead of changing
 it. `migrate_schema_ids_to_qualified()` in
 [`c_treedb.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_treedb.c) moves a projection made that way, node by node, content
 and all, when a store written with an older meta-schema is opened. That
-moves ids and re-projects nothing. The move can die at any write and be run
-again: a qualified copy already there is taken (and linked, when it is not),
-a legacy column is deleted once its copy is linked, and a legacy topic once
-every column of it moved. The treedb node keeps its old meta-schema version
-until a projection stamps it, so the next open runs the move again and
-completes it. (Until this release a move that died left a qualified copy
-that the next move failed to create, *"Node already exists"*, and the legacy
-node stayed.)
+moves ids and re-projects nothing. It runs FIRST, before anything reads the
+projection (the record of the upgrade below compares the ids of the tree
+with the ids a schema declares, and a rowid id is declared by none). The move
+can die at any write and be run again: a qualified copy already there is
+taken (and linked, when it is not), a legacy column is deleted once its copy
+is linked, and a legacy topic once every column of it moved. The treedb node
+keeps its old meta-schema version until a projection stamps it, so the next
+open runs the move again and completes it. A move in which a write FAILS
+(logged) says so, WARNING *"TreeDB schema ids moved to qualified names only
+in part: nothing is projected at this open, every open retries the move,
+save-schema refuses until then"*, and the open projects nothing: the node
+keeps its old meta-schema version and the projection is recorded as
+unfinished (`not_written` names the treedb), so the next open moves the rest.
+(Until this release a move that died left a qualified copy that the next move
+failed to create, *"Node already exists"*, and the legacy node stayed; and a
+move with a failed write was followed by the projection of the same open,
+whose stamp raised the meta-schema version, so no later open moved what was
+left and the projection deleted it as a topic no schema declares.)
 
 The keying is also why the descriptor used to validate a *user* column is
 derived, not copied, from that topic: `_treedb_create_topic_cols_desc()`
@@ -1675,7 +1685,12 @@ A literal that is not higher is not installed. The log tells why:
   dynamic schema in use but another content: NOT applied, raise its
   schema_version to publish it"*, with the flat diff, at every open until the
   literal moves on. The comparison is of CONTENT: cols listed or keyed by
-  name, each carrying its `id` or not, are the same schema.
+  name, each carrying its `id` or not, are the same schema. It is the classic
+  mistake: a column added to the literal without raising its
+  `schema_version`, over a file that came from the literal of that number.
+  (Until this release it was compared only when `__system__`'s
+  `c_schema_version` was another number, and in that case it is the same
+  number: nothing was said, and the column reached nothing.)
 
 For example, the developer removes the topic `departments` and the fkey of
 `users` to it, and raises the versions:
@@ -2162,8 +2177,13 @@ left it:
   *"Removed from __system__ what an older release left there: no schema of
   the treedb declares it..."* with `topics` and `ids`. An edit of it after
   the upgrade (a header, a move, an unlink) makes it the operator's: a
-  draft like any other, reported `"unsaved"`. A save that declares it
-  (`save-schema`) makes it the operator's too.
+  draft like any other, reported `"unsaved"`, and `save-schema` publishes
+  it. As it was found, `save-schema` leaves it out of what it compares and
+  writes, as `saved-schema` leaves it out of `draft_changed`, and names its
+  ids in `left_by_older_release`: a save never publishes it on its own.
+  (Until this release the first `save-schema` after the upgrade wrote the
+  whole tree, so it published what 7.25.4 left, and the next `apply-schema`
+  put it back in the treedb.)
 
 For example, v1 declared `users` (`id`, `username`, `email`) and
 `departments`; 7.25.4 opened v2, which drops `departments` and `users.email`,
@@ -2180,6 +2200,19 @@ answers `draft_changed: {}` and writes:
  "topics": {"treedb_x.departments": "departments", "treedb_x.users.email": "users", ...},
  "system_schema_version": 18}
 ```
+
+Between the two opens, a save with no edit has nothing to save, and names
+what it left out:
+
+```
+command-yuno id=<id> service=treedbs command=save-schema treedb_name=treedb_x
+```
+
+answers `0` *"<role^name>: nothing to save, the draft of 'treedb_x' is the
+schema in use"* with `"left_by_older_release": ["treedb_x.departments",
+"treedb_x.departments.id", "treedb_x.departments.name", "treedb_x.users.email"]`.
+After an edit of `users.username`, the save publishes `users` at
+`topic_version` 3 WITHOUT `email`, and no `departments`.
 
 The open with v3 removes them and answers `withdrawn_at_open: {"schema_version":
 3, "saved_schema_version": 0, "topics": {"departments": "left_by_older_release",
@@ -2304,6 +2337,21 @@ literal, and `0` otherwise, and that open says the tie or *"behind"* as any
 other open does. (In 7.25.4 it was the file's number, so after a
 `delete-treedb` of a treedb running a dynamic schema, the tie with a literal
 of the same number was never said.)
+
+The file may hold its topics as a DICT keyed by name, as the file in use of a
+node opened with `impose_c_schema` off before the draft model does:
+
+```json
+{"id": "treedb_x", "schema_version": 2,
+ "topics": {"users": {"pkey": "id", "topic_version": 2, "cols": {...}}}}
+```
+
+A seed from it, and the completion of an unfinished projection from it,
+project every topic the same as from a list (the topic takes its name as
+`id` when it carries none). (Until this release the projector read the topics
+as a list only: from such a file it wrote no topic and stamped the projection
+complete, and the missing topics then read as the operator's deletion in
+`draft_changed`.)
 
 **`__system__`'s `schema_version` never goes down** (new after 7.25.4). A
 literal can be higher than the file and lower than `__system__`, where a
@@ -2611,7 +2659,11 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    draft's own number, when it is already ahead: a number of `__system__` never
    goes down), the numbers are written into `__system__`, and the schema is
    written to `saved_schemas/X.treedb_schema.json` under the `__system__`
-   tranger — **never** over the file in use. A second save of the same draft
+   tranger — **never** over the file in use. It is written WHOLE, as the
+   records beside it: a temporary `X.treedb_schema.json.new`, flushed, renamed
+   over the old file, so a save that dies or finds the disk full leaves the
+   pending save as it was (until this release the file was truncated and
+   rewritten in place, and such a save left a torn file). A second save of the same draft
    publishes the same numbers. `dry_run=1` answers the schema it would write
    and writes nothing (the GUI's *export as C literal* uses it). The saved
    schema reads like a literal: no empty attributes, no `_geometry`, no
@@ -2900,8 +2952,9 @@ with *"its last open-treedb did not open it, and its services are still
 there. close-treedb it first, then delete-treedb"*. It
 also removes, from `saved_schemas/`, the treedb's saved schema
 (`<treedb>.treedb_schema.json`), the record of an apply not opened yet
-(`<treedb>.applied.json`) and the record of an unfinished projection
-(`<treedb>.unfinished.json`):
+(`<treedb>.applied.json`), the record of an unfinished projection
+(`<treedb>.unfinished.json`) and the record of the upgrade
+(`<treedb>.upgrade.json`):
 
 ```
 command-yuno id=<id> service=treedbs command=close-treedb treedb_name=treedb_foo force=1

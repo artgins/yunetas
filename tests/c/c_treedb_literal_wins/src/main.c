@@ -27,7 +27,11 @@
 #define MEM_MIN_BLOCK           0
 #define MEM_MAX_BLOCK           0
 #define MEM_SUPERBLOCK          0
-#define MEM_MAX_SYSTEM_MEMORY   0
+/*
+ *  The __system__ of ~90 scenarios stays in memory for the whole run: the
+ *  default 64 MB was reached by the late scenarios
+ */
+#define MEM_MAX_SYSTEM_MEMORY   (256*1024*1024L)
 
 /***************************************************************************
  *                      Default config
@@ -513,6 +517,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    M_TIE,      /*  the file ties with the literal and has another content (none)  */
     "No topics found",
 
     /*  UNF2: a snapshot holds departments, v2 leaves it (unfinished), the
@@ -631,6 +636,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    M_TIE,      /*  the file ties with the literal and has another content (none)  */
     "No topics found",
 
     /*  DEL unsaved (tw_n7u): the operator deletes departments; a newer
