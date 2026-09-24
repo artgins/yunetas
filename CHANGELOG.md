@@ -621,6 +621,13 @@ with their spread, are in `performance/c/README.md`.
   1 s, and frees the rest with an ERROR (*"Loop destroyed with events whose
   completions did not come: freed"*); in 7.25.4 they leaked, or were freed while
   the kernel still had their operation.
+- A connect binds its `src_url`, and a bad one is an error: in 7.25.4
+  `yev_create_connect_event()` / `yev_rearm_connect_event()` never parsed it,
+  so the socket got a port the kernel picked and any `src_url`, good or bad,
+  was ignored with no log. It can be `"host:port"`, `"[ipv6]:port"` or
+  `"schema://host:port"`, resolved in the family of the destination; a bad one,
+  a failed resolution or a failed bind is logged and the connect gets no socket.
+  That error path no longer leaks the destination addresses.
 
 ### Agent, gobj-c and tools
 
