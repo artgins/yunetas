@@ -71,6 +71,8 @@ typedef struct node_write_s {
     size_t hook_pos;            // the place of the node in that parent's hook before
     json_t *hook_holder;        // owned or NULL: the instance of that parent that held it
     json_t *hook_positions;     // owned or NULL: {ref: [place before, holder]} of the other ones
+    json_t *other_holders;      // owned or NULL: [[ref, holder, place before]] of the OTHER
+                                // instances of a parent an unlink took the node out of
 } node_write_t;
 
 /***************************************************************
@@ -143,7 +145,15 @@ PRIVATE void drop_child_from_other_instances(
     const char *hook_name,
     json_t *parent_done,
     json_t *child_node,
-    const char *child_id
+    const char *child_id,
+    node_write_t *write,
+    const char *pref
+);
+PRIVATE void put_child_in_hook_place(
+    json_t *parent_node,
+    const char *hook_name,
+    json_t *child_node,
+    size_t pos
 );
 PRIVATE int _link_nodes(
     hgobj gobj,
@@ -4967,6 +4977,60 @@ PRIVATE BOOL dict_hook_slot_taken(
 }
 
 /***************************************************************************
+ *  Take `child_node` out of the hook `hook_name` of `holder`, if it is
+ *  there. `write` (optional) keeps the holder and the place, to put the
+ *  child back if the write is taken back (put_child_back_in_other_instances()).
+ ***************************************************************************/
+PRIVATE void drop_child_from_holder(
+    json_t *holder,         // NOT owned
+    const char *hook_name,
+    json_t *child_node,     // NOT owned
+    const char *child_id,
+    node_write_t *write,    // optional
+    const char *pref
+)
+{
+    json_t *hook_data = json_object_get(holder, hook_name);
+    size_t pos = 0;
+    BOOL found = FALSE;
+    if(json_is_array(hook_data)) {
+        size_t size = json_array_size(hook_data);
+        for(size_t i = 0; i < size; i++) {
+            if(json_array_get(hook_data, i) == child_node) {
+                json_array_remove(hook_data, i);
+                pos = i;
+                found = TRUE;
+                break;
+            }
+        }
+    } else if(json_is_object(hook_data)) {
+        if(json_object_get(hook_data, child_id) == child_node) {
+            if(write) {
+                const char *key; json_t *v;
+                json_object_foreach(hook_data, key, v) {
+                    if(strcmp(key, child_id)==0) {
+                        break;
+                    }
+                    pos++;
+                }
+            }
+            json_object_del(hook_data, child_id);
+            found = TRUE;
+        }
+    }
+    if(found && write) {
+        if(!write->other_holders) {
+            write->other_holders = json_array();
+        }
+        json_t *kept = json_array();
+        json_array_append_new(kept, json_string(pref));
+        json_array_append(kept, holder);
+        json_array_append_new(kept, json_integer((json_int_t)pos));
+        json_array_append_new(write->other_holders, kept);
+    }
+}
+
+/***************************************************************************
  *  A child's fkey names the parent's ID, not one of its instances, so
  *  every instance of the parent may hook it (the agent's create-yuno of a
  *  new release). An unlink clears that ref: take the child out of the
@@ -4974,6 +5038,11 @@ PRIVATE BOOL dict_hook_slot_taken(
  *  hooked by a parent it no longer names, which could then be neither
  *  unlinked nor deleted, even with force, until a reload (up to
  *  7.24.1).
+ *
+ *  `write` (optional) keeps every instance the child is taken out of, and
+ *  its place there: a take-back puts it back into all of them, not only
+ *  into the instance it was unlinked from. Nothing is kept when no other
+ *  instance held the child, which is the common case.
  ***************************************************************************/
 PRIVATE void drop_child_from_other_instances(
     hgobj gobj,
@@ -4984,13 +5053,14 @@ PRIVATE void drop_child_from_other_instances(
     const char *hook_name,
     json_t *parent_done,    // NOT owned, the instance already unhooked
     json_t *child_node,     // NOT owned
-    const char *child_id
+    const char *child_id,
+    node_write_t *write,    // optional: keeps the instances and places it frees
+    const char *pref        // the parent ref of the unlink
 )
 {
-    json_t *holders = json_array();
     json_t *primary = treedb_get_node(tranger, treedb_name, parent_topic_name, parent_id);
-    if(primary) {
-        json_array_append(holders, primary);
+    if(primary && primary != parent_done) {
+        drop_child_from_holder(primary, hook_name, child_node, child_id, write, pref);
     }
     json_t *iter_pkey2s = treedb_topic_pkey2s(tranger, parent_topic_name);
     int idx; json_t *jn_pkey2_name;
@@ -5005,32 +5075,69 @@ PRIVATE void drop_child_from_other_instances(
         json_t *instances = indexy? json_object_get(indexy, parent_id) : NULL;
         const char *key2; json_t *instance;
         json_object_foreach(instances, key2, instance) {
-            json_array_append(holders, instance);
+            if(instance != parent_done) {
+                drop_child_from_holder(instance, hook_name, child_node, child_id, write, pref);
+            }
         }
     }
     json_decref(iter_pkey2s);
+}
 
-    json_t *holder;
-    json_array_foreach(holders, idx, holder) {
-        if(holder == parent_done) {
+/***************************************************************************
+ *  Put `child_node` back into the OTHER instances of the parent `ref`
+ *  that an unlink of the write took it out of (drop_child_from_holder()),
+ *  each one in its place, the last one taken out first. Return how many
+ *  could not be put back (each one logged).
+ ***************************************************************************/
+PRIVATE int put_child_back_in_other_instances(
+    hgobj gobj,
+    node_write_t *write,
+    const char *ref,
+    const char *hook_name,
+    json_t *child_node      // NOT owned
+)
+{
+    int failed = 0;
+    const char *child_id = json_string_value(json_object_get(child_node, "id"));
+    for(size_t i = json_array_size(write->other_holders); i-- > 0; ) {
+        json_t *kept = json_array_get(write->other_holders, i);
+        if(strcmp(json_string_value(json_array_get(kept, 0)), ref)!=0) {
             continue;
         }
-        json_t *hook_data = kw_get_dict_value(gobj, holder, hook_name, 0, 0);
+        json_t *holder = json_array_get(kept, 1);
+        size_t pos = (size_t)json_integer_value(json_array_get(kept, 2));
+        json_t *hook_data = json_object_get(holder, hook_name);
         if(json_is_array(hook_data)) {
-            size_t i = json_array_size(hook_data);
-            while(i > 0) {
-                i--;
-                if(json_array_get(hook_data, i) == child_node) {
-                    json_array_remove(hook_data, i);
+            size_t size = json_array_size(hook_data);
+            BOOL present = FALSE;
+            for(size_t k = 0; k < size; k++) {
+                if(json_array_get(hook_data, k) == child_node) {
+                    present = TRUE;
+                    break;
                 }
             }
-        } else if(json_is_object(hook_data)) {
-            if(json_object_get(hook_data, child_id) == child_node) {
-                json_object_del(hook_data, child_id);
+            if(!present) {
+                json_array_insert(hook_data, pos < size? pos : size, child_node);
+            }
+        } else if(json_is_object(hook_data) && child_id) {
+            json_t *current = json_object_get(hook_data, child_id);
+            if(!current) {
+                json_object_set(hook_data, child_id, child_node);
+                put_child_in_hook_place(holder, hook_name, child_node, pos);
+            } else if(current != child_node) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "Cannot put a child back into an instance of its parent: its slot in the dict hook holds another node",
+                    "parent_ref",   "%s", ref,
+                    "child_id",     "%s", child_id,
+                    NULL
+                );
+                failed++;
             }
         }
     }
-    json_decref(holders);
+    return failed;
 }
 
 /***************************************************************************
@@ -7070,6 +7177,7 @@ PRIVATE void init_node_write(node_write_t *write)
     write->hook_pos = 0;
     write->hook_holder = NULL;
     write->hook_positions = NULL;
+    write->other_holders = NULL;
 }
 
 PRIVATE void begin_node_write(hgobj gobj, json_t *tranger, json_t *node, node_write_t *write)
@@ -7442,10 +7550,11 @@ PRIVATE int restore_node_fkey(
         }
         if(_link_nodes(gobj, tranger, hook_name, parent_node, node, NULL, NULL)<0) {
             failed++;   // Error already logged
-            continue;
-        }
-        if(pos >= 0) {
+        } else if(pos >= 0) {
             put_child_in_hook_place(parent_node, hook_name, node, (size_t)pos);
+        }
+        if(write->other_holders) {
+            failed += put_child_back_in_other_instances(gobj, write, ref, hook_name, node);
         }
     }
     JSON_DECREF(new_refs)
@@ -7529,6 +7638,7 @@ PRIVATE void close_node_write(hgobj gobj, json_t *tranger, node_write_t *write, 
     JSON_DECREF(write->absent)
     JSON_DECREF(write->hook_holder)
     JSON_DECREF(write->hook_positions)
+    JSON_DECREF(write->other_holders)
 }
 
 /***************************************************************************
@@ -10235,7 +10345,7 @@ PRIVATE int _unlink_nodes(
     if(!is_child_hook) {
         drop_child_from_other_instances(
             gobj, tranger, treedb_name, parent_topic_name, parent_id, hook_name,
-            parent_node, child_node, child_id
+            parent_node, child_node, child_id, write, pref
         );
     }
 

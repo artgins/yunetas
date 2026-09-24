@@ -1527,6 +1527,144 @@ PRIVATE int test_take_back_into_its_instance(void)
 }
 
 /***************************************************************************
+ *  A take-back puts the child back into EVERY instance of the parent that
+ *  held it. A ref names the parent's id, so the two instances P/v1 and
+ *  P/v2 hold the same children; an unlink from one of them takes the
+ *  child out of the other one too. When the save fails, both instances
+ *  must hold the child again, in its place.
+ ***************************************************************************/
+PRIVATE int test_take_back_into_every_instance(void)
+{
+    int result = 0;
+    const char *test = "a take-back puts the child back into every instance that held it";
+    char path_database_v[PATH_MAX];
+    build_path(path_database_v, sizeof(path_database_v), path_root, DATABASE_V, NULL);
+    rmrdir(path_database_v);
+
+    set_expected_results(test, json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        "msg", "Creating __timeranger2__.json",
+        "msg", "Creating TreeDB schema file",
+        "msg", "Creating topic",
+        "msg", "Creating topic",
+        "msg", "Creating topic",
+        "msg", "Creating topic",
+        "msg", "Creating topic",
+        "msg", "Parent ref already in child fkey, skipping duplicate"   // x in the tags of P/v2
+    ), NULL, NULL, 1);
+    json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", DATABASE_V,
+        "master", 1,
+        "on_critical_error", 0
+    ), 0);
+    helper_quote2doublequote(schema_versions);
+    json_t *jn_schema = legalstring2json(schema_versions, TRUE);
+    if(!jn_schema || !treedb_open_db(tranger, TREEDB_NAME_V, jn_schema, "persistent")) {
+        tranger2_shutdown(tranger);
+        return fail(test, "cannot open the treedb", NULL);
+    }
+    treedb_set_callback(tranger, TREEDB_NAME_V, treedb_callback, NULL, TREEDB_CALLBACK_LINK_EVENTS);
+
+    #define ITEM_(id) treedb_get_node(tranger, TREEDB_NAME_V, "items", id)
+    treedb_create_node(tranger, TREEDB_NAME_V, "versions",
+        json_pack("{s:s, s:s}", "id", "P", "version", "v1"));
+    treedb_create_node(tranger, TREEDB_NAME_V, "versions",
+        json_pack("{s:s, s:s}", "id", "P", "version", "v2"));
+    const char *items_[] = {"x", "w", "y", NULL};
+    for(int i = 0; items_[i]; i++) {
+        treedb_create_node(tranger, TREEDB_NAME_V, "items", json_pack("{s:s}", "id", items_[i]));
+    }
+    json_t *v1 = treedb_get_instance(tranger, TREEDB_NAME_V, "versions", "version", "P", "v1");
+    json_t *v2 = treedb_get_instance(tranger, TREEDB_NAME_V, "versions", "version", "P", "v2");
+    if(!v1 || !v2 || v1 == v2 ||
+            treedb_get_node(tranger, TREEDB_NAME_V, "versions", "P") != v1 ||
+            treedb_link_nodes(tranger, "items", v1, ITEM_("x")) < 0 ||
+            treedb_link_nodes(tranger, "items", v2, ITEM_("w")) < 0 ||
+            treedb_link_nodes(tranger, "items", v2, ITEM_("x")) < 0 ||
+            treedb_link_nodes(tranger, "tags", v2, ITEM_("y")) < 0 ||
+            treedb_link_nodes(tranger, "tags", v1, ITEM_("x")) < 0 ||
+            treedb_link_nodes(tranger, "tags", v2, ITEM_("x")) < 0) {
+        result += fail(test, "setup failed", NULL);
+    }
+    result += check_hook_order(test, v1, "items", json_pack("[s]", "x"));
+    result += check_hook_order(test, v2, "items", json_pack("[s,s]", "w", "x"));
+    result += check_hook_order(test, v1, "tags", json_pack("[s]", "x"));
+    result += check_hook_order(test, v2, "tags", json_pack("[s,s]", "y", "x"));
+    result += test_json(NULL);
+
+    /*
+     *  An unlink of x from P/v1 whose save fails (list hook, single fkey):
+     *  P/v2 held x too, and holds it again, in its place
+     */
+    set_expected_results(test, json_pack("[{s:s}]",
+        "msg", "Cannot append record, write FAILED"
+    ), NULL, NULL, 1);
+    build_path(fail_writes_key, sizeof(fail_writes_key) - 1, path_database_v, "items", "keys", "x", NULL);
+    strcat(fail_writes_key, "/");
+    events_told = 0;
+    int ret = treedb_unlink_nodes(tranger, "items", v1, ITEM_("x"));
+    fail_writes_of_key(NULL, NULL, 0);
+    if(ret >= 0 || events_told) {
+        result += fail(test, "the failed unlink answered success, or told events", NULL);
+    }
+    result += check_hook_order(test, v1, "items", json_pack("[s]", "x"));
+    result += check_hook_order(test, v2, "items", json_pack("[s,s]", "w", "x"));
+    result += test_json(NULL);
+
+    /*
+     *  The same through the dict hook (list fkey)
+     */
+    set_expected_results(test, json_pack("[{s:s}]",
+        "msg", "Cannot append record, write FAILED"
+    ), NULL, NULL, 1);
+    build_path(fail_writes_key, sizeof(fail_writes_key) - 1, path_database_v, "items", "keys", "x", NULL);
+    strcat(fail_writes_key, "/");
+    events_told = 0;
+    ret = treedb_unlink_nodes(tranger, "tags", v1, ITEM_("x"));
+    fail_writes_of_key(NULL, NULL, 0);
+    if(ret >= 0 || events_told) {
+        result += fail(test, "the failed unlink of a dict hook answered success, or told events", NULL);
+    }
+    result += check_hook_order(test, v1, "tags", json_pack("[s]", "x"));
+    result += check_hook_order(test, v2, "tags", json_pack("[s,s]", "y", "x"));
+    result += test_json(NULL);
+
+    /*
+     *  A forced delete of P/v1 refused (the save of w fails): P/v2 keeps
+     *  every child it held, in its place
+     */
+    if(treedb_link_nodes(tranger, "items", v1, ITEM_("w")) < 0) {
+        result += fail(test, "setup of the delete failed", NULL);
+    }
+    result += check_hook_order(test, v1, "items", json_pack("[s,s]", "x", "w"));
+    result += check_hook_order(test, v2, "items", json_pack("[s,s]", "w", "x"));
+    set_expected_results(test, json_pack("[{s:s}, {s:s}]",
+        "msg", "Cannot append record, write FAILED",
+        "msg", "Cannot delete node: still has down links"
+    ), NULL, NULL, 1);
+    build_path(fail_writes_key, sizeof(fail_writes_key) - 1, path_database_v, "items", "keys", "w", NULL);
+    strcat(fail_writes_key, "/");
+    events_told = 0;
+    ret = treedb_delete_node(tranger, v1, json_pack("{s:b}", "force", 1));
+    fail_writes_of_key(NULL, NULL, 0);
+    if(ret >= 0 || events_told) {
+        result += fail(test, "the refused delete answered success, or told events", NULL);
+    }
+    result += check_hook_order(test, v1, "items", json_pack("[s,s]", "x", "w"));
+    result += check_hook_order(test, v2, "items", json_pack("[s,s]", "w", "x"));
+    result += check_hook_order(test, v1, "tags", json_pack("[s]", "x"));
+    result += check_hook_order(test, v2, "tags", json_pack("[s,s]", "y", "x"));
+    result += test_json(NULL);
+    #undef ITEM_
+
+    json_check_refcounts(tranger, 1000, &result);
+    treedb_close_db(tranger, TREEDB_NAME_V);
+    tranger2_shutdown(tranger);
+    rmrdir(path_database_v);
+    return result;
+}
+
+/***************************************************************************
  *              Test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -1696,6 +1834,8 @@ PRIVATE int do_test(void)
     result += test_too_many_active_snaps();
 
     result += test_take_back_into_its_instance();
+
+    result += test_take_back_into_every_instance();
 
     return result;
 }
