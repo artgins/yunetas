@@ -69,7 +69,10 @@ The test drives `C_TREEDB` through its own commands and checks:
    `saved-schema` and `treedbs`, per topic `applied` (an apply that never
    ran), `in_use` (an apply that ran), `saved` or `unsaved`, and nothing for a save taken back. A literal
    that changes a topic without raising its `topic_version` leaves the store
-   running its own columns, and a warning says so. A saved file that cannot
+   running its own columns, and a warning says so; after that, while the
+   file runs, every open says that the store runs `departments` AHEAD of the
+   file (*"Schema file in use declares other columns than the store runs, at
+   a topic_version behind the store's ..."*). A saved file that cannot
    be read is `broken`, and the apply of every treedb leaves it out. The
    scenarios of that rule (a topic removed, renamed, added with a hook, a
    tie with an unopened apply) are in

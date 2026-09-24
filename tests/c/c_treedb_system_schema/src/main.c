@@ -331,8 +331,11 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
     /*  Test 13c: apply of all is all or none: A saved, B opened (+ its
-     *  three), B's saved schema does not parse, then A alone applied  */
+     *  three), B's saved schema does not parse, then A alone applied. The
+     *  file runs, and `departments` runs AHEAD of it (13b4 left the store
+     *  with its own): said at every open that runs the file  */
     "TreeDB schema from C is behind the schema in use, not applied",
+    "Schema file in use declares other columns than the store runs, at a topic_version behind the store's (a schema written whole over a topic the store had raised): the store runs its own, which only its topic_cols.json says; save the topic from __system__ and apply it, or raise its topic_version in the schema from C",
     "Schema saved",
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -348,6 +351,7 @@ PRIVATE const char *expected_log_msgs[] = {
     /*  ...and B's saved file cannot be READ: saved-schema says broken, the
      *  apply of all leaves B out and applies A  */
     "TreeDB schema from C is behind the schema in use, not applied",
+    "Schema file in use declares other columns than the store runs, at a topic_version behind the store's (a schema written whole over a topic the store had raised): the store runs its own, which only its topic_cols.json says; save the topic from __system__ and apply it, or raise its topic_version in the schema from C",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
     "Schema saved",
