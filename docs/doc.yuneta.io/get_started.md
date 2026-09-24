@@ -1,7 +1,7 @@
 # Get Started
 
 **Current version: [7.25.4](https://github.com/artgins/yunetas/tree/7.25.4)** ·
-*Documentation updated: 2026-09-23*
+*Documentation updated: 2026-09-24*
 
 Install Yuneta, prepare your build environment, and bring a node online.
 Start here if this is your first contact with the framework.
