@@ -561,6 +561,18 @@ PRIVATE void free_dying_events(yev_loop_t *yev_loop)
     if(sqe) {
         io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ALL|IORING_ASYNC_CANCEL_ANY);
         io_uring_sqe_set_data(sqe, &taken_back_event);
+    } else {
+        /*
+         *  Said here: the error at the end would otherwise blame the
+         *  accounting of the completions, for a cancel never sent.
+         */
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBURING,
+            "msg",          "%s", "Submission queue full: the cancel of the events left is NOT submitted, their completions may not come",
+            "events",       "%d", (int)yev_loop->dying_size,
+            NULL
+        );
     }
 
     uint64_t wait = start_msectimer(YEV_DYING_WAIT_MS);
@@ -594,6 +606,7 @@ PRIVATE void free_dying_events(yev_loop_t *yev_loop)
             "msgset",       "%s", MSGSET_LIBURING,
             "msg",          "%s", "Loop destroyed with events whose completions did not come: freed",
             "events",       "%d", (int)yev_loop->dying_size,
+            "cancel_submitted", "%d", sqe? 1: 0,
             "type",         "%s", yev_event_type_name(yev_loop->dying),
             "in_flight",    "%d", yev_loop->dying->in_flight,
             "wait_ms",      "%d", YEV_DYING_WAIT_MS,
@@ -1542,12 +1555,17 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
             break;
         }
 
-        if(gobj_posted_events_size() > 0) {
+        if(gobj_posted_events_size() > 0 || yev_loop->kept_cqes_size > 0) {
             /*
              *  There is work waiting: do not block on the ring, take a
              *  completion if one is ready and go back to the queue if not.
              *  Blocking here is what would turn a posted event into one
              *  delivered hours later, when some timer happened to fire.
+             *
+             *  So is a completion the loop made itself: a posted action
+             *  that stopped an event whose submission the kernel had not
+             *  taken (take_back_submissions). Up to 7.25.4 its STOPPED
+             *  waited here for an unrelated completion.
              */
             err = io_uring_peek_cqe(&yev_loop->ring, &cqe);
             if(err == -EAGAIN) {
@@ -2747,9 +2765,61 @@ PUBLIC int yev_start_timer_event(
 }
 
 /***************************************************************************
+ *  What a stop gives up, once the stop is going to happen: the gbuffer and
+ *  the fd of a connect or a timer.
+ *
+ *  An operation still in the kernel (a read, write, recvmsg or send that
+ *  runs, or a zero-copy send whose notification has not arrived) may still
+ *  write into the gbuffer or read from it until its completion: a cancel
+ *  is not done when it is submitted. The event keeps the gbuffer, and
+ *  callback_cqe releases it at the last completion of the event.
+ *
+ *  Called only when the stop goes on: a stop refused for lack of memory
+ *  (get_sqe) leaves the event RUNNING, and it must keep both.
+ ***************************************************************************/
+PRIVATE void release_on_stop(yev_event_t *yev_event, hgobj gobj, uint32_t trace_level)
+{
+    if(yev_event->gbuf && yev_event->in_flight > 0) {
+        yev_event->gbuf_release_pending = TRUE;
+    } else {
+        GBUFFER_DECREF(yev_event->gbuf)
+    }
+
+    switch((yev_type_t)yev_event->type) {
+        case YEV_READ_TYPE:
+        case YEV_WRITE_TYPE:
+        case YEV_RECVMSG_TYPE:
+        case YEV_SENDMSG_TYPE:
+        case YEV_ACCEPT_TYPE:
+        case YEV_POLL_TYPE:
+            break;
+        case YEV_CONNECT_TYPE:
+        case YEV_TIMER_TYPE:
+            // Each connection needs a new socket fd, i.e., after each disconnection.
+            // The timer (once) if it's in idle can be reused, if stopped you must create one new.
+            if(yev_event->fd > 0) {
+                if(trace_level & (TRACE_URING)) {
+                    gobj_log_debug(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_YEV_LOOP,
+                        "msg",          "%s", "close socket",
+                        "msg2",         "%s", "💥🟥 close socket",
+                        "fd",           "%d", yev_event->fd ,
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                }
+                close(yev_event->fd);
+                yev_event->fd = -1;
+            }
+            break;
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,accept,connect)
+PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer, connect)
 {
     yev_event_t *yev_event = (yev_event_t *)yev_event_;
 
@@ -2794,54 +2864,6 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
         json_decref(jn_flags);
     }
 
-    /*---------------------------*
-     *      Free
-     *  An operation still in the kernel (a read, write, recvmsg or send
-     *  that runs, or a zero-copy send whose notification has not arrived)
-     *  may still write into the gbuffer or read from it until its
-     *  completion: a cancel is not done when it is submitted. The event
-     *  keeps the gbuffer, and callback_cqe releases it at the last
-     *  completion of the event, before the callback.
-     *---------------------------*/
-    if(yev_event->gbuf && yev_event->in_flight > 0) {
-        yev_event->gbuf_release_pending = TRUE;
-    } else {
-        GBUFFER_DECREF(yev_event->gbuf)
-    }
-
-    /*-------------------------------*
-     *      stopping
-     *-------------------------------*/
-    switch((yev_type_t)yev_event->type) {
-        case YEV_READ_TYPE:
-        case YEV_WRITE_TYPE:
-        case YEV_RECVMSG_TYPE:
-        case YEV_SENDMSG_TYPE:
-        case YEV_ACCEPT_TYPE:
-        case YEV_POLL_TYPE:
-            break;
-        case YEV_CONNECT_TYPE:
-        case YEV_TIMER_TYPE:
-            // Each connection needs a new socket fd, i.e., after each disconnection.
-            // The timer (once) if it's in idle can be reused, if stopped you must create one new.
-            if(yev_event->fd > 0) {
-                if(trace_level & (TRACE_URING)) {
-                    gobj_log_debug(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_YEV_LOOP,
-                        "msg",          "%s", "close socket",
-                        "msg2",         "%s", "💥🟥 close socket",
-                        "fd",           "%d", yev_event->fd ,
-                        "p",            "%p", yev_event,
-                        NULL
-                    );
-                }
-                close(yev_event->fd);
-                yev_event->fd = -1;
-            }
-            break;
-    }
-
     /*-------------------------------*
      *      Checking state
      *-------------------------------*/
@@ -2855,13 +2877,18 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
              *  completes it as a cancel
              */
             if(has_pending_submissions(yev_loop) && take_back_submissions(yev_loop, yev_event)) {
+                release_on_stop(yev_event, gobj, trace_level);
                 yev_set_state(yev_event, YEV_ST_CANCELING);
                 break;
             }
             sqe = get_sqe(yev_loop);
             if(!sqe) {
                 /*
-                 *  Still RUNNING: its operation is in the kernel, uncanceled
+                 *  Still RUNNING: its operation is in the kernel,
+                 *  uncanceled, with its gbuffer and its fd. Up to 7.25.4
+                 *  both were given up before this point: the operation
+                 *  then completed normally, with its gbuffer released
+                 *  and its fd closed.
                  */
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
@@ -2875,6 +2902,7 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
                 );
                 return -1;
             }
+            release_on_stop(yev_event, gobj, trace_level);
             track_submit(yev_event, sqe);
             io_uring_prep_cancel(sqe, yev_event, 0);
             io_uring_submit(&yev_loop->ring);
@@ -2882,6 +2910,7 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
             break;
 
         case YEV_ST_IDLE:
+            release_on_stop(yev_event, gobj, trace_level);
             yev_set_state(yev_event, YEV_ST_STOPPED);
             if(yev_event->type == YEV_CONNECT_TYPE) {
                 yev_set_flag(yev_event, YEV_FLAG_CONNECTED, false);
@@ -2903,6 +2932,7 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
         case YEV_ST_CANCELING:
         case YEV_ST_STOPPED:
             // "yev_event already stopped" Silence please
+            release_on_stop(yev_event, gobj, trace_level);   // IDEMPOTENT
             return -1;
     }
 

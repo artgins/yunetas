@@ -537,9 +537,31 @@ PRIVATE int write_data(hgobj gobj)
             gbuffer_getaddr(gbuf),      // it lives in the gbuffer, held by the event
             gbuffer_getaddrlen(gbuf)
         );
+        if(!yev_write_event) {
+            GBUFFER_DECREF(gbuf)    // Error already logged: the reference given to the event
+            return -1;
+        }
 
+        /*
+         *  A send that does not start (a gbuffer with no peer address, or
+         *  no memory to keep the submission: logged by yev_start_event)
+         *  will not complete: the callback never frees the event nor
+         *  counts it done. Up to 7.25.4 the event and its gbuffer leaked,
+         *  tx_in_progress never went back to 0 (the stop waited for ever)
+         *  and gbuf_txing held every later datagram in the queue.
+         */
+        if(yev_start_event(yev_write_event) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot send datagram: dropped",
+                "len",          "%d", (int)gbuffer_leftbytes(gbuf),
+                NULL
+            );
+            yev_destroy_event(yev_write_event);
+            return -1;
+        }
         priv->tx_in_progress++;
-        yev_start_event(yev_write_event);
     }
     return 0;
 }
@@ -557,17 +579,17 @@ PRIVATE void try_more_writes(hgobj gobj)
     GBUFFER_DECREF(priv->gbuf_txing)
 
     /*
-     *  Get the next tx msg
+     *  Get the next tx msg: a datagram that cannot be sent is dropped
+     *  (logged by write_data) and the next one is tried
      */
-    gbuffer_t *gbuf_txing = dl_first(&priv->dl_tx);
-    if(!gbuf_txing) {
-        /*
-         *  If no more publish tx ready.
-         */
-    } else {
+    gbuffer_t *gbuf_txing;
+    while((gbuf_txing = dl_first(&priv->dl_tx)) != NULL) {
         priv->gbuf_txing = gbuf_txing;
         dl_delete(&priv->dl_tx, gbuf_txing, 0);
-        write_data(gobj);
+        if(write_data(gobj) == 0) {
+            break;
+        }
+        GBUFFER_DECREF(priv->gbuf_txing)    // Error already logged
     }
 }
 
@@ -938,7 +960,13 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             break;
                         }
 
-                        if(gobj_in_this_state(gobj, ST_CONNECTED)) { // Avoid while doing handshaking
+                        /*
+                         *  The next datagram. Up to 7.25.4 this asked for
+                         *  ST_CONNECTED, a state C_UDP_S does not have: the
+                         *  first datagram was sent, and every later one
+                         *  waited in the queue for ever.
+                         */
+                        if(gobj_in_this_state(gobj, ST_IDLE)) {
                             try_more_writes(gobj);
                         }
                         yev_destroy_event(yev_event);
@@ -1169,7 +1197,9 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(!priv->gbuf_txing) {
         priv->gbuf_txing = gbuffer_incref(gbuf);
-        write_data(gobj);
+        if(write_data(gobj) < 0) {
+            try_more_writes(gobj);  // Error already logged: this one is dropped
+        }
     } else {
         enqueue_write(gobj, gbuffer_incref(gbuf));
     }

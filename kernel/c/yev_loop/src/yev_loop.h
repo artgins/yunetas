@@ -319,7 +319,7 @@ PUBLIC int yev_start_timer_event( // Create the handler fd for timer if not exis
 /*
  *  The timer (once) if it's in idle can be reused, if it's stopped, you must create one new.
  */
-PUBLIC int yev_stop_event(yev_event_h yev_event); // IDEMPOTENT close fd (timer,accept,connect,poll)
+PUBLIC int yev_stop_event(yev_event_h yev_event); // IDEMPOTENT close fd (timer, connect)
 
 
 /*

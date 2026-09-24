@@ -175,11 +175,17 @@ read) or read from it (a write). So the event keeps its gbuffer while it
 has a completion to come:
 
 - [`yev_stop_event()`](<#yev_stop_event>) does not release the gbuffer
-  of an event with a completion to come. The loop releases it at the last
-  completion of the event, **before** the callback.
-- The callback sees the event as before the change: `STOPPED`, with
-  `-ECANCELED` (or the error of the operation), and without gbuffer
-  (`yev_get_gbuf()` is `NULL`).
+  of an event with a completion to come. The loop releases it at the LAST
+  completion of the event. A cancel gives two completions, the cancel's own
+  and the operation's, and the callback runs at the first negative one.
+- In the usual order (the cancel's own completion, then the operation's
+  `-ECANCELED`) the gbuffer is released **before** the callback, which sees
+  the event `STOPPED`, with `-ECANCELED`, and without gbuffer
+  (`yev_get_gbuf()` is `NULL`). When the operation completes FIRST -- it
+  failed on its own before the cancel took effect (`-ECONNRESET`, then the
+  cancel's `-ENOENT`) -- the callback runs with the gbuffer still there, and
+  the loop releases it at the cancel's completion. A callback must not count
+  on either: it neither frees the gbuffer nor keeps it.
 - Between the stop and that completion, `yev_get_gbuf()` still returns
   the gbuffer. Do not free it and do not give it to another event.
 - [`yev_set_gbuffer()`](<#yev_set_gbuffer>) with `NULL` on such an event
@@ -194,7 +200,8 @@ A reader that connects again, as `C_TCP` does:
 PRIVATE int yev_callback(yev_event_h yev_event)
 {
     if(yev_get_state(yev_event) == YEV_ST_STOPPED) {
-        // yev_get_gbuf(yev_event) is NULL: the loop released it
+        // Do not free yev_get_gbuf(yev_event): the loop releases it, at the
+        // last completion of the event (usually before this callback)
         return 0;
     }
     ...
@@ -232,8 +239,15 @@ first:
   completions are reaped for 1 second at most, without callbacks.
 - An event whose completion did not come in that time is freed anyway,
   with an ERROR: *"Loop destroyed with events whose completions did not
-  come: freed"*. After a cancel, a completion that does not come is a
-  fault of the loop's accounting, not a slow kernel.
+  come: freed"*, whose `cancel_submitted` says whether the cancel was
+  sent. After a cancel, a completion that does not come is a fault of the
+  loop's accounting, not a slow kernel.
+- When the submission queue has no entry for that cancel (full, and the
+  kernel takes nothing), the loop says so before it waits: *"Submission
+  queue full: the cancel of the events left is NOT submitted, their
+  completions may not come"* (an ERROR). Then a completion that does not
+  come is expected, not a fault of the accounting. Up to 7.25.4 only the
+  final ERROR was logged, and it blamed the accounting.
 
 A yuno ends like this, and it needs nothing more:
 
@@ -723,7 +737,7 @@ This function does not return a value.
 **Notes**
 
 After calling `yev_loop_destroy()`, the `yev_loop_h` handle becomes invalid and must not be used.
-Before it closes the ring, it frees the destroyed events whose completions have not come: it cancels what the kernel still has, reaps the completions for 1 second at most (no callback is called), and frees what is left then with an ERROR *"Loop destroyed with events whose completions did not come: freed"*. See [The end of a loop](<#yev-loop-end-of-loop>).
+Before it closes the ring, it frees the destroyed events whose completions have not come: it cancels what the kernel still has, reaps the completions for 1 second at most (no callback is called), and frees what is left then with an ERROR *"Loop destroyed with events whose completions did not come: freed"*. When there is no submission entry for that cancel, it logs *"Submission queue full: the cancel of the events left is NOT submitted, their completions may not come"* first. See [The end of a loop](<#yev-loop-end-of-loop>).
 
 ```C
 yev_loop_stop(yev_loop);
@@ -787,7 +801,7 @@ Returns 0 on successful execution, or -1 if an error occurs.
 
 If a callback function returns -1, the loop will break and exit early.
 
-Every cycle begins with [`gobj_deliver_posted_events()`](../gobj/events_state.md#gobj_deliver_posted_events), which delivers what the gobjs posted with [`gobj_post_event()`](../gobj/events_state.md#gobj_post_event). It happens before the completions, so an event posted while the loop was not yet running does not wait for a completion that may never arrive. While messages are pending the loop does not block on the ring: it takes a completion if one is ready, and returns to the queue if not.
+Every cycle begins with [`gobj_deliver_posted_events()`](../gobj/events_state.md#gobj_deliver_posted_events), which delivers what the gobjs posted with [`gobj_post_event()`](../gobj/events_state.md#gobj_post_event). It happens before the completions, so an event posted while the loop was not yet running does not wait for a completion that may never arrive. While messages are pending, or the loop holds a completion it made itself (a stop that took back a submission the kernel had not taken, see [`yev_stop_event()`](<#yev_stop_event>)), the loop does not block on the ring: it takes a completion if one is ready, and returns to the queue if not. Up to 7.25.4 only the messages counted: a posted action that stopped such an event left its `STOPPED` waiting for an unrelated completion.
 
 ---
 
@@ -994,14 +1008,20 @@ Returns `0` on success, or `-1` if an error occurs.
 
 **Notes**
 
-If the event is a `connect`, `timer`, or `accept` event, the associated socket will be closed.
+If the event is a `connect` or a `timer` event, its fd is closed. The fd of an `accept` event (the listening socket) is never closed by a stop: it belongs to its owner.
 If the event is in an idle state, it can be reused. Otherwise, a new event must be created.
 A `RUNNING` event whose submission the kernel did not take yet, kept by the loop or still in the submission queue (see [A full submission queue](<#yev-loop-full-submission-queue>)), is not canceled in the kernel: the submission is taken back, so it never runs on the closed fd, and the callback gets the event `STOPPED` with result `-ECANCELED` at the next cycle, as after a cancel.
-The gbuffer of an event with a completion to come is released at that completion, before the callback, not by the stop. See [A stop keeps the gbuffer](<#yev-loop-stop-keeps-gbuffer>).
+The gbuffer of an event with a completion to come is released at its LAST completion, not by the stop. See [A stop keeps the gbuffer](<#yev-loop-stop-keeps-gbuffer>).
+A take-back made by a posted action (`gobj_post_event()`) is delivered at the next cycle too: the loop does not block while it holds a completion of its own. Up to 7.25.4 it could block, and the `STOPPED` waited for an unrelated completion.
+
+`-1` without memory for the cancel (the submission queue full, the kernel taking nothing, and no memory to keep the submission): *"No memory to keep a submission: event NOT canceled"*. The event is left exactly as it was -- `RUNNING`, with its gbuffer and its fd -- and its operation completes normally later, with its callback. Up to 7.25.4 the stop had already scheduled the release of the gbuffer and closed the fd of a timer or a connect: the read completed as `IDLE` with a result and no gbuffer.
+
+A stop does not reach the callback of an event that is `IDLE` and not a timer (it becomes `STOPPED` at once), of an `IDLE` zero-copy send whose notification is still to come, and of a `RUNNING` event stopped by `yev_destroy_event()` while the loop is stopping (its callback is dropped). An `IDLE` timer gets its callback at once, `STOPPED` with `-ECANCELED`.
 
 ```C
 yev_stop_event(yev_reading);    // the read is canceled; its gbuffer waits for the completion
-// ... the callback gets yev_reading STOPPED, -ECANCELED, yev_get_gbuf() == NULL
+// ... the callback gets yev_reading STOPPED, -ECANCELED; the gbuffer is released
+//     at the last completion (usually before the callback: yev_get_gbuf() == NULL)
 ```
 
 ---

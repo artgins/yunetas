@@ -102,13 +102,41 @@ UDP client transport — send and receive datagrams.
 (gclass-c-udp-s)=
 ## C_UDP_S
 
-UDP server — listens for datagrams on a configured URL.
+UDP server — listens for datagrams on a configured URL, and sends datagrams
+to the peer each gbuffer names.
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_IDLE` |
-| **Input events** | `EV_RX_DATA`, `EV_TX_DATA`, `EV_STOPPED` |
-| **Output events** | `EV_RX_DATA` |
+| **States** | `ST_STOPPED`, `ST_WAIT_STOPPED` (a stop waiting for its sends), `ST_IDLE` |
+| **Input events** | `EV_TX_DATA` (in `ST_IDLE`) |
+| **Output events** | `EV_RX_DATA` (the gbuffer carries the peer address) |
+
+### Transmit
+
+`EV_TX_DATA` carries a gbuffer whose peer address was set with
+`gbuffer_setaddr()` -- the gbuffer of an `EV_RX_DATA` has it already, so an
+answer goes back to the sender. One datagram is sent at a time; the others
+wait in a queue, in order, and each completion sends the next:
+
+```C
+gbuffer_t *gbuf = gbuffer_create(64, 64);
+gbuffer_append_string(gbuf, "hello");
+gbuffer_setaddr(gbuf, (struct sockaddr *)&peer, sizeof(peer));   // a sockaddr_in or sockaddr_in6
+gobj_send_event(gobj_udp_s, EV_TX_DATA,
+    json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),   // the kw owns the gbuffer
+    gobj
+);
+```
+
+A datagram that cannot be sent -- a gbuffer with no peer address, or no
+memory to keep the submission -- is DROPPED with an ERROR (*"Cannot send
+datagram: dropped"*, after the cause logged by `yev_start_event()`), and the
+next one in the queue is sent. Up to 7.25.4 such a send leaked its event and
+its gbuffer, left `tx_in_progress` above 0 (a stop waited for ever in
+`ST_WAIT_STOPPED`), and held every later datagram in the queue. And up to
+7.25.4 only the FIRST datagram of a queue was sent: the completion asked for a
+state `C_UDP_S` does not have (`ST_CONNECTED`) before sending the next one.
+`tests/c/c_udp_s_tx`.
 
 ### Key attributes
 

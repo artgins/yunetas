@@ -49,6 +49,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `c_tcp`, `c_tcp2` | `C_TCP` client GClass (connect, I/O, timeouts) |
 | `c_tcps`, `c_tcps2` | `C_TCP_S` TLS client (handshake, OpenSSL + mbedTLS) |
 | `c_tcp_inactivity` | `C_TCP` `timeout_inactivity` |
+| `c_udp_s_tx` | `C_UDP_S` sends every datagram of its queue, and drops one it cannot send (no peer address) with an error |
 | `c_subscriptions` | subscribe/publish semantics of the GObj core |
 | `kw` | `kw_*` helpers from `gobj-c/kwid.c` |
 | `helpers` | `helpers.c` string helpers, the agent's audit record builder, the rotatory (log files) |
@@ -80,12 +81,12 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 
 | Directory | New binaries |
 |---|---|
-| `c_node_failed_save`, `c_treedb_literal_wins`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
+| `c_node_failed_save`, `c_treedb_literal_wins`, `c_udp_s_tx`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
 | `gbuffer` | `test_gbmem_realloc_refused` |
 | `helpers` | `test_audit_record`, `test_rotatory`, `test_dir_array_nomem` |
-| `timeranger2` | `test_tm_order`, `test_lost_lock`, `test_topic_var_replace`, `test_key_reborn_pages`, `test_open_list_history`, `test_unreadable_at_open`, `test_mark_tm_order`, `test_uncommitted_append`, `test_torn_md2_tail`, `test_md2_read_error`, `test_md2_short_write`, `test_nul_escape_record`, `test_torn_tail_check_fails`, `test_cmp_file_ids` |
+| `timeranger2` | `test_tm_order`, `test_lost_lock`, `test_topic_var_replace`, `test_key_reborn_pages`, `test_open_list_history`, `test_unreadable_at_open`, `test_mark_tm_order`, `test_uncommitted_append`, `test_torn_md2_tail`, `test_md2_read_error`, `test_md2_short_write`, `test_nul_escape_record`, `test_torn_tail_check_fails`, `test_cmp_file_ids`, `test_unlistable_dirs` |
 | `tr_msg2db` | `test_msg2db_load_failed` |
-| `tr_queue` | `test_tr_queue_load_failed` |
-| `yev_loop/yev_events` | `test_yevent_sq_full`, `test_yevent_sq_nomem`, `test_yevent_sq_retry`, `test_yevent_stop_in_flight`, `test_yevent_udp_ipv6`, `test_yevent_udp_zerocopy`, `test_yevent_loop_end_drain`, `test_yevent_connect_src_url` |
+| `tr_queue` | `test_tr_queue_load_failed`, `test_tr_queue_backup_failed` |
+| `yev_loop/yev_events` | `test_yevent_sq_full`, `test_yevent_sq_nomem`, `test_yevent_sq_retry`, `test_yevent_stop_in_flight`, `test_yevent_udp_ipv6`, `test_yevent_udp_zerocopy`, `test_yevent_loop_end_drain`, `test_yevent_connect_src_url`, `test_yevent_stop_nomem`, `test_yevent_kept_after_post` |
 
 Tests that compare against expected `INFO`-level log output rely on the backend being **silent in `set_trace()`** — see `kernel/c/ytls/README.md`.

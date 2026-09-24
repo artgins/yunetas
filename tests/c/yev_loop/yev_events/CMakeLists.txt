@@ -78,6 +78,8 @@ set(SRCS
     test_yevent_sq_full
     test_yevent_sq_retry
     test_yevent_sq_nomem
+    test_yevent_stop_nomem
+    test_yevent_kept_after_post
 )
 
 ##############################################
@@ -110,3 +112,4 @@ endforeach()
 #   These tests make io_uring_submit() fail on demand
 target_link_options(test_yevent_sq_retry PRIVATE "-Wl,--wrap=io_uring_submit")
 target_link_options(test_yevent_sq_nomem PRIVATE "-Wl,--wrap=io_uring_submit")
+target_link_options(test_yevent_stop_nomem PRIVATE "-Wl,--wrap=io_uring_submit")

@@ -83,6 +83,8 @@ Low-level tests for the io_uring event loop, without the GObj layer.
 | **`test_yevent_timer_once1–2`** | One-shot timer expiration. |
 | **`test_yevent_timer_periodic1`** | Periodic (recurring) timer. |
 | **`test_yevent_sq_full`** | A full submission queue: the loop flushes it and asks again; when the kernel takes nothing, the submission is kept for the next cycle (a start answers `0`, a stop of a kept start gets `STOPPED` with `-ECANCELED`). |
+| **`test_yevent_stop_nomem`** | A stop without memory for its cancel answers `-1` and gives up nothing: the timer keeps its fd, the read its gbuffer, and the read then completes with its data. A loop destroyed with no room for the cancel of its dying events says so before the final error. |
+| **`test_yevent_kept_after_post`** | A posted action (`gobj_post_event()`) stops a timer whose start is kept: the `STOPPED` reaches the callback at the next cycle, not at the timeout of the run. |
 
 **Source:** `tests/c/yev_loop/yev_events/`, `tests/c/yev_loop/yev_events_tls/`
 
@@ -107,6 +109,14 @@ Plain and TLS TCP through the full GObj protocol stack.
 | **`test_c_tcps2 test1–4`** | TLS TCP with the newer method. |
 
 **Source:** `tests/c/c_tcp/`, `tests/c/c_tcp2/`, `tests/c/c_tcps/`, `tests/c/c_tcps2/`
+
+## UDP networking
+
+| Binary | Description |
+|--------|-------------|
+| **`test_c_udp_s_tx`** | [`C_UDP_S`](#gclass-c-udp-s) sends every datagram of its queue, in order, and drops one it cannot send (no peer address) with an error, leaking nothing. |
+
+**Source:** `tests/c/c_udp_s_tx/`
 
 ## TLS certificate hot-reload
 
@@ -200,7 +210,7 @@ crash or leak cannot mask neighbours.
 
 **Source:** `tests/c/timeranger2/`
 
-The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in strings, short reads and writes, ...) are listed in `tests/c/timeranger2/README.md`.
+The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in strings, short reads and writes, directories that cannot be listed, ...) are listed in `tests/c/timeranger2/README.md`.
 
 ## TR_MSG & TR_QUEUE
 
@@ -209,6 +219,7 @@ The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in string
 | **`test_tr_msg1`** | Message topics: iteration, key matching, instance retrieval. |
 | **`test_tr_msg2`** | Stress variant: 1 000 devices × 100 traces. |
 | **`test_tr_queue1`** | Queue topic: enqueue / dequeue with time-based keys over a multi-day period. |
+| **`test_tr_queue_backup_failed`** | A backup that fails (the backup name taken by a file): `trq_check_backup()` / `tr2q_check_backup()` answer `-1`, the queue keeps its topic, and appends, reads and acks work after it; nothing leaks. |
 | **`test_tr_queue_load_failed`** | A queue (`tr_queue` and the mqtt `tr2q`) whose load cannot read every pending message: the load returns `-1`, `first_rowid` is kept, and the backup is refused until a load reads them all. |
 | **`test_pkey2_empty`** | `msg2db_append_message()` refuses a record whose `pkey2` is empty and writes nothing. |
 | **`test_msg2db_load_failed`** | An id whose history did not load whole: reloaded newest first up to the damage; a `pkey2` whose newest message is in the damage is absent (`msg2db_id_incomplete()`), never an older message. |
