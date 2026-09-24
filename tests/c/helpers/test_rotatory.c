@@ -10,11 +10,16 @@
  *          a removed file created again. And a clock set back across
  *          midnight empties no file. And a piece of 0 bytes, a failed
  *          write, the open of an old "W" file, a new day on a full disk.
+ *          And the newfile callback runs for a NEW file only (never for
+ *          the same file opened again), a failed rename of a keep_all
+ *          handle is not tried at every record, and a fixed name (or a
+ *          "MM" name within its month) is not emptied at the open.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <limits.h>
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -110,6 +115,21 @@ PRIVATE int newfile_cb(void *user_data, const char *old_filename, const char *ne
     int removed = rotatory_remove_old_files(hr, 7, NULL, NULL);
     if(removed > 0) {
         s_removed_at_rotation += removed;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  A newfile callback that only counts, with its names
+ ***************************************************************************/
+PRIVATE int s_count_newfile = 0;
+PRIVATE int s_count_newfile_same = 0;
+
+PRIVATE int count_newfile_cb(void *user_data, const char *old_filename, const char *new_filename)
+{
+    s_count_newfile++;
+    if(strcmp(old_filename, new_filename) == 0) {
+        s_count_newfile_same++;
     }
     return 0;
 }
@@ -331,8 +351,12 @@ PRIVATE void test_write_path(void)
     GBMEM_FREE(cur);
 
     /*
-     *  The current file removed: the next record creates it again
+     *  The current file removed: the next record creates it again.
+     *  It is the same file (same name, no size rotation): no newfile
+     *  callback.
      */
+    rotatory_subscribe2newfile(hr, count_newfile_cb, NULL);
+    s_count_newfile = 0;
     unlink(current);
     rotatory_write(hr, LOG_AUDIT, "after the rm", strlen("after the rm"));
     rotatory_flush(hr);
@@ -340,6 +364,7 @@ PRIVATE void test_write_path(void)
     check(cur && strcmp(cur, "after the rm\n") == 0,
         "a removed file is created again at the next record"
     );
+    check(s_count_newfile == 0, "a removed file created again: no newfile callback");
     GBMEM_FREE(cur);
 
     rotatory_close(hr);
@@ -801,6 +826,9 @@ PRIVATE void test_write_failure_reopens(void)
     }
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s", rotatory_path(hr));
+    rotatory_subscribe2newfile(hr, count_newfile_cb, NULL);
+    s_count_newfile = 0;
+    s_count_newfile_same = 0;
 
     char line[1001];
     memset(line, 'f', sizeof(line)-1);
@@ -835,6 +863,12 @@ PRIVATE void test_write_failure_reopens(void)
     check(size_after > size_at_failure && file_holds(path, "after the limit"),
         "a write that fails: the next record opens the file again and is written");
     printf("     (size at the failure %ld, after %ld)\n", (long)size_at_failure, (long)size_after);
+    check(s_count_newfile == 0,
+        "a write that fails: the same file opened again is not a new file (no newfile callback)");
+    if(s_count_newfile != 0) {
+        printf("     newfile callback called %d times (%d with old == new)\n",
+            s_count_newfile, s_count_newfile_same);
+    }
 
     rotatory_close(hr);
     rmrdir(BASE);
@@ -902,6 +936,177 @@ PRIVATE void test_open_applies_the_day(void)
     check(file_holds(audit_today, "\"old\"") && file_holds(audit_today, "\"new\""),
         "open, mask with the year: never emptied");
 
+    /*
+     *  A fixed name (no date letter): one file for ever, never emptied
+     */
+    f = fopen(OPEN_DIR "/app.log", "w");
+    if(f) {
+        fputs("INFO: the history of many days\n", f);
+        fclose(f);
+    }
+    set_age(OPEN_DIR "/app.log", 2);
+    hr = rotatory_open(OPEN_DIR "/app.log", 0, 500, 1, 02775, 0660, FALSE);
+    rotatory_write(hr, LOG_INFO, "today", strlen("today"));
+    rotatory_close(hr);
+    check(file_holds(OPEN_DIR "/app.log", "history") && file_holds(OPEN_DIR "/app.log", "today"),
+        "open, fixed name (no date letter): not emptied on a later day");
+
+    /*
+     *  keep_all set right after the open applies to the file of the open:
+     *  last week's "W" file is not emptied
+     */
+    f = fopen(w_today, "w");
+    if(f) {
+        fputs("INFO: last week, kept\n", f);
+        fclose(f);
+    }
+    set_age(w_today, 7);
+    hr = rotatory_open(OPEN_DIR "/log-W.log", 0, 500, 1, 02775, 0660, FALSE);
+    rotatory_keep_all_old_files(hr, TRUE);
+    rotatory_write(hr, LOG_INFO, "today 3", strlen("today 3"));
+    rotatory_close(hr);
+    check(file_holds(w_today, "last week, kept") && file_holds(w_today, "today 3"),
+        "open, W mask, keep_all set right after the open: never emptied");
+
+    /*
+     *  A "MM" name (the month only): its file is the one of the month
+     *  until the month ends. The 15th of this month, a file written on the
+     *  12th is appended to; one written before the month began is emptied.
+     */
+    time_t real_now = __real_time(NULL);
+    struct tm tm;
+    localtime_r(&real_now, &tm);
+    tm.tm_mday = 15;
+    tm.tm_hour = 12;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    tm.tm_isdst = -1;
+    s_fake_now = mktime(&tm);
+
+    char mm_path[PATH_MAX];
+    file_of(s_fake_now, OPEN_DIR, "month-MM.log", mm_path, sizeof(mm_path));
+    f = fopen(mm_path, "w");
+    if(f) {
+        fputs("INFO: the 12th\n", f);
+        fclose(f);
+    }
+    set_age(mm_path, 3);    // time() is faked: 3 days before the 15th
+    hr = rotatory_open(OPEN_DIR "/month-MM.log", 0, 500, 1, 02775, 0660, FALSE);
+    rotatory_write(hr, LOG_INFO, "the 15th", strlen("the 15th"));
+    rotatory_close(hr);
+    check(file_holds(mm_path, "the 12th") && file_holds(mm_path, "the 15th"),
+        "open, MM mask: a file written earlier in the month is appended to");
+
+    f = fopen(mm_path, "w");
+    if(f) {
+        fputs("INFO: last year\n", f);
+        fclose(f);
+    }
+    set_age(mm_path, 40);
+    hr = rotatory_open(OPEN_DIR "/month-MM.log", 0, 500, 1, 02775, 0660, FALSE);
+    rotatory_write(hr, LOG_INFO, "this month", strlen("this month"));
+    rotatory_close(hr);
+    check(!file_holds(mm_path, "last year") && file_holds(mm_path, "this month"),
+        "open, MM mask: a file written before the month began is emptied");
+    s_fake_now = 0;
+
+    rmrdir(BASE);
+}
+
+/***************************************************************************
+ *  keep_all and a rename that fails (a directory that refuses renames:
+ *  chattr +a, a read-only bind, a MAC denial). The file is kept and
+ *  grows, and the rename is NOT tried again at every record: each try
+ *  was a line to syslog and a new open. The next name tries at once.
+ *
+ *  This test binary is linked with -Wl,--wrap=rename (see CMakeLists.txt).
+ ***************************************************************************/
+PRIVATE BOOL s_fail_rename = FALSE;
+PRIVATE int s_rename_calls = 0;
+
+int __real_rename(const char *oldpath, const char *newpath);
+int __wrap_rename(const char *oldpath, const char *newpath);
+
+int __wrap_rename(const char *oldpath, const char *newpath)
+{
+    s_rename_calls++;
+    if(s_fail_rename) {
+        errno = EACCES;
+        return -1;
+    }
+    return __real_rename(oldpath, newpath);
+}
+
+PRIVATE void test_keep_all_rename_fails(void)
+{
+    #define RENAME_DIR BASE "/rename"
+    rmrdir(BASE);
+    mkrdir(RENAME_DIR, 02775);
+
+    time_t real_now = __real_time(NULL);
+    struct tm tm;
+    localtime_r(&real_now, &tm);
+    tm.tm_hour = 12;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    tm.tm_isdst = -1;
+    s_fake_now = mktime(&tm);
+
+    hrotatory_h hr = rotatory_open(RENAME_DIR "/" MASK, 0, 1, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        s_fake_now = 0;
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    rotatory_keep_all_old_files(hr, TRUE);
+    rotatory_subscribe2newfile(hr, count_newfile_cb, NULL);
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s", rotatory_path(hr));
+
+    char line[1024];
+    memset(line, 'n', sizeof(line)-1);
+    line[sizeof(line)-1] = 0;
+
+    s_count_newfile = 0;
+    s_rename_calls = 0;
+    s_fail_rename = TRUE;
+    int n_records = 4400;   // 4.4 MB: over the limit (whole megas > 1) from ~2 MB on
+    for(int i=0; i<n_records; i++) {
+        rotatory_write(hr, LOG_AUDIT, line, strlen(line));
+    }
+    rotatory_flush(hr);
+    s_fail_rename = FALSE;
+
+    check(s_rename_calls == 1,
+        "keep_all, rename fails: tried once, not at every record");
+    check(s_count_newfile == 0,
+        "keep_all, rename fails: no new file, no newfile callback");
+    check(count_lines(path) == (size_t)n_records,
+        "keep_all, rename fails: the file is kept, every record in it");
+    printf("     (rename tried %d times, newfile callback %d times, %d lines)\n",
+        s_rename_calls, s_count_newfile, (int)count_lines(path));
+
+    /*
+     *  The next name (next day) tries at once, and the rename works
+     */
+    s_fake_now += 86400;
+    s_rename_calls = 0;
+    for(int i=0; i<2200; i++) {
+        rotatory_write(hr, LOG_AUDIT, line, strlen(line));
+    }
+    rotatory_flush(hr);
+    char path2[PATH_MAX];
+    snprintf(path2, sizeof(path2), "%s", rotatory_path(hr));
+    char old1[PATH_MAX+16];
+    snprintf(old1, sizeof(old1), "%s.OLD.1", path2);
+    check(strcmp(path, path2) != 0 && exists_no_follow(old1),
+        "keep_all: the next name rotates at once, the rename works again");
+    printf("     (next day: rename tried %d times, newfile callback %d times)\n",
+        s_rename_calls, s_count_newfile);
+
+    rotatory_close(hr);
+    s_fake_now = 0;
     rmrdir(BASE);
 }
 
@@ -1044,6 +1249,7 @@ int main(int argc, char *argv[])
     test_write_failure_reopens();
     test_open_applies_the_day();
     test_disk_full_new_day();
+    test_keep_all_rename_fails();
     test_write_after_end();     // LAST: it ends the rotatory
 
     rotatory_end();

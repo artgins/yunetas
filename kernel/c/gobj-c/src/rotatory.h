@@ -50,11 +50,15 @@ PUBLIC void rotatory_end(void); // close all
 
 // Return NULL on error
 // Available mask for filename: "DD/MM/CCYY-W-ZZZ"
-// A name without the year (CCYY) is used again (the "W" of the yuno logs:
-// one file for each week day). Its file is emptied before it is written
-// when it was last written before the day of the name: at the open, and at
-// a new name. A file written today is appended to; a name with the year,
-// or a handle that keeps all old files, never empties a file.
+// A name with a day letter (DD, W, ZZZ) or the month (MM) and without the
+// year (CCYY) is used again (the "W" of the yuno logs: one file for each
+// week day). Its file is emptied before it is written when it was last
+// written before the period of the name (the day; the month for a mask
+// with MM only): at the first record after the open, and at a new name.
+// A file written in the period is appended to. A name with the year, a
+// fixed name (no date letter: "logcenter.log"), or a handle that keeps all
+// old files (rotatory_keep_all_old_files(), called right after the open),
+// never empties a file.
 PUBLIC hrotatory_h rotatory_open(
     const char* path,
     size_t bf_size,                     // 0 = default 64K
@@ -66,6 +70,9 @@ PUBLIC hrotatory_h rotatory_open(
 );
 PUBLIC void rotatory_close(hrotatory_h hr);
 
+// The callback runs for a NEW file only: a new name (a new day) or a size
+// rotation (then old_filename == new_filename). Never when the same file
+// is opened again: after a failed write, a removed file, a failed truncate.
 // Return 0, -1 if the handle is not open (a line is printed)
 PUBLIC int rotatory_subscribe2newfile(
     hrotatory_h hr,
@@ -96,6 +103,12 @@ PUBLIC const char *rotatory_path(hrotatory_h hr);
  *  each size rotation renames the file to the first free "<name>.OLD.<n>"
  *  (n = 1, 2, ...) and nothing is removed: use it with a retention
  *  (rotatory_remove_old_files()), as the agent audit does.
+ *  A rename that fails: without keep_all the file is emptied (the size
+ *  stays bounded); with keep_all the file is kept and grows, one line is
+ *  printed, and the rename is tried again after 60 seconds (or at the
+ *  next name), not at every record.
+ *  Call it right after rotatory_open(): it applies to the file that the
+ *  open found (see rotatory_open()).
  *  Return 0, -1 if the handle is not open.
  */
 PUBLIC int rotatory_keep_all_old_files(hrotatory_h hr, BOOL keep_all);
@@ -113,7 +126,8 @@ PUBLIC int rotatory_keep_all_old_files(hrotatory_h hr, BOOL keep_all);
  *  The rotatory never calls it by itself. Call it when the rotatory is
  *  opened and from the callback of rotatory_subscribe2newfile(): that
  *  callback runs inside the rotatory_write() of the first record of a new
- *  file (once a day, or at a size rotation), before that record is written.
+ *  file (once a day, or at a size rotation), before that record is written,
+ *  and only then: not when the same file is opened again (a failed write).
  *  A new day calls it also while the disk is below min_free_disk_percentage
  *  (records dropped): the retention is what frees the space, and the
  *  record of that moment is written if it does.

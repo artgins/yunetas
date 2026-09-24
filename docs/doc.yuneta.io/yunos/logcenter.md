@@ -45,7 +45,12 @@ One datagram fans out three ways; only JSON bodies reach the summary tree.
 2. **Writes** it to a rotatory log file under the yuno's `logs/` directory,
    named from `log_filename` (mask `DD/MM/CCYY-W-ZZZ`). Rotation is bounded by
    `max_rotatoryfile_size` and pauses when free disk drops below
-   `min_free_disk`.
+   `min_free_disk`. Each NEW file (a new day, or a size rotation) sends the
+   summary e-mail and resets the counters. The same file opened again after a
+   write that failed (a quota, no inodes, `EIO`) or after an `rm` is not a new
+   file: no e-mail. A `log_filename` with no date letter (`logcenter.log`) is
+   one file for ever: it is appended to at every start, never emptied by a
+   date. See [rotatory](#rotatory-file-names).
 3. **Aggregates** JSON records into a summary grouped by `msgset` → `msg` →
    count (separately for errors, warnings, infos).
 

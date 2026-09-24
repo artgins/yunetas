@@ -36,6 +36,7 @@
 #define DIGIT_MARK              '\001'
 #define OLD_SUFFIX              ".OLD"
 #define MAX_OLD_PIECES          9999    // .OLD.<n> of one day, see rotatory_keep_all_old_files()
+#define RENAME_RETRY_SECONDS    60      // keep_all: a failed size rotation is tried again after this
 
 /*****************************************************************
  *          Structures
@@ -54,8 +55,11 @@ typedef struct rotatory_log_s {
     BOOL keep_all_old;          // size rotation to .OLD.<n>, see rotatory_keep_all_old_files()
     BOOL disk_full;             // below min_free_disk_percentage: records dropped
     uint64_t dropped_records;   // while disk_full
-    BOOL name_recurs;           // the mask has no year: a name is used again (W, DD, ZZZ, ...)
+    BOOL name_recurs;           // a name is used again (W, DD, ZZZ, MM), see mask_name_recurs()
+    BOOL old_file_pending;      // the file of the open: must_be_emptied() at the first record
     BOOL write_failed;          // the last piece could not be written: see _rotatory_fwrite()
+    BOOL rename_failed;         // the rename of a size rotation failed: see _rotatory_prepare()
+    time_t rename_retry;        // keep_all: start_sectimer() of the next try of that rename
     char log_directory[NAME_MAX];   // from path
     char filenamemask[NAME_MAX];    // from path
     char filename[NAME_MAX];        // current filename
@@ -103,8 +107,12 @@ PRIVATE BOOL is_open_handle(rotatory_log_t *hr);
 PRIVATE void _rotatory_free(rotatory_log_t *hr);
 PRIVATE BOOL disk_is_full(rotatory_log_t *hr);
 PRIVATE BOOL must_be_emptied(rotatory_log_t *hr, const char *path);
-PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it);
+PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it, BOOL new_file);
+PRIVATE BOOL mask_name_recurs(const char *mask);
+PRIVATE time_t start_of_the_name(rotatory_log_t *hr);
+PRIVATE void empty_the_old_file_of_the_open(rotatory_log_t *hr);
 PRIVATE void check_write_again(rotatory_log_t *hr);
+PRIVATE BOOL _rotatory_size_rotation(rotatory_log_t *hr, BOOL *empty_it);
 
 
 /*****************************************************************
@@ -265,17 +273,9 @@ PUBLIC hrotatory_h rotatory_open(
     /*-----------------------------*
      *  Make initial filename
      *-----------------------------*/
-    hr->name_recurs = strchr(hr->filenamemask, 'Y')? FALSE: TRUE;
+    hr->name_recurs = mask_name_recurs(hr->filenamemask);
     _translate_mask(hr);
     snprintf(hr->path, sizeof(hr->path), "%s/%s", hr->log_directory, hr->filename);
-
-    /*
-     *  The same rule as at a new name (see must_be_emptied()): a yuno that
-     *  starts on a Monday does not go on with the file of LAST Monday.
-     *  Up to 7.25.4 the file was always opened with "a", and one "W" file
-     *  held the records of 8 days.
-     */
-    BOOL empty_it = must_be_emptied(hr, hr->path);
 
     if(access(hr->path, 0)!=0) {
         int fd = newfile(hr->path, hr->rpermission, FALSE);
@@ -291,7 +291,17 @@ PUBLIC hrotatory_h rotatory_open(
         }
         close(fd);
     }
-    hr->flog = fopen(hr->path, empty_it? "w": "a");
+    /*
+     *  The same rule as at a new name (see must_be_emptied()): a yuno that
+     *  starts on a Monday does not go on with the file of LAST Monday.
+     *  Up to 7.25.4 the file was always opened with "a", and one "W" file
+     *  held the records of 8 days. It is decided at the first record, not
+     *  here: rotatory_keep_all_old_files() comes after this open, and a
+     *  handle that keeps all old files never empties one.
+     */
+    hr->old_file_pending = TRUE;
+
+    hr->flog = fopen(hr->path, "a");
     if(!hr->flog) {
         print_error(
             hr->pe_flag,
@@ -585,6 +595,11 @@ PRIVATE BOOL _get_rotatory_filename(rotatory_log_t *hr)
  *****************************************************************/
 PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
 {
+    if(hr->old_file_pending) {
+        hr->old_file_pending = FALSE;
+        empty_the_old_file_of_the_open(hr);
+    }
+
     /*
      *  The free space is checked every MAX_COUNTER_STATVFS records, also
      *  while the disk is full: that is how the handle writes again.
@@ -594,7 +609,10 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
         disk_is_full(hr);
     }
 
-    BOOL change_file = _get_rotatory_filename(hr);
+    BOOL new_name = _get_rotatory_filename(hr);
+    if(new_name) {
+        hr->rename_failed = FALSE;  // a new file: its size rotation is tried at once
+    }
 
     if(hr->disk_full) {
         /*
@@ -604,8 +622,8 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
          *  nothing was done while the disk was full, so the retention
          *  never ran and the handle never wrote again.
          */
-        if(change_file) {
-            if(_rotatory_open_file(hr, must_be_emptied(hr, NULL)) == 0) {
+        if(new_name) {
+            if(_rotatory_open_file(hr, must_be_emptied(hr, NULL), TRUE) == 0) {
                 disk_is_full(hr);   // the retention may have freed the space
             }
             // else error already printed
@@ -617,6 +635,16 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
         return 0;
     }
 
+    /*
+     *  open_it: a file must be opened. new_file: it is a NEW file (a new
+     *  name, or a size rotation), and only then the callback runs. The
+     *  same file opened again (after a failed write, removed from the
+     *  directory, a failed truncate) is not a new file: with the callback
+     *  there, it ran at every record while the writes failed, and the
+     *  logcenter sends a summary email from it.
+     */
+    BOOL open_it = new_name;
+    BOOL new_file = new_name;
     BOOL empty_it = FALSE;  // see must_be_emptied()
 
     if(hr->flog) {
@@ -628,65 +656,21 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
         struct stat st;
         if(fstat(fileno(hr->flog), &st) == 0) {
             if(st.st_nlink == 0) {
-                change_file = 1;
+                open_it = TRUE;
             } else if(hr->max_megas_rotatoryfile_size &&
                     ((uint64_t)st.st_size)/(1024*1024) > hr->max_megas_rotatoryfile_size) {
-                /*
-                 *  Rename to OLD and create a new file
-                 */
-                rotatory_flush(hr);
-                fclose(hr->flog);
-                hr->flog = 0;
-
-                char filename_old[2*NAME_MAX+32];
-                snprintf(filename_old, sizeof(filename_old), "%s.OLD",
-                    hr->path
-                );
-                if(hr->keep_all_old) {
+                if(hr->rename_failed && hr->keep_all_old && !test_sectimer(hr->rename_retry)) {
                     /*
-                     *  The first free .OLD.<n>: no piece of the day is removed
+                     *  keep_all: the rename failed, the file is appended to
+                     *  until the next try. Not a try at each record: that is
+                     *  a line to syslog and a new open for every record.
                      */
-                    int n;
-                    for(n=1; n<=MAX_OLD_PIECES; n++) {
-                        snprintf(filename_old, sizeof(filename_old), "%s.OLD.%d",
-                            hr->path, n
-                        );
-                        if(access(filename_old, 0)!=0) {
-                            break;
-                        }
-                    }
-                    if(n > MAX_OLD_PIECES) {
-                        print_error(
-                            PEF_SYSLOG,
-                            "_rotatory(): %d pieces of '%s' in one day, the last one is replaced",
-                            MAX_OLD_PIECES,
-                            hr->path
-                        );
-                    }
+                } else if(_rotatory_size_rotation(hr, &empty_it)) {
+                    new_file = TRUE;
+                    open_it = TRUE;
+                } else {
+                    open_it = TRUE; // the same file again, appended to
                 }
-                if(access(filename_old, 0)==0) {
-                    if(unlink(filename_old)<0) {
-                        print_error(
-                            PEF_SYSLOG,
-                            "_rotatory(): Cannot remove '%s', %s",
-                            filename_old,
-                            strerror(errno)
-                        );
-                    }
-                }
-                if(rename(hr->path, filename_old) < 0) {
-                    print_error(
-                        PEF_SYSLOG,
-                        "_rotatory(): Cannot rename '%s' to '%s', %s",
-                        hr->path,
-                        filename_old,
-                        strerror(errno)
-                    );
-                    if(!hr->keep_all_old) {
-                        empty_it = TRUE;    // as up to 7.25.4: the size stays bounded
-                    }
-                }
-                change_file = 1;
             }
         }
     } else {
@@ -695,14 +679,14 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
          *  _rotatory_fwrite()). Open it again: up to 7.25.4 a failed write
          *  (or a piece of 0 bytes) closed the file until the next name.
          */
-        change_file = 1;
+        open_it = TRUE;
     }
 
-    if(change_file) {
+    if(open_it) {
         if(!empty_it) {
             empty_it = must_be_emptied(hr, NULL);
         }
-        if(_rotatory_open_file(hr, empty_it) < 0) {
+        if(_rotatory_open_file(hr, empty_it, new_file) < 0) {
             return -1;  // Error already printed
         }
     }
@@ -714,14 +698,101 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
 }
 
 /*****************************************************************
+ *  The size rotation: close the file and rename it to .OLD (or to
+ *  the first free .OLD.<n> with keep_all). Return TRUE if a new file
+ *  begins: the rename worked, or it failed and the file must be
+ *  emptied (*empty_it, without keep_all: the size stays bounded, as up
+ *  to 7.25.4). FALSE: keep_all and the rename failed, the file is kept
+ *  and appended to, and the rename is tried again after
+ *  RENAME_RETRY_SECONDS. A failure is printed once, and once when a
+ *  rename works again.
+ *****************************************************************/
+PRIVATE BOOL _rotatory_size_rotation(rotatory_log_t *hr, BOOL *empty_it)
+{
+    rotatory_flush(hr);
+    fclose(hr->flog);
+    hr->flog = 0;
+
+    char filename_old[2*NAME_MAX+32];
+    snprintf(filename_old, sizeof(filename_old), "%s.OLD",
+        hr->path
+    );
+    if(hr->keep_all_old) {
+        /*
+         *  The first free .OLD.<n>: no piece of the day is removed
+         */
+        int n;
+        for(n=1; n<=MAX_OLD_PIECES; n++) {
+            snprintf(filename_old, sizeof(filename_old), "%s.OLD.%d",
+                hr->path, n
+            );
+            if(access(filename_old, 0)!=0) {
+                break;
+            }
+        }
+        if(n > MAX_OLD_PIECES) {
+            print_error(
+                PEF_SYSLOG,
+                "_rotatory(): %d pieces of '%s' in one day, the last one is replaced",
+                MAX_OLD_PIECES,
+                hr->path
+            );
+        }
+    }
+    if(access(filename_old, 0)==0) {
+        if(unlink(filename_old)<0) {
+            print_error(
+                PEF_SYSLOG,
+                "_rotatory(): Cannot remove '%s', %s",
+                filename_old,
+                strerror(errno)
+            );
+        }
+    }
+    if(rename(hr->path, filename_old) < 0) {
+        if(!hr->rename_failed) {
+            print_error(
+                PEF_SYSLOG,
+                "_rotatory(): Cannot rename '%s' to '%s', %s, %s",
+                hr->path,
+                filename_old,
+                strerror(errno),
+                hr->keep_all_old?
+                    "the file is kept and grows, the rename is tried again every minute":
+                    "the file is emptied"
+            );
+        }
+        hr->rename_failed = TRUE;
+        if(hr->keep_all_old) {
+            hr->rename_retry = start_sectimer(RENAME_RETRY_SECONDS);
+            return FALSE;
+        }
+        *empty_it = TRUE;   // as up to 7.25.4: the size stays bounded
+        return TRUE;
+    }
+
+    if(hr->rename_failed) {
+        hr->rename_failed = FALSE;
+        print_error(
+            PEF_SYSLOG,
+            "_rotatory(): the size rotation of '%s' works again",
+            hr->path
+        );
+    }
+    return TRUE;
+}
+
+/*****************************************************************
  *  TRUE if the existing file of the current name must be emptied
- *  before it is written: it was last written before the day that its
- *  name is used for, and its name is used again (the mask has no year):
- *  the file of LAST week of a "W" mask (its name is its retention).
- *  A file written in this day or later is appended to: up to 7.25.4 it
- *  was opened with "w" at a new name, and a clock set back across
+ *  before it is written: it was last written before the period that
+ *  its name is used for now (see start_of_the_name()), and its name is
+ *  used again (see mask_name_recurs()): the file of LAST week of a "W"
+ *  mask (its name is its retention).
+ *  A file written in this period or later is appended to: up to 7.25.4
+ *  it was opened with "w" at a new name, and a clock set back across
  *  midnight emptied the file of the day before, then the one of today.
- *  A handle that keeps all old files never empties one.
+ *  A handle that keeps all old files never empties one, and neither
+ *  does a fixed name (a mask with no date letter).
  *  `path` NULL: the path of the current name.
  *****************************************************************/
 PRIVATE BOOL must_be_emptied(rotatory_log_t *hr, const char *path)
@@ -735,18 +806,83 @@ PRIVATE BOOL must_be_emptied(rotatory_log_t *hr, const char *path)
         path = bf;
     }
     struct stat st;
-    if(stat(path, &st) == 0 && st.st_size > 0 && st.st_mtime < hr->day_start) {
+    if(stat(path, &st) == 0 && st.st_size > 0 && st.st_mtime < hr->day_start &&
+            st.st_mtime < start_of_the_name(hr)) {
         return TRUE;
     }
     return FALSE;
 }
 
 /*****************************************************************
- *  Close the file open now (if any) and open the one of the current
- *  name, then call the callback of a new file. Return -1 on error
- *  (printed: this is the sink of the log, it cannot log through itself).
+ *  TRUE if a name made from the mask is used again for another
+ *  period: the mask has a letter of the day (DD, W, ZZZ) or of the
+ *  month (MM), and not the year (CCYY, YY). A mask with no date
+ *  letter ("logcenter.log") is a fixed name: one file for ever, never
+ *  emptied by a date (it is not the file of an earlier period: the open
+ *  of a later day must not empty it).
  *****************************************************************/
-PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it)
+PRIVATE BOOL mask_name_recurs(const char *mask)
+{
+    if(strchr(mask, 'Y')) {
+        return FALSE;
+    }
+    return strpbrk(mask, "DWZM")? TRUE: FALSE;
+}
+
+/*****************************************************************
+ *  The start of the period that the current name stands for: the day
+ *  (DD, W, ZZZ), or the month when the mask has only the month (MM):
+ *  a "MM" file of this month was written since its first day, and it
+ *  is not the file of last year.
+ *****************************************************************/
+PRIVATE time_t start_of_the_name(rotatory_log_t *hr)
+{
+    if(strpbrk(hr->filenamemask, "DWZ")) {
+        return hr->day_start;
+    }
+    struct tm tm;
+    localtime_r(&hr->day_start, &tm);
+    tm.tm_mday = 1;
+    tm.tm_hour = 0;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    tm.tm_isdst = -1;
+    time_t month_start = mktime(&tm);
+    if(month_start == (time_t)-1 || month_start > hr->day_start) {
+        return hr->day_start;   // cannot be told: the day, as for the other masks
+    }
+    return month_start;
+}
+
+/*****************************************************************
+ *  The first record after rotatory_open(): the file that the open
+ *  found is emptied if it is old (must_be_emptied()). Decided here and
+ *  not in the open, so that rotatory_keep_all_old_files(), called
+ *  after the open, applies to it.
+ *****************************************************************/
+PRIVATE void empty_the_old_file_of_the_open(rotatory_log_t *hr)
+{
+    if(!hr->flog || !must_be_emptied(hr, hr->path)) {
+        return;
+    }
+    if(ftruncate(fileno(hr->flog), 0) < 0) {
+        print_error(
+            PEF_SYSLOG,
+            "_rotatory(): Cannot empty '%s', %s",
+            hr->path,
+            strerror(errno)
+        );
+    }
+}
+
+/*****************************************************************
+ *  Close the file open now (if any) and open the one of the current
+ *  name, then call the callback if it is a new file (`new_file`: a new
+ *  name or a size rotation, never the same file opened again). Return
+ *  -1 on error (printed: this is the sink of the log, it cannot log
+ *  through itself).
+ *****************************************************************/
+PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it, BOOL new_file)
 {
     if(hr->flog) {
         rotatory_flush(hr);
@@ -798,7 +934,7 @@ PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it)
     int fd = fileno(hr->flog);
     set_cloexec(fd);
 
-    if(hr->cb_newfile) {
+    if(new_file && hr->cb_newfile) {
         (hr->cb_newfile)(hr->user_data, lastpath, hr->path);
     }
     return 0;
