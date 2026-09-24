@@ -161,6 +161,11 @@ code before it, except those listed under "No red test" in `TODO.md`.
   CRITICAL (*"Bad data, anystring2json() FAILED."*) and handed the record to
   the callback as NULL. A read that fails now logs *"Bad data, the content of
   the record is not json"*, with the jansson `error` and `position`.
+- A short write of `topic_var.json` / `topic_cols.json`, or of the zero wipe of
+  `tranger2_delete_instance()`, is logged as a short write (*"...short write:
+  the file size limit or the disk is full"*), not as *"write FAILED"* with a
+  stale errno. msg2db logs an item of `load_failed_keys` that is not a string
+  (it skipped it in silence).
 - A read that returns fewer bytes than asked logs *"... short read"* with
   `read` / `expected` (it logged *"read FAILED"* with a stale errno); a short
   write likewise logs *"... short write"*. A read error or short read of an
@@ -513,6 +518,27 @@ memory tracking, ext4, laptop NVMe). The raw figures are in
   submission"*, then the caller's ERROR *"No memory to keep a submission:
   <what did not happen>"*. Test `yev_events/test_yevent_sq_full`; the hot
   path does not move (perf_yev_ping_pong, perf_c_tcp: within noise).
+- A submission the kernel did not take is no longer left waiting: a failed
+  `io_uring_submit()` can leave its entry in the queue (the submit that hands
+  over the kept entries included); the loop submits those entries again at
+  each cycle, with a 10 ms retry wait. One WARNING when it starts (*"Submissions
+  the kernel did not take: submitted again at each cycle"*), an ERROR after 100
+  cycles (*"Submissions not taken by the kernel for many cycles of the loop:
+  their operations wait"*), an INFO when the kernel takes them again.
+- A stop of an event whose submission is still in the queue takes it back, as
+  for a kept one: the entry is found by its event (never by its fd) and becomes
+  a NOP whose completion is not delivered; the callback gets `STOPPED`,
+  `-ECANCELED`. Otherwise the stale operation ran later on the fd the stop had
+  closed, and a new timer that got the same fd number never fired.
+- A write or sendmsg start with no memory to keep its submission answers -1
+  (*"No memory to keep a submission: event NOT started"*), as every other
+  caller does; it aborted the process.
+- `gbmem_realloc()` refused because the new size is larger than the largest
+  block leaves the old block valid and tracked: with
+  `CONFIG_DEBUG_TRACK_MEMORY` it took the block out of the tracking first, and
+  the later free logged *"Wrong dl_item_t, WITHOUT links"* and wrapped the
+  memory counter. The kept lists of yev_loop reach this path.
+
 
 ### Agent, gobj-c and tools
 
