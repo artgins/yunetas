@@ -2279,7 +2279,7 @@ PUBLIC int treedb_delete_topic(
  ***************************************************************************/
 PUBLIC json_t *treedb_list_treedb(
     json_t *tranger,
-    json_t *kw
+    json_t *kw      // owned, a kw: released with KW_DECREF
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -2294,7 +2294,7 @@ PUBLIC json_t *treedb_list_treedb(
             "msg",          "%s", "NO TreeDB found",
             NULL
         );
-        JSON_DECREF(kw)
+        KW_DECREF(kw)
         return treedb_list;
     }
     const char *treedb_name; json_t *treedb;
@@ -2302,7 +2302,7 @@ PUBLIC json_t *treedb_list_treedb(
         json_array_append_new(treedb_list, json_string(treedb_name));
     }
 
-    JSON_DECREF(kw)
+    KW_DECREF(kw)
 
     return treedb_list;
 }
@@ -5080,13 +5080,40 @@ PRIVATE int link_child_to_parent(
 }
 
 /***************************************************************************
+ *  Say that the fkey column `col_name` of `topic_name` is filled by no hook
+ *  any more (a hook removed, or re-pointed to another column): the refs it
+ *  holds, in `nodes_with_refs` nodes, link nothing. They are removed from
+ *  a node when it is cleaned or force-deleted (search_and_remove_wrong_up_ref).
+ ***************************************************************************/
+PRIVATE void warn_fkey_col_without_hook(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *col_name,
+    json_int_t nodes_with_refs
+)
+{
+    gobj_log_warning(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_TREEDB,
+        "msg",              "%s", "An fkey column is filled by no hook: its refs link nothing",
+        "treedb_name",      "%s", treedb_name,
+        "topic_name",       "%s", topic_name,
+        "col_name",         "%s", col_name,
+        "nodes_with_refs",  "%d", (int)nodes_with_refs,
+        NULL
+    );
+}
+
+/***************************************************************************
  *  Load links (child's fkeys to parent's hooks)
  *  Use from disk to memory only
  ***************************************************************************/
 PRIVATE int load_links(
     hgobj gobj,
     json_t *tranger,
-    json_t *child_node // not owned
+    json_t *child_node, // not owned
+    json_t *orphan_cols // not owned, optional: {"topic`col": nodes with refs} of the columns no hook fills
 )
 {
     int ret = 0;
@@ -5110,18 +5137,24 @@ PRIVATE int load_links(
 
         json_t *fkey_desc = kwid_get(gobj, col, 0, "fkey");
         if(!fkey_desc) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB,
-                "msg",          "%s", "Child node without fkey field",
-                "treedb_name",  "%s", treedb_name,
-                "topic_name",   "%s", topic_name,
-                "col_name",     "%s", col_name,
-                NULL
-            );
-            gobj_trace_json(gobj, col, "Not explicit link done; child node without fkey field descriptor: col desc");
-            gobj_trace_json(gobj, child_node, "Not explicit link done; child node without fkey field descriptor: node");
-            ret += -1;
+            // No hook fills the column: said once per column by load_all_links()
+            json_t *jn_refs = json_object_get(child_node, col_name);
+            json_t *refs = jn_refs? get_fkey_refs(jn_refs) : NULL;
+            BOOL has_refs = json_array_size(refs) > 0;
+            JSON_DECREF(refs)
+            if(!has_refs) {
+                continue;   // an empty column links nothing, and loses nothing
+            }
+            if(orphan_cols) {
+                char key[NAME_MAX];
+                snprintf(key, sizeof(key), "%s`%s", topic_name, col_name);
+                json_t *jn_count = json_object_get(orphan_cols, key);
+                json_object_set_new(orphan_cols, key,
+                    json_integer(json_integer_value(jn_count) + 1)
+                );
+            } else {
+                warn_fkey_col_without_hook(gobj, treedb_name, topic_name, col_name, 1);
+            }
             continue;
         }
 
@@ -5202,6 +5235,7 @@ PRIVATE int load_all_links(
 )
 {
     int ret = 0;
+    json_t *orphan_cols = json_object();
 
     /*
      *  Loop topics, as child nodes
@@ -5243,11 +5277,26 @@ PRIVATE int load_all_links(
             ret += load_links(
                 gobj,
                 tranger,
-                child_node
+                child_node,
+                orphan_cols
             );
         }
     }
 
+    const char *key; json_t *jn_count;
+    json_object_foreach(orphan_cols, key, jn_count) {
+        char topic_col[NAME_MAX];
+        snprintf(topic_col, sizeof(topic_col), "%s", key);
+        char *col_name = strchr(topic_col, '`');
+        if(!col_name) {
+            continue;   // every key is "topic`col"
+        }
+        *col_name++ = 0;
+        warn_fkey_col_without_hook(
+            gobj, treedb_name, topic_col, col_name, json_integer_value(jn_count)
+        );
+    }
+    JSON_DECREF(orphan_cols)
     JSON_DECREF(topics)
     return ret;
 }
@@ -6217,7 +6266,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  Build links to hooks
      *-------------------------------*/
     if(links_inherited) {
-        load_links(gobj, tranger, node);
+        load_links(gobj, tranger, node, NULL);
     }
 
     /*-------------------------------*
@@ -10251,7 +10300,7 @@ PRIVATE int autolink_in_memory(
          *  HERE only fkeys
          *  link fkeys
          */
-        json_t *fv = kw_get_dict_value(gobj, kw, col_name, 0, 0); // Not yours GILIPOLLAS
+        json_t *fv = kw_get_dict_value(gobj, kw, col_name, 0, 0); // NOT yours
         if(!fv) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,

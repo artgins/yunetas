@@ -235,7 +235,7 @@ PUBLIC int treedb_delete_topic(
 
 PUBLIC json_t *treedb_list_treedb( // Return a list with treedb names
     json_t *tranger,
-    json_t *kw
+    json_t *kw      // owned, a kw: released with KW_DECREF
 );
 
 PUBLIC json_t *treedb_topics( //Return a list with topic names of the treedb

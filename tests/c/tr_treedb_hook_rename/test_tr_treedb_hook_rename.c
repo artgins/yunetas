@@ -453,15 +453,19 @@ PRIVATE int do_test(void)
     set_expected_results(
         "a ref left in the column a hook no longer fills",
         /*  `departments` is an fkey column no hook fills any more: the
-         *  loader says so for each node of `users` (u1 and u2)  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+         *  loader says so ONCE for the column, with the nodes that hold a
+         *  ref in it (u1; u2's is empty). It was an ERROR per node of
+         *  `users`, at every open.  */
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s, s:i}]",
             "msg", "Re-Creating TreeDB schema file",
             "msg", "Re-Creating topic_var.json",
             "msg", "Re-Creating topic_cols.json",
             "msg", "Re-Creating topic_var.json",
             "msg", "Re-Creating topic_cols.json",
-            "msg", "Child node without fkey field",
-            "msg", "Child node without fkey field"
+            "msg", "An fkey column is filled by no hook: its refs link nothing",
+            "topic_name", "users",
+            "col_name", "departments",
+            "nodes_with_refs", 1
         ),
         NULL, NULL, 1
     );
