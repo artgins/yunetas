@@ -859,6 +859,57 @@ PRIVATE int run_tests(hgobj gobj)
     }
     JSON_DECREF(jn_resp)
 
+    /*-----------------------------------------------*
+     *  Test 14: import-db counts its errors by their
+     *  CAUSE. It keyed them on gobj_log_last_message(),
+     *  the process-global buffer of the last error, so
+     *  each refused create got its own key (the message
+     *  names the id), and a failure logged below ERROR
+     *  was counted under an older, unrelated message.
+     *  Two nodes that exist, one new, `skip`.
+     *-----------------------------------------------*/
+    {
+        json_t *jn_db = json_pack("{s:[{s:s}], s:[{s:s, s:s}, {s:s, s:s, s:[]}]}",
+            "departments",
+                "id", "engineering",
+            "users",
+                "id", "alice", "username", "alice_imported",
+                "id", "zoe_imported", "username", "zoe", "departments"
+        );
+        char *s_db = json_dumps(jn_db, JSON_COMPACT);
+        gbuffer_t *gbuf_b64 = gbuffer_binary_to_base64(s_db, strlen(s_db));
+        jn_resp = gobj_command(priv->gobj_node, "import-db",
+            json_pack("{s:s, s:s}",
+                "content64", gbuffer_cur_rd_pointer(gbuf_b64),
+                "if-resource-exists", "skip"
+            ),
+            gobj
+        );
+        GBUFFER_DECREF(gbuf_b64)
+        gbmem_free(s_db);
+        JSON_DECREF(jn_db)
+
+        json_t *errores = kw_get_dict(gobj, jn_resp, "data`errores", 0, 0);
+        json_t *expected = json_pack("{s:i}", "node exists", 2);
+        if(!json_equal(errores, expected) ||
+                kw_get_int(gobj, jn_resp, "data`added", -1, 0) != 1 ||
+                kw_get_int(gobj, jn_resp, "data`ignored", -1, 0) != 2 ||
+                kw_get_int(gobj, jn_resp, "data`failure", -1, 0) != 0 ||
+                !treedb_get_node(priv->tranger, treedb_name, "users", "zoe_imported")) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset", "%s", MSGSET_INTERNAL,
+                "msg", "%s", "TEST FAIL: import-db does not count its errors by cause",
+                "expected", "%j", expected,
+                "got", "%j", jn_resp,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(expected)
+        JSON_DECREF(jn_resp)
+    }
+
     if(result == 0) {
         gobj_log_info(gobj, 0,
             "msgset", "%s", MSGSET_INFO,

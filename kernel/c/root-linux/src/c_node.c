@@ -3434,7 +3434,7 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         return refused;
     }
 
-    json_incref(kw);
+    kw_incref(kw);
     json_t *treedbs = gobj_treedbs(gobj, kw, src);
 
     return msg_iev_build_response(gobj,
@@ -3913,7 +3913,7 @@ PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
 
-    json_incref(kw);
+    kw_incref(kw);
     json_t *links = gobj_topic_links(gobj, priv->treedb_name, topic_name, kw, src);
 
     return msg_iev_build_response(gobj,
@@ -3940,7 +3940,7 @@ PRIVATE json_t *cmd_hooks(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
 
-    json_incref(kw);
+    kw_incref(kw);
     json_t *hooks = gobj_topic_hooks(gobj, priv->treedb_name, topic_name, kw, src);
 
     return msg_iev_build_response(gobj,
@@ -4234,7 +4234,7 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *node = gobj_get_node(
         gobj,
         topic_name,
-        json_incref(kw),
+        kw_incref(kw),
         json_incref(_jn_options),
         src
     );
@@ -4949,10 +4949,24 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
 }
 
 /***************************************************************************
+ *  The causes import-db counts its errors by (its `errores`)
+ ***************************************************************************/
+#define IMPORT_NODE_EXISTS      "node exists"
+#define IMPORT_CANNOT_CREATE    "cannot create the node (see the log)"
+
+PRIVATE void count_import_error(json_t *jn_errores, const char *cause)
+{
+    json_int_t n = json_integer_value(json_object_get(jn_errores, cause));
+    json_object_set_new(jn_errores, cause, json_integer(n + 1));
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*----------------------------------------*
      *  A replica cannot be written
      *----------------------------------------*/
@@ -5064,7 +5078,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             if(fin) {
                 break;
             }
-            json_t *node = gobj_create_node( // Return is NOT YOURS
+            json_t *node = gobj_create_node( // Return is YOURS
                 gobj,
                 topic_name,
                 json_incref(record),
@@ -5078,44 +5092,42 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                     record
                 );
                 new++;
-            } else {
-                int n = kw_get_int(gobj, jn_errores, gobj_log_last_message(), 0, KW_CREATE);
-                n++;
-                json_object_set_new(jn_errores, gobj_log_last_message(), json_integer(n));
+                continue;
+            }
 
-                if(if_resource_exists==1) {
-                    // Skip
-                    ignored++;
-                } else if(if_resource_exists==2) {
-                    // Overwrite
-                    node = gobj_get_node(
-                        gobj,
-                        topic_name,
-                        json_incref(record),
-                        0,
-                        src
-                    );
-                    if(node) {
-                        json_decref(node);
-                        json_array_append(
-                            list_records,
-                            record
-                        );
-                        overwrite++;
-                    } else {
-                        int n = (int)kw_get_int(gobj, jn_errores, gobj_log_last_message(), 0, KW_CREATE);
-                        n++;
-                        json_object_set_new(jn_errores, gobj_log_last_message(), json_integer(n));
+            // Refused (logged): counted by cause, never by the global last message
+            const char *id = kw_get_str(gobj, record, "id", "", 0);
+            BOOL exists = (!empty_string(id) && treedb_get_node(
+                priv->tranger, priv->treedb_name, topic_name, id
+            ))? TRUE : FALSE;
+            count_import_error(jn_errores, exists?
+                IMPORT_NODE_EXISTS : IMPORT_CANNOT_CREATE
+            );
 
-                        failure++;
-                    }
-                } else {
-                    // abort
+            if(!exists) {
+                failure++;
+                if(if_resource_exists == 0) {
                     abort++;
                     fin = TRUE;
-                    gobj_trace_json(gobj, record, "%s", gobj_log_last_message());
+                    gobj_trace_json(gobj, record, "import-db aborted: %s", IMPORT_CANNOT_CREATE);
                     break;
                 }
+            } else if(if_resource_exists==1) {
+                // Skip
+                ignored++;
+            } else if(if_resource_exists==2) {
+                // Overwrite: the update of the links phase writes it
+                json_array_append(
+                    list_records,
+                    record
+                );
+                overwrite++;
+            } else {
+                // abort
+                abort++;
+                fin = TRUE;
+                gobj_trace_json(gobj, record, "import-db aborted: %s", IMPORT_NODE_EXISTS);
+                break;
             }
         }
     }
