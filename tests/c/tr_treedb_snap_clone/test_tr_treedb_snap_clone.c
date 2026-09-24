@@ -276,11 +276,12 @@ PRIVATE int test_write_while_active_is_untagged(json_t *tranger)
 }
 
 /***************************************************************************
- *  No shoot-snap while a snap is active (A9 of the 2026-09-21 review).
+ *  No shoot-snap while a snap is active.
  *
- *  With snap A active and reloaded, the primary index holds A's records,
- *  all tagged, so EVERY key took the clone branch of treedb_shoot_snap() and
- *  got the photo's content appended as its NEWEST record. After the
+ *  Up to 7.24.1, with snap A active and reloaded, the primary index holds
+ *  A's records, all tagged, so EVERY key took the clone branch of
+ *  treedb_shoot_snap() and got the photo's content appended as its NEWEST
+ *  record. After the
  *  deactivation the reload picked that clone: the whole treedb was back to
  *  A, and what was written since was buried -- the "activation as a
  *  restore" the owner discarded. The same holds while the treedb is still
@@ -334,9 +335,9 @@ PRIVATE int test_shoot_refused_while_active(json_t *tranger)
  *  A node a snap froze cannot be deleted after an update either: the
  *  primary carries no tag now, the frozen record below does. A delete
  *  erases the whole key. `force` does NOT override it: `force` unlinks the
- *  children, and only `ignore_snaps` lets a frozen node go (M11/M12 of the
- *  2026-09-21 review: the agent and the GUI force every delete, so no
- *  snapshot guard ever fired for them).
+ *  children, and only `ignore_snaps` lets a frozen node go (up to 7.24.1
+ *  it did both: the agent and the GUI force every delete, so no snapshot
+ *  guard ever fired for them).
  ***************************************************************************/
 PRIVATE int test_held_node_cannot_be_deleted(json_t *tranger)
 {
@@ -384,8 +385,8 @@ PRIVATE int test_held_node_cannot_be_deleted(json_t *tranger)
 }
 
 /***************************************************************************
- *  A replica cannot shoot, activate nor deactivate a snap (M10 of the
- *  2026-09-21 review). A shot on a replica ended in the critical "Cannot
+ *  A replica cannot shoot, activate nor deactivate a snap. Up to 7.24.1
+ *  a shot on a replica ended in the critical "Cannot
  *  save record tag" -- an exit(0) with on_critical_error=2 -- and an
  *  activation changed the snap in memory while its save failed.
  ***************************************************************************/

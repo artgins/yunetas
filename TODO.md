@@ -64,11 +64,9 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     `parse_schema_cols()` + `parse_hooks()` and a link reload when hooks or
     fkeys change.
 
-## TreeDB / timeranger2: open findings of the 2026-09-15 review
+## TreeDB / timeranger2: open items
 
-What is still open of the first review (the rest is in `CHANGELOG.md`).
-
-**Found while fixing (2026-09-15)**
+**A flaky test**
 
 - **`test_c_node_link_events` fails now and then** -- twice on 2026-09-15, both
   inside runs of several suites, never alone (15/15 twice). Its message was
@@ -77,53 +75,51 @@ What is still open of the first review (the rest is in `CHANGELOG.md`).
 
 **Medium**
 
-- **tr_treedb**: `treedb_delete_instance()` does not unlink, and
-  that matters in ONE case only (analysed 2026-09-15): the loader links only the
-  `id` index (`load_all_links()`) and hooks dedup by child id, so a non-primary
-  CHILD instance never sits in a parent's hook. (That premise was false for a
-  DICT hook until M15 of the 2026-09-21 review: it took the newest instance.
-  It holds now -- a dict hook keeps the primary.) A non-primary PARENT instance
-  can hold children linked during the session; deleting it leaves them under no
-  visible parent until the reload re-hangs them from the primary (their fkey
-  names only the id). The agent's `delete-config` / `delete-binary` refuse a
-  version still in use ("Using in N yunos") unless `force=1`. Low impact; a
-  fix would move those children to the primary's hook.
-- **gobj-ui: found while fixing, not from the review and not fixed** (all LATENT, a
-  static scan of who hosts whom): three hosts do not declare an output event
-  of a gobj they subscribe to. `C_YUI_NODE` creates `C_YUI_NAV` as a pure
-  child (`c_yui_node.js:705/760/969`) and declares neither
-  `EV_NAV_ITEM_CLOSE` nor `EV_DRAWER_CLOSE_REQUESTED`, which `c_yui_nav.js`
-  really does publish -- the likeliest of the three to bite.
-  `C_YUI_TREEDB_TOPIC_WITH_FORM` creates `C_YUI_JSON` as a pure child
-  (`:2522/2651`) without declaring `EV_EXPAND_PATH`, which only fires on a
-  `__collapsed__` sentinel and those come from the backend, not from a schema
-  or a cell. `C_YUI_TREEDB_TOPICS` hosting `C_YUI_TREEDB_SCHEMA` is the
-  documented opt-in case, not a defect.
+- **tr_treedb**: `treedb_delete_instance()` does not unlink, and that matters in
+  ONE case only (analysed 2026-09-15): the loader links only the `id` index
+  (`load_all_links()`) and hooks dedup by child id, so a non-primary CHILD
+  instance never sits in a parent's hook. (Up to 7.24.1 that premise was false
+  for a DICT hook: it took the newest instance. Since 7.25.0 a dict hook keeps
+  the primary.) A non-primary PARENT instance can hold children linked during
+  the session; deleting it leaves them under no visible parent until the reload
+  re-hangs them from the primary (their fkey names only the id). The agent's
+  `delete-config` / `delete-binary` refuse a version still in use ("Using in N
+  yunos") unless `force=1`. Low impact; a fix would move those children to the
+  primary's hook.
+- **gobj-ui: hosts that do not declare an output event of their child** (all
+  LATENT, a static scan of who hosts whom): three hosts do not declare an output
+  event of a gobj they subscribe to. `C_YUI_NODE` creates `C_YUI_NAV` as a pure
+  child (`c_yui_node.js:705/760/969`) and declares neither `EV_NAV_ITEM_CLOSE`
+  nor `EV_DRAWER_CLOSE_REQUESTED`, which `c_yui_nav.js` really does publish --
+  the likeliest of the three to bite. `C_YUI_TREEDB_TOPIC_WITH_FORM` creates
+  `C_YUI_JSON` as a pure child (`:2522/2651`) without declaring
+  `EV_EXPAND_PATH`, which only fires on a `__collapsed__` sentinel and those
+  come from the backend, not from a schema or a cell. `C_YUI_TREEDB_TOPICS`
+  hosting `C_YUI_TREEDB_SCHEMA` is the documented opt-in case, not a defect.
 
 **Tests nobody has** (in order of damage): `delete_instance` with links.
 C_NODE commands with no ctest: `node`, `instances`, `pkey2s`, `jtree`,
 `parents`, `children`, `hooks`, `links`, `treedb-info`, the snap commands
 (their permissions are tested, their behaviour is not), `import-db` /
 `export-db` and `print-tranger`. The refusals on a replica are tested since
-7.25.0 (`test_c_node_authz`) and, for C_TREEDB, since the 2026-09-23 round.
+7.25.0 (`test_c_node_authz`) and, for C_TREEDB, since 7.25.4.
 In gobj-ui, the treedb views got their first wiring tests on 2026-09-23
 (`test/dom_double.js`); the save kw as it leaves `publish_treedb_write` is
 still untested.
 
-## TreeDB / timeranger2: open findings of the 2026-09-21 review
+## TreeDB / timeranger2: what 7.25.0 leaves open
 
-The second review (read at 7.24.1) shipped in 7.25.0 and in gobj-ui
-7.23.193-7.23.196 / gui_treedb 0.17.52-0.17.54 / gui_agent 0.22.74 (see the
-`CHANGELOG.md` of each). What its fixes left open:
+What the changes of 7.25.0 (and of gobj-ui 7.23.193-7.23.196 / gui_treedb
+0.17.52-0.17.54 / gui_agent 0.22.74, see the `CHANGELOG.md` of each) leave
+open:
 
-- **A1-A3:** C_NODE's `snap-content` does not ask
-  `treedb_is_treedbs_topic()` -- it can no longer leave the database, but it
+- **`snap-content` can read a topic of another treedb:** C_NODE's
+  `snap-content` does not ask `treedb_is_treedbs_topic()` -- it can no longer leave the database, but it
   can read a topic of the tranger that is not a topic of that treedb.
-- **M36:** every in-tree yuno forces `impose_c_schema`, so gui_agent's Apply
-  is off on all of them until one stops forcing it.
+- **Apply is off on every in-tree yuno:** each one forces `impose_c_schema`,
+  so gui_agent's Apply is off on all of them until one stops forcing it.
 
-**Low, worth keeping** (M23, M34 and M40 were lowered to here by their
-verifiers):
+**Low, worth keeping:**
 the `EV_TREEDB_NODE_*` feed is outside the `read` permission, because the
 subscription authz is commented out (`c_ievent_srv.c`, `gobj.c`); the warning
 *"Parent ref already in child fkey"* still fires in the legitimate case of

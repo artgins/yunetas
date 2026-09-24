@@ -8,7 +8,7 @@ lives in the column's `properties` (`max_size`, `content_types`).
 
 The body below has been corrected where §15.2 said it was wrong, so §1-§13
 describe **what was built**, not what was proposed. §15 is kept as the dated
-review that found those statements. **§16 is what the implementation itself
+check that found those statements. **§16 is what the implementation itself
 found**, and it is the part to read before touching this code: six defects
 that the design could not have predicted, and what is still open.
 
@@ -693,7 +693,7 @@ in the first pass (§16):
     `file` column created with the store running links through its hook, and
     one deleted takes its hook — and the children it held — away with it.
 
-Six more came out of the two reviews that followed (§16.8, §16.9):
+Six more were found after the merge (§16.8, §16.9):
 
 11. **The write path links the column itself**, `autolink` or not: create,
     move, clear and a reopen.
@@ -725,7 +725,7 @@ about `__assets__` is ever versioned (§3).
 
 What is actually open is in §16.
 
-## 15. Review against the code (2026-09-05)
+## 15. The note checked against the code (2026-09-05)
 
 Every section above was checked against `tr_treedb.c`, `timeranger2.c`,
 `treedb_system_schema.c`, `c_treedb.c`, `c_node.c`, `c_assets.c`,
@@ -855,7 +855,7 @@ suites named in §13 exist.
 
 ## 16. What the implementation found (2026-09-05)
 
-§15 was a review of the note against the code. This is the other direction:
+§15 checked the note against the code. This is the other direction:
 what writing the code found that the note could not have. Six defects, each
 with a regression test verified to fail with its fix reverted. They are here
 because every one of them would have broken QUIETLY.
@@ -958,7 +958,7 @@ only what maps to a topic of THIS treedb or to one no longer open at all.
   (§15.3). The write path looks the asset up before creating it, so the
   census reload is quiet — but the trap is still there for the next caller.
 
-### 16.8 Found by the review of 2026-09-05
+### 16.8 Found after the merge (2026-09-05)
 
 Two defects, one in each layer, and the same symptom for both: a save that
 says yes and leaves the photo behind.
@@ -981,7 +981,7 @@ says yes and leaves the photo behind.
   record, and every save of any other field of its record unlinked it. gobj-ui
   7.23.63 asks `is_file` beside the type.
 
-Two more from the same review, closed the same day:
+Two more found then, closed the same day:
 
 - **The gc's bypass of the snapshot guard was a key of the options.**
   `treedb_gc_files()` walks the snapshots once for the whole run and told
@@ -1024,7 +1024,7 @@ second half:
   copy) but not by bare id — the client's fallback of sending the bytes covers
   it, which is why it is left.
 
-And the rest of the same review, closed the same day:
+And the rest found then, closed the same day:
 
 - **The gc held for ever what any tagged instance ever named.** It read every
   instance with a tag as "a snapshot needs this", but `treedb_save_node()`
@@ -1056,7 +1056,7 @@ And the rest of the same review, closed the same day:
   segment equal to `..` now; and a second arrival of the same bytes no longer
   rewrites `uploaded_by`, which is who put the BYTES there.
 
-### 16.9 Found by the second review of 2026-09-05
+### 16.9 Found later the same day (2026-09-05)
 
 Four more, and the first one is the same shape as §16.8: a write that says
 yes and puts the file somewhere else.
@@ -1117,7 +1117,7 @@ them builds a served path.
 What stays open is in §16.7, and none of it is a defect of this design: the
 remote stores, and the bytes of a replica or of an `export-db`.
 
-### 16.10 Found by the review of the local reinstall (2026-09-05)
+### 16.10 Found while reinstalling locally (2026-09-05)
 
 Two small ones, both in the write path, both caught by reading rather than
 by failing:

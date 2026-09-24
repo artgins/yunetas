@@ -1030,7 +1030,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
      *  in an append, and a replica refuses the append. Refused BEFORE
      *  anything moves: the autolink path moves the links in memory first
      *  and saved last, and it answered the node although the save had been
-     *  refused (M4 of the 2026-09-23 review). Its real caller is C_AUTHZ
+     *  refused (up to 7.25.3). Its real caller is C_AUTHZ
      *  creating a user with a role from EV_IDP_USER_CREATED, an event that
      *  no command-level guard sees.
      */
@@ -1088,7 +1088,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
          *  +New of a table typed an id that was taken, and `create` alone
          *  made that an update -- the existing record overwritten and, with
          *  autolink and empty selects, unlinked, answered "Node update!"
-         *  (M28 of the 2026-09-21 review).
+         *  (up to 7.24.1).
          */
         if(create_only) {
             gobj_log_error(gobj, 0,
@@ -2943,7 +2943,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*
      *  The record was saved, but a link it names could not be made and its
      *  links are the ones it had: that is not a plain success. It was
-     *  answered "Node update!" (M1 of the 2026-09-21 review), and a form
+     *  answered "Node update!" (up to 7.24.1), and a form
      *  closed on a parent the operator had not got.
      */
     if(node && links_refused) {

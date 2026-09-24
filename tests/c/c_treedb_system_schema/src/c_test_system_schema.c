@@ -1412,8 +1412,8 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
     JSON_DECREF(cols_now)
 
     /*
-     *  The per-column rules an open applies (M7 of the 2026-09-21 review):
-     *  stored anyway, each of these lost the topic at the next open, or
+     *  The per-column rules an open applies: stored anyway (up to 7.24.1),
+     *  each of these lost the topic at the next open, or
      *  refused every record of it.
      */
     {
@@ -1430,7 +1430,7 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
                 "flag", "hook", "topics", users_fkey),
             /*  A string hook was blessed here and refused by every link
              *  into it ("wrong parent hook type"), after the unlink of a
-             *  replace: the M1 shape again (a low of the 2026-09-22 review).  */
+             *  replace (up to 7.25.2).  */
             json_pack("{s:s, s:s, s:s, s:[s], s:s}",
                 "value", "bad_hook_string", "header", "Bad", "type", "string",
                 "flag", "hook", "topics", users_fkey),
@@ -1591,8 +1591,7 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
 /***************************************************************************
  *  An edit of a schema is a DRAFT: it moves no version.
  *
- *  It used to publish itself (M8 of the 2026-09-21 review, then the
- *  owner's decision on M36): every write raised `topic_version` and
+ *  Up to 7.24.1 it published itself: every write raised `topic_version` and
  *  `schema_version`, so an edit half made was already the schema the next
  *  start would take. `save-schema` publishes now, once, for the topics
  *  that changed -- see check_save_and_apply().
@@ -3144,7 +3143,7 @@ PRIVATE int save_fail(hgobj gobj, const char *what, json_t *jn_resp)
 }
 
 /***************************************************************************
- *  Save and apply: the owner's design of M36 (2026-09-21 review).
+ *  Save and apply.
  *
  *  An edit of __system__ is a draft. `save-schema` publishes it ONCE: the
  *  topics that differ from the schema file IN USE get its topic_version
@@ -3216,8 +3215,8 @@ PRIVATE int check_save_and_apply(hgobj gobj)
 
     /*
      *  Before the save, saved-schema names the topic the DRAFT changes (the
-     *  mark the schema editor rebuilds after a reload, N13 of the 2026-09-22
-     *  review): `users` was edited above, `departments` not
+     *  mark the schema editor rebuilds after a reload): `users` was
+     *  edited above, `departments` not
      */
     jn_resp = treedbs_command(gobj, "saved-schema", json_object());
     {
@@ -3264,8 +3263,8 @@ PRIVATE int check_save_and_apply(hgobj gobj)
      *  The file in use of a node opened with impose off before the draft
      *  model held its `topics` as a DICT keyed by name (what
      *  get_treedb_schema() answers, written as it was). It is the same
-     *  schema, and the diff of a save must read it as such (N11 of the
-     *  2026-09-22 review): read as no topic at all, every topic was
+     *  schema, and the diff of a save must read it as such. Up to
+     *  7.25.2 it was read as no topic at all: every topic was
      *  "changed" and every version was bumped and written again.
      */
     {
@@ -3356,8 +3355,7 @@ PRIVATE int check_save_and_apply(hgobj gobj)
     /*  ...and, once saved, the draft is no longer "unsaved": it is diffed
      *  against the SAVED schema, not the file in use. Diffed against the
      *  file in use, `users` stayed "changed" after a successful save until
-     *  an Apply -- for ever on an imposed treedb (M1 of the 2026-09-23
-     *  review).  */
+     *  an Apply -- for ever on an imposed treedb (up to 7.25.3).  */
     {
         json_t *draft_changed = kw_get_dict(gobj, jn_resp, "data`draft_changed", 0, 0);
         if(!draft_changed || json_object_size(draft_changed) != 0) {
@@ -4921,8 +4919,8 @@ PRIVATE json_int_t b_in_use_version(hgobj gobj)
 }
 
 /***************************************************************************
- *  apply-schema of every treedb is ALL OR NONE (M2 of the 2026-09-23
- *  review). It applied them one by one: A replaced, B refused, answer -1,
+ *  apply-schema of every treedb is ALL OR NONE. Up to 7.25.3 it applied
+ *  them one by one: A replaced, B refused, answer -1,
  *  and a console that read the -1 as "nothing applied" did not restart --
  *  A went in use silently at some later start. And each row says whether
  *  ITS file was replaced (`data.applied`), which is what a console restarts
@@ -5104,7 +5102,7 @@ PRIVATE int check_apply_all_or_none(hgobj gobj)
  *  EVERY command of C_TREEDB refuses a user with no permission. Walked
  *  from the table itself, like tests/c/c_node_authz does for C_NODE: a
  *  hand-written list is what let save-schema and apply-schema ask the
- *  wrong permission for a release (M41/M42 and F-2 of the reviews).
+ *  wrong permission for a release (up to 7.25.3).
  ***************************************************************************/
 PRIVATE int check_every_command_refuses_nobody(hgobj gobj)
 {

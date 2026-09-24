@@ -1668,8 +1668,8 @@ PRIVATE int test_failed_autolink_tells_the_asset_write(json_t *tranger)
  *  it: a `__graphs__` layout saved four times said, four times, that it
  *  was saved the first time. 7.24.0 stamped it on an update only for a
  *  `writable` column, and every "Update Time" of the projects -- declared
- *  ['persistent','time','now'] -- stayed frozen at the create (M5 of the
- *  2026-09-21 review). `now` is stamped by every write, volatile or not.
+ *  ['persistent','time','now'] -- stayed frozen at the create.
+ *  `now` is stamped by every write, volatile or not.
  *  The instant a thing was BORN is a `time` column without `now`:
  *  `__assets__.t`, which a rename of the asset must not move.
  ***************************************************************************/

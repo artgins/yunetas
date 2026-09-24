@@ -1709,7 +1709,7 @@ PRIVATE int do_test(void)
 
     /*-------------------------------------------------*
      *      A MULTI-key iterator paged backward counts from the LIVE end
-     *      too: N4 was fixed for one key, and the parts of an rkey
+     *      too: 7.25.3 did it for one key only, and the parts of an rkey
      *      iterator kept the row counts of the open -- so "newest first"
      *      on the whole-topic card never showed a row appended after it.
      *-------------------------------------------------*/

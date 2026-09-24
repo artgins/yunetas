@@ -325,7 +325,7 @@ PRIVATE int test_update_cannot_change_pkey2(
  *  by the test above) and unlinked from ONE of them is gone from the hook
  *  of both: the child's fkey names the parent's id, not an instance.
  *
- *  It stayed in the other instance's hook (M15 of the 2026-09-21 review),
+ *  Up to 7.24.1 it stayed in the other instance's hook,
  *  and the refusal of an unlink from a parent the child does not name then
  *  made that parent impossible to delete, even with force, until a reload.
  ***************************************************************************/
@@ -388,8 +388,8 @@ PRIVATE int test_unlink_from_one_instance_frees_every_instance(
  *  keeps the one it has. It took the newest: a second instance of the
  *  child replaced the entry, a delete_instance of it left it there, and a
  *  forced delete of the parent unlinked -- and so SAVED -- the deleted
- *  instance: it came back on disk, as the primary after a reload (M15 of
- *  the 2026-09-21 review; the agent's binaries and configurations).
+ *  instance: it came back on disk, as the primary after a reload (up to
+ *  7.24.1; the agent's binaries and configurations).
  ***************************************************************************/
 PRIVATE int test_dict_hook_keeps_the_primary_instance(
     json_t *tranger,

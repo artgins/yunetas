@@ -451,9 +451,9 @@ PRIVATE int test_open(void)
     result += test_json(NULL);
 
     /*
-     *  The columns are checked BEFORE the topic exists (M6 of the
-     *  2026-09-21 review): a topic with no `id` column, or with none at
-     *  all, was persisted and answered as created.
+     *  The columns are checked BEFORE the topic exists. Up to 7.24.1 a
+     *  topic with no `id` column, or with none at all, was persisted and
+     *  answered as created.
      */
     set_expected_results(
         "create-topic refuses a topic with no id column, or no columns",

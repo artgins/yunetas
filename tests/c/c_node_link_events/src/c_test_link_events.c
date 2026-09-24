@@ -645,8 +645,8 @@ PRIVATE int run_tests(hgobj gobj)
 
     /*-----------------------------------------------*
      *  Test 8b: the ONLY parent replaced by one that
-     *  cannot be linked (M1 of the 2026-09-21 review).
-     *  The old link was undone first and the new one
+     *  cannot be linked. Up to 7.24.1
+     *  the old link was undone first and the new one
      *  failed after: alice ended orphaned on disk,
      *  UNLINKED published, no LINKED. A column is now
      *  replaced whole or not at all.
@@ -697,7 +697,7 @@ PRIVATE int run_tests(hgobj gobj)
 
     /*-----------------------------------------------*
      *  Test 8d: `create_only` refuses an id that
-     *  exists (M28 of the 2026-09-21 review). +New
+     *  exists. Up to 7.24.1 +New
      *  with a taken id was an update: the record
      *  overwritten and, with autolink, unlinked.
      *-----------------------------------------------*/
@@ -832,8 +832,8 @@ PRIVATE int run_tests(hgobj gobj)
 
     /*-----------------------------------------------*
      *  Test 13: the update-node COMMAND without
-     *  `options`, the form the docs use with ycommand
-     *  (M14 of the 2026-09-21 review). It asked the
+     *  `options`, the form the docs use with ycommand.
+     *  Up to 7.24.1 it asked the
      *  NULL options for `create` and logged "kw must be
      *  list or dict" with a stack on every call; the
      *  expected log list of this test has no room for it.

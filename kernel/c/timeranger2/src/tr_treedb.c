@@ -1905,7 +1905,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
      *  validated AFTER tranger2_create_topic() and a failure only logged:
      *  a topic with no `id` column (the pkey is fixed to "id"), no columns,
      *  or columns parse_schema_cols() refuses was persisted and answered
-     *  "Topic created!" (M6 of the 2026-09-21 review).
+     *  "Topic created!" (up to 7.24.1).
      *------------------------------*/
     if(check_cols_of_new_topic(gobj, treedb_name, topic_name, cols)<0) {
         // Error already logged, and the last message set
@@ -2729,7 +2729,7 @@ PUBLIC int parse_schema_cols(
  *  child's topic_cols.json, it outlived a rename of the hook (only the
  *  PARENT's topic_version rises), and the child reloaded the old one --
  *  "Only can be one fkey" at every open, and the links of the new hook
- *  dropped at every restart (M2 of the 2026-09-21 review).
+ *  dropped at every restart (up to 7.24.1).
  ***************************************************************************/
 PRIVATE void strip_fkey_marks_of_cols(json_t *cols) // not owned, MUTATED
 {
@@ -4017,7 +4017,7 @@ PRIVATE int check_system_schema_write(
 
         /*
          *  And the per-column rules an OPEN applies, that a stored column
-         *  skipped (M7 of the 2026-09-21 review): a `file` column must be an
+         *  skipped (up to 7.24.1): a `file` column must be an
          *  fkey on a string, a column is a hook or an fkey but not both, and
          *  a hook/fkey has a type a link can live in. Stored anyway, the
          *  column lost the whole topic at the next open, or every record.
@@ -4972,8 +4972,8 @@ PRIVATE BOOL dict_hook_slot_taken(
  *  new release). An unlink clears that ref: take the child out of the
  *  hook of every OTHER instance too, in memory. Left there, the child was
  *  hooked by a parent it no longer names, which could then be neither
- *  unlinked nor deleted, even with force, until a reload (M15 of the
- *  2026-09-21 review).
+ *  unlinked nor deleted, even with force, until a reload (up to
+ *  7.24.1).
  ***************************************************************************/
 PRIVATE void drop_child_from_other_instances(
     hgobj gobj,
@@ -5959,8 +5959,8 @@ PRIVATE json_int_t get_next_rowid_id(
      *  never the treedb's id index: with a snap active that index holds
      *  only what the snap loaded, so a node created after the shot was
      *  missing from the seed and its id was handed out again -- and
-     *  exist_primary_node() asks the same index (M4 of the 2026-09-21
-     *  review; the real case was __graphs__).
+     *  exist_primary_node() asks the same index (up to 7.24.1; the
+     *  real case was __graphs__).
      */
     json_t *topic_cache = json_object_get(topic, "cache");
     const char *id; json_t *cell;
@@ -7777,8 +7777,8 @@ PRIVATE json_t *prepare_node_update(
     /*-------------------------------*
      *  A save on a replica is refused by the append, and the node in
      *  memory took the update all the same while the answer was the node:
-     *  a write that "worked" until the next reload (pattern 1 of the
-     *  2026-09-21 review). Refused BEFORE anything moves: below, the bytes
+     *  a write that "worked" until the next reload (up to 7.25.3).
+     *  Refused BEFORE anything moves: below, the bytes
      *  of a `file` column go into the master's store and its links move in
      *  memory. A memory-only update (save FALSE) is a replica's business,
      *  and goes on.
@@ -7848,7 +7848,7 @@ PRIVATE json_t *prepare_node_update(
              *  `writable` or not, persistent or volatile. 7.24.0 stamped only
              *  a `writable` one, and every "Update Time" of the projects,
              *  declared ['persistent','time','now'], stayed frozen at the
-             *  create (M5 of the 2026-09-21 review). The instant a thing was
+             *  create. The instant a thing was
              *  BORN is a `time` column without `now` (`__assets__.t`): a
              *  create with no value gives it the clock, and an update does
              *  not touch it. An epoch is an integer: a `now` of another type
@@ -8170,7 +8170,7 @@ PRIVATE int delete_node(
      *  `ignore_snaps` overrides, and `force` does NOT: `force` unlinks the
      *  children. It did both, and the agent's delete-yuno and gobj-ui's
      *  table force EVERY delete to get the first, so no snapshot guard
-     *  ever fired for them (M11/M12 of the 2026-09-21 review).
+     *  ever fired for them (up to 7.24.1).
      */
     int held = ignore_snaps? 0 : node_held_by_a_snap(gobj, tranger, treedb_name, node);
     if(held != 0) {
@@ -10353,7 +10353,7 @@ PRIVATE int unlink_child_from_parent_ref(
      *  hooks this child's topic: what a renamed or removed hook leaves in
      *  every child. It hangs from nothing -- the loader ignores it -- and
      *  unlinking it failed on the missing hook, so the node could be neither
-     *  relinked, cleaned nor force-deleted (M3 of the 2026-09-21 review;
+     *  relinked, cleaned nor force-deleted (up to 7.24.1;
      *  3fea635f3 made the unlink refuse where it used to go through). Such
      *  a ref is stale: it is removed from the child, with a warning.
      */
@@ -10390,7 +10390,7 @@ PRIVATE int unlink_child_from_parent_ref(
 
     /*
      *  The hook exists and hooks this topic, but through ANOTHER column of
-     *  the child: a schema re-pointed it (M10 of the 2026-09-23 review).
+     *  the child: a schema re-pointed it.
      *  The ref left in the old column is just as stale -- the unlink reads
      *  the column the hook fills now, does not find it there and refuses,
      *  and a forced delete failed for ever.
@@ -10980,7 +10980,7 @@ PRIVATE BOOL link_can_be_made(
  *  checked before any old one is undone, and a column with one link that
  *  cannot be made keeps the links it has. Unlinking first and failing
  *  after left the child orphaned on disk, UNLINKED published and no
- *  LINKED, for a refusal (M1 of the 2026-09-21 review). The caller saves
+ *  LINKED, for a refusal (up to 7.24.1). The caller saves
  *  the record anyway, because a link can be repaired later and a lost
  *  record cannot. A column whose value cannot be read as refs keeps the
  *  links it has too.
@@ -13148,7 +13148,7 @@ PUBLIC json_t *treedb_get_topic_hooks(
  ***************************************************************************/
 /*
  *  2: `t` lost `now` (it is when the BYTES arrived, and `now` is stamped by
- *  every write since M5 of the 2026-09-21 review).
+ *  every write since 7.25.0).
  */
 #define TREEDB_ASSETS_TOPIC_VERSION     2
 #define TREEDB_BLOBS_DIR                ".blobs"

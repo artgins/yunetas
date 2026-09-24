@@ -19,7 +19,7 @@
  *      4. the counter survives close + open, even with its highest node gone
  *      5. the same in __snaps__
  *      6. a store with no counter yet and a snap active: the seed is not
- *         fooled by the snap-filtered index (M4)
+ *         fooled by the snap-filtered index
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -365,7 +365,7 @@ PRIVATE int test_snaps(json_t *tranger)
  *  treedb's id index -- which, with a snap active, holds only what the snap
  *  loaded. A node created after the shot is on disk and not in that index,
  *  so the id handed out could be ITS id, and exist_primary_node() asks the
- *  same index and did not see it (M4 of the 2026-09-21 review; the real case
+ *  same index and did not see it (up to 7.24.1; the real case
  *  was __graphs__). The seed reads the keys of the TOPIC, which are all of
  *  them.
  ***************************************************************************/

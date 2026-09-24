@@ -4265,7 +4265,7 @@ PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
      *  A role that cannot be linked is refused before anything is written.
      *  The treedb refused the link on its own and the user was saved all
      *  the same, so the command answered "User updated" for a role the user
-     *  did not get (M15 of the 2026-09-21 review).
+     *  did not get (up to 7.24.1).
      */
     if(!empty_string(role) && !role_ref_is_linkable(gobj, role)) {
         // Error already logged
@@ -4394,7 +4394,7 @@ PRIVATE int ac_reject_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
      *  they are dropped whatever happens to the write of `disabled`: it used
      *  to replace `user` with the return of that write, so a refused write
      *  (a replica, a failed append) left `user` NULL, no session was read,
-     *  and the rejected user stayed connected (M5 of the 2026-09-23 review).
+     *  and the rejected user stayed connected (up to 7.25.3).
      */
     int ret = 0;
     if(kw_has_key(kw, "disabled")) {

@@ -4,9 +4,9 @@
  *  Fixture generator for the emu_device end-to-end runtime check.
  *
  *  emu_device replays the base64 "frame64" field of a timeranger2 topic to a
- *  TCP sink. The review left it compile-verified only, "needs a timeranger2
- *  topic whose records carry a base64 frame64 field" — this builds exactly
- *  that: a master timeranger2 database with one topic of N records, each
+ *  TCP sink. Its runtime check needs a timeranger2 topic whose records carry
+ *  a base64 frame64 field — this builds exactly that: a master timeranger2
+ *  database with one topic of N records, each
  *  { "id":1, "tm":<t>, "frame64": base64("FRAME-<j>\n") }, appended as N
  *  instances of a single key so emu_device replays them in order.
  *

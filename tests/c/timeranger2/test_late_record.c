@@ -344,7 +344,7 @@ PRIVATE int do_test(void)
     /*-------------------------------------*
      *  The marked file goes on growing: the
      *  follower reads only the rows after
-     *  the ones its cell counted (N12), and
+     *  the ones its cell counted, and
      *  the range it keeps is the union.
      *-------------------------------------*/
     set_expected_results("late record: a marked file keeps growing", NULL, NULL, NULL, 1);

@@ -3558,7 +3558,7 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     if(!node) {
         /*
          *  The file is in place, the record is not: sync-binaries read the
-         *  old result 0 as "installed" (M15 of the 2026-09-21 review).
+         *  old result 0 as "installed" (up to 7.24.1).
          */
         return msg_iev_build_response(
             gobj,
@@ -5173,8 +5173,8 @@ json_t* cmd_delete_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
      *  `force`). The snapshot guard is the treedb's, and it reads the
      *  RECORDS of the key: the tag in memory it used to read here is 0 for
      *  anything saved after the shot, and the `force = 1` that followed
-     *  switched the treedb's own guard off too (M11 of the 2026-09-21
-     *  review), so a frozen release was deleted without force.
+     *  switched the treedb's own guard off too (up to 7.24.1), so a frozen
+     *  release was deleted without force.
      */
     int result = 0;
     int deleted = 0;

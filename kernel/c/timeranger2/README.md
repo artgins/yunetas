@@ -493,8 +493,8 @@ until its `__snaps__` row is deleted; and it takes the bytes **no row names**,
 which is what an interrupted write leaves behind. `delete-node` on an `__assets__` row runs the
 same guards, and `force` does not override them.
 
-Full account, including the defects the implementation and its review found
-(§16): [`DESIGN-treedb-files.md`](DESIGN-treedb-files.md).
+Full account, including the defects found after the implementation (§16):
+[`DESIGN-treedb-files.md`](DESIGN-treedb-files.md).
 
 ## Filesystem watcher
 

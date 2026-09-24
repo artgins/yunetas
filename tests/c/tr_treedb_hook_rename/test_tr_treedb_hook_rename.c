@@ -1,7 +1,7 @@
 /****************************************************************************
  *          test_tr_treedb_hook_rename.c
  *
- *  Renaming a hook (M2 of the 2026-09-21 review).
+ *  Renaming a hook.
  *
  *  parse_hooks() marks the CHILD's fkey column with the one hook that fills
  *  it (`"fkey": {parent_topic: hook}`), and the loader keeps only the links
@@ -21,9 +21,10 @@
  *         "Only can be one fkey", and a link through the new hook survives
  *         a reload
  *      3. the files the rename writes carry no mark
- *      4. M3: a ref that names the OLD hook is removed, with a warning,
- *         when the node is cleaned or force-deleted -- it failed both
- *      5. M10 of the 2026-09-23 review: the hook KEEPS its name but fills
+ *      4. a ref that names the OLD hook is removed, with a warning,
+ *         when the node is cleaned or force-deleted -- up to 7.24.1 it
+ *         failed both
+ *      5. the hook KEEPS its name but fills
  *         ANOTHER column of the child. The ref left in the old column
  *         names a hook that exists and hooks this topic, so it did not look
  *         stale, and the unlink checked the new column and refused: the
@@ -414,7 +415,7 @@ PRIVATE int do_test(void)
     }
 
     /*
-     *  4. M3: u2 and u3 still name the OLD hook (departments^d1^users), which
+     *  4. u2 and u3 still name the OLD hook (departments^d1^users), which
      *     hangs from nothing now. Cleaning one and force-deleting the other
      *     remove that ref with a warning instead of failing on it: the node
      *     could be neither relinked, cleaned nor deleted.
@@ -445,7 +446,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*
-     *  5. M10: u1 hangs from d1 through `members`, its ref in `departments`.
+     *  5. u1 hangs from d1 through `members`, its ref in `departments`.
      *     The hook now fills `sections`: that ref is stale, and a forced
      *     delete removes it with a warning instead of failing for ever.
      */

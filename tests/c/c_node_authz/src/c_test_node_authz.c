@@ -22,11 +22,10 @@
  *                alone asks it too (it created under `update` alone);
  *              - EVERY command of C_NODE's table refuses `nobody`, walked
  *                from the table itself, so a new command is covered the
- *                day it is added (M41 of the 2026-09-21 review);
+ *                day it is added;
  *              - the same treedb opened as a REPLICA answers every write
- *                READ-ONLY and changes nothing (M42), and so does a
- *                gobj_update_node() with autolink that no command guards
- *                (M4 of the 2026-09-23 review);
+ *                READ-ONLY and changes nothing, and so does a
+ *                gobj_update_node() with autolink that no command guards;
  *              - delete-node with ignore_snaps asks `create` besides
  *                `delete`: it erases what shoot-snap made;
  *              - an update nested in the events of another (a subscriber
@@ -532,7 +531,7 @@ PRIVATE int run_tests(hgobj gobj)
      *  Walked from C_NODE's own command table, not listed here: a
      *  hand-written list is what let create-node, delete-node,
      *  import-assets, gc-assets, set-link-events and schema-file go
-     *  without a refusal test (M41 of the 2026-09-21 review). A new
+     *  without a refusal test (up to 7.24.1). A new
      *  command is covered the day it is added, or it is named below as
      *  one that asks nothing, and why.
      *-----------------------------------------------*/
@@ -598,8 +597,8 @@ PRIVATE int run_tests(hgobj gobj)
     result += expect(gobj, "reader", "snap-content", json_pack("{s:s}", "name", "s1"), FALSE);
     result += expect(gobj, "reader", "activate-snap", json_pack("{s:s}", "name", "s1"), TRUE);
     /*  A success is result 0, not the id of the snap: activate-snap passed
-     *  the return of treedb_activate_snap() (the activated id since the M4
-     *  side fix) through as the RESULT (N6 of the 2026-09-22 review), and
+     *  the return of treedb_activate_snap() (the activated id since 7.25.0)
+     *  through as the RESULT (up to 7.25.2), and
      *  ycommand takes its exit code from it.  */
     {
         int ret = ask(gobj, "editor", "activate-snap", json_pack("{s:s}", "name", "s1"));
@@ -875,7 +874,7 @@ PRIVATE int run_tests(hgobj gobj)
 /***************************************************************************
  *  The same treedb opened as a REPLICA (master=0): every write is refused
  *  READ-ONLY, whoever asks, and nothing moves. No test opened a treedb as a
- *  replica to write (M42 of the 2026-09-21 review), and on a replica a
+ *  replica to write (up to 7.24.1), and on a replica a
  *  write that "worked" lived in memory only, gone at the next reload.
  ***************************************************************************/
 PRIVATE int run_replica_tests(hgobj gobj)

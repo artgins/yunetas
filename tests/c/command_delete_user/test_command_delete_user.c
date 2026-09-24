@@ -11,14 +11,13 @@
  *            4. immutable seed user, even force  -> refused (result -1), kept
  *            5. disable-user                     -> disables it, logs no error
  *            7. enable-user on a replica         -> -1, not "User enabled"
- *                                                   (A7 of the 2026-09-21 review)
  *            6. a role that cannot be linked     -> create/update-user refused,
- *                                                   the user keeps its role (M15)
+ *                                                   the user keeps its role
  *            8. EV_REJECT_USER on a replica      -> the live sessions are dropped
  *                                                   although `disabled` cannot be
- *                                                   written, -1 (M5 of 2026-09-23)
+ *                                                   written, -1
  *            9. EV_ADD_USER / EV_IDP_USER_CREATED on a replica -> -1, nothing
- *                                                   created, nothing moved (M4)
+ *                                                   created, nothing moved
  *           10. disable-user / enable-user / set-max-sessions -> the local
  *                                                   password survives them
  *           11. every comment starts with the yuno, walked from the
@@ -375,7 +374,7 @@ PRIVATE void run_checks(hgobj gobj)
     check_int("seed_immutable kept", user_exists("seed_immutable"), 1);
 
     /*
-     *  Case 5: disable-user (A7 of the 2026-09-21 review). It handed the
+     *  Case 5: disable-user. Up to 7.24.1 it handed the
      *  NODE to EV_REJECT_USER, which reads "username" (the node keys on
      *  "id"): the lookup failed with a logged error, the user's live
      *  sessions were never dropped, and the event freed the node that the
@@ -392,8 +391,8 @@ PRIVATE void run_checks(hgobj gobj)
     check_int("local_to_disable is disabled", user_disabled("local_to_disable"), 1);
 
     /*
-     *  Case 6: a role that cannot be linked (rest of M15 of the 2026-09-21
-     *  review). The link was refused inside the treedb and the command
+     *  Case 6: a role that cannot be linked. Up to 7.24.1 the link was
+     *  refused inside the treedb and the command
      *  answered "User updated"/"User created" all the same. It is refused
      *  before anything is written now, and the user keeps the role it had.
      */
@@ -417,8 +416,8 @@ PRIVATE void run_checks(hgobj gobj)
     check_int("local_norole was not created", user_exists("local_norole"), 0);
 
     /*
-     *  Case 7: enable-user (N7 of the 2026-09-22 review, the sibling of
-     *  case 5). It handed the return of gobj_update_node() to the response
+     *  Case 7: enable-user, the sibling of case 5. Up to 7.25.2 it handed
+     *  the return of gobj_update_node() to the response
      *  as it was: a refused update answered result 0, "User enabled", with
      *  no record. A replica refuses every write, which makes the refusal
      *  reproducible here: the tranger's master flag is turned off around
@@ -444,8 +443,8 @@ PRIVATE void run_checks(hgobj gobj)
     }
 
     /*
-     *  Case 8: EV_REJECT_USER when `disabled` cannot be written (M5 of the
-     *  2026-09-23 review). The write's NULL replaced the user node, so its
+     *  Case 8: EV_REJECT_USER when `disabled` cannot be written. Up to
+     *  7.25.3 the write's NULL replaced the user node, so its
      *  __sessions were never read and a rejected user stayed connected. The
      *  sessions are dropped from the node read before the write now, and
      *  the event answers -1 for the write it could not do. The session is
@@ -500,7 +499,7 @@ PRIVATE void run_checks(hgobj gobj)
     /*
      *  Case 9: the EVENT doors on a replica. refuse_on_replica() guards the
      *  commands only; EV_ADD_USER (with a role: the autolink path of
-     *  C_NODE, M4) and EV_IDP_USER_CREATED went on to the treedb.
+     *  C_NODE) and EV_IDP_USER_CREATED went on to the treedb.
      */
     {
         hgobj treedb = gobj_find_service("treedb_authzs", FALSE);
