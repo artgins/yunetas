@@ -60,6 +60,14 @@ record) is the job of `treedb_delete_node()`.
      without force is refused for them.
    - `a save of a node no index holds is refused`: a deleted instance and a
      deleted key, kept by a pointer, are not saved (7.25.4 wrote them back).
+   - `after a reopen the instance of the primary is the primary`: the
+     pkey2 lookup of the primary's value answers the primary node after a
+     create, a save, a reopen and a delete_instance; a new instance does not
+     become the primary in memory (the reload makes the newest record the
+     primary); updates through the instance and through the primary each
+     write one row and both survive the reopen. 7.25.4 answered a second
+     object after a reopen: the update through it was lost, and the pointer
+     was freed by the next save of the primary.
 
 ## Run
 

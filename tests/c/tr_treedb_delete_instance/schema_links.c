@@ -68,6 +68,16 @@ static char schema_links[]= "\
                     'header': 'Tags',                               \n\
                     'type': 'array',                                \n\
                     'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'note': {                                           \n\
+                    'header': 'Note',                               \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent']                          \n\
+                },                                                  \n\
+                'extra': {                                          \n\
+                    'header': 'Extra',                              \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent']                          \n\
                 }                                                   \n\
             }                                                       \n\
         }                                                           \n\

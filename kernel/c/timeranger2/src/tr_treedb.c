@@ -4596,10 +4596,34 @@ PRIVATE int load_pkey2_callback(
             pkey2_name,
             jn_record
         );
+        json_t *indexx = treedb_get_id_index(tranger, treedb_name, topic_name);
+        json_t *primary = indexx? exist_primary_node(indexx, key) : NULL;
         if(exist_secondary_node(indexy, key, pkey2_value)) {
             // Ignore
             // The node with this key already exists
             // HACK using backward, the first record is the last record
+        } else if(primary &&
+                strcmp(get_key2_value(tranger, topic_name, pkey2_name, primary), pkey2_value)==0) {
+            /*-------------------------------*
+             *  The instance of the primary: its slot IS the primary node
+             *
+             *  The id index is loaded first, and holds the node of the
+             *  newest record of the key, which is the newest record of its
+             *  pkey2 value too (with a snap active, the record the snap
+             *  tagged: memory is the snap's photo). A second object of it
+             *  here was the instance every pkey2 lookup answered, with no
+             *  links (they are loaded on the primary): an update through it
+             *  changed a copy the primary never saw, and a later write of
+             *  the primary put the old values back (up to 7.25.4). One
+             *  instance, one node: a pkey2 lookup of the primary's value
+             *  answers the primary, as it does after a create.
+             *-------------------------------*/
+            add_secondary_node(
+                indexy,
+                key,
+                pkey2_value,
+                primary  // incref
+            );
         } else {
             /*-------------------------------*
              *  Append new node from disk

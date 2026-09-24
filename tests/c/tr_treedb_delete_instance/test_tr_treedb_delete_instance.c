@@ -1487,6 +1487,163 @@ PRIVATE int test_refused_forced_delete_puts_every_instance_back(void)
 }
 
 /***************************************************************************
+ *  After a reopen, the instance of the primary IS the primary.
+ *
+ *  The load built the secondary index from its own records, so the slot of
+ *  the primary's pkey2 value held a SECOND object of the same record, with
+ *  no links. An update through the instance lookup (C_NODE's update-node
+ *  when the primary does not match its filter, treedb_get_instance())
+ *  changed that copy: the primary kept the old values, a later update of
+ *  the primary wrote them back over the new ones (7.25.4), and once a save
+ *  of the primary re-pointed the slot, a save of the copy was refused as a
+ *  node no index holds. One record, one node: every update lands once, on
+ *  the node the hooks hold.
+ ***************************************************************************/
+PRIVATE int test_instance_of_primary_is_primary_after_reopen(void)
+{
+    int result = 0;
+    const char *test = "after a reopen the instance of the primary is the primary";
+    const char *DB = "tr_delete_instance_links8";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    l_create(tranger, L_PARENTS, "O", "1");
+    l_create(tranger, L_KIDS, "x", "v1");
+    l_create(tranger, L_KIDS, "x", "v2");
+    /*
+     *  In memory a new instance of a key does not become its primary (a
+     *  reload does: the newest record), and a pkey2 lookup of the primary's
+     *  value answers the primary -- C_NODE's delete of a node relies on it
+     */
+    result += l_check(
+        strcmp(kw_get_str(0, l_node(tranger, L_KIDS, "x"), "version", "", 0), "v1") == 0,
+        "a new instance x/v2 became the primary in memory"
+    );
+    result += l_check(l_instance(tranger, L_KIDS, "x", "v1") == l_node(tranger, L_KIDS, "x"),
+        "after a create the instance x/v1 is not the primary node"
+    );
+    result += l_check(
+        treedb_link_nodes(tranger, "kids", l_node(tranger, L_PARENTS, "O"),
+            l_instance(tranger, L_KIDS, "x", "v2")) == 0,
+        "cannot link O <- x/v2"
+    );
+    result += l_check(l_instance(tranger, L_KIDS, "x", "v1") == l_node(tranger, L_KIDS, "x"),
+        "after a save of x/v2 the instance x/v1 is not the primary node"
+    );
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    /*
+     *  Reopen: x/v2 wrote the newest row, it is the primary
+     */
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    json_t *x = l_node(tranger, L_KIDS, "x");
+    json_t *inst = l_instance(tranger, L_KIDS, "x", "v2");
+    result += l_check(x && strcmp(kw_get_str(0, x, "version", "", 0), "v2") == 0,
+        "x/v2 is not the primary after the reopen"
+    );
+    result += l_check(inst == x, "the instance x/v2 is not the primary node");
+    result += l_check(l_hook_holds(l_node(tranger, L_PARENTS, "O"), "kids", inst),
+        "O does not hold the instance x/v2"
+    );
+    json_int_t rowid0 = kw_get_int(0, x, "__md_treedb__`i_rowid", 0, 0);
+
+    result += l_check(
+        treedb_update_node(tranger, inst, json_pack("{s:s}", "note", "A"), TRUE) != NULL,
+        "the update of x through its instance was refused"
+    );
+    result += l_check(
+        strcmp(kw_get_str(0, l_node(tranger, L_KIDS, "x"), "note", "", 0), "A") == 0,
+        "the primary does not see the update made through the instance"
+    );
+    result += l_check(
+        treedb_update_node(tranger, l_node(tranger, L_KIDS, "x"),
+            json_pack("{s:s}", "extra", "B"), TRUE) != NULL,
+        "the update of the primary x was refused"
+    );
+    result += l_check(
+        treedb_update_node(tranger, inst, json_pack("{s:s}", "note", "C"), TRUE) != NULL,
+        "the second update through the instance was refused"
+    );
+    x = l_node(tranger, L_KIDS, "x");
+    result += l_check(
+        kw_get_int(0, x, "__md_treedb__`i_rowid", 0, 0) == rowid0 + 3,
+        "the three updates did not write three rows of the primary"
+    );
+    result += l_check(l_instance(tranger, L_KIDS, "x", "v2") == x,
+        "after the updates the instance x/v2 is not the primary node"
+    );
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    /*
+     *  Reopen: both fields, the newest of each
+     */
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    x = l_node(tranger, L_KIDS, "x");
+    result += l_check(x && strcmp(kw_get_str(0, x, "note", "", 0), "C") == 0,
+        "after the reopen x lost the update made through its instance"
+    );
+    result += l_check(x && strcmp(kw_get_str(0, x, "extra", "", 0), "B") == 0,
+        "after the reopen x lost the update made on the primary"
+    );
+    result += l_check(l_instance(tranger, L_KIDS, "x", "v2") == x,
+        "after the second reopen the instance x/v2 is not the primary node"
+    );
+    result += l_check(l_instance(tranger, L_KIDS, "x", "v1") != NULL, "x/v1 is gone");
+    result += l_check(
+        treedb_delete_instance(tranger, l_instance(tranger, L_KIDS, "x", "v1"), "version", NULL) == 0,
+        "cannot delete the instance x/v1"
+    );
+    result += l_check(l_instance(tranger, L_KIDS, "x", "v2") == l_node(tranger, L_KIDS, "x"),
+        "after a delete_instance the instance x/v2 is not the primary node"
+    );
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    /*
+     *  C_NODE's delete-node {id: x, version: v2}, without force, after a
+     *  reopen: it deletes the instances that are not the primary, then the
+     *  primary. x hangs from O, so the delete is refused -- and nothing may
+     *  have gone. 7.25.4 took the copy for another instance, tombstoned the
+     *  rows of the primary's version, and the refused delete left x, after
+     *  the next reopen, at an older version and unlinked.
+     */
+    set_expected_results(test,
+        json_pack("[{s:s}]", "msg", "Cannot delete node: has up links"),
+        NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    json_t *main_node = l_node(tranger, L_KIDS, "x");
+    inst = l_instance(tranger, L_KIDS, "x", "v2");
+    if(inst && inst != main_node) {
+        treedb_delete_instance(tranger, inst, "version", NULL);
+    }
+    result += l_check(
+        treedb_delete_node(tranger, main_node, json_object()) < 0,
+        "a delete WITHOUT force of x went, with x hanging from O"
+    );
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    x = l_node(tranger, L_KIDS, "x");
+    result += l_check(x && strcmp(kw_get_str(0, x, "version", "", 0), "v2") == 0,
+        "after a refused delete x is not at its version v2"
+    );
+    result += l_check(l_hook_holds(l_node(tranger, L_PARENTS, "O"), "kids", x),
+        "after a refused delete O does not hold x"
+    );
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *  A save of a node no index holds is refused.
  *
  *  A node whose key was deleted, or an instance that was deleted, is out
@@ -1709,6 +1866,7 @@ int main(int argc, char *argv[])
     result += test_deleted_parent_instance_hands_children_to_primary();
     result += test_refused_forced_delete_puts_every_instance_back();
     result += test_save_of_unindexed_node_refused();
+    result += test_instance_of_primary_is_primary_after_reopen();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

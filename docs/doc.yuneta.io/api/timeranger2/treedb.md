@@ -1358,6 +1358,24 @@ Returns a pointer to a `json_t` object representing the requested node instance.
 
 If the specified instance does not exist, `NULL` is returned. Use [`treedb_get_node()`](<#treedb_get_node>) if only the primary key is needed.
 
+**The instance of the primary IS the primary.** When `key2` is the pkey2
+value of the primary, the pointer returned is the node that
+[`treedb_get_node()`](<#treedb_get_node>) returns, with its links, after a
+create, a save and a reopen alike. Up to 7.25.4 a reopen built that slot from
+its own record: a second object with no links, until the first save of the
+primary re-pointed it. An update through it after a restart changed a copy the
+primary never saw, and the next save of the primary wrote the old values back
+over the new ones. That save also dropped the copy, and a caller still holding
+the pointer held freed memory (new after 7.25.4).
+
+```C
+/*  after a reopen, x/v2 is the primary of x  */
+json_t *x = treedb_get_node(tranger, "my_db", "kids", "x");
+json_t *inst = treedb_get_instance(tranger, "my_db", "kids", "version", "x", "v2");
+/*  inst == x: an update through inst is an update of x, saved once  */
+treedb_update_node(tranger, inst, json_pack("{s:s}", "note", "A"), TRUE);
+```
+
 ---
 
 (treedb_get_node)=

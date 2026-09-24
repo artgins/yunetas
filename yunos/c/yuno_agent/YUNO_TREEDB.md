@@ -538,13 +538,20 @@ Six things to notice:
 2. **`pkey2s`** — optional secondary key (composite). Allows multiple
    records per primary key, for example several versions of a binary.
    [`treedb_get_instance()`](#treedb_get_instance), [`treedb_list_instances()`](#treedb_list_instances) and the agent's
-   `instances` command query them. **Invariant (since dbf532ec9):** the pkey2
-   secondary index shares the SAME node object as the primary index, and
-   [`treedb_save_node()`](#treedb_save_node) points it again on every runtime save. Before that
-   correction it held a separate object that only the disk-load filled. A
-   runtime `update-node` was therefore invisible through `list_instances`
-   until the next reload. That was the bug behind `list-binaries`, which
-   showed a stale binary immediately after `update-binary`.
+   `instances` command query them. **Invariant:** the slot of the
+   primary's pkey2 value holds the SAME node object as the primary index,
+   so a pkey2 lookup of that value answers the primary (C_NODE's delete of
+   a node relies on it). [`treedb_save_node()`](#treedb_save_node) points
+   the slot again on every runtime save (since dbf532ec9; before, a runtime
+   `update-node` was invisible through `list_instances` until the next
+   reload -- the bug behind `list-binaries` showing a stale binary right
+   after `update-binary`). **The load keeps it too since 7.25.5**: up to
+   7.25.4 it built that slot from its own record, a second object with no
+   links, until the first save of the primary re-pointed it. An update
+   through the instance lookup after a restart changed that copy: the
+   primary kept the old values, and its next save wrote them back over the
+   new ones. That save also dropped the copy, so a caller still holding the
+   instance pointer held freed memory.
 3. **`schema_version`** and **`topic_version`** — these are different.
    Schema is the overall layout. Topic is per-topic. **Raise
    `topic_version` every time you change `cols`** — §3.5.
