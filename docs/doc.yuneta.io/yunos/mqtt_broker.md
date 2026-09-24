@@ -167,13 +167,23 @@ and the unknown-client deny.
 |---------|-------------|
 | `list-channels` | Input channels of connected devices |
 | `list-sessions` | Active/persistent sessions |
-| `list-queues` | Per-client message queues |
+| `list-queues` | Per-client message queues: the names, or with `queue=<name>` the messages of one (`level=0..3`, `pending=1`, `qos=`) |
 | `normal-subs` / `shared-subs` | List normal / shared (`$share`) subscribers |
 | `flatten-subs` | Flattened subscriber view |
 | `list-retains` / `remove-retains` | List / remove retained messages (note: `#` shown as `/`) |
 | `clean-queues` | Drop non-persistent, not-in-use sessions and their queues |
 | `authzs` | Authorization help |
 | `help` | Command help |
+
+`list-queues queue=<name>` of a queue that exists and cannot be opened (its
+`keys/` cannot be listed) answers `-1`, *"cannot open the queue '<name>', see
+the log"*; one whose messages cannot all be read answers `-1` with the messages
+it read, *"the list is PARTIAL"*. Up to 7.25.4 both answered `0`: an empty, or
+a short, queue.
+
+```bash
+ycommand -c 'command-yuno id=<id> service=mqtt_broker command=list-queues queue=client1 level=3'
+```
 
 ## Debugging
 

@@ -819,7 +819,39 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             FALSE,          // rt_by_disk
             NULL            // creator
         );
+
+        /*
+         *  A queue that cannot be opened, or whose messages cannot all be
+         *  read, is not an empty (or a short) queue: up to 7.25.4 both
+         *  answered 0 with the list they got
+         */
+        if(!tr_list) {
+            // Error already logged
+            JSON_DECREF(jn_schema)
+            JSON_DECREF(jn_data)
+            return msg_iev_build_response(gobj,
+                -1,
+                json_sprintf("%s: cannot open the queue '%s', see the log",
+                    gobj_yuno_role_plus_name(), queue_name),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        BOOL load_failed = json_is_true(json_object_get(tr_list, "load_failed"));
         tranger2_close_list(priv->tranger_queues, tr_list);
+        if(load_failed) {
+            // Error already logged
+            return msg_iev_build_response(gobj,
+                -1,
+                json_sprintf("%s: the messages of the queue '%s' cannot all be read, "
+                    "the list is PARTIAL, see the log",
+                    gobj_yuno_role_plus_name(), queue_name),
+                jn_schema,
+                jn_data,
+                kw  // owned
+            );
+        }
     }
 
     return msg_iev_build_response(gobj,

@@ -3374,8 +3374,21 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
          *  Option to bind to local host/port
          *--------------------------------------*/
         if(!empty_string(src_url)) {
-            if(bind_src_url(gobj, fd, src_url, rp->ai_family, rp->ai_socktype, rp->ai_protocol)<0) {
-                // Error already logged
+            int ret_bind = bind_src_url(gobj, fd, src_url, rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+            if(ret_bind == -2) {
+                /*
+                 *  The src_url has no address in the family of this
+                 *  destination address (localhost is ::1 first, the src
+                 *  127.0.0.1): the next address is tried. Up to this fix
+                 *  the connect ended here, and never tried the address of
+                 *  the other family.
+                 */
+                close(fd);
+                fd = -1;
+                continue;
+            }
+            if(ret_bind < 0) {
+                // Error already logged: a bad src_url is bad for every address
                 close(fd);
                 freeaddrinfo(results);
                 return -1;
@@ -3407,6 +3420,7 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
             "url",          "%s", dst_url,
             "host",         "%s", dst_host,
             "port",         "%s", dst_port,
+            "src_url",      "%s", src_url? src_url: "",
             NULL
         );
         ret = -1;
@@ -4127,6 +4141,9 @@ PUBLIC yev_event_h yev_create_sendmsg_event(
  *  of the family, a port 0 (or none) any port.
  *  Up to 7.25.4 the src_url was never parsed, and the socket was bound to
  *  a port of the kernel's choice: the src_url was ignored without a word.
+ *  Return 0 bound, -2 (silent) the src has no address in this family (the
+ *  caller tries its next destination address), -1 (logged) a bad src_url
+ *  or a bind() that fails.
  ***************************************************************************/
 PRIVATE int bind_src_url(
     hgobj gobj,
@@ -4200,6 +4217,28 @@ PRIVATE int bind_src_url(
         &res
     );
     warn_if_slow_resolution(gobj, __FUNCTION__, src_host, t_resolv_src);
+    BOOL not_in_family = (ret == EAI_NONAME || ret == EAI_FAMILY);
+#ifdef EAI_ADDRFAMILY
+    not_in_family = not_in_family || ret == EAI_ADDRFAMILY;
+#endif
+    if(not_in_family) {
+        /*
+         *  No address of the src in THIS family: the caller tries the next
+         *  destination address, and logs the connect that finds none
+         */
+        if(gobj_global_trace_level() & TRACE_URING) {
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "src_url has no address in this family",
+                "src_url",      "%s", src_url,
+                "ai_family",    "%d", ai_family,
+                "gai_strerror", "%s", gai_strerror(ret),
+                NULL
+            );
+        }
+        return -2;
+    }
     if(ret != 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,

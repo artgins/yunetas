@@ -2278,7 +2278,46 @@ PRIVATE int do_test(void)
         r = gobj_command(yuno, "mark-tm-order",
             json_pack("{s:s}", "topic_name", "no_such_topic"), yuno);
         check_int("mark-tm-order of a topic that is not there", kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("mark-tm-order of a topic that is not there: says not found",
+            strstr(kw_get_str(0, r, "comment", "", 0), "Topic not found") != NULL, TRUE);
         JSON_DECREF(r)
+
+        /*
+         *  A topic on disk that cannot be OPENED (its keys/ cannot be
+         *  listed) is not a topic that is not there. (Before this fix both
+         *  answered "Topic not found".) Mode 0 on keys/: skipped as root.
+         */
+        if(geteuid() != 0) {
+            const char *unopenable = "topic_unopenable";
+            tranger2_create_topic(tranger, unopenable, "id", "tm", NULL, sf_string_key,
+                json_pack("{s:s, s:I}", "id", "", "tm", (json_int_t)0), 0);
+            tranger2_close_topic(tranger, unopenable);
+            char keys_dir[PATH_MAX];
+            build_path(keys_dir, sizeof(keys_dir), path_database, unopenable, "keys", NULL);
+            set_expected_results_unordered(
+                "mark-tm-order of a topic that cannot be opened",
+                json_pack("[{s:s},{s:s},{s:s}]",
+                    "msg", "Cannot list the keys of the topic",
+                    "msg", "Cannot open topic: its keys cannot be listed",
+                    "msg", "Cannot open topic"
+                ),
+                NULL, NULL, 1
+            );
+            chmod(keys_dir, 0);
+            r = gobj_command(yuno, "mark-tm-order",
+                json_pack("{s:s}", "topic_name", unopenable), yuno);
+            chmod(keys_dir, 02770);
+            global_result += test_json(NULL);
+            check_int("mark-tm-order of a topic that cannot be opened",
+                kw_get_int(0, r, "result", -999, 0), -1);
+            check_bool("mark-tm-order of a topic that cannot be opened: says so, not \"not found\"",
+                strstr(kw_get_str(0, r, "comment", "", 0), "cannot open topic") != NULL, TRUE);
+            JSON_DECREF(r)
+            rmrdir(keys_dir);   // the topic of this case only: gone, so all=1 below skips it
+            char topic_dir[PATH_MAX];
+            build_path(topic_dir, sizeof(topic_dir), path_database, unopenable, NULL);
+            rmrdir(topic_dir);
+        }
 
         r = gobj_command(yuno, "mark-tm-order",
             json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);

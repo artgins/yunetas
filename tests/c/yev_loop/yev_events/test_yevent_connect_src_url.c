@@ -19,6 +19,13 @@
  *          C.  With a schema: src_url "tcp://127.0.0.1:<src port>".
  *          D.  A bad src_url ("[::1:5000", no closing bracket): the connect
  *              event has no socket, and the error is logged.
+ *          E.  A destination name of two families ("localhost": ::1 and
+ *              127.0.0.1) and a src_url of the SECOND one: the first
+ *              address, where the src has no address, is skipped, and the
+ *              connect goes to the second, silently. Up to this fix the
+ *              connect ended at the first address ("getaddrinfo() src_url
+ *              FAILED"), and the other family was never tried. Skipped when
+ *              localhost has one family only.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -31,11 +38,13 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <gobj.h>
 #include <testing.h>
 #include <ansi_escape_codes.h>
 #include <yev_loop.h>
 #include <helpers.h>
+#include <static_resolv.h>  // the resolver of yev_loop in a static build
 
 #define APP "test_yevent_connect_src_url"
 
@@ -229,6 +238,113 @@ PRIVATE void connect_from(const char *what, int family, const char *src_fmt)
 }
 
 /***************************************************************************
+ *  E. The family of the SECOND address of "localhost", or 0 when it has
+ *  one family only (as yev_loop resolves a tcp destination)
+ ***************************************************************************/
+PRIVATE int second_family_of_localhost(void)
+{
+    struct addrinfo hints = {
+        .ai_family = AF_UNSPEC,
+        .ai_socktype = SOCK_STREAM,
+        .ai_protocol = IPPROTO_TCP,
+        .ai_flags = AI_V4MAPPED | AI_ADDRCONFIG,
+    };
+    struct addrinfo *results;
+    if(getaddrinfo("localhost", "80", &hints, &results) != 0) {
+        return 0;
+    }
+    int first = results->ai_family;
+    int second = 0;
+    for(struct addrinfo *rp = results->ai_next; rp; rp = rp->ai_next) {
+        if(rp->ai_family != first) {
+            second = rp->ai_family;
+            break;
+        }
+    }
+    freeaddrinfo(results);
+    return second;
+}
+
+PRIVATE void connect_to_localhost_from_second_family(void)
+{
+    char temp[256];
+    int family = second_family_of_localhost();
+    if(!family) {
+        printf("  E: localhost has one family only, case skipped\n");
+        return;
+    }
+
+    struct sockaddr_storage listen_addr;
+    int fd_listen = bind_loopback(family, SOCK_STREAM, &listen_addr);
+    if(fd_listen < 0 || listen(fd_listen, 1) < 0) {
+        printf("  E: cannot listen in the second family of localhost, case skipped\n");
+        if(fd_listen >= 0) {
+            close(fd_listen);
+        }
+        return;
+    }
+
+    int src_port = free_port(family);
+    char dst_url[80];
+    char src_url[80];
+    snprintf(dst_url, sizeof(dst_url), "tcp://localhost:%d", port_of(&listen_addr));
+    snprintf(src_url, sizeof(src_url), family == AF_INET6? "[::1]:%d":"127.0.0.1:%d", src_port);
+
+    connect_callbacks = 0;
+    connected = FALSE;
+    yev_event_h yev_connect = yev_create_connect_event(
+        yev_loop,
+        connect_callback,
+        dst_url,
+        src_url,
+        0,          // ai_family: AF_UNSPEC, every address of localhost
+        0,          // ai_flags
+        0           // gobj
+    );
+    if(!yev_connect || yev_get_fd(yev_connect) < 0) {
+        snprintf(temp, sizeof(temp), "E: connect %s from %s: no socket", dst_url, src_url);
+        fail(temp);
+        if(yev_connect) {
+            yev_destroy_event(yev_connect);
+        }
+        close(fd_listen);
+        return;
+    }
+
+    yev_start_event(yev_connect);
+    yev_loop_run(yev_loop, 1);  // Broken by the connect callback
+    if(connect_callbacks != 1 || !connected) {
+        snprintf(temp, sizeof(temp), "E: %d connect callbacks, connected %d, expected 1 1",
+            connect_callbacks, connected
+        );
+        fail(temp);
+    }
+
+    struct pollfd pfd = {.fd = fd_listen, .events = POLLIN};
+    struct sockaddr_storage peer;
+    socklen_t peerlen = sizeof(peer);
+    int fd_peer = -1;
+    if(poll(&pfd, 1, 1000) > 0) {
+        fd_peer = accept(fd_listen, (struct sockaddr *)&peer, &peerlen);
+    }
+    if(fd_peer < 0) {
+        fail("E: the listener accepted nothing");
+    } else {
+        if(port_of(&peer) != src_port) {
+            snprintf(temp, sizeof(temp), "E: the peer has the port %d, expected %d",
+                port_of(&peer), src_port
+            );
+            fail(temp);
+        }
+        close(fd_peer);
+    }
+
+    yev_stop_event(yev_connect);
+    yev_destroy_event(yev_connect);
+    close(fd_listen);
+}
+
+/***************************************************************************
  *              Test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -277,6 +393,11 @@ PRIVATE int do_test(void)
     if(yev_connect) {
         yev_destroy_event(yev_connect);
     }
+
+    /*------------------------------------------------------------*
+     *  E.  A destination of two families, the src of the second
+     *------------------------------------------------------------*/
+    connect_to_localhost_from_second_family();
 
     /*--------------------------------*
      *  End

@@ -421,9 +421,11 @@ The answer has one row per topic on disk, `{topic_name, result, comment,
 data}`, and says the totals: `0: <role^name>: mark-tm-order of every topic: 5
 topic(s), 5 marked now, 0 re-marked`. A topic that fails does not stop the
 others: its row says `-1`, it is left as it was (the markers written stay),
-and the answer is `-1`. A store that cannot be listed answers `-1` *"cannot
-list the topics of the store, nothing marked"* -- never *"0 topic(s)"* with
-`0`, as up to 7.25.4. It runs on the master only; on a replica it answers
+and the answer is `-1`. A topic on disk that cannot be opened (its `keys/`
+cannot be listed) says *"cannot open topic '<name>' (see the log)"*, not
+*"Topic not found"*, which is only for a topic that is not there. A store that
+cannot be listed answers `-1` *"cannot list the topics of the store, nothing
+marked"* -- never *"0 topic(s)"* with `0`, as up to 7.25.4. It runs on the master only; on a replica it answers
 *"READ-ONLY"*. It is idempotent: run it again when in doubt.
 
 CAUTION: `mark-tm-order` is **synchronous**. The yuno does nothing else until

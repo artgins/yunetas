@@ -1774,8 +1774,21 @@ PRIVATE json_t *mark_tm_order_of_topic(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!tranger2_topic(priv->tranger, topic_name)) {
+        /*
+         *  A topic on disk that cannot be opened (its keys/ cannot be
+         *  listed, its topic_desc.json does not load) is not a topic that
+         *  is not there: up to this fix both answered "Topic not found"
+         */
+        char topic_dir[PATH_MAX];
         *p_result = -1;
-        *p_comment = json_sprintf("%s: Topic not found: '%s'", gobj_yuno_role_plus_name(), topic_name);
+        if(tranger2_topic_path(topic_dir, sizeof(topic_dir), priv->tranger, topic_name) == 0 &&
+                is_directory(topic_dir)) {
+            *p_comment = json_sprintf("%s: cannot open topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name);
+        } else {
+            *p_comment = json_sprintf("%s: Topic not found: '%s'",
+                gobj_yuno_role_plus_name(), topic_name);
+        }
         return NULL;
     }
 

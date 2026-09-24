@@ -89,7 +89,7 @@ Low-level tests for the io_uring event loop, without the GObj layer.
 | **`test_yevent_udp_ipv6`** | IPv6 peers on `[::1]`: a UDP listener on `udp://[::1]:0`, a datagram received from an IPv6 client and sent back to it (the peer address in the gbuffer with its length), and a TCP connect to `tcp://[::1]`. Skipped without IPv6 on the host. |
 | **`test_yevent_udp_zerocopy`** | A zero-copy UDP send gives two completions: the callback is called once, an event destroyed in its callback lives until its notification, and a failed send (`-EMSGSIZE`) is `STOPPED` with no warning. |
 | **`test_yevent_loop_end_drain`** | A loop ended with destroyed events whose completions have not come: `yev_loop_destroy()` frees each of them, and one whose completion never comes after 1 second, with an ERROR. |
-| **`test_yevent_connect_src_url`** | A connect bound to a local address (`src_url`): `127.0.0.1:<port>`, `[::1]:<port>` and `tcp://127.0.0.1:<port>`; the listener sees the peer at that port, and a bad `src_url` (`[::1:5000`) gives no socket and an error. |
+| **`test_yevent_connect_src_url`** | A connect bound to a local address (`src_url`): `127.0.0.1:<port>`, `[::1]:<port>` and `tcp://127.0.0.1:<port>`; the listener sees the peer at that port, and a bad `src_url` (`[::1:5000`) gives no socket and an error; a destination of two families (`localhost`) with a `src_url` of the second one skips the first address and connects to the second. |
 | **`test_yevent_stop_nomem`** | A stop without memory for its cancel answers `-1` and gives up nothing: the timer keeps its fd, the read its gbuffer, and the read then completes with its data. A loop destroyed with no room for the cancel of its dying events says so before the final error. |
 | **`test_yevent_kept_after_post`** | A posted action (`gobj_post_event()`) stops a timer whose start is kept: the `STOPPED` reaches the callback at the next cycle, not at the timeout of the run. |
 
@@ -121,9 +121,11 @@ Plain and TLS TCP through the full GObj protocol stack.
 
 | Binary | Description |
 |--------|-------------|
-| **`test_c_udp_s_tx`** | [`C_UDP_S`](#gclass-c-udp-s) sends every datagram of its queue, in order, and drops one it cannot send (no peer address) with an error, leaking nothing. |
+| **`test_c_udp_s_tx`** | [`C_UDP_S`](#gclass-c-udp-s) sends every datagram of its queue, in order, and drops one it cannot send -- no peer address (an error), refused by the kernel, a peer port `0` (a warning with the peer and `EINVAL`) -- leaking nothing, and goes on listening. |
+| **`test_c_udp_s_restart`** | [`C_UDP_S`](#gclass-c-udp-s) stopped with a send in flight ends the stop with `EV_STOPPED`; started again after a file took the number of its old socket, it reads and sends again; stopped and started in the same turn (its read still canceling), it reads again. |
+| **`test_c_udp_s_rx`** | The pieces of two long frames of two peers, interleaved, come out whole from [`C_GSS_UDP_S`](#gclass-c-gss-udp-s): every datagram is labelled with its peer. The yuno's ip lists: with `only_allowed_ips` a peer that is not allowed is dropped with a warning, a peer in `denied_ips` too (denied wins over allowed), an allowed one and the loopback are heard. |
 
-**Source:** `tests/c/c_udp_s_tx/`
+**Source:** `tests/c/c_udp_s_tx/`, `tests/c/c_udp_s_restart/`, `tests/c/c_udp_s_rx/`
 
 ## TLS certificate hot-reload
 
@@ -183,6 +185,7 @@ crash or leak cannot mask neighbours.
 | Binary | Description |
 |--------|-------------|
 | **`test_c_mqtt test1`** | Self-contained broker + client: subscribe, publish QoS 0, verify reception, disconnect. |
+| **`test_mqtt_acl`** | The publish/subscribe ACL of the broker (`EV_MQTT_ACL_CHECK`); and `list-queues queue=<name>` of a queue that cannot be opened answers `-1`, not an empty queue. |
 
 **Source:** `tests/c/c_mqtt/`
 
@@ -217,7 +220,7 @@ crash or leak cannot mask neighbours.
 
 **Source:** `tests/c/timeranger2/`
 
-The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in strings, short reads and writes, file ids compared in place (`test_cmp_file_ids`), directories that cannot be listed (`test_unlistable_dirs`), ...) are listed in `tests/c/timeranger2/README.md`.
+The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in strings, short reads and writes, file ids compared in place (`test_cmp_file_ids`), directories that cannot be listed (`test_unlistable_dirs`), a key directory that opens and cannot be read, listed again only when it changes (`test_unlisted_relist_once`), ...) are listed in `tests/c/timeranger2/README.md`.
 
 ## TR_MSG & TR_QUEUE
 
@@ -226,7 +229,7 @@ The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in string
 | **`test_tr_msg1`** | Message topics: iteration, key matching, instance retrieval. |
 | **`test_tr_msg2`** | Stress variant: 1 000 devices × 100 traces. |
 | **`test_tr_queue1`** | Queue topic: enqueue / dequeue with time-based keys over a multi-day period. |
-| **`test_tr_queue_backup_failed`** | A backup that fails (the backup name taken by a file): `trq_check_backup()` / `tr2q_check_backup()` answer `-1`, the queue keeps its topic, and appends, reads and acks work after it; nothing leaks. |
+| **`test_tr_queue_backup_failed`** | A backup that fails (the backup name taken by a file): `trq_check_backup()` / `tr2q_check_backup()` answer `-1`, the queue keeps its topic, and appends, reads and acks work after it; nothing leaks. And a backup whose new topic cannot be created after the move (its `mkdir` fails, `ENOSPC`): the backup is moved back, the queue keeps its topic whole, and the next call backs it up. |
 | **`test_tr_queue_load_failed`** | A queue (`tr_queue` and the mqtt `tr2q`) whose load cannot read every pending message: the load returns `-1`, `first_rowid` is kept, and the backup is refused until a load reads them all. |
 | **`test_pkey2_empty`** | `msg2db_append_message()` refuses a record whose `pkey2` is empty and writes nothing. |
 | **`test_msg2db_load_failed`** | An id whose history did not load whole: reloaded newest first up to the damage; a `pkey2` whose newest message is in the damage is absent (`msg2db_id_incomplete()`), never an older message. |
@@ -254,7 +257,8 @@ The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in string
 | **`test_gbmem_realloc_refused`** | A `gbmem_realloc()` refused because the new size is larger than the largest block leaves the old block valid and tracked: the later free logs nothing and the memory counter stays right. |
 | **`test_command_binary_kw`** | A command, and `build_stats()`, whose kw carries a `gbuffer`: the handler's kw holds a reference of its own, and the caller's references are intact after the command (no *"BAD gbuf_decref()"*). |
 | **`test_dir_array_nomem`** | A directory listing that cannot keep an entry (no memory), or whose root cannot be opened, answers `-1` with the listing empty, and logs it: `find_files_with_suffix_array()`, `walk_dir_array()`, `get_ordered_filename_array()`. |
-| **`test_dir_listing`** | The answer of the agent's `dir-*` commands: a tree that cannot be listed answers `-1` with a comment that names the directory, never an empty list. |
+| **`test_dir_listing`** | The answer of the agent's `dir-*` commands: a tree that cannot be listed answers `-1` with a comment that names the directory and sends to the log (it does not read the process-global last message), never an empty list. |
+| **`test_dir_read_error`** | A directory that opens and cannot be READ (`readdir()` fails, `EIO`, by a `--wrap=readdir`) fails the listing: `find_files_with_suffix_array()`, `walk_dir_array()` (root or subdirectory) and `walk_dir_tree()` answer `-1`, empty, logged. `re`/`pattern` `NULL` lists every entry; a root of mode `0` given to `walk_dir_tree()` is logged. |
 
 **Source:** `tests/c/helpers/`, `tests/c/gbuffer/`, `tests/c/command_binary_kw/`
 

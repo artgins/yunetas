@@ -429,7 +429,16 @@ Returns a `yev_event_h` handle to the newly created connect event, or `NULL` on 
 
 The host is resolved in the family of the destination address. Up to 7.25.4 the `src_url` was never parsed: the socket was bound to a port of the kernel's choice, and a `src_url` (good or bad) was ignored without a log.
 
-A `src_url` that fails is an ERROR, and the event has no socket: *"Bad src_url: cannot bind the connect"* for a `src_url` that cannot be parsed (`"[::1:5000"`, a missing `]`) or does not fit, *"getaddrinfo() src_url FAILED"* for a host that does not resolve in the family of the destination, *"bind() src_url FAILED"* for a bind the kernel refuses (a port in use, an address that is not the node's), with `errno`.
+A destination name can resolve to several addresses (`localhost` is `::1` and `127.0.0.1`). An address in whose family the `src_url` has no address (a src `127.0.0.1` and the destination `::1`) is skipped silently, and the next address is tried; only when no address is left is it an ERROR, *"Cannot get addr to connect"*, with the `src_url`. Before this fix the connect ended at the first address (*"getaddrinfo() src_url FAILED"*), and never tried the other family.
+
+```C
+// localhost is [::1] first here: the IPv6 address is skipped, the connect goes to 127.0.0.1
+yev_event_h ev = yev_create_connect_event(
+    yev_loop, callback, "tcp://localhost:5000", "127.0.0.1:40000", AF_UNSPEC, 0, gobj
+);
+```
+
+A `src_url` that fails otherwise is an ERROR, and the event has no socket: *"Bad src_url: cannot bind the connect"* for a `src_url` that cannot be parsed (`"[::1:5000"`, a missing `]`) or does not fit, *"getaddrinfo() src_url FAILED"* for a host that cannot be resolved for another reason (the resolver fails), *"bind() src_url FAILED"* for a bind the kernel refuses (a port in use, an address that is not the node's), with `errno`.
 
 ```C
 // Connect to [::1]:5000 from the local port 40000
@@ -568,7 +577,9 @@ This function does not return a value.
 
 **Notes**
 
-If the event is associated with a socket, it will be closed before destruction.
+The socket of a `timer`, `accept` or `connect` event (the fd the event
+created) is closed before destruction. A `read`, `write`, `recvmsg`, `sendmsg`
+or `poll` event does not own its fd: it is the caller's, and it stays open.
 An event with a completion still to come (a running or canceled operation, or the notification of a zero-copy send) is not freed at once, also when the loop does not run: its callback is not called again, and the loop frees it at its last completion, or in [`yev_loop_destroy()`](<#yev_loop_destroy>). See [The end of a loop](<#yev-loop-end-of-loop>).
 
 ```C
@@ -1249,7 +1260,7 @@ int yev_rearm_connect_event(
 
 **Returns**
 
-Returns the file descriptor on success, or `-1` on error.
+Returns the file descriptor on success, or `-1` on error. The addresses of the destination are tried in order, as in [`yev_create_connect_event()`](#yev_create_connect_event): one in whose family the `src_url` has no address is skipped.
 
 ---
 

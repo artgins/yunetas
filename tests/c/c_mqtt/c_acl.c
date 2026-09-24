@@ -15,9 +15,15 @@
  *          No sockets: the ACL decision is a direct broker event, so the test
  *          is deterministic.
  *
+ *          And, with the same broker, `list-queues queue=<name>` of a queue
+ *          that cannot be opened answers -1 (up to 7.25.4: 0 and an empty
+ *          list).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <unistd.h>
+#include <sys/stat.h>
 #include <yunetas.h>
 #include <c_mqtt_broker.h>
 #include <c_prot_mqtt2.h>
@@ -95,6 +101,90 @@ PRIVATE int check_acl(
         return -1;
     }
     return 0;
+}
+
+/***************************************************************************
+ *  list-queues queue=<name> of a queue that exists and cannot be OPENED
+ *  (its keys/ cannot be listed) answers -1. Up to 7.25.4 it ignored the
+ *  NULL of tranger2_open_list() and answered 0 with an empty list: an empty
+ *  queue. Skipped as root, who lists every directory.
+ *  Returns 0 if the answer is -1, -1 (and logs an error: the test fails)
+ *  otherwise.
+ ***************************************************************************/
+PRIVATE int check_list_queues_unopenable(hgobj gobj, hgobj broker)
+{
+    if(geteuid() == 0) {
+        return 0;
+    }
+    const char *queue = "q_unlistable";
+    hgobj gobj_tranger = gobj_find_service("tranger_queues", FALSE);
+    json_t *tranger = gobj_tranger? gobj_read_pointer_attr(gobj_tranger, "tranger"): NULL;
+    if(!tranger) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "TEST: no tranger of the queues",
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  A queue with one message, closed, and its keys/ made unlistable
+     */
+    tranger2_create_topic(tranger, queue, "id", "tm", NULL, sf_string_key,
+        json_pack("{s:s, s:I}", "id", "", "tm", (json_int_t)0),
+        0
+    );
+    md2_record_ex_t md = {0};
+    tranger2_append_record(tranger, queue, 0, 0, &md,
+        json_pack("{s:s, s:I}", "id", "k1", "tm", (json_int_t)1)
+    );
+    tranger2_close_topic(tranger, queue);
+    char keys_dir[PATH_MAX];
+    build_path(keys_dir, sizeof(keys_dir),
+        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED), queue, "keys", NULL);
+
+    set_expected_results_unordered(
+        "list-queues of a queue that cannot be opened",
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Cannot list the keys of the topic",
+            "msg", "Cannot open topic: its keys cannot be listed",
+            "msg", "Cannot open topic",
+            "msg", "topic not found"
+        ),
+        NULL, NULL, 1
+    );
+    chmod(keys_dir, 0);
+    json_t *response = gobj_command(broker, "list-queues",
+        json_pack("{s:s}", "queue", queue), gobj
+    );
+    chmod(keys_dir, 02770);
+    int logs = test_json(NULL);
+    set_expected_results(
+        "test_mqtt_acl",
+        json_array(),   // empty — we expect no errors
+        NULL,
+        NULL,
+        TRUE
+    );
+
+    int ret = 0;
+    int result = (int)kw_get_int(gobj, response, "result", 0, 0);
+    if(result != -1 || logs < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "TEST: list-queues of a queue that cannot be opened did not answer -1",
+            "result",       "%d", result,
+            "comment",      "%s", kw_get_str(gobj, response, "comment", "", 0),
+            "logs",         "%d", logs,
+            NULL
+        );
+        ret = -1;
+    }
+    JSON_DECREF(response)
+    return ret;
 }
 
 /***************************************************************************
@@ -271,6 +361,11 @@ PRIVATE int ac_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     check_acl(gobj, broker, "c_limited", "forbidden/data",   "write",  0, "enable_acl off: previously-denied publish now allowed");
     check_acl(gobj, broker, "c_unknown", "forbidden/data",   "write",  0, "enable_acl off: unknown client allowed");
     gobj_write_bool_attr(broker, "enable_acl", TRUE);
+
+    /*-----------------------------------------------------------------*
+     *  list-queues of a queue that cannot be opened
+     *-----------------------------------------------------------------*/
+    check_list_queues_unopenable(gobj, broker);
 
     set_yuno_must_die();
     JSON_DECREF(kw)

@@ -323,7 +323,9 @@ PUBLIC int yev_stop_event(yev_event_h yev_event); // IDEMPOTENT close fd (timer,
 
 
 /*
- *  In `timer`, `accept`, `connect` and 'poll' events, the socket will be closed.
+ *  In `timer`, `accept` and `connect` events, the socket (the fd the event
+ *  created) will be closed. The `read`, `write`, `recvmsg`, `sendmsg` and
+ *  `poll` events do NOT own their fd: it is the caller's, and it stays open.
  */
 PUBLIC void yev_destroy_event(yev_event_h yev_event);
 
