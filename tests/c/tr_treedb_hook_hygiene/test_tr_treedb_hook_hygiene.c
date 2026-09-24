@@ -4,7 +4,8 @@
  *          Regression coverage for the treedb hook fixes on a versioned
  *          (pkey2) parent with a hook.
  *
- *          Four quirks:
+ *          Four quirks (and, on a treedb of its own, the ids and refs of
+ *          test_ids_and_refs()):
  *
  *            1. Duplicate hook entries. Linking the same child id twice used
  *               to append it twice to the parent hook (and twice to the child
@@ -42,6 +43,7 @@
 #include <yev_loop.h>
 #include <testing.h>
 #include <helpers.h>
+#include <kwid.h>
 
 #include "schema_sample.c"
 
@@ -412,6 +414,188 @@ PRIVATE int test_failed_open_no_desc_leak(
 }
 
 /***************************************************************************
+ *  Ids and references, on a treedb of its own in the same tranger:
+ *  `owners` hooks `users` AND `groups`, through a list hook (`members`)
+ *  and a dict hook (`tagged`).
+ *
+ *    5. A hook tested membership by the bare id, so the user `x` and the
+ *       group `x` were one node for it: the second link was "already in
+ *       the hook" (list), or took the first one's place (dict).
+ *    6. The id of a node with hooks is in every ref its children hold: an
+ *       id holding '^' was accepted, and made every ref to the node
+ *       undecodable; an id of NAME_MAX made refs that were cut in silence.
+ *       Both are refused at create.
+ *    7. A ref whose part is too long for the decode was cut in silence.
+ ***************************************************************************/
+static char schema_ids[]= "\
+{                                                                   \n\
+    'id': 'treedb_ids',                                             \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'topic_name': 'owners',                                 \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {'header': 'Id', 'type': 'string', 'flag': ['persistent','required']}, \n\
+                'members': {'header': 'Members', 'type': 'array', 'flag': ['hook'], 'hook': {'users': 'owner', 'groups': 'owner'}}, \n\
+                'tagged': {'header': 'Tagged', 'type': 'object', 'flag': ['hook'], 'hook': {'users': 'tags', 'groups': 'tags'}} \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'topic_name': 'users',                                  \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {'header': 'Id', 'type': 'string', 'flag': ['persistent','required']}, \n\
+                'owner': {'header': 'Owner', 'type': 'string', 'flag': ['fkey']}, \n\
+                'tags': {'header': 'Tags', 'type': 'array', 'flag': ['fkey']} \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'topic_name': 'groups',                                 \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {'header': 'Id', 'type': 'string', 'flag': ['persistent','required']}, \n\
+                'owner': {'header': 'Owner', 'type': 'string', 'flag': ['fkey']}, \n\
+                'tags': {'header': 'Tags', 'type': 'array', 'flag': ['fkey']} \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
+PRIVATE int test_ids_and_refs(json_t *tranger)
+{
+    int result = 0;
+    const char *treedb_name = "treedb_ids";
+    const char *test = "ids and refs: open";
+    set_expected_results(test,
+        json_pack("[{s:s}, {s:s}, {s:s}]",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    helper_quote2doublequote(schema_ids);
+    json_t *jn_schema = legalstring2json(schema_ids, TRUE);
+    if(!jn_schema || !treedb_open_db(tranger, treedb_name, jn_schema, 0)) {
+        printf("%s  FAIL: cannot open treedb_ids%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    json_t *owner = treedb_create_node(tranger, treedb_name, "owners", json_pack("{s:s}", "id", "O"));
+    json_t *user_x = treedb_create_node(tranger, treedb_name, "users", json_pack("{s:s}", "id", "x"));
+    json_t *group_x = treedb_create_node(tranger, treedb_name, "groups", json_pack("{s:s}", "id", "x"));
+    if(!owner || !user_x || !group_x) {
+        printf("%s  FAIL: setup of treedb_ids%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  5a. A list hook holds the user x AND the group x
+     */
+    test = "a list hook holds two nodes of two topics with one id";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    if(treedb_link_nodes(tranger, "members", owner, user_x) < 0 ||
+            treedb_link_nodes(tranger, "members", owner, group_x) < 0) {
+        printf("%s  FAIL: %s: a link failed%s\n", On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    json_t *members = json_object_get(owner, "members");
+    if(json_array_size(members) != 2 ||
+            json_array_get(members, 0) != user_x ||
+            json_array_get(members, 1) != group_x) {
+        printf("%s  FAIL: %s: the hook holds %d nodes, not the user and the group%s\n",
+            On_Red BWhite, test, (int)json_array_size(members), Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  5b. A dict hook, keyed by the id alone, refuses the group x
+     *      while it holds the user x
+     */
+    test = "a dict hook refuses the node of another topic with an id it holds";
+    set_expected_results(test,
+        json_pack("[{s:s}]",
+            "msg", "Cannot link, the dict hook holds a node of another topic with this id"
+        ),
+        NULL, NULL, 1
+    );
+    if(treedb_link_nodes(tranger, "tagged", owner, user_x) < 0) {
+        printf("%s  FAIL: %s: the link of the user failed%s\n", On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    if(treedb_link_nodes(tranger, "tagged", owner, group_x) >= 0) {
+        printf("%s  FAIL: %s: the link of the group answered success%s\n",
+            On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    if(json_object_get(json_object_get(owner, "tagged"), "x") != user_x ||
+            json_array_size(json_object_get(group_x, "tags")) != 0) {
+        printf("%s  FAIL: %s: the group took the user's place%s\n", On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  6. Ids that cannot make a ref are refused at create
+     */
+    test = "an id holding '^', or too long for a ref, is refused at create";
+    /*  `owners` has hooks: its ids are in refs; `users` has none  */
+    set_expected_results(test,
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "Invalid 'id': it holds a '^', the separator of a reference",
+            "msg", "Invalid 'id': too long to be part of a reference"
+        ),
+        NULL, NULL, 1
+    );
+    if(treedb_create_node(tranger, treedb_name, "owners", json_pack("{s:s}", "id", "a^b"))) {
+        printf("%s  FAIL: %s: the id 'a^b' was created%s\n", On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    if(!treedb_create_node(tranger, treedb_name, "users", json_pack("{s:s}", "id", "u^1"))) {
+        printf("%s  FAIL: %s: the id 'u^1' of a topic without hooks was refused%s\n",
+            On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    char long_id[NAME_MAX + 1];
+    memset(long_id, 'L', NAME_MAX);
+    long_id[NAME_MAX] = 0;
+    if(treedb_create_node(tranger, treedb_name, "owners", json_pack("{s:s}", "id", long_id))) {
+        printf("%s  FAIL: %s: an id of NAME_MAX was created%s\n", On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  7. A ref whose id part does not fit the decode is refused, not cut
+     */
+    test = "a ref with a part too long is refused, not cut";
+    set_expected_results(test,
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "Wrong reference: a part of it is too long",
+            "msg", "Wrong parent reference: must be \"parent_topic_name^parent_id^hook_name\""
+        ),
+        NULL, NULL, 1
+    );
+    char long_ref[3*NAME_MAX];
+    snprintf(long_ref, sizeof(long_ref), "owners^%s^members", long_id);
+    json_t *user_y = treedb_create_node(tranger, treedb_name, "users", json_pack("{s:s}", "id", "y"));
+    if(!user_y || treedb_autolink(tranger, user_y, json_pack("{s:s}", "owner", long_ref), TRUE) >= 0) {
+        printf("%s  FAIL: %s: the autolink answered success%s\n", On_Red BWhite, test, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    json_check_refcounts(tranger, 1000, &result);
+    treedb_close_db(tranger, treedb_name);
+    return result;
+}
+
+/***************************************************************************
  *              do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -488,6 +672,7 @@ PRIVATE int do_test(void)
     result += test_clean_unlinks_nonprimary_version(tranger, treedb_name);
     result += test_force_delete_unlinks_all_array_children(tranger, treedb_name);
     result += test_failed_open_no_desc_leak(tranger);
+    result += test_ids_and_refs(tranger);
 
     /*------------------------------------*
      *  Shutdown

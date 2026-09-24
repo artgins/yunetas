@@ -51,6 +51,12 @@ typedef struct events_hold_s {
 } events_hold_t;
 
 /*
+ *  A reference "topic_name^id^hook_name" joins three names, each one of
+ *  NAME_MAX at most: a buffer this size holds any of them (build_ref()).
+ */
+#define TREEDB_REF_MAX  (3*NAME_MAX)
+
+/*
  *  A WRITE of a node (see begin_node_write()): what it changes in memory
  *  before its save, kept to take it back if the save fails.
  */
@@ -61,7 +67,7 @@ typedef struct node_write_s {
     json_t *fkeys;      // owned or NULL: {col: value before} of the other ones
     json_t *fields;     // owned or NULL: {key: value before} of the fields it replaces
     json_t *absent;     // owned or NULL: [key] of the fields it adds
-    char hook_ref[NAME_MAX];    // the first parent ref it unlinks, "" if none
+    char hook_ref[TREEDB_REF_MAX];  // the first parent ref it unlinks, "" if none
     size_t hook_pos;            // the place of the node in that parent's hook before
     json_t *hook_holder;        // owned or NULL: the instance of that parent that held it
     json_t *hook_positions;     // owned or NULL: {ref: [place before, holder]} of the other ones
@@ -103,6 +109,15 @@ PRIVATE int load_all_links(
 PRIVATE json_t *get_fkey_refs(
     json_t *field_data // NOT owned
 );
+PRIVATE int build_ref(
+    hgobj gobj,
+    char *bf,
+    size_t bfsize,
+    const char *topic_name,
+    const char *id,
+    const char *hook_name
+);
+PRIVATE const char *node_md_str(json_t *node, const char *key);
 PRIVATE BOOL dict_hook_takes_child(
     json_t *tranger,
     const char *treedb_name,
@@ -3049,11 +3064,12 @@ PRIVATE json_t *filtra_fkeys(
                         return NULL;
                     }
                 } else if(json_typeof(v)==JSON_OBJECT) {
-                    char temp[NAME_MAX];
+                    char temp[TREEDB_REF_MAX];
                     const char *id = kw_get_str(gobj, v, "id", 0, 0);
                     const char *topic_name_ = kw_get_str(gobj, v, "topic_name", 0, 0);
                     const char *hook_name = kw_get_str(gobj, v, "hook_name", 0, 0);
-                    if(!id || !topic_name_ || !hook_name) {
+                    if(!id || !topic_name_ || !hook_name ||
+                            strchr(id, '^') || strchr(topic_name_, '^') || strchr(hook_name, '^')) {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_PARAMETER,
@@ -3066,11 +3082,10 @@ PRIVATE json_t *filtra_fkeys(
                         json_decref(jn_list);
                         return NULL;
                     }
-                    snprintf(temp, sizeof(temp), "%s^%s^%s",
-                        topic_name_,
-                        id,
-                        hook_name
-                    );
+                    if(build_ref(gobj, temp, sizeof(temp), topic_name_, id, hook_name)<0) {
+                        json_decref(jn_list);
+                        return NULL;    // Error already logged
+                    }
                     json_array_append_new(jn_list, json_string(temp));
                 }
             }
@@ -4564,6 +4579,63 @@ PRIVATE int load_pkey2_callback(
 }
 
 /***************************************************************************
+ *  Write the reference "topic_name^id^hook_name" into `bf`, or the child
+ *  reference "topic_name^id" when `hook_name` is NULL. Return 0, or -1 when
+ *  it does not fit (logged): a reference cut short names another node, or
+ *  none, and it used to be cut in silence.
+ ***************************************************************************/
+PRIVATE int build_ref(
+    hgobj gobj,
+    char *bf,
+    size_t bfsize,
+    const char *topic_name,
+    const char *id,
+    const char *hook_name   // NULL: a child reference
+)
+{
+    int written = hook_name?
+        snprintf(bf, bfsize, "%s^%s^%s", topic_name, id, hook_name) :
+        snprintf(bf, bfsize, "%s^%s", topic_name, id);
+    if(written < 0 || (size_t)written >= bfsize) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot build the reference of a node: it does not fit",
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", id,
+            "hook_name",    "%s", hook_name? hook_name : "",
+            "max",          "%d", (int)bfsize - 1,
+            NULL
+        );
+        *bf = 0;
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Copy a part of a decoded reference: FALSE when it does not fit (logged)
+ ***************************************************************************/
+PRIVATE BOOL copy_ref_part(const char *ref, const char *part, char *bf, int bfsize)
+{
+    int written = snprintf(bf, bfsize, "%s", part);
+    if(written < 0 || written >= bfsize) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Wrong reference: a part of it is too long",
+            "ref",          "%s", ref,
+            "part",         "%s", part,
+            "max",          "%d", bfsize - 1,
+            NULL
+        );
+        *bf = 0;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
  *  Decode fkey
  ***************************************************************************/
 PUBLIC BOOL decode_parent_ref(
@@ -4602,18 +4674,19 @@ PUBLIC BOOL decode_parent_ref(
         return FALSE;
     }
 
-    if(topic_name) {
-        snprintf(topic_name, topic_name_size, "%s", ss[0]);
+    BOOL fits = TRUE;
+    if(topic_name && !copy_ref_part(pref, ss[0], topic_name, topic_name_size)) {
+        fits = FALSE;
     }
-    if(id) {
-        snprintf(id, id_size, "%s", ss[1]);
+    if(id && !copy_ref_part(pref, ss[1], id, id_size)) {
+        fits = FALSE;
     }
-    if(hook_name) {
-        snprintf(hook_name, hook_name_size, "%s", ss[2]);
+    if(hook_name && !copy_ref_part(pref, ss[2], hook_name, hook_name_size)) {
+        fits = FALSE;
     }
 
     split_free2(ss);
-    return TRUE;
+    return fits;
 
 }
 
@@ -4647,11 +4720,13 @@ PUBLIC BOOL decode_child_ref(
         return FALSE;
     }
 
-    snprintf(topic_name, topic_name_size, "%s", ss[0]);
-    snprintf(id, id_size, "%s", ss[1]);
+    BOOL fits = copy_ref_part(pref, ss[0], topic_name, topic_name_size);
+    if(!copy_ref_part(pref, ss[1], id, id_size)) {
+        fits = FALSE;
+    }
 
     split_free2(ss);
-    return TRUE;
+    return fits;
 
 }
 
@@ -4675,8 +4750,29 @@ PRIVATE BOOL is_fkey_registered(
 }
 
 /***************************************************************************
+ *  Is `entry`, a node a hook holds, the node `child_id` of the topic
+ *  `child_topic_name`? A hook can take the nodes of several topics, and an
+ *  id names a node inside its topic only: two children of two topics with
+ *  one id are two nodes.
+ ***************************************************************************/
+PRIVATE BOOL hook_entry_is(json_t *entry, const char *child_topic_name, const char *child_id)
+{
+    if(!json_is_object(entry)) {
+        return FALSE;
+    }
+    const char *eid = json_string_value(json_object_get(entry, "id"));
+    if(empty_string(eid) || strcmp(eid, child_id)!=0) {
+        return FALSE;
+    }
+    const char *etopic = json_string_value(
+        json_object_get(json_object_get(entry, "__md_treedb__"), "topic_name")
+    );
+    return (etopic && child_topic_name && strcmp(etopic, child_topic_name)==0)? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  Is `child` already present in a parent's hook ARRAY?
- *  Dedup key: node identity, or a matching "id" (covers the
+ *  Dedup key: node identity, or a matching topic and "id" (covers the
  *  primary-vs-version-instance case, where two node objects share an id).
  *  Mirrors the membership test _unlink_nodes() uses to remove, so a repeated
  *  link stays idempotent instead of duplicating the entry.
@@ -4700,11 +4796,8 @@ PRIVATE BOOL child_in_hook_array(
             if(data == child_node) {
                 return TRUE;
             }
-            if(json_is_object(data)) {
-                const char *eid = kw_get_str(gobj, data, "id", "", 0);
-                if(!empty_string(eid) && strcmp(eid, child_id)==0) {
-                    return TRUE;
-                }
+            if(hook_entry_is(data, node_md_str(child_node, "topic_name"), child_id)) {
+                return TRUE;
             }
         }
     }
@@ -4738,11 +4831,8 @@ PRIVATE BOOL parent_hook_holds_child(
                 if(data == child_node) {
                     return TRUE;
                 }
-                if(json_is_object(data)) {
-                    const char *eid = kw_get_str(gobj, data, "id", "", 0);
-                    if(!empty_string(eid) && strcmp(eid, child_id)==0) {
-                        return TRUE;
-                    }
+                if(hook_entry_is(data, node_md_str(child_node, "topic_name"), child_id)) {
+                    return TRUE;
                 }
             }
         }
@@ -4755,7 +4845,10 @@ PRIVATE BOOL parent_hook_holds_child(
                     return TRUE;
                 }
             }
-            if(kw_has_key(hook_data, child_id)) {
+            if(hook_entry_is(
+                    json_object_get(hook_data, child_id),
+                    node_md_str(child_node, "topic_name"),
+                    child_id)) {
                 return TRUE;
             }
         }
@@ -4824,7 +4917,9 @@ PRIVATE json_t *find_parent_version_holding_child( // Return is NOT YOURS
  *  keeps the one it has (child_in_hook_array). It took the newest: a
  *  second instance of the child replaced the entry, a delete_instance of
  *  it left it there, and a forced delete of the parent saved the deleted
- *  instance back to disk (M15 of the 2026-09-21 review).
+ *  instance back to disk (M15 of the 2026-09-21 review). Never when the
+ *  slot holds the node of ANOTHER topic with this id: a dict hook is keyed
+ *  by the id alone (dict_hook_slot_taken()).
  ***************************************************************************/
 PRIVATE BOOL dict_hook_takes_child(
     json_t *tranger,
@@ -4839,7 +4934,26 @@ PRIVATE BOOL dict_hook_takes_child(
     if(!current || current == child_node) {
         return TRUE;
     }
+    if(!hook_entry_is(current, child_topic_name, child_id)) {
+        return FALSE;   // the node of another topic with this id: dict_hook_slot_taken()
+    }
     return treedb_get_node(tranger, treedb_name, child_topic_name, child_id) == child_node;
+}
+
+/***************************************************************************
+ *  Is the slot `child_id` of the DICT hook held by the node of ANOTHER
+ *  topic than `child_topic_name`? A dict hook is keyed by the id alone, so
+ *  it cannot hold two nodes of two topics with one id: the second is
+ *  refused, where it used to take the first one's place.
+ ***************************************************************************/
+PRIVATE BOOL dict_hook_slot_taken(
+    json_t *parent_hook_data,   // JSON_OBJECT, NOT owned
+    const char *child_topic_name,
+    const char *child_id
+)
+{
+    json_t *current = json_object_get(parent_hook_data, child_id);
+    return (current && !hook_entry_is(current, child_topic_name, child_id))? TRUE : FALSE;
 }
 
 /***************************************************************************
@@ -5055,6 +5169,20 @@ PRIVATE int link_child_to_parent(
                     fkey_col_name
                 );
                 json_object_set(parent_hook_data, pref, child_data);
+            } else if(dict_hook_slot_taken(parent_hook_data, child_topic_name, child_id)) {
+                gobj_log_error(gobj, 0,
+                    "function",             "%s", __FUNCTION__,
+                    "msgset",               "%s", MSGSET_TREEDB,
+                    "msg",                  "%s", "A dict hook holds a node of another topic with this id: this link is not loaded",
+                    "treedb_name",          "%s", treedb_name,
+                    "parent_topic_name",    "%s", parent_topic_name,
+                    "parent_id",            "%s", parent_id,
+                    "hook_name",            "%s", hook_name,
+                    "child_topic_name",     "%s", child_topic_name,
+                    "child_id",             "%s", child_id,
+                    NULL
+                );
+                return -1;
             } else if(dict_hook_takes_child(
                     tranger, treedb_name, parent_hook_data,
                     child_topic_name, child_id, child_node)) {
@@ -5327,7 +5455,7 @@ PRIVATE json_t *get_hook_refs(
     json_t *hook_data // NOT owned
 )
 {
-    char mix_id[NAME_MAX];
+    char mix_id[TREEDB_REF_MAX];
     json_t *refs = json_array();
 
     switch(json_typeof(hook_data)) {
@@ -5372,7 +5500,9 @@ PRIVATE json_t *get_hook_refs(
                     gobj_trace_json(gobj, hook_data, "__md_treedb__ not found: hook_data");
                     continue;
                 }
-                snprintf(mix_id, sizeof(mix_id), "%s^%s", topic_name, id);
+                if(build_ref(gobj, mix_id, sizeof(mix_id), topic_name, id, NULL)<0) {
+                    continue;   // Error already logged
+                }
                 json_array_append_new(refs, json_string(mix_id));
             }
         }
@@ -5414,7 +5544,9 @@ PRIVATE json_t *get_hook_refs(
                                 gobj_trace_json(gobj, hook_data, "__md_treedb__ not found: hook_data");
                                 break;
                             }
-                            snprintf(mix_id, sizeof(mix_id), "%s^%s", topic_name, id);
+                            if(build_ref(gobj, mix_id, sizeof(mix_id), topic_name, id, NULL)<0) {
+                                break;  // Error already logged
+                            }
                             json_array_append_new(refs, json_string(mix_id));
                         }
                     }
@@ -6053,6 +6185,33 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             "msg",          "%s", "Invalid 'id': contains path metacharacters",
             "topic_name",   "%s", topic_name,
             "id",           "%s", id,
+            NULL
+        );
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    /*-----------------------------------------------*
+     *  The id of a node with hooks is part of every
+     *  ref its children hold, "topic^id^hook": a '^'
+     *  splits it in more parts than three, and a ref
+     *  is decoded into parts of NAME_MAX. Such an id
+     *  was accepted, and every ref to the node was
+     *  undecodable or cut.
+     *-----------------------------------------------*/
+    json_t *topic_hooks = treedb_get_topic_hooks(tranger, treedb_name, topic_name);
+    BOOL has_hooks = json_array_size(topic_hooks) > 0;
+    JSON_DECREF(topic_hooks)
+    if(has_hooks && (strchr(id, '^') || strlen(id) >= NAME_MAX)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", strchr(id, '^')?
+                "Invalid 'id': it holds a '^', the separator of a reference" :
+                "Invalid 'id': too long to be part of a reference",
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", id,
+            "max",          "%d", NAME_MAX - 1,
             NULL
         );
         JSON_DECREF(kw)
@@ -9221,6 +9380,35 @@ PRIVATE int _link_nodes(
     }
 
     /*--------------------------------------------------*
+     *  The reference the child gets: refused when it
+     *  does not fit, before anything moves
+     *--------------------------------------------------*/
+    char pref[TREEDB_REF_MAX];
+    if(build_ref(gobj, pref, sizeof(pref), parent_topic_name, parent_id, hook_name)<0) {
+        return -1;  // Error already logged
+    }
+
+    /*--------------------------------------------------*
+     *  A dict hook is keyed by the id alone: the node of
+     *  another topic with this id in it is not replaced
+     *--------------------------------------------------*/
+    if(!is_child_hook && json_is_object(parent_hook_data) &&
+            dict_hook_slot_taken(parent_hook_data, child_topic_name, child_id)) {
+        gobj_log_error(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_TREEDB,
+            "msg",                  "%s", "Cannot link, the dict hook holds a node of another topic with this id",
+            "parent_topic_name",    "%s", parent_topic_name,
+            "parent_id",            "%s", parent_id,
+            "hook_name",            "%s", hook_name,
+            "child_topic_name",     "%s", child_topic_name,
+            "child_id",             "%s", child_id,
+            NULL
+        );
+        return -1;
+    }
+
+    /*--------------------------------------------------*
      *  The column this link moves, kept for the write
      *  that takes it back if its save fails
      *--------------------------------------------------*/
@@ -9254,16 +9442,23 @@ PRIVATE int _link_nodes(
      *  delete of it clears a ref that names another.
      *--------------------------------------------------*/
     if(json_is_string(child_data)) {
-        char new_ref[NAME_MAX];
-        snprintf(new_ref, sizeof(new_ref), "%s^%s^%s",
-            parent_topic_name,
-            parent_id,
-            hook_name
-        );
         const char *cur_ref = json_string_value(child_data);
-        if(!empty_string(cur_ref) && strcmp(cur_ref, new_ref)!=0) {
-            char old_ref[NAME_MAX];
-            snprintf(old_ref, sizeof(old_ref), "%s", cur_ref);
+        if(!empty_string(cur_ref) && strcmp(cur_ref, pref)!=0) {
+            char old_ref[TREEDB_REF_MAX];
+            int written = snprintf(old_ref, sizeof(old_ref), "%s", cur_ref);
+            if(written < 0 || (size_t)written >= sizeof(old_ref)) {
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_TREEDB,
+                    "msg",              "%s", "Cannot link, the reference the child has is too long",
+                    "child_topic_name", "%s", child_topic_name,
+                    "child_id",         "%s", child_id,
+                    "child_field",      "%s", child_field,
+                    "ref",              "%s", cur_ref,
+                    NULL
+                );
+                return -1;
+            }
             if(unlink_child_from_parent_ref(gobj, tranger, child_node, old_ref, write)<0) {
                 return -1;  // Error already logged
             }
@@ -9324,17 +9519,17 @@ PRIVATE int _link_nodes(
         break;
     case JSON_OBJECT:
         {
-            char pref[NAME_MAX];
+            char child_key[TREEDB_REF_MAX];
             if(is_child_hook) {
-                snprintf(pref, sizeof(pref), "%s~%s~%s",
+                snprintf(child_key, sizeof(child_key), "%s~%s~%s",
                     child_topic_name,
                     child_id,
                     child_field
                 );
-                if(!json_object_get(parent_hook_data, pref)) {
+                if(!json_object_get(parent_hook_data, child_key)) {
                     changed = TRUE;
                 }
-                json_object_set(parent_hook_data, pref, child_data);
+                json_object_set(parent_hook_data, child_key, child_data);
             } else {
                 if(!json_object_get(parent_hook_data, child_id)) {
                     changed = TRUE;
@@ -9357,12 +9552,6 @@ PRIVATE int _link_nodes(
     switch(json_typeof(child_data)) { // json_typeof PROTECTED
     case JSON_STRING:
         {
-            char pref[NAME_MAX];
-            snprintf(pref, sizeof(pref), "%s^%s^%s",
-                parent_topic_name,
-                parent_id,
-                hook_name
-            );
 
             if(strcmp(kw_get_str(gobj, child_node, child_field, "", 0), pref)!=0) {
                 changed = TRUE;
@@ -9377,12 +9566,6 @@ PRIVATE int _link_nodes(
         break;
     case JSON_ARRAY:
         {
-            char pref[NAME_MAX];
-            snprintf(pref, sizeof(pref), "%s^%s^%s",
-                parent_topic_name,
-                parent_id,
-                hook_name
-            );
             BOOL present = FALSE;
             int idx; json_t *data;
             json_array_foreach(child_data, idx, data) {
@@ -9419,12 +9602,6 @@ PRIVATE int _link_nodes(
         break;
     case JSON_OBJECT:
         {
-            char pref[NAME_MAX];
-            snprintf(pref, sizeof(pref), "%s^%s^%s",
-                parent_topic_name,
-                parent_id,
-                hook_name
-            );
 
             if(!json_object_get(child_data, pref)) {
                 changed = TRUE;
@@ -9781,12 +9958,10 @@ PRIVATE int _unlink_nodes(
      *  Said before anything is touched, because the parent's hook is
      *  emptied below on the strength of it.
      *--------------------------------------------------*/
-    char pref[NAME_MAX];
-    snprintf(pref, sizeof(pref), "%s^%s^%s",
-        parent_topic_name,
-        parent_id,
-        hook_name
-    );
+    char pref[TREEDB_REF_MAX];
+    if(build_ref(gobj, pref, sizeof(pref), parent_topic_name, parent_id, hook_name)<0) {
+        return -1;  // Error already logged
+    }
     if(!child_data_names_parent(child_data, pref)) {
         gobj_log_error(gobj, 0,
             "function",             "%s", __FUNCTION__,
@@ -9881,13 +10056,26 @@ PRIVATE int _unlink_nodes(
     case JSON_OBJECT:
         {
             if(is_child_hook) {
-                char pref[NAME_MAX];
-                snprintf(pref, sizeof(pref), "%s~%s~%s",
+                char child_key[TREEDB_REF_MAX];
+                snprintf(child_key, sizeof(child_key), "%s~%s~%s",
                     child_topic_name,
                     child_id,
                     child_field
                 );
-                json_object_del(parent_hook_data, pref);
+                json_object_del(parent_hook_data, child_key);
+            } else if(dict_hook_slot_taken(parent_hook_data, child_topic_name, child_id)) {
+                gobj_log_error(gobj, 0,
+                    "function",             "%s", __FUNCTION__,
+                    "msgset",               "%s", MSGSET_TREEDB,
+                    "msg",                  "%s", "Child data not found in dict parent hook: its slot holds a node of another topic",
+                    "parent_topic_name",    "%s", parent_topic_name,
+                    "hook_name",            "%s", hook_name,
+                    "parent_id",            "%s", parent_id,
+                    "child_topic_name",     "%s", child_topic_name,
+                    "child_id",             "%s", child_id,
+                    "child_field",          "%s", child_field,
+                    NULL
+                );
             } else {
                 if(write) {
                     size_t pos = 0;
@@ -12055,8 +12243,10 @@ PRIVATE json_t *apply_child_list_options(
             */
             const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
             const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, 0);
-            char ref[NAME_MAX];
-            snprintf(ref, sizeof(ref), "%s^%s", topic_name, id);
+            char ref[TREEDB_REF_MAX];
+            if(build_ref(gobj, ref, sizeof(ref), topic_name, id, NULL)<0) {
+                continue;   // Error already logged
+            }
             json_array_append_new(children, json_string(ref));
 
         } else {

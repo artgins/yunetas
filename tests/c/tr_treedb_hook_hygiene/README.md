@@ -35,6 +35,19 @@ stores only the config id, not the version — the asymmetry the fixes handle.
    on the error path — the end-of-test memory check would otherwise report it as
    leaked. Before the fix the early error return skipped that decref.
 
+5. **Ids and references** (`test_ids_and_refs`), on a treedb of its own:
+   `owners` hooks `users` AND `groups` through a list hook and a dict hook.
+   - A list hook holds the user `x` and the group `x`: two nodes. The bare-id
+     membership test took the second for a duplicate.
+   - A dict hook, keyed by the id alone, refuses the group `x` while it holds
+     the user `x` (*"Cannot link, the dict hook holds a node of another topic
+     with this id"*). It used to take the user's place.
+   - An id of a topic with hooks that holds `^`, or is `NAME_MAX` long, is
+     refused at create: every reference to the node would be undecodable, or
+     cut in silence. A topic with no hooks keeps such an id.
+   - A reference whose id part does not fit the decode is refused (*"Wrong
+     reference: a part of it is too long"*), not cut.
+
 ## Run
 
 ```bash

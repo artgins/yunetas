@@ -158,6 +158,10 @@ Returns `TRUE` if the reference was successfully parsed, otherwise returns `FALS
 
 This function is used to extract child references from hierarchical tree structures in the TreeDB system.
 
+A part that does not fit its buffer is refused, not cut: the function logs
+*"Wrong reference: a part of it is too long"* and returns `FALSE` (new after
+7.25.4; it cut the part in silence, and the cut id named another node or none).
+
 ---
 
 (decode_parent_ref)=
@@ -193,6 +197,18 @@ Returns `TRUE` if the reference was successfully parsed, otherwise returns `FALS
 **Notes**
 
 This function is used to extract structured information from a parent reference string, which is used in hierarchical relationships within the tree database.
+
+A part that does not fit its buffer is refused, not cut: the function logs
+*"Wrong reference: a part of it is too long"* and returns `FALSE` (new after
+7.25.4). Decode into buffers of `NAME_MAX`:
+
+```C
+char topic_name[NAME_MAX], id[NAME_MAX], hook_name[NAME_MAX];
+if(!decode_parent_ref("departments^direction^users",
+        topic_name, sizeof(topic_name), id, sizeof(id), hook_name, sizeof(hook_name))) {
+    // malformed, or a part too long (logged)
+}
+```
 
 ---
 
@@ -742,6 +758,20 @@ secondary key, when it carries no parent fkey, or when the composed id is
 longer than a record key: a key too long is refused, never trimmed, because a
 truncated id is the address of another node. In all of these the function logs
 the cause and returns `NULL`.
+
+**The id of a node of a topic with hooks must make a reference.** Its children
+hold it in their fkeys as `topic^id^hook`, so such an id cannot hold a `^` (the
+separator), and it must be shorter than `NAME_MAX` (a reference is decoded
+into parts of `NAME_MAX`). Either is refused, with *"Invalid 'id': it holds a
+'^', the separator of a reference"* or *"Invalid 'id': too long to be part of
+a reference"* (new after 7.25.4; they were accepted, and every reference to the
+node was undecodable, or cut in silence). A topic with no hooks is not named by
+any reference, and keeps any id a key can be:
+
+```C
+treedb_create_node(tranger, "my_db", "departments", json_pack("{s:s}", "id", "a^b"));  // NULL
+treedb_create_node(tranger, "my_db", "users", json_pack("{s:s}", "id", "a^b"));        // created: no hooks
+```
 
 See the [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md)
 §3.3 for the flags and §3.11 for why the schema topics are keyed this way.
@@ -1458,6 +1488,29 @@ already a child of `direction`:
 treedb_link_nodes(tranger, "departments", direction, administration);   // 0
 treedb_link_nodes(tranger, "departments", administration, direction);   // -1
 ```
+
+**A hook can hold the nodes of several topics, and an id names a node inside
+its topic only**: the user `x` and the group `x` are two nodes. A list hook
+holds both. A dict hook is keyed by the id alone, so it cannot: the link of
+the second one is refused (*"Cannot link, the dict hook holds a node of
+another topic with this id"*) and nothing moves. A load that finds such a pair
+on disk loads the first one and says so for the second (*"A dict hook holds a
+node of another topic with this id: this link is not loaded"*). Until 7.25.4
+the membership of a hook was tested by the bare id: the second link of a list
+hook was a duplicate that was skipped, and the second one of a dict hook took
+the first one's place.
+
+```C
+/*  owners.members is a list hook, owners.tagged a dict hook, both of users and groups  */
+treedb_link_nodes(tranger, "members", owner, user_x);   // 0
+treedb_link_nodes(tranger, "members", owner, group_x);  // 0: members holds both
+treedb_link_nodes(tranger, "tagged", owner, user_x);    // 0
+treedb_link_nodes(tranger, "tagged", owner, group_x);   // -1: the slot "x" is the user's
+```
+
+A reference that does not fit (`topic^id^hook` with a part longer than
+`NAME_MAX`) is refused with *"Cannot build the reference of a node: it does
+not fit"*, and nothing moves (it was cut in silence).
 
 **A save that fails takes the link back.** The link moves the child's fkey
 and the parents' hooks in memory first, then saves the child. When the save
