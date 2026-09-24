@@ -57,3 +57,28 @@ services, and handles WebSocket upgrade.
 | `client_yuno_name` | `string` | Name of the connected client yuno. |
 | `this_service` | `string` | Local service name this gate serves. |
 | `authenticated` | `bool` | Whether the connection is authenticated. |
+
+### Subscription authz
+
+A peer subscribes to an event of a local service with a `__subscribing__`
+message. `C_IEVENT_SRV` accepts it only for a **public** output event of a
+service the channel may reach. Since 7.25.5, when the yuno sets
+`enable_subscription_authz` (off by default) and the event is flagged
+`EVF_AUTHZ_SUBSCRIBE`, the channel's user also needs the publisher's
+permission aliased `__subscribe_event__` — `read` for the `EV_TREEDB_NODE_*`
+feed of a treedb — or the global `__subscribe_event__`. A refused
+subscription is logged (*"No permission to subscribe event"*) and not made;
+the channel stays open.
+
+Example: a yuno that enforces the treedb feed permission, in its config:
+
+```json
+{
+    "yuno": {
+        "enable_subscription_authz": true
+    }
+}
+```
+
+Details, and how a gclass declares a guarded event:
+[`YUNO_AUTH.md`](../../../../yunos/c/yuno_agent/YUNO_AUTH.md) §4.6.

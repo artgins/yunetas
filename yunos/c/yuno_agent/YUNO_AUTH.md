@@ -14,8 +14,10 @@ Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.
 > stock deployment is still authenticated-but-not-authorized at the command
 > boundary. This is the difference from the old "commented out" state: the `SDF_AUTHZ_X`
 > flag is now **consulted** — turning the gate on enforces every `pm_*`/authz
-> declaration without a code change. Event-level authz (`EVF_AUTHZ_*`) is still
-> unenforced (§4.6, §8.4).
+> declaration without a code change. The subscription authz (`EVF_AUTHZ_SUBSCRIBE`)
+> is re-armed the same way since 7.25.5, behind its own gate
+> `enable_subscription_authz`, also OFF by default (§4.6). `EVF_AUTHZ_INJECT` is
+> still unenforced (§8.4).
 
 ---
 
@@ -565,14 +567,88 @@ roles.
 > gate-off runs, external+deny → -403, internal-command bypass, self-bypass,
 > external+granted runs, and global authz resolves.
 
-### 4.6 `EVF_AUTHZ_INJECT` / `EVF_AUTHZ_SUBSCRIBE`
+### 4.6 `EVF_AUTHZ_SUBSCRIBE` — the subscription check, gated opt-in
 
-[`gobj.h`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.h) declares the flags. [`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.c) declares the
-matching global authzs (`__inject_event__`, `__subscribe_event__`). The
-**enforcement** for these flags is not found in the dispatcher
-(`gobj_send_event`, `gobj_subscribe_event`). Unlike the command check (§4.5,
-now re-armed behind a gate), event-level authz is still **declared, not
-enforced** — there is no `enable_event_authz` equivalent yet.
+[`gobj.h`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.h) declares the flags and [`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.c) the
+matching global authzs (`__inject_event__`, `__subscribe_event__`). Since
+7.25.5 the **subscription** check is re-armed, the same way as the command
+check of §4.5: it was commented out in `C_IEVENT_SRV` (since v6) and in
+`gobj_subscribe_event()`, so a subscription asked nothing. The practical
+effect was that the `EV_TREEDB_NODE_*` feed of a treedb went to any
+authenticated user, while `C_NODE`'s own commands asked `read` for the same
+data.
+
+The check runs in `C_IEVENT_SRV` (`is_subscription_authorized()`), for a
+`__subscribing__` message, after the "only PUBLIC events" check. It fires only
+when all of these are true:
+
+- **The gate — `enable_subscription_authz`.** An `SDF_RD` boolean attr on
+  `c_yuno`, default `"0"`. Like `enable_command_authz`, only config or code can
+  set it, and the two gates are independent. Absent or off → every
+  subscription is accepted, as up to 7.25.4.
+- **The event is flagged `EVF_AUTHZ_SUBSCRIBE`** in the publisher's
+  `event_types`. An event without the flag is never checked.
+- **The subscription is external.** Only `C_IEVENT_SRV` asks, and every
+  subscription that arrives there comes from a peer, with the authenticated
+  `__username__` that `C_AUTHZ` wrote on the channel. An internal
+  `gobj_subscribe_event()` never goes through it and is never checked.
+
+The permission asked is the one of the **publisher's gclass whose alias is
+`__subscribe_event__`**, so a subscription asks what a read of the same data
+asks. When the gclass names none, the global `__subscribe_event__` is asked.
+The check calls `gobj_user_has_authz(publisher, permission, kw_authz, channel)`
+with `kw_authz = {"event": …, "__username__": …, "kw": <subscription kw>}`.
+
+A refusal is logged as an error (`MSGSET_AUTH`, *"No permission to subscribe
+event"*, with `service`, `event`, `permission` and `username`). The
+subscription is not made and **the channel stays open**: the peer keeps its
+session and its other subscriptions, and it gets no events of the refused one.
+An unsubscribe is never checked, because it removes only the channel's own
+subscriptions. The peer still holds a refused subscription and withdraws it
+(for example when a view closes): that is logged at info level (*"UNSUBSCRIBING
+event never subscribed, its subscription was refused"*), not as an error.
+
+How a gclass declares a guarded feed (a publisher with a `read` permission):
+
+```c
+PRIVATE const char *read_alias[] = {"__subscribe_event__", 0};
+
+PRIVATE sdata_desc_t authz_table[] = {
+/*-AUTHZ-- type---------name----flag----alias-------items-----------description--*/
+SDATAAUTHZ (DTP_SCHEMA, "read", 0,      read_alias, pm_authz_read,  "Permission to read nodes"),
+SDATA_END()
+};
+
+event_type_t event_types[] = {
+    {EV_TREEDB_NODE_CREATED, EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS|EVF_AUTHZ_SUBSCRIBE},
+    …
+};
+```
+
+How a yuno turns the gate on (in its config, like `enable_command_authz`):
+
+```json
+{
+    "yuno": {
+        "enable_subscription_authz": true
+    }
+}
+```
+
+With the gate on, a user needs `read` on the publisher's service to subscribe,
+the same role that already lets them run `nodes` and `node`. The gate needs a
+running `C_AUTHZ` role model, like the command gate: the default checker is
+fail-closed and refuses every flagged subscription without one.
+
+`EVF_AUTHZ_INJECT` (`__inject_event__`) is still declared only (§8.4).
+
+The regression test is
+[`tests/c/c_subscription_authz`](https://github.com/artgins/yunetas/tree/7.25.4/tests/c/c_subscription_authz).
+Three `C_IEVENT_CLI` connect to a `C_IEVENT_SRV` over loopback and cover four
+cases: gate off → subscribed, gate on without `read` → refused and logged,
+an event without the flag → subscribed, and gate on with `read` → subscribed,
+with the checker asked for `read`. The feed then reaches only the accepted
+subscriptions.
 
 ### 4.7 Where authz **is** enforced today
 
@@ -582,7 +658,10 @@ Two paths, in priority order:
    `enable_command_authz` TRUE (§4.5), every `SDF_AUTHZ_X` command from an
    external `src` is checked. This is the canonical path. For new services
    with a `C_AUTHZ` role model, use it instead of per-handler checks.
-2. **Custom code inside specific gclasses** that calls `gobj_user_has_authz`
+2. **The subscription gate** — when the yuno sets `enable_subscription_authz`
+   TRUE (§4.6), every external subscription to an `EVF_AUTHZ_SUBSCRIBE` event
+   asks the publisher's permission aliased `__subscribe_event__`.
+3. **Custom code inside specific gclasses** that calls `gobj_user_has_authz`
    directly. Examples worth knowing about:
    - Inside `C_AUTHZ`'s own commands (you cannot list users without
      authority over the auth service itself).
@@ -779,8 +858,21 @@ Points found so far (verified this session unless noted):
     say which door application actions use, or it will keep being decided one
     app at a time. See [`NODE_SEALING.md`](NODE_SEALING.md) §5.5.
 
+11. **The treedb feed follows the subscription gate, not `read` alone.**
+    `C_NODE` asks `read` in its commands with or without a gate (point 1),
+    but the `EV_TREEDB_NODE_*` feed asks it only when the yuno sets
+    `enable_subscription_authz` (§4.6). With that gate on, every GUI that
+    subscribes to a treedb needs `read` on that treedb's service for its user:
+    the gobj-ui treedb views (`C_YUI_TREEDB_TOPICS`,
+    `C_YUI_TREEDB_TOPIC_WITH_FORM`, `C_YUI_TREEDB_GRAPH`), gui_treedb, the
+    treedb views of gui_agent, and the app GUIs built on them (wattyzer,
+    yunovatios). A gclass of a project that re-publishes the feed under its
+    own service (the `db_history` yunos) is its own publisher: it is guarded
+    only if it flags its events and aliases a permission.
+
 When the final phase runs: author the matrix (roles × permissions ×
-realm/service scope), provision users, set `enable_command_authz` on the agents
+realm/service scope), provision users, set `enable_command_authz` and
+`enable_subscription_authz` on the agents
 and scope `command-agent` on the controlcenters, then re-verify the
 [§2.1 access doors](NODE_SEALING.md) with a *non-root* role to
 confirm that the boundary works.
@@ -1288,14 +1380,17 @@ Plan for this:
 - For commands that **must** be gated on a yuno with no role model, call
   `gobj_user_has_authz` explicitly at the top of the handler instead.
 
-### 8.4 Event-level authz is also unenforced
+### 8.4 Inject authz is unenforced; subscription authz is OFF by default
 
-`EVF_AUTHZ_INJECT` and `EVF_AUTHZ_SUBSCRIBE` ([`gobj.h`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.h)) are
-declared and the global authzs `__inject_event__` /
-`__subscribe_event__` are registered ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.c)), but no check
-runs in `gobj_send_event` or `gobj_subscribe_event`. Unlike the command check
-(§4.5, now gated-but-enforceable), event-level authz has **no gate and no
+`EVF_AUTHZ_INJECT` ([`gobj.h`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.h)) is declared and the
+global authz `__inject_event__` is registered ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.c)), but
+no check runs when a peer injects an event: it has **no gate and no
 enforcement** — declared only.
+
+`EVF_AUTHZ_SUBSCRIBE` is enforced since 7.25.5 (§4.6), but behind
+`enable_subscription_authz`, which is **off by default**. On a stock yuno any
+authenticated user can therefore subscribe to any public event, the
+`EV_TREEDB_NODE_*` feed of a treedb included.
 
 ### 8.5 Authz default is allow
 

@@ -82,8 +82,8 @@ Flags at [`gobj.h`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj
 | `EVF_PUBLIC_EVENT`      | Part of the gclass's public API (subscribers from other gclasses can subscribe to it). |
 | `EVF_SYSTEM_EVENT`      | Yuneta-internal event. Used by the framework, not user code.       |
 | `EVF_NO_WARN_SUBS`      | Silence the *"Publish event WITHOUT subscribers"* warning for optional subscribers. |
-| `EVF_AUTHZ_INJECT`      | Requires `__inject_event__` authorization to send to this gobj.    |
-| `EVF_AUTHZ_SUBSCRIBE`   | Requires `__subscribe_event__` authorization to subscribe.         |
+| `EVF_AUTHZ_INJECT`      | Requires `__inject_event__` authorization to send to this gobj. Declared only, not enforced. |
+| `EVF_AUTHZ_SUBSCRIBE`   | An external subscription (through `C_IEVENT_SRV`) needs the publisher's permission aliased `__subscribe_event__` (`read` in `C_NODE`), or the global `__subscribe_event__`. Checked only when the yuno sets `enable_subscription_authz` (off by default). See [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.6. |
 | `EVF_KW_WRITING`        | The action is allowed to modify `kw` in place, and not only consume it.  |
 
 Example, the minimal gclass [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_timer.c) declaration (paraphrased):

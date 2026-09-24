@@ -8749,9 +8749,11 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     }
 
     /*-------------------------------------------------*
-     *  Check AUTHZ
+     *  AUTHZ of EVF_AUTHZ_SUBSCRIBE is not checked here: an internal
+     *  subscription is never gated, and the external ones all enter through
+     *  C_IEVENT_SRV, which checks them before calling this (gated by the
+     *  yuno's `enable_subscription_authz`, see is_subscription_authorized()).
      *-------------------------------------------------*/
-    // if(output_event->authz & EV_AUTHZ_SUBSCRIBE) {}
 
     /*------------------------------*
      *  Find repeated subscription

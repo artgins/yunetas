@@ -43,6 +43,12 @@ PRIVATE json_t *build_srv_ievent_request(
     const char *dst_service
 );
 PRIVATE BOOL is_service_authorized(hgobj gobj, hgobj gobj_service);
+PRIVATE BOOL is_subscription_authorized(
+    hgobj gobj,
+    hgobj gobj_service,
+    gobj_event_t event,
+    json_t *iev_kw  // not owned
+);
 PRIVATE int reject_unrouted_iev(
     hgobj gobj,
     gobj_event_t iev_event,
@@ -1038,6 +1044,86 @@ PRIVATE BOOL is_service_authorized(hgobj gobj, hgobj gobj_service)
 }
 
 /***************************************************************************
+ *  The permission that guards a subscription to `gobj_service`: the one of
+ *  its gclass whose alias is `__subscribe_event__`, so a subscription asks
+ *  what a read of the same data asks (C_NODE: `read`), or the global
+ *  `__subscribe_event__` when the gclass names none.
+ ***************************************************************************/
+PRIVATE const char *subscription_permission(hgobj gobj_service)
+{
+    const char *global_authz = "__subscribe_event__";
+    const sdata_desc_t *it = gclass_authz_desc(gobj_gclass(gobj_service));
+    while(it && it->name) {
+        const char **alias = it->alias;
+        while(alias && *alias) {
+            if(strcmp(*alias, global_authz)==0) {
+                return it->name;
+            }
+            alias++;
+        }
+        it++;
+    }
+    return global_authz;
+}
+
+/***************************************************************************
+ *  May the principal of this channel subscribe `event` of `gobj_service`?
+ *
+ *  Gated opt-in, like the per-command check of command_parser(): it runs
+ *  only when the yuno sets `enable_subscription_authz`, and only for an
+ *  event its gclass declares EVF_AUTHZ_SUBSCRIBE. This gobj is the external
+ *  entry gate, so every subscription arriving here is external and carries
+ *  the authenticated `__username__` (set by C_AUTHZ, never by the peer);
+ *  an internal gobj_subscribe_event() never comes through here and is never
+ *  gated. A refusal is logged here (MSGSET_AUTH).
+ *
+ *  Up to 7.25.4 the check was commented out (here since v6, and in
+ *  gobj_subscribe_event()), so the EV_TREEDB_NODE_* feed of a treedb was
+ *  open to any authenticated user, `read` or not.
+ ***************************************************************************/
+PRIVATE BOOL is_subscription_authorized(
+    hgobj gobj,
+    hgobj gobj_service,
+    gobj_event_t event,
+    json_t *iev_kw  // not owned
+)
+{
+    hgobj yuno = gobj_yuno();
+    BOOL authz_enabled = yuno &&
+        gobj_has_attr(yuno, "enable_subscription_authz") &&
+        gobj_read_bool_attr(yuno, "enable_subscription_authz");
+    if(!authz_enabled) {
+        return TRUE;
+    }
+    if(!gobj_has_output_event(gobj_service, event, EVF_AUTHZ_SUBSCRIBE)) {
+        return TRUE;
+    }
+
+    const char *permission = subscription_permission(gobj_service);
+    const char *username = gobj_read_str_attr(gobj, "__username__");
+    json_t *kw_authz = json_pack("{s:s, s:s, s:O}",
+        "event", event,
+        "__username__", username?username:"",
+        "kw", iev_kw
+    );
+    if(gobj_user_has_authz(gobj_service, permission, kw_authz, gobj)) {
+        return TRUE;
+    }
+
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH,
+        "msg",          "%s", "No permission to subscribe event",
+        "service",      "%s", gobj_short_name(gobj_service),
+        "event",        "%s", event,
+        "permission",   "%s", permission,
+        "username",     "%s", username?username:"",
+        NULL
+    );
+    return FALSE;
+}
+
+/***************************************************************************
  *  Reject a per-message ievent that cannot be routed (unauthorized service,
  *  or service not found) WITHOUT leaving the channel in a zombie state.
  *
@@ -1367,46 +1453,6 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  It's a external subscription
          *-----------------------------------*/
 
-        /*-------------------------------------------------*
-         *  Check AUTHZ
-         *-------------------------------------------------*/
-//         const EVENT *output_event = gobj_output_event(publisher);
-//             if(output_event->authz & EV_AUTHZ_INJECT) {
-//                 const char *event = output_event->event?output_event->event:"";
-//                 /*
-//                 *  AUTHZ Required
-//                 */
-//                 json_t *kw_authz = json_pack("{s:s}",
-//                     "event", event
-//                 );
-//                 if(kw) {
-//                     json_object_set(kw_authz, "kw", kw);
-//                 } else {
-//                     json_object_set_new(kw_authz, "kw", json_object());
-//                 }
-//                 if(!gobj_user_has_authz(
-//                     publisher_,
-//                     "__subscribe_event__",
-//                     kw_authz,
-//                     subscriber_
-//                 )) {
-//                     gobj_log_error(gobj, 0,
-//                         "gobj",         "%s", gobj_full_name(publisher_),
-//                         "function",     "%s", __FUNCTION__,
-//                         "msgset",       "%s", MSGSET_AUTH,
-//                         "msg",          "%s", "No permission to subscribe event",
-//                         //"user",         "%s", gobj_get_user(subscriber_),
-//                         "gclass",       "%s", gobj_gclass_name(publisher_),
-//                         "event",        "%s", event?event:"",
-//                         NULL
-//                     );
-//                     KW_DECREF(kw)
-//                     return 0;
-//                 }
-//             }
-//             output_event_list++;
-//         }
-
         /*
          *   Protect: only public events
          */
@@ -1423,6 +1469,16 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             KW_DECREF(iev_kw)
             KW_DECREF(kw)
             return -1;
+        }
+
+        /*-------------------------------------------------*
+         *  Check AUTHZ
+         *-------------------------------------------------*/
+        if(!is_subscription_authorized(gobj, gobj_service, iev_event, iev_kw)) {
+            // Error already logged
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
+            return 0;   // the channel stays open: only this subscription is refused
         }
 
         // Set locals to remove on publishing
@@ -1460,10 +1516,10 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         /*-----------------------------------*
          *  It's a external unsubscription
          *-----------------------------------*/
-        /*-------------------------------------------------*
-         *  Check AUTHZ
-         *-------------------------------------------------*/
-        // TODO
+        /*
+         *  No AUTHZ: it removes only this channel's own subscriptions (the
+         *  subscriber is this gobj), which the subscribe already authorized.
+         */
 
         /*
          *   Protect: only public events
@@ -1482,6 +1538,31 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             KW_DECREF(kw)
             return -1;
         }
+        /*
+         *  A subscription the authz refused was never made, but the peer
+         *  still holds it and withdraws it: nothing to remove, and not an
+         *  error (the refusal was logged when it was asked).
+         */
+        if(gobj_has_output_event(gobj_service, iev_event, EVF_AUTHZ_SUBSCRIBE)) {
+            json_t *dl_subs = gobj_find_subscriptions(gobj_service, iev_event, NULL, gobj);
+            size_t n_subs = json_array_size(dl_subs);
+            JSON_DECREF(dl_subs)
+            if(n_subs == 0) {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", "UNSUBSCRIBING event never subscribed, its subscription was refused",
+                    "service",      "%s", iev_dst_service,
+                    "event",        "%s", iev_event,
+                    "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+                    NULL
+                );
+                KW_DECREF(iev_kw)
+                KW_DECREF(kw)
+                return 0;
+            }
+        }
+
         kw_delete(gobj, iev_kw, "__md_iev__");
         gobj_unsubscribe_event(gobj_service, iev_event, iev_kw, gobj);
 
