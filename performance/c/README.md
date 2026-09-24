@@ -166,16 +166,17 @@ two binaries run alternated, on ext4 on a laptop NVMe, with a `sync` and a
 pause before each run. The figures are mean +- standard deviation (median),
 and the last column is the change of the mean.
 
-`perf_timeranger2` (ms; 10 rounds):
+`perf_timeranger2` (ms; 10 rounds, the two append rows 20 rounds after the
+change that looks up the key cache once per append):
 
 | Case | 7.25.4 | 7.25.5 | Change |
 |------|--------|--------|--------|
-| `build_appends` (400 000 appends, 2000 keys x 10 files) | 1695.3 +- 29.2 (1685.9) | 1741.6 +- 28.5 (1741.3) | +2.7% |
+| `build_appends` (400 000 appends, 2000 keys x 10 files) | 1733.5 +- 31.2 (1740.3) | 1712.6 +- 32.3 (1701.5) | -1.2% |
 | `open_master` (20 000 md2 files) | 92.5 +- 1.9 (91.7) | 80.8 +- 1.9 (80.1) | -12.7% |
 | `open_replica` | 89.7 +- 2.1 (88.9) | 106.5 +- 2.0 (105.9) | +18.7% |
 | `create_topic` (10 topics) | 1.4 +- 0.0 (1.4) | 159.6 +- 14.2 (167.6) | x114 |
 | `topic_version_change` (10) | 8.8 +- 4.0 (10.6) | 276.6 +- 25.0 (286.2) | x31 |
-| `tm_build_appends` (600 000 appends, 1 key x 30 files) | 1592.3 +- 31.5 (1589.0) | 1691.2 +- 33.9 (1685.6) | +6.2% |
+| `tm_build_appends` (600 000 appends, 1 key x 30 files) | 1635.0 +- 29.3 (1642.9) | 1627.3 +- 32.8 (1626.1) | -0.5% |
 | `tm_query_unmigrated` (1 key, 30 files x 20 000 rows) | 12.7 +- 0.2 (12.7) | 391.6 +- 8.2 (387.4) | x31 |
 | `mark_tm_order` (the same topic) | -- | 19.3 +- 1.5 (19.9) | |
 | `tm_query_migrated` | -- | 7.4 +- 0.1 (7.3) | |
@@ -198,11 +199,50 @@ rounds, the order swapped at each round):
 
 | Case | 7.25.4 | 7.25.5 | Change |
 |------|--------|--------|--------|
-| without an rt list | 227 790 +- 4 884 (224 893) | 219 912 +- 4 837 (220 442) | -3.5% |
-| with an rt list | 167 102 +- 4 014 (165 150) | 168 175 +- 3 821 (168 456) | +0.6% |
+| without an rt list | 226 059 +- 4 306 (227 846) | 222 220 +- 3 933 (223 288) | -1.7% |
+| with an rt list | 166 927 +- 3 314 (168 580) | 168 555 +- 2 992 (169 793) | +1.0% |
 
-The same test with the store on tmpfs (10 rounds): 236 821 -> 234 113
-(-1.1%) and 176 840 -> 175 443 (-0.8%).
+These two binaries do not differ only in `timeranger2.c`. The module of each
+release has another size, so every library linked after it (jansson, gbmem)
+lands at another address, and the speed of that code changes with its
+address. `json_dumps()` is about 40% of the cycles of an append here. With
+the same `timeranger2.c` of 7.25.4, only the addresses of the libraries
+moved (in steps of 64 bytes), the test goes from 217 557 to 222 951
+appends/s. So a difference of 2% between two links is not a difference of
+the code.
+
+To remove this effect, each module is padded to the same `.text` size and
+linked 4 times, with the libraries moved by 0, 320, 704 and 1472 bytes. 20
+rounds of each of the 4 links, all 12 binaries alternated (n = 80 for each
+column):
+
+| Case | 7.25.4 | 7.25.5 | Change |
+|------|--------|--------|--------|
+| without an rt list | 220 120 +- 4 544 (220 070) | 221 588 +- 4 753 (220 424) | +0.7% |
+| with an rt list | 166 498 +- 3 354 (165 816) | 167 381 +- 3 306 (166 189) | +0.5% |
+
+Before the change, the same measurement gave 217 720 +- 3 979 (219 238),
+-1.1%, and 166 363 +- 3 682 (168 054), -0.1%.
+
+Cycles in `tranger2_append_record()` (`rdtsc` probes in copies of the
+module, median of 6 runs, both phases of the test): 7.25.4 14 580, before
+the change 15 352, now 14 484. Where the append of 7.25.5 spends differently
+(cycles an append, 7.25.4 / before / now):
+
+| Step | 7.25.4 | before | now |
+|------|--------|--------|--------|
+| master check, topic | 168 | 229 | 203 |
+| file id, flagged-file check | 373 | 540 | 450 |
+| md2 open, `lseek()`, torn-tail check | 658 | 656 | 668 |
+| find the cell, order marker | -- | 577 | 544 |
+| cache update (7.25.4: with the find of the cell) | 1 617 | 1 278 | 934 |
+| `json_dumps()` (the same code in all three) | 5 784 | 6 002 | 5 791 |
+
+The torn-tail check costs nothing when the md2 ends on a row boundary (one
+`%`). Before the change, the key's cache was looked up four times an append
+(flagged-file check, find of the cell, cache update, totals). Now it is
+looked up once. The `json_dumps()` row shows the layout effect of the
+paragraph above: the same code, 218 cycles apart.
 
 yev_loop (8 rounds):
 

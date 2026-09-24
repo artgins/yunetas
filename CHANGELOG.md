@@ -294,16 +294,20 @@ RelWithDebInfo with memory tracking, ext4, laptop NVMe). The raw figures,
 with their spread, are in `performance/c/README.md`.
 
 - **timeranger2.**
-    - **Price:** an append costs 1% to 6% more than in 7.25.4 on ext4, the
-      checks this release adds to each append (a flagged file, the tm
-      order). `test_topic_pkey_integer`, appends/s without / with an rt
-      list: 7.25.4 227 790 / 167 102, now 219 912 / 168 175 (-3.5% /
-      +0.6%; on tmpfs -1.1% / -0.8%); `perf_timeranger2`, 400 000 appends
-      into 20 000 files +2.7%, 600 000 appends into 30 files of a topic that
-      marks tm order +6.2%. The tm marker made every append search the cache
-      cell of its file twice, each search building two file names with
-      `snprintf()`; it searches once and `cmp_file_ids()` compares in place
-      (new test `timeranger2/test_cmp_file_ids`).
+    - An append costs what it cost in 7.25.4, with the checks this release
+      adds to it (a flagged file, the tm order, a torn md2 tail, a stopped
+      master). The append looks up the cache of its key once (it was four
+      times), and it searches the cache cell of its file once;
+      `cmp_file_ids()` compares file ids in place, without `snprintf()`
+      (new test `timeranger2/test_cmp_file_ids`). `perf_timeranger2`, 20
+      rounds: 400 000 appends into 20 000 files 1733.5 -> 1712.6 ms
+      (-1.2%), 600 000 appends into 30 files of a topic that marks tm
+      order 1635.0 -> 1627.3 ms (-0.5%). `test_topic_pkey_integer`,
+      appends/s without / with an rt list, averaged over 4 code layouts
+      (n = 80): 7.25.4 220 120 / 166 498, now 221 588 / 167 381 (+0.7% /
+      +0.5%). A single link of each moves up to 2% with the address of the
+      libraries after the module (jansson's `json_dumps()` is ~40% of an
+      append): see `performance/c/README.md`.
     - A master opens a store 13% faster (20 000 md2 files: 92 ms -> 81 ms):
       it finds the order markers in the listing of the key directory it
       already reads, instead of a `stat()` per md2 file.
