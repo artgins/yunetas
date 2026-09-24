@@ -187,10 +187,10 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   it). **All new gobj-ui work lands on `main`/v2**: edit `kernel/js/gobj-ui`
   directly, commit on `main` in the standalone repo, `npm publish`, then bump
   this submodule pointer in yunetas **and the range in each consumer**.
-- **`v1` branch** (latest tag `1.0.3`, npm dist-tag `legacy`) — the **frozen**
+- **`v1` branch** (latest tag `1.0.4`, npm dist-tag `legacy`) — the **frozen**
   legacy GClass GUI stack (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors +
   charts/maps). `v1` is **maintenance-only** — do not land feature work here.
-  estadodelaire (`^1.0.3`) and hidraulia (`^1.0.1`) consume it from the **npm
+  estadodelaire and hidraulia (`^1.0.4`) consume it from the **npm
   registry** (the **published** package, **not** this local checkout) — check
   the consumer's own `package.json` rather than assuming they match. The local
   `kernel/js/gobj-ui` checkout is **no longer `v1`** — do not point a
