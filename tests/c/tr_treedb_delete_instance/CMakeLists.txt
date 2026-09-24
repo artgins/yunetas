@@ -72,6 +72,9 @@ target_link_libraries(${PROJECT_NAME}
     ${DEBUG_LIBS}
 )
 
+# The test fails the writes of the md2 of one key in its own __wrap_write()
+target_link_options(${PROJECT_NAME} PRIVATE "-Wl,--wrap=write")
+
 ##############################################
 #   Test
 ##############################################

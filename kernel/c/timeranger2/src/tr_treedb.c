@@ -8636,8 +8636,15 @@ PUBLIC int treedb_delete_instance(
             return -1;
         }
 
-        size_t i; json_t *hit;
-        json_array_foreach(hits, i, hit) {
+        /*
+         *  Oldest first (the walk went backward), stopping at the first
+         *  failure: a tombstone cannot be taken back, and what a failure
+         *  leaves -- the newest rows alive -- is then what memory keeps.
+         */
+        size_t n_hits = json_array_size(hits);
+        size_t n_done = 0;
+        for(size_t i = n_hits; i-- > 0; ) {
+            json_t *hit = json_array_get(hits, i);
             if(tranger2_delete_instance(
                 tranger,
                 topic_name,
@@ -8646,22 +8653,31 @@ PUBLIC int treedb_delete_instance(
                 (uint64_t)json_integer_value(json_array_get(hit, 1)),
                 FALSE
             )<0) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_TREEDB,
-                    "msg",          "%s", "tranger2_delete_instance() FAILED",
-                    "topic_name",   "%s", topic_name,
-                    "id",           "%s", id,
-                    "key2",         "%s", pkey2_value,
-                    NULL
-                );
+                break;  // Error already logged
             }
+            n_done++;
         }
-        if(it) {
-            tranger2_close_iterator(tranger, it);
-        }
+        tranger2_close_iterator(tranger, it);
         JSON_DECREF(hits)
         JSON_DECREF(state)
+
+        if(n_done < n_hits) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Cannot delete instance, a row of it cannot be tombstoned: the instance stays, its newest rows alive",
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", id,
+                "key2",         "%s", pkey2_value,
+                "rows",         "%d", (int)n_hits,
+                "tombstoned",   "%d", (int)n_done,
+                NULL
+            );
+            gobj_log_set_last_message("%s", "Cannot delete instance, a row of it cannot be tombstoned");
+            JSON_DECREF(node)   // the maintain ref
+            JSON_DECREF(jn_options)
+            return -1;
+        }
     }
 
     if(delete_secondary_node(indexy, id, pkey2_value)<0) {

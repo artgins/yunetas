@@ -3,10 +3,11 @@
  *
  *          Regression coverage for treedb_delete_instance().
  *
- *          The function cleans only ONE secondary `pkey2` index slot:
+ *          The function deletes ONE instance, one `pkey2` index slot:
  *            - the primary `id` index stays untouched,
- *            - the on-disk `.md2` row stays untouched (no
- *              tranger2_delete_key() / tranger2_delete_instance() call),
+ *            - every `.md2` row of (id, pkey2 value) is tombstoned
+ *              (tranger2_delete_instance()), oldest first, and a
+ *              tombstone that fails keeps the instance,
  *            - the other secondary indexes (when more than one is declared)
  *              stay untouched.
  *
@@ -20,6 +21,7 @@
 #include <signal.h>
 #include <limits.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <gobj.h>
 #include <timeranger2.h>
@@ -710,6 +712,130 @@ PRIVATE int test_delete_that_cannot_read_refuses(void)
 }
 
 /***************************************************************************
+ *  __wrap_write(): with `fail_writes_key` set (a key directory, ending in
+ *  '/'), the writes into an md2 file of that key go through until
+ *  `fail_writes_after` of them were written, and fail with EIO after.
+ *  Every other write goes through (see CMakeLists.txt).
+ ***************************************************************************/
+PRIVATE char fail_writes_key[PATH_MAX];
+PRIVATE int fail_writes_after = 0;
+
+ssize_t __real_write(int fd, const void *buf, size_t count);
+ssize_t __wrap_write(int fd, const void *buf, size_t count);
+
+ssize_t __wrap_write(int fd, const void *buf, size_t count)
+{
+    if(fail_writes_key[0]) {
+        char link[PATH_MAX];
+        char target[PATH_MAX];
+        snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+        ssize_t ln = readlink(link, target, sizeof(target) - 1);
+        if(ln > 4) {
+            target[ln] = 0;
+            if(strncmp(target, fail_writes_key, strlen(fail_writes_key)) == 0 &&
+                    strcmp(target + ln - 4, ".md2") == 0) {
+                if(fail_writes_after <= 0) {
+                    errno = EIO;
+                    return -1;
+                }
+                fail_writes_after--;
+            }
+        }
+    }
+    return __real_write(fd, buf, count);
+}
+
+/***************************************************************************
+ *  A tombstone that fails part way: the instance stays.
+ *
+ *  delete_instance tombstones every md2 row of (id, pkey2 value). It
+ *  tombstoned them newest first, logged a failure and went on, dropped the
+ *  instance and answered 0: the rows before the failure stayed alive, and
+ *  the instance came back at the next open, from an OLDER row (7.25.4). A
+ *  tombstone cannot be taken back, so the rows go oldest first and the
+ *  first failure stops the delete: the newest row stays alive, the delete
+ *  answers -1, and memory keeps the instance, as the next open finds it.
+ *
+ *  rel-3/v1 has two rows (created, then updated). The second tombstone
+ *  write fails (__wrap_write()).
+ ***************************************************************************/
+PRIVATE int test_tombstone_that_fails_part_way(void)
+{
+    int result = 0;
+    const char *test = "a delete_instance whose tombstone fails part way keeps the instance";
+    const char *treedb_name = "treedb_delete_tombstone";
+    const char *DB = "tr_delete_instance_tombstone";
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    build_path(path_database, sizeof(path_database), path_root, DB, NULL);
+    rmrdir(path_database);
+    helper_quote2doublequote(schema_sample);
+
+    set_expected_results(test,
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic"),
+        NULL, NULL, 1);
+    json_t *tranger = open_db(path_root, DB, treedb_name);
+    treedb_create_node(tranger, treedb_name, TOPIC_NAME,
+        json_pack("{s:s, s:s, s:s}", "id", "rel-3", "version", "v1", "payload", "old"));
+    json_t *node = treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-3", "v1");
+    if(!node || !treedb_update_node(tranger, node, json_pack("{s:s}", "payload", "new"), TRUE)) {
+        printf("%s  FAIL: setup of rel-3/v1 failed%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results(test,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot re-write record metadata, write FAILED",
+            "msg", "Cannot delete instance, a row of it cannot be tombstoned: the instance stays, its newest rows alive"),
+        NULL, NULL, 1);
+    build_path(fail_writes_key, sizeof(fail_writes_key) - 1,
+        path_database, TOPIC_NAME, "keys", "rel-3", NULL);
+    strcat(fail_writes_key, "/");
+    fail_writes_after = 1;
+    node = treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-3", "v1");
+    int ret = node? treedb_delete_instance(tranger, node, PKEY2_NAME, NULL) : 0;
+    fail_writes_key[0] = 0;
+    if(ret == 0) {
+        printf("%s  FAIL: delete_instance answered 0 with a tombstone that failed%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-3", "v1")) {
+        printf("%s  FAIL: the refused delete dropped the instance from memory%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    treedb_close_db(tranger, treedb_name);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    /*
+     *  Reopen: the instance is there, as memory had it (the newest row)
+     */
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_db(path_root, DB, treedb_name);
+    node = treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-3", "v1");
+    if(!node || strcmp(kw_get_str(0, node, "payload", "", 0), "new") != 0) {
+        printf("%s  FAIL: after the reopen rel-3/v1 is not the newest row: %s%s\n",
+            On_Red BWhite, node? kw_get_str(0, node, "payload", "", 0) : "(gone)", Color_Off);
+        result += -1;
+    }
+    treedb_close_db(tranger, treedb_name);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+    rmrdir(path_database);
+
+    return result;
+}
+
+/***************************************************************************
  *              do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -866,6 +992,7 @@ int main(int argc, char *argv[])
     int result = do_test();
     result += test_durable_delete_across_reopen();
     result += test_delete_that_cannot_read_refuses();
+    result += test_tombstone_that_fails_part_way();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

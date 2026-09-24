@@ -35,6 +35,13 @@ is not implemented yet (see repo `TODO.md`).
    The md2 of the key is cut, so the snapshot guard cannot read the key.
    The delete is refused (it fails closed).
 
+4. `a delete_instance whose tombstone fails part way keeps the instance`
+   An instance with two rows (created, then updated). The write of the
+   second tombstone fails (the test wraps `write()`, see `CMakeLists.txt`).
+   The rows go oldest first, so the newest row is still alive: the delete
+   answers `-1`, the instance stays in memory, and a reopen loads it from
+   the newest row. (7.25.4 answered `0`, and the instance came back older.)
+
 ## Run
 
 ```bash

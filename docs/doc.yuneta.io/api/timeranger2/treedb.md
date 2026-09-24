@@ -859,12 +859,23 @@ delete instance, a row of its key cannot be read"*: a row that cannot be read
 cannot say whose instance it is). Until 7.25.4 it tombstoned what it had read,
 dropped the slot, answered `0`, and the instance came back at the next open.
 
+It tombstones the rows **oldest first**, and the first tombstone that fails
+stops it: the delete answers `-1` (*"Cannot delete instance, a row of it
+cannot be tombstoned: the instance stays, its newest rows alive"*, with
+`rows` and `tombstoned`), and the instance stays in memory. A tombstone cannot
+be taken back, but the newest row is still alive, so the next open loads the
+instance as memory has it. The older rows tombstoned before the failure are
+gone from its history. In 7.25.4 it tombstoned newest first, went on after a
+failure, answered `0` and dropped the instance, which came back at the next
+open from an OLDER row. (new after 7.25.4)
+
 ```C
 // Delete the release "1.2.0" of yuno "gate1" (topic `yunos`, pkey2 `yuno_release`)
 json_t *inst = treedb_get_instance(tranger, "treedb_yuneta_agent", "yunos",
     "yuno_release", "gate1", "1.2.0");
 if(inst && treedb_delete_instance(tranger, inst, "yuno_release", 0) < 0) {
-    // refused: immutable, a snapshot holds it, or a row of the key cannot be read (logged)
+    // refused: immutable, a snapshot holds it, a row of the key cannot be read,
+    // or a row cannot be tombstoned (logged); the instance is still there
 }
 ```
 
