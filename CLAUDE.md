@@ -381,9 +381,12 @@ Corollaries:
   subsystem that has to stay under control, and low-level constructs hide them:
   `start_msectimer(priv->timeout_x)` + `test_msectimer(v)` names the timer at
   both ends and greps, while a subtraction of two `time_t`s buried in an `if`
-  is invisible to anyone reviewing what times out where. The helpers also run on
-  `CLOCK_MONOTONIC`, so a timer survives an NTP step — and the wall clock jumps
-  exactly when it hurts most, at boot.
+  is invisible to anyone reviewing what times out where. **Prefer the
+  `msectimer` pair: it runs on `CLOCK_MONOTONIC`**, so a timer survives an NTP
+  step — and the wall clock jumps exactly when it hurts most, at boot. The
+  `sectimer` pair reads `time()`, the WALL clock (checked 2026-09-24; this line
+  used to claim both were monotonic), so a clock set back holds a sectimer that
+  long and a clock set forward fires it early.
 - **Naming:** name functions by intent — verb + object + direction
   (`get_token_from_idp`, `send_token_to_browser`) — not by framework role; the
   framework keys (`mt_*`, `ac_*`, `exec_action`) already label the role. Prefer
