@@ -90,8 +90,8 @@ endforeach()
 # test_helpers makes an entry disappear during a walk (see its test_rmrdir_entry_vanishes)
 target_link_options(test_helpers PUBLIC LINKER:--wrap=lstat)
 
-# test_rotatory fakes the free space of one directory, the clock and a failing rename (see its header)
-target_link_options(test_rotatory PUBLIC LINKER:--wrap=statvfs,--wrap=fstatvfs,--wrap=time,--wrap=rename)
+# test_rotatory fakes the free space of one directory, the clocks (wall and monotonic) and a failing rename (see its header)
+target_link_options(test_rotatory PUBLIC LINKER:--wrap=statvfs,--wrap=fstatvfs,--wrap=time,--wrap=clock_gettime,--wrap=rename)
 
 # test_audit_record tests the audit record builder of yuno_agent (its own source)
 target_sources(test_audit_record PRIVATE

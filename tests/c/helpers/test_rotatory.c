@@ -124,6 +124,8 @@ PRIVATE int newfile_cb(void *user_data, const char *old_filename, const char *ne
  ***************************************************************************/
 PRIVATE int s_count_newfile = 0;
 PRIVATE int s_count_newfile_same = 0;
+PRIVATE char s_newfile_old[PATH_MAX] = "";
+PRIVATE char s_newfile_new[PATH_MAX] = "";
 
 PRIVATE int count_newfile_cb(void *user_data, const char *old_filename, const char *new_filename)
 {
@@ -131,6 +133,8 @@ PRIVATE int count_newfile_cb(void *user_data, const char *old_filename, const ch
     if(strcmp(old_filename, new_filename) == 0) {
         s_count_newfile_same++;
     }
+    snprintf(s_newfile_old, sizeof(s_newfile_old), "%s", old_filename);
+    snprintf(s_newfile_new, sizeof(s_newfile_new), "%s", new_filename);
     return 0;
 }
 
@@ -642,6 +646,85 @@ time_t __wrap_time(time_t *t)
     return now;
 }
 
+/***************************************************************************
+ *  The monotonic clock, faked too: -Wl,--wrap=clock_gettime (see
+ *  CMakeLists.txt). CLOCK_MONOTONIC answers the real one plus
+ *  s_fake_mono_seconds, so start_msectimer()/test_msectimer() of the
+ *  rotatory see the steps of step_clocks(). It only moves forward.
+ ***************************************************************************/
+PRIVATE time_t s_fake_mono_seconds = 0;
+
+int __real_clock_gettime(clockid_t clk, struct timespec *ts);
+int __wrap_clock_gettime(clockid_t clk, struct timespec *ts);
+
+int __wrap_clock_gettime(clockid_t clk, struct timespec *ts)
+{
+    int ret = __real_clock_gettime(clk, ts);
+    if(ret == 0 && clk == CLOCK_MONOTONIC) {
+        ts->tv_sec += s_fake_mono_seconds;
+    }
+    return ret;
+}
+
+/*
+ *  `wall` seconds on the wall clock (s_fake_now, may be negative: the
+ *  clock set back) and `mono` seconds of real time (the monotonic clock)
+ */
+PRIVATE void step_clocks(time_t wall, time_t mono)
+{
+    s_fake_now += wall;
+    s_fake_mono_seconds += mono;
+}
+
+/***************************************************************************
+ *  What the rotatory prints (print_error(): stdout and syslog, it is the
+ *  sink of the log), taken from stdout. It is printed again after.
+ ***************************************************************************/
+#define CAPTURE_FILE "/tmp/test_rotatory_stdout.txt"
+PRIVATE int s_saved_stdout = -1;
+
+PRIVATE void capture_stdout_begin(void)
+{
+    fflush(stdout);
+    s_saved_stdout = dup(STDOUT_FILENO);
+    int fd = open(CAPTURE_FILE, O_WRONLY|O_CREAT|O_TRUNC, 0600);
+    if(fd < 0 || s_saved_stdout < 0) {
+        printf("FAIL cannot capture stdout\n");
+        global_result += -1;
+        return;
+    }
+    dup2(fd, STDOUT_FILENO);
+    close(fd);
+}
+
+PRIVATE char *capture_stdout_end(void)
+{
+    fflush(stdout);
+    if(s_saved_stdout >= 0) {
+        dup2(s_saved_stdout, STDOUT_FILENO);
+        close(s_saved_stdout);
+        s_saved_stdout = -1;
+    }
+    size_t len = 0;
+    char *bf = read_whole_file(CAPTURE_FILE, &len);
+    unlink(CAPTURE_FILE);
+    if(bf) {
+        fwrite(bf, 1, len, stdout);
+    }
+    return bf;
+}
+
+PRIVATE int count_of(const char *text, const char *what)
+{
+    int n = 0;
+    const char *p = text;
+    while(p && (p = strstr(p, what)) != NULL) {
+        n++;
+        p += strlen(what);
+    }
+    return n;
+}
+
 PRIVATE BOOL file_holds(const char *path, const char *text)
 {
     size_t len = 0;
@@ -1068,6 +1151,7 @@ PRIVATE void test_keep_all_rename_fails(void)
     memset(line, 'n', sizeof(line)-1);
     line[sizeof(line)-1] = 0;
 
+    capture_stdout_begin();
     s_count_newfile = 0;
     s_rename_calls = 0;
     s_fail_rename = TRUE;
@@ -1076,21 +1160,85 @@ PRIVATE void test_keep_all_rename_fails(void)
         rotatory_write(hr, LOG_AUDIT, line, strlen(line));
     }
     rotatory_flush(hr);
-    s_fail_rename = FALSE;
-
-    check(s_rename_calls == 1,
-        "keep_all, rename fails: tried once, not at every record");
-    check(s_count_newfile == 0,
-        "keep_all, rename fails: no new file, no newfile callback");
-    check(count_lines(path) == (size_t)n_records,
-        "keep_all, rename fails: the file is kept, every record in it");
-    printf("     (rename tried %d times, newfile callback %d times, %d lines)\n",
-        s_rename_calls, s_count_newfile, (int)count_lines(path));
+    int calls_at_first = s_rename_calls;
+    int newfile_at_first = s_count_newfile;
+    size_t lines_at_first = count_lines(path);
 
     /*
-     *  The next name (next day) tries at once, and the rename works
+     *  The retry: after 60 seconds of REAL time (the monotonic clock),
+     *  whatever the wall clock does
      */
-    s_fake_now += 86400;
+    step_clocks(30, 30);
+    for(int i=0; i<100; i++) {
+        rotatory_write(hr, LOG_AUDIT, line, strlen(line));
+    }
+    int calls_at_30 = s_rename_calls;
+
+    step_clocks(31, 31);    // 61 s
+    for(int i=0; i<100; i++) {
+        rotatory_write(hr, LOG_AUDIT, line, strlen(line));
+    }
+    int calls_at_61 = s_rename_calls;
+
+    step_clocks(-3600, 61); // the wall clock set back one hour, 61 s of real time
+    for(int i=0; i<100; i++) {
+        rotatory_write(hr, LOG_AUDIT, line, strlen(line));
+    }
+    int calls_clock_back = s_rename_calls;
+
+    step_clocks(7200, 30);  // the wall clock set forward two hours, 30 s of real time
+    for(int i=0; i<100; i++) {
+        rotatory_write(hr, LOG_AUDIT, line, strlen(line));
+    }
+    int calls_clock_forward = s_rename_calls;
+
+    /*
+     *  The rename works again
+     */
+    s_fail_rename = FALSE;
+    step_clocks(61, 61);
+    int n_after = 2048;     // the first one rotates; 2 MB: over the limit, the next record of the day would rotate
+    for(int i=0; i<n_after; i++) {
+        rotatory_write(hr, LOG_AUDIT, line, strlen(line));
+    }
+    rotatory_flush(hr);
+    int calls_works = s_rename_calls;
+    int newfile_works = s_count_newfile;
+    char old1_day1[PATH_MAX+16];
+    snprintf(old1_day1, sizeof(old1_day1), "%s.OLD.1", path);
+    char *printed = capture_stdout_end();
+
+    check(calls_at_first == 1,
+        "keep_all, rename fails: tried once, not at every record");
+    check(newfile_at_first == 0,
+        "keep_all, rename fails: no new file, no newfile callback");
+    check(lines_at_first == (size_t)n_records,
+        "keep_all, rename fails: the file is kept, every record in it");
+    check(calls_at_30 == 1,
+        "keep_all, rename fails: not tried again after 30 s");
+    check(calls_at_61 == 2,
+        "keep_all, rename fails: tried again after 60 s");
+    check(calls_clock_back == 3,
+        "keep_all, rename fails: the wall clock set back does not stop the retry (monotonic)");
+    check(calls_clock_forward == 3,
+        "keep_all, rename fails: the wall clock set forward does not bring the retry (monotonic)");
+    check(calls_works == 4 && newfile_works == 1 && exists_no_follow(old1_day1) &&
+        count_lines(old1_day1) == (size_t)n_records + 400 && count_lines(path) == (size_t)n_after,
+        "keep_all, the rename works again: one new file, the newfile callback once");
+    check(count_of(printed, "Cannot rename") == 1 && count_of(printed, "works again") == 1,
+        "keep_all, rename fails: printed once, and once when it works again");
+    printf("     (rename tried %d/%d/%d/%d/%d/%d times, newfile callback %d times)\n",
+        calls_at_first, calls_at_30, calls_at_61, calls_clock_back, calls_clock_forward,
+        calls_works, newfile_works);
+    GBMEM_FREE(printed);
+
+    /*
+     *  The next name (next day) tries at once, and the rename works.
+     *  The file of day 1 stays as it is: it is not size-rotated at the
+     *  first record of day 2 (it was renamed to .OLD.<n> there, and the
+     *  day lost its main file).
+     */
+    step_clocks(86400, 1);
     s_rename_calls = 0;
     for(int i=0; i<2200; i++) {
         rotatory_write(hr, LOG_AUDIT, line, strlen(line));
@@ -1100,13 +1248,254 @@ PRIVATE void test_keep_all_rename_fails(void)
     snprintf(path2, sizeof(path2), "%s", rotatory_path(hr));
     char old1[PATH_MAX+16];
     snprintf(old1, sizeof(old1), "%s.OLD.1", path2);
+    char old2_day1[PATH_MAX+16];
+    snprintf(old2_day1, sizeof(old2_day1), "%s.OLD.2", path);
     check(strcmp(path, path2) != 0 && exists_no_follow(old1),
         "keep_all: the next name rotates at once, the rename works again");
+    check(count_lines(path) == (size_t)n_after && !exists_no_follow(old2_day1),
+        "keep_all: the file of day 1 is not size-rotated at the first record of day 2");
     printf("     (next day: rename tried %d times, newfile callback %d times)\n",
         s_rename_calls, s_count_newfile);
 
     rotatory_close(hr);
     s_fake_now = 0;
+    rmrdir(BASE);
+}
+
+/***************************************************************************
+ *  A new name is not size-rotated: the size limit is of the file being
+ *  written, and at a new name the file of the day before is left. Up to
+ *  this fix the size check ran on the file of the day before at the
+ *  first record of the new day: that file was renamed to .OLD (the .OLD
+ *  of that day, its earlier piece, was removed first), and when that
+ *  rename failed the file of the NEW day was emptied.
+ ***************************************************************************/
+PRIVATE void test_new_name_no_size_rotation(void)
+{
+    #define NEWNAME_DIR BASE "/newname"
+    rmrdir(BASE);
+    mkrdir(NEWNAME_DIR, 02775);
+
+    time_t real_now = __real_time(NULL);
+    struct tm tm;
+    localtime_r(&real_now, &tm);
+    tm.tm_hour = 23;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    tm.tm_isdst = -1;
+    s_fake_now = mktime(&tm);
+
+    hrotatory_h hr = rotatory_open(NEWNAME_DIR "/CCYY-MM-DD.log", 0, 1, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        s_fake_now = 0;
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    char day1[PATH_MAX];
+    snprintf(day1, sizeof(day1), "%s", rotatory_path(hr));
+    char day1_old[PATH_MAX+8];
+    snprintf(day1_old, sizeof(day1_old), "%s.OLD", day1);
+
+    size_t n = 2200*1024;
+    char *big = gbmem_malloc(n + 1);
+    if(!big) {
+        s_fake_now = 0;
+        printf("FAIL no memory\n");
+        global_result += -1;
+        return;
+    }
+    memset(big, 'A', n);
+    big[n] = 0;
+    rotatory_write(hr, LOG_AUDIT, big, n);      // 2.2 MB of 'A'
+    memset(big, 'B', n);
+    rotatory_write(hr, LOG_AUDIT, big, n);      // the size rotation: 'A' to .OLD, 'B' in the file
+    rotatory_flush(hr);
+
+    step_clocks(2*3600, 2*3600);                // the next day, 01:00
+    rotatory_write(hr, LOG_AUDIT, "day 2", strlen("day 2"));
+    rotatory_flush(hr);
+
+    check(file_holds(day1_old, "AAAA") && file_holds(day1, "BBBB"),
+        "a new name: the file of the day before is not size-rotated (both pieces stay)");
+    check(file_holds(rotatory_path(hr), "day 2"), "a new name: the record goes to the new file");
+    rotatory_close(hr);
+
+    /*
+     *  Without keep_all, a rename that fails at a size rotation empties
+     *  the file. At a new name that was the file of the new day: a file
+     *  that already held records of that day (a restart, a clock set
+     *  back) lost them.
+     */
+    rmrdir(BASE);
+    mkrdir(NEWNAME_DIR, 02775);
+    s_fake_now = mktime(&tm);
+    hr = rotatory_open(NEWNAME_DIR "/CCYY-MM-DD.log", 0, 1, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        GBMEM_FREE(big);
+        s_fake_now = 0;
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    memset(big, 'A', n);
+    rotatory_write(hr, LOG_AUDIT, big, n);      // over the limit at the next record
+    rotatory_flush(hr);
+
+    char day2[PATH_MAX];
+    file_of(s_fake_now + 2*3600, NEWNAME_DIR, "CCYY-MM-DD.log", day2, sizeof(day2));
+    FILE *f = fopen(day2, "w");
+    if(f) {
+        fputs("earlier today\n", f);
+        fclose(f);
+    }
+
+    s_fail_rename = TRUE;
+    step_clocks(2*3600, 2*3600);
+    rotatory_write(hr, LOG_AUDIT, "day 2", strlen("day 2"));
+    rotatory_flush(hr);
+    s_fail_rename = FALSE;
+
+    check(file_holds(day2, "earlier today") && file_holds(day2, "day 2"),
+        "a new name, the rename would fail: the file of the new day is not emptied");
+    rotatory_close(hr);
+
+    GBMEM_FREE(big);
+    s_fake_now = 0;
+    rmrdir(BASE);
+}
+
+/***************************************************************************
+ *  The newfile callback of a new day is not lost when the first open of
+ *  the new name fails (EMFILE, a quota, a directory that refuses writes a
+ *  moment): it runs at the next open that works. Before, the name and the
+ *  day had already moved when the open failed, the next record opened the
+ *  same name again (not a new file), and the callback of that day never
+ *  ran: no retention of the agent audit, no summary of the logcenter.
+ *  The failure here: a DIRECTORY with the name of the new file (fopen()
+ *  refuses it, also for root), removed afterwards.
+ ***************************************************************************/
+PRIVATE int s_pending_newfile_calls = 0;
+
+PRIVATE int newfile_pending_frees_space_cb(void *user_data, const char *old_filename, const char *new_filename)
+{
+    s_pending_newfile_calls++;
+    s_fake_free_percent = 50;   // the retention frees the space
+    return 0;
+}
+
+PRIVATE void test_newfile_after_failed_open(void)
+{
+    #define PENDING_DIR BASE "/pending"
+    rmrdir(BASE);
+    mkrdir(PENDING_DIR, 02775);
+
+    time_t real_now = __real_time(NULL);
+    struct tm tm;
+    localtime_r(&real_now, &tm);
+    tm.tm_hour = 23;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    tm.tm_isdst = -1;
+    time_t day1 = mktime(&tm);
+    s_fake_now = day1;
+
+    hrotatory_h hr = rotatory_open(PENDING_DIR "/" MASK, 0, 500, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        s_fake_now = 0;
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    rotatory_keep_all_old_files(hr, TRUE);
+    rotatory_subscribe2newfile(hr, count_newfile_cb, NULL);
+    char path_day1[PATH_MAX];
+    snprintf(path_day1, sizeof(path_day1), "%s", rotatory_path(hr));
+    rotatory_write(hr, LOG_AUDIT, "day 1", strlen("day 1"));
+
+    char path_day2[PATH_MAX];
+    file_of(day1 + 2*3600, PENDING_DIR, MASK, path_day2, sizeof(path_day2));
+    mkdir(path_day2, 0775);
+
+    s_count_newfile = 0;
+    s_count_newfile_same = 0;
+    step_clocks(2*3600, 2*3600);                // the next day, 01:00
+    capture_stdout_begin();
+    rotatory_write(hr, LOG_AUDIT, "day 2 a", strlen("day 2 a"));   // the open fails
+    char *printed = capture_stdout_end();
+    int calls_failed = s_count_newfile;
+    rmdir(path_day2);
+    rotatory_write(hr, LOG_AUDIT, "day 2 b", strlen("day 2 b"));
+    rotatory_write(hr, LOG_AUDIT, "day 2 c", strlen("day 2 c"));
+    rotatory_flush(hr);
+
+    check(count_of(printed, "Cannot open") == 1 && calls_failed == 0,
+        "the open of a new day fails: printed, no newfile callback yet");
+    check(s_count_newfile == 1 && s_count_newfile_same == 0 &&
+        strcmp(s_newfile_old, path_day1) == 0 && strcmp(s_newfile_new, path_day2) == 0,
+        "the open of a new day fails: the newfile callback runs once, at the next open that works");
+    check(file_holds(path_day2, "day 2 b") && file_holds(path_day2, "day 2 c"),
+        "the open of a new day fails: the next records are written");
+    if(s_count_newfile != 1) {
+        printf("     newfile callback %d times (old %s, new %s)\n",
+            s_count_newfile, s_newfile_old, s_newfile_new);
+    }
+    GBMEM_FREE(printed);
+    rotatory_close(hr);
+
+    /*
+     *  The same on a full disk: the callback is where the retention frees
+     *  the space, so it is tried again (with the free space check, every
+     *  MAX_COUNTER_STATVFS records) while the disk is full
+     */
+    rmrdir(BASE);
+    mkrdir(PENDING_DIR, 02775);
+    s_fake_now = day1;
+    snprintf(s_fake_dir, sizeof(s_fake_dir), "%s", PENDING_DIR);
+    s_fake_free_percent = 50;
+    s_pending_newfile_calls = 0;
+
+    hr = rotatory_open(PENDING_DIR "/" MASK, 0, 500, 20, 02775, 0660, FALSE);
+    if(!hr) {
+        s_fake_now = 0;
+        s_fake_free_percent = -1;
+        s_fake_dir[0] = 0;
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    rotatory_keep_all_old_files(hr, TRUE);
+    rotatory_subscribe2newfile(hr, newfile_pending_frees_space_cb, NULL);
+
+    s_fake_free_percent = 10;                   // below 20%: seen within 100 records
+    for(int i=0; i<150; i++) {
+        rotatory_write(hr, LOG_AUDIT, "x", 1);
+    }
+    mkdir(path_day2, 0775);
+    step_clocks(2*3600, 2*3600);
+    capture_stdout_begin();
+    rotatory_write(hr, LOG_AUDIT, "day 2 a", strlen("day 2 a"));   // the open fails
+    printed = capture_stdout_end();
+    GBMEM_FREE(printed);
+    int calls_full_failed = s_pending_newfile_calls;
+    rmdir(path_day2);
+    for(int i=0; i<150; i++) {
+        rotatory_write(hr, LOG_AUDIT, "day 2 b", strlen("day 2 b"));
+    }
+    rotatory_flush(hr);
+
+    check(calls_full_failed == 0 && s_pending_newfile_calls == 1,
+        "full disk, the open of a new day fails: the newfile callback runs once, later");
+    check(file_holds(path_day2, "day 2 b"),
+        "full disk, the open of a new day fails: the retention frees the space, the records are written");
+    if(s_pending_newfile_calls != 1) {
+        printf("     newfile callback %d times\n", s_pending_newfile_calls);
+    }
+
+    rotatory_close(hr);
+    s_fake_now = 0;
+    s_fake_free_percent = -1;
+    s_fake_dir[0] = 0;
     rmrdir(BASE);
 }
 
@@ -1250,6 +1639,8 @@ int main(int argc, char *argv[])
     test_open_applies_the_day();
     test_disk_full_new_day();
     test_keep_all_rename_fails();
+    test_new_name_no_size_rotation();
+    test_newfile_after_failed_open();
     test_write_after_end();     // LAST: it ends the rotatory
 
     rotatory_end();

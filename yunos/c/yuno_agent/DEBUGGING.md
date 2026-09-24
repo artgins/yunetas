@@ -404,7 +404,10 @@ it renames the file to `<name>.OLD` (a previous `.OLD` is removed) and starts
 the file again. There is no cron. Both rotations happen on the next write.
 The file is checked once for each record, never between the pieces of a record,
 so a record is never split between two files. A log file removed by hand is
-created again by the next record.
+created again by the next record. At a new day the size of the file of the day
+before is not checked: that file is left as it is, even over the limit, and its
+`.OLD` stays. (Before 7.25.5 was tagged, the first record of a new day could
+rename the file of the day before to `.OLD` and remove the `.OLD` of that day.)
 
 A log file RENAMED by another program (a `logrotate` with its default
 `create` mode) is not noticed: the yuno goes on writing into the renamed file
@@ -707,17 +710,22 @@ twice lost its first part (on wattyzer, the mornings of 22 and 23 September
 If the directory refuses the rename (`chattr +a` on it, a read-only bind, a MAC
 denial), nothing is removed: the file of the day is kept and grows over the
 limit. The agent prints one line (stdout and syslog) and tries the rename again
-after 60 seconds, or at the next day, not at every command:
+after 60 seconds of real time (the monotonic clock: a clock set back or forward
+does not move the retry), or at the next day, not at every command. It prints
+one more line when a rename works again:
 
 ```
 _rotatory(): Cannot rename '/yuneta/realms/agent/agent/audit/267-24_09_2026.log' to '/yuneta/realms/agent/agent/audit/267-24_09_2026.log.OLD.1', Permission denied, the file is kept and grows, the rename is tried again every minute
+_rotatory(): the size rotation of '/yuneta/realms/agent/agent/audit/267-24_09_2026.log' works again
 ```
 
 The attribute **`audit_keep_days`** (default `7`) is the retention. The agent
 removes the audit files older than that number of days:
 
 - when it starts, and
-- when a new audit file begins (a new day, or the size limit).
+- when a new audit file begins (a new day, or the size limit). If the new file
+  of a day cannot be opened (no descriptors, a quota, a directory that refuses
+  writes for a moment), the retention runs at the next open that works, once.
 
 The second sweep runs inside the write of the first record of the new file,
 before that record is written: so it is on the write path of that one command,
@@ -741,7 +749,7 @@ sweep that removes something writes one INFO line to the agent log:
 | `use_audit_command_file` | `1` | Write the audit files. |
 | `max_megas_audit_file` | `500` | Size of one piece of a day, in MB. A bigger day continues in `.OLD.<n>` pieces. |
 | `audit_keep_days` | `7` | Days of audit files kept. `0` keeps all (the behaviour up to 7.25.4). |
-| `min_free_disk_percentage` | `20` | Stop writing the audit when the disk has less free space (checked every 100 records), and write it again when the space is back. A new day still runs the retention while the disk is full: the retention is what frees the space. |
+| `min_free_disk_percentage` | `20` | Stop writing the audit when the disk has less free space (checked every 100 records), and write it again when the space is back. A new day still runs the retention while the disk is full: the retention is what frees the space. If the new file of that day cannot be opened, the open is tried again every 100 records until it works, and then the retention runs. |
 
 With the new record format the directory is a few MB a week. The retention
 still bounds it by days, whatever a day writes.

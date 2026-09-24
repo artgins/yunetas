@@ -422,15 +422,25 @@ uint64_t start_msectimer(
 
 | Key | Type | Description |
 |---|---|---|
-| `miliseconds` | `uint64_t` | The duration of the timer in milliseconds. A value of 0 disables the timer. |
+| `milliseconds` | `uint64_t` | The duration of the timer in milliseconds. |
 
 **Returns**
 
-Returns the absolute expiration timestamp in milliseconds since an unspecified epoch. If `miliseconds` is 0, the function returns 0.
+Returns the absolute expiration timestamp in milliseconds of the monotonic clock (`CLOCK_MONOTONIC`, see [`time_in_milliseconds_monotonic()`](#time_in_milliseconds_monotonic)). With `milliseconds` 0 it returns the current time: the timer has expired at once.
 
 **Notes**
 
 Use [`test_msectimer()`](#test_msectimer) to check if the timer has expired.
+This is the pair to time a timeout: the monotonic clock does not move when the wall clock is set back or forward (by hand, or by an NTP step at boot).
+The pair [`start_sectimer()`](#start_sectimer) / [`test_sectimer()`](#test_sectimer) reads the wall clock.
+
+```C
+uint64_t t_retry = start_msectimer(60*1000);    // one minute of real time
+...
+if(test_msectimer(t_retry)) {
+    // try again
+}
+```
 
 ---
 
@@ -438,6 +448,8 @@ Use [`test_msectimer()`](#test_msectimer) to check if the timer has expired.
 ## [`start_sectimer()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5336)
 
 `start_sectimer()` initializes a timer by adding the specified number of seconds to the current system time and returns the future timestamp.
+
+It reads the **wall clock** (`time()`): a clock set back makes the timer late, one set forward makes it expire early. To time a timeout, use [`start_msectimer()`](#start_msectimer) / [`test_msectimer()`](#test_msectimer), which read the monotonic clock.
 
 ```C
 time_t start_sectimer(time_t seconds);
@@ -515,14 +527,14 @@ Returns `TRUE` if the timer has expired, otherwise returns `FALSE`.
 
 **Notes**
 
-The function uses `time_in_miliseconds_monotonic()` to obtain the current monotonic time and compares it with `value`.
+The function uses [`time_in_milliseconds_monotonic()`](#time_in_milliseconds_monotonic) to obtain the current monotonic time and compares it with `value`. A `value` of 0 never expires (`FALSE`).
 
 ---
 
 (test_sectimer)=
 ## [`test_sectimer()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5348)
 
-Checks if the given `value` time has elapsed compared to the current system time.
+Checks if the given `value` time has elapsed compared to the current system time (the wall clock, `time()`: see [`start_sectimer()`](#start_sectimer)).
 
 ```C
 BOOL test_sectimer(time_t value);

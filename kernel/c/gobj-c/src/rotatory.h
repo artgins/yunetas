@@ -73,6 +73,12 @@ PUBLIC void rotatory_close(hrotatory_h hr);
 // The callback runs for a NEW file only: a new name (a new day) or a size
 // rotation (then old_filename == new_filename). Never when the same file
 // is opened again: after a failed write, a removed file, a failed truncate.
+// When the open of a new file fails (a directory that refuses writes, no
+// descriptors, a quota), the callback is not lost: it runs once, at the
+// next open that works (on a full disk, tried every 100 records), with
+// the old_filename of before the failure.
+// A new name is never size-rotated: at a new day the file of the day
+// before is left as it is, whatever its size.
 // Return 0, -1 if the handle is not open (a line is printed)
 PUBLIC int rotatory_subscribe2newfile(
     hrotatory_h hr,
@@ -105,8 +111,10 @@ PUBLIC const char *rotatory_path(hrotatory_h hr);
  *  (rotatory_remove_old_files()), as the agent audit does.
  *  A rename that fails: without keep_all the file is emptied (the size
  *  stays bounded); with keep_all the file is kept and grows, one line is
- *  printed, and the rename is tried again after 60 seconds (or at the
- *  next name), not at every record.
+ *  printed, and the rename is tried again after 60 seconds of the
+ *  monotonic clock (a wall clock set back or forward does not move it),
+ *  or at the next name, not at every record. One line is printed when a
+ *  rename works again.
  *  Call it right after rotatory_open(): it applies to the file that the
  *  open found (see rotatory_open()).
  *  Return 0, -1 if the handle is not open.
@@ -130,7 +138,9 @@ PUBLIC int rotatory_keep_all_old_files(hrotatory_h hr, BOOL keep_all);
  *  and only then: not when the same file is opened again (a failed write).
  *  A new day calls it also while the disk is below min_free_disk_percentage
  *  (records dropped): the retention is what frees the space, and the
- *  record of that moment is written if it does.
+ *  record of that moment is written if it does. If the open of the new
+ *  file fails, the callback runs at the next open that works (see
+ *  rotatory_subscribe2newfile()).
  *
  *  Return the number of files removed, -1 on error (logged).
  */
