@@ -32,6 +32,8 @@ ctest -R test_c_timer --output-on-failure --test-dir build
 | `c_node_failed_save` | `update-node` with `autolink` whose save fails: answered `NULL` / `-1`, taken back whole, no event (update and create) |
 | `tr_treedb`, `tr_treedb_link_events` | TreeDB core and link-event subscriptions |
 | `tr_treedb_failed_save` | A treedb write whose save fails is taken back whole in memory, with no event (update, links, update with its links, clean, stale refs); a refused forced delete changes nothing, and a child it cannot put back stays unlinked in memory as on disk; two active snaps at open |
+| `tr_treedb_load_failed` | A topic whose keys cannot all be read: treedb loads the others, remembers the failed keys, and refuses what memory would answer wrong (a create of such an id, snapshot operations with a partial `__snaps__`) |
+| `c_treedb_literal_wins` | `C_TREEDB`: a schema from C newer than the schema file in use wins whole, `__system__` is projected from it whole, the operator work it discards is reported once, and an unfinished or killed projection completes at the next open |
 | `tr_msg`, `tr_queue` | timeranger2 message wrapper and queue (msg2db) |
 | `timeranger2` | timeranger2 append / read / iterator tests |
 | `kw` | `kw_*` helpers from `gobj-c/kwid.c` |

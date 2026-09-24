@@ -82,6 +82,7 @@ Low-level tests for the io_uring event loop, without the GObj layer.
 | **`test_yevent_traffic_secure1`** | TLS-encrypted TCP message echo. |
 | **`test_yevent_timer_once1–2`** | One-shot timer expiration. |
 | **`test_yevent_timer_periodic1`** | Periodic (recurring) timer. |
+| **`test_yevent_sq_full`** | A full submission queue: the loop flushes it and asks again; when the kernel takes nothing, the submission is kept for the next cycle (a start answers `0`, a stop of a kept start gets `STOPPED` with `-ECANCELED`). |
 
 **Source:** `tests/c/yev_loop/yev_events/`, `tests/c/yev_loop/yev_events_tls/`
 
@@ -208,16 +209,22 @@ The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in string
 | **`test_tr_msg1`** | Message topics: iteration, key matching, instance retrieval. |
 | **`test_tr_msg2`** | Stress variant: 1 000 devices × 100 traces. |
 | **`test_tr_queue1`** | Queue topic: enqueue / dequeue with time-based keys over a multi-day period. |
+| **`test_tr_queue_load_failed`** | A queue (`tr_queue` and the mqtt `tr2q`) whose load cannot read every pending message: the load returns `-1`, `first_rowid` is kept, and the backup is refused until a load reads them all. |
+| **`test_pkey2_empty`** | `msg2db_append_message()` refuses a record whose `pkey2` is empty and writes nothing. |
+| **`test_msg2db_load_failed`** | An id whose history did not load whole: reloaded newest first up to the damage; a `pkey2` whose newest message is in the damage is absent (`msg2db_id_incomplete()`), never an older message. |
 
-**Source:** `tests/c/tr_msg/`, `tests/c/tr_queue/`
+**Source:** `tests/c/tr_msg/`, `tests/c/tr_queue/`, `tests/c/tr_msg2db/`
 
 ## TreeDB
 
 | Binary | Description |
 |--------|-------------|
 | **`test_tr_treedb`** | Schema creation, user/department/compound structures, node CRUD, and state snapshots (foto files). |
+| **`test_tr_treedb_load_failed`** | A topic whose keys cannot all be read: treedb loads the other keys, remembers the ones that failed, and refuses a create of such an id, and snapshot operations when `__snaps__` did not load whole. The recovery, after the key is deleted, needs no reopen. |
+| **`test_c_treedb_literal_wins`** | [`C_TREEDB`](#gclass-c-treedb): a schema from C newer than the schema file in use wins whole; `__system__` is projected from it whole; the operator work it discards is reported once (`withdrawn_at_open`); an unfinished projection is recorded and completed at a later open, also after the process is killed at any write, once or twice. The scenarios are listed in its `README.md`. |
 
-**Source:** `tests/c/tr_treedb/`
+**Source:** `tests/c/tr_treedb/`, `tests/c/tr_treedb_load_failed/`,
+`tests/c/c_treedb_literal_wins/`
 
 ## Keyword matching
 

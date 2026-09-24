@@ -614,7 +614,7 @@ Returns a `json_t *` object containing the parsed JSON data if successful, or NU
 
 The function reads the whole file into one buffer and then parses it (`json_loadb()`). If the file does not exist, it returns NULL without logging an error. If an error occurs while opening, reading or parsing the file, it logs an error message using [`gobj_log_critical()`](<#gobj_log_critical>): *"Cannot load json file, bad json"* carries `path` and the parser's `error` and `line`.
 
-Until 7.25.5 the file was parsed with `json_loadfd()`, which reads ONE byte per `read()`: a schema file of 60 KB was 60 000 system calls (about 15 ms), and every open of a treedb reads several such files. Now it is a few `read()` calls.
+In 7.25.4 and earlier the file was parsed with `json_loadfd()`, which reads ONE byte per `read()`: a schema file of 60 KB was 60 000 system calls (about 15 ms), and every open of a treedb reads several such files. Now it is a few `read()` calls.
 
 **Example**
 

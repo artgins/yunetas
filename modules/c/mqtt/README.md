@@ -63,8 +63,12 @@ Full surface in `c_mqtt_broker.c:105+` (command table) and the
 
 All durable state goes through `tr2q_mqtt.c`, which uses **timeranger2**
 queues (one per `(tenant, role)` combination). See
-[`yunos/c/yuno_agent/TREEDB.md`](../../../yunos/c/yuno_agent/TREEDB.md)
+[`yunos/c/yuno_agent/YUNO_TREEDB.md`](../../../yunos/c/yuno_agent/YUNO_TREEDB.md)
 for the timeranger2 / treedb layer.
+
+A load that cannot read every pending message returns -1, keeps
+`first_rowid`, and refuses the backup until a load reads them all
+([`tr_queue.md`](../../../docs/doc.yuneta.io/api/timeranger2/tr_queue.md)).
 
 ## Consumers
 
