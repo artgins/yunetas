@@ -96,6 +96,12 @@ int multishot_available = 0; // Available since kernel 5.19 NOT TESTED!! DONT'US
  */
 #define YEV_PENDING_CYCLES_ALARM    100
 
+/*
+ *  How long yev_loop_destroy() waits for the completions of the destroyed
+ *  events before it frees them anyway
+ */
+#define YEV_DYING_WAIT_MS           1000
+
 /***************************************************************
  *              Structures
  ***************************************************************/
@@ -142,6 +148,14 @@ struct yev_loop_s {
      *  YEV_SENDMSG_TYPE event is sent with a plain sendmsg
      */
     BOOL sendmsg_zc;
+
+    /*
+     *  Events destroyed with completions still to come (see
+     *  yev_destroy_event): freed at their last completion, or by
+     *  yev_loop_destroy() when the loop ends first
+     */
+    yev_event_t *dying;
+    unsigned dying_size;
 };
 
 /***************************************************************
@@ -151,6 +165,8 @@ PRIVATE yev_state_t yev_set_state(yev_event_t *yev_event, yev_state_t new_state)
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
 PRIVATE void forget_kept(yev_loop_t *yev_loop, yev_event_t *yev_event);
 PRIVATE void host_without_brackets(char *host);
+PRIVATE void free_dying_events(yev_loop_t *yev_loop);
+PRIVATE unsigned queue_entries_of(yev_loop_t *yev_loop, yev_event_t *yev_event, BOOL take);
 
 /***************************************************************
  *              Data
@@ -358,6 +374,9 @@ retry:
 PUBLIC void yev_loop_destroy(yev_loop_h yev_loop_)
 {
     yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
+    if(yev_loop->dying) {
+        free_dying_events(yev_loop);
+    }
     io_uring_queue_exit(&yev_loop->ring);
     GBMEM_FREE(yev_loop->kept_sqes)
     GBMEM_FREE(yev_loop->kept_cqes)
@@ -375,6 +394,18 @@ PRIVATE void really_free_yev_event(yev_event_t *yev_event)
 {
     yev_loop_t *yev_loop = yev_event->yev_loop;
     hgobj gobj = yev_loop->yuno?yev_event->gobj:0;
+
+    if(yev_event->destroy_requested) {
+        if(yev_event->dying_prev) {
+            yev_event->dying_prev->dying_next = yev_event->dying_next;
+        } else {
+            yev_loop->dying = yev_event->dying_next;
+        }
+        if(yev_event->dying_next) {
+            yev_event->dying_next->dying_prev = yev_event->dying_prev;
+        }
+        yev_loop->dying_size--;
+    }
 
     forget_kept(yev_loop, yev_event);
 
@@ -411,6 +442,161 @@ PRIVATE void really_free_yev_event(yev_event_t *yev_event)
     }
 
     GBMEM_FREE(yev_event)
+}
+
+/***************************************************************************
+ *  An event destroyed with completions still to come: it is not freed now,
+ *  the kernel may still use it (its buffers, its msghdr, its gbuffer). Its
+ *  callback is not called again, and the loop frees it at its last
+ *  completion (callback_cqe). The loop keeps the list of them, so that
+ *  yev_loop_destroy() frees those whose completions never came.
+ ***************************************************************************/
+PRIVATE void defer_free(yev_loop_t *yev_loop, yev_event_t *yev_event)
+{
+    if(yev_event->destroy_requested) {
+        return;
+    }
+    yev_event->destroy_requested = TRUE;
+    yev_event->gobj = 0;    // it may be destroyed before the event: no log names it
+    yev_event->dying_prev = NULL;
+    yev_event->dying_next = yev_loop->dying;
+    if(yev_loop->dying) {
+        yev_loop->dying->dying_prev = yev_event;
+    }
+    yev_loop->dying = yev_event;
+    yev_loop->dying_size++;
+}
+
+/***************************************************************************
+ *  A completion reaped by yev_loop_destroy(): no callback is called, the
+ *  loop is ending. It only counts the operation done, and frees what can be
+ *  freed.
+ ***************************************************************************/
+PRIVATE void reap_at_end(yev_loop_t *yev_loop, uint64_t user_data, uint32_t flags)
+{
+    yev_event_t *yev_event = (yev_event_t *)(uintptr_t)user_data;
+    if(!yev_event || yev_event == &taken_back_event) {
+        return;
+    }
+    if(yev_event->in_flight > 0 && !(flags & IORING_CQE_F_MORE)) {
+        yev_event->in_flight--;
+    }
+    if(yev_event->in_flight <= 0 && yev_event->gbuf_release_pending) {
+        yev_event->gbuf_release_pending = FALSE;
+        GBUFFER_DECREF(yev_event->gbuf)
+    }
+    if(yev_event->destroy_requested && yev_event->in_flight <= 0) {
+        really_free_yev_event(yev_event);
+    }
+}
+
+/***************************************************************************
+ *  The submissions of an event that the kernel never took (kept by the
+ *  loop, or still in the submission queue), and the completions the loop
+ *  made for it and did not deliver: none of them will complete
+ ***************************************************************************/
+PRIVATE unsigned untaken_of(yev_loop_t *yev_loop, yev_event_t *yev_event)
+{
+    uint64_t user_data = (uint64_t)(uintptr_t)yev_event;
+    unsigned n = 0;
+    for(unsigned i = 0; i < yev_loop->kept_sqes_size; i++) {
+        if(yev_loop->kept_sqes[i].user_data == user_data) {
+            n++;
+        }
+    }
+    for(unsigned i = 0; i < yev_loop->kept_cqes_size; i++) {
+        if(yev_loop->kept_cqes[i].user_data == user_data) {
+            n++;
+        }
+    }
+    if(io_uring_sq_ready(&yev_loop->ring) > 0) {
+        n += queue_entries_of(yev_loop, yev_event, FALSE);
+    }
+    return n;
+}
+
+/***************************************************************************
+ *  The loop ends with events destroyed whose completions have not come
+ *  (a callback broke the loop, or the loop was stopped, before them). No
+ *  one reaps them after this: without it they leak, with their gbuffers.
+ *
+ *  What the kernel never took is dropped. What it has is canceled, and the
+ *  completions are reaped for YEV_DYING_WAIT_MS at most. What is left then
+ *  is freed anyway, with an error: a completion that does not come after a
+ *  cancel is a fault of the accounting (in_flight), not a slow kernel.
+ ***************************************************************************/
+PRIVATE void free_dying_events(yev_loop_t *yev_loop)
+{
+    struct io_uring *ring = &yev_loop->ring;
+    yev_event_t *next;
+
+    for(yev_event_t *yev_event = yev_loop->dying; yev_event; yev_event = next) {
+        next = yev_event->dying_next;
+        unsigned untaken = untaken_of(yev_loop, yev_event);
+        if(untaken > 0) {
+            forget_kept(yev_loop, yev_event);
+            yev_event->in_flight -= (int)untaken;
+        }
+        if(yev_event->in_flight <= 0) {
+            really_free_yev_event(yev_event);
+        }
+    }
+    if(!yev_loop->dying) {
+        return;
+    }
+
+    struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
+    if(!sqe) {
+        io_uring_submit(ring);
+        sqe = io_uring_get_sqe(ring);
+    }
+    if(sqe) {
+        io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ALL|IORING_ASYNC_CANCEL_ANY);
+        io_uring_sqe_set_data(sqe, &taken_back_event);
+    }
+
+    uint64_t wait = start_msectimer(YEV_DYING_WAIT_MS);
+    while(yev_loop->dying && !test_msectimer(wait)) {
+        struct __kernel_timespec ts = { .tv_sec = 0, .tv_nsec = 10*1000*1000 };
+        struct io_uring_cqe *cqe;
+        int err = io_uring_submit_and_wait_timeout(ring, &cqe, 1, &ts, NULL);
+        if(err < 0 && err != -ETIME && err != -EINTR) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBURING,
+                "msg",          "%s", "io_uring_submit_and_wait_timeout() FAILED",
+                "errno",        "%d", -err,
+                "serrno",       "%s", strerror(-err),
+                NULL
+            );
+            break;
+        }
+        unsigned head;
+        unsigned reaped = 0;
+        io_uring_for_each_cqe(ring, head, cqe) {
+            reap_at_end(yev_loop, cqe->user_data, cqe->flags);
+            reaped++;
+        }
+        io_uring_cq_advance(ring, reaped);
+    }
+
+    if(yev_loop->dying) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBURING,
+            "msg",          "%s", "Loop destroyed with events whose completions did not come: freed",
+            "events",       "%d", (int)yev_loop->dying_size,
+            "type",         "%s", yev_event_type_name(yev_loop->dying),
+            "in_flight",    "%d", yev_loop->dying->in_flight,
+            "wait_ms",      "%d", YEV_DYING_WAIT_MS,
+            NULL
+        );
+        while(yev_loop->dying) {
+            yev_event_t *yev_event = yev_loop->dying;
+            yev_event->in_flight = 0;
+            really_free_yev_event(yev_event);
+        }
+    }
 }
 
 /***************************************************************************
@@ -2812,17 +2998,17 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event_)
 
     /*-----------------------------------------------------------------*
      *      Free
-     *  Defer the free only while the loop is actively reaping. If this
-     *  event still has a CQE outstanding (it was RUNNING/CANCELING, or a
-     *  cancel was just submitted) and the loop is running, freeing here
-     *  would let a later completion re-enter callback_cqe on freed memory
-     *  (use-after-free). Mark it dying and let callback_cqe free it when
-     *  the last in-flight CQE drains.
+     *  An event with a CQE outstanding (it was RUNNING/CANCELING, a cancel
+     *  was just submitted, or a zero-copy notification is still to come) is
+     *  not freed here: a later completion would re-enter callback_cqe on
+     *  freed memory, and the kernel may still read or write its buffers.
+     *  It is marked dying, and freed at its last completion.
      *
-     *  Once the loop is no longer running (teardown, after yev_loop_run
-     *  returned), no more CQEs are dispatched, so a synchronous free can't
-     *  UAF — and deferring then would leak the event (nothing left to drain
-     *  it). Free synchronously in that case.
+     *  Also when the loop is not running (teardown, after yev_loop_run
+     *  returned): the kernel still has the operation. Up to 7.25.4 the
+     *  event was freed at once in that case, to not leak it; now
+     *  yev_loop_destroy() frees the dying events whose completions did not
+     *  come (free_dying_events).
      *-----------------------------------------------------------------*/
     /*
      *  If we are inside callback_cqe's dispatch of this very event (a callback
@@ -2831,13 +3017,8 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event_)
      *  and the dispatch tail. Defer; callback_cqe frees it once dispatch ends
      *  and any re-armed op has drained.
      */
-    if(yev_event->in_dispatch) {
-        yev_event->destroy_requested = TRUE;
-        return;
-    }
-
-    if(yev_event->in_flight > 0 && yev_loop->running) {
-        yev_event->destroy_requested = TRUE;
+    if(yev_event->in_dispatch || yev_event->in_flight > 0) {
+        defer_free(yev_loop, yev_event);
         return;
     }
 

@@ -14,6 +14,8 @@ Integration tests for the io_uring-based event loop: timers, TCP client/server e
 
 `yev_events/test_yevent_stop_in_flight` stops a read, a write to a full socket and a recvmsg while the kernel has them. The event keeps its gbuffer until the completion of the cancel (the test holds a reference to the gbuffer and reads its refcount), and the callback gets the event `STOPPED`, `-ECANCELED` and without gbuffer. The read is started again with a new gbuffer and reads. `yev_set_gbuffer(NULL)` on a running read releases the gbuffer at the completion too. In 7.25.4 the stop released the gbuffer at once, while the kernel could still write into it.
 
+`yev_events/test_yevent_loop_end_drain` ends a loop (stop and destroy, nothing reaped) with destroyed events whose completions have not come: a read destroyed from a timer while the loop runs, a zero-copy send destroyed in its callback before its notification, and a read destroyed after the loop ended. `yev_loop_destroy()` frees each of them (the test holds a reference to the gbuffer and reads its refcount), and the memory is whole at the end. An event whose completion never comes (the test counts one operation more) is freed after 1 second, with an ERROR. In 7.25.4 the first two leaked, and the third was freed while the kernel still had its read.
+
 ## Run
 
 ```bash

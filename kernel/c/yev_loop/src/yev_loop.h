@@ -147,6 +147,8 @@ struct yev_event_s {
     uint8_t in_dispatch;       // set while callback_cqe is dispatching this event's callback / re-arm
     uint8_t gbuf_release_pending; // stopped with its operation in the kernel: the gbuffer is
                                   // released at the last completion of the event, not at the stop
+    yev_event_t *dying_prev;   // destroyed with completions still to come: in the list of
+    yev_event_t *dying_next;   // the loop, which frees it (callback_cqe, yev_loop_destroy)
 };
 
 typedef int (*yev_protocol_fill_hints_fn_t)( // fill hints according the schema

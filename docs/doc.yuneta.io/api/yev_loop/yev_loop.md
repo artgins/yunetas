@@ -119,7 +119,8 @@ The loop does this with them:
   result. The notification does not call the callback.
 - The operation ends at the notification. An event destroyed in its
   callback (or before the notification) is not freed at once: the loop
-  frees it, with its gbuffer, when the notification arrives.
+  frees it, with its gbuffer, when the notification arrives (or in
+  [`yev_loop_destroy()`](<#yev_loop_destroy>) when the loop ends first).
 - A stop of a sendmsg event keeps its gbuffer while a completion is still
   to come. The gbuffer is released at the last completion (see
   [A stop keeps the gbuffer](<#yev-loop-stop-keeps-gbuffer>)).
@@ -213,6 +214,44 @@ sendmsg event kept it, since the zero-copy fix). Its memory could be freed
 and used again while the kernel still had the read or the write.
 
 The test is `tests/c/yev_loop/yev_events/test_yevent_stop_in_flight.c`.
+
+(yev-loop-end-of-loop)=
+## The end of a loop
+
+An event destroyed with a completion still to come is freed by the loop at
+that completion (see [`yev_destroy_event()`](<#yev_destroy_event>)). The
+loop keeps a list of these events, so that none is lost when the loop ends
+first:
+
+- [`yev_destroy_event()`](<#yev_destroy_event>) never frees an event with
+  a completion to come, also when the loop does not run: the kernel still
+  has its buffers.
+- [`yev_loop_destroy()`](<#yev_loop_destroy>) frees the events of the
+  list. What the kernel never took (kept by the loop, or in the
+  submission queue) is dropped. What the kernel has is canceled, and the
+  completions are reaped for 1 second at most, without callbacks.
+- An event whose completion did not come in that time is freed anyway,
+  with an ERROR: *"Loop destroyed with events whose completions did not
+  come: freed"*. After a cancel, a completion that does not come is a
+  fault of the loop's accounting, not a slow kernel.
+
+A yuno ends like this, and it needs nothing more:
+
+```C
+yev_loop_run(yev_loop, -1);     // until the yuno must die
+stop_services();                // the transports stop their events
+gobj_end();                     // the gobjs destroy their events
+yev_loop_stop(yev_loop);
+yev_loop_destroy(yev_loop);     // frees the events still waiting
+```
+
+In 7.25.4 and earlier, an event destroyed while the loop ran, whose
+completion did not come before the loop ended (a callback broke the loop,
+a zero-copy notification was late), was never freed: a leak of the event
+and its gbuffer. And an event destroyed after the loop ended was freed at
+once, while the kernel could still have its read or its write.
+
+The test is `tests/c/yev_loop/yev_events/test_yevent_loop_end_drain.c`.
 
 (yev-loop-ipv6-peers)=
 ## IPv6 peers
@@ -495,6 +534,12 @@ This function does not return a value.
 **Notes**
 
 If the event is associated with a socket, it will be closed before destruction.
+An event with a completion still to come (a running or canceled operation, or the notification of a zero-copy send) is not freed at once, also when the loop does not run: its callback is not called again, and the loop frees it at its last completion, or in [`yev_loop_destroy()`](<#yev_loop_destroy>). See [The end of a loop](<#yev-loop-end-of-loop>).
+
+```C
+yev_stop_event(yev_reading);    // a RUNNING read: the cancel is submitted
+yev_destroy_event(yev_reading); // freed at the completion of the cancel
+```
 
 ---
 
@@ -663,6 +708,13 @@ This function does not return a value.
 **Notes**
 
 After calling `yev_loop_destroy()`, the `yev_loop_h` handle becomes invalid and must not be used.
+Before it closes the ring, it frees the destroyed events whose completions have not come: it cancels what the kernel still has, reaps the completions for 1 second at most (no callback is called), and frees what is left then with an ERROR *"Loop destroyed with events whose completions did not come: freed"*. See [The end of a loop](<#yev-loop-end-of-loop>).
+
+```C
+yev_loop_stop(yev_loop);
+yev_loop_run_once(yev_loop);    // optional: reaps what is ready
+yev_loop_destroy(yev_loop);     // frees the destroyed events still waiting
+```
 
 ---
 
