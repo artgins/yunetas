@@ -1318,7 +1318,7 @@ and the C_UDP_S round trip with an echo server and a client written for it
   A queued message now goes in flight when a slot frees, with its own id, as
   in mosquitto. Only a session reloaded with more pending QoS 2 messages than
   `max_inflight_messages` (the limit lowered between two connections) has
-  queued ones. Test `c_mqtt/test_mqtt_queued_in` (a raw client).
+  queued ones. Test `c_mqtt/queued_in` (a raw client).
 
 ### Agent, gobj-c and tools
 
