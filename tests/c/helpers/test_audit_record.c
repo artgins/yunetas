@@ -25,6 +25,9 @@
  *            double-quoted parameter, the parser's quote ending at an
  *            escaped one), and in generated commands with every quoting
  *            shape: no secret is written,
+ *          - an escaped json key with a blank or a slash, a quote inside a
+ *            quoted secret value (\", the shell's '\''), a JWT at the end
+ *            of a sentence: no secret is written (review 19),
  *          and what one record costs, 7.25.4's way and the new way.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -1429,6 +1432,13 @@ PRIVATE void test_json_text_in_json_text(void)
         {"run-yuno ",                       "x=\"a password=\""},  // the quote of a region opens a value
         {"run-yuno ",                       "\\\" token=\""},    // \" token=" ... a value cut by a run
         {"run-yuno ",                       "\\\"password\\\":{"},  // an object of a level never closed
+        {"run-yuno ",                       "password='a'\\''"},   // one shell word, pieces without end
+        {"run-yuno ",                       "\" \\ password='a'\"b"},  // a word cut by runs, again and again
+        {"run-yuno x='",                    "{\\\"secret key\\\":\\\"a b\\\","},  // escaped keys with a blank
+        {"run-yuno x='",                    "{\\\"a b\\\":"},    // escaped keys, no value
+        {"run-yuno ",                       "password=\"a\\\" "},  // \" inside "...", never closed
+        {"run-yuno ",                       "eyJa.eyJb.c. "},      // JWTs at the end of a sentence
+        {"run-yuno ",                       "eyJa...."},           // dots
         {0, 0}
     };
     for(int i=0; shapes[i].head; i++) {
@@ -1584,12 +1594,91 @@ PRIVATE void test_quote_before_json_text(void)
 }
 
 /***************************************************************************
+ *  (u) The shapes of review 19, as they were found:
+ *  - an escaped json key read by its shape was only its last word, so a
+ *    key with a blank or a slash ("secret key", "password/db") was not a
+ *    secret there;
+ *  - a quoted secret value ended at the first quote of its kind, escaped
+ *    or not, and a json string inside a '...' value at the end of that
+ *    value: a quote inside the secret left the rest of it in the record;
+ *  - a JWT followed by '.' (the end of a sentence) was not one.
+ ***************************************************************************/
+PRIVATE void check_command_written(const char *command, const char *expected, const char *name)
+{
+    json_t *jn_record = audit_record_build(command, NULL, DATE, command_table);
+    const char *written = kw_get_str(0, jn_record, "command", "", 0);
+    BOOL ok = strcmp(written, expected) == 0;
+    check(ok, name);
+    if(!ok) {
+        printf("     written:  %s\n     expected: %s\n", written, expected);
+    }
+    JSON_DECREF(jn_record)
+}
+
+PRIVATE void test_review19_shapes(void)
+{
+    check_no_secret("x cfg='{\\\"secret key\\\":\\\"S3CRa\\\"}'", NULL, "S3CRa",
+        "(u) '{\\\"secret key\\\":...}': an escaped key with a blank");
+    check_no_secret("x cfg='{\\\"private key\\\":\\\"S3CRb\\\"}'", NULL, "S3CRb",
+        "(u) '{\\\"private key\\\":...}': priv and key in two words");
+    check_no_secret("x cfg='{\\\"password/db\\\":\\\"S3CRc\\\"}'", NULL, "S3CRc",
+        "(u) '{\\\"password/db\\\":...}': an escaped key with a slash");
+    check_no_secret("x cfg='{\\\"a\\\":\\\"b c\\\",\\\"secret key\\\":\\\"S3CRd\\\"}'", NULL, "S3CRd",
+        "(u) an escaped key with a blank after another member");
+    json_t *kw = json_pack("{s:s}", "c2", "'{\\\"private key\\\":\\\"S3CRe\\\"}'");
+    check_no_secret("update-node", kw, "S3CRe", "(u) the same shape in a kw string");
+    JSON_DECREF(kw)
+    check_command_written("x cfg='{\\\"note\\\":\\\"a key\\\"}'",
+        "x cfg='{\\\"note\\\":\\\"a key\\\"}'",
+        "(u) an escaped key that is no secret, a value with a blank: kept");
+
+    check_no_secret("set-user-pwd username=bob password=\"a\\\" S3CR1\"", NULL, "S3CR1",
+        "(u) password=\"a\\\" S\": an escaped quote inside the value");
+    check_command_written("set-user-pwd username=bob password=\"a\\\" S3CR1\" n=1",
+        "set-user-pwd username=bob password=\"<redacted>\" n=1",
+        "(u) password=\"a\\\" S\" n=1: the value up to its closing quote, n=1 kept");
+    check_no_secret("set-user-pwd username=bob password='it'\\''s S3CR2' n=1", NULL, "S3CR2",
+        "(u) password='it'\\''s S': the shell's quote inside a quoted value");
+    check_command_written("set-user-pwd username=bob password='it'\\''s S3CR2' n=1",
+        "set-user-pwd username=bob password='<redacted>' n=1",
+        "(u) password='it'\\''s S' n=1: the whole shell word, n=1 kept");
+    check_no_secret("x cfg='{\"password\":\"it's S3CR3\"}'", NULL, "S3CR3",
+        "(u) '{\"password\":\"it's S\"}': a ' in a json string inside a '...' value");
+    check_command_written("x cfg='{\"password\":\"it's S3CR3\"}' n=1",
+        "x cfg='{\"password\":\"<redacted>\"}' n=1",
+        "(u) '{\"password\":\"it's S\"}' n=1: the string up to its closing quote");
+
+    check_no_secret("x \" \\ password='a'\" S3CR4\" n2=1", NULL, "S3CR4",
+        "(u) a stray quote, a backslash, then password='a'\" S\": the word goes on after the run");
+    check_command_written("update-node x=\"\\\\ password='S3CR5'\" n2=1",
+        "update-node x=\"\\\\ password='<redacted>'\" n2=1",
+        "(u) the quote that ends a \"...\" value, a blank after it: n2=1 kept");
+
+    check_no_secret("x msg=\"login with eyJhbGciOi.eyJzdWIi.S3CRsig.\"", NULL, "S3CRsig",
+        "(u) a JWT followed by '.'");
+    check_command_written("x msg=\"login with eyJhbGciOi.eyJzdWIi.S3CRsig. Bye\"",
+        "x msg=\"login with <redacted>. Bye\"",
+        "(u) a JWT followed by '.': its dot stays");
+    check_no_secret("x eyJhbGciOi.eyJzdWIi.S3CRsig...", NULL, "S3CRsig",
+        "(u) a JWT followed by '...'");
+    check_command_written("x see eyJhbGciOi.eyJzdWIi. and eyJhbGciOi.",
+        "x see eyJhbGciOi.eyJzdWIi. and eyJhbGciOi.",
+        "(u) two parts and a dot, one part and a dot: no JWT, kept");
+}
+
+/***************************************************************************
  *  (t) Generated commands: the secret parameter in every quoting shape
  *  (plain, blanks, '', "", \"\", a quoted key, a json in a value, a json
  *  text in a json text at 0-3 levels, cut or not by the parser's quotes,
  *  carried by command-yuno), among parameters with stray and unclosed
  *  quotes, in the text and in a kw string. No secret survives; the
  *  parameter before them all is kept. Deterministic seed.
+ *
+ *  And the shapes of review 19: a json key with blanks or a slash
+ *  ("secret key", "private key", "password/db"), escaped or not; a quote
+ *  inside a quoted secret value (password="a\" S", the shell's
+ *  password='it'\''s S', a json string holding a "'" inside a '...'
+ *  value); and a JWT followed by '.' (the end of a sentence).
  ***************************************************************************/
 PRIVATE uint32_t g_rand = 0x9E3779B9;
 
@@ -1608,7 +1697,17 @@ PRIVATE uint32_t pick(uint32_t n)
 
 PRIVATE const char *gen_secret_keys[] = {
     "password", "token", "client_secret", "api_key", "access_token", "passw",
-    "jwt", "private_key", "pwd", "secret", "x-api-key", "Password", 0
+    "jwt", "private_key", "pwd", "secret", "x-api-key", "Password",
+    "password/db", "db/token", 0
+};
+
+/*
+ *  A json key can hold blanks too (a parameter of the text cannot: its
+ *  key is the last word before the '=')
+ */
+PRIVATE const char *gen_json_keys[] = {
+    "secret key", "private key", "password/db", "db password", "the api key",
+    "Access Token", "my-secret/x y", 0
 };
 
 PRIVATE const char *gen_secret_key(void)
@@ -1620,15 +1719,27 @@ PRIVATE const char *gen_secret_key(void)
     return gen_secret_keys[pick((uint32_t)n)];
 }
 
+PRIVATE const char *gen_json_key(void)
+{
+    if(pick(2) == 0) {
+        return gen_secret_key();
+    }
+    int n = 0;
+    while(gen_json_keys[n]) {
+        n++;
+    }
+    return gen_json_keys[pick((uint32_t)n)];
+}
+
 /*
  *  A json text holding the secret, `levels` json texts deep. Free with
  *  gbmem_free().
  */
 PRIVATE char *gen_json(const char *secret1, const char *secret2, int levels)
 {
-    const char *k = gen_secret_key();
+    const char *k = gen_json_key();
     char bf[512];
-    switch(pick(6)) {
+    switch(pick(8)) {
         case 0:
             snprintf(bf, sizeof(bf), "{\"%s\":\"%s\"}", k, secret1);
             break;
@@ -1643,6 +1754,12 @@ PRIVATE char *gen_json(const char *secret1, const char *secret2, int levels)
             break;
         case 4:
             snprintf(bf, sizeof(bf), "{\"list\":[{\"%s\":\"%s\"}],\"note\":\"5\\\"\"}", k, secret1);
+            break;
+        case 5:
+            snprintf(bf, sizeof(bf), "{\"%s\":\"it's %s %s\"}", k, secret1, secret2);   // a ' in the string
+            break;
+        case 6:
+            snprintf(bf, sizeof(bf), "{\"%s\":\"a\\\" %s %s\"}", k, secret1, secret2); // a \" in the string
             break;
         default:
             snprintf(bf, sizeof(bf), "{\"note\":\"a \\\" b\",\"%s\" : \"%s\"}", k, secret1);
@@ -1672,7 +1789,7 @@ PRIVATE char *json_escaped(const char *text)
 PRIVATE void gen_secret_param(gbuffer_t *gbuf, const char *secret1, const char *secret2, BOOL inner)
 {
     const char *k = gen_secret_key();
-    int form = (int)pick(inner? 12: 15);
+    int form = (int)pick(inner? 20: 23);
     char *json = NULL;
     char *esc = NULL;
     switch(form) {
@@ -1717,7 +1834,33 @@ PRIVATE void gen_secret_param(gbuffer_t *gbuf, const char *secret1, const char *
             gbuffer_printf(gbuf, "cfg='%s'", esc? esc: "");   // '"{\"k\":...}"'
             break;
         case 11:
-            gbuffer_printf(gbuf, "cfg={\"%s\":\"%s\"}", k, secret1);
+            gbuffer_printf(gbuf, "cfg={\"%s\":\"%s\"}", gen_json_key(), secret1);
+            break;
+        case 12:
+            gbuffer_printf(gbuf, "%s=\"a\\\" %s %s\"", k, secret1, secret2);     // k="a\" S T"
+            break;
+        case 13:
+            gbuffer_printf(gbuf, "%s='it'\\''s %s %s'", k, secret1, secret2);   // k='it'\''s S T'
+            break;
+        case 14:
+            gbuffer_printf(gbuf, "%s=\"a\\\"%s\\\" %s\"", k, secret1, secret2);  // k="a\"S\" T"
+            break;
+        case 15:
+            gbuffer_printf(gbuf, "%s='a'\"b %s\"'c %s'", k, secret1, secret2);  // k='a'"b S"'c T'
+            break;
+        case 16:
+            gbuffer_printf(gbuf, "msg=\"login with eyJhbGciOi.eyJzdWIi.%s.\"", secret1);
+            break;
+        case 17:
+            gbuffer_printf(gbuf, "eyJhbGciOi.eyJzdWIi.%s%s", secret1, pick(2)? "..": ".");
+            break;
+        case 18:
+            gbuffer_printf(gbuf, "cfg='{\"%s\":\"it's %s %s\"}'", gen_json_key(), secret1, secret2);
+            break;
+        case 19:
+            json = gen_json(secret1, secret2, 1 + (int)pick(2));
+            esc = json? json_escaped(json): NULL;
+            gbuffer_printf(gbuf, "cfg='%s'", esc? esc: "");   // '{\"k\":...}', keys with blanks
             break;
         default:
             {
@@ -1731,9 +1874,9 @@ PRIVATE void gen_secret_param(gbuffer_t *gbuf, const char *secret1, const char *
                 if(!inner_text) {
                     inner_text = "";
                 }
-                if(form == 12) {
+                if(form == 20) {
                     gbuffer_printf(gbuf, "command='%s'", inner_text);
-                } else if(form == 13) {
+                } else if(form == 21) {
                     gbuffer_printf(gbuf, "command=\"%s\"", inner_text);
                 } else {
                     esc = json_quoted(inner_text);
@@ -2003,6 +2146,7 @@ int main(int argc, char *argv[])
     test_more_secrets();
     test_json_text_in_json_text();
     test_quote_before_json_text();
+    test_review19_shapes();
     test_generated_commands();
     test_cost();
 

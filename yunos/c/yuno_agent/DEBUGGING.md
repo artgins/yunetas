@@ -610,11 +610,37 @@ nearest first:
   can be stricter than the parser, never looser. Also the
   token after `Bearer `, the credentials after `Basic ` when they are base64
   of `user:password`, and anything with the shape of a JWT (`eyJ…`, three
-  parts joined by `.`), wherever they are. This applies to a kw key at any
+  parts joined by `.`; a `.` after it, as at the end of a sentence, is not
+  a fourth part), wherever they are. This applies to a kw key at any
   depth, to `name=value` in any string (quoted or not, with blanks around the
   `=`), to the command carried by `command-yuno`, and to `"name": value` in a
   JSON given as text. The name of a JSON key is read with its escapes:
-  `"pass\u0077ord"` is `password`. The word `Basic` alone, or followed by
+  `"pass\u0077ord"` is `password`.
+
+  The value of a secret `name=value` is its whole word, as the shell reads
+  it: quoted pieces are taken with their blanks, `\"` inside `"…"` does not
+  end the value, and the shell's `'\''` does not either. A JSON string value
+  of a secret goes on to its own closing quote, also when it holds a `'`
+  inside a `'…'` value. So these commands:
+
+  ```text
+  set-user-pwd username=bob password="a\" hunter2" n=1
+  set-user-pwd username=bob password='it'\''s hunter2' n=1
+  update-node topic_name=x cfg='{"password":"it's hunter2"}' n=1
+  ```
+
+  are recorded as
+
+  ```text
+  set-user-pwd username=bob password="<redacted>" n=1
+  set-user-pwd username=bob password='<redacted>' n=1
+  update-node topic_name=x cfg='{"password":"<redacted>"}' n=1
+  ```
+
+  The audit takes the value whole even when the parser later refuses the
+  command: the record is written before the parser runs.
+
+  The word `Basic` alone, or followed by
   base64 that is not `user:password`, is not a secret and stays:
 
   ```text
@@ -654,8 +680,10 @@ nearest first:
 
   The audit judges what it sees as text, whatever the parser does with it
   later. When no quoted run holds the escaped JSON whole, the key is read by
-  its shape: `\"name\":`, with the backslashes of its level. Its value is
-  then taken with the quotes of that level. Two examples: the parser ends
+  its shape: `\"name\":`, with the backslashes of its level. The key is the
+  whole string back to the quote of that level, so `\"secret key\":` and
+  `\"password/db\":` are secrets. Its value is then taken with the quotes
+  of that level. Two examples: the parser ends
   `x="{\"password\":\"hunter2\"}"` at the first `\"`, and
   `'{\"password\":\"hunter2\"}'` has no quote of its own. Both are recorded
   with `\"password\":\"<redacted>\"`. For the same reason

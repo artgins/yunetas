@@ -45,7 +45,8 @@
  *            case, in the text, in the kw, or in the same json object).
  *            And the token after "Bearer ", the credentials after "Basic "
  *            (when they are base64 of "user:password"), and anything with
- *            the shape of a JWT (eyJ..., three parts), wherever they are.
+ *            the shape of a JWT (eyJ..., three parts; a '.' after it, the
+ *            end of a sentence, is not a fourth), wherever they are.
  *
  *          - Both apply everywhere in the record: to a kw key of that name
  *            at any depth, and inside any string (the command text,
@@ -53,7 +54,13 @@
  *            given as text) to `name=value` (quoted or not, blanks around
  *            the `=` as the command parser allows) and to `"name": value`
  *            (the name of a json key is read with its escapes: "\u0070"
- *            is "p"). And inside a json text given inside a json text,
+ *            is "p"). The value of a `name=value` secret is its whole WORD,
+ *            the shell's way: quoted pieces with their blanks, a \" inside
+ *            "..." and the shell's '\'' (password="a\" S",
+ *            password='it'\''s S'). A json string value of a secret goes to
+ *            its own closing quote, also beyond a '...' that the first "'"
+ *            of the string would end ('{"password":"it's S"}').
+ *            And inside a json text given inside a json text,
  *            whose quotes are escaped ({"cfg":"{\"password\":\"x\"}"}),
  *            at any depth up to MAX_ESCAPE_LEVELS: a quoted run with a
  *            backslash is scanned again with its escapes decoded (see
@@ -63,8 +70,9 @@
  *            no run holds it whole (the parser's "..." ends at its first
  *            \", or it has no quote of its own: '{\"password\":\"x\"}'):
  *            its key is then read by its shape (\"name\": with the
- *            backslashes of its level) and its value taken with the quotes
- *            of that level. What the audit sees as text is judged as text,
+ *            backslashes of its level, the whole string back to the quote
+ *            of that level: \"secret key\" is a secret) and its value
+ *            taken with the quotes of that level. What the audit sees as text is judged as text,
  *            whatever the parser does with it later.
  *
  *          - The scan of a string is ONE pass, in linear time: a value
@@ -252,6 +260,7 @@ typedef enum {
     CUT_NONE = 0,
     CUT_PARAM_EMPTY,        // `key=` at the end: the value is all after the run
     CUT_PARAM_TAIL,         // `key=va` at the end: the value goes on after the run
+    CUT_PARAM_WORD,         // `key='a'` at the end: its word can go on after the run
     CUT_JSON_EMPTY,         // `"key":` at the end
 } cut_t;
 
@@ -290,6 +299,10 @@ typedef struct {
     const char *region_end[MAX_REGIONS];
     const char *q_last;     // the last '"' not escaped, and the one before:
     const char *q_prev;     //   a json key is the string between them
+    const char *eq_last;    // the last '"' escaped (an odd run of '\' before
+    const char *eq_prev;    //   it), and the one before, with their runs:
+    size_t eq_last_r;       //   an escaped json key is the string between
+    size_t eq_prev_r;       //   two of the same run (see scan_json_member())
     size_t backslashes;     // the run of '\' just before the current byte
     const char *run_end;    // the closing '"' of the last quoted run looked at
 } scan_state_t;
@@ -300,7 +313,7 @@ typedef struct {
 PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx);
 PRIVATE char *not_scanned_text(const char *text, size_t len);
 PRIVATE json_t *redacted_copy(json_t *jn, redact_ctx_t *ctx);
-PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const char *q);
+PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const char *q, BOOL value_run);
 PRIVATE const char *redact_json_value(
     redact_scan_t *sc,
     key_kind_t kind,
@@ -797,7 +810,10 @@ PRIVATE size_t put_utf8(char *out, unsigned code)
 
 /*
  *  The text of a json string with its escapes decoded, leniently (it is
- *  scanned, not validated): an unknown escape is the char itself, a \u
+ *  scanned, not validated): an escape that json does not know stays as it
+ *  is, backslash and char (the shell's \' of password='it'\''s S': taken
+ *  as "'" it made a different word of the value, and the rest of the
+ *  secret was written; up to review 19), a \u
  *  without 4 hex digits is "u", a code point that is not ASCII is written
  *  in UTF-8, and a lone surrogate and \u0000 as U+FFFD (the text stays a
  *  C string). `out` holds `len` + 1 bytes: a decoded text is never longer.
@@ -852,7 +868,13 @@ PRIVATE size_t json_unescape(const char *s, size_t len, char *out)
                     n += put_utf8(out + n, cp);
                 }
                 break;
-            default:    // '"', '\\', '/' and anything else: the char itself
+            case '"':
+            case '\\':
+            case '/':
+                out[n++] = e;
+                break;
+            default:    // not a json escape: as it is (n+2 <= i+1, in place too)
+                out[n++] = '\\';
                 out[n++] = e;
                 break;
         }
@@ -1193,6 +1215,10 @@ PRIVATE void forget_quotes(scan_state_t *st)
 {
     st->q_last = NULL;
     st->q_prev = NULL;
+    st->eq_last = NULL;
+    st->eq_prev = NULL;
+    st->eq_last_r = 0;
+    st->eq_prev_r = 0;
     st->backslashes = 0;
 }
 
@@ -1370,13 +1396,88 @@ PRIVATE BOOL is_key_byte(char c)
 }
 
 /***************************************************************************
+ *  The closing quote of the quoted value at `v` ('...' or "..."), NULL if
+ *  there is none before `bound`. Inside "..." a quote with an odd run of
+ *  '\' before it is escaped (password="a\" S"); inside '...' nothing is.
+ ***************************************************************************/
+PRIVATE const char *closing_quote(const char *v, const char *bound)
+{
+    char quote = *v;
+    size_t r = 0;
+    for(const char *e = v + 1; e < bound; e++) {
+        if(*e == quote && (quote == '\'' || (r % 2) == 0)) {
+            return e;
+        }
+        r = (*e == '\\')? r + 1: 0;
+    }
+    return NULL;
+}
+
+/*
+ *  The end of the word that goes on at `p`, up to a blank, the shell's
+ *  way: a quoted piece is taken whole (blanks included), and a '\' takes
+ *  the byte after it. So the shell's quote inside a quoted value,
+ *  password='it'\''s S', is ONE word. In `last_quote` the closing quote of
+ *  its last piece when the word ends with it, else NULL. A piece never
+ *  closed goes to `bound`.
+ */
+PRIVATE const char *word_end(const char *p, const char *bound, const char **last_quote)
+{
+    *last_quote = NULL;
+    while(p < bound && !is_blank(*p)) {
+        *last_quote = NULL;
+        if(*p == '\\') {
+            p += (p + 1 < bound)? 2: 1;
+        } else if(*p == '\'' || *p == '"') {
+            const char *q = closing_quote(p, bound);
+            if(!q) {
+                return bound;
+            }
+            *last_quote = q;
+            p = q + 1;
+        } else {
+            p++;
+        }
+    }
+    return p;
+}
+
+/*
+ *  A word that ends at the quote closing its region goes on beyond it
+ *  when a byte of a word follows that quote: the quote is in the word
+ *  (x="a password='a'"b S"'c T'"). Before a blank, a json separator or the
+ *  end, it closes the region and the word (command="... password='S'" n=1).
+ */
+PRIVATE BOOL word_goes_on(const char *quote, const char *end)
+{
+    return (quote + 1 < end && !is_blank(quote[1]) && !strchr(",:}]", quote[1]))? TRUE: FALSE;
+}
+
+PRIVATE const char *word_beyond_region(scan_state_t *st, const char *w, const char **last_quote)
+{
+    if(st->depth > 0 && w == st->hi && w < st->end && word_goes_on(w, st->end)) {
+        return word_end(w, st->end, last_quote);
+    }
+    return w;
+}
+
+/***************************************************************************
  *  The value at `v` of a secret or a content64 parameter (see
- *  scan_param()). In a json text decoded from a quoted run
+ *  scan_param()): its whole word, the shell's way (see word_end()), not
+ *  what the parser would take. Up to review 19 a quoted value ended at the
+ *  first quote of its kind, escaped or not, and a quote inside a secret
+ *  left the rest of it in the record (password="a\" S",
+ *  password='it'\''s S'). In a json text decoded from a quoted run
  *  (escape_level > 0), a value that reaches the end of the text can go on
  *  after the run's closing quote: the run is the text between two
  *  quotes, not always a string (x" token="S T"). Nothing of it here: it
  *  is left to the level above, which sees the key too (ctx->cut). Some of
- *  it here: redacted, and the level above redacts the rest.
+ *  it here: redacted, and the level above redacts the rest. A quoted piece
+ *  that closes at the very end is whole here, but its word can go on
+ *  after the run all the same (a stray quote began the run, and the quote
+ *  that ended it is in the word: x" \ token='a'"b S"): the level above
+ *  goes on after the run's quote (see CUT_PARAM_WORD in
+ *  scan_escaped_run()).
  *  Return where the scan goes on.
  ***************************************************************************/
 PRIVATE const char *redact_param_value(
@@ -1405,30 +1506,54 @@ PRIVATE const char *redact_param_value(
     const char *v_begin;
     const char *v_end;
     const char *next;
-    BOOL closed = TRUE;
+    cut_t cut = CUT_NONE;
     if(v < hi && (*v == '\'' || *v == '"')) {
-        const char *q = memchr(v + 1, *v, (size_t)(st->end - (v + 1)));
+        /*
+         *  Up to its own quote even beyond the region (see scan_param()),
+         *  and on to the end of its word: in the region when that quote is
+         *  in it, else in the text
+         */
+        const char *q = closing_quote(v, st->end);
         v_begin = v + 1;
-        v_end = q? q: st->end;
-        next = q? q + 1: st->end;
-        closed = q? TRUE: FALSE;
+        if(!q) {
+            v_end = st->end;
+            next = st->end;
+            cut = CUT_PARAM_TAIL;
+        } else {
+            const char *last_quote;
+            const char *w = word_end(q + 1, (q < st->hi)? st->hi: st->end, &last_quote);
+            w = word_beyond_region(st, w, &last_quote);
+            if(w == q + 1) {
+                v_end = q;
+                last_quote = q;
+            } else {
+                v_end = last_quote? last_quote: w;
+            }
+            next = w;
+            if(w >= st->end) {
+                cut = last_quote? CUT_PARAM_WORD: CUT_PARAM_TAIL;
+            }
+        }
     } else if(r % 2 == 1 && v + r < st->end && v[r] == '"') {
         v_begin = v + r + 1;
         v_end = level_string_end(v_begin, st->end, r, &next);
-        closed = (next > v_end)? TRUE: FALSE;
-    } else {
-        v_begin = v;
-        v_end = v;
-        while(v_end < st->hi && !is_blank(*v_end)) {
-            v_end++;
+        if(next <= v_end) {
+            cut = CUT_PARAM_TAIL;
         }
+    } else {
+        const char *last_quote;
+        v_begin = v;
+        v_end = word_end(v, st->hi, &last_quote);
+        v_end = word_beyond_region(st, v_end, &last_quote);
         next = v_end;
-        closed = (v_end < st->end)? TRUE: FALSE;
+        if(v_end >= st->end) {
+            cut = last_quote? CUT_PARAM_WORD: CUT_PARAM_TAIL;
+        }
     }
 
     replace_value(sc, kind, v_begin, v_end);
-    if(!closed && sc->ctx->escape_level > 0) {
-        sc->ctx->cut = CUT_PARAM_TAIL;
+    if(cut != CUT_NONE && sc->ctx->escape_level > 0) {
+        sc->ctx->cut = cut;
         sc->ctx->cut_kind = kind;
     }
     forget_quotes(st);
@@ -1489,7 +1614,7 @@ PRIVATE const char *scan_param(redact_scan_t *sc, scan_state_t *st, const char *
             return eq + 1;
         }
         if(*v == '"' && (!st->run_end || v >= st->run_end)) {
-            const char *next = scan_escaped_run(sc, st, v);
+            const char *next = scan_escaped_run(sc, st, v, TRUE);
             if(next) {
                 return next;
             }
@@ -1515,13 +1640,23 @@ PRIVATE const char *scan_param(redact_scan_t *sc, scan_state_t *st, const char *
  *  string (with its escapes), an object or a list (up to the bracket that
  *  closes it), or a scalar.
  *
- *  A key whose quotes the pass did not pair is read by its shape: the
- *  word before a '"' (with the backslashes of its level) and a ':'. That
- *  is an escaped key (\"password\":) of a json text that no quoted run
- *  holds whole -- the parser's quote cut it (x="{\"password\":...}"), or
- *  it has no quote of its own ('{\"password\":...}') -- or a key after a
- *  value the scan jumped over. Its value is then taken with the quotes of
- *  that level, up to the end of the text. Return where the scan goes on.
+ *  A key whose quotes the pass did not pair is read by its shape: a '"'
+ *  (with the backslashes of its level) and a ':'. That is an escaped key
+ *  (\"password\":) of a json text that no quoted run holds whole -- the
+ *  parser's quote cut it (x="{\"password\":...}"), or it has no quote of
+ *  its own ('{\"password\":...}') -- or a key after a value the scan
+ *  jumped over. An escaped key is the WHOLE string from the escaped quote
+ *  before it with the same backslashes (\"secret key\", \"password/db\"),
+ *  judged as a paired key is; up to review 19 it was the last word only,
+ *  so "secret key" was read as "key". A key whose opening quote is not
+ *  the escaped quote just before (a deeper quote inside it), or a key of
+ *  plain quotes, is the word before the quote. Its value is then taken
+ *  with the quotes of that level, up to the end of the text.
+ *
+ *  A string value of a secret goes to its closing quote even beyond the
+ *  region: a region ends at the first quote of its kind, and a json string
+ *  inside a '...' value can hold a "'" ('{"password":"it's S"}').
+ *  Return where the scan goes on.
  ***************************************************************************/
 PRIVATE const char *scan_json_member(redact_scan_t *sc, scan_state_t *st, const char *colon)
 {
@@ -1544,8 +1679,13 @@ PRIVATE const char *scan_json_member(redact_scan_t *sc, scan_state_t *st, const 
             w_end -= r;
         }
         const char *w = w_end;
-        while(w > st->lo && is_key_byte(w[-1])) {
-            w--;
+        if(r % 2 == 1 && st->eq_last == k_end - 1 && st->eq_prev &&
+                st->eq_prev_r == r && st->eq_prev + 1 >= st->lo && st->eq_prev + 1 <= w_end) {
+            w = st->eq_prev + 1;
+        } else {
+            while(w > st->lo && is_key_byte(w[-1])) {
+                w--;
+            }
         }
         if(w == w_end) {
             return colon + 1;
@@ -1568,6 +1708,13 @@ PRIVATE const char *scan_json_member(redact_scan_t *sc, scan_state_t *st, const 
         sc->ctx->cut_kind = kind;
         forget_quotes(st);
         return st->end;
+    }
+    size_t rv = 0;
+    while(v + rv < st->end && v[rv] == '\\') {
+        rv++;
+    }
+    if(v + rv < st->end && v[rv] == '"') {
+        bound = st->end;
     }
 
     const char *next = redact_json_value(sc, kind, colon + 1, bound, n);
@@ -1657,8 +1804,11 @@ PRIVATE const char *scan_basic(redact_scan_t *sc, scan_state_t *st, const char *
 
 /***************************************************************************
  *  A JWT at `p` ("eyJ" = base64url of '{"', three parts joined by '.'):
- *  redacted. Return where the scan goes on (the end of the run of
- *  base64url bytes, a JWT or not: it holds no '=', ':' or quote).
+ *  redacted. The dots at the end of the run are not its own: a JWT at the
+ *  end of a sentence ("... eyJ.eyJ.sig.") is one, and its dot stays (up to
+ *  review 19 it was taken as a fourth part, and written). Return where the
+ *  scan goes on (the end of the run of base64url bytes, a JWT or not: it
+ *  holds no '=', ':' or quote).
  ***************************************************************************/
 PRIVATE BOOL is_b64url(char c)
 {
@@ -1681,8 +1831,13 @@ PRIVATE const char *scan_jwt(redact_scan_t *sc, scan_state_t *st, const char *p)
         }
         e++;
     }
-    if(dots == 2 && e[-1] != '.') {
-        out_replace(sc, p, e, REDACTED);
+    const char *t = e;
+    while(t[-1] == '.') {
+        t--;    // never beyond p: p[0] is 'e'
+        dots--;
+    }
+    if(dots == 2) {
+        out_replace(sc, p, t, REDACTED);
         forget_quotes(st);
     }
     return e;
@@ -1699,7 +1854,7 @@ PRIVATE const char *scan_jwt(redact_scan_t *sc, scan_state_t *st, const char *p)
  *  escapes; else the scan goes on inside the run, as before.
  *
  *  The run ends at the next '"' not escaped, in the region (never
- *  closed: at its end). EVERY quote not escaped begins a run, the closing
+ *  closed: at its end); in a '...' region, in the text (see below). EVERY quote not escaped begins a run, the closing
  *  quote of the last one included: a run is the text between two quotes
  *  in a row, so a json string is one whatever quotes came before it (a
  *  stray quote, the closing quote of a "..." parameter). Pairing them
@@ -1752,12 +1907,19 @@ PRIVATE void out_append_json_escaped(redact_scan_t *sc, const char *s, size_t le
     out_append(sc, from, (size_t)(end - from));
 }
 
-PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const char *q)
+PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const char *q, BOOL value_run)
 {
+    /*
+     *  In a '...' region the run goes on to its quote beyond the region: the
+     *  region ends at the first "'", and a json string can hold one
+     *  (cfg='{"a":"{\"password\":\"it's S\"}"}': up to review 19 the run
+     *  ended at "it", and the rest of the secret was written)
+     */
+    const char *hi = (st->depth > 0 && st->lo[-1] == '\'')? st->end: st->hi;
     BOOL has_backslash = FALSE;
     const char *e = q + 1;
-    while(e < st->hi && *e != '"') {
-        if(*e == '\\' && e + 1 < st->hi) {
+    while(e < hi && *e != '"') {
+        if(*e == '\\' && e + 1 < hi) {
             has_backslash = TRUE;
             e++;
         } else if(*e == '\\') {
@@ -1765,7 +1927,7 @@ PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const 
         }
         e++;
     }
-    st->run_end = e;    // st->hi if never closed in the region
+    st->run_end = e;    // `hi` if never closed
     if(!has_backslash) {
         return NULL;
     }
@@ -1818,15 +1980,36 @@ PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const 
      *  The run is written back redacted: the value that its end cut is
      *  taken here, from its closing quote
      */
+    if(e >= st->end && sc->ctx->escape_level > 0 &&
+            (cut == CUT_PARAM_WORD || cut == CUT_JSON_EMPTY)) {
+        /*
+         *  A run never closed: its end is the end of this text too, the
+         *  level above goes on
+         */
+        sc->ctx->cut = cut;
+        sc->ctx->cut_kind = cut_kind;
+        return e;
+    }
     switch(cut) {
         case CUT_PARAM_EMPTY:
             return redact_param_value(sc, st, cut_kind, e);
+        case CUT_PARAM_WORD:
+            /*
+             *  The quote that ends the run of a "..." value ends the value
+             *  when a blank follows it (command="... password='S'" n=1);
+             *  a run begun by any other quote (a stray one) ends inside
+             *  the word, blank or not (x" \ password='a'" S"), unless json
+             *  goes on after it (the end of a json string)
+             */
+            if(value_run? !word_goes_on(e, st->end):
+                    (e + 1 >= st->end || strchr(",:}]", e[1]))) {
+                break;  // the run's quote ends the word too
+            }
+            /* Falls through */
         case CUT_PARAM_TAIL:
             {
-                const char *t = e;
-                while(t < st->end && !is_blank(*t)) {
-                    t++;
-                }
+                const char *last_quote;
+                const char *t = word_end(e, st->end, &last_quote);
                 out_replace(sc, e, t, REDACTED);
                 if(t >= st->end && sc->ctx->escape_level > 0) {
                     sc->ctx->cut = CUT_PARAM_TAIL;
@@ -1854,9 +2037,7 @@ PRIVATE void scan_text(redact_scan_t *sc, const char *begin, const char *end)
     st.lo = begin;
     st.hi = end;
     st.depth = 0;
-    st.q_last = NULL;
-    st.q_prev = NULL;
-    st.backslashes = 0;
+    forget_quotes(&st);
     st.run_end = NULL;
 
     const char *p = begin;
@@ -1884,7 +2065,7 @@ PRIVATE void scan_text(redact_scan_t *sc, const char *begin, const char *end)
         } else if(c == 'e' && st.hi - p > 2 && p[1] == 'y' && p[2] == 'J') {
             next = scan_jwt(sc, &st, p);
         } else if(c == '"' && (st.backslashes % 2) == 0 && (!st.run_end || p >= st.run_end)) {
-            next = scan_escaped_run(sc, &st, p);
+            next = scan_escaped_run(sc, &st, p, FALSE);
         }
         if(next) {
             p = next;
@@ -1894,6 +2075,11 @@ PRIVATE void scan_text(redact_scan_t *sc, const char *begin, const char *end)
         if(c == '"' && (st.backslashes % 2) == 0) {
             st.q_prev = st.q_last;
             st.q_last = p;
+        } else if(c == '"') {
+            st.eq_prev = st.eq_last;
+            st.eq_prev_r = st.eq_last_r;
+            st.eq_last = p;
+            st.eq_last_r = st.backslashes;
         }
         st.backslashes = (c == '\\')? st.backslashes + 1: 0;
         p++;
