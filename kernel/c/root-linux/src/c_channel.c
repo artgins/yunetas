@@ -106,10 +106,16 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_enable(hgobj gobj)
 {
-    if(!gobj_is_running(gobj)) {
-        return gobj_start(gobj); // Do gobj_start_tree()
-    }
-    return 0;
+    /*
+     *  The whole tree, as the comment here always said: mt_disable stops
+     *  the channel and every layer stops the one below it, so a plain
+     *  gobj_start() brought back the channel alone, over a stopped
+     *  C_IEVENT_SRV and protocol gobj -- a channel that accepted a
+     *  connection and never read it (up to 7.25.4, after disable-channel +
+     *  enable-channel). The transport (C_TCP) is manual start: C_TCP_S
+     *  starts it on each accepted connection.
+     */
+    return gobj_start_tree(gobj);
 }
 
 /***************************************************************************

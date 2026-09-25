@@ -64,6 +64,27 @@
  *                 DEFINED in state" from C_WEBSOCKET or C_TCP); the server
  *                 drops them when the channel closes.
  *
+ *              6. `cli_hard` (a fourth client, `reader`) subscribes EV_TEST_FEED
+ *                 with a __config__ that asks __hard_subscription__,
+ *                 __own_event__ and __rename_event_name__, and
+ *                 __first_shot__: the server keeps only __first_shot__
+ *                 (logged), so the subscription is a plain one. Up to
+ *                 7.25.4 a peer could make it hard: it outlived the session,
+ *                 every publish broke on it ("Not in session") before a
+ *                 later subscriber, and it went to the next user of the
+ *                 channel, who never asked for it.
+ *              7. `cli_hard` leaves: its subscription goes with it, a local
+ *                 subscriber added after it gets the feed, and `nobody`,
+ *                 connecting next on the same channel and subscribing
+ *                 nothing, gets nothing.
+ *              8. every channel of the gate is disabled and enabled again
+ *                 (C_IOGATE disable-channel, enable-channel): C_CHANNEL,
+ *                 C_IEVENT_SRV and C_WEBSOCKET run again, and `nobody`
+ *                 opens a session. In the tree before the fix of 7.25.5 the
+ *                 channel came back with its protocol gobj stopped, every
+ *                 client was accepted and never read, and the disable logged
+ *                 "GObj NOT RUNNING".
+ *
  *          The gate `__input_side__` is an autostart service: the yuno
  *          starts its tree and stops it with a plain gobj_stop(), and every
  *          protocol gobj of its channels has to stop with it (up to 7.25.4
@@ -101,6 +122,8 @@ PRIVATE int check_count(hgobj gobj, const char *what, int expected, int got);
 PRIVATE int check_channel_commands(hgobj gobj, hgobj input_side);
 PRIVATE json_t *kw_treedb_service(void);
 PRIVATE json_t *kw_tranger_service(void);
+PRIVATE int check_peer_subscription(hgobj gobj, hgobj publisher);
+PRIVATE int check_channels_running(hgobj gobj, hgobj input_side);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -154,7 +177,11 @@ typedef struct _PRIVATE_DATA {
     hgobj cli_off;
     hgobj cli_nobody;
     hgobj cli_reader;
+    hgobj cli_hard;
     int clients_opened;
+    int local_feeds;
+    int feeds_to_next_user;
+    int nobody_opened;
     int step;
     int feeds_received;
     int opens_received;
@@ -257,6 +284,7 @@ PRIVATE int mt_play(hgobj gobj)
     priv->cli_off = gobj_find_service("cli_off", TRUE);
     priv->cli_nobody = gobj_find_service("cli_nobody", TRUE);
     priv->cli_reader = gobj_find_service("cli_reader", TRUE);
+    priv->cli_hard = gobj_find_service("cli_hard", TRUE);
 
     /*
      *  All events (event NULL) is a local subscription: C_IEVENT_CLI sends
@@ -268,6 +296,7 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_subscribe_event(priv->cli_off, NULL, 0, gobj);
     gobj_subscribe_event(priv->cli_nobody, NULL, 0, gobj);
     gobj_subscribe_event(priv->cli_reader, NULL, 0, gobj);
+    gobj_subscribe_event(priv->cli_hard, NULL, 0, gobj);
 
     gobj_start_tree(priv->cli_off);
     gobj_start_tree(priv->cli_nobody);
@@ -455,6 +484,82 @@ PRIVATE int check_channel_commands(hgobj gobj, hgobj input_side)
 }
 
 /***************************************************************************
+ *  The one subscription of `publisher` to EV_TEST_FEED, made by a peer that
+ *  asked internal options: only __first_shot__ is kept, it is not hard, it
+ *  does not stop the publish loop, and the event keeps its name.
+ ***************************************************************************/
+PRIVATE int check_peer_subscription(hgobj gobj, hgobj publisher)
+{
+    int ret = 0;
+    json_t *dl_subs = gobj_find_subscriptions(publisher, EV_TEST_FEED, NULL, NULL);
+    if(json_array_size(dl_subs) != 1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: one subscription expected",
+            "got",          "%d", (int)json_array_size(dl_subs),
+            NULL
+        );
+        JSON_DECREF(dl_subs)
+        return -1;
+    }
+    json_t *subs = json_array_get(dl_subs, 0);
+    json_int_t subs_flag = kw_get_int(gobj, subs, "subs_flag", -1, 0);
+    json_int_t renamed_event = kw_get_int(gobj, subs, "renamed_event", 0, 0);
+    json_t *expected_config = json_pack("{s:b}", "__first_shot__", 0);
+    json_t *__config__ = json_object_get(subs, "__config__");
+    if(subs_flag != 0 || renamed_event != 0 || !json_equal(__config__, expected_config)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a peer set internal subscription options",
+            "subs_flag",    "%d", (int)subs_flag,
+            "renamed",      "%s", renamed_event?"yes":"no",
+            "__config__",   "%j", __config__,
+            NULL
+        );
+        ret = -1;
+    }
+    JSON_DECREF(expected_config)
+    JSON_DECREF(dl_subs)
+    return ret;
+}
+
+/***************************************************************************
+ *  Every channel of the gate runs, with its C_IEVENT_SRV and its protocol
+ *  gobj
+ ***************************************************************************/
+PRIVATE int check_channels_running(hgobj gobj, hgobj input_side)
+{
+    int ret = 0;
+    hgobj channel = gobj_first_child(input_side);
+    while(channel) {
+        if(strcmp(gobj_gclass_name(channel), "C_CHANNEL")==0) {
+            hgobj ievent_srv = gobj_bottom_gobj(channel);
+            hgobj prot = ievent_srv?gobj_bottom_gobj(ievent_srv):0;
+            if(!gobj_is_running(channel) ||
+                !ievent_srv || !gobj_is_running(ievent_srv) ||
+                !prot || !gobj_is_running(prot)
+            ) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST FAIL: a channel enabled again is not running whole",
+                    "channel",      "%s", gobj_name(channel),
+                    "channel_running", "%d", gobj_is_running(channel),
+                    "ievent_srv_running", "%d", ievent_srv?gobj_is_running(ievent_srv):0,
+                    "protocol_running", "%d", prot?gobj_is_running(prot):0,
+                    NULL
+                );
+                ret = -1;
+            }
+        }
+        channel = gobj_next_child(channel);
+    }
+    return ret;
+}
+
+/***************************************************************************
  *  The kw of a remote (un)subscription to the treedb service instead of the
  *  client's `remote_yuno_service`
  ***************************************************************************/
@@ -488,7 +593,17 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(src == priv->cli_off || src == priv->cli_nobody || src == priv->cli_reader) {
+    if(priv->step >= 5) {
+        /*
+         *  The later sessions (6. to 8.): each open is a step
+         */
+        if(src == priv->cli_nobody) {
+            priv->nobody_opened++;
+        }
+        clear_timeout(priv->timer);
+        set_timeout(priv->timer, 300);
+
+    } else if(src == priv->cli_off || src == priv->cli_nobody || src == priv->cli_reader) {
         priv->clients_opened++;
         if(priv->clients_opened == 3) {
             /*
@@ -522,7 +637,11 @@ PRIVATE int ac_test_feed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(event == EV_TEST_FEED) {
+    if(src == priv->publisher) {
+        priv->local_feeds++;
+    } else if(src == priv->cli_nobody && priv->step >= 5) {
+        priv->feeds_to_next_user++;     // under any name: a rename travels too
+    } else if(event == EV_TEST_FEED) {
         priv->feeds_received++;
     } else if(event == EV_TREEDB_NODE_UPDATED) {
         priv->nodes_received++;
@@ -541,6 +660,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     json_t *node;
+    json_t *subs;
 
     switch(priv->step++) {
         case 0:
@@ -657,13 +777,114 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, 300);
             break;
 
-        default:
+        case 4:
             /*
              *  The server dropped the subscriptions of the closed channel
              */
             check_subscriptions(gobj, priv->publisher, EV_TEST_FEED, "");
             check_subscriptions(gobj, priv->treedb, EV_TREEDB_NODE_UPDATED, "");
             check_subscriptions(gobj, priv->tranger, EV_TRANGER_RECORD_ADDED, "");
+
+            /*
+             *  6. a peer asks internal options of its subscription: the
+             *  __config__ that travels is the one of the client's own
+             *  subscription, patched before the client starts.
+             */
+            subs = gobj_subscribe_event(priv->cli_hard, EV_TEST_FEED, 0, gobj);
+            json_object_set_new(subs, "__config__",
+                json_pack("{s:b, s:b, s:s, s:b}",
+                    "__hard_subscription__", 1,
+                    "__own_event__", 1,
+                    "__rename_event_name__", EV_TEST_OPEN,
+                    "__first_shot__", 0
+                )
+            );
+            gobj_start_tree(priv->cli_hard);
+            break;  // its open is the next step
+
+        case 5:
+            check_subscriptions(gobj, priv->publisher, EV_TEST_FEED, "reader");
+            check_peer_subscription(gobj, priv->publisher);
+
+            /*
+             *  7. the peer leaves
+             */
+            gobj_stop_tree(priv->cli_hard);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 6:
+            {
+                /*
+                 *  By count: the channel of a closed session has no user
+                 *  any more, so a name would not tell it
+                 */
+                json_t *dl_subs = gobj_find_subscriptions(priv->publisher, EV_TEST_FEED, NULL, NULL);
+                check_count(gobj, "subscriptions left by the peer that left",
+                    0, (int)json_array_size(dl_subs)
+                );
+                JSON_DECREF(dl_subs)
+            }
+
+            /*
+             *  A local subscriber, added after the peer's: the publish loop
+             *  reaches it
+             */
+            gobj_subscribe_event(priv->publisher, EV_TEST_FEED, 0, gobj);
+            priv->local_feeds = 0;
+            gobj_send_event(priv->publisher, EV_TEST_EMIT, json_object(), gobj);
+            check_count(gobj, "EV_TEST_FEED to a local subscriber after the peer left",
+                1, priv->local_feeds
+            );
+            gobj_unsubscribe_event(priv->publisher, EV_TEST_FEED, 0, gobj);
+
+            /*
+             *  The next user of the channel, who subscribes nothing
+             */
+            gobj_start_tree(priv->cli_nobody);
+            break;  // its open is the next step
+
+        case 7:
+            priv->feeds_to_next_user = 0;
+            gobj_send_event(priv->publisher, EV_TEST_EMIT, json_object(), gobj);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 8:
+            check_count(gobj, "EV_TEST_FEED to the next user of the channel",
+                0, priv->feeds_to_next_user
+            );
+            gobj_stop_tree(priv->cli_nobody);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 9:
+            {
+                /*
+                 *  8. every channel disabled and enabled again
+                 */
+                hgobj input_side = gobj_find_service("__input_side__", TRUE);
+                json_t *jn_resp = gobj_command(input_side, "disable-channel", json_object(), gobj);
+                JSON_DECREF(jn_resp)
+                jn_resp = gobj_command(input_side, "enable-channel", json_object(), gobj);
+                JSON_DECREF(jn_resp)
+                check_channels_running(gobj, input_side);
+
+                priv->nobody_opened = 0;
+                gobj_start_tree(priv->cli_nobody);
+                set_timeout(priv->timer, 3000); // its open cuts it short
+            }
+            break;
+
+        case 10:
+            check_count(gobj, "sessions opened on a channel disabled and enabled again",
+                1, priv->nobody_opened
+            );
+            gobj_stop_tree(priv->cli_nobody);
+            set_timeout(priv->timer, 300);
+            break;
+
+        default:
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,

@@ -607,6 +607,19 @@ An unsubscribe is never checked, because it removes only the channel's own
 subscriptions. The peer still holds a refused subscription and withdraws it
 (for example when a view closes): that is logged at info level (*"UNSUBSCRIBING
 event never subscribed, its subscription was refused"*), not as an error.
+Since 7.25.5 `C_IEVENT_SRV` counts the refusals of each channel, so that line
+means what it says: a withdrawal that matches no subscription and was not
+refused is a warning (*"UNSUBSCRIBING event matches no subscription of this
+channel"*), with the gate on or off.
+
+The check sees the subscription as the peer sent it, but the peer does not
+choose how the framework delivers it: `C_IEVENT_SRV` keeps only
+`__first_shot__` of its `__config__`, and removes every subscription of the
+channel with force when it closes. Up to 7.25.4 a peer that held the
+permission could subscribe with `__hard_subscription__`: the subscription
+outlived the session and went to the next user of the channel, past this
+check (see [`ievent.md`](../../../docs/doc.yuneta.io/api/gclass/ievent.md),
+*What a peer may put in a subscription*).
 
 How a gclass declares a guarded feed (a publisher with a `read` permission).
 `C_NODE` declares its feed this way since 7.25.5: its five `EV_TREEDB_NODE_*`

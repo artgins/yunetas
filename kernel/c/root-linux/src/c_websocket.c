@@ -355,7 +355,14 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     clear_timeout(priv->timer);
 
-    gobj_stop(gobj_bottom_gobj(gobj));
+    /*
+     *  A server's transport runs only while a connection is accepted on it:
+     *  stopping it idle logged "GObj NOT RUNNING" (C_IOGATE disable-channel)
+     */
+    hgobj gobj_bottom = gobj_bottom_gobj(gobj);
+    if(gobj_bottom && gobj_is_running(gobj_bottom)) {
+        gobj_stop(gobj_bottom);
+    }
 
     return 0;
 }

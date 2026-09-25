@@ -248,8 +248,12 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    if(gobj_bottom_gobj(gobj)) {
-        gobj_stop(gobj_bottom_gobj(gobj));
+    /*
+     *  A server's transport runs only while a connection is accepted on it
+     */
+    hgobj gobj_bottom = gobj_bottom_gobj(gobj);
+    if(gobj_bottom && gobj_is_running(gobj_bottom)) {
+        gobj_stop(gobj_bottom);
     }
 
     return 0;

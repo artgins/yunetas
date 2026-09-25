@@ -250,6 +250,46 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'cli_hard',                                        \n\
+            'gclass': 'C_IEVENT_CLI',                               \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'kw': {                                                 \n\
+                'jwt': 'reader',                                     \n\
+                'remote_yuno_name': '',                             \n\
+                'remote_yuno_role': '"APP_NAME"',                 \n\
+                'remote_yuno_service': 'publisher'                  \n\
+            },                                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'cli_hard_gate',                           \n\
+                    'gclass': 'C_IOGATE',                           \n\
+                    'as_service': true,                             \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'cli_hard',                        \n\
+                            'gclass': 'C_CHANNEL',                  \n\
+                            'children': [                           \n\
+                                {                                   \n\
+                                    'name': 'cli_hard',                \n\
+                                    'gclass': 'C_WEBSOCKET',        \n\
+                                    'children': [                   \n\
+                                        {                           \n\
+                                            'name': 'cli_hard',        \n\
+                                            'gclass': 'C_TCP',      \n\
+                                            'kw': {                 \n\
+                                    'url': 'ws://127.0.0.1:7794'   \n\
+                                            }                       \n\
+                                        }                           \n\
+                                    ]                               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -345,12 +385,14 @@ static int register_yuno_and_more(void)
          *  main() takes nothing below a warning): the three refusals of
          *  `nobody` with the gate on, EV_TEST_FEED of `publisher`,
          *  EV_TREEDB_NODE_UPDATED of the C_NODE and EV_TRANGER_RECORD_ADDED
-         *  of the C_TRANGER. A wrong result is an error, which is not in
-         *  this list.  */
-        json_pack("[{s:s}, {s:s}, {s:s}]",
+         *  of the C_TRANGER; then the __config__ keys that `cli_hard` asks
+         *  and a peer may not set. A wrong result is an error, which is not
+         *  in this list.  */
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "No permission to subscribe event",
             "msg", "No permission to subscribe event",
-            "msg", "No permission to subscribe event"
+            "msg", "No permission to subscribe event",
+            "msg", "SUBSCRIBING __config__ keys a peer may not set, ignored"
         ),
         NULL,   // expected
         NULL,   // ignore_keys

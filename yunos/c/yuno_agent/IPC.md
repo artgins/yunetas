@@ -239,7 +239,7 @@ configuration dict that accepts these keys:
 
 | Key                       | Effect                                                            |
 |---------------------------|-------------------------------------------------------------------|
-| `__config__`              | Sub-keys: `__hard_subscription__`, `__own_event__`, `__rename_event_name__`, `__first_shot__` |
+| `__config__`              | Sub-keys: `__hard_subscription__`, `__own_event__`, `__rename_event_name__`, `__first_shot__`. A remote peer may set only `__first_shot__` (§4.6) |
 | `__global__`              | Base kw merged into every published kw before delivery            |
 | `__local__`               | Keys to delete from the published kw before delivery              |
 | `__filter__`              | Publish only if the published kw matches this selector            |
@@ -535,6 +535,28 @@ remote subscriber.
 The remote side does **not** need to keep the connection idle while it
 waits. Events can fire when the publisher decides. From the point of view of
 the subscriber, remote events look the same as local ones.
+
+The peer chooses its `__filter__` and `__global__`, but not how the framework
+treats its subscription. Of `__config__`, `C_IEVENT_SRV` keeps only
+`__first_shot__`, which the publisher reads. `__hard_subscription__`,
+`__own_event__` and `__rename_event_name__` are removed, with a warning
+(since 7.25.5). The subscriptions belong to the session: when the channel
+closes, `C_IEVENT_SRV` removes all of them with force. The channel is static,
+and the next user who connects to it must find nothing of the last one. Up to
+7.25.4 a peer could ask a hard subscription: it outlived the session, went to
+the next user of the channel, and with `__own_event__` a failed delivery to
+it stopped every publish before the later subscribers.
+
+```c
+/*  In the peer: what travels, and what the server keeps  */
+gobj_subscribe_event(gobj_remote, EV_REALTIME_TRACK, json_pack("{s:{s:b}, s:{s:s}}",
+    "__config__", "__first_shot__", 0,  // kept
+    "__filter__", "id", device_id       // kept
+), gobj);
+```
+
+Details and the list of keys: [`ievent.md`](../../../docs/doc.yuneta.io/api/gclass/ievent.md),
+*What a peer may put in a subscription*.
 
 ### 4.7 Two identities travel on a channel — do not confuse them
 

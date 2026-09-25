@@ -88,6 +88,22 @@ autostart service) left each `C_WEBSOCKET` or `C_PROT_TCP4H` running, and the
 yuno exited with *"Destroying a RUNNING gobj"*. Only an owner that called
 `gobj_stop_tree()` on the gate stopped it all.
 
+A channel that is disabled and enabled again (the `C_IOGATE` commands
+`disable-channel` and `enable-channel`) comes back whole: `C_CHANNEL`
+restarts its tree, and `C_IEVENT_SRV` starts its protocol gobj in its start,
+the mirror of its stop. The transport `C_TCP` is manual start: `C_TCP_S`
+starts it for each connection it accepts.
+
+```bash
+ycommand -c 'command-yuno id=<id> service=__input_side__ command=disable-channel channel_name=^input-1$'
+ycommand -c 'command-yuno id=<id> service=__input_side__ command=enable-channel channel_name=^input-1$'
+```
+
+`channel_name` is a regular expression. One that matches no channel selects
+nothing, and the command answers with the header of the view only. (Up to
+7.25.4 each of the six channel commands looped for ever on it and blocked
+the yuno.)
+
 Start and stop the gate as a pair. Either declare it `"autostart": true` in
 the config and let the yuno start and stop it, or do both in the owner:
 
@@ -119,9 +135,13 @@ service the channel may reach. Since 7.25.5, when the yuno sets
 `enable_subscription_authz` (off by default) and the event is flagged
 `EVF_AUTHZ_SUBSCRIBE`, the channel's user also needs the publisher's
 permission aliased `__subscribe_event__` — `read` for the `EV_TREEDB_NODE_*`
-feed of a treedb — or the global `__subscribe_event__`. A refused
-subscription is logged (*"No permission to subscribe event"*) and not made;
-the channel stays open.
+feed of a treedb and for the `EV_TRANGER_RECORD_ADDED` feed of a
+`C_TRANGER` — or the global `__subscribe_event__`. A refused subscription is
+logged (*"No permission to subscribe event"*) and not made; the channel stays
+open. When the peer withdraws a refused subscription later, that is logged at
+info level (*"its subscription was refused"*). A withdrawal that matches no
+subscription of the channel, and was not refused, is a warning (*"UNSUBSCRIBING
+event matches no subscription of this channel"*).
 
 Example: a yuno that enforces the treedb feed permission, in its config:
 
@@ -135,3 +155,44 @@ Example: a yuno that enforces the treedb feed permission, in its config:
 
 Details, and how a gclass declares a guarded event:
 [`YUNO_AUTH.md`](../../../../yunos/c/yuno_agent/YUNO_AUTH.md) §4.6.
+
+### What a peer may put in a subscription
+
+The kw of a `__subscribing__` message can carry `__config__`, `__global__`
+and `__filter__`, as a local `gobj_subscribe_event()` does. Of `__config__`,
+`C_IEVENT_SRV` keeps only the keys a peer may set, and since 7.25.5 that
+list has one key:
+
+| Key | Meaning |
+|-----|---------|
+| `__first_shot__` | Read by the publisher in its `mt_subscription_added()`: `false` asks it not to send its current state when the subscription is made. |
+
+Any other key is removed before the subscription is made, and logged as a
+warning (*"SUBSCRIBING __config__ keys a peer may not set, ignored"*). Three
+of those keys change how the framework delivers the event, and a peer must
+never have them:
+
+- `__hard_subscription__` makes the subscription survive the close of the
+  channel. The channel is static, so it went to the next user of it, who got
+  the feed without asking and past the subscription authz.
+- `__own_event__` stops the publish loop when the delivery to this
+  subscription fails. With the channel closed every delivery fails, and every
+  subscriber after it lost the event.
+- `__rename_event_name__` delivers the event to `C_IEVENT_SRV` under another
+  name, one of its own inputs among them.
+
+Up to 7.25.4 the peer's `__config__` went through whole. Also since 7.25.5,
+the close of a channel removes every subscription it made with force, hard
+or not.
+
+Example: a SPA subscribes without the first shot, and that key arrives:
+
+```js
+gobj_subscribe_event(gobj_remote, "EV_REALTIME_TRACK", {
+    __config__: {__first_shot__: false},
+    __filter__: {id: device_id}
+}, gobj);
+```
+
+A key that a publisher reads from a peer is added to the list in
+`c_ievent_srv.c` (`peer_subscription_config_keys`), and documented here.
