@@ -197,6 +197,7 @@ crash or leak cannot mask neighbours.
 | **`c_mqtt/test1`** | Self-contained broker + client: subscribe, publish QoS 0, verify reception, disconnect. |
 | **`c_mqtt/acl`** | The publish/subscribe ACL of the broker (`EV_MQTT_ACL_CHECK`); `list-queues queue=<name>` of a queue that cannot be opened answers `-1`, not an empty queue; and `list-queues` / `clean-queues` of a store whose topics cannot be listed answer `-1` with a cause of their own. |
 | **`c_mqtt/malformed`** | Malformed MQTT packets from a peer. |
+| **`c_mqtt/queued_in`** | A raw MQTT client: the incoming QoS 2 messages of a persistent session reloaded beyond `max_inflight_messages` wait queued, and each goes in flight when a PUBREL frees a slot, with its OWN packet id (`PUBREC 3, PUBCOMP 1, PUBREC 4, PUBCOMP 2, PUBCOMP 3, PUBCOMP 4`), as in mosquitto. Up to 7.25.4 the quota test was inverted and a NEW id was sent: the client's PUBREL found nothing, and the message was never released. |
 
 **Source:** `tests/c/c_mqtt/`
 

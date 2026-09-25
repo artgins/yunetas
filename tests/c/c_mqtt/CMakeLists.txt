@@ -54,6 +54,7 @@ SET(SRCS
     test1
     acl
     malformed
+    queued_in
 )
 
 ##############################################

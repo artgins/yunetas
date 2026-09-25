@@ -104,7 +104,7 @@ with one binary registers it as `test_<directory>`.
 | `kw` | `test_kw1`, `test_json_flat` |
 | `helpers` | `test_helpers`, `test_rotatory`, `test_audit_record`, `test_dir_array_nomem`, `test_dir_listing`, `test_dir_read_error` |
 | `gbuffer` | `test_gbuffer_guards`, `test_gbmem_realloc_refused` |
-| `c_mqtt` | `test1`, `acl`, `malformed` |
+| `c_mqtt` | `test1`, `acl`, `malformed`, `queued_in` |
 | `c_auth_bff` | `test1_login`, `test2_kc_401`, `test3_callback`, `test4_refresh`, `test5_logout`, `test6_invalid_body`, `test7_slow_login`, `test8_queue_full`, `test9_browser_cancel`, `test10_kc_silence`, `test11_cancel_retry`, `test12_stale_reply`, `test13_refresh_expired`, `test14_method_not_allowed`, `test15_missing_body`, `test16_unknown_endpoint`, `test18_discovery_failure`, `test19_logout_no_cookie` |
 | `c_task_authenticate` | `test1_discovery`, `test2_explicit_endpoints`, `test4_discovery_failure` |
 | `msg_interchange` | `test_mqtt_qos0`, `test_tcp_connect`, `test_tcp_reconnect` |
@@ -120,6 +120,7 @@ The single-binary directories that also register under `<directory>/`:
 |---|---|
 | `c_agent_find_new_yunos`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_rx`, `c_udp_s_echo`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
 | `gbuffer` | `test_gbmem_realloc_refused` |
+| `c_mqtt` | `test_mqtt_queued_in` |
 | `helpers` | `test_audit_record`, `test_rotatory`, `test_dir_array_nomem`, `test_dir_listing`, `test_dir_read_error` |
 | `timeranger2` | `test_tm_order`, `test_lost_lock`, `test_topic_var_replace`, `test_key_reborn_pages`, `test_open_list_history`, `test_unreadable_at_open`, `test_mark_tm_order`, `test_uncommitted_append`, `test_torn_md2_tail`, `test_md2_read_error`, `test_md2_short_write`, `test_nul_escape_record`, `test_torn_tail_check_fails`, `test_cmp_file_ids`, `test_unlistable_dirs`, `test_unlisted_relist_once` |
 | `tr_msg2db` | `test_msg2db_load_failed` |

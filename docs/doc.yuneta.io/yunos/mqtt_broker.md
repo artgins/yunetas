@@ -90,6 +90,18 @@ Per-connection limits live on `C_PROT_MQTT2` and apply to each client:
 | `message_size_limit` | `0` | Max publish payload accepted (0 = MQTT max) |
 | `max_packet_size` | `0` | Max MQTT packet (v5 advertises it, 0 = no limit) |
 
+`max_inflight_messages` also bounds the INCOMING QoS 2 messages that wait for
+their PUBREL (the receive maximum the broker advertises): a client that sends
+more is disconnected (`RECEIVE_MAXIMUM_EXCEEDED`). When a persistent session is
+reloaded with more such messages than that (the limit was lowered between two
+connections), the ones beyond it wait QUEUED, and each goes in flight when a
+PUBREL frees a slot, as mosquitto does: with ITS OWN packet id, the client's,
+and its PUBREC is sent again then. Up to 7.25.4 the broker moved a queued one
+when the in-flight list was NOT empty (the quota test was inverted), gave it a
+NEW packet id and sent the PUBREC with it: the PUBREL of the client for its own
+id found nothing (*"Message not found"*), and the message was never released
+to its subscribers. `tests/c/c_mqtt` (`test_mqtt_queued_in`).
+
 (mqtt-acl)=
 ## Authorization (publish/subscribe ACL)
 

@@ -1429,26 +1429,34 @@ PRIVATE int db__message_remove_incoming_dup(hgobj gobj, uint16_t mid)
 /***************************************************************************
  *  Move input qos-2 messages from queued list to inflight queue
  *      and send its pubrec
+ *
+ *  As mosquitto (db__message_write_queued_in): stop when the in-flight
+ *  quota is SPENT (in flight >= max_inflight_messages), and answer with
+ *  the packet id of the message -- an incoming one carries the CLIENT's,
+ *  and the client releases it with a PUBREL of that id. Up to 7.25.4 the
+ *  test was inverted (it stopped when nothing was in flight, and moved a
+ *  message when the quota was full), a NEW id was generated and sent in
+ *  the PUBREC, so the PUBREL of the client found nothing ("Message not
+ *  found") and the message was never released; and the loop walked the
+ *  queued list with the links of the in-flight one after the move.
  ***************************************************************************/
 PRIVATE int db__message_write_queued_in(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->trq_in_msgs) {
-        register q2_msg_t *qmsg;
-        Q2MSG_FOREACH_FORWARD_QUEUED(priv->trq_in_msgs, qmsg) {
-            // if(context->msgs_in.inflight_maximum != 0 && context->msgs_in.inflight_quota == 0){
-            if(priv->trq_in_msgs->max_inflight_messages > 0 && tr2q_inflight_size(priv->trq_in_msgs)==0) {
+        q2_msg_t *qmsg, *next;
+        Q2MSG_FOREACH_FORWARD_QUEUED_SAFE(priv->trq_in_msgs, qmsg, next) {
+            if(priv->trq_in_msgs->max_inflight_messages > 0 &&
+                    tr2q_inflight_size(priv->trq_in_msgs) >= priv->trq_in_msgs->max_inflight_messages) {
                 break;
             }
 
             if(tr2q_move_from_queued_to_inflight(qmsg)<0) {
-                break;
+                break;  // Error already logged
             }
             msg_flag_set_state(qmsg, mosq_ms_wait_for_pubrel);
-            uint16_t mid = mqtt_mid_generate(gobj);
-            qmsg->mid = mid;
-            send__pubrec(gobj, mid, 0, NULL);
+            send__pubrec(gobj, qmsg->mid, 0, NULL);
             tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
         }
     }
