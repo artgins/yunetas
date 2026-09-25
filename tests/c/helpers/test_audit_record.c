@@ -21,6 +21,10 @@
  *            json keys with escapes, Bearer tokens and JWTs,
  *          - a json text inside a json text (escaped quotes, one level or
  *            more): its secrets are redacted too,
+ *          - whatever quotes come before it, or cut it (a stray quote, a
+ *            double-quoted parameter, the parser's quote ending at an
+ *            escaped one), and in generated commands with every quoting
+ *            shape: no secret is written,
  *          and what one record costs, 7.25.4's way and the new way.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -1256,6 +1260,15 @@ PRIVATE void test_more_secrets(void)
      */
     check_no_secret("x headers='Authorization: Bearer S3CR3TVALUE'", NULL, "S3CR3TVALUE",
         "(q) Bearer <token> after a plain key");
+    kw = json_pack("{s:s}", "data", "Authorization: Basic dXNlcjpwYXNz");    // user:pass
+    check_no_secret("update-node", kw, "dXNlcjpwYXNz", "(q) Basic <base64 of user:password> in a text");
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s}", "note", "Basic setup, basic QUJD and basic abc");  // QUJD: "ABC", no ':'
+    jn_record = audit_record_build("update-node", kw, DATE, command_table);
+    check(jn_record && !record_holds(jn_record, "<redacted>") && record_holds(jn_record, "basic QUJD"),
+        "(q) the word basic, and base64 that is no user:password: not secrets");
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
     kw = json_pack("{s:s}", "note", "use eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJTM0NSM1QifQ.S3CR3TVALUESIG now");
     check_no_secret("run-yuno", kw, "S3CR3TVALUE", "(q) a JWT in a string of a plain key");
     JSON_DECREF(kw)
@@ -1411,6 +1424,11 @@ PRIVATE void test_json_text_in_json_text(void)
         {"run-yuno x='",                    "\"\\\"\""},        // "\""  "\""  ...
         {"run-yuno x='",                    "\"a\\\\\":\""},    // "a\\":"  ...
         {"run-yuno x='{\"a\":\"",           "{\\\"a\\\":\\\""},  // {\"a\":\" ... one level down each
+        {"run-yuno x='",                    "\\\"a\\\":"},        // \"a\": ... keys read by their shape
+        {"run-yuno x='",                    "\\\"password\\\":\\\""},  // \"password\":\" ... values of a level
+        {"run-yuno ",                       "x=\"a password=\""},  // the quote of a region opens a value
+        {"run-yuno ",                       "\\\" token=\""},    // \" token=" ... a value cut by a run
+        {"run-yuno ",                       "\\\"password\\\":{"},  // an object of a level never closed
         {0, 0}
     };
     for(int i=0; shapes[i].head; i++) {
@@ -1428,6 +1446,427 @@ PRIVATE void test_json_text_in_json_text(void)
         GBMEM_FREE(s_small);
         GBMEM_FREE(s_big);
     }
+}
+
+/***************************************************************************
+ *  (s) A quote before a json text inside a json text: the quoted runs
+ *  were paired by alternation, so ONE quote earlier (the closing quote of
+ *  a double-quoted parameter, a stray quote in a value) shifted the pairs
+ *  and the escaped json was never decoded: its secret was written in
+ *  clear (review 18). And an escaped json that the parser's quotes cut
+ *  (x="{\"password\":...}", '{\"password\":...}'): the audit sees the
+ *  secret as text, it redacts it whatever the parser does with it.
+ ***************************************************************************/
+PRIVATE void check_text_kept(const char *command, json_t *kw, const char *name)
+{
+    json_t *jn_record = audit_record_build(command, kw, DATE, command_table);
+    BOOL ok = jn_record && !record_holds(jn_record, "<redacted>");
+    if(ok && !kw) {
+        ok = strcmp(kw_get_str(0, jn_record, "command", "", 0), command) == 0;
+    }
+    check(ok, name);
+    if(!ok) {
+        char *s = record_text(jn_record);
+        printf("     %s\n", s);
+        GBMEM_FREE(s);
+    }
+    JSON_DECREF(jn_record)
+}
+
+PRIVATE void test_quote_before_json_text(void)
+{
+    check_no_secret(
+        "update-node topic_name=x id=\"a b\" content='{\"cfg\":\"{\\\"password\\\":\\\"LEAK2\\\"}\"}'",
+        NULL, "LEAK2", "(s) a double-quoted parameter before a json text in a json text");
+    check_no_secret(
+        "update-node topic_name=x note=5\" content='{\"cfg\":\"{\\\"password\\\":\\\"LEAK3\\\"}\"}'",
+        NULL, "LEAK3", "(s) a stray quote in a value before a json text in a json text");
+
+    json_t *kw = json_pack("{s:s}", "cfg", "x=\"{\\\"password\\\":\\\"LEAK4\\\"}\"");
+    check_no_secret("update-node", kw, "LEAK4", "(s) kw string name=\"escaped json\"");
+    JSON_DECREF(kw)
+    check_no_secret(
+        "update-node topic_name=x content=\"{\\\"password\\\":\\\"LEAK4T\\\"}\"",
+        NULL, "LEAK4T", "(s) text name=\"escaped json\" (the parser's quote ends at the first \\\")");
+
+    kw = json_pack("{s:s}", "note", "5\" pipe {\"cfg\":\"{\\\"password\\\":\\\"LEAK5\\\"}\"}");
+    check_no_secret("update-node", kw, "LEAK5", "(s) kw string: a stray quote, then a json text in a json text");
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s}", "cfg", "{\"a\":\"b\",\"cfg\":\"{\\\"password\\\":\\\"LEAK6\\\"}\"}");
+    check_no_secret("update-node", kw, "LEAK6", "(s) kw json text: two members, the second a json text");
+    JSON_DECREF(kw)
+
+    check_no_secret(
+        "update-node topic_name=x content='{\\\"password\\\":\\\"LEAKSQ\\\"}'",
+        NULL, "LEAKSQ", "(s) escaped json keys in a single-quoted value (no quote of its own)");
+    check_no_secret(
+        "update-node x=\"a\" y=\"{\\\"token\\\":\\\"LEAKXY\\\"}\"",
+        NULL, "LEAKXY", "(s) two double-quoted values, the second an escaped json");
+    check_no_secret(
+        "update-node a='{\"c\":\"{\\\"password\\\":\\\"R1\\\"}\"}' b='{\"c\":\"{\\\"token\\\":\\\"R2LEAK\\\"}\"}'",
+        NULL, "R2LEAK", "(s) a json text in a json text after another one that was redacted");
+    check_no_secret(
+        "update-node a='{\"c\":\"{\\\"password\\\":\\\"R1\\\"}\" \"x\" \"{\\\"token\\\":\\\"R3LEAK\\\"}\"}'",
+        NULL, "R3LEAK", "(s) a redacted run, a plain string, another run: every run looked at");
+    check_no_secret(
+        "set-user-pwd username=bob password=\\\"LEAKBS two\\\"",
+        NULL, "two", "(s) password=\\\"two words\\\": the escaped quotes hold the value");
+    check_no_secret(
+        "update-node x=\"a password=\"LEAKRG b\"",
+        NULL, "LEAKRG", "(s) the quote that closes the parser's value opens the secret's value");
+    check_no_secret(
+        "update-node x=\"\\\"password\\\":\\\"LEAKLV1\\\"\" y=2",
+        NULL, "LEAKLV1", "(s) an escaped json member in a parser's value, cut at its first \\\"");
+    check_no_secret(
+        "update-node cfg='{\"a\":\"{\\\"b\\\":\\\"{\\\\\\\"password\\\\\\\":\\\\\\\"LEAKLV2\\\\\\\"}\\\"}\"}' n=\"x\"",
+        NULL, "LEAKLV2", "(s) two levels down, a double-quoted parameter after it");
+    check_no_secret(
+        "update-node id=\"a b\" cfg='{\"a\":\"{\\\"b\\\":\\\"{\\\\\\\"password\\\\\\\":\\\\\\\"LEAKLV3\\\\\\\"}\\\"}\"}'",
+        NULL, "LEAKLV3", "(s) two levels down, a double-quoted parameter before it");
+    check_no_secret(
+        "update-node id=\"a b\" content='{\"cfg\":\"{\\\"password\\\":{\\\"x\\\":\\\"LEAKOBJ\\\"}}\"}'",
+        NULL, "LEAKOBJ", "(s) an object as the value of an escaped secret key");
+    check_no_secret(
+        "update-node x=\"{\\\"password\\\":12345678}\"",
+        NULL, "12345678", "(s) a number as the value of an escaped secret key");
+
+    /*
+     *  Controls: the same shapes without a secret are written as they came
+     */
+    check_text_kept(
+        "update-node topic_name=x id=\"a b\" content='{\"cfg\":\"{\\\"theme\\\":\\\"dark\\\"}\"}'", NULL,
+        "(s) control: a double-quoted parameter before a json text in a json text, no secret");
+    check_text_kept(
+        "update-node topic_name=x note=5\" content='{\"cfg\":\"{\\\"theme\\\":\\\"dark\\\"}\"}'", NULL,
+        "(s) control: a stray quote before a json text in a json text, no secret");
+    check_text_kept(
+        "update-node x=\"{\\\"theme\\\":\\\"dark\\\"}\" y='{\\\"n\\\":1}'", NULL,
+        "(s) control: escaped json cut by the parser's quotes, no secret");
+    kw = json_pack("{s:s}", "note", "5\" pipe {\"cfg\":\"{\\\"theme\\\":\\\"dark\\\"}\"}");
+    check_text_kept("update-node", kw, "(s) control: kw string with a stray quote and a json text, no secret");
+    JSON_DECREF(kw)
+
+    json_t *jn_record = audit_record_build(
+        "update-node topic_name=x id=\"a b\" content='{\"cfg\":\"{\\\"password\\\":\\\"LEAK2\\\",\\\"n\\\":1}\"}'",
+        NULL, DATE, command_table);
+    check(jn_record && strcmp(kw_get_str(0, jn_record, "command", "", 0),
+        "update-node topic_name=x id=\"a b\" content='{\"cfg\":\"{\\\"password\\\":\\\"<redacted>\\\",\\\"n\\\":1}\"}'") == 0,
+        "(s) the redacted run is written back with its escapes, the rest as it came");
+    JSON_DECREF(jn_record)
+
+    /*
+     *  The examples of DEBUGGING.md 5.5, as they are written there
+     */
+    struct {
+        const char *command;
+        const char *record;
+    } examples[] = {
+        {"update-node x=\"{\\\"password\\\":\\\"hunter2\\\"}\"",
+         "update-node x=\"{\\\"password\\\":\\\"<redacted>\\\"}\""},
+        {"update-node x='{\\\"password\\\":\\\"hunter2\\\"}'",
+         "update-node x='{\\\"password\\\":\\\"<redacted>\\\"}'"},
+        {"set-user-pwd username=bob password=\\\"two words\\\" n=1",
+         "set-user-pwd username=bob password=\\\"<redacted>\\\" n=1"},
+        {0, 0}
+    };
+    for(int i=0; examples[i].command; i++) {
+        jn_record = audit_record_build(examples[i].command, NULL, DATE, command_table);
+        const char *got = kw_get_str(0, jn_record, "command", "", 0);
+        BOOL ok = jn_record && strcmp(got, examples[i].record) == 0;
+        char name[256];
+        snprintf(name, sizeof(name), "(s) the example of DEBUGGING.md: %s", examples[i].command);
+        check(ok, name);
+        if(!ok) {
+            printf("     %s\n", got);
+        }
+        JSON_DECREF(jn_record)
+    }
+}
+
+/***************************************************************************
+ *  (t) Generated commands: the secret parameter in every quoting shape
+ *  (plain, blanks, '', "", \"\", a quoted key, a json in a value, a json
+ *  text in a json text at 0-3 levels, cut or not by the parser's quotes,
+ *  carried by command-yuno), among parameters with stray and unclosed
+ *  quotes, in the text and in a kw string. No secret survives; the
+ *  parameter before them all is kept. Deterministic seed.
+ ***************************************************************************/
+PRIVATE uint32_t g_rand = 0x9E3779B9;
+
+PRIVATE uint32_t gen_rand(void)
+{
+    g_rand ^= g_rand << 13;
+    g_rand ^= g_rand >> 17;
+    g_rand ^= g_rand << 5;
+    return g_rand;
+}
+
+PRIVATE uint32_t pick(uint32_t n)
+{
+    return gen_rand() % n;
+}
+
+PRIVATE const char *gen_secret_keys[] = {
+    "password", "token", "client_secret", "api_key", "access_token", "passw",
+    "jwt", "private_key", "pwd", "secret", "x-api-key", "Password", 0
+};
+
+PRIVATE const char *gen_secret_key(void)
+{
+    int n = 0;
+    while(gen_secret_keys[n]) {
+        n++;
+    }
+    return gen_secret_keys[pick((uint32_t)n)];
+}
+
+/*
+ *  A json text holding the secret, `levels` json texts deep. Free with
+ *  gbmem_free().
+ */
+PRIVATE char *gen_json(const char *secret1, const char *secret2, int levels)
+{
+    const char *k = gen_secret_key();
+    char bf[512];
+    switch(pick(6)) {
+        case 0:
+            snprintf(bf, sizeof(bf), "{\"%s\":\"%s\"}", k, secret1);
+            break;
+        case 1:
+            snprintf(bf, sizeof(bf), "{\"n\":1,\"%s\":\"%s %s\",\"m\":\"x\"}", k, secret1, secret2);
+            break;
+        case 2:
+            snprintf(bf, sizeof(bf), "{\"%s\":{\"inner\":\"%s\"}}", k, secret1);
+            break;
+        case 3:
+            snprintf(bf, sizeof(bf), "{\"%s\":[\"%s\",\"%s\"]}", k, secret1, secret2);
+            break;
+        case 4:
+            snprintf(bf, sizeof(bf), "{\"list\":[{\"%s\":\"%s\"}],\"note\":\"5\\\"\"}", k, secret1);
+            break;
+        default:
+            snprintf(bf, sizeof(bf), "{\"note\":\"a \\\" b\",\"%s\" : \"%s\"}", k, secret1);
+            break;
+    }
+    char *s = nested_json_text(bf, levels);
+    return s;
+}
+
+/*
+ *  `text` as a json string literal WITHOUT its quotes
+ */
+PRIVATE char *json_escaped(const char *text)
+{
+    char *q = json_quoted(text);
+    if(!q) {
+        return NULL;
+    }
+    size_t n = strlen(q);
+    if(n >= 2) {
+        memmove(q, q + 1, n - 2);
+        q[n - 2] = 0;
+    }
+    return q;
+}
+
+PRIVATE void gen_secret_param(gbuffer_t *gbuf, const char *secret1, const char *secret2, BOOL inner)
+{
+    const char *k = gen_secret_key();
+    int form = (int)pick(inner? 12: 15);
+    char *json = NULL;
+    char *esc = NULL;
+    switch(form) {
+        case 0:
+            gbuffer_printf(gbuf, "%s=%s", k, secret1);
+            break;
+        case 1:
+            gbuffer_printf(gbuf, "%s = %s", k, secret1);
+            break;
+        case 2:
+            gbuffer_printf(gbuf, "%s=\"%s %s\"", k, secret1, secret2);
+            break;
+        case 3:
+            gbuffer_printf(gbuf, "%s='%s %s'", k, secret1, secret2);
+            break;
+        case 4:
+            gbuffer_printf(gbuf, "\"%s\"=%s", k, secret1);
+            break;
+        case 5:
+            gbuffer_printf(gbuf, "'%s'=%s", k, secret1);
+            break;
+        case 6:
+            gbuffer_printf(gbuf, "%s=\\\"%s %s\\\"", k, secret1, secret2);
+            break;
+        case 7:
+            json = gen_json(secret1, secret2, (int)pick(4));
+            gbuffer_printf(gbuf, "cfg='%s'", json? json: "");
+            break;
+        case 8:
+            json = gen_json(secret1, secret2, (int)pick(3));
+            esc = json? json_quoted(json): NULL;
+            gbuffer_printf(gbuf, "cfg=%s", esc? esc: "");     // "{\"k\":...}": the parser cuts it
+            break;
+        case 9:
+            json = gen_json(secret1, secret2, (int)pick(3));
+            esc = json? json_escaped(json): NULL;
+            gbuffer_printf(gbuf, "cfg='%s'", esc? esc: "");   // '{\"k\":...}'
+            break;
+        case 10:
+            json = gen_json(secret1, secret2, (int)pick(3));
+            esc = json? json_quoted(json): NULL;
+            gbuffer_printf(gbuf, "cfg='%s'", esc? esc: "");   // '"{\"k\":...}"'
+            break;
+        case 11:
+            gbuffer_printf(gbuf, "cfg={\"%s\":\"%s\"}", k, secret1);
+            break;
+        default:
+            {
+                /*
+                 *  Carried by command-yuno: quoted as is, or as a json string
+                 */
+                gbuffer_t *g = gbuffer_create(1024, 64*1024);
+                gbuffer_printf(g, "update-node ");
+                gen_secret_param(g, secret1, secret2, TRUE);
+                const char *inner_text = g? gbuffer_cur_rd_pointer(g): NULL;
+                if(!inner_text) {
+                    inner_text = "";
+                }
+                if(form == 12) {
+                    gbuffer_printf(gbuf, "command='%s'", inner_text);
+                } else if(form == 13) {
+                    gbuffer_printf(gbuf, "command=\"%s\"", inner_text);
+                } else {
+                    esc = json_quoted(inner_text);
+                    gbuffer_printf(gbuf, "command=%s", esc? esc: "");
+                }
+                GBUFFER_DECREF(g)
+            }
+            break;
+    }
+    GBMEM_FREE(json);
+    GBMEM_FREE(esc);
+}
+
+PRIVATE void gen_noise_param(gbuffer_t *gbuf, int i)
+{
+    switch(pick(17)) {
+        case 0:
+            gbuffer_printf(gbuf, "n%d=v%d", i, i);
+            break;
+        case 1:
+            gbuffer_printf(gbuf, "n%d=\"a b\"", i);
+            break;
+        case 2:
+            gbuffer_printf(gbuf, "n%d='a b'", i);
+            break;
+        case 3:
+            gbuffer_printf(gbuf, "n%d=5\"", i);
+            break;
+        case 4:
+            gbuffer_printf(gbuf, "n%d=\"a", i);
+            break;
+        case 5:
+            gbuffer_printf(gbuf, "\"");
+            break;
+        case 6:
+            gbuffer_printf(gbuf, "n%d=it's", i);
+            break;
+        case 7:
+            gbuffer_printf(gbuf, "n%d='a", i);
+            break;
+        case 8:
+            gbuffer_printf(gbuf, "n%d={\"x\":\"y\"}", i);
+            break;
+        case 9:
+            gbuffer_printf(gbuf, "n%d=\\\"", i);
+            break;
+        case 10:
+            gbuffer_printf(gbuf, "n%d=\"{\\\"a\\\":\\\"b\\\"}\"", i);
+            break;
+        case 11:
+            gbuffer_printf(gbuf, "n%d=\\\\\\\"", i);
+            break;
+        case 12:
+            gbuffer_printf(gbuf, "n%d='{\"a\":\"\\\"'", i);
+            break;
+        case 13:
+            gbuffer_printf(gbuf, "n%d=\"{\\\"a\\\":", i);
+            break;
+        case 14:
+            gbuffer_printf(gbuf, "\\");
+            break;
+        case 15:
+            gbuffer_printf(gbuf, "n%d:\"x\"", i);
+            break;
+        default:
+            gbuffer_printf(gbuf, "'");
+            break;
+    }
+}
+
+PRIVATE void test_generated_commands(void)
+{
+    const char *verbs[] = {"update-node", "set-user-pwd", "command-yuno id=x", "create-node"};
+    int n_cases = 20000;
+    int leaks = 0;
+    int kept = 0;
+    int errors = s_errors;
+    uint64_t t0 = time_in_milliseconds_monotonic();
+    for(int i=0; i<n_cases; i++) {
+        char secret1[32];
+        char secret2[32];
+        char control[32];
+        snprintf(secret1, sizeof(secret1), "Zs%dQ", i);
+        snprintf(secret2, sizeof(secret2), "Zt%dQ", i);
+        snprintf(control, sizeof(control), "Vk%dQ", i);
+
+        gbuffer_t *gbuf = gbuffer_create(1024, 64*1024);
+        gbuffer_printf(gbuf, "%s keep=%s", verbs[pick(4)], control);
+        int before = (int)pick(5);
+        int after = (int)pick(4);
+        for(int j=0; j<before; j++) {
+            gbuffer_printf(gbuf, " ");
+            gen_noise_param(gbuf, j);
+        }
+        gbuffer_printf(gbuf, " ");
+        gen_secret_param(gbuf, secret1, secret2, FALSE);
+        for(int j=0; j<after; j++) {
+            gbuffer_printf(gbuf, " ");
+            gen_noise_param(gbuf, before + j);
+        }
+        char *text = gbuffer_cur_rd_pointer(gbuf);
+
+        /*
+         *  In the command text, and as a kw string
+         */
+        for(int where=0; where<2; where++) {
+            json_t *kw = where? json_pack("{s:s}", "data", text): NULL;
+            json_t *jn_record = audit_record_build(where? "update-node": text, kw, DATE, command_table);
+            char *s = record_text(jn_record);
+            if(strstr(s, secret1) || strstr(s, secret2)) {
+                leaks++;
+                if(leaks <= 5) {
+                    printf("     secret written (%s): %s\n     record: %.600s\n",
+                        where? "kw": "text", text, s);
+                }
+            }
+            if(strstr(s, control)) {
+                kept++;
+            }
+            GBMEM_FREE(s);
+            JSON_DECREF(jn_record)
+            JSON_DECREF(kw)
+        }
+        GBUFFER_DECREF(gbuf)
+    }
+    uint64_t t1 = time_in_milliseconds_monotonic();
+    char name[160];
+    snprintf(name, sizeof(name), "(t) %d generated commands, text and kw: no secret written (%d leaks, %.2f s)",
+        n_cases, leaks, (double)(t1-t0)/1000.0);
+    check(leaks == 0, name);
+    snprintf(name, sizeof(name), "(t) the parameter before them all is kept (%d of %d)", kept, 2*n_cases);
+    check(kept == 2*n_cases, name);
+    check(s_errors == errors, "(t) no error logged");
 }
 
 /***************************************************************************
@@ -1563,6 +2002,8 @@ int main(int argc, char *argv[])
     test_command_word();
     test_more_secrets();
     test_json_text_in_json_text();
+    test_quote_before_json_text();
+    test_generated_commands();
     test_cost();
 
     gobj_end();

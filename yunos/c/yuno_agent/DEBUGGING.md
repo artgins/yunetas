@@ -608,7 +608,8 @@ nearest first:
   stricter than the handler, which reads only `attribute` and `value`: the
   parser gives it `{"ATTRIBUTE": …, "VALUE": …}`, keys as typed. A redaction
   can be stricter than the parser, never looser. Also the
-  token after `Bearer `, and anything with the shape of a JWT (`eyJ…`, three
+  token after `Bearer `, the credentials after `Basic ` when they are base64
+  of `user:password`, and anything with the shape of a JWT (`eyJ…`, three
   parts joined by `.`), wherever they are. This applies to a kw key at any
   depth, to `name=value` in any string (quoted or not, with blanks around the
   `=`), to the command carried by `command-yuno`, and to `"name": value` in a
@@ -628,6 +629,24 @@ nearest first:
   ```text
   update-node topic_name=x content='{"cfg":"{\"password\":\"<redacted>\",\"n\":1}"}'
   ```
+
+  This does not depend on the quotes that come before the JSON text. Every
+  quote that is not escaped begins a quoted run, so a double-quoted parameter
+  or a stray quote earlier in the command does not hide it. This command is
+  recorded with `\"password\":\"<redacted>\"` too:
+
+  ```text
+  update-node topic_name=x id="a b" content='{"cfg":"{\"password\":\"hunter2\"}"}'
+  ```
+
+  The audit judges what it sees as text, whatever the parser does with it
+  later. When no quoted run holds the escaped JSON whole, the key is read by
+  its shape: `\"name\":`, with the backslashes of its level. Its value is
+  then taken with the quotes of that level. Two examples: the parser ends
+  `x="{\"password\":\"hunter2\"}"` at the first `\"`, and
+  `'{\"password\":\"hunter2\"}'` has no quote of its own. Both are recorded
+  with `\"password\":\"<redacted>\"`. For the same reason
+  `password=\"two words\"` is recorded as `password=\"<redacted>\"`.
 
   Deeper than 8 levels, a quoted run with a backslash is not written, only its
   size and sha256 (`<N bytes, not scanned, sha256:HEX>`). Up to 7.25.4
