@@ -413,8 +413,8 @@ available in a fully static build.
 
 ## Source code
 
-- [`yev_loop.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c)
-- [`yev_loop.h`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.h)
+- [`yev_loop.c`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c)
+- [`yev_loop.h`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.h)
 
 ## Function reference
 
@@ -422,7 +422,7 @@ The individual function reference pages are listed in the left-hand
 sidebar under **Event Loop API**.
 
 (yev_create_accept_event)=
-## [`yev_create_accept_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L2642)
+## [`yev_create_accept_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L3695)
 
 `yev_create_accept_event()` creates a new accept event associated with the given event loop and callback function.
 
@@ -459,7 +459,7 @@ Returns a `yev_event_h` handle to the newly created accept event, or `NULL` on f
 ---
 
 (yev_create_connect_event)=
-## [`yev_create_connect_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L2261)
+## [`yev_create_connect_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L3356)
 
 `yev_create_connect_event()` creates a new connect event associated with the specified event loop and callback function.
 
@@ -520,7 +520,7 @@ yev_start_event(ev);
 ---
 
 (yev_create_read_event)=
-## [`yev_create_read_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L3087)
+## [`yev_create_read_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L4141)
 
 `yev_create_read_event()` creates a new read event associated with a given event loop, callback function, file descriptor, and buffer.
 
@@ -555,7 +555,7 @@ The event will be monitored for readability, and when data is available, the spe
 ---
 
 (yev_create_timer_event)=
-## [`yev_create_timer_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L2185)
+## [`yev_create_timer_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L3280)
 
 `yev_create_timer_event()` creates a new timer event associated with the specified event loop and callback function.
 
@@ -586,7 +586,7 @@ The timer event must be started using [`yev_start_timer_event()`](<#yev_start_ti
 ---
 
 (yev_create_write_event)=
-## [`yev_create_write_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L3128)
+## [`yev_create_write_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L4182)
 
 `yev_create_write_event()` creates a write event associated with a given file descriptor and buffer within the specified event loop.
 
@@ -621,7 +621,7 @@ The write event monitors the specified file descriptor for write readiness. Use 
 ---
 
 (yev_destroy_event)=
-## [`yev_destroy_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L2048)
+## [`yev_destroy_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L3148)
 
 `yev_destroy_event()` releases the resources associated with a given event. This makes sure of proper cleanup.
 
@@ -656,7 +656,7 @@ yev_destroy_event(yev_reading); // freed at the completion of the cancel
 ---
 
 (yev_event_type_name)=
-## [`yev_event_type_name()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L3299)
+## [`yev_event_type_name()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L4507)
 
 `yev_event_type_name()` returns a string representation of the event type associated with the given `yev_event_h` handle.
 
@@ -683,7 +683,7 @@ The returned string is statically allocated and must not be modified or freed by
 ---
 
 (yev_flag_strings)=
-## [`yev_flag_strings()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L3325)
+## [`yev_flag_strings()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L4533)
 
 `yev_flag_strings()` returns an array of string representations for `yev_flag_t` enumeration values.
 
@@ -708,7 +708,7 @@ The returned array provides human-readable names for `yev_flag_t` flags, which c
 ---
 
 (yev_get_state_name)=
-## [`yev_get_state_name()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L1200)
+## [`yev_get_state_name()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L2127)
 
 `yev_get_state_name()` retrieves the name of the current state of the specified event.
 
@@ -735,7 +735,7 @@ The returned string corresponds to one of the predefined event states.
 ---
 
 (yev_get_yuno)=
-## [`yev_get_yuno()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L1250)
+## [`yev_get_yuno()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L2200)
 
 `yev_get_yuno()` retrieves the `yuno` object associated with the given event loop.
 
@@ -762,7 +762,7 @@ The returned `hgobj` can be `NULL` if the event loop is not properly initialized
 ---
 
 (yev_loop_create)=
-## [`yev_loop_create()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L126)
+## [`yev_loop_create()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L218)
 
 `yev_loop_create()` initializes a new event loop associated with a given `hgobj` instance, allocating resources for event management.
 
@@ -797,7 +797,7 @@ If `callback` is `NULL`, a default callback will be used when processing events 
 ---
 
 (yev_loop_destroy)=
-## [`yev_loop_destroy()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L293)
+## [`yev_loop_destroy()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L391)
 
 `yev_loop_destroy()` releases all resources associated with the given event loop and terminates its execution.
 
@@ -831,7 +831,7 @@ yev_loop_destroy(yev_loop);     // frees the destroyed events still waiting
 ---
 
 (yev_loop_reset_running)=
-## [`yev_loop_reset_running()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L1087)
+## [`yev_loop_reset_running()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L2014)
 
 `yev_loop_reset_running()` resets the running state of the given event loop, clearing any active execution flags.
 
@@ -858,7 +858,7 @@ Use [`yev_loop_reset_running()`](<#yev_loop_reset_running>) to make sure that th
 ---
 
 (yev_loop_run)=
-## [`yev_loop_run()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L793)
+## [`yev_loop_run()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L1662)
 
 `yev_loop_run()` starts the event loop and processes events until stopped or a timeout occurs.
 
@@ -889,7 +889,7 @@ Every cycle begins with [`gobj_deliver_posted_events()`](../gobj/events_state.md
 ---
 
 (yev_loop_run_once)=
-## [`yev_loop_run_once()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L970)
+## [`yev_loop_run_once()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L1872)
 
 `yev_loop_run_once()` executes a single iteration of the event loop, processing one event if available.
 
@@ -918,7 +918,7 @@ One turn also means one delivery of the posted events: it calls [`gobj_deliver_p
 ---
 
 (yev_loop_stop)=
-## [`yev_loop_stop()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L1058)
+## [`yev_loop_stop()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L1972)
 
 `yev_loop_stop()` stops the execution of the event loop, transitioning it to the idle state.
 
@@ -946,7 +946,7 @@ With a full submission queue that the kernel does not take, the stop is kept and
 ---
 
 (yev_protocol_set_protocol_fill_hints_fn)=
-## [`yev_protocol_set_protocol_fill_hints_fn()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L1095)
+## [`yev_protocol_set_protocol_fill_hints_fn()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L2022)
 
 `yev_protocol_set_protocol_fill_hints_fn()` sets a custom function to fill protocol hints based on a given schema.
 
@@ -973,7 +973,7 @@ This function allows customization of protocol hint filling, which is useful for
 ---
 
 (yev_set_gbuffer)=
-## [`yev_set_gbuffer()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L1222)
+## [`yev_set_gbuffer()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L2149)
 
 `yev_set_gbuffer()` associates a [`gbuffer_t *`](#gbuffer_t) with a given `yev_event_h`. If a previous buffer exists, it is freed before setting the new one.
 
@@ -1009,7 +1009,7 @@ if(!yev_get_gbuf(yev_event)) {
 ---
 
 (yev_start_event)=
-## [`yev_start_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L1258)
+## [`yev_start_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L2208)
 
 `yev_start_event()` starts the specified event, transitioning it to the running state if applicable.
 
@@ -1037,7 +1037,7 @@ With a full submission queue that the kernel does not take, the submission is ke
 ---
 
 (yev_start_timer_event)=
-## [`yev_start_timer_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L1743)
+## [`yev_start_timer_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L2775)
 
 `yev_start_timer_event()` starts a timer event, creating the handler file descriptor if it does not exist.
 
@@ -1069,7 +1069,7 @@ If the timer is in the `IDLE` state, it can be reused. If it is `STOPPED`, a new
 ---
 
 (yev_stop_event)=
-## [`yev_stop_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L1901)
+## [`yev_stop_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L2999)
 
 `yev_stop_event()` stops the specified event. This makes sure that its associated file descriptor is closed if applicable. This operation is idempotent. This means it can be called multiple times without adverse effects.
 
@@ -1110,7 +1110,7 @@ yev_stop_event(yev_reading);    // the read is canceled; its gbuffer waits for t
 ---
 
 (yev_create_poll_event)=
-## [`yev_create_poll_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L3045)
+## [`yev_create_poll_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L4099)
 
 Creates a poll event for monitoring a file descriptor.
 
@@ -1141,7 +1141,7 @@ Returns a `yev_event_h` handle to the newly created poll event, or `NULL` on fai
 ---
 
 (yev_create_recvmsg_event)=
-## [`yev_create_recvmsg_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L3169)
+## [`yev_create_recvmsg_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L4223)
 
 Creates a recvmsg event for receiving messages with socket address information.
 
@@ -1180,7 +1180,7 @@ bytes for an IPv4 peer, 28 bytes for an IPv6 peer. See
 ---
 
 (yev_create_sendmsg_event)=
-## [`yev_create_sendmsg_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L3218)
+## [`yev_create_sendmsg_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L4272)
 
 Creates a sendmsg event for sending messages with a destination address.
 
@@ -1244,7 +1244,7 @@ yev_start_event(ev);
 ---
 
 (yev_dup2_accept_event)=
-## [`yev_dup2_accept_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L2991)
+## [`yev_dup2_accept_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L4045)
 
 Creates a duplicate accept event from a raw listen socket file descriptor.
 
@@ -1273,7 +1273,7 @@ Returns a `yev_event_h` handle to the newly created accept event, or `NULL` on f
 ---
 
 (yev_dup_accept_event)=
-## [`yev_dup_accept_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L2934)
+## [`yev_dup_accept_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L3988)
 
 Creates a duplicate accept event based on an existing server accept event.
 
@@ -1300,7 +1300,7 @@ Returns a `yev_event_h` handle to the newly created duplicate accept event, or `
 ---
 
 (yev_rearm_connect_event)=
-## [`yev_rearm_connect_event()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/yev_loop/src/yev_loop.c#L2314)
+## [`yev_rearm_connect_event()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/yev_loop/src/yev_loop.c#L3409)
 
 Prepares or reuses a connect event by establishing a connection to a destination URL.
 
@@ -1331,7 +1331,7 @@ Returns the file descriptor on success, or `-1` on error. The addresses of the d
 ---
 
 (set_measure_times)=
-## [`set_measure_times()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/testing.c#L405)
+## [`set_measure_times()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/testing.c#L418)
 
 `set_measure_times()` enables per-operation latency measurement inside
 the event loop for a subset of `yev_event` types. The measurements are
@@ -1360,7 +1360,7 @@ Only turn it on for benchmarks or targeted diagnostics.
 ---
 
 (get_measure_times)=
-## [`get_measure_times()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/testing.c#L422)
+## [`get_measure_times()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/testing.c#L435)
 
 `get_measure_times()` returns the bitmask of `yev_event` types that
 currently have latency measurement enabled. Used together with

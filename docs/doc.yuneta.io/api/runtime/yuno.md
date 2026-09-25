@@ -30,7 +30,7 @@ int register_c_yuno(void);
 ---
 
 (yuno_event_loop)=
-## [`yuno_event_loop()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_yuno.c#L5898)
+## [`yuno_event_loop()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/root-linux/src/c_yuno.c#L5997)
 
 Returns the yuno's event loop handle. The return type is `void *` to
 avoid exposing the `yev_loop.h` header to callers.
@@ -52,7 +52,7 @@ Pointer to the `yev_loop` instance (cast to `void *`).
 ---
 
 (yuno_event_destroy)=
-## [`yuno_event_destroy()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_yuno.c#L5906)
+## [`yuno_event_destroy()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/root-linux/src/c_yuno.c#L6005)
 
 Destroys and frees the yuno event loop.
 
@@ -73,7 +73,7 @@ This function does not return a value.
 ---
 
 (set_yuno_must_die)=
-## [`set_yuno_must_die()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_yuno.c#L5917)
+## [`set_yuno_must_die()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/root-linux/src/c_yuno.c#L6016)
 
 Orders the yuno to exit gracefully. Logs an exit message, sets the exit
 code to `0`, flushes logs, and calls
@@ -96,7 +96,7 @@ This function does not return a value.
 ---
 
 (is_ip_allowed)=
-## [`is_ip_allowed()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_yuno.c#L5936)
+## [`is_ip_allowed()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/root-linux/src/c_yuno.c#L6264)
 
 Checks whether an IP address is in the allowed-IPs list.
 The lookup key is the ip of the peername, without its port:
@@ -192,7 +192,7 @@ The lists are saved once, rewritten.
 ---
 
 (is_ip_denied)=
-## [`is_ip_denied()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_yuno.c#L5979)
+## [`is_ip_denied()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/root-linux/src/c_yuno.c#L6307)
 
 Checks whether an IP address is in the denied-IPs list, with the same
 lookup key as [`is_ip_allowed()`](#is_ip_allowed). A link-local peer

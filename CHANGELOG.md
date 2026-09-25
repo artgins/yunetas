@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.5 (2026-09-25)
 
 What changed after 7.25.4. Each behaviour change has a test that fails on the
 code before it, except those listed under "No red test" in `TODO.md`.

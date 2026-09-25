@@ -4,11 +4,11 @@ Wall-clock and monotonic time helpers: format and parse ISO-8601 timestamps, con
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c)
 
 (current_timestamp)=
-## [`current_timestamp()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5291)
+## [`current_timestamp()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L5860)
 
 Generates a timestamp string with nanosecond precision in ISO 8601 format, including the local timezone offset.
 
@@ -37,7 +37,7 @@ The function uses `clock_gettime(CLOCK_REALTIME, &ts)` to obtain the current tim
 ---
 
 (date_mode_from_type)=
-## [`date_mode_from_type()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L3672)
+## [`date_mode_from_type()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L4241)
 
 The function `date_mode_from_type()` returns a pointer to a static `struct date_mode` initialized with the given `date_mode_type`. If the type is `DATE_STRFTIME`, an error message is logged.
 
@@ -64,7 +64,7 @@ The returned pointer refers to a static structure, so it must not be modified or
 ---
 
 (date_overflows)=
-## [`date_overflows()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L4839)
+## [`date_overflows()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L5408)
 
 Checks if a given timestamp exceeds the system's time_t limits. This makes sure of it fits within the supported range.
 
@@ -89,7 +89,7 @@ This function makes sure that the given timestamp does not exceed the maximum re
 ---
 
 (datestamp)=
-## [`datestamp()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L4391)
+## [`datestamp()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L4960)
 
 Generates a timestamp string representing the current date and time in a standard format.
 
@@ -118,7 +118,7 @@ The function formats the current date and time into a string and stores it in th
 ---
 
 (formatdate)=
-## [`formatdate()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5650)
+## [`formatdate()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L6219)
 
 `formatdate()` formats a given timestamp into a human-readable date string based on a specified format.
 
@@ -151,7 +151,7 @@ Returns a pointer to the formatted date string stored in `bf`.
 ---
 
 (htonll)=
-## [`htonll()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5502)
+## [`htonll()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L6071)
 
 `htonll()` converts a 64-bit integer from host byte order to network byte order. This makes sure of correct endianness for network communication.
 
@@ -176,7 +176,7 @@ If the system is little-endian, the function swaps the byte order. Otherwise, it
 ---
 
 (list_open_files)=
-## [`list_open_files()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5532)
+## [`list_open_files()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L6101)
 
 Lists all open file descriptors for the current process by reading symbolic links in `/proc/self/fd` and printing their resolved paths.
 
@@ -201,7 +201,7 @@ None.
 ---
 
 (ntohll)=
-## [`ntohll()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5517)
+## [`ntohll()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L6086)
 
 Converts a 64-bit integer from network byte order to host byte order. The function makes sure of proper endianness conversion based on the system's architecture.
 
@@ -226,7 +226,7 @@ This function checks the system's byte order and swaps bytes if necessary to mak
 ---
 
 (parse_date)=
-## [`parse_date()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L4323)
+## [`parse_date()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L4892)
 
 Parses a date string into a structured timestamp and timezone offset. The function supports various date formats and converts them into a standardized format.
 
@@ -257,7 +257,7 @@ The function supports various date formats, including relative dates like 'yeste
 ---
 
 (parse_date_basic)=
-## [`parse_date_basic()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L4229)
+## [`parse_date_basic()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L4798)
 
 Parses a date string into a timestamp and timezone offset. The function supports various date formats and extracts the corresponding Unix timestamp and timezone offset.
 
@@ -288,7 +288,7 @@ This function is used internally by `approxidate_careful()` and `approxidate_rel
 ---
 
 (parse_date_format)=
-## [`parse_date_format()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L4361)
+## [`parse_date_format()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L4930)
 
 Parses a date format string and initializes a `date_mode` structure with the corresponding format type and localization settings.
 
@@ -317,7 +317,7 @@ If the format string starts with `auto:`, the function selects an appropriate fo
 ---
 
 (parse_expiry_date)=
-## [`parse_expiry_date()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L4301)
+## [`parse_expiry_date()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L4870)
 
 Parses a date string and converts it into a timestamp. Special keywords like `never`, `all`, and `now` are handled explicitly.
 
@@ -346,7 +346,7 @@ If the `date` string is `never`, the function sets `timestamp` to 0. If `date` i
 ---
 
 (show_date)=
-## [`show_date()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L3681)
+## [`show_date()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L4250)
 
 Formats a given timestamp into a human-readable date string based on the specified date mode and timezone offset.
 
@@ -377,7 +377,7 @@ The returned string is stored in a static buffer and must not be modified or fre
 ---
 
 (show_date_relative)=
-## [`show_date_relative()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L3595)
+## [`show_date_relative()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L4164)
 
 Formats a timestamp into a human-readable relative time string, such as '3 days ago' or '2 hours ago'.
 
@@ -408,7 +408,7 @@ The function calculates the difference between the given timestamp and the curre
 ---
 
 (start_msectimer)=
-## [`start_msectimer()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5365)
+## [`start_msectimer()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L5934)
 
 `start_msectimer()` initializes a millisecond-resolution timer and returns the expiration timestamp.
 
@@ -445,7 +445,7 @@ if(test_msectimer(t_retry)) {
 ---
 
 (start_sectimer)=
-## [`start_sectimer()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5336)
+## [`start_sectimer()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L5905)
 
 `start_sectimer()` initializes a timer by adding the specified number of seconds to the current system time and returns the future timestamp.
 
@@ -472,7 +472,7 @@ Returns a `time_t` value representing the future timestamp when the timer will e
 ---
 
 (t2timestamp)=
-## [`t2timestamp()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5317)
+## [`t2timestamp()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L5886)
 
 `t2timestamp()` converts a given time value into a formatted timestamp string, supporting both local and UTC time representations.
 
@@ -505,7 +505,7 @@ The function uses `strftime()` to format the timestamp in ISO 8601 format with t
 ---
 
 (test_msectimer)=
-## [`test_msectimer()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5375)
+## [`test_msectimer()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L5944)
 
 Checks if the given millisecond timer has expired by comparing it with the current monotonic time.
 
@@ -532,7 +532,7 @@ The function uses [`time_in_milliseconds_monotonic()`](#time_in_milliseconds_mon
 ---
 
 (test_sectimer)=
-## [`test_sectimer()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5348)
+## [`test_sectimer()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L5917)
 
 Checks if the given `value` time has elapsed compared to the current system time (the wall clock, `time()`: see [`start_sectimer()`](#start_sectimer)).
 
@@ -557,7 +557,7 @@ If `value` is less than or equal to zero, the function returns `FALSE` without p
 ---
 
 (time_in_seconds)=
-## [`time_in_seconds()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5415)
+## [`time_in_seconds()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L5984)
 
 `time_in_seconds()` returns the current system time in seconds since the Unix epoch (January 1, 1970).
 
@@ -582,7 +582,7 @@ Returns the current time in seconds as a `uint64_t` integer.
 ---
 
 (tm2timestamp)=
-## [`tm2timestamp()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5308)
+## [`tm2timestamp()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L5877)
 
 Converts a `struct tm` time representation into an ISO 8601 formatted timestamp string.
 
@@ -613,7 +613,7 @@ The output format follows the ISO 8601 standard: `YYYY-MM-DDTHH:MM:SS.0±HHMM`.
 ---
 
 (tm_to_time_t)=
-## [`tm_to_time_t()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L3471)
+## [`tm_to_time_t()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L4040)
 
 `tm_to_time_t()` converts a `struct tm` representation of a date and time into a `time_t` value, assuming UTC and without normalizing `tm_wday` or `tm_yday`.
 
@@ -640,7 +640,7 @@ This function does not perform normalization of `tm_wday` or `tm_yday`, and it a
 ---
 
 (get_days_range)=
-## [`get_days_range()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L7708)
+## [`get_days_range()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L8277)
 
 Calculates a time range spanning multiple days.
 
@@ -671,7 +671,7 @@ Day boundaries are computed in the specified timezone so that the range aligns t
 ---
 
 (get_hours_range)=
-## [`get_hours_range()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L7676)
+## [`get_hours_range()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L8245)
 
 Calculates a time range spanning multiple hours.
 
@@ -702,7 +702,7 @@ Hour boundaries are computed in the specified timezone so that the range aligns 
 ---
 
 (get_months_range)=
-## [`get_months_range()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L7784)
+## [`get_months_range()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L8353)
 
 Calculates a time range spanning multiple months.
 
@@ -733,7 +733,7 @@ Month boundaries are computed in the specified timezone so that the range aligns
 ---
 
 (get_weeks_range)=
-## [`get_weeks_range()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L7739)
+## [`get_weeks_range()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L8308)
 
 Calculates a time range spanning multiple weeks, starting from Monday.
 
@@ -764,7 +764,7 @@ Week boundaries are computed in the specified timezone with weeks starting on Mo
 ---
 
 (get_years_range)=
-## [`get_years_range()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L7815)
+## [`get_years_range()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L8384)
 
 Calculates a time range spanning multiple years, starting from January 1st.
 
@@ -795,7 +795,7 @@ Year boundaries are computed in the specified timezone so that the range aligns 
 ---
 
 (gmtime2timezone)=
-## [`gmtime2timezone()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5594)
+## [`gmtime2timezone()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L6163)
 
 Converts a Unix timestamp to local time in a specified timezone.
 
@@ -828,7 +828,7 @@ The function temporarily sets the `TZ` environment variable to perform the conve
 ---
 
 (time_in_milliseconds)=
-## [`time_in_milliseconds()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5402)
+## [`time_in_milliseconds()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L5971)
 
 Returns the current wall-clock time in milliseconds since the Unix epoch.
 
@@ -853,7 +853,7 @@ This clock is subject to system time adjustments (for example NTP). For measurin
 ---
 
 (time_in_milliseconds_monotonic)=
-## [`time_in_milliseconds_monotonic()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/helpers.c#L5390)
+## [`time_in_milliseconds_monotonic()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/helpers.c#L5959)
 
 Returns the current monotonic time in milliseconds.
 
