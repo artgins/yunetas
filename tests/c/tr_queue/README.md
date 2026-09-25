@@ -24,6 +24,16 @@ And a create that fails only at the `mkdir` of its `keys/`:
 memory, the next create makes it whole, and a queue backup that meets it keeps
 the queue's topic. In 7.25.4 the create answered a topic with no `keys/`,
 and the backup took it as the queue's new topic.
+And (review 18) a backup that fails and cannot open the topic again
+either (its `topic_desc.json` of mode 0 for a moment; SKIPPED as root): the
+queue has no topic, a read and an ack fail and say it once (*"Queue without
+topic, it cannot be opened"*), and once the file can be read the queue takes
+its topic again by name (*"Queue topic taken again"*) and the next check backs
+it up; for `tr_queue` and for `tr2q`. Before this fix the topic stayed `NULL`
+for good. And a tranger opened with `on_critical_error` `LOG_OPT_EXIT_ZERO`
+(the MQTT broker's queues): a backup whose new topic cannot be created does
+not exit (an `atexit()` handler turns such an exit into a failure), moves the
+backup back, and the queue keeps its message.
 
 ## Run
 

@@ -103,6 +103,46 @@ PUBLIC tr_queue_t *trq_open(
 }
 
 /***************************************************************************
+ *  The topic of the queue. A backup that failed, and could not open the
+ *  topic again, left it NULL: it is taken again by name as soon as it can
+ *  be opened (before this fix it stayed NULL for good: every read and ack of
+ *  the queue failed, and the backup was never tried again). NULL while it
+ *  cannot, said once.
+ ***************************************************************************/
+PRIVATE json_t *take_queue_topic(tr_queue_t *trq)
+{
+    if(trq->topic) {
+        return trq->topic;
+    }
+
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));
+    trq->topic = tranger2_topic(trq->tranger, trq->topic_name);  // logs the cause when it fails
+    if(!trq->topic) {
+        if(!trq->topic_missing_said) {
+            trq->topic_missing_said = TRUE;
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "Queue without topic, it cannot be opened",
+                "topic_name",   "%s", trq->topic_name,
+                NULL
+            );
+        }
+        return NULL;
+    }
+
+    trq->topic_missing_said = FALSE;
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TRANGER,
+        "msg",          "%s", "Queue topic taken again",
+        "topic_name",   "%s", trq->topic_name,
+        NULL
+    );
+    return trq->topic;
+}
+
+/***************************************************************************
     Close queue (After close the queue remember tranger2_shutdown())
  ***************************************************************************/
 PUBLIC void trq_close(tr_queue_t * trq)
@@ -130,7 +170,7 @@ PRIVATE void trq_set_first_rowid(tr_queue_t * trq, uint64_t first_rowid)
         // first_rowid will be set in trq->topic too
         tranger2_write_topic_var(
             trq->tranger,
-            tranger2_topic_name(trq->topic),
+            trq->topic_name,
             jn_topic_var  // owned
         );
     }
@@ -241,7 +281,7 @@ PUBLIC int trq_load(tr_queue_t * trq)
 
     uint64_t last_first_rowid = kw_get_int(
         gobj,
-        trq->topic,
+        take_queue_topic(trq),
         "first_rowid",  // get from topic_var (trq_set_first_rowid)
         0,
         0
@@ -507,9 +547,12 @@ PUBLIC void trq_unload_msg(q_msg_t *msg, int32_t result)
  ***************************************************************************/
 PUBLIC int trq_set_hard_flag(q_msg_t *msg, uint16_t hard_mark, BOOL set)
 {
+    if(!take_queue_topic(msg->trq)) {
+        return -1;  // Error already logged
+    }
     return tranger2_set_user_flag(
         msg->trq->tranger,
-        tranger2_topic_name(msg->trq->topic),
+        msg->trq->topic_name,
         "",
         msg->md_record.__t__,
         msg->md_record.rowid,
@@ -543,9 +586,13 @@ PUBLIC uint64_t trq_set_soft_mark(q_msg_t *msg, uint64_t soft_mark, BOOL set)
  ***************************************************************************/
 PUBLIC json_t *trq_msg_json(q_msg_t *msg) // Load the message, Return json is YOURS!!
 {
+    json_t *topic = take_queue_topic(msg->trq);
+    if(!topic) {
+        return NULL;    // Error already logged
+    }
     json_t *jn_record = tranger2_read_record_content( // return is yours
         msg->trq->tranger,
-        msg->trq->topic,
+        topic,
         "",
         &msg->md_record
     );
@@ -636,7 +683,11 @@ PUBLIC json_t *trq_answer(
 PUBLIC int trq_check_backup(tr_queue_t * trq)
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));
-    uint64_t backup_queue_size = kw_get_int(gobj, trq->topic, "backup_queue_size", 0, 0);
+    json_t *topic_ = take_queue_topic(trq);
+    if(!topic_) {
+        return -1;  // Error already logged
+    }
+    uint64_t backup_queue_size = kw_get_int(gobj, topic_, "backup_queue_size", 0, 0);
 
     if(backup_queue_size) {
         uint64_t sz = tranger2_topic_size(trq->tranger, trq->topic_name);

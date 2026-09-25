@@ -204,6 +204,46 @@ PUBLIC void tr2q_set_verbose(tr2_queue_t *trq, BOOL verbose)
 }
 
 /***************************************************************************
+ *  The topic of the queue. A backup that failed, and could not open the
+ *  topic again, left it NULL: it is taken again by name as soon as it can
+ *  be opened (before this fix it stayed NULL for good: every read and ack of
+ *  the queue failed, and the backup was never tried again). NULL while it
+ *  cannot, said once.
+ ***************************************************************************/
+PRIVATE json_t *take_queue_topic(tr2_queue_t *trq)
+{
+    if(trq->topic) {
+        return trq->topic;
+    }
+
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));
+    trq->topic = tranger2_topic(trq->tranger, trq->topic_name);  // logs the cause when it fails
+    if(!trq->topic) {
+        if(!trq->topic_missing_said) {
+            trq->topic_missing_said = TRUE;
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "Queue without topic, it cannot be opened",
+                "topic_name",   "%s", trq->topic_name,
+                NULL
+            );
+        }
+        return NULL;
+    }
+
+    trq->topic_missing_said = FALSE;
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TRANGER,
+        "msg",          "%s", "Queue topic taken again",
+        "topic_name",   "%s", trq->topic_name,
+        NULL
+    );
+    return trq->topic;
+}
+
+/***************************************************************************
     Set first rowid to search
  ***************************************************************************/
 PRIVATE void tr2q_set_first_rowid(tr2_queue_t *trq, uint64_t first_rowid)
@@ -222,7 +262,7 @@ PRIVATE void tr2q_set_first_rowid(tr2_queue_t *trq, uint64_t first_rowid)
         // first_rowid will be set in trq->topic too
         tranger2_write_topic_var(
             trq->tranger,
-            tranger2_topic_name(trq->topic),
+            trq->topic_name,
             jn_topic_var  // owned
         );
     }
@@ -354,7 +394,7 @@ PUBLIC int tr2q_load(tr2_queue_t *trq)
 
     uint64_t last_first_rowid = kw_get_int(
         gobj,
-        trq->topic,
+        take_queue_topic(trq),
         "first_rowid",  // get from topic_var (tr2q_set_first_rowid)
         0,
         0
@@ -672,9 +712,13 @@ PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Return is not yours, free with tr
     hgobj gobj = (hgobj)json_integer_value(json_object_get(msg->trq->tranger, "gobj"));
 
     if(!msg->kw_record) {
+        json_t *topic = take_queue_topic(msg->trq);
+        if(!topic) {
+            return NULL;    // Error already logged
+        }
         msg->kw_record = tranger2_read_record_content( // return is yours
             msg->trq->tranger,
-            msg->trq->topic,
+            topic,
             "",
             &msg->md_record
         );
@@ -709,9 +753,12 @@ PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Return is not yours, free with tr
  ***************************************************************************/
 PRIVATE int tr2q_set_hard_flag(q2_msg_t *msg, uint16_t hard_mark, BOOL set)
 {
+    if(!take_queue_topic(msg->trq)) {
+        return -1;  // Error already logged
+    }
     return tranger2_set_user_flag(
         msg->trq->tranger,
-        tranger2_topic_name(msg->trq->topic),
+        msg->trq->topic_name,
         "",
         msg->md_record.__t__,
         msg->md_record.rowid,
@@ -728,9 +775,12 @@ PUBLIC int tr2q_save_hard_mark(q2_msg_t *msg, uint16_t value)
 {
     msg->md_record.user_flag = value | TR2Q_MSG_PENDING;
 
+    if(!take_queue_topic(msg->trq)) {
+        return -1;  // Error already logged
+    }
     return tranger2_write_user_flag(
         msg->trq->tranger,
-        tranger2_topic_name(msg->trq->topic),
+        msg->trq->topic_name,
         "",
         msg->md_record.__t__,
         msg->md_record.rowid,
@@ -744,7 +794,11 @@ PUBLIC int tr2q_save_hard_mark(q2_msg_t *msg, uint16_t value)
 PUBLIC int tr2q_check_backup(tr2_queue_t *trq)
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));
-    uint64_t backup_queue_size = kw_get_int(gobj, trq->topic, "backup_queue_size", 0, 0);
+    json_t *topic_ = take_queue_topic(trq);
+    if(!topic_) {
+        return -1;  // Error already logged
+    }
+    uint64_t backup_queue_size = kw_get_int(gobj, topic_, "backup_queue_size", 0, 0);
 
     if(backup_queue_size) {
         uint64_t sz = tranger2_topic_size(trq->tranger, trq->topic_name);

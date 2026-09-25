@@ -29,6 +29,20 @@
  *  answered a topic with no keys/ -- and a backup took that half topic as
  *  the queue's new one.
  *
+ *  And (review 18) a backup that fails and cannot open the topic again
+ *  either (its topic_desc.json unreadable for a moment, mode 0): the queue
+ *  has no topic. Once the file can be read again, the queue takes its topic
+ *  again by name, at the next trq_check_backup() / tr2q_check_backup() or
+ *  at the next read or ack of a message. Before this fix the topic stayed NULL
+ *  for good: every read answered NULL, every ack -1, and the check answered
+ *  0 and never backed up again. Skipped as root (mode 0 does not stop it).
+ *
+ *  And a tranger opened with on_critical_error LOG_OPT_EXIT_ZERO (the MQTT
+ *  broker's queues): a backup whose new topic cannot be created moves the
+ *  backup back and the queue goes on. Before this fix the CRITICAL of the
+ *  failed mkdir called exit(0) before the put-back, and the data stayed in
+ *  the backup (an atexit() handler below turns that exit into a failure).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -419,6 +433,269 @@ PRIVATE int test_create_keys_fails(void)
 }
 
 /***************************************************************************
+ *  The queue loses its topic (a backup that fails, and a topic that cannot
+ *  be opened again), and takes it again once it can be opened
+ ***************************************************************************/
+PRIVATE void make_topic_unreadable(const char *topic_name, BOOL unreadable)
+{
+    char topic_dir[PATH_MAX];
+    char topic_desc[PATH_MAX];
+    build_path(topic_dir, sizeof(topic_dir), path_database, topic_name, NULL);
+    build_path(topic_desc, sizeof(topic_desc), topic_dir, "topic_desc.json", NULL);
+    chmod(topic_desc, unreadable? 0: 0660);
+}
+
+#define MSG_JSON_FILE   "Cannot open a json file"
+#define MSG_DESC        "Cannot open topic: topic_desc.json does not load"
+
+PRIVATE json_t *expected_topic_lost(void)
+{
+    return json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        "msg", MSG_JSON_FILE,           // the backup loads topic_desc.json
+        "msg", "Cannot load topic_desc.json",
+        "msg", MSG_JSON_FILE,           // and cannot open the topic again
+        "msg", MSG_DESC,
+        "msg", "Backup of topic failed, and the topic cannot be opened again",
+        "msg", MSG_JSON_FILE,           // nor can the queue
+        "msg", MSG_DESC,
+        "msg", "Cannot open topic",
+        "msg", "Queue backup failed, and the queue has no topic"
+    );
+}
+
+PRIVATE json_t *expected_topic_not_opened(BOOL said)
+{
+    if(said) {
+        return json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", MSG_JSON_FILE,
+            "msg", MSG_DESC,
+            "msg", "Cannot open topic",
+            "msg", "Queue without topic, it cannot be opened"
+        );
+    }
+    return json_pack("[{s:s},{s:s},{s:s}]",
+        "msg", MSG_JSON_FILE,
+        "msg", MSG_DESC,
+        "msg", "Cannot open topic"
+    );
+}
+
+PRIVATE int test_trq_topic_taken_again(void)
+{
+    int result = 0;
+    const char *topic_name = "trq_retake";
+    rmrdir(path_database);
+
+    set_expected_results("trq_retake: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup();
+    tr_queue_t *trq = trq_open(tranger, topic_name, "tm", 0, 1 /* backup_queue_size */);
+    trq_load(trq);
+    q_msg_t *msg = trq_append2(trq, 946684801, json_pack("{s:i, s:I}", "n", 1, "tm", (json_int_t)946684801), 0);
+    trq_unload_msg(msg, 0);
+    msg = trq_append2(trq, 946684802, json_pack("{s:i, s:I}", "n", 2, "tm", (json_int_t)946684802), 0);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    /*
+     *  1. The backup fails, and the topic cannot be opened again
+     */
+    make_topic_unreadable(topic_name, TRUE);
+    set_expected_results("trq_retake: the queue loses its topic", expected_topic_lost(), NULL, NULL, 1);
+    int ret = trq_check_backup(trq);
+    result += expect_int("trq_retake: trq_check_backup() of a failed backup", ret, -1);
+    result += expect_int("trq_retake: the queue has no topic", trq->topic? 1: 0, 0);
+    result += test_json(NULL);
+
+    /*
+     *  2. While it cannot be opened: a read and an ack fail, said once
+     */
+    set_expected_results("trq_retake: a read without topic", expected_topic_not_opened(TRUE), NULL, NULL, 1);
+    json_t *jn = trq_msg_json(msg);
+    result += expect_int("trq_retake: a read without topic answers NULL", jn? 1: 0, 0);
+    JSON_DECREF(jn)
+    result += test_json(NULL);
+
+    set_expected_results("trq_retake: an ack without topic", expected_topic_not_opened(FALSE), NULL, NULL, 1);
+    result += expect_int("trq_retake: an ack without topic answers -1",
+        trq_set_hard_flag(msg, TRQ_MSG_PENDING, 0), -1);
+    result += test_json(NULL);
+
+    /*
+     *  3. It can be opened again: the read takes it again, and the ack works
+     */
+    make_topic_unreadable(topic_name, FALSE);
+    set_expected_results("trq_retake: the read takes the topic again",
+        json_pack("[{s:s}]", "msg", "Queue topic taken again"), NULL, NULL, 1);
+    jn = trq_msg_json(msg);
+    result += expect_int("trq_retake: the read answers the message", jn? 1: 0, 1);
+    JSON_DECREF(jn)
+    if(!trq->topic || trq->topic != tranger2_topic(tranger, topic_name)) {
+        printf("%sERROR%s --> trq_retake: the queue did not take its topic again\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += expect_int("trq_retake: the ack works", trq_set_hard_flag(msg, TRQ_MSG_PENDING, 0), 0);
+    trq_unload_msg(msg, 0);
+    result += test_json(NULL);
+
+    /*
+     *  4. And the next check backs the queue up
+     */
+    set_expected_results(
+        "trq_retake: the next check backs up",
+        json_pack("[{s:s},{s:s}]",
+            "msg", MSG_MOVING,
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    ret = trq_check_backup(trq);
+    result += expect_int("trq_retake: trq_check_backup() backs up", ret, 0);
+    result += expect_int("trq_retake: the new topic is empty",
+        (json_int_t)tranger2_topic_size(tranger, topic_name), 0);
+    trq_close(trq);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+PRIVATE int test_tr2q_topic_taken_again(void)
+{
+    int result = 0;
+    const char *topic_name = "tr2q_retake";
+    rmrdir(path_database);
+
+    set_expected_results("tr2q_retake: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup();
+    tr2_queue_t *trq = tr2q_open(tranger, topic_name, "tm", 0, 10, 1 /* backup_queue_size */);
+    tr2q_load(trq);
+    q2_msg_t *msg = tr2q_append(trq, 946684801, tr2q_kw(1, 946684801), 0);
+    tr2q_unload_msg(msg, 0);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    make_topic_unreadable(topic_name, TRUE);
+    set_expected_results("tr2q_retake: the queue loses its topic", expected_topic_lost(), NULL, NULL, 1);
+    int ret = tr2q_check_backup(trq);
+    result += expect_int("tr2q_retake: tr2q_check_backup() of a failed backup", ret, -1);
+    result += expect_int("tr2q_retake: the queue has no topic", trq->topic? 1: 0, 0);
+    result += test_json(NULL);
+
+    set_expected_results("tr2q_retake: a check without topic", expected_topic_not_opened(TRUE), NULL, NULL, 1);
+    ret = tr2q_check_backup(trq);
+    result += expect_int("tr2q_retake: tr2q_check_backup() without topic answers -1", ret, -1);
+    result += test_json(NULL);
+
+    make_topic_unreadable(topic_name, FALSE);
+    set_expected_results(
+        "tr2q_retake: the next check takes the topic again, and backs up",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "Queue topic taken again",
+            "msg", MSG_MOVING,
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    ret = tr2q_check_backup(trq);
+    result += expect_int("tr2q_retake: tr2q_check_backup() backs up", ret, 0);
+    if(!trq->topic || trq->topic != tranger2_topic(tranger, topic_name)) {
+        printf("%sERROR%s --> tr2q_retake: the queue has no topic\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += expect_int("tr2q_retake: the new topic is empty",
+        (json_int_t)tranger2_topic_size(tranger, topic_name), 0);
+    result += test_json(NULL);
+
+    set_expected_results("tr2q_retake: the queue works", NULL, NULL, NULL, 1);
+    msg = tr2q_append(trq, 946684802, tr2q_kw(2, 946684802), 0);
+    result += expect_int("tr2q_retake: append", msg? 1: 0, 1);
+    if(msg) {
+        result += expect_int("tr2q_retake: a read", tr2q_msg_json(msg)? 1: 0, 1);
+        result += expect_int("tr2q_retake: a hard mark", tr2q_save_hard_mark(msg, 0), 0);
+        tr2q_unload_msg(msg, 0);
+    }
+    tr2q_close(trq);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  A backup whose create fails, in a tranger that exits on a CRITICAL
+ ***************************************************************************/
+PRIVATE BOOL in_exit_zero_case = FALSE;
+
+PRIVATE void exit_in_exit_zero_case(void)
+{
+    if(in_exit_zero_case) {
+        printf("%sERROR%s --> exit_zero: the process exited in the backup (exit(0) of a CRITICAL): "
+            "the backup was not moved back\n", On_Red BWhite, Color_Off);
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+        fflush(stdout);
+        _exit(-1);
+    }
+}
+
+PRIVATE int test_exit_zero_create_fails(void)
+{
+    int result = 0;
+    const char *topic_name = "tr2q_exit_zero";
+    rmrdir(path_database);
+
+    set_expected_results("exit_zero: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 1,
+        "on_critical_error", (int)LOG_OPT_EXIT_ZERO     // as the broker's queues
+    ), 0);
+    tr2_queue_t *trq = tr2q_open(tranger, topic_name, "tm", 0, 10, 1 /* backup_queue_size */);
+    tr2q_load(trq);
+    q2_msg_t *msg = tr2q_append(trq, 946684801, tr2q_kw(1, 946684801), 0);
+    tr2q_unload_msg(msg, 0);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    char topic_dir[PATH_MAX];
+    char backup_dir[PATH_MAX];
+    char bak_name[NAME_MAX];
+    snprintf(bak_name, sizeof(bak_name), "%s.bak", topic_name);
+    build_path(topic_dir, sizeof(topic_dir), path_database, topic_name, NULL);
+    build_path(backup_dir, sizeof(backup_dir), path_database, bak_name, NULL);
+    snprintf(failing_mkdir, sizeof(failing_mkdir), "%s", topic_dir);
+
+    set_expected_results(
+        "exit_zero: the new topic cannot be created",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", MSG_MOVING,
+            "msg", "newdir() FAILED",
+            "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED",
+            "msg", MSG_ABANDON,
+            "msg", MSG_REOPENED,
+            "msg", MSG_QUEUE
+        ),
+        NULL, NULL, 1
+    );
+    in_exit_zero_case = TRUE;
+    int ret = tr2q_check_backup(trq);
+    in_exit_zero_case = FALSE;
+    failing_mkdir[0] = 0;
+    result += expect_int("exit_zero: tr2q_check_backup() of a failed create", ret, -1);
+    result += expect_int("exit_zero: the backup was moved back", (json_int_t)is_directory(backup_dir), 0);
+    result += expect_int("exit_zero: the queue keeps its message",
+        (json_int_t)tranger2_topic_size(tranger, topic_name), 1);
+    result += expect_int("exit_zero: the tranger exits on a CRITICAL again",
+        kw_get_int(0, tranger, "on_critical_error", 0, 0), LOG_OPT_EXIT_ZERO);
+    result += test_json(NULL);
+
+    set_expected_results("exit_zero: shutdown", NULL, NULL, NULL, 1);
+    tr2q_close(trq);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -432,6 +709,14 @@ PRIVATE int do_test(void)
     result += test_tr2q();
     result += test_trq_create_fails();
     result += test_create_keys_fails();
+    if(geteuid() == 0) {
+        printf("skip trq_retake, tr2q_retake: as root a file of mode 0 can be read\n");
+    } else {
+        result += test_trq_topic_taken_again();
+        result += test_tr2q_topic_taken_again();
+    }
+    atexit(exit_in_exit_zero_case);
+    result += test_exit_zero_create_fails();
 
     rmrdir(path_database);
     return result;
@@ -442,6 +727,8 @@ PRIVATE int do_test(void)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    setvbuf(stdout, NULL, _IOLBF, 0);   // what was checked is printed, also before an exit
+
     sys_malloc_fn_t malloc_func;
     sys_realloc_fn_t realloc_func;
     sys_calloc_fn_t calloc_func;

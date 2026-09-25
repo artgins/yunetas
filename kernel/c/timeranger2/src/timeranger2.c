@@ -2691,6 +2691,21 @@ PUBLIC json_t *tranger2_backup_topic(
     if(!jn_topic_var) {
         jn_topic_var = json_object();
     }
+
+    /*
+     *  A create that fails here is recovered below (the backup is moved
+     *  back), so its CRITICALs do not end the process: the exit bits of
+     *  on_critical_error are off during the create. Before this fix a tranger
+     *  opened with LOG_OPT_EXIT_ZERO (the MQTT broker's queues, C_TRANGER's
+     *  default) exited at the first failed mkdir, before the put-back, and
+     *  the data of the topic stayed in the backup until moved back by hand.
+     */
+    json_int_t on_critical_error = kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED);
+    json_object_set_new(
+        tranger,
+        "on_critical_error",
+        json_integer(on_critical_error & ~(json_int_t)(LOG_OPT_EXIT_ZERO|LOG_OPT_EXIT_NEGATIVE|LOG_OPT_ABORT))
+    );
     json_t *topic = tranger2_create_topic(
         tranger,
         topic_name,
@@ -2701,6 +2716,7 @@ PUBLIC json_t *tranger2_backup_topic(
         topic_cols,     // owned
         jn_topic_var    // owned
     );
+    json_object_set_new(tranger, "on_critical_error", json_integer(on_critical_error));
 
     JSON_DECREF(topic_desc)
 

@@ -49,6 +49,17 @@ queues:
 Persistent sessions survive broker restarts. `clean_session` clients are
 transient. Set `mqtt_persistent_db=0` for an in-memory-only broker.
 
+The queues' tranger is opened with `on_critical_error` `LOG_OPT_EXIT_ZERO`: a
+CRITICAL of timeranger2 ends the broker. The periodic backup of a queue
+(`backup_queue_size` of `C_PROT_MQTT2`) is the exception: a backup whose new
+topic cannot be created (no space, a `mkdir` that fails) moves the backup back
+and the queue goes on in its topic, not backed up; the CRITICAL of the failed
+create is logged and does not exit. Before this fix it exited before the backup
+was moved back, and the messages of the queue stayed in `<queue>.bak` until
+moved back by hand (see [`tranger2_backup_topic()`](#tranger2_backup_topic)).
+A queue that could not open its topic again after a failed backup takes it
+again as soon as it can be opened (see [`trq_check_backup()`](#trq_check_backup)).
+
 ## Configuration
 
 `C_MQTT_BROKER` (the `mqtt_broker` service):

@@ -509,6 +509,11 @@ PUBLIC int tranger2_delete_topic(
    (ENOSPC, a mkdir that fails): what the create left is removed and the
    backup is moved back first. Only when it cannot be moved back is nothing
    opened: logged CRITICAL, the data is in the backup.
+   The create of a backup runs with the exit bits of on_critical_error off
+   (LOG_OPT_EXIT_ZERO, LOG_OPT_EXIT_NEGATIVE, LOG_OPT_ABORT): its failure is
+   recovered, so its CRITICALs are logged and do not end the process, also in
+   a tranger that exits on a CRITICAL (the MQTT broker's queues). Before this fix
+   such a tranger exited before the backup was moved back.
 */
 
 typedef BOOL (*tranger_backup_deleting_callback_t)( // Return TRUE if you control the backup

@@ -32,6 +32,7 @@ typedef struct {
     BOOL verbose;
     BOOL load_failed;           // the last tr2q_load() did not read every pending message
     BOOL backup_refused_said;   // tr2q_check_backup() said once that it refuses
+    BOOL topic_missing_said;    // said once that the topic cannot be taken again
 } tr2_queue_t;
 
 typedef struct {
@@ -291,6 +292,12 @@ static inline uint64_t tr2q2_msg_time(q2_msg_t *msg)
     logged, "Queue backup failed: the queue goes on in its topic, not backed
     up"; the queue keeps its topic, opened again by the backup, and the next
     call tries again. Up to 7.25.4 the queue was left with no topic, and 0.
+    When the topic cannot be opened again either ("Queue backup failed, and
+    the queue has no topic"), the queue takes it again BY NAME as soon as it
+    can be opened: at the next call, and at the next read or hard mark of a
+    message ("Queue topic taken again"). While it cannot, those calls fail
+    and say it once, "Queue without topic, it cannot be opened". Before
+    this fix the topic stayed NULL for good.
 */
 PUBLIC int tr2q_check_backup(tr2_queue_t *trq);
 
