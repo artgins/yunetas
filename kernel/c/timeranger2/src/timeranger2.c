@@ -2100,16 +2100,17 @@ PUBLIC json_t *tranger2_list_topic_names( // return is yours, WARNING works in d
      */
     DIR *dir = opendir(directory);
     if(!dir) {
+        int err = errno;    // the log below does not keep it
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot list the topics of the store",
             "path",         "%s", directory,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
             NULL
         );
-        gobj_log_set_last_message("Cannot list the topics of the store: %s", strerror(errno));
+        gobj_log_set_last_message("Cannot list the topics of the store: %s", strerror(err));
         return NULL;
     }
 
@@ -2131,16 +2132,17 @@ PUBLIC json_t *tranger2_list_topic_names( // return is yours, WARNING works in d
         }
     }
     if(errno != 0) {
+        int err = errno;    // the log below does not keep it
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot list the topics of the store, readdir() FAILED",
             "path",         "%s", directory,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
             NULL
         );
-        gobj_log_set_last_message("Cannot list the topics of the store: %s", strerror(errno));
+        gobj_log_set_last_message("Cannot list the topics of the store: %s", strerror(err));
         closedir(dir);
         JSON_DECREF(jn_list)
         return NULL;

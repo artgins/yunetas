@@ -754,11 +754,15 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         // Get list of queue names (topic directories on disk)
         jn_data = tranger2_list_topic_names(priv->tranger_queues);
         if(!jn_data) {
-            // Error already logged
+            /*
+             *  Error already logged, the cause there. Not read back from
+             *  gobj_log_last_message(): a process-global buffer, not a
+             *  return value of the function that failed.
+             */
             return msg_iev_build_response(gobj,
                 -1,
-                json_sprintf("%s: cannot list the queues (%s)",
-                    gobj_yuno_role_plus_name(), gobj_log_last_message()),
+                json_sprintf("%s: cannot list the topics of the store, see the log",
+                    gobj_yuno_role_plus_name()),
                 0,
                 0,
                 kw  // owned
@@ -872,11 +876,11 @@ PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     json_t *jn_queues = tranger2_list_topic_names(priv->tranger_queues);
     if(!jn_queues) {
-        // Error already logged
+        // Error already logged, the cause there (see cmd_list_queues)
         return msg_iev_build_response(gobj,
             -1,
-            json_sprintf("%s: cannot list the queues, nothing cleaned (%s)",
-                gobj_yuno_role_plus_name(), gobj_log_last_message()),
+            json_sprintf("%s: cannot list the topics of the store, nothing cleaned, see the log",
+                gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned

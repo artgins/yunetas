@@ -17,7 +17,8 @@
  *
  *          And, with the same broker, `list-queues queue=<name>` of a queue
  *          that cannot be opened answers -1 (up to 7.25.4: 0 and an empty
- *          list).
+ *          list); and `list-queues` / `clean-queues` of a store whose topics
+ *          cannot be listed answer -1 with a cause of their own.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -184,6 +185,97 @@ PRIVATE int check_list_queues_unopenable(hgobj gobj, hgobj broker)
         ret = -1;
     }
     JSON_DECREF(response)
+    return ret;
+}
+
+/***************************************************************************
+ *  list-queues (no queue) and clean-queues of a store whose topics cannot
+ *  be listed (its directory of mode 0) answer -1 with a cause of their
+ *  own, never the last ERROR of the process read back after the listing
+ *  returned. Skipped as root, who lists every directory.
+ *  Returns 0 if both answers are right, -1 (and logs an error: the test
+ *  fails) otherwise.
+ ***************************************************************************/
+PRIVATE int check_queues_of_unlistable_store(hgobj gobj, hgobj broker)
+{
+    if(geteuid() == 0) {
+        return 0;
+    }
+    hgobj gobj_tranger = gobj_find_service("tranger_queues", FALSE);
+    json_t *tranger = gobj_tranger? gobj_read_pointer_attr(gobj_tranger, "tranger"): NULL;
+    if(!tranger) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "TEST: no tranger of the queues",
+            NULL
+        );
+        return -1;
+    }
+    const char *directory = kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED);
+    struct stat st;
+    if(stat(directory, &st) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "TEST: cannot stat the store of the queues",
+            "path",         "%s", directory,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    char expected_comment[256];
+    snprintf(expected_comment, sizeof(expected_comment),
+        "%s: cannot list the topics of the store, see the log",
+        gobj_yuno_role_plus_name());
+    char expected_clean[256];
+    snprintf(expected_clean, sizeof(expected_clean),
+        "%s: cannot list the topics of the store, nothing cleaned, see the log",
+        gobj_yuno_role_plus_name());
+
+    const char *commands[2] = {"list-queues", "clean-queues"};
+    const char *expected[2] = {expected_comment, expected_clean};
+    int ret = 0;
+    for(int i=0; i<2; i++) {
+        set_expected_results(
+            commands[i],
+            json_pack("[{s:s}]",
+                "msg", "Cannot list the topics of the store"
+            ),
+            NULL, NULL, 1
+        );
+        chmod(directory, 0);
+        json_t *response = gobj_command(broker, commands[i], json_object(), gobj);
+        chmod(directory, st.st_mode & 07777);
+        int logs = test_json(NULL);
+        set_expected_results(
+            "test_mqtt_acl",
+            json_array(),   // empty — we expect no errors
+            NULL,
+            NULL,
+            TRUE
+        );
+
+        int result = (int)kw_get_int(gobj, response, "result", 0, 0);
+        const char *comment = kw_get_str(gobj, response, "comment", "", 0);
+        if(result != -1 || logs < 0 || strcmp(comment, expected[i]) != 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_APP,
+                "msg",          "%s", "TEST: a store that cannot be listed: wrong answer",
+                "command",      "%s", commands[i],
+                "result",       "%d", result,
+                "comment",      "%s", comment,
+                "expected",     "%s", expected[i],
+                "logs",         "%d", logs,
+                NULL
+            );
+            ret = -1;
+        }
+        JSON_DECREF(response)
+    }
     return ret;
 }
 
@@ -366,6 +458,11 @@ PRIVATE int ac_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  list-queues of a queue that cannot be opened
      *-----------------------------------------------------------------*/
     check_list_queues_unopenable(gobj, broker);
+
+    /*-----------------------------------------------------------------*
+     *  list-queues / clean-queues of a store that cannot be listed
+     *-----------------------------------------------------------------*/
+    check_queues_of_unlistable_store(gobj, broker);
 
     set_yuno_must_die();
     JSON_DECREF(kw)

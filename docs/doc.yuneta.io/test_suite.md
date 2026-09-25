@@ -194,7 +194,7 @@ crash or leak cannot mask neighbours.
 | Binary | Description |
 |--------|-------------|
 | **`c_mqtt/test1`** | Self-contained broker + client: subscribe, publish QoS 0, verify reception, disconnect. |
-| **`c_mqtt/acl`** | The publish/subscribe ACL of the broker (`EV_MQTT_ACL_CHECK`); and `list-queues queue=<name>` of a queue that cannot be opened answers `-1`, not an empty queue. |
+| **`c_mqtt/acl`** | The publish/subscribe ACL of the broker (`EV_MQTT_ACL_CHECK`); `list-queues queue=<name>` of a queue that cannot be opened answers `-1`, not an empty queue; and `list-queues` / `clean-queues` of a store whose topics cannot be listed answer `-1` with a cause of their own. |
 | **`c_mqtt/malformed`** | Malformed MQTT packets from a peer. |
 
 **Source:** `tests/c/c_mqtt/`
