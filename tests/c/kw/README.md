@@ -5,5 +5,5 @@ Unit tests for the `kw_*` keyword / JSON helpers in `kernel/c/gobj-c/src/kwid.c`
 ## Run
 
 ```bash
-ctest -R test_kw --output-on-failure --test-dir build
+ctest -R '^kw/' --output-on-failure --test-dir build
 ```

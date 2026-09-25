@@ -7,12 +7,18 @@ All tests are registered as `ctest` targets and run automatically with
 
 **Source:** `tests/c/`
 
+This page describes the tests by subject, and not every binary has a row here.
+The complete index is `tests/c/README.md` in the repository:
+every directory that `tests/c/CMakeLists.txt` builds, the binaries of each
+directory that has more than one, and the ctest name of each. Each directory's
+own `README.md` says what its binaries check (for timeranger2, all 37 of them).
+
 ```bash
 # Run the full suite
 yunetas test
 
 # Run a single test by name
-ctest -R test_c_timer --output-on-failure --test-dir build
+ctest -R '^test_c_timer$' --output-on-failure --test-dir build
 
 # Run ctest in a loop until first failure (flaky-test detection)
 ./ctest-loop.sh
@@ -110,12 +116,15 @@ Plain and TLS TCP through the full GObj protocol stack.
 
 | Binary | Description |
 |--------|-------------|
-| **`test_c_tcp test1–4`** | Plain TCP: connect, disconnect, echo, and rapid multi-message burst. |
-| **`test_c_tcp2 test1–4`** | Same scenarios using the newer [`C_TCP_S`](#gclass-c-tcp-s) method (no `child_tree_filter`). |
-| **`test_c_tcps test1–4`** | TLS TCP: connect, disconnect, echo, and multi-message burst. |
-| **`test_c_tcps2 test1–4`** | TLS TCP with the newer method. |
+| **`c_tcp/test1–4`** | Plain TCP: connect, disconnect, echo, and rapid multi-message burst. |
+| **`c_tcp2/test1–4`** | Same scenarios using the newer [`C_TCP_S`](#gclass-c-tcp-s) method (no `child_tree_filter`). |
+| **`c_tcps/test1–4`** | TLS TCP: connect, disconnect, echo, and multi-message burst. |
+| **`c_tcps2/test1–4`** | TLS TCP with the newer method. |
+| **`c_tcp_inactivity/test1–4`** | `C_TCP`'s `timeout_inactivity`. |
+| **`test_c_tcp_s_ip_lists`** | [`C_TCP_S`](#gclass-c-tcp-s) at accept: a peer in `denied_ips` is refused (with or without `only_allowed_ips`, and the deny wins over `allowed_ips`), with `only_allowed_ips` a peer not in `allowed_ips` is refused, loopback is exempt from both lists; and the list key of each peername form (`1.2.3.4:80`, `[2001:db8::1]:443`, `[::ffff:1.2.3.4]:80`). |
 
-**Source:** `tests/c/c_tcp/`, `tests/c/c_tcp2/`, `tests/c/c_tcps/`, `tests/c/c_tcps2/`
+**Source:** `tests/c/c_tcp/`, `tests/c/c_tcp2/`, `tests/c/c_tcps/`, `tests/c/c_tcps2/`,
+`tests/c/c_tcp_inactivity/`, `tests/c/c_tcp_s_ip_lists/`
 
 ## UDP networking
 
@@ -184,8 +193,9 @@ crash or leak cannot mask neighbours.
 
 | Binary | Description |
 |--------|-------------|
-| **`test_c_mqtt test1`** | Self-contained broker + client: subscribe, publish QoS 0, verify reception, disconnect. |
-| **`test_mqtt_acl`** | The publish/subscribe ACL of the broker (`EV_MQTT_ACL_CHECK`); and `list-queues queue=<name>` of a queue that cannot be opened answers `-1`, not an empty queue. |
+| **`c_mqtt/test1`** | Self-contained broker + client: subscribe, publish QoS 0, verify reception, disconnect. |
+| **`c_mqtt/acl`** | The publish/subscribe ACL of the broker (`EV_MQTT_ACL_CHECK`); and `list-queues queue=<name>` of a queue that cannot be opened answers `-1`, not an empty queue. |
+| **`c_mqtt/malformed`** | Malformed MQTT packets from a peer. |
 
 **Source:** `tests/c/c_mqtt/`
 
@@ -193,16 +203,20 @@ crash or leak cannot mask neighbours.
 
 | Binary | Description |
 |--------|-------------|
-| **`test_subscriptions test1–2`** | GObj event subscribe / unsubscribe lifecycle. |
+| **`c_subscriptions/test1–2`** | GObj event subscribe / unsubscribe lifecycle. |
 | **`test_c_node_link_events`** | `EV_TREEDB_NODE_LINKED` / `UNLINKED` events at the [`C_NODE`](#gclass-c-node) GClass level, and an `update-node` with `autolink`: the links it repeats publish nothing, a moved link is one unlink and one link, and a ref that cannot be linked (missing parent, or a hook that links into another column) is logged while the record is still saved; and `set-link-events` switching a live treedb from the parent's `UPDATED` to `LINKED`/`UNLINKED` and back. |
 | **`test_c_node_initial_load`** | The `initial_load` seed of [`C_NODE`](#gclass-c-node): records first and links second whatever the topic order, every seed immutable, a declared link refused to `unlink-nodes`, to an autolink update that omits it and to a `force` delete of its parent, and a second start that creates nothing. |
 | **`test_tr_treedb_link_events`** | Low-level link/unlink callback mechanism in `tr_treedb`. |
 | **`test_tr_treedb_failed_save`** | A write whose save fails is taken back in memory: with the files of a key read-only, a failed update, link, replace of a single fkey, `treedb_replace_links()`, `treedb_autolink()` and unlink each answer a refusal, leave the nodes and hooks as the disk says, and tell no event. With the files writable the same writes work, and a reload says what memory said. Also: the update with its links (`treedb_update_node_and_links()`, with and without fields); a failed clean, where a stale ref (its hook no longer exists, or fills another column since a schema re-pointed it) goes back into its field and is never linked; refused forced deletes (a child that cannot be saved, a key that cannot be deleted) that change nothing, in memory or on disk; a take-back that puts every child back in its place in the hooks of its parents (a list hook and a dict hook keep the order they had); `treedb_autolink()` refusing a ref whose hook fills another column, with nothing moved; a refused forced delete whose put-back of a child fails too (the child stays unlinked, in memory as on disk, the ERROR says so, and the events of its unlink are told; the test fails the writes of that key in its own `__wrap_write()`); a forced delete that tells its unlinks after the node left the indexes, with a subscriber that cannot find the node nor save it, and a reload that does not bring it back; a write that cannot be taken back whole says so; and two active snaps at open (a deactivation that cannot be saved leaves the snap active; a replica does not repair). |
 | **`test_c_node_failed_save`** | An `update-node` with `autolink` of [`C_NODE`](#gclass-c-node) whose save fails (the writes of the key fail in the test's own `__wrap_write()`): the method answers `NULL` and the command `-1`, memory is what the disk has, and no `EV_TREEDB_NODE_LINKED` / `UPDATED` is published. A create with `autolink` whose links cannot be saved leaves the node without them, in memory as on disk, and logs *"Node created, but its links cannot be saved (autolink): the node stays without them"*. A reload from disk agrees, and the retry works. |
 
+| **`test_c_subscription_authz`** | The subscription authorization gate (`enable_subscription_authz`): three `C_IEVENT_CLI` connect over websocket to a `C_IEVENT_SRV` of the same yuno and subscribe to the `EV_TREEDB_NODE_*` feed of a real [`C_NODE`](#gclass-c-node). Gate off: every peer is subscribed. Gate on: a peer without `read` is refused and it is logged, a `reader` is subscribed (the checker is asked `read`), an event not flagged `EVF_AUTHZ_SUBSCRIBE` needs nothing; a node update reaches only the accepted subscriptions; and the gate stops orderly (no *"Destroying a RUNNING gobj"*). |
+| **`test_c_agent_find_new_yunos`** | The rows of the agent's `find-new-yunos`, against a real [`C_NODE`](#gclass-c-node) with the agent's schema: a yuno already registered at the new release (a single one, and a `yuno_multiple` one) is marked *"already registered, pending promotion (deactivate-snap)"*, not listed as new. |
+
 **Source:** `tests/c/c_subscriptions/`, `tests/c/c_node_link_events/`,
 `tests/c/c_node_initial_load/`, `tests/c/tr_treedb_link_events/`,
-`tests/c/tr_treedb_failed_save/`, `tests/c/c_node_failed_save/`
+`tests/c/tr_treedb_failed_save/`, `tests/c/c_node_failed_save/`,
+`tests/c/c_subscription_authz/`, `tests/c/c_agent_find_new_yunos/`
 
 ## Timeranger2 persistence
 
@@ -241,10 +255,11 @@ The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in string
 | Binary | Description |
 |--------|-------------|
 | **`test_tr_treedb`** | Schema creation, user/department/compound structures, node CRUD, and state snapshots (foto files). |
+| **`test_tr_treedb_delete_instance`** | Instances of a `pkey2` key, each scenario in its own database with a reopen: `treedb_delete_instance()` and a tombstone that fails; a delete of a parent sees the children of every instance, a delete of a child unhooks every instance, a deleted instance leaves the hooks of its parents (the primary takes its place) and hands its children to the primary, a refused forced delete puts every instance back, a save of a node no index holds is refused, and after a reopen the instance of the primary IS the primary node (an update through it lands, and survives the next save of the primary). |
 | **`test_tr_treedb_load_failed`** | A topic whose keys cannot all be read: treedb loads the other keys, remembers the ones that failed, and refuses a create of such an id, and snapshot operations when `__snaps__` did not load whole. The recovery, after the key is deleted, needs no reopen. |
 | **`test_c_treedb_literal_wins`** | [`C_TREEDB`](#gclass-c-treedb): a schema from C newer than the schema file in use wins whole; `__system__` is projected from it whole; the operator work it discards is reported once (`withdrawn_at_open`); an unfinished projection is recorded and completed at a later open, also after the process is killed at any write, once or twice. The scenarios are listed in its `README.md`. |
 
-**Source:** `tests/c/tr_treedb/`, `tests/c/tr_treedb_load_failed/`,
+**Source:** `tests/c/tr_treedb/`, `tests/c/tr_treedb_delete_instance/`, `tests/c/tr_treedb_load_failed/`,
 `tests/c/c_treedb_literal_wins/`
 
 ## gobj-c helpers and commands
@@ -252,8 +267,8 @@ The tests added after 7.25.4 (tm order, lost lock, torn md2 tails, NUL in string
 | Binary | Description |
 |--------|-------------|
 | **`test_helpers`** | String, file and directory helpers: `split2()`, `save_json_to_file()`, `rmrdir()` / `mkrdir()` with links, deep trees and entries that vanish during the walk. |
-| **`test_rotatory`** | `rotatory_remove_old_files()` and the rotatory log writer: size rotation, a full disk, a clock set back, a write that fails and the file opened again (no newfile callback for the same file), a keep_all size rotation whose rename fails (tried once, every record kept), a fixed name never emptied, an `MM` mask judged by its month. |
-| **`test_audit_record`** | The audit record builder of `yuneta_agent`: secrets redacted, `content64` never written, the command word read as the parser reads it (`COMMAND=list-yunos` with a kw `command=delete-yuno` gets the full record). |
+| **`test_rotatory`** | `rotatory_remove_old_files()` and the rotatory log writer: size rotation, a full disk, a clock set back, a write that fails and the file opened again (no newfile callback for the same file), a keep_all size rotation whose rename fails (tried once, every record kept), a fixed name never emptied, an `MM` mask judged by its month; a new file whose open fails keeps its newfile callback for the next open that works (on a full disk too), the file of the day before is never size-rotated at a new name, and the keep_all rename retry runs on the monotonic clock (a wall clock set back or forward does not move it). |
+| **`test_audit_record`** | The audit record builder of `yuneta_agent`: secrets redacted, `content64` never written, the command word read as the parser reads it (`COMMAND=list-yunos` with a kw `command=delete-yuno` gets the full record), a secret inside a JSON text inside a JSON text redacted (up to 8 levels of escapes; deeper is written as its size and sha256). |
 | **`test_gbmem_realloc_refused`** | A `gbmem_realloc()` refused because the new size is larger than the largest block leaves the old block valid and tracked: the later free logs nothing and the memory counter stays right. |
 | **`test_command_binary_kw`** | A command, and `build_stats()`, whose kw carries a `gbuffer`: the handler's kw holds a reference of its own, and the caller's references are intact after the command (no *"BAD gbuf_decref()"*). |
 | **`test_dir_array_nomem`** | A directory listing that cannot keep an entry (no memory), or whose root cannot be opened, answers `-1` with the listing empty, and logs it: `find_files_with_suffix_array()`, `walk_dir_array()`, `get_ordered_filename_array()`. |

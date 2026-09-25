@@ -93,10 +93,9 @@ ERROR trq_check_backup: Queue backup failed: the queue goes on in its topic, not
 
 Up to 7.25.4 the queue was left with no topic and the call answered `0`:
 every read logged *"What topic?"*, every ack answered `-1` (the messages were
-sent again after a restart), and no backup happened again. Until this fix a
-create that failed after the move still left the queue with no topic: its
-messages in the backup, its size read as 0, and the backup never tried again.
-`tr2q_check_backup()` behaves the same.
+sent again after a restart), and no backup happened again; a create that
+failed after the move left the messages in the backup. `tr2q_check_backup()`
+behaves the same.
 
 **Example**
 

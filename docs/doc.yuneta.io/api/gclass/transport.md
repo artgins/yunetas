@@ -76,8 +76,12 @@ The yuno keeps two lists of peer ips: `denied_ips` and `allowed_ips`
 asks them for every accepted connection, before it builds a channel for the
 peer:
 
-1. A loopback peer (`127.0.0.x`, `::1`) is always accepted. A list cannot
-   lock out the local control plane.
+1. A loopback peer (`127.0.0.x`, `::1`, and `::ffff:127.0.0.x` on a
+   dual-stack socket) is always accepted. A list cannot lock out the local
+   control plane.
+   A list names a peer by its ip without the port: `1.2.3.4`, `2001:db8::1`
+   (no brackets), and `1.2.3.4` also for `[::ffff:1.2.3.4]` (see
+   [`is_ip_denied()`](#is_ip_denied)).
 2. A peer in `denied_ips` is refused. This applies on every listener, with or
    without `only_allowed_ips`, and it wins over `allowed_ips`.
 3. With `only_allowed_ips`, a peer that is not in `allowed_ips` is refused.
@@ -177,7 +181,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 Every datagram asks the yuno's ip lists, as `C_TCP_S` asks them for a
 connection ([IP lists at accept](#tcp_s_ip_lists)), before it is published:
 
-1. A loopback peer (`127.0.0.x`, `::1`) is always heard.
+1. A loopback peer (`127.0.0.x`, `::1`, `::ffff:127.0.0.x`) is always heard.
 2. A peer in `denied_ips` is dropped, with or without `only_allowed_ips`, and
    it wins over `allowed_ips`: a WARNING, *"UDP_S: Ip denied, datagram
    dropped"*.

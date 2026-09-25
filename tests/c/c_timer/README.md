@@ -5,5 +5,5 @@ Tests for the `C_TIMER` GClass — periodic scheduling, one-shot timeouts and ev
 ## Run
 
 ```bash
-ctest -R test_c_timer --output-on-failure --test-dir build
+ctest -R '^test_c_timer$' --output-on-failure --test-dir build
 ```

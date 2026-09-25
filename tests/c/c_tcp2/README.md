@@ -5,5 +5,5 @@ Second-generation tests for `C_TCP`, using the newer child-tree / state-manageme
 ## Run
 
 ```bash
-ctest -R test_c_tcp2 --output-on-failure --test-dir build
+ctest -R '^c_tcp2/' --output-on-failure --test-dir build
 ```

@@ -9,7 +9,7 @@ MQTT GClass test. Spins up an embedded MQTT broker and a client inside the same 
 ## Run
 
 ```bash
-ctest -R test_c_mqtt --output-on-failure --test-dir build
+ctest -R '^c_mqtt/' --output-on-failure --test-dir build
 ```
 
 Requires `CONFIG_MODULE_MQTT=y`.

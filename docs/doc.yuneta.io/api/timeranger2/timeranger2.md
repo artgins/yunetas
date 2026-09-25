@@ -392,7 +392,7 @@ Only a master can back up a topic (the backup moves its directory): on a replica
 
 The backup CLOSES the topic first, then moves its directory. A failure after that point (the backup exists and `overwrite_backup` is false, `topic_desc.json` does not load, or the `rename()` fails -- the backup name is taken by a file, another filesystem) returns `NULL` and opens the topic again as it was, with a warning: *"Backup of topic failed: the topic is opened again as it was, not backed up"*. Every pointer to the old topic is stale all the same, as after a successful backup: take the topic again by name.
 
-So does a failure AFTER the move, when the new topic cannot be created (`ENOSPC`, a `mkdir` that fails): what the create left is removed, the backup is moved back where the topic was, and the topic is opened again, with the same warning. Only when the backup cannot be moved back is nothing opened: a CRITICAL, *"Backup of topic failed, and the backup cannot be moved back: the data of the topic is in the backup"*, with both paths. Before this fix the data stayed in the backup and nothing was opened: a queue had no topic until a restart, and, its size read as 0, its backup was never tried again (`tests/c/tr_queue/test_tr_queue_backup_failed`).
+So does a failure AFTER the move, when the new topic cannot be created (`ENOSPC`, a `mkdir` that fails): what the create left is removed, the backup is moved back where the topic was, and the topic is opened again, with the same warning. Only when the backup cannot be moved back is nothing opened: a CRITICAL, *"Backup of topic failed, and the backup cannot be moved back: the data of the topic is in the backup"*, with both paths. Up to 7.25.4 the data stayed in the backup and nothing was opened: a queue had no topic until a restart, and, its size read as 0, its backup was never tried again (`tests/c/tr_queue/test_tr_queue_backup_failed`).
 
 ```C
 json_t *topic = tranger2_backup_topic(tranger, "queue", 0, 0, TRUE, 0);
@@ -643,7 +643,7 @@ directory, `topic_desc.json`, `topic_cols.json`, `topic_var.json`, `keys/` and
 the directory it made is removed, nothing is opened or kept in memory, the
 call answers `NULL` and logs *"Cannot create topic: it is not whole, what was
 made is removed"* after the cause; the next create starts again from nothing.
-Before this fix each failure was logged and the create went on: a topic
+Up to 7.25.4 each failure was logged and the create went on: a topic
 whose `keys/` (or `disks/`) could not be made was opened and returned as
 created, and a queue backup (see
 [`tranger2_backup_topic()`](#tranger2_backup_topic)) took that half topic as
@@ -808,14 +808,12 @@ but it does NOT leave the memory as it was: some of the key's files may be gone
 already, so the cache of the key is read again from what is left on disk (the
 key leaves the cache if nothing is left), and its iterators take their segments
 again from it: an unfiltered one at its next page, a FILTERED one at once, its
-index built again as an open builds it. Before this fix a filtered iterator
-lost its index there, and paged an EMPTY key that was still on disk until it
-was opened again:
+index built again as an open builds it:
 
 ```text
 key A, 3 rows; a filtered pager of A (from_t)    -> total_rows 3
 tranger2_delete_key(A), keys/A of mode 0550        -> -1, no file removed
-the same pager, next page                          -> total_rows 3 (before: 0)
+the same pager, next page                          -> total_rows 3
 ```
 
 The iterators of the key, in this process, lose what they took from it: see
@@ -1408,10 +1406,10 @@ cannot be opened (its `keys/` cannot be listed, see
 [`tranger2_open_topic()`](#tranger2_open_topic)), a key directory cannot be
 listed (*"Cannot open directory"*: `EMFILE`, `EACCES`, no memory for the
 listing), a md2 file cannot be read, or a marker or `topic_desc.json` cannot
-be written. Up to 7.25.4 a key directory that could not be listed counted as
-a key of 0 files and the topic was MARKED: the tm ranges of the files nobody
-scanned were trusted, and a tm query lost rows (a legacy file of tm 100, 300,
-200 has the range [100,200]; a query of [250,350] skipped it). The
+be written. A listing that fails never marks the topic: the tm ranges of
+the files nobody scanned would be trusted, and a tm query would lose rows (a
+legacy file of tm 100, 300, 200 has the range [100,200]; a query of
+[250,350] would skip it). The
 keys are walked in the order of the topic's cache and the call stops at the
 first failure. What it leaves:
 
@@ -1574,7 +1572,7 @@ backward load  -> the rows of day 3, then load_failed
 
 **A key directory that cannot be LISTED is not an empty key.** When the
 cache build cannot open `keys/<key>/` (`EMFILE`, `EACCES`, `ENOMEM`), cannot
-READ it (`readdir()` fails: `EIO`, `ESTALE`; before this fix that was taken as
+READ it (`readdir()` fails: `EIO`, `ESTALE`; 7.25.4 took that as
 the end of the directory, and the key was read without the files not listed
 yet), or has no memory for an entry of the listing, none of the key's files is
 known, so the
@@ -1616,9 +1614,7 @@ until the topic is opened again:
   directory or file looks as it did is not tried: a directory that cannot be
   read is not listed, a damaged file not read, and their failure not logged,
   at every load. What still cannot be read stays flagged, and the load says
-  `load_failed` with nothing more in the log. Before this fix a key
-  directory that OPENED and could not be listed (a `readdir()` that fails)
-  was listed again, and its failure logged again, at every load. So a
+  `load_failed` with nothing more in the log. So a
   directory whose `readdir()` recovers without changing stays flagged until
   it changes, until an append of the master or a notification of a
   replica lists it (both list it whatever it looks like), or until the
@@ -1649,9 +1645,9 @@ replica, at the notification           -> INFO key directory listed again,
 replica: iterator of A                 -> A@1 A@2 A@3 A@4, load_failed false
 ```
 
-Up to this release the notification counted the notified file alone as the
-whole key (the feed got rowid 1 for the key's 4th row), and a flag stayed until
-the topic was opened again.
+In 7.25.4 a key whose directory could not be listed loaded as an empty key
+(see above), and the notification counted the notified file alone as the whole
+key (the feed got rowid 1 for the key's 4th row).
 
 A `.md2` of 0 rows gets no cell and flags nothing. With an EMPTY `.json` it
 loses nothing. With a `.json` that is NOT empty it is what an append that was
@@ -3215,7 +3211,7 @@ json_t *tranger2_list_topic_names(
 
 A new JSON array of strings, each being a topic name found as a subdirectory in the tranger database directory. The caller owns the returned array and must call `json_decref()` on it. Hidden entries (names starting with `.`) are excluded.
 
-`NULL` when the directory cannot be listed (`opendir()` or `readdir()` fails): logged, *"Cannot list the topics of the store"* with `errno`, and the cause is left in `gobj_log_last_message()`. A store that cannot be listed is not a store with no topic: up to 7.25.4 it answered `[]` with no log, and `mark-tm-order all=1` of `C_TRANGER` answered *"0 topic(s)"* with result `0` -- the upgrade step looked done while nothing was migrated. It answers `-1` now, and so do `list-queues` and `clean-queues` of the MQTT broker.
+`NULL` when the directory cannot be listed (`opendir()` or `readdir()` fails): logged, *"Cannot list the topics of the store"* with `errno`, and the cause is left in `gobj_log_last_message()`. A store that cannot be listed is not a store with no topic: up to 7.25.4 it answered `[]` with no log, and `list-queues` and `clean-queues` of the MQTT broker answered an empty list with `0`. They answer `-1` now, and so does `mark-tm-order all=1` of `C_TRANGER`.
 
 **Notes**
 

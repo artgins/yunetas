@@ -5,5 +5,5 @@ Unit tests for the `C_TCP` client GClass. Exercises connect/disconnect cycles, I
 ## Run
 
 ```bash
-ctest -R test_c_tcp --output-on-failure --test-dir build
+ctest -R '^c_tcp/' --output-on-failure --test-dir build
 ```

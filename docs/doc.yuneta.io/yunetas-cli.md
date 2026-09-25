@@ -158,6 +158,10 @@ an error (since CLI 0.11.1):
   and `find-new-yunos create=1` skips it instead of answering "already
   exists". The preview is still not empty, so `upgrade-yunos` still goes on
   to `deactivate-snap`.
+- Since CLI 0.19.4 `upgrade-yunos` lists those rows apart from the new ones,
+  prints `N created, M already registered` after `create=1`, and skips
+  `create=1` when every row is already registered (0.19.3 counted every row
+  of the preview as created). For example, `1 created, 1 already registered.`
 
 A genuine (non-idempotent) error still fails closed, and the agent's comments are
 printed so a mixed result stays visible. So the safe recovery from any

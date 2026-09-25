@@ -7,5 +7,5 @@ Runs against whichever TLS backend is compiled in (`CONFIG_HAVE_OPENSSL` or `CON
 ## Run
 
 ```bash
-ctest -R test_c_tcps --output-on-failure --test-dir build
+ctest -R '^c_tcps/' --output-on-failure --test-dir build
 ```

@@ -39,12 +39,12 @@ substring:
 ## Running
 
 ```bash
-ctest --test-dir build -R 'c_task_authenticate' --output-on-failure
+ctest --test-dir build -R '^c_task_authenticate/' --output-on-failure
 ```
 
 or one at a time:
 
 ```bash
-ctest --test-dir build -R 'test_task_authenticate_test1_discovery' \
+ctest --test-dir build -R '^c_task_authenticate/test1_discovery$' \
     --output-on-failure
 ```

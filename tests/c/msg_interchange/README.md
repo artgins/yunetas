@@ -5,5 +5,5 @@ Tests the **inter-yuno message interchange** layer (`msg_ievent` / `iev_msg`) â€
 ## Run
 
 ```bash
-ctest -R test_msg_interchange --output-on-failure --test-dir build
+ctest -R '^msg_interchange/' --output-on-failure --test-dir build
 ```

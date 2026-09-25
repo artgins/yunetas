@@ -618,7 +618,7 @@ PRIVATE const char *read_alias[] = {"__subscribe_event__", 0};
 
 PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name----flag----alias-------items-----------description--*/
-SDATAAUTHZ (DTP_SCHEMA, "read", 0,      read_alias, pm_authz_read,  "Permission to read nodes"),
+SDATAAUTHZ (DTP_SCHEMA, "read", 0,      read_alias, pm_authz_read,  "Permission to read nodes, and to subscribe to their events"),
 SDATA_END()
 };
 

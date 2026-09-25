@@ -20,12 +20,12 @@ Integration tests for the io_uring-based event loop: timers, TCP client/server e
 
 `yev_events/test_yevent_kept_after_post` stops, from a posted action (`gobj_post_event()`), a timer whose start the kernel had not taken (kept): the stop takes the submission back and the loop makes its completion. The `STOPPED` must reach the callback at the next cycle, not at the timeout of the run (3 s). Up to 7.25.4 the loop blocked on the ring after the posted events, and the `STOPPED` waited for an unrelated completion.
 
-`yev_events/test_yevent_connect_src_url` connects with a local address to bind (`src_url`): `127.0.0.1:<port>`, `[::1]:<port>` and `tcp://127.0.0.1:<port>`. The listener must see the peer at that port. A bad `src_url` (`[::1:5000`) gives no socket and an error. In 7.25.4 the `src_url` was never parsed: the socket got a port of the kernel's choice, and a bad `src_url` was ignored. And a destination of two families (`localhost`: `::1` and `127.0.0.1`) with a `src_url` of the SECOND family: the first address is skipped silently and the connect goes to the second (before this fix it ended at the first address); skipped when `localhost` has one family only.
+`yev_events/test_yevent_connect_src_url` connects with a local address to bind (`src_url`): `127.0.0.1:<port>`, `[::1]:<port>` and `tcp://127.0.0.1:<port>`. The listener must see the peer at that port. A bad `src_url` (`[::1:5000`) gives no socket and an error. In 7.25.4 a non-empty `src_url` was never parsed: a dynamic build failed the connect with *"getaddrinfo() src_url FAILED"*, and a static one bound the socket to the loopback address with a port of the kernel's choice. And a destination of two families (`localhost`: `::1` and `127.0.0.1`) with a `src_url` of the SECOND family: the first address is skipped silently and the connect goes to the second; skipped when `localhost` has one family only.
 
 ## Run
 
 ```bash
-ctest -R test_yev_loop --output-on-failure --test-dir build
+ctest -R '^yev_events' --output-on-failure --test-dir build
 ```
 
 Benchmarks live under `performance/c/perf_yev_ping_pong*`.

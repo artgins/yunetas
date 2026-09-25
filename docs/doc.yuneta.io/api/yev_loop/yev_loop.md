@@ -220,9 +220,9 @@ if(!yev_get_gbuf(yev_reading)) {
 yev_start_event(yev_reading);
 ```
 
-In 7.25.4 and earlier the stop released the gbuffer at once (only a
-sendmsg event kept it, since the zero-copy fix). Its memory could be freed
-and used again while the kernel still had the read or the write.
+In 7.25.4 and earlier the stop released the gbuffer at once, for every
+type of event. Its memory could be freed and used again while the kernel
+still had the read or the write.
 
 The test is `tests/c/yev_loop/yev_events/test_yevent_stop_in_flight.c`.
 
@@ -250,8 +250,8 @@ first:
   kernel takes nothing), the loop says so before it waits: *"Submission
   queue full: the cancel of the events left is NOT submitted, their
   completions may not come"* (an ERROR). Then a completion that does not
-  come is expected, not a fault of the accounting. Up to 7.25.4 only the
-  final ERROR was logged, and it blamed the accounting.
+  come is expected, not a fault of the accounting. In 7.25.4 these events
+  were never freed and nothing was logged (see below).
 
 A yuno ends like this, and it needs nothing more:
 
@@ -427,9 +427,9 @@ Returns a `yev_event_h` handle to the newly created connect event, or `NULL` on 
 
 **Notes**
 
-The host is resolved in the family of the destination address. Up to 7.25.4 the `src_url` was never parsed: the socket was bound to a port of the kernel's choice, and a `src_url` (good or bad) was ignored without a log.
+The host is resolved in the family of the destination address. In 7.25.4 a non-empty `src_url` was never parsed: a dynamic build failed the connect with *"getaddrinfo() src_url FAILED"*, and a static one bound the socket to the loopback address with a port of the kernel's choice, whatever the `src_url` said.
 
-A destination name can resolve to several addresses (`localhost` is `::1` and `127.0.0.1`). An address in whose family the `src_url` has no address (a src `127.0.0.1` and the destination `::1`) is skipped silently, and the next address is tried; only when no address is left is it an ERROR, *"Cannot get addr to connect"*, with the `src_url`. Before this fix the connect ended at the first address (*"getaddrinfo() src_url FAILED"*), and never tried the other family.
+A destination name can resolve to several addresses (`localhost` is `::1` and `127.0.0.1`). An address in whose family the `src_url` has no address (a src `127.0.0.1` and the destination `::1`) is skipped silently, and the next address is tried; only when no address is left is it an ERROR, *"Cannot get addr to connect"*, with the `src_url`.
 
 ```C
 // localhost is [::1] first here: the IPv6 address is skipped, the connect goes to 127.0.0.1
@@ -818,7 +818,7 @@ Returns 0 on successful execution, or -1 if an error occurs.
 
 If a callback function returns -1, the loop will break and exit early.
 
-Every cycle begins with [`gobj_deliver_posted_events()`](../gobj/events_state.md#gobj_deliver_posted_events), which delivers what the gobjs posted with [`gobj_post_event()`](../gobj/events_state.md#gobj_post_event). It happens before the completions, so an event posted while the loop was not yet running does not wait for a completion that may never arrive. While messages are pending, or the loop holds a completion it made itself (a stop that took back a submission the kernel had not taken, see [`yev_stop_event()`](<#yev_stop_event>)), the loop does not block on the ring: it takes a completion if one is ready, and returns to the queue if not. Up to 7.25.4 only the messages counted: a posted action that stopped such an event left its `STOPPED` waiting for an unrelated completion.
+Every cycle begins with [`gobj_deliver_posted_events()`](../gobj/events_state.md#gobj_deliver_posted_events), which delivers what the gobjs posted with [`gobj_post_event()`](../gobj/events_state.md#gobj_post_event). It happens before the completions, so an event posted while the loop was not yet running does not wait for a completion that may never arrive. While messages are pending, or the loop holds a completion it made itself (a stop that took back a submission the kernel had not taken, see [`yev_stop_event()`](<#yev_stop_event>)), the loop does not block on the ring: it takes a completion if one is ready, and returns to the queue if not.
 
 ---
 
@@ -1029,7 +1029,7 @@ If the event is a `connect` or a `timer` event, its fd is closed. The fd of an `
 If the event is in an idle state, it can be reused. Otherwise, a new event must be created.
 A `RUNNING` event whose submission the kernel did not take yet, kept by the loop or still in the submission queue (see [A full submission queue](<#yev-loop-full-submission-queue>)), is not canceled in the kernel: the submission is taken back, so it never runs on the closed fd, and the callback gets the event `STOPPED` with result `-ECANCELED` at the next cycle, as after a cancel.
 The gbuffer of an event with a completion to come is released at its LAST completion, not by the stop. See [A stop keeps the gbuffer](<#yev-loop-stop-keeps-gbuffer>).
-A take-back made by a posted action (`gobj_post_event()`) is delivered at the next cycle too: the loop does not block while it holds a completion of its own. Up to 7.25.4 it could block, and the `STOPPED` waited for an unrelated completion.
+A take-back made by a posted action (`gobj_post_event()`) is delivered at the next cycle too: the loop does not block while it holds a completion of its own.
 
 `-1` without memory for the cancel (the submission queue full, the kernel taking nothing, and no memory to keep the submission): *"No memory to keep a submission: event NOT canceled"*. The event is left exactly as it was -- `RUNNING`, with its gbuffer and its fd -- and its operation completes normally later, with its callback. In 7.25.4 a stop on a full submission queue released the gbuffer and closed the fd of a timer or a connect first, and then used a NULL entry: the process crashed.
 

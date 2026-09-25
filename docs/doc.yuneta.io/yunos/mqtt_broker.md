@@ -179,7 +179,10 @@ and the unknown-client deny.
 `keys/` cannot be listed) answers `-1`, *"cannot open the queue '<name>', see
 the log"*; one whose messages cannot all be read answers `-1` with the messages
 it read, *"the list is PARTIAL"*. Up to 7.25.4 both answered `0`: an empty, or
-a short, queue.
+a short, queue. A store whose topics cannot be listed answers `-1` for
+`list-queues` (*"cannot list the queues (...)"*) and `clean-queues`
+(*"cannot list the queues, nothing cleaned (...)"*); up to 7.25.4 both answered
+an empty list with `0`.
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=mqtt_broker command=list-queues queue=client1 level=3'

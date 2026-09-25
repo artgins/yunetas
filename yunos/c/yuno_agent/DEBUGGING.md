@@ -406,8 +406,9 @@ The file is checked once for each record, never between the pieces of a record,
 so a record is never split between two files. A log file removed by hand is
 created again by the next record. At a new day the size of the file of the day
 before is not checked: that file is left as it is, even over the limit, and its
-`.OLD` stays. (Before 7.25.5 was tagged, the first record of a new day could
-rename the file of the day before to `.OLD` and remove the `.OLD` of that day.)
+`.OLD` stays. (In 7.25.4, when the last piece of a day took its file over the
+limit, the first record of the next day renamed that file to `.OLD` and removed
+the `.OLD` of that day.)
 
 A log file RENAMED by another program (a `logrotate` with its default
 `create` mode) is not noticed: the yuno goes on writing into the renamed file

@@ -5,5 +5,5 @@ Tests the **msg2db** wrapper on top of `timeranger2` — a dict-style message st
 ## Run
 
 ```bash
-ctest -R test_tr_msg --output-on-failure --test-dir build
+ctest -R '^tr_msg/' --output-on-failure --test-dir build
 ```

@@ -5,5 +5,5 @@ Second-generation TLS tests for `C_TCP_S`. Uses the updated connection / state A
 ## Run
 
 ```bash
-ctest -R test_c_tcps2 --output-on-failure --test-dir build
+ctest -R '^c_tcps2/' --output-on-failure --test-dir build
 ```

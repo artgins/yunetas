@@ -71,5 +71,5 @@ for(int i = 0; i < 10; i++) {
 ## Run
 
 ```bash
-ctest -R tr_msg2db --output-on-failure --test-dir build
+ctest -R '^tr_msg2db/' --output-on-failure --test-dir build
 ```

@@ -1517,7 +1517,7 @@ in part: nothing is projected at this open, every open retries the move,
 save-schema refuses until then"*, and the open projects nothing: the node
 keeps its old meta-schema version and the projection is recorded as
 unfinished (`not_written` names the treedb), so the next open moves the rest.
-(Until this release a move that died left a qualified copy that the next move
+(In 7.25.4 a move that died left a qualified copy that the next move
 failed to create, *"Node already exists"*, and the legacy node stayed; and a
 move with a failed write was followed by the projection of the same open,
 whose stamp raised the meta-schema version, so no later open moved what was
@@ -1528,11 +1528,8 @@ keyed by rowid, and the qualified ones of 7.13.2) is loaded with the default
 `order` 9999, *"says nothing about its place"*. The comparison of drafts
 (`draft_changed`, `diff-schema`, what a newer literal withdraws) takes a stored
 `order` that says nothing as no reorder: the node is the file. A projection
-that rewrites the node still writes its position. (Until this release every
-topic of such a projection, and every column after the first, read as a draft
-for its `order`: `draft_changed` named every topic, a newer literal withdrew
-them `"unsaved"` with a WARNING of work nobody did, and a save published a
-change of every topic.)
+that rewrites the node still writes its position. (The drafts compare
+`order` since 7.25.5; 7.25.4 did not compare it.)
 
 The keying is also why the descriptor used to validate a *user* column is
 derived, not copied, from that topic: `_treedb_create_topic_cols_desc()`
@@ -1555,8 +1552,8 @@ schema FILE IN USE declares it, then where C declares it, and last when
 neither knows it. The file comes first because it is what runs and what a save
 is compared with; the literal may be behind it, or tie with it in another
 order. For example, a projection from 7.13.1 whose file declares `users` as
-`id, username, zeta, alpha` saves `id, username, zeta, alpha`. (Until this
-release 9999 was read as a position: every node of such a projection tied, the
+`id, username, zeta, alpha` saves `id, username, zeta, alpha`. (In 7.25.4
+9999 was read as a position: every node of such a projection tied, the
 nodes kept the order the store loaded them in, alphabetical by id, and a save
 published `alpha, id, username, zeta`, a reorder nobody made, which
 `apply-schema` put in the file.)
@@ -1566,10 +1563,7 @@ its versions: `save-schema` writes into `__system__` the position each topic
 and column has in the schema it saves, where the node says another `order`.
 A column the operator added with `order` 99, third in `users`, is saved third
 and its node says `2` afterwards, so `saved-schema` answers `draft_changed:
-{}` right after the save, and again after the apply. (Until this release the
-node kept 99: compared with the saved schema, 99 against 2, `users` read as
-unsaved right after its save, and as a draft over the file after the
-apply.)
+{}` right after the save, and again after the apply.
 
 Two more things hold that order down, below the schema. The keys of a topic
 are read **sorted** (`find_keys_in_disk()`), because `readdir()` order was
@@ -1734,7 +1728,7 @@ A literal that is not higher is not installed. The log tells why:
   name, each carrying its `id` or not, are the same schema. It is the classic
   mistake: a column added to the literal without raising its
   `schema_version`, over a file that came from the literal of that number.
-  (Until this release it was compared only when `__system__`'s
+  (In 7.25.4 it was compared only when `__system__`'s
   `c_schema_version` was another number, and in that case it is the same
   number: nothing was said, and the column reached nothing.) **The same with
   `impose_c_schema` on**, the default: an imposed literal installs nothing at
@@ -1744,9 +1738,8 @@ A literal that is not higher is not installed. The log tells why:
   "c_schema_version": 2, "imposed": 1, "diff": {"added":
   {"topics`users`cols`email`header": "Email", ...}, ...}}`. And `__system__`
   is projected from the file then, not from a literal that does not run.
-  (Until this release an imposed tie was silent: the classic mistake reached
-  nothing on every imposed treedb, and a seed of `__system__` took the literal,
-  whose column then read as the operator's draft over the file.)
+  (In 7.25.4 an imposed tie was silent: the classic mistake reached nothing
+  on every imposed treedb.)
 
 For example, the developer removes the topic `departments` and the fkey of
 `users` to it, and raises the versions:
@@ -2237,9 +2230,9 @@ left it:
   it. As it was found, `save-schema` leaves it out of what it compares and
   writes, as `saved-schema` leaves it out of `draft_changed`, and names its
   ids in `left_by_older_release`: a save never publishes it on its own.
-  (Until this release the first `save-schema` after the upgrade wrote the
-  whole tree, so it published what 7.25.4 left, and the next `apply-schema`
-  put it back in the treedb.)
+  (In 7.25.4 `save-schema` wrote the whole tree, so it published what an
+  older release left, and the next `apply-schema` put it back in the
+  treedb.)
 
 For example, v1 declared `users` (`id`, `username`, `email`) and
 `departments`; 7.25.4 opened v2, which drops `departments` and `users.email`,
@@ -2372,7 +2365,7 @@ its topic_version in the schema from C"*, for example `{"treedb_name":
 "treedb_x", "topic_name": "users", "topic_version": 1, "running_version":
 2}`. A save publishes a changed topic past what RUNS, not only past the file:
 edit `users` in `__system__` and `save-schema` answers `"topic_versions":
-{"users": 3}`, and the apply installs it. (Until this release nothing said it
+{"users": 3}`, and the apply installs it. (In 7.25.4 nothing said it
 after the open that made it, and the save published `users` at the file's
 version plus one, 2: not above what ran, so the apply reached nothing.)
 
@@ -2426,7 +2419,7 @@ node opened with `impose_c_schema` off before the draft model does:
 
 A seed from it, and the completion of an unfinished projection from it,
 project every topic the same as from a list (the topic takes its name as
-`id` when it carries none). (Until this release the projector read the topics
+`id` when it carries none). (In 7.25.4 the projector read the topics
 as a list only: from such a file it wrote no topic and stamped the projection
 complete, and the missing topics then read as the operator's deletion in
 `draft_changed`.)
@@ -2755,7 +2748,7 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    tranger — **never** over the file in use. It is written WHOLE, as the
    records beside it: a temporary `X.treedb_schema.json.new`, flushed, renamed
    over the old file, so a save that dies or finds the disk full leaves the
-   pending save as it was (until this release the file was truncated and
+   pending save as it was (in 7.25.4 the file was truncated and
    rewritten in place, and such a save left a torn file). A second save of the same draft
    publishes the same numbers. `dry_run=1` answers the schema it would write
    and writes nothing (the GUI's *export as C literal* uses it). The saved

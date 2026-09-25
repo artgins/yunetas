@@ -5,5 +5,5 @@ Tests subscribe / unsubscribe / publish semantics of the GObj framework. Verifie
 ## Run
 
 ```bash
-ctest -R test_c_subscriptions --output-on-failure --test-dir build
+ctest -R '^c_subscriptions/' --output-on-failure --test-dir build
 ```

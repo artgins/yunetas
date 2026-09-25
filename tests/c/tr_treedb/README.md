@@ -7,5 +7,5 @@ Several checkpoints compare the full treedb state against JSON "foto" files (`fo
 ## Run
 
 ```bash
-ctest -R test_tr_treedb --output-on-failure --test-dir build
+ctest -R '^test_tr_treedb$' --output-on-failure --test-dir build
 ```

@@ -73,37 +73,14 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
   not kept. Next time it fails, keep `build/Testing/Temporary/LastTest.log`
   before running anything else: ctest overwrites it.
 
-**Medium**
-
-- **tr_treedb**: `treedb_delete_instance()` does not unlink, and that matters in
-  ONE case only (analysed 2026-09-15): the loader links only the `id` index
-  (`load_all_links()`) and hooks dedup by child id, so a non-primary CHILD
-  instance never sits in a parent's hook. (Up to 7.24.1 that premise was false
-  for a DICT hook: it took the newest instance. Since 7.25.0 a dict hook keeps
-  the primary.) A non-primary PARENT instance can hold children linked during
-  the session; deleting it leaves them under no visible parent until the reload
-  re-hangs them from the primary (their fkey names only the id). The agent's
-  `delete-config` / `delete-binary` refuse a version still in use ("Using in N
-  yunos") unless `force=1`. Low impact; a fix would move those children to the
-  primary's hook.
-- **gobj-ui: hosts that do not declare an output event of their child** (all
-  LATENT, a static scan of who hosts whom): three hosts do not declare an output
-  event of a gobj they subscribe to. `C_YUI_NODE` creates `C_YUI_NAV` as a pure
-  child (`c_yui_node.js:705/760/969`) and declares neither `EV_NAV_ITEM_CLOSE`
-  nor `EV_DRAWER_CLOSE_REQUESTED`, which `c_yui_nav.js` really does publish --
-  the likeliest of the three to bite. `C_YUI_TREEDB_TOPIC_WITH_FORM` creates
-  `C_YUI_JSON` as a pure child (`:2599/2725/5177`) without declaring
-  `EV_EXPAND_PATH`, which only fires on a `__collapsed__` sentinel and those
-  come from the backend, not from a schema or a cell. `C_YUI_TREEDB_TOPICS`
-  hosting `C_YUI_TREEDB_SCHEMA` is the documented opt-in case, not a defect.
-
-**Tests nobody has** (in order of damage): `delete_instance` with links.
-C_NODE commands with no ctest: `node`, `instances`, `pkey2s`, `jtree`,
-`parents`, `children`, `hooks`, `links`, `treedb-info`, the snap commands
-(their permissions are tested, their behaviour is not) and
+**Tests nobody has**: C_NODE commands with no ctest: `node`, `instances`,
+`pkey2s`, `jtree`, `parents`, `children`, `hooks`, `links`, `treedb-info`, the
+snap commands (their permissions are tested, their behaviour is not, except
+the refusal of `snap-content` for another treedb's topic, test 20) and
 `print-tranger`; `import-db` and `export-db` are tested only for their error
 count by cause, their link failures and abort, and the file name of the
-export (`c_node_link_events`, tests 14-17). The refusals on a replica are tested since
+export, and a content that is not json (`c_node_link_events`, tests 14-17
+and 19). The refusals on a replica are tested since
 7.25.0 (`test_c_node_authz`) and, for C_TREEDB, since 7.25.4.
 In gobj-ui, the treedb views got their first wiring tests on 2026-09-23
 (`test/dom_double.js`); the save kw as it leaves `publish_treedb_write` is
@@ -115,16 +92,11 @@ What the changes of 7.25.0 (and of gobj-ui 7.23.193-7.23.196 / gui_treedb
 0.17.52-0.17.54 / gui_agent 0.22.74, see the `CHANGELOG.md` of each) leave
 open:
 
-- **`snap-content` can read a topic of another treedb:** C_NODE's
-  `snap-content` does not ask `treedb_is_treedbs_topic()` -- it can no longer leave the database, but it
-  can read a topic of the tranger that is not a topic of that treedb.
 - **Apply is off on every in-tree yuno:** each one forces `impose_c_schema`,
   so gui_agent's Apply is off on all of them until one stops forcing it.
 
 **Low, worth keeping:**
-the `EV_TREEDB_NODE_*` feed is outside the `read` permission, because the
-subscription authz is commented out (`c_ievent_srv.c`, `gobj.c`); the warning
-*"Parent ref already in child fkey"* still fires in the legitimate case of
+the warning *"Parent ref already in child fkey"* still fires in the legitimate case of
 4e4dcdc00, once per `create-yuno`.
 
 ## TreeDB / timeranger2: what 7.25.5 leaves open
@@ -144,11 +116,6 @@ What the changes after 7.25.4 (`CHANGELOG.md`, Unreleased) leave open:
 - In a partial topic, operations on other ids are allowed (creates, updates,
   links); only the creates of the unloaded ids and the deletes of their
   possible parents are refused.
-- A store whose schema file is already behind what runs (written whole by an
-  older release) stays inconsistent for that topic (the running definition is
-  only in `topic_cols.json`).
-- A draft column whose `order` is not its position (e.g. 99) reads as unsaved
-  right after a save.
 - **A multi-key (`rkey`) iterator** does not see keys created after it opened;
   the `key_deleted` mark reaches only the process that deleted the key. Both
   are single-node conveniences by design (philosophy.md, "the key").
@@ -170,11 +137,12 @@ What the changes after 7.25.4 (`CHANGELOG.md`, Unreleased) leave open:
   the timer as a pure child: checked by hand with a yuno made by
   `yuno-skeleton -p`; no ctest builds the templates); the agent's exit 0 when
   its treedb does not open (no ctest runs the agent); the entry point closing
-  the log files after the leak report. Not exercised live: a form Save through
+  the log files after the leak report; `find-new-yunos create=1` skipping the
+  rows already registered (the preview is tested, `c_agent_find_new_yunos`; the
+  skip in `c_agent.c` runs in no ctest); the relink of a test after an installed
+  archive changed (shown by hand: the build prints the link line once, then
+  nothing). Not exercised live: a form Save through
   a real websocket drop.
-- A test binary is not relinked by `cmake --build build` after `make install`
-  of a library it links by name: a per-module test run can execute the old
-  library. `yunetas clean && yunetas build && yunetas test` is not affected.
 
 ## Agent: the spare agent is only refreshed on the package path
 
@@ -285,9 +253,12 @@ The gate (`enable_command_authz`) is **default-off** (design in YUNO_AUTH.md
 - then set `enable_command_authz: true` per yuno (pilot the agent first),
   staging → production.
 
-Event-level authz (`EVF_AUTHZ_INJECT` / `EVF_AUTHZ_SUBSCRIBE`) is still
-**declared but not enforced** — no gate exists for `gobj_send_event` /
-`gobj_subscribe_event`.
+The subscription gate (`enable_subscription_authz`, YUNO_AUTH.md §4.6) is
+**default-off** too. Enabling it on a yuno needs the same role model, and
+every user of a treedb GUI needs `read` on the C_NODE services it watches
+(C_NODE's `EV_TREEDB_NODE_*` are `EVF_AUTHZ_SUBSCRIBE`); a refused GUI keeps
+its session and gets no live updates. `EVF_AUTHZ_INJECT` is still **declared
+but not enforced** — no gate exists for `gobj_send_event`.
 
 ## Security: ytls TLS posture — per-gate rollout
 
@@ -301,35 +272,6 @@ Remaining is **per-gate deployment config** (validate on staging):
   Remaining is the per-gate **deployment** config: set the CA (or the explicit
   `ssl_allow_insecure_client` opt-out) on each client crypto block in the realm
   config, and raise the server-side gates.
-
-## Security: `denied_ips` is never consulted at accept
-
-`c_yuno` keeps the two lists — `allowed_ips` and `denied_ips` (`SDF_PERSIST`,
-with their `list-`/`add-`/`remove-` commands) — and exports both readers,
-`is_ip_allowed()` and `is_ip_denied()`. But the accept path
-(`c_tcp_s.c`, `yev_callback` on `fd_clisrv`) asks only **`is_ip_allowed`**, and
-only when the gate carries `only_allowed_ips`. So:
-
-- **the allow-list works** (whitelist mode, loopback exempted);
-- **the deny-list does not stop a connection.** `is_ip_denied()` has exactly
-  one caller, `c_authz.c:802`, so a denied ip is refused at *authentication* —
-  which means an unauthenticated gate (an IoT/mqtt field port) accepts it,
-  builds its channel tree, and lets the protocol run.
-
-Found while banning an internet scanner off a yunovatios mqtt gate: adding the
-scanner's ip to `denied_ips` would have changed nothing on that port, so the
-ban had to be keyed by the identity the peer announces instead (project-side,
-`gate_energia.denied_clients`).
-
-Open decisions before wiring `is_ip_denied()` into the accept path:
-
-- **cost per accept**: it is a json dict lookup per connection, the same one
-  `is_ip_allowed` already pays, so only on the gates that have a list;
-- **whether the check belongs in `c_tcp_s` or in `c_iogate`** — dropping at
-  accept never spends a channel of the pool, which is the point;
-- **`only_allowed_ips` is a badly named door**: it gates the whole ip check,
-  so a gate that wants a deny-list today has to turn on whitelist mode. The
-  deny-list should apply unconditionally when non-empty.
 
 ## Security: MQTT broker ACL — model + default-deny decision
 
@@ -352,29 +294,8 @@ decisions (Rosa):
 
 ## Security: vendored libjwt — maintenance
 
-- **Backport `jwks_*` keyring NULL-safety** (`jwks_item_get(NULL)` /
-  `jwks_free(NULL)`) at the next re-vendor — the vendored v3.2.1+2 copy derefs
-  `jwk_set->head` (`jwks.c:201`). Low-sev: not reachable from `c_authz` (keyring
-  always valid); the regression test documents and skips it.
 - **Periodic re-vendor from upstream** — procedure in
   `kernel/c/libjwt/README.md` (§ Re-vendor procedure).
-
-## Agent: deploy UX — find-new-yunos preview
-
-- **`find-new-yunos` preview lists rows that are already registered.**
-  `cmd_find_new_yunos` (`yunos/c/yuno_agent/src/c_agent.c`) iterates **every**
-  yuno row and emits a `create-yuno …` line whenever a newer binary/config
-  version exists for that role. On a **resumed upgrade** (a prior run already
-  ran `find-new-yunos create=1`, so the new-version rows exist, but never
-  promoted them) the OLD primary rows survive and still match, so the preview
-  re-lists all of them as "would be created". `create=1` then fails per row with
-  "Yuno already exists". Harmless now — the CLI 0.11.1 fall-through treats that
-  as idempotent and proceeds to `deactivate-snap` — but the preview is
-  misleading. **Fix:** skip a row in the preview when a yuno instance at the
-  target (`yuno_role`, `yuno_name`, new `role_version`/`name_version`) already
-  exists (the same `gobj_list_nodes` check `create-yuno` does at its
-  "already exists" guard). Consolidated project — read in depth, preserve the
-  `create=1` semantics, before touching.
 
 ## Observability: source-IP attribution in decoder logs — remaining pass
 

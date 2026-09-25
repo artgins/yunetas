@@ -38,7 +38,28 @@ Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory
 
 **Notes**
 
-This function uses `qsort()` to sort the filenames. The returned array must be freed properly to avoid memory leaks.
+It is [`walk_dir_array()`](#walk_dir_array) followed by [`dir_array_sort()`](#dir_array_sort): the array holds FULL paths, sorted with `qsort()` (too slow for thousands of files). The array must be freed with [`dir_array_free()`](#dir_array_free), also after a `-1`.
+
+**Example**
+
+What the agent's `dir-*` commands do (`yunos/c/yuno_agent/src/dir_listing.c`):
+
+```C
+dir_array_t da;
+if(get_ordered_filename_array(gobj,
+    "/yuneta/store",
+    NULL,   // every entry
+    WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
+    &da
+) < 0) {
+    dir_array_free(&da);    // da is empty, nothing to free, but it is always safe
+    return -1;  // Error already logged
+}
+for(json_int_t i = 0; i < da.count; i++) {
+    printf("%s\n", da.items[i]);    // "/yuneta/store/agent", "/yuneta/store/agent/...", sorted
+}
+dir_array_free(&da);
+```
 
 ---
 
@@ -117,6 +138,21 @@ void dir_array_free(
 
 This function does not return a value.
 
+**Notes**
+
+It frees every item and the array, and leaves `da` empty (`items` `NULL`, `count` and `capacity` `0`), so a second call does nothing. A listing that answered `-1` has left `da` empty already: freeing it is safe.
+
+**Example**
+
+```C
+dir_array_t da;
+if(walk_dir_array(gobj, "/yuneta/realms", NULL, WD_RECURSIVE|WD_MATCH_REGULAR_FILE, &da) < 0) {
+    return -1;  // Error already logged, da is empty
+}
+// ... use da.items[0 .. da.count-1]
+dir_array_free(&da);    // da.items is NULL and da.count 0 afterwards
+```
+
 ---
 
 (dir_array_sort)=
@@ -139,6 +175,17 @@ void dir_array_sort(
 **Returns**
 
 This function does not return a value.
+
+**Example**
+
+```C
+dir_array_t da;
+if(find_files_with_suffix_array(gobj, key_directory, ".md2", &da) < 0) {
+    return -1;  // Error already logged, da is empty
+}
+dir_array_sort(&da);    // "2026-09-22.md2", "2026-09-23.md2", ...
+dir_array_free(&da);
+```
 
 ---
 
@@ -177,11 +224,12 @@ The array holds the file NAMES, not full paths, in the order of the directory (n
 
 ```C
 dir_array_t da;
-if(find_files_with_suffix_array(gobj, key_directory, ".md2", &da) == 0) {
-    dir_array_sort(&da);
-    for(size_t i = 0; i < da.count; i++) {
-        printf("%s\n", da.items[i]);    // "2026-09-23.md2", ...
-    }
+if(find_files_with_suffix_array(gobj, key_directory, ".md2", &da) < 0) {
+    return -1;  // Error already logged, da is empty: never read it as "no files"
+}
+dir_array_sort(&da);
+for(json_int_t i = 0; i < da.count; i++) {
+    printf("%s\n", da.items[i]);    // "2026-09-23.md2", ...
 }
 dir_array_free(&da);
 ```

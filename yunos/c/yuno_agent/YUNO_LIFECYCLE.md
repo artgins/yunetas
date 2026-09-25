@@ -318,7 +318,7 @@ the command returned, so it is not carried back by the call: `ac_final_count()`
 resolves the requester by NAME and sends it an `EV_MT_COMMAND_ANSWER`. A local
 `ycommand` is a child of `__input_side__` and is found there; a client behind a
 **controlcenter** is not — its command arrived through the agent's *outbound*
-`controlcenter` `C_IEVENT_CLI`, a top-level service. Until this release the
+`controlcenter` `C_IEVENT_CLI`, a top-level service. Up to 7.12.x the
 lookup missed and the answer was dropped with *"requester channel child not
 found"* in the agent's log: the yuno was killed, or launched, and the caller
 waited forever. A node with an older agent still behaves that way, which
