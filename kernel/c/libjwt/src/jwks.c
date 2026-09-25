@@ -322,6 +322,9 @@ void jwks_error_clear(jwk_set_t *jwk_set)
 
 int jwks_item_add(jwk_set_t *jwk_set, jwk_item_t *item)
 {
+	if (jwk_set == NULL || item == NULL)	// ArtGins: NULL-safety, beyond upstream
+		return 1;
+
 	list_add_tail(&item->node, &jwk_set->head);
 
 	return 0;
@@ -330,6 +333,9 @@ int jwks_item_add(jwk_set_t *jwk_set, jwk_item_t *item)
 jwk_item_t *jwks_find_bykid(jwk_set_t *jwk_set, const char *kid)
 {
 	jwk_item_t *item = NULL;
+
+	if (jwk_set == NULL || kid == NULL)	// ArtGins: NULL-safety, beyond upstream
+		return NULL;
 
 	list_for_each_entry(item, &jwk_set->head, node) {
 		if (item->kid == NULL || strcmp(item->kid, kid))
@@ -397,6 +403,9 @@ size_t jwks_item_count(const jwk_set_t *jwk_set)
 	size_t count = 0;
 	jwk_item_t *item = NULL;
 
+	if (jwk_set == NULL)	// ArtGins: NULL-safety, beyond upstream
+		return 0;
+
 	list_for_each_entry(item, &jwk_set->head, node)
 		count++;
 
@@ -407,6 +416,9 @@ int jwks_item_free_bad(jwk_set_t *jwk_set)
 {
 	jwk_item_t *item, *pos;
 	int count = 0;
+
+	if (jwk_set == NULL)	// ArtGins: NULL-safety, beyond upstream
+		return 0;
 
 	list_for_each_entry_safe(item, pos, &jwk_set->head, node) {
 		if (!item->error)

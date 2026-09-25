@@ -342,7 +342,7 @@ these tests is described in `tests/c/timeranger2/README.md`.
 | **`test_command_authz`** | The per-command authz gate (`SDF_AUTHZ_X`): off by default, a command without the permission is refused `-403` when on, a command to itself and a granted one run. |
 | **`test_command_delete_user`** | `delete-user` of `C_AUTHZ`: a user with roles needs `force`, an immutable seed user is never deleted. |
 | **`test_command_shutdown`** | `shutdown` answers first and stops the yuno after the answer left. |
-| **`test_jwt_alg_confusion`** | The JWT algorithm-confusion forgery: an `HS*` token verified with the bytes of an RSA/EC public key is refused; the `jwks_*` getters accept a NULL set. |
+| **`test_jwt_alg_confusion`** | The JWT algorithm-confusion forgery: an `HS*` token verified with the bytes of an RSA/EC public key is refused; the `jwks_*` keyring API accepts a NULL set, `jwks_item_count`, `jwks_find_bykid` (and a NULL kid), `jwks_item_add` and `jwks_item_free_bad` included (not guarded upstream either). |
 | **`test_gbmem_realloc_refused`** | A `gbmem_realloc()` refused because the new size is larger than the largest block leaves the old block valid and tracked: the later free logs nothing and the memory counter stays right. |
 | **`test_command_binary_kw`** | A command, and `build_stats()`, whose kw carries a `gbuffer`: the handler's kw holds a reference of its own, and the caller's references are intact after the command (no *"BAD gbuf_decref()"*). |
 | **`test_dir_array_nomem`** | A directory listing that cannot keep an entry (no memory), or whose root cannot be opened, answers `-1` with the listing empty, and logs it: `find_files_with_suffix_array()`, `walk_dir_array()`, `get_ordered_filename_array()`. |

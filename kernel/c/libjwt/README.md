@@ -93,12 +93,24 @@ against **v3.6.1** on **2026-06-28**.
   (a NULL set is an error), `jwks_error_msg` returns `NULL`, and
   `jwks_error_clear` returns without doing anything. `jwks_free`,
   `jwks_item_free` and `jwks_item_free_all` already accepted NULL. Not
-  reachable from `C_AUTHZ` (its keyring is always valid). Covered by
-  `test_null_safety` in `test_jwt_alg_confusion`:
+  reachable from `C_AUTHZ` (its keyring is always valid).
+
+  The rest of the keyring API is **not** guarded upstream (its master still
+  dereferences the set), and the first backport claimed it was: review 19
+  (2026-09-25) found four more that crash on a NULL set. Guarded locally, in
+  the same shape, marked `// ArtGins: NULL-safety, beyond upstream`:
+  `jwks_item_count` returns `0`, `jwks_find_bykid` returns `NULL` (for a NULL
+  `kid` too -- it went to `strcmp`), `jwks_item_add` returns `1` for a NULL
+  set or item (an ArtGins export; `static` upstream), and
+  `jwks_item_free_bad` returns `0`. Re-apply them after an upstream sync.
+  Covered by `test_null_safety` in `test_jwt_alg_confusion`:
 
   ```c
   if(jwks_item_get(NULL, 0) == NULL && jwks_error(NULL) != 0) {
       /* a NULL keyring is refused, not dereferenced */
+  }
+  if(jwks_item_count(NULL) == 0 && jwks_find_bykid(NULL, "k") == NULL) {
+      /* the local guards, beyond upstream */
   }
   jwks_free(NULL);    /* no-op */
   ```

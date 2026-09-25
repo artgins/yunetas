@@ -544,6 +544,25 @@ static void test_null_safety(void)
     check(1,                                  "error_clear(NULL set) does not crash");
     jwks_free(NULL);
     check(1,                                  "free(NULL set) does not crash");
+
+    /*
+     *  Not guarded upstream either (as of its master): a local patch, since
+     *  review 19 found the commit that guarded the others claimed them too
+     */
+    check(jwks_item_count(NULL) == 0,         "item_count(NULL set) == 0");
+    check(jwks_find_bykid(NULL, "k") == NULL, "find_bykid(NULL set) == NULL");
+    check(jwks_item_add(NULL, NULL) != 0,     "item_add(NULL set) fails");
+    check(jwks_item_free_bad(NULL) == 0,      "item_free_bad(NULL set) == 0");
+
+    jwk_set_t *keyring = jwks_create(NULL);
+    if(keyring) {
+        check(jwks_find_bykid(keyring, NULL) == NULL, "find_bykid(NULL kid) == NULL");
+        check(jwks_item_add(keyring, NULL) != 0,      "item_add(NULL item) fails");
+        check(jwks_item_count(keyring) == 0,          "the set is still empty");
+        jwks_free(keyring);
+    } else {
+        check(0,                                      "jwks_create(NULL) gives an empty set");
+    }
 }
 
 /***************************************************************************
