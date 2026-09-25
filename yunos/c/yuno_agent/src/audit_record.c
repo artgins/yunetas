@@ -42,7 +42,8 @@
  *            access_token, api_key, x-api-key, http_cookie, private_key,
  *            ... (see those lists for why each one is there). And the
  *            `value` of a write-attr whose `attribute` has such a name (any
- *            case, in the text, in the kw, or in the same json object).
+ *            case, in the text, in the kw, in a kw string, or in the same
+ *            json object; with its json escapes decoded: api\u005fkey).
  *            And the token after "Bearer ", the credentials after "Basic "
  *            (when they are base64 of "user:password"), and anything with
  *            the shape of a JWT (eyJ..., three parts; a '.' after it, the
@@ -901,7 +902,11 @@ PRIVATE key_kind_t json_key_kind(const char *key, size_t len, const redact_ctx_t
     memcpy(bf, key, len);
     size_t n = len;
     for(int level=0; level<=MAX_ESCAPE_LEVELS && memchr(bf, '\\', n); level++) {
-        n = json_unescape(bf, n, bf);
+        size_t n2 = json_unescape(bf, n, bf);
+        if(n2 == n) {
+            break;  // only escapes that json does not know are left
+        }
+        n = n2;
     }
     key_kind_t kind = key_kind(bf, n, ctx);
     gbmem_free(bf);
@@ -912,7 +917,12 @@ PRIVATE key_kind_t json_key_kind(const char *key, size_t len, const redact_ctx_t
  *  TRUE if a write-attr names a secret attribute (its `value` is then a
  *  secret): `attribute=<name>` or `"attribute": "<name>"` (the key in any
  *  case, blanks and quotes around, escaped or not), anywhere in the text, or
- *  kw.attribute. One pass over the text.
+ *  kw.attribute. One pass over the text, and when it holds a "\u", one
+ *  more over it with its json escapes decoded, for each level of them (at
+ *  most MAX_ESCAPE_LEVELS): "api\u005fkey" is api_key, and so is
+ *  "api\\u005fkey" one json text down; "attr\u0069bute" is the key too.
+ *  Up to review 19 the name was read up to its first '\', and the value
+ *  of such a write-attr was written.
  ***************************************************************************/
 #define ATTRIBUTE_KEY   "attribute"
 #define ATTRIBUTE_AROUND " \t'\"\\"    // blanks, quotes and the backslashes of an escaped json
@@ -934,12 +944,8 @@ PRIVATE BOOL kw_names_secret_attribute(json_t *kw)
     return FALSE;
 }
 
-PRIVATE BOOL names_secret_attribute(const char *text, size_t len, json_t *kw)
+PRIVATE BOOL text_names_secret_attribute(const char *text, size_t len)
 {
-    if(kw_names_secret_attribute(kw)) {
-        return TRUE;
-    }
-
     size_t key_len = strlen(ATTRIBUTE_KEY);
     const char *end = text + strnlen(text, len);   // strcasestr() stops at a nul
     const char *p = text;
@@ -966,6 +972,38 @@ PRIVATE BOOL names_secret_attribute(const char *text, size_t len, json_t *kw)
         p = (e > p)? e: p + 1;
     }
     return FALSE;
+}
+
+PRIVATE BOOL names_secret_attribute(const char *text, size_t len, json_t *kw)
+{
+    if(kw_names_secret_attribute(kw)) {
+        return TRUE;
+    }
+    if(text_names_secret_attribute(text, len)) {
+        return TRUE;
+    }
+    if(!memmem(text, len, "\\u", 2)) {
+        return FALSE;   // the pass above reads a name around its quotes and backslashes
+    }
+
+    char *bf = gbmem_malloc(len + 1);
+    if(!bf) {
+        return TRUE;    // Error already logged. Never write what cannot be judged
+    }
+    memcpy(bf, text, len);
+    bf[len] = 0;
+    size_t n = len;
+    BOOL found = FALSE;
+    for(int level=0; level<=MAX_ESCAPE_LEVELS && !found && memchr(bf, '\\', n); level++) {
+        size_t n2 = json_unescape(bf, n, bf);
+        if(n2 == n) {
+            break;  // only escapes that json does not know are left
+        }
+        n = n2;
+        found = text_names_secret_attribute(bf, n);
+    }
+    gbmem_free(bf);
+    return found;
 }
 
 /***************************************************************************
@@ -1600,7 +1638,7 @@ PRIVATE const char *scan_param(redact_scan_t *sc, scan_state_t *st, const char *
             k--;
         }
     }
-    key_kind_t kind = key_kind(k, (size_t)(k_end - k), sc->ctx);
+    key_kind_t kind = json_key_kind(k, (size_t)(k_end - k), sc->ctx);  // pass\u0077ord too
 
     const char *v = eq + 1;
     if(kind != KEY_PLAIN) {
@@ -2193,7 +2231,19 @@ PRIVATE json_t *redacted_copy(json_t *jn, redact_ctx_t *ctx)
     }
 
     if(json_is_string(jn)) {
-        char *redacted = redact_text(json_string_value(jn), json_string_length(jn), ctx);
+        /*
+         *  A write-attr given as json text in a string: its `value` is a
+         *  secret in that string (up to review 19 only the command text
+         *  and a decoded run were asked)
+         */
+        size_t len = json_string_length(jn);
+        BOOL value_is_secret = ctx->value_is_secret;
+        if(!value_is_secret && len <= ctx->budget &&
+                names_secret_attribute(json_string_value(jn), len, NULL)) {
+            ctx->value_is_secret = TRUE;
+        }
+        char *redacted = redact_text(json_string_value(jn), len, ctx);
+        ctx->value_is_secret = value_is_secret;
         if(redacted) {
             json_t *jn_redacted = json_string(redacted);
             gbmem_free(redacted);

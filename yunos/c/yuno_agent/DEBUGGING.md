@@ -609,7 +609,17 @@ nearest first:
   are read in any case (`ATTRIBUTE=api_key VALUE=…` is redacted too). That is
   stricter than the handler, which reads only `attribute` and `value`: the
   parser gives it `{"ATTRIBUTE": …, "VALUE": …}`, keys as typed. A redaction
-  can be stricter than the parser, never looser. Also the
+  can be stricter than the parser, never looser. The same holds for a JSON
+  text of a write-attr given in a string of the kw, and the names are read
+  with their JSON escapes decoded, at any level: both of these are recorded
+  with `"value":"<redacted>"`:
+
+  ```text
+  update-node topic_name=x cfg='{"attribute":"api\u005fkey","value":"hunter2"}'
+  update-node topic_name=x cfg='{"attr\u0069bute":"api_key","value":"hunter2"}'
+  ```
+
+  Also the
   token after `Bearer `, the credentials after `Basic ` when they are base64
   of `user:password`, and anything with the shape of a JWT (`eyJ…`, three
   parts joined by `.`; a `.` after it, as at the end of a sentence, is not

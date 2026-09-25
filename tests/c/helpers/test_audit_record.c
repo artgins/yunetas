@@ -27,7 +27,9 @@
  *            shape: no secret is written,
  *          - an escaped json key with a blank or a slash, a quote inside a
  *            quoted secret value (\", the shell's '\''), a JWT at the end
- *            of a sentence: no secret is written (review 19),
+ *            of a sentence, a write-attr whose names carry \u escapes or
+ *            that comes as json text in a kw string: no secret is written
+ *            (review 19),
  *          and what one record costs, 7.25.4's way and the new way.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -1439,6 +1441,8 @@ PRIVATE void test_json_text_in_json_text(void)
         {"run-yuno ",                       "password=\"a\\\" "},  // \" inside "...", never closed
         {"run-yuno ",                       "eyJa.eyJb.c. "},      // JWTs at the end of a sentence
         {"run-yuno ",                       "eyJa...."},           // dots
+        {"run-yuno ",                       "attribute=a\\u005fb\\\\u005fc "},  // names with escapes, decoded level by level
+        {"run-yuno x=\"",                  "{\\\"attr\\\\u0069bute\\\":\\\"x\\\","},  // escaped keys with escapes, in a run
         {0, 0}
     };
     for(int i=0; shapes[i].head; i++) {
@@ -1648,6 +1652,20 @@ PRIVATE void test_review19_shapes(void)
         "x cfg='{\"password\":\"<redacted>\"}' n=1",
         "(u) '{\"password\":\"it's S\"}' n=1: the string up to its closing quote");
 
+    check_no_secret("update-node x='{\"attribute\":\"api\\u005fkey\",\"value\":\"S3CRu1\"}'", NULL, "S3CRu1",
+        "(u) write-attr json, the attribute name with a \\u escape");
+    check_no_secret("update-node x='{\"attr\\u0069bute\":\"api_key\",\"value\":\"S3CRu2\"}'", NULL, "S3CRu2",
+        "(u) write-attr json, the key `attribute` with a \\u escape");
+    kw = json_pack("{s:s}", "x", "{\"attribute\":\"api_key\",\"value\":\"S3CRu3\"}");
+    check_no_secret("update-node", kw, "S3CRu3", "(u) write-attr json in a kw string");
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s}", "x", "{\"attribute\":\"api\\u005fkey\",\"value\":\"S3CRu4\"}");
+    check_no_secret("update-node", kw, "S3CRu4", "(u) write-attr json in a kw string, the name with a \\u escape");
+    JSON_DECREF(kw)
+    check_no_secret("update-node x='{\"a\":\"{\\\"attribute\\\":\\\"api\\\\u005fkey\\\",\\\"value\\\":\\\"S3CRu5\\\"}\"}'",
+        NULL, "S3CRu5", "(u) write-attr json one json text down, the name escaped twice");
+    check_no_secret("update-node pass\\u0077ord=S3CRu6", NULL, "S3CRu6",
+        "(u) a parameter key with a \\u escape");
     check_no_secret("x \" \\ password='a'\" S3CR4\" n2=1", NULL, "S3CR4",
         "(u) a stray quote, a backslash, then password='a'\" S\": the word goes on after the run");
     check_command_written("update-node x=\"\\\\ password='S3CR5'\" n2=1",
@@ -1707,8 +1725,32 @@ PRIVATE const char *gen_secret_keys[] = {
  */
 PRIVATE const char *gen_json_keys[] = {
     "secret key", "private key", "password/db", "db password", "the api key",
-    "Access Token", "my-secret/x y", 0
+    "Access Token", "my-secret/x y",
+    "pass\\u0077ord", "\\u0074oken", "api\\u005fkey", "Secret\\u0020Key", "cl\\u0069ent_secret", 0
 };
+
+/*
+ *  A write-attr of a secret attribute: its `value` is the secret. The
+ *  names with json escapes too.
+ */
+PRIVATE const char *gen_attribute_keys[] = {
+    "attribute", "ATTRIBUTE", "attr\\u0069bute", 0
+};
+PRIVATE const char *gen_attribute_names[] = {
+    "api_key", "api\\u005fkey", "pass\\u0077ord", "\\u0074oken", "client_secret", 0
+};
+PRIVATE const char *gen_value_keys[] = {
+    "value", "Value", "v\\u0061lue", 0
+};
+
+PRIVATE const char *gen_pick(const char **list)
+{
+    int n = 0;
+    while(list[n]) {
+        n++;
+    }
+    return list[pick((uint32_t)n)];
+}
 
 PRIVATE const char *gen_secret_key(void)
 {
@@ -1739,7 +1781,7 @@ PRIVATE char *gen_json(const char *secret1, const char *secret2, int levels)
 {
     const char *k = gen_json_key();
     char bf[512];
-    switch(pick(8)) {
+    switch(pick(9)) {
         case 0:
             snprintf(bf, sizeof(bf), "{\"%s\":\"%s\"}", k, secret1);
             break;
@@ -1760,6 +1802,11 @@ PRIVATE char *gen_json(const char *secret1, const char *secret2, int levels)
             break;
         case 6:
             snprintf(bf, sizeof(bf), "{\"%s\":\"a\\\" %s %s\"}", k, secret1, secret2); // a \" in the string
+            break;
+        case 7:
+            snprintf(bf, sizeof(bf), "{\"%s\":\"%s\",\"n\":1,\"%s\":\"%s %s\"}",      // a write-attr
+                gen_pick(gen_attribute_keys), gen_pick(gen_attribute_names),
+                gen_pick(gen_value_keys), secret1, secret2);
             break;
         default:
             snprintf(bf, sizeof(bf), "{\"note\":\"a \\\" b\",\"%s\" : \"%s\"}", k, secret1);
@@ -1789,7 +1836,7 @@ PRIVATE char *json_escaped(const char *text)
 PRIVATE void gen_secret_param(gbuffer_t *gbuf, const char *secret1, const char *secret2, BOOL inner)
 {
     const char *k = gen_secret_key();
-    int form = (int)pick(inner? 20: 23);
+    int form = (int)pick(inner? 21: 24);
     char *json = NULL;
     char *esc = NULL;
     switch(form) {
@@ -1862,6 +1909,9 @@ PRIVATE void gen_secret_param(gbuffer_t *gbuf, const char *secret1, const char *
             esc = json? json_escaped(json): NULL;
             gbuffer_printf(gbuf, "cfg='%s'", esc? esc: "");   // '{\"k\":...}', keys with blanks
             break;
+        case 20:
+            gbuffer_printf(gbuf, "attribute=%s value='%s %s'", gen_pick(gen_attribute_names), secret1, secret2);
+            break;
         default:
             {
                 /*
@@ -1874,9 +1924,9 @@ PRIVATE void gen_secret_param(gbuffer_t *gbuf, const char *secret1, const char *
                 if(!inner_text) {
                     inner_text = "";
                 }
-                if(form == 20) {
+                if(form == 21) {
                     gbuffer_printf(gbuf, "command='%s'", inner_text);
-                } else if(form == 21) {
+                } else if(form == 22) {
                     gbuffer_printf(gbuf, "command=\"%s\"", inner_text);
                 } else {
                     esc = json_quoted(inner_text);
