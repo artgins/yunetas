@@ -7048,6 +7048,72 @@ PRIVATE int scenario_draft_order_is_not_its_place(hgobj gobj)
 }
 
 /***************************************************************************
+ *  OM: the operator MOVES the column `departments.name` to `users` (as in
+ *  MV) and saves. The node keeps its id, `tw_om.departments.name`, and is
+ *  saved third in `users`: the save writes that place into the node it
+ *  found by NAME, as the diff finds it. Right after the save
+ *  `draft_changed` is {}; applied and opened, {} again, the store runs
+ *  `name` in `users`, and a second save has nothing to save.
+ *
+ *  Red before: the place was written to the id composed from the names,
+ *  `tw_om.users.name`, which is no node. The moved column kept `order` 1
+ *  (tied with `username`), so `users` read as unsaved right after its
+ *  save and as a draft after the apply, and every later save published it
+ *  again.
+ ***************************************************************************/
+PRIVATE int scenario_moved_col_saved(hgobj gobj)
+{
+    int result = 0;
+    const char *db = "tw_om";
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    if(gobj_unlink_nodes(sys, "cols",
+            "topics", json_pack("{s:s}", "id", "tw_om.departments"),
+            "cols", json_pack("{s:s}", "id", "tw_om.departments.name"), gobj) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: OM, the operator's unlink was refused", NULL);
+    }
+    if(gobj_link_nodes(sys, "cols",
+            "topics", json_pack("{s:s}", "id", "tw_om.users"),
+            "cols", json_pack("{s:s}", "id", "tw_om.departments.name"), gobj) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: OM, the operator's link was refused", NULL);
+    }
+    result += check_draft_changed(gobj, db, "TEST FAIL: OM, the move is not a draft",
+        json_pack("{s:b, s:b}", "departments", 1, "users", 1));
+    result += save_schema(gobj, db);
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: OM, a moved column reads as unsaved right after its save", json_object());
+    result += apply_schema(gobj, db);
+    close_db(gobj, db);
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: OM, the applied move reads as a draft over the file", json_object());
+    json_int_t tv;
+    json_t *h = running_headers(gobj, db, "users", &tv);
+    if(!json_object_get(h, "name")) {
+        result += test_fail(gobj, db, "TEST FAIL: OM, the apply of the move reached nothing",
+            json_pack("{s:I, s:O}", "topic_version", tv, "headers", h? h : json_null()));
+    }
+    JSON_DECREF(h)
+    json_t *jn_resp = treedb_cmd(gobj, db, "save-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "nothing to save") ||
+            kw_get_dict(gobj, jn_resp, "data`topic_versions", 0, 0)) {
+        result += test_fail(gobj, db, "TEST FAIL: OM, a second save published the move again",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    close_db(gobj, db);
+    drop_treedb(gobj, db);
+    return result;
+}
+
+/***************************************************************************
  *  BH: a store that runs a topic AHEAD of its schema file. The operator's
  *  apply of `users` ran (topic_version 2, with `email`); then a newer
  *  literal (schema_version 3) declares `users` at topic_version 1, without
@@ -7057,9 +7123,14 @@ PRIVATE int scenario_draft_order_is_not_its_place(hgobj gobj)
  *
  *    - every open that runs the file says it: ONE WARNING, naming the
  *      topic;
- *    - a save of `users` publishes it past what RUNS (topic_version 3),
- *      so the apply installs it: the store runs the saved `users`, and the
- *      next open says nothing.
+ *    - a save with NO edit has nothing to save (__system__ holds the
+ *      file's columns, the draft is the file), and its answer names
+ *      `users` in `store_ahead` ({topic_version 1, running_version 2}) and
+ *      says what to do: edit the topic in __system__, or raise it from C;
+ *    - a save of `users` edited publishes it past what RUNS
+ *      (topic_version 3), so the apply installs it: the store runs the
+ *      saved `users`, the next open says nothing, and a save names no
+ *      topic in `store_ahead`.
  *
  *  Red before: nothing was said after the open that installed the
  *  literal, and the save published `users` at topic_version 2 (the
@@ -7109,8 +7180,23 @@ PRIVATE int scenario_file_behind_what_runs(hgobj gobj)
         }
     }
 
-    result += edit_header(gobj, db, "users", "username", "Edited");
     json_t *jn_resp = treedb_cmd(gobj, db, "save-schema", json_object());
+    json_t *ahead = kw_get_dict(gobj, jn_resp, "data`store_ahead`users", 0, 0);
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            kw_get_dict(gobj, jn_resp, "data`topic_versions", 0, 0) ||
+            !ahead ||
+            kw_get_int(gobj, ahead, "topic_version", 0, KW_WILD_NUMBER) != 1 ||
+            kw_get_int(gobj, ahead, "running_version", 0, KW_WILD_NUMBER) != 2 ||
+            !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0),
+                "the store runs 'users' ahead of it with other columns")) {
+        result += test_fail(gobj, db,
+            "TEST FAIL: BH, a save with no edit did not name the topic the store runs ahead",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+
+    result += edit_header(gobj, db, "users", "username", "Edited");
+    jn_resp = treedb_cmd(gobj, db, "save-schema", json_object());
     json_int_t saved_tv = kw_get_int(gobj, jn_resp, "data`topic_versions`users", -1, KW_WILD_NUMBER);
     if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 || saved_tv != 3) {
         result += test_fail(gobj, db,
@@ -7131,6 +7217,14 @@ PRIVATE int scenario_file_behind_what_runs(hgobj gobj)
             json_pack("{s:I, s:O}", "topic_version", tv, "headers", h? h : json_null()));
     }
     JSON_DECREF(h)
+    jn_resp = treedb_cmd(gobj, db, "save-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            json_object_size(kw_get_dict(gobj, jn_resp, "data`store_ahead", 0, 0)) > 0) {
+        result += test_fail(gobj, db,
+            "TEST FAIL: BH, a save after the apply still names a topic the store runs ahead",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
     close_db(gobj, db);
     drop_treedb(gobj, db);
     return result;
@@ -7397,6 +7491,7 @@ PRIVATE int (*late_scenarios[])(hgobj gobj) = {
     scenario_same_version_other_content,
     scenario_imposed_same_version_other_content,
     scenario_draft_order_is_not_its_place,
+    scenario_moved_col_saved,
     scenario_file_behind_what_runs,
     scenario_saved_schema_written_whole,
     scenario_kw_gbuffer_every_treedb,

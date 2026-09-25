@@ -1563,7 +1563,14 @@ its versions: `save-schema` writes into `__system__` the position each topic
 and column has in the schema it saves, where the node says another `order`.
 A column the operator added with `order` 99, third in `users`, is saved third
 and its node says `2` afterwards, so `saved-schema` answers `draft_changed:
-{}` right after the save, and again after the apply.
+{}` right after the save, and again after the apply. A node is found by its
+NAME, as the diff finds it, and written under its own id: a column the
+operator moved from `departments` to `users` keeps the id
+`treedb_x.departments.name`, and that node gets its place in `users`. (Before
+the fix, the place went to the id composed from the names,
+`treedb_x.users.name`, which is no node: `users` read as unsaved after every
+save, and every later save published it again. The same held for a topic of
+another treedb linked here.)
 
 Two more things hold that order down, below the schema. The keys of a topic
 are read **sorted** (`find_keys_in_disk()`), because `readdir()` order was
@@ -2359,15 +2366,70 @@ way), tranger2 keeps the store's topic, and the definition that runs is only
 in its `topic_cols.json`: the file and `__system__` say another. Every open
 that runs the file says it, per topic: *"Schema file in use declares other
 columns than the store runs, at a topic_version behind the store's (a schema
-written whole over a topic the store had raised): the store runs its own, which only its
-topic_cols.json says; save the topic from __system__ and apply it, or raise
-its topic_version in the schema from C"*, for example `{"treedb_name":
-"treedb_x", "topic_name": "users", "topic_version": 1, "running_version":
-2}`. A save publishes a changed topic past what RUNS, not only past the file:
-edit `users` in `__system__` and `save-schema` answers `"topic_versions":
-{"users": 3}`, and the apply installs it. (In 7.25.4 nothing said it
-after the open that made it, and the save published `users` at the file's
-version plus one, 2: not above what ran, so the apply reached nothing.)
+written whole over a topic the store had raised): the store runs its own,
+which only its topic_cols.json says. __system__ holds the file's columns, so
+save-schema has nothing to save until the topic is edited there: to keep what
+runs, edit the topic in __system__ to those columns, then save-schema and
+apply-schema; to run the file's, raise its topic_version above running_version
+(and the schema_version) in the schema from C"*, for example `{"treedb_name":
+"treedb_x", "topic_name": "users", "topic_version": 1, "running_version": 2,
+"path": ".../treedb_x/users"}` (`path`: the directory of the
+`topic_cols.json` that says what runs).
+
+`__system__` is projected from the FILE, so the draft is the file and a save
+with no edit has nothing to save. Its answer names the topic, in the comment
+and in `data.store_ahead`:
+
+```bash
+ycommand -c 'command-yuno id=<id> service=treedbs command=save-schema treedb_name=treedb_x'
+# 0: <role>^<name>: nothing to save, the draft of 'treedb_x' is the schema in use; the store
+#    runs 'users' ahead of it with other columns, which the draft cannot say: to keep what
+#    runs, edit the topic in __system__ to those columns and save again; to run the file's,
+#    raise its topic_version in the schema from C
+# data: {..., "store_ahead": {"users": {"topic_version": 1, "running_version": 2,
+#        "path": ".../treedb_x/users"}}}
+```
+
+There are two ways out, and the operator chooses which definition wins:
+
+- **Keep what runs** (`email`, the operator's apply): add `email` back to
+  `users` in `__system__` (read its definition in `topic_cols.json`), then
+  `save-schema` and `apply-schema`. A save publishes a changed topic past what
+  RUNS, not only past the file: it answers `"topic_versions": {"users": 3}`,
+  and the apply installs it. Any edit of `users` does the same, so the edit
+  must make the draft what has to run.
+- **Run the file's** (`users` without `email`): the draft cannot ask for it,
+  because it IS the file. Raise the topic in the schema from C past what runs,
+  and the schema with it:
+
+  ```c
+  static char treedb_schema_x[]= "\
+  {                                                                   \n\
+      'id': 'treedb_x',                                               \n\
+      'schema_version': '4',                                          \n\
+      'topics': [                                                     \n\
+          {                                                           \n\
+              'id': 'users',                                          \n\
+              'pkey': 'id',                                           \n\
+              'topic_version': '3',                                   \n\
+              'cols': {                                               \n\
+                  ...                                                 \n\
+              }                                                       \n\
+          }                                                           \n\
+      ]                                                               \n\
+  }                                                                   \n\
+  ";
+  ```
+
+  `schema_version` 4 is above the file's 3, and `topic_version` 3 above the
+  `running_version` 2.
+
+  The next open installs the literal (it is newer than the file), and
+  tranger2 installs `users` (3 is above 2).
+
+(In 7.25.4 nothing said it after the open that made it, and the save published
+`users` at the file's version plus one, 2: not above what ran, so the apply
+reached nothing.)
 
 The whole matrix, with `impose_c_schema` off on a master:
 

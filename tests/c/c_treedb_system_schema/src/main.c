@@ -335,7 +335,7 @@ PRIVATE const char *expected_log_msgs[] = {
      *  file runs, and `departments` runs AHEAD of it (13b4 left the store
      *  with its own): said at every open that runs the file  */
     "TreeDB schema from C is behind the schema in use, not applied",
-    "Schema file in use declares other columns than the store runs, at a topic_version behind the store's (a schema written whole over a topic the store had raised): the store runs its own, which only its topic_cols.json says; save the topic from __system__ and apply it, or raise its topic_version in the schema from C",
+    "Schema file in use declares other columns than the store runs, at a topic_version behind the store's (a schema written whole over a topic the store had raised): the store runs its own, which only its topic_cols.json says. __system__ holds the file's columns, so save-schema has nothing to save until the topic is edited there: to keep what runs, edit the topic in __system__ to those columns, then save-schema and apply-schema; to run the file's, raise its topic_version above running_version (and the schema_version) in the schema from C",
     "Schema saved",
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -351,7 +351,7 @@ PRIVATE const char *expected_log_msgs[] = {
     /*  ...and B's saved file cannot be READ: saved-schema says broken, the
      *  apply of all leaves B out and applies A  */
     "TreeDB schema from C is behind the schema in use, not applied",
-    "Schema file in use declares other columns than the store runs, at a topic_version behind the store's (a schema written whole over a topic the store had raised): the store runs its own, which only its topic_cols.json says; save the topic from __system__ and apply it, or raise its topic_version in the schema from C",
+    "Schema file in use declares other columns than the store runs, at a topic_version behind the store's (a schema written whole over a topic the store had raised): the store runs its own, which only its topic_cols.json says. __system__ holds the file's columns, so save-schema has nothing to save until the topic is edited there: to keep what runs, edit the topic in __system__ to those columns, then save-schema and apply-schema; to run the file's, raise its topic_version above running_version (and the schema_version) in the schema from C",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
     "Schema saved",

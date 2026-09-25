@@ -255,6 +255,11 @@ PRIVATE json_t *leftovers_as_left(
     json_t *edited
 );
 PRIVATE json_t *system_tree_of(hgobj gobj, const char *treedb_name);
+PRIVATE json_t *topics_ahead_of_file(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *file_in_use
+);
 PRIVATE json_t *projection_attrs(hgobj gobj, BOOL is_topic, json_t *cols_desc);
 PRIVATE json_t *leftover_node(
     hgobj gobj,
@@ -2371,6 +2376,13 @@ PRIVATE BOOL system_is_written_here(hgobj gobj)
  *  as a draft over the file it had become. A node that says nothing of its
  *  place (ORDER_SAYS_NOTHING, a projection from before 7.14.0) gets the
  *  place the save gave it too. -1 when a write fails (logged).
+ *
+ *  A node is found by NAME, as diff_treedb_schema() finds it, and written
+ *  under its own id: a column the operator moved to another topic keeps
+ *  the id of the topic it came from, and a topic of another treedb linked
+ *  here keeps its treedb's. Composed from the names, those ids named no
+ *  node, their place was never written, and their topic read as unsaved
+ *  after every save, and as a draft after the apply.
  ***************************************************************************/
 PRIVATE int write_saved_positions(
     hgobj gobj,
@@ -2387,15 +2399,21 @@ PRIVATE int write_saved_positions(
     int idx; json_t *topic;
     json_array_foreach(json_object_get(schema, "topics"), idx, topic) {
         const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
-        char topic_id[RECORD_KEY_VALUE_MAX];
-        if(!build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
-            ret = -1;   // Error already logged
+        json_t *stored_topic = stored_topics?
+            find_node_by_name(gobj, stored_topics, topic_name) : NULL;
+        if(!stored_topic) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INTERNAL,
+                "msg",              "%s", "Topic of a saved schema not found in __system__, its place is not written",
+                "treedb_name",      "%s", treedb_name,
+                "topic_name",       "%s", topic_name,
+                NULL
+            );
+            ret = -1;
             continue;
         }
-        json_t *stored_topic = json_object_get(stored_topics, topic_id);
-        if(!stored_topic) {
-            continue;   /*  what the save wrote comes from __system__: a node of another treedb  */
-        }
+        const char *topic_id = kw_get_str(gobj, stored_topic, "id", "", 0);
 
         json_t *places = json_array();  // of [system topic, id, place]
         if(kw_get_int(gobj, stored_topic, "order", -1, KW_WILD_NUMBER) != idx) {
@@ -2405,15 +2423,25 @@ PRIVATE int write_saved_positions(
         json_t *cols = kwid_new_list(gobj, topic, 0, "cols");
         int idx2; json_t *col;
         json_array_foreach(cols, idx2, col) {
-            char col_id[RECORD_KEY_VALUE_MAX];
-            if(!build_schema_node_id(gobj, col_id, sizeof(col_id), topic_id,
-                    kw_get_str(gobj, col, "id", "", 0))) {
-                ret = -1;   // Error already logged
+            const char *col_name = kw_get_str(gobj, col, "id", "", 0);
+            json_t *stored_col = stored_cols?
+                find_node_by_name(gobj, stored_cols, col_name) : NULL;
+            if(!stored_col) {
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_INTERNAL,
+                    "msg",              "%s", "Column of a saved schema not found in __system__, its place is not written",
+                    "treedb_name",      "%s", treedb_name,
+                    "topic_name",       "%s", topic_name,
+                    "col_name",         "%s", col_name,
+                    NULL
+                );
+                ret = -1;
                 continue;
             }
-            json_t *stored_col = json_object_get(stored_cols, col_id);
-            if(stored_col && kw_get_int(gobj, stored_col, "order", -1, KW_WILD_NUMBER) != idx2) {
-                json_array_append_new(places, json_pack("[s,s,i]", "cols", col_id, idx2));
+            if(kw_get_int(gobj, stored_col, "order", -1, KW_WILD_NUMBER) != idx2) {
+                json_array_append_new(places, json_pack("[s,s,i]",
+                    "cols", kw_get_str(gobj, stored_col, "id", "", 0), idx2));
             }
         }
         JSON_DECREF(cols)
@@ -2602,6 +2630,27 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             JSON_DECREF(saved)
         }
         BOOL withdraw = (saved_version > in_use_version)? TRUE: FALSE;
+
+        /*
+         *  A topic the store runs AHEAD of the file is not in the draft:
+         *  __system__ holds the file's columns, so a save with no edit has
+         *  nothing to say of it. The answer names it, and what to do
+         *  (the WARNING of every open says the same)
+         */
+        json_t *store_ahead = topics_ahead_of_file(gobj, treedb_name, in_use);
+        char ahead_names[PATH_MAX];
+        ahead_names[0] = 0;
+        {
+            size_t ln = 0;
+            const char *ahead_topic; json_t *v;
+            json_object_foreach(store_ahead, ahead_topic, v) {
+                if(ln < sizeof(ahead_names)) {
+                    ln += (size_t)snprintf(ahead_names + ln, sizeof(ahead_names) - ln,
+                        "%s'%s'", ln? ", " : "", ahead_topic);
+                }
+            }
+        }
+
         JSON_DECREF(changed)
         JSON_DECREF(in_use)
         JSON_DECREF(left_out)
@@ -2619,6 +2668,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 );
                 JSON_DECREF(rows)
                 JSON_DECREF(left_ids)
+                JSON_DECREF(store_ahead)
                 return msg_iev_build_response(gobj, -1,
                     json_sprintf("%s: the draft of '%s' is the schema in use, but its saved "
                         "schema_version %d could not be withdrawn from %s (see the log)",
@@ -2638,26 +2688,37 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             );
         }
 
+        char ahead_said[PATH_MAX + 512];
+        ahead_said[0] = 0;
+        if(json_object_size(store_ahead) > 0) {
+            snprintf(ahead_said, sizeof(ahead_said),
+                "; the store runs %s ahead of it with other columns, which the draft cannot "
+                "say: to keep what runs, edit the topic in __system__ to those columns and save "
+                "again; to run the file's, raise its topic_version in the schema from C",
+                ahead_names);
+        }
+
         json_t *comment;
         if(withdraw) {
             comment = json_sprintf("%s: the draft of '%s' is the schema in use: the saved "
-                "schema_version %d %s withdrawn",
+                "schema_version %d %s withdrawn%s",
                 gobj_yuno_role_plus_name(), treedb_name, (int)saved_version,
-                dry_run? "would be": "is");
+                dry_run? "would be": "is", ahead_said);
         } else {
-            comment = json_sprintf("%s: nothing to save, the draft of '%s' is the schema in use",
-                gobj_yuno_role_plus_name(), treedb_name);
+            comment = json_sprintf("%s: nothing to save, the draft of '%s' is the schema in use%s",
+                gobj_yuno_role_plus_name(), treedb_name, ahead_said);
         }
         return msg_iev_build_response(gobj, 0,
             comment,
             0,
-            json_pack("{s:s, s:b, s:I, s:s, s:o, s:o}",
+            json_pack("{s:s, s:b, s:I, s:s, s:o, s:o, s:o}",
                 "treedb_name", treedb_name,
                 "withdrawn", withdraw,
                 "schema_version", withdraw? saved_version : in_use_version,
                 "path", saved_path,
                 "changes", rows,
-                "left_by_older_release", left_ids
+                "left_by_older_release", left_ids,
+                "store_ahead", store_ahead
             ),
             kw
         );
@@ -2777,18 +2838,36 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
          *  included, so the next save of it publishes the same numbers
          */
         int ret = 0;
+        json_t *tree = system_tree_of(gobj, treedb_name);
+        json_t *tree_topics = tree? kw_get_dict(gobj, tree, "topics", 0, 0) : NULL;
         json_t *jn_v;
         const char *topic_name;
         json_object_foreach(versions, topic_name, jn_v) {
-            char topic_id[RECORD_KEY_VALUE_MAX];
-            if(!build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
-                ret = -1;   // Error already logged
+            /*
+             *  By name, as the diff found it: a topic of another treedb
+             *  linked here is not at the id composed from this treedb
+             */
+            json_t *stored_topic = tree_topics?
+                find_node_by_name(gobj, tree_topics, topic_name) : NULL;
+            if(!stored_topic) {
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_INTERNAL,
+                    "msg",              "%s", "Topic of a saved schema not found in __system__, its topic_version is not written",
+                    "treedb_name",      "%s", treedb_name,
+                    "topic_name",       "%s", topic_name,
+                    NULL
+                );
+                ret = -1;
                 continue;
             }
             json_t *node = gobj_update_node(
                 priv->gobj_node_system,
                 "topics",
-                json_pack("{s:s, s:O}", "id", topic_id, "topic_version", jn_v),
+                json_pack("{s:s, s:O}",
+                    "id", kw_get_str(gobj, stored_topic, "id", "", 0),
+                    "topic_version", jn_v
+                ),
                 0,
                 gobj
             );
@@ -2797,6 +2876,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             }
             JSON_DECREF(node)
         }
+        JSON_DECREF(tree)
         json_t *node = gobj_update_node(
             priv->gobj_node_system,
             "treedbs",
@@ -9604,28 +9684,45 @@ PRIVATE int remove_saved_schema(hgobj gobj, const char *treedb_name, json_int_t 
 }
 
 /***************************************************************************
+ *  Does the store run `topic_name` with other columns than `jn_schema`
+ *  declares? What it runs is its topic_cols.json; FALSE when it has none.
+ *  `directory` gets that file's directory.
+ ***************************************************************************/
+PRIVATE BOOL store_runs_other_cols(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *jn_schema,  // not owned
+    char *directory,
+    size_t directory_size
+)
+{
+    build_path(directory, directory_size,
+        gobj_read_str_attr(gobj, "path"), treedb_name, topic_name, NULL);
+    if(!file_exists(directory, "topic_cols.json")) {
+        return FALSE;
+    }
+    json_t *running_cols = load_json_from_file(gobj, directory, "topic_cols.json", 0);
+    json_t *running = json_pack("{s:[{s:s, s:o}]}",
+        "topics", "id", topic_name, "cols", running_cols? running_cols : json_object());
+    BOOL differs = schema_topic_differs(running, jn_schema, topic_name, TRUE);
+    JSON_DECREF(running)
+    return differs;
+}
+
+/***************************************************************************
  *  A literal installed over the file hands tranger2 every topic, and
  *  tranger2 installs one only over a LOWER topic_version (or a different
  *  one, imposing): a topic the literal changes without raising its
  *  topic_version goes on running the columns of its topic_cols.json, while
  *  the file and __system__ say the literal. That is the classic change
  *  that reaches nothing, and it is said, as a warning, per topic.
- *
- *  `file_behind`: `jn_schema` is the schema FILE, which runs (nothing is
- *  installed), and only a topic the store runs at a topic_version ABOVE
- *  the file's is looked at: a file written whole over it by an older
- *  release (7.25.4 installed a literal so, and tranger2 kept its own).
- *  The store runs a definition that only its topic_cols.json holds, and
- *  nothing said it after the open that made it: it is said at every open
- *  now, until a save of the topic (published past what runs, see
- *  cmd_save_schema) or a literal that raises it puts one definition back.
  ***************************************************************************/
 PRIVATE void warn_topics_not_raised(
     hgobj gobj,
     const char *treedb_name,
-    json_t *jn_schema,  // not owned, the literal, or the schema file with `file_behind`
-    BOOL imposing,
-    BOOL file_behind
+    json_t *jn_schema,  // not owned, the literal
+    BOOL imposing
 )
 {
     json_t *topics = schema_topics_as_list(gobj, jn_schema);
@@ -9646,26 +9743,14 @@ PRIVATE void warn_topics_not_raised(
         if(imposing? (topic_version != running_version) : (topic_version > running_version)) {
             continue;   /*  tranger2 installs it  */
         }
-        if(file_behind && topic_version >= running_version) {
-            continue;   /*  the file says what runs, or it is the classic tie said above  */
-        }
 
         char directory[PATH_MAX];
-        build_path(directory, sizeof(directory),
-            gobj_read_str_attr(gobj, "path"), treedb_name, topic_name, NULL);
-        if(!file_exists(directory, "topic_cols.json")) {
-            continue;
-        }
-        json_t *running_cols = load_json_from_file(gobj, directory, "topic_cols.json", 0);
-        json_t *running = json_pack("{s:[{s:s, s:o}]}",
-            "topics", "id", topic_name, "cols", running_cols? running_cols : json_object());
-        if(schema_topic_differs(running, jn_schema, topic_name, TRUE)) {
+        if(store_runs_other_cols(gobj, treedb_name, topic_name, jn_schema,
+                directory, sizeof(directory))) {
             gobj_log_warning(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_TREEDB,
-                "msg",              "%s", file_behind?
-                    "Schema file in use declares other columns than the store runs, at a topic_version behind the store's (a schema written whole over a topic the store had raised): the store runs its own, which only its topic_cols.json says; save the topic from __system__ and apply it, or raise its topic_version in the schema from C" :
-                    "Topic from C declares other columns than the store runs, without raising its topic_version past it: the store keeps running its own",
+                "msg",              "%s", "Topic from C declares other columns than the store runs, without raising its topic_version past it: the store keeps running its own",
                 "treedb_name",      "%s", treedb_name,
                 "topic_name",       "%s", topic_name,
                 "topic_version",    "%d", (int)topic_version,
@@ -9673,9 +9758,84 @@ PRIVATE void warn_topics_not_raised(
                 NULL
             );
         }
-        JSON_DECREF(running)
     }
     JSON_DECREF(topics)
+}
+
+/***************************************************************************
+ *  The topics the store runs AHEAD of the schema file in use: at a
+ *  topic_version above the file's, with other columns. A file written
+ *  whole over a topic the store had raised (7.25.4 installed a literal
+ *  so, and tranger2 kept its own). The store runs a definition that only
+ *  its topic_cols.json holds, and __system__ holds the FILE's: the draft
+ *  cannot say what runs, so a save with no edit has nothing to save.
+ *
+ *  Return {topic_name: {topic_version, running_version, path}}, YOURS.
+ ***************************************************************************/
+PRIVATE json_t *topics_ahead_of_file(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *file_in_use // not owned
+)
+{
+    json_t *ahead = json_object();
+    json_t *topics = schema_topics_as_list(gobj, file_in_use);
+    int idx; json_t *topic;
+    json_array_foreach(topics, idx, topic) {
+        const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
+        if(empty_string(topic_name)) {
+            topic_name = kw_get_str(gobj, topic, "topic_name", "", 0);
+        }
+        if(empty_string(topic_name)) {
+            continue;
+        }
+        json_int_t running_version = running_topic_version(gobj, treedb_name, topic_name);
+        json_int_t topic_version = kw_get_int(gobj, topic, "topic_version", 1, KW_WILD_NUMBER);
+        if(running_version == 0 || topic_version >= running_version) {
+            continue;   /*  the file says what runs, or the classic tie of a literal  */
+        }
+        char directory[PATH_MAX];
+        if(store_runs_other_cols(gobj, treedb_name, topic_name, file_in_use,
+                directory, sizeof(directory))) {
+            json_object_set_new(ahead, topic_name, json_pack("{s:I, s:I, s:s}",
+                "topic_version", topic_version,
+                "running_version", running_version,
+                "path", directory
+            ));
+        }
+    }
+    JSON_DECREF(topics)
+    return ahead;
+}
+
+/***************************************************************************
+ *  Say, per topic, what topics_ahead_of_file() finds: at every open that
+ *  runs the file, until an edit of the topic in __system__, saved and
+ *  applied (published past what runs, see cmd_save_schema), or a literal
+ *  that raises it puts one definition back.
+ ***************************************************************************/
+PRIVATE void warn_topics_ahead_of_file(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *file_in_use // not owned
+)
+{
+    json_t *ahead = topics_ahead_of_file(gobj, treedb_name, file_in_use);
+    const char *topic_name; json_t *jn_ahead;
+    json_object_foreach(ahead, topic_name, jn_ahead) {
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_TREEDB,
+            "msg",              "%s", "Schema file in use declares other columns than the store runs, at a topic_version behind the store's (a schema written whole over a topic the store had raised): the store runs its own, which only its topic_cols.json says. __system__ holds the file's columns, so save-schema has nothing to save until the topic is edited there: to keep what runs, edit the topic in __system__ to those columns, then save-schema and apply-schema; to run the file's, raise its topic_version above running_version (and the schema_version) in the schema from C",
+            "treedb_name",      "%s", treedb_name,
+            "topic_name",       "%s", topic_name,
+            "topic_version",    "%d", (int)kw_get_int(gobj, jn_ahead, "topic_version", 0, 0),
+            "running_version",  "%d", (int)kw_get_int(gobj, jn_ahead, "running_version", 0, 0),
+            "path",             "%s", kw_get_str(gobj, jn_ahead, "path", "", 0),
+            NULL
+        );
+    }
+    JSON_DECREF(ahead)
 }
 
 /***************************************************************************
@@ -9944,7 +10104,7 @@ PRIVATE int reconcile_treedb_schema(
             saved_version = 0;  // it could not be removed (logged): not withdrawn
         }
 
-        warn_topics_not_raised(gobj, treedb_name, jn_schema, imposing, FALSE);
+        warn_topics_not_raised(gobj, treedb_name, jn_schema, imposing);
 
     } else if(json_object_size(record_topics) > 0 && record_has_kind(record_topics, "applied")) {
         json_object_set_new(priv->jn_apply_record_at_open, treedb_name,
@@ -9960,7 +10120,7 @@ PRIVATE int reconcile_treedb_schema(
          *  The file runs: a topic the store runs ahead of it is said (with
          *  impose, treedb_open_db() imposes the file's topics too)
          */
-        warn_topics_not_raised(gobj, treedb_name, file_in_use, FALSE, TRUE);
+        warn_topics_ahead_of_file(gobj, treedb_name, file_in_use);
     }
 
     if(saved_version > 0 || json_object_size(replaced) > 0) {
