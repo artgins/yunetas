@@ -1,5 +1,18 @@
 # **Changelog**
 
+## Unreleased
+
+### JS: gobj-ui 7.25.23, gui_agent 0.22.99, gui_treedb 0.17.72
+
+- **maplibre-gl 6.11.2 and vite 8.3.1.** gobj-ui 7.25.23 raises its peer floor
+  to `maplibre-gl ^6.11.2` and builds with vite `^8.3.1`; no API moved. gobj-js
+  builds with vite `^8.3.1` (7.25.8 is not republished). gui_agent and
+  gui_treedb take gobj-ui `^7.25.23` and vite `^8.3.1`, and are deployed.
+  maplibre 6.11.2 changes the glyph protocol between its worker and the page:
+  a host that emits the worker keeps the version in the file name
+  (`maplibre-gl-worker-6.11.2.js`), as the gobj-ui test-app does, or a browser
+  that cached an older worker loses the map labels.
+
 ## v7.25.6 (2026-09-25)
 
 What changed after 7.25.5: the tests that failed on the nodes, one of them
