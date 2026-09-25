@@ -74,7 +74,7 @@ everything: realms, yunos, binaries, configurations, users and roles. The
 
 For each opened database (a top-level directory):
 
-![timeranger2 on-disk layout: a database holds __timeranger2__.json and per-topic files. Records live under keys/<key>/<date>.json, paired with a 32-byte <date>.md2 index. The disks/<rt_id>/ tree holds hardlinks back into the keys/ files, which is how non-master and cross-yuno readers see the same data.](../../../docs/doc.yuneta.io/_static/treedb_ondisk.svg)
+![timeranger2 on-disk layout: a database holds __timeranger2__.json and per-topic files. Records live under keys/\<key>/\<date>.json, paired with a 32-byte \<date>.md2 index. The disks/\<rt_id>/ tree holds hardlinks back into the keys/ files, which is how non-master and cross-yuno readers see the same data.](../../../docs/doc.yuneta.io/_static/treedb_ondisk.svg)
 
 The same layout in text:
 
@@ -1803,7 +1803,7 @@ refused.** An id is the parent's id, a dot and the name, so the column
 `<treedb>.u.x.y`, and the topic `b.c` of the treedb `m2` and the topic `c`
 of the treedb `m2.b` are both `m2.b.c`. Two elements with one id are one
 node. The schema is refused where it would be written: a treedb whose
-schema collides does not open (`-1` *"cannot open treedb '<name>': no valid
+schema collides does not open (`-1` *"cannot open treedb '\<name>': no valid
 treedb_schema (see the log)"*), `save-schema` does not save a draft that
 collides, and `apply-schema` does not apply a saved schema that collides.
 Each refusal is ONE ERROR that names both elements: *"Schema refused: two
@@ -2074,7 +2074,7 @@ While the record is there:
 - `treedbs` and `saved-schema` answer `unfinished_projection`: the ids of
   `not_removed` and `not_written`, and of `planned` when the process died
   half way (`[]` when the projection is complete).
-- `save-schema` refuses: `-1` *"<role^name>: the projection of 'treedb_x'
+- `save-schema` refuses: `-1` *"\<role^name>: the projection of 'treedb_x'
   into __system__ is not complete, 2 node(s) could not be removed or
   written (see the log): a save would publish them"*, with `data:
   {treedb_name, unfinished_projection}`. A save would publish the removed
@@ -2379,7 +2379,7 @@ what it left out:
 command-yuno id=<id> service=treedbs command=save-schema treedb_name=treedb_x
 ```
 
-answers `0` *"<role^name>: nothing to save, the draft of 'treedb_x' is the
+answers `0` *"\<role^name>: nothing to save, the draft of 'treedb_x' is the
 schema in use"* with `"left_by_older_release": ["treedb_x.departments",
 "treedb_x.departments.id", "treedb_x.departments.name", "treedb_x.users.email"]`.
 After an edit of `users.username`, the save publishes `users` at
@@ -2619,18 +2619,18 @@ it. (In 7.25.4 this was decided with the lock of `__system__`, so
 `__system__` said a literal that the treedb did not run.)
 
 **A treedb already open here is refused first.** A second `open-treedb` of
-it answers `-1` *"<role^name>: treedb '<name>' is already open here:
+it answers `-1` *"\<role^name>: treedb '\<name>' is already open here:
 close-treedb first, nothing was changed"* before anything is reconciled.
 7.25.4 reconciled `__system__` first (creates and updates only) and then
 failed with *"Internal error, tranger client NULL"*.
 
 **An open that fails says so, and so does the next one.** When
 `treedb_open_db()` refuses the schema (for example a schema file with no
-topics), `open-treedb` answers `-1` *"<role^name>: treedb '<name>' did not
+topics), `open-treedb` answers `-1` *"\<role^name>: treedb '\<name>' did not
 open, its schema was refused (see the log): close-treedb it before opening it
 again"* (7.25.4 answered `0` *"Treedb opened!"*). Its services stay until
 `close-treedb` takes them away. Until then a second `open-treedb` answers
-`-1` *"<role^name>: treedb '<name>' did not open at its last open-treedb, its
+`-1` *"\<role^name>: treedb '\<name>' did not open at its last open-treedb, its
 schema was refused (see the log): close-treedb it before opening it again,
 nothing was changed"*, and its row of `treedbs` carries `"opened": false`
 (`true` for a treedb that opened). The recovery is `close-treedb`, and it
@@ -2685,17 +2685,17 @@ replaced them before the open, and they stay replaced (`topics` says which).
 
 Every answer of every command of `C_TREEDB` starts with the yuno
 (`<role^name>: ...`), the refusals of their parameters and of a permission
-too (*"<role^name>: what treedb_name?"*, *"<role^name>: No permission to
-'read' in service 'treedbs'"*). `create-topic` answers *"<role^name>: topic
-'<topic>' created in treedb '<treedb>'"* (7.25.4: *"Topic created!"*),
-`delete-topic` *"<role^name>: topic '<topic>' deleted from treedb
-'<treedb>'"* (7.25.4: *"Topic deleted!"*), and both answer *"<role^name>:
-treedb '<treedb>' not found"* for a name that is not open (7.25.4:
-*"Treedb_name not found: '<treedb>'"*).
+too (*"\<role^name>: what treedb_name?"*, *"\<role^name>: No permission to
+'read' in service 'treedbs'"*). `create-topic` answers *"\<role^name>: topic
+'\<topic>' created in treedb '\<treedb>'"* (7.25.4: *"Topic created!"*),
+`delete-topic` *"\<role^name>: topic '\<topic>' deleted from treedb
+'\<treedb>'"* (7.25.4: *"Topic deleted!"*), and both answer *"\<role^name>:
+treedb '\<treedb>' not found"* for a name that is not open (7.25.4:
+*"Treedb_name not found: '\<treedb>'"*).
 
 The agent opens its own treedb with `impose_c_schema=1`
 (`c_agent.c`, `mt_play`). When that `open-treedb` answers `-1` it prints
-*"Cannot start agent treedb: <comment>"* and logs the comment with
+*"Cannot start agent treedb: \<comment>"* and logs the comment with
 `LOG_OPT_EXIT_ZERO`: the agent EXITS with code 0, and its `ydaemon` watcher
 does not relaunch a child that exits 0, so the agent stays down (a
 relaunch would loop on the same schema). `yuneta_agent22`, which opens no
@@ -3072,7 +3072,7 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    `saved-schema` went on answering `saved: true` for it). A saved schema
    with no topics is refused, with the WARNING *"Saved treedb schema with no
    topics: not applied, a treedb without topics does not open"*: `-1`
-   *"<role>^<name>:
+   *"\<role>^\<name>:
    the saved schema of 'treedb_x' has no topics: a treedb without topics
    does not open"*, and the file in use does not change. Without
    `treedb_name`, that refuses every treedb, as a saved schema that does not
@@ -3269,7 +3269,7 @@ deleted the node of the treedb FIRST), what is left is in no tree: it is
 still the treedb's, read from the nodes as a projection reads them
 (`orphan_nodes()`), and it goes. The saved schema and the records go too, and
 the answer is `0` with what was deleted. A treedb with nothing left answers
-`0` *"<role^name>: nothing of the schema of 'treedb_foo' was in
+`0` *"\<role^name>: nothing of the schema of 'treedb_foo' was in
 __system__"*. A node that refuses the delete (a snapshot holds it) answers
 `-1`, keeps the node of the treedb, and lists in `data.deleted` what went; run
 it again once the cause is fixed. (In 7.25.4 a delete cut after its first

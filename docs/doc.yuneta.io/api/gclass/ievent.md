@@ -107,7 +107,7 @@ it matches: `^input-1$` on a gate with `input-1` and `input-2` selects only
 answers with the header of the view only. (Up to 7.25.4 each of the six
 commands looped for ever on the first channel that did not match, and
 blocked the yuno.) A text that is not a valid regular expression is refused with -1,
-for example `channel_name=input-[` answers *"<role^name>: channel_name is not
+for example `channel_name=input-[` answers *"\<role^name>: channel_name is not
 a valid regular expression: 'input-['"* (up to 7.25.4: *"regcomp() failed"*).
 
 Start and stop the gate as a pair. Either declare it `"autostart": true` in

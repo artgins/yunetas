@@ -75,7 +75,7 @@ code before it, except those listed under "No red test" in `TODO.md`.
   `command-yuno id=<id> service=__yuno__ command=list-denied-ips` (the agent:
   `command-agent service=__yuno__ command=list-denied-ips`). To ban an ip:
   `add-denied-ip ip=203.0.113.7 denied=1`. `denied` is required: without it
-  the command answers -1, *"<role^name>: Denied, TRUE or FALSE?"*, and
+  the command answers -1, *"\<role^name>: Denied, TRUE or FALSE?"*, and
   `denied=0` writes `false`, which denies nothing. A C_UDP_S with
   `only_allowed_ips` now
   drops every peer that `allowed_ips` does not name (7.25.4 never read the
@@ -111,10 +111,10 @@ code before it, except those listed under "No red test" in `TODO.md`.
   ignored"*).
 - **A yuno no longer exits when a log file cannot be opened after its
   start.** It prints one line on stdout and syslog (*"_rotatory(): Cannot open
-  '<path>' file, <err>"*; on a full disk the new day's file fails at its
-  create, *"_rotatory(): Cannot create '<path>' file, <err>"* or *"Cannot
-  create '<dir>' directory, <err>"*; *"_rotatory_truncate(): ..."* for a
-  truncate), goes on, and prints *"_rotatory(): '<path>' is open again"*
+  '\<path>' file, \<err>"*; on a full disk the new day's file fails at its
+  create, *"_rotatory(): Cannot create '\<path>' file, \<err>"* or *"Cannot
+  create '\<dir>' directory, \<err>"*; *"_rotatory_truncate(): ..."* for a
+  truncate), goes on, and prints *"_rotatory(): '\<path>' is open again"*
   when the file opens again. Look for those lines in syslog: they are the
   only sign that a yuno is not writing its log (7.25.4 exited, see "Agent,
   gobj-c and tools").
@@ -221,7 +221,7 @@ code before it, except those listed under "No red test" in `TODO.md`.
 - **C_TRANGER: a handle opened by one session is refused to another (7.25.4
   too).** `close-rt`, `close-iterator`, `close-list`, `get-page` and
   `get-list-data` of an id that another C_IEVENT_SRV session opened answer
-  -403, *"<role^name>: <kind> '<id>' is not yours: another session opened
+  -403, *"\<role^name>: \<kind> '\<id>' is not yours: another session opened
   it"*, with a WARNING (*"Handle of another session, refused"*); a peer
   could read the pages of another user's iterator, or close its feed.
   Before the liveness check, so such a request cannot reap the handle
@@ -275,14 +275,14 @@ code before it, except those listed under "No red test" in `TODO.md`.
   `add-` / `remove-` `allowed` / `denied` ip commands read the text with
   `inet_pton()` and store its canonical form (`2001:DB8::1` ->
   `2001:db8::1`, `::ffff:203.0.113.7` -> `203.0.113.7`, `fe80::1%eth0` ->
-  `fe80::1%2`); the answer says it (*"<role^name>: '2001:DB8::1' stored as
+  `fe80::1%2`); the answer says it (*"\<role^name>: '2001:DB8::1' stored as
   '2001:db8::1'"*). They refuse a text that is not a numeric ip (a host
   name, a port, brackets, an interface on an address that is not
   link-local), with the cause. A link-local address in `allowed_ips` needs
   its interface, and matches that interface only; in `denied_ips` one without
   its interface is denied on every interface. `remove-` accepts any form of
-  the ip, and answers -1 for an ip that is not in the list (*"<role^name>: ip
-  '<ip>' is not in denied_ips"*). Up to 7.25.4 the text was stored as typed
+  the ip, and answers -1 for an ip that is not in the list (*"\<role^name>: ip
+  '\<ip>' is not in denied_ips"*). Up to 7.25.4 the text was stored as typed
   and the command answered success, so `2001:DB8::1`, `[2001:db8::1]` or
   `203.0.113.7:443` were listed and never matched a peer: the operator
   believed an ip was banned, and it was not. The stored lists are normalised
@@ -306,7 +306,7 @@ code before it, except those listed under "No red test" in `TODO.md`.
   `enable_command_authz` off (the default), any authenticated peer that
   reached an iogate could do it, the agent's own `__input_side__` included.
   A `channel_name` that is not a valid regular expression answers
-  *"<role^name>: channel_name is not a valid regular expression: '<re>'"*
+  *"\<role^name>: channel_name is not a valid regular expression: '\<re>'"*
   (it answered *"regcomp() failed"*). Test `c_subscription_authz`.
 - **gobj-c: the `authzs` trace no longer reads a kw the checker has freed**
   (7.25.4 too): with the trace on, every authz check printed the kw after
@@ -831,13 +831,13 @@ code before it, except those listed under "No red test" in `TODO.md`.
   `clean-queues` answered an empty list with 0. It logs (*"Cannot list the
   topics of the store"*, with the `errno` of the failure) and answers NULL;
   the new `mark-tm-order all=1` answers -1, and so do `list-queues`
-  (*"<role^name>: cannot list the topics of the store, see the log"*) and
-  `clean-queues` (*"<role^name>: cannot list the topics of the store,
+  (*"\<role^name>: cannot list the topics of the store, see the log"*) and
+  `clean-queues` (*"\<role^name>: cannot list the topics of the store,
   nothing cleaned, see the log"*). `list-queues queue=<name>`
-  answers -1 for a queue that cannot be opened (*"<role^name>: cannot open
-  the queue '<name>', see the log"*) and for a queue whose messages cannot
-  all be read (the partial list, with *"<role^name>: the messages of the
-  queue '<name>' cannot all be read, the list is PARTIAL, see the log"*);
+  answers -1 for a queue that cannot be opened (*"\<role^name>: cannot open
+  the queue '\<name>', see the log"*) and for a queue whose messages cannot
+  all be read (the partial list, with *"\<role^name>: the messages of the
+  queue '\<name>' cannot all be read, the list is PARTIAL, see the log"*);
   7.25.4 answered 0 with an empty or short list. Test `c_mqtt/acl`.
 - A scan steps over the holes a tm filter leaves between files (7.25.4 logged
   a false *"next rowids not consecutive"* and lost the rows after the hole).
@@ -1308,9 +1308,9 @@ spread, are in `performance/c/README.md`.
   `__system__` tranger is stopped (between a stop of C_TREEDB and its next
   start), `save-schema` and `delete-treedb`; while a treedb's own tranger is
   stopped, `create-topic` and `delete-topic` of it -- all with
-  *"<role^name>: treedb '<db>' is STOPPED: its tranger holds no lock until its
-  service starts again"* -- and `apply-schema` of it (*"<role^name>: treedb
-  '<db>' is READ-ONLY, this yuno is not the master of its tranger, or the
+  *"\<role^name>: treedb '\<db>' is STOPPED: its tranger holds no lock until its
+  service starts again"* -- and `apply-schema` of it (*"\<role^name>: treedb
+  '\<db>' is READ-ONLY, this yuno is not the master of its tranger, or the
   tranger is stopped"*). 7.25.4 read the `master` that the stopped tranger
   still said: `save-schema` read nothing and answered "nothing to save", and
   `delete-treedb` went on to delete nodes of `__system__`.
@@ -1441,7 +1441,7 @@ spread, are in `performance/c/README.md`.
   starts keeping: *"Submission queue full and the kernel takes nothing: kept for
   the next cycle"*. Only a submission that there is no memory to keep fails:
   CRITICAL *"No memory to keep a submission"*, then the caller answers -1 with
-  its ERROR *"No memory to keep a submission: <what did not happen>"* (every
+  its ERROR *"No memory to keep a submission: \<what did not happen>"* (every
   event start -- connect, accept, write, read, sendmsg, recvmsg, poll --
   *"...: event NOT started"*; a timer *"...: timer NOT started"*; a cancel
   *"...: event NOT canceled"*; a re-arm inside the loop *"...: accept event
@@ -1869,7 +1869,7 @@ spread, are in `performance/c/README.md`.
   `dir-logs` and `dir-local-data` answered an EMPTY list with result 0 for a
   directory that could not be listed (does not exist, mode 0, EMFILE, a bad
   `match`): they ignored the return of the listing. They answer -1,
-  *"<role^name>: cannot list '<dir>', see the log"*, with no data (the cause
+  *"\<role^name>: cannot list '\<dir>', see the log"*, with no data (the cause
   is in the log): `dir-store subdirectory=nope` answers *"-1:
   yuneta_agent^agent: cannot list '/yuneta/store/nope', see the log"*. Tests
   `helpers/test_dir_listing`,
@@ -1930,8 +1930,8 @@ spread, are in `performance/c/README.md`.
   cannot be opened later -- a new day with EMFILE, an inode quota, a
   directory that refuses writes, a removed file, the reopen after a failed
   write, a truncate -- is printed once on stdout and syslog (*"_rotatory():
-  Cannot open '<path>' file, <err>"*), the record is dropped, the next
-  record tries again, and *"_rotatory(): '<path>' is open again"* is printed
+  Cannot open '\<path>' file, \<err>"*), the record is dropped, the next
+  record tries again, and *"_rotatory(): '\<path>' is open again"* is printed
   when it works; the pending newfile callback then runs. In 7.25.4 the first
   such failure ended a process whose handle was opened with `TRUE`: the agent
   (its audit) and every yuno (its file log). `rotatory_open(..., TRUE)` still
@@ -1950,10 +1950,10 @@ spread, are in `performance/c/README.md`.
   fails (`chattr +a`, a read-only bind, a MAC denial) keeps the file, appends
   to it, and tries the rename again after 60 s of the monotonic clock (a wall
   clock set back or forward does not move it) or at the next name, with one
-  line when it fails (*"_rotatory(): Cannot rename '<path>' to '<path>.OLD.1',
-  <err>, the file is kept and grows, the rename is tried again every
+  line when it fails (*"_rotatory(): Cannot rename '\<path>' to '\<path>.OLD.1',
+  \<err>, the file is kept and grows, the rename is tried again every
   minute"*) and one when it works again (*"_rotatory(): the size rotation of
-  '<path>' works again"*). Without it, a failed rename still empties the file,
+  '\<path>' works again"*). Without it, a failed rename still empties the file,
   as in 7.25.4.
 - The entry point closes the log files last: up to 7.25.4 they were closed
   before the final cleaning and the memory leak report, so *"system memory
@@ -1983,15 +1983,15 @@ spread, are in `performance/c/README.md`.
   and answered success; `find-new-yunos` never found that name, offered the
   yuno again at every call, and `create=1` failed on it with "Yuno already
   exists" for ever. The buffer is `NAME_MAX`, and a name that does not fit
-  answers -1: *"<role^name>: Yuno '<role>.<name>': release name too long
-  ('<binary version>' + '<config version>')"*.
+  answers -1: *"\<role^name>: Yuno '\<role>.\<name>': release name too long
+  ('\<binary version>' + '\<config version>')"*.
 - **`find-new-yunos` says which rows are already registered.** On a resumed
   upgrade (a `find-new-yunos create=1` that ran, and no `deactivate-snap`
   after it) its preview listed those rows again as new, and `create=1` failed
   on each with "Yuno already exists" (7.25.4 too). A row whose yuno already
   exists at the new release stays in the preview, marked *"already
   registered, pending promotion (deactivate-snap): create-yuno ..."*;
-  `create=1` skips it, and the comment gives the count (*"<role^name>: N
+  `create=1` skips it, and the comment gives the count (*"\<role^name>: N
   yuno(s) already registered at the new release, pending promotion: run
   deactivate-snap"*). The marked rows stay in the preview so that `yunetas
   upgrade-yunos` still runs `deactivate-snap` for them; the CLI 0.19.4 counts
@@ -2021,7 +2021,7 @@ spread, are in `performance/c/README.md`.
   the new `tranger2_mark_tm_order()`; with `all=1` it skips, with an INFO,
   each directory of the store that is not a topic (no `topic_desc.json`,
   e.g. `saved_schemas/`). A topic that cannot be opened answers -1
-  (*"<role^name>: cannot open topic '<t>' (see the log)"*).
+  (*"\<role^name>: cannot open topic '\<t>' (see the log)"*).
 - `gc-assets` answers a report (`dry_run`, `assets`, `blobs`, `refused`,
   `blobs_refused`) instead of the list of ids taken.
 - **C_TRANGER `add-record` works** (7.25.4: a stub that answered -1
@@ -2029,7 +2029,7 @@ spread, are in `performance/c/README.md`.
   record that carries the topic's pkey, on the master only, with the
   permission `write`: `command-yuno id=<id> service=<tranger>
   command=add-record topic_name=pp record='{"id":"1","tm":1700000000}'`
-  answers *"<role^name>: record added to topic 'pp', rowid <n>"* with
+  answers *"\<role^name>: record added to topic 'pp', rowid \<n>"* with
   `data: {topic_name, rowid, t, tm}`. `record` is a dict or its json text;
   `__t__` (0: now) and `user_flag` are optional. A replica answers -1 before
   the library is called. Test `test_c_tranger`.
@@ -2044,7 +2044,7 @@ spread, are in `performance/c/README.md`.
   does not exist was saved without the link and counted as a success (`"link
   failure": 0`); it is a `link failure` now. And import-db answers -1 when it
   aborts or anything fails, with a comment naming the counts, for example
-  *"<role^name>: import-db incomplete: 3 added, 0 overwritten, 0 ignored, 0
+  *"\<role^name>: import-db incomplete: 3 added, 0 overwritten, 0 ignored, 0
   failed, 1 link failure(s) (see the log)"* (`ABORTED` for an abort); a clean
   import answers 0 with the counts. 7.25.4
   answered 0 with no comment (tests 15, 16 of `c_node_link_events`).
@@ -2319,7 +2319,7 @@ spread, are in `performance/c/README.md`.
   through `gobj_short_name(null)` (*"gobj bad type"*); from gobj-js 7.25.2 on,
   `kw_get_str()` / `kw_get_bool()` also logged a second line. A `null` middle
   segment threw a `TypeError` where C gives the default. Now the answer is
-  `undefined`, logged once (*"kw must be list or dict: '<path>'"*); a missing or
+  `undefined`, logged once (*"kw must be list or dict: '\<path>'"*); a missing or
   null middle segment is logged only when verbose, a scalar one always, as the C
   recursion does. `KW_CREATE` no longer writes into a null kw. No caller passed
   such a kw. In the treedb graph, a `__graphs__` create echo goes through
@@ -2342,7 +2342,7 @@ spread, are in `performance/c/README.md`.
   also a toast. In SDK 7.25.4 the stub stayed on "loading" for the life of
   the viewer, even after the reconnect. gobj-js `kw_set_dict_value()` logs
   and answers -1 when a middle segment is `null` or a scalar (*"segment
-  '<k>' is not a dict or a list: '<path>'"*), with the kw unchanged, instead
+  '\<k>' is not a dict or a list: '\<path>'"*), with the kw unchanged, instead
   of throwing a `TypeError` (SDK 7.25.4 too): every typed reader with
   `KW_CREATE` over such a path answers its default, as C does (gobj-js 7.25.6
   said so, and still threw with `KW_CREATE`). gui_agent's Differences has a
@@ -2438,9 +2438,9 @@ spread, are in `performance/c/README.md`.
 - rotatory: a log file renamed by another program is no longer noticed (a
   removed one still is): rotate yuno logs by copy and truncate, or remove
   them. The full-disk lines name the file (*"rotatory(): stop logging to
-  '<path>' because full disk: ..."*, was *"rotatory(): stop logging because
+  '\<path>' because full disk: ..."*, was *"rotatory(): stop logging because
   full disk: ..."*), and a new line says when it resumes (*"rotatory(): logging
-  to '<path>' again: ..."*). The newfile callback
+  to '\<path>' again: ..."*). The newfile callback
   (`rotatory_subscribe2newfile()`) runs for a new name or a size rotation
   only, not for the same file opened again. A mask with no date letter (a
   fixed name) is never emptied; an `MM`-only mask empties its file only in a
@@ -2488,9 +2488,9 @@ spread, are in `performance/c/README.md`.
   is refused, and one whose schema is refused answers -1 (7.25.4: 0 "Treedb
   opened!") -- so a refused agent schema stops the agent (exit 0, not
   relaunched); new answer texts for `open-treedb` / `close-treedb` /
-  `delete-treedb` ("Treedb opened!" -> "<yuno>: treedb opened: 'X'", "Treedb
-  closed!" -> "<yuno>: treedb closed: 'X'", "Treedb_name not found" ->
-  "<yuno>: treedb 'X' not found", ...); a client store locked by another
+  `delete-treedb` ("Treedb opened!" -> "\<yuno>: treedb opened: 'X'", "Treedb
+  closed!" -> "\<yuno>: treedb closed: 'X'", "Treedb_name not found" ->
+  "\<yuno>: treedb 'X' not found", ...); a client store locked by another
   process is not reconciled. The log order at open changed (the client
   tranger's logs come first).
 - msg2db: the pkey2s of an id that did not load whole whose newest message is
@@ -2558,10 +2558,10 @@ spread, are in `performance/c/README.md`.
   cause than an existing node is a `failure` in every mode (`skip` counted it as
   `ignored`) and stops an `abort` import.
 - C_TREEDB: every answer of every command starts with the yuno (create-topic
-  "<role^name>: topic '<t>' created in treedb '<db>'", was "Topic created!";
-  delete-topic "...deleted from treedb '<db>'", was "Topic deleted!";
-  "<role^name>: treedb '<db>' not found", was "Treedb_name not found:
-  '<db>'"; the -403 answers); a schema whose qualified ids collide (names
+  "\<role^name>: topic '\<t>' created in treedb '\<db>'", was "Topic created!";
+  delete-topic "...deleted from treedb '\<db>'", was "Topic deleted!";
+  "\<role^name>: treedb '\<db>' not found", was "Treedb_name not found:
+  '\<db>'"; the -403 answers); a schema whose qualified ids collide (names
   with dots) is refused at open, save and apply.
 - C_TREEDB answers carry new fields (`withdrawn`, `stale`, `broken`,
   `withdrawn_at_open`, `unfinished_projection`, `stopped`, and `master` and
@@ -2595,11 +2595,11 @@ spread, are in `performance/c/README.md`.
   `<treedb>-<schema_version>-<date>.trdb.json`; `link-nodes` / `unlink-nodes`
   take a child ref split at its first `^` (an id with `^` is accepted).
 - The command comments of C_NODE and C_AUTHZ changed: they start with the
-  yuno and name what they did, for example "Node update!" -> "<role^name>:
-  Node update! '<id>' of topic '<t>'", "Nodes linked!" -> "<role^name>: Nodes
-  linked, '<topic>^<id>' to '<topic>^<id>^<hook>'", "Node deleted" ->
-  "<role^name>: Node deleted, '<id>' of topic '<t>'", "Snap deactivated" ->
-  "<role^name>: Snap deactivated, treedb '<db>'".
+  yuno and name what they did, for example "Node update!" -> "\<role^name>:
+  Node update! '\<id>' of topic '\<t>'", "Nodes linked!" -> "\<role^name>: Nodes
+  linked, '\<topic>^\<id>' to '\<topic>^\<id>^\<hook>'", "Node deleted" ->
+  "\<role^name>: Node deleted, '\<id>' of topic '\<t>'", "Snap deactivated" ->
+  "\<role^name>: Snap deactivated, treedb '\<db>'".
 - ip lists: C_TCP_S refuses at accept a peer in the yuno's `denied_ips`
   (7.25.4 refused it only at the login of an authenticating gate); C_UDP_S
   drops the datagrams of a peer in `denied_ips`, or not in `allowed_ips`
@@ -2632,8 +2632,8 @@ spread, are in `performance/c/README.md`.
   of an ip that is not in the list answer -1 (7.25.4: success); the stored
   lists are normalised at the first start, and an entry that is not an ip is
   dropped (see "Upgrade steps"). C_IOGATE's answer to a bad `channel_name`
-  regular expression is *"<role^name>: channel_name is not a valid regular
-  expression: '<re>'"* (was *"regcomp() failed"*).
+  regular expression is *"\<role^name>: channel_name is not a valid regular
+  expression: '\<re>'"* (was *"regcomp() failed"*).
 - gobj-js 7.25.1 - 7.25.5: the typed `kw_get_*` readers answer like the C
   ones. `kw_get_str()` returns its default as given (it returned
   `String(default)`) and logs a value that is not a string; `kw_get_list()`
@@ -2650,7 +2650,7 @@ spread, are in `performance/c/README.md`.
   refusal is a WARNING. See the JS section.
 - yuno_agent: `find-new-yunos` marks the rows already registered at the new
   release, and `create=1` skips them (it failed on each); the `dir-*`
-  failure answer is *"<role^name>: cannot list '<dir>', see the log"*. MQTT
+  failure answer is *"\<role^name>: cannot list '\<dir>', see the log"*. MQTT
   broker: `list-queues queue=<name>` answers -1 for a queue that cannot be
   opened or read whole (7.25.4: 0).
 - gobj-c: `kw_set_dict_value()` overwrites a key that exists (7.25.4 kept
@@ -2866,16 +2866,16 @@ spread, are in `performance/c/README.md`.
       must be an object"*, *"json_copy() FAILED"*. A caller's CRITICAL after
       a failed `mkrdir()` (*"Cannot create TimeRanger subdir. mkrdir()
       FAILED"*) now names the real errno (it said "Success").
-    - rotatory (stdout and syslog): *"_rotatory(): vfprintf() FAILED, <err>"*
-      is *"_rotatory(): fwrite() FAILED, '<path>', <err>"*; *"_rotatory():
-      Cannot rename '<path>' to '<old>', <err>"* ends with what follows (*",
+    - rotatory (stdout and syslog): *"_rotatory(): vfprintf() FAILED, \<err>"*
+      is *"_rotatory(): fwrite() FAILED, '\<path>', \<err>"*; *"_rotatory():
+      Cannot rename '\<path>' to '\<old>', \<err>"* ends with what follows (*",
       the file is emptied"* or *", the file is kept and grows, the rename is
       tried again every minute"*) and is printed once until *"_rotatory(): the
-      size rotation of '<path>' works again"*. New: *"_rotatory(): writing to
-      '<path>' again"*, *"_rotatory(): N pieces of '<path>' in one day, the
-      last one is replaced"*, *"_rotatory(): Cannot empty '<path>', <err>"*,
-      *"_rotatory(): '<path>' is open again"*. *"_rotatory(): Cannot open
-      '<path>' file, <err>"* (and *"Cannot create '<path>' file"* /
+      size rotation of '\<path>' works again"*. New: *"_rotatory(): writing to
+      '\<path>' again"*, *"_rotatory(): N pieces of '\<path>' in one day, the
+      last one is replaced"*, *"_rotatory(): Cannot empty '\<path>', \<err>"*,
+      *"_rotatory(): '\<path>' is open again"*. *"_rotatory(): Cannot open
+      '\<path>' file, \<err>"* (and *"Cannot create '\<path>' file"* /
       *"directory"*, *"_rotatory_truncate(): Cannot open ..."*) is printed
       once until the file opens again, and no longer ends the process.
     - C_UDP_S, new: the ERRORs *"Cannot send datagram: dropped"*, *"UDP:
@@ -2917,12 +2917,12 @@ spread, are in `performance/c/README.md`.
     - C_TCP, new: the ERRORs *"Cannot start a write: the connection is
       dropped"* and *"Cannot create a write: the connection is dropped"*.
     - C_TRANGER, new: the WARNING *"Handle of another session, refused"*
-      (`kind`, `id`, `src`) and the -403 answer *"<role^name>: <kind> '<id>'
+      (`kind`, `id`, `src`) and the -403 answer *"\<role^name>: \<kind> '\<id>'
       is not yours: another session opened it"*; `add-record` answers
-      *"<role^name>: record added to topic '<t>', rowid <n>"*,
-      *"<role^name>: What record? It must be a dict with the pkey of topic
-      '<t>'"*, *"<role^name>: cannot add the record to topic '<t>' (see the
-      log)"* and *"<role^name>: tranger '<name>' is READ-ONLY, this yuno is
+      *"\<role^name>: record added to topic '\<t>', rowid \<n>"*,
+      *"\<role^name>: What record? It must be a dict with the pkey of topic
+      '\<t>'"*, *"\<role^name>: cannot add the record to topic '\<t>' (see the
+      log)"* and *"\<role^name>: tranger '\<name>' is READ-ONLY, this yuno is
       not its master: add-record runs on the master"* (its ERROR *"TODO
       pending to review"* and answer *"Pending to review"* are gone).
     - MQTT (C_PROT_MQTT2 client): the WARNING *"removing an inflight qos2
@@ -2930,32 +2930,32 @@ spread, are in `performance/c/README.md`.
       copy waiting for its PUBREL"*; new ERROR *"Cannot load the content of a
       queued message: it stays queued"*; a client's QoS 2 PUBREL no longer
       logs *"QoS mismatch"*.
-    - C_IOGATE: *"regcomp() failed"* is *"<role^name>: channel_name is not a
-      valid regular expression: '<re>'"*.
+    - C_IOGATE: *"regcomp() failed"* is *"\<role^name>: channel_name is not a
+      valid regular expression: '\<re>'"*.
     - C_YUNO ip lists, new: the WARNINGs *"ip list entry renamed to the form
       a peer is looked up by"* and *"ip list entry dropped, it never matched
       a peer"* (with `entry` and the cause), the ERROR *"ip list is not a
-      dict"*; the answers *"<role^name>: '<ip>' stored as '<canonical>'"*,
-      *"<role^name>: ip '<ip>' is not in allowed_ips"* / *"... is not in
+      dict"*; the answers *"\<role^name>: '\<ip>' stored as '\<canonical>'"*,
+      *"\<role^name>: ip '\<ip>' is not in allowed_ips"* / *"... is not in
       denied_ips"*, and the refusal of a text that is not an ip, with its
       cause.
-    - MQTT broker, new answers: `list-queues` *"<role^name>: cannot list the
-      topics of the store, see the log"*, *"<role^name>: cannot open the
-      queue '<name>', see the log"* and *"<role^name>: the messages of the
-      queue '<name>' cannot all be read, the list is PARTIAL, see the log"*;
-      `clean-queues` *"<role^name>: cannot list the topics of the store,
+    - MQTT broker, new answers: `list-queues` *"\<role^name>: cannot list the
+      topics of the store, see the log"*, *"\<role^name>: cannot open the
+      queue '\<name>', see the log"* and *"\<role^name>: the messages of the
+      queue '\<name>' cannot all be read, the list is PARTIAL, see the log"*;
+      `clean-queues` *"\<role^name>: cannot list the topics of the store,
       nothing cleaned, see the log"*.
     - yuneta_agent, new: the WARNING *"Audit: bad __md_iev__ from a peer,
       written as empty"*, the ERROR *"audit scan: a replacement behind the
       copy"* (an internal check: nothing of that text is written); the
-      `dir-*` answer *"<role^name>: cannot list
-      '<dir>', see the log"*; `find-new-yunos` marks a row *"already
+      `dir-*` answer *"\<role^name>: cannot list
+      '\<dir>', see the log"*; `find-new-yunos` marks a row *"already
       registered, pending promotion (deactivate-snap): create-yuno ..."*,
-      comments *"<role^name>: N yuno(s) already registered at the new
+      comments *"\<role^name>: N yuno(s) already registered at the new
       release, pending promotion: run deactivate-snap"*, and logs the ERROR
       *"yuno release name too long"*; `create-yuno` answers -1
-      *"<role^name>: Yuno '<role>.<name>': release name too long ('<binary
-      version>' + '<config version>')"* after that ERROR (7.25.4 stored the
+      *"\<role^name>: Yuno '\<role>.\<name>': release name too long ('\<binary
+      version>' + '\<config version>')"* after that ERROR (7.25.4 stored the
       name cut, with no log).
     - C_TREEDB: *"Topic from C differs from the one in use, but its
       topic_version is not higher: not applied"* is *"Topic from C declares
@@ -2987,13 +2987,13 @@ spread, are in `performance/c/README.md`.
       imposed open. C_NODE `import-db` of a content that is not json logs
       the WARNING *"frame is not json"* (`Protocol`, `peername`) in place of
       the ERROR *"json_load_callback() FAILED"* with a stack. C_TRANGER
-      `mark-tm-order` answers *"<role^name>: cannot open topic '<t>' (see the
+      `mark-tm-order` answers *"\<role^name>: cannot open topic '\<t>' (see the
       log)"* for a topic that cannot be opened. The ERRORs *"Schema refused:
       two topics of the treedb in __system__ have the same name, unlink or
       rename one of them"* / *"Schema refused: two columns of a topic in
       __system__ have the same name, ..."* (with `name`, `first`, `second`),
-      and the `save-schema` answer *"<role^name>: cannot save the schema of
-      '<db>': the topics '<topic1>' and '<topic2>' have the same name '<n>',
+      and the `save-schema` answer *"\<role^name>: cannot save the schema of
+      '\<db>': the topics '\<topic1>' and '\<topic2>' have the same name '\<n>',
       and a schema keeps one per name: unlink or rename one of them"*; a save
       comment may end *"; N node(s) hang from more than one parent and keep
       their place (one `order` cannot say a place in each): see
@@ -3017,7 +3017,7 @@ spread, are in `performance/c/README.md`.
       cycles of the loop: their operations wait"*; the INFO *"Submissions
       taken by the kernel again"*; the CRITICALs *"No memory to keep a
       submission"* and *"No memory to keep a completion: submission handed
-      over as it is"*; the ERROR *"No memory to keep a submission: <what did
+      over as it is"*; the ERROR *"No memory to keep a submission: \<what did
       not happen>"*; the ERROR *"Loop destroyed with events whose completions
       did not come: freed"* (with `cancel_submitted`), and before it, when the
       cancel cannot be submitted, *"Submission queue full: the cancel of the
@@ -3893,7 +3893,7 @@ A5 of the 2026-09-21 review (`TODO.md`), its first half.
   a delete-key. Every iterator C_TRANGER opens now registers timeranger2's
   `key_deleted` callback, which only MARKS it (it runs inside
   `tranger2_delete_key()`'s walk of those iterators); its next `get-page`
-  closes it and answers *"iterator '<id>' closed, its key '<key>' was
+  closes it and answers *"iterator '\<id>' closed, its key '\<key>' was
   deleted: open it again"*. That covers every deleter of the tranger, not
   only this service's `delete-key`. gui_treedb 0.17.52 re-opens its
   whole-topic Rows card on the delete-key answer.
@@ -4512,7 +4512,7 @@ previous library both fail on the frozen-snap assertions.
 
 Nothing here changes a happy path.
 
-- **`delete-treedb` refuses the system schema by name** (*"'<name>' is the
+- **`delete-treedb` refuses the system schema by name** (*"'\<name>' is the
   system schema, it cannot be deleted"*), as `close-treedb` / `create-topic` /
   `delete-topic` already did. It fell through to a "not found" error, since
   the system schema is not projected in `treedbs`. Its answers no longer come
@@ -5045,7 +5045,7 @@ Test: `tr_treedb_relink`.
 - **A missing child is named as a child.** When the child did not exist,
   `link-nodes` and `unlink-nodes` answered *"Parent not found"* and dropped the
   parent node that `gobj_get_node()` had handed them without releasing it. They
-  now answer *"Child not found: '<topic>^<id>'"* and release it.
+  now answer *"Child not found: '\<topic>^\<id>'"* and release it.
 - **`tests/c/tr_msg2db` is registered.** It was kept out because
   msg2db "leaked" 8 tracked blocks per open/close. The leak was the test's own
   doing. A master tranger watches its `/disks` directory with inotify, and
@@ -5102,7 +5102,7 @@ handles live in its private data. The next `open-treedb`, `diff-schema` or
 `mt_stop` then used freed memory. Any other service name was destroyed the same
 way, and `create-topic` / `delete-topic` read the `tranger` attr of whatever
 they found. Now all three refuse a target that is not a `C_NODE` opened by
-this `C_TREEDB` (its parent), and they refuse the `__system__` treedb: *"'<name>'
+this `C_TREEDB` (its parent), and they refuse the `__system__` treedb: *"'\<name>'
 is not a treedb opened by this service"*. Every caller in the tree closes on the
 service it opened with, so none is affected.
 

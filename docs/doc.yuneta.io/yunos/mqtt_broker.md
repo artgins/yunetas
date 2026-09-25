@@ -241,7 +241,7 @@ and the unknown-client deny.
 | `help` | Command help |
 
 `list-queues queue=<name>` of a queue that exists and cannot be opened (its
-`keys/` cannot be listed) answers `-1`, *"cannot open the queue '<name>', see
+`keys/` cannot be listed) answers `-1`, *"cannot open the queue '\<name>', see
 the log"*; one whose messages cannot all be read answers `-1` with the messages
 it read, *"the list is PARTIAL"*. Up to 7.25.4 both answered `0`: an empty, or
 a short, queue. A store whose topics cannot be listed answers `-1` for
