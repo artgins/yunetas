@@ -1815,6 +1815,16 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   `git tag -l | grep <version>` (catches both prefixed and unprefixed forms);
   if anything matches, stop and ask — duplicate `7.x.y`/`v7.x.y` tags pointing
   at different commits is a serious error.
+- **The release suite runs on TWO machines before the tag** (rule of
+  2026-09-25): `yunetas test` on the dev machine under `ulimit -Sn 1024`, and the
+  full suite on **wattyzer** (build from source; `. /etc/profile.d/yuneta.sh`
+  first over ssh, or `yunetas` is not found and ctest runs stale binaries).
+  **Why:** 7.25.5 passed 207/207 on one machine and failed on every node. That
+  machine differs from the nodes on four axes a test can silently depend on:
+  `CONFIG_DEBUG_TRACK_MEMORY` (on locally, off on the nodes), the kernel (7.0
+  has fine-grained ctime; Debian's 6.x moves it in 4 ms ticks), the soft limit
+  of open files (the agent CLI raises its own to 1048576; a desktop terminal has
+  1024), and the DNS (a local stub that answers at once; wattyzer's takes 3 s).
 - **Bumping `YUNETA_VERSION` means resetting `RELEASE` to `1`.** The two files
   are independent and nothing links them: `RELEASE` is the packaging revision
   (`yuneta-agent-<VERSION>-<RELEASE>`), it is bumped alone for a repackage, and
