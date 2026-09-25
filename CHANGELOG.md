@@ -2086,8 +2086,8 @@ spread, are in `performance/c/README.md`.
 
 ### JS: gobj-js, gobj-ui, gui_agent, gui_treedb
 
-- The versions: gobj-js 7.25.1 - 7.25.8, gobj-ui 7.25.6 - 7.25.21, gui_agent
-  0.22.79 - 0.22.97, gui_treedb 0.17.58 - 0.17.70 (SDK 7.25.4 shipped
+- The versions: gobj-js 7.25.1 - 7.25.8, gobj-ui 7.25.6 - 7.25.22, gui_agent
+  0.22.79 - 0.22.98, gui_treedb 0.17.58 - 0.17.71 (SDK 7.25.4 shipped
   gobj-js 7.25.0, gobj-ui 7.25.5, gui_agent 0.22.78, gui_treedb 0.17.57). In
   this section a bare version is the package's own; the SDK is written "SDK
   7.25.4". Each package version named was published on npm, so a
@@ -2362,9 +2362,11 @@ spread, are in `performance/c/README.md`.
   agent`) and change language, as Differences and Apply already did (gui_agent
   0.22.95 left Save without it). The gui_agent console answers a click on a
   `__collapsed__` stub of an answer (`print-tranger expanded=1`) with `this
-  part cannot be loaded here` (a warning, nothing sent): its viewer had no
-  subscriber, and the stub stayed on "loading" in silence (SDK 7.25.4 too);
-  type the command again with `path=`. gui_agent and gui_treedb take gobj-js
+  part cannot be loaded here` (a warning, nothing sent): the console was
+  its viewer's subscriber (the parent, by the CHILD model) and did not
+  declare `EV_EXPAND_PATH`, so each click logged *"Event NOT DEFINED in
+  state"* and the stub stayed on "loading" (SDK 7.25.4 too); type the
+  command again with `path=`. gui_agent and gui_treedb take gobj-js
   `^7.25.7` and gobj-ui `^7.25.21`.
 - **gobj-js 7.25.8, gui_agent 0.22.97, gui_treedb 0.17.70: a subscription
   that rewrites the kw gets its own** (security; SDK 7.25.4 too). The port of
@@ -2386,6 +2388,20 @@ spread, are in `performance/c/README.md`.
   estadodelaire, hidraulia, yunomusica: 0 hits), so gui_agent 0.22.97 and
   gui_treedb 0.17.70 only take the fixed runtime (gobj-js `^7.25.8`);
   gobj-ui's devDependency moved to `^7.25.8`, with no gobj-ui release.
+- **gobj-ui 7.25.22, gui_agent 0.22.98, gui_treedb 0.17.71: a raw-json
+  drill in flight when the session drops is answered** (SDK 7.25.4 too).
+  gobj-ui 7.25.21 answered a drill that could not go out, not one already
+  sent: the transport answers nothing in flight on a close, a plain
+  reconnect keeps the same view and viewer, and the stub stayed on
+  "loading" for the life of the viewer (gui_treedb, wattyzer, yunovatios;
+  gui_agent's link answers on the close). `C_YUI_TREEDB_TOPICS` /
+  `C_YUI_TREEDB_GRAPH` keep the drilled paths in flight and answer each one
+  `EV_SUBTREE_ERROR {path, i18n: "the connection dropped"}` on the
+  disconnect edge (`EV_TRANSPORT_STATE`, or the shell's
+  `EV_CONNECTION_STATE` for the topics view), so a click once the session
+  is back asks again; a failure that lands for a path already answered is a
+  warning. New consumer key `the connection dropped` in gui_treedb,
+  wattyzer and yunovatios gui-common (gui_agent had it).
   events.md.
 
 ### BREAKING
