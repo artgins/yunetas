@@ -7,6 +7,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <string.h>
 #include <unistd.h>
 #include <limits.h>
 #include <helpers.h>
@@ -207,12 +208,10 @@ PUBLIC void tr2q_set_verbose(tr2_queue_t *trq, BOOL verbose)
 }
 
 /***************************************************************************
- *  Can the topic of the queue be opened? Asked of the disk, quietly: its
- *  topic_desc.json is there and can be read. Only then is it opened, and
- *  the open logs its causes when it fails all the same (a topic_desc.json
- *  that does not load).
+ *  What the queue's topic_desc.json is on disk (inode, size, mtime, ctime),
+ *  asked quietly. FALSE when it is not there or cannot be read.
  ***************************************************************************/
-PRIVATE BOOL queue_topic_can_be_opened(tr2_queue_t *trq)
+PRIVATE BOOL stat_queue_topic_desc(tr2_queue_t *trq, struct stat *st)
 {
     char topic_dir[PATH_MAX];
     char path[PATH_MAX];
@@ -222,7 +221,35 @@ PRIVATE BOOL queue_topic_can_be_opened(tr2_queue_t *trq)
     if(!build_path(path, sizeof(path), topic_dir, "topic_desc.json", NULL)) {
         return FALSE;   // Error already logged
     }
-    return (access(path, R_OK) == 0)? TRUE: FALSE;
+    if(stat(path, st) < 0 || access(path, R_OK) < 0) {
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  Is the topic worth opening again? Only when its topic_desc.json can be
+ *  read AND is not the file the last open failed on: a file that is
+ *  readable but does not load (broken json) fails the same way every time,
+ *  and each open logs its causes again.
+ ***************************************************************************/
+PRIVATE BOOL queue_topic_desc_changed(tr2_queue_t *trq)
+{
+    struct stat st;
+    if(!stat_queue_topic_desc(trq, &st)) {
+        return FALSE;
+    }
+    const struct stat *old = &trq->topic_desc_stat;
+    if(st.st_dev == old->st_dev &&
+            st.st_ino == old->st_ino &&
+            st.st_size == old->st_size &&
+            st.st_mtim.tv_sec == old->st_mtim.tv_sec &&
+            st.st_mtim.tv_nsec == old->st_mtim.tv_nsec &&
+            st.st_ctim.tv_sec == old->st_ctim.tv_sec &&
+            st.st_ctim.tv_nsec == old->st_ctim.tv_nsec) {
+        return FALSE;
+    }
+    return TRUE;
 }
 
 /***************************************************************************
@@ -230,10 +257,14 @@ PRIVATE BOOL queue_topic_can_be_opened(tr2_queue_t *trq)
  *  topic again, left it NULL: it is taken again by name as soon as it can
  *  be opened (before this fix it stayed NULL for good: every read and ack of
  *  the queue failed, and the backup was never tried again). NULL while it
- *  cannot, said once: once said, the disk is asked quietly before the open
- *  is tried again (up to this fix every call went through
- *  tranger2_topic(), which logs three errors for a topic it cannot open,
- *  and the broker asks every second per session).
+ *  cannot, said once, and once more when it is taken again. In between the
+ *  open is tried again only when topic_desc.json changes (what it was is
+ *  kept BEFORE each open, so a change during the open is not missed): up to
+ *  this fix every call went through tranger2_topic() while the file could be
+ *  read, and a readable but broken one logged the three errors of the open
+ *  on every call -- the broker asks every second per session. A file that
+ *  changes and still does not load is tried once: the open says its causes,
+ *  the queue says nothing more.
  ***************************************************************************/
 PRIVATE json_t *take_queue_topic(tr2_queue_t *trq)
 {
@@ -241,8 +272,12 @@ PRIVATE json_t *take_queue_topic(tr2_queue_t *trq)
         return trq->topic;
     }
 
-    if(trq->topic_missing_said && !queue_topic_can_be_opened(trq)) {
+    if(trq->topic_missing_said && !queue_topic_desc_changed(trq)) {
         return NULL;    // said already
+    }
+
+    if(!stat_queue_topic_desc(trq, &trq->topic_desc_stat)) {
+        memset(&trq->topic_desc_stat, 0, sizeof(trq->topic_desc_stat));
     }
 
     hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));

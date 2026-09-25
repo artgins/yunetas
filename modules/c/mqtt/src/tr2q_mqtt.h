@@ -9,6 +9,7 @@
  ****************************************************************************/
 #pragma once
 
+#include <sys/stat.h>
 #include <gobj.h>
 #include <timeranger2.h>
 
@@ -33,6 +34,7 @@ typedef struct {
     BOOL load_failed;           // the last tr2q_load() did not read every pending message
     BOOL backup_refused_said;   // tr2q_check_backup() said once that it refuses
     BOOL topic_missing_said;    // said once that the topic cannot be taken again
+    struct stat topic_desc_stat;    // its topic_desc.json at the last open: tried again when it changes
 } tr2_queue_t;
 
 typedef struct {

@@ -106,11 +106,13 @@ and at the next [`trq_msg_json()`](<#trq_msg_json>) or ack
 *"Queue topic taken again"*. While it cannot, those calls fail (`-1`, `NULL`)
 and the queue says it once, *"Queue without topic, it cannot be opened"*,
 after the causes the open logs. From then on the queue asks the disk quietly
-first (its `topic_desc.json` is there and can be read, `access(R_OK)`), and
-tries the open again only when it can: the next calls log nothing. Asked
-through `tranger2_topic()` at every call, a topic that cannot be opened would
-log three errors each time, and the MQTT broker calls `tr2q_check_backup()`
-every second for each session with nothing in flight:
+first, and tries the open again only when its `topic_desc.json` can be read
+(`access(R_OK)`) AND is not the file the last open failed on: the queue keeps
+what the file was (inode, size, mtime, ctime, taken with `stat()` just before
+each open) and compares. The next calls log nothing. Asked through
+`tranger2_topic()` at every call, a topic that cannot be opened would log three
+errors each time, and the MQTT broker calls `tr2q_check_backup()` every second
+for each session with nothing in flight:
 
 ```text
 CRITICAL load_persistent_json: Cannot open a json file                (first call)
@@ -121,8 +123,22 @@ ERROR take_queue_topic: Queue without topic, it cannot be opened      (once)
 INFO  take_queue_topic: Queue topic taken again                       (the file is back)
 ```
 
-A `topic_desc.json` that can be read and does not load (a broken file) is
-opened, and logged, at every call: it needs a person anyway.
+A `topic_desc.json` that can be read and does not load (a broken json) is
+said the same way, once, with the parser's cause first:
+
+```text
+CRITICAL load_json_from_fd: Cannot load json file, bad json           (first call)
+ERROR tranger2_open_topic: Cannot open topic: topic_desc.json does not load
+ERROR tranger2_topic: Cannot open topic
+ERROR take_queue_topic: Queue without topic, it cannot be opened      (once)
+                                                                      (next calls: nothing)
+```
+
+Each CHANGE of the file is tried once: a new content that still does not load
+logs the three errors of the open again (the new cause), but not the queue's
+line; the good content takes the topic again with the INFO. Up to the fix of
+this case (7.25.5) a readable broken file was opened, and logged, at every
+call.
 
 The mqtt queues (`tr2q_check_backup()`, `tr2q_msg_json()`,
 `tr2q_save_hard_mark()`) do the same.

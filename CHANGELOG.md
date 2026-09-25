@@ -786,8 +786,14 @@ code before it, except those listed under "No red test" in `TODO.md`.
   at the next `trq_check_backup()` / `tr2q_check_backup()`, read, ack or
   load (INFO *"Queue topic taken again"*); until then those calls fail:
   only the first one says it (ERROR *"Queue without topic, it cannot be
-  opened"*), the next ones ask the disk quietly (is `topic_desc.json`
-  readable?) and log nothing. Test `tr_queue/test_tr_queue_backup_failed`.
+  opened"*), the next ones ask the disk quietly and log nothing: the open is
+  tried again only when `topic_desc.json` can be read and is not the file the
+  last open failed on (its inode, size, mtime and ctime, kept before each
+  open). A readable `topic_desc.json` that does not load (broken json) is
+  therefore said once too, not at every call (the broker calls
+  `tr2q_check_backup()` every second per session); each change of the file
+  is tried once. Test `tr_queue/test_tr_queue_backup_failed` (cases
+  `trq_broken`, `tr2q_broken`: 3 open errors each, 14 and 10 without the fix).
 - **A new topic is created whole or not at all.** When any part of a NEW
   topic cannot be made (its directory, `topic_desc.json`, `topic_cols.json`,
   `topic_var.json`, `keys/` or `disks/`), `tranger2_create_topic()` removes

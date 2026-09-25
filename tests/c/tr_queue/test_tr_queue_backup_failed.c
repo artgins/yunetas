@@ -57,6 +57,11 @@
  *  so: the next ones ask the disk quietly (up to this fix each one logged
  *  the three errors of the open again).
  *
+ *  And the same when topic_desc.json CAN be read but does not load (broken
+ *  json): "readable" is not "changed", so the queue keeps what the file was
+ *  when the open failed and tries again only when it changes. Up to this
+ *  fix every call opened it again and logged three errors.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -466,6 +471,7 @@ PRIVATE void make_topic_unreadable(const char *topic_name, BOOL unreadable)
 
 #define MSG_JSON_FILE   "Cannot open a json file"
 #define MSG_DESC        "Cannot open topic: topic_desc.json does not load"
+#define MSG_JSON_BROKEN "Cannot load json file, bad json"
 
 PRIVATE json_t *expected_topic_lost(void)
 {
@@ -653,6 +659,226 @@ PRIVATE int test_tr2q_topic_taken_again(void)
 }
 
 /***************************************************************************
+ *  A topic_desc.json that CAN be read but does not load (broken json).
+ *  Asking the disk "is it readable?" says yes, so up to this fix every call
+ *  went through tranger2_topic() again and logged the causes of the failed
+ *  open: once per second per session in the broker. Now the queue keeps
+ *  what the file was (inode, size, mtime, ctime) when the open failed, and
+ *  tries again only when it changes: a new broken content is tried once
+ *  (the open says its causes again, the queue does not), the good one
+ *  takes the topic again.
+ ***************************************************************************/
+PRIVATE char good_desc[64*1024];
+PRIVATE size_t good_desc_len = 0;
+
+PRIVATE int write_topic_desc(const char *topic_name, const char *content, size_t len)
+{
+    char topic_dir[PATH_MAX];
+    char topic_desc[PATH_MAX];
+    build_path(topic_dir, sizeof(topic_dir), path_database, topic_name, NULL);
+    build_path(topic_desc, sizeof(topic_desc), topic_dir, "topic_desc.json", NULL);
+    chmod(topic_desc, 0660);
+    int fd = open(topic_desc, O_WRONLY|O_TRUNC);
+    if(fd < 0) {
+        printf("%sERROR%s --> cannot open %s\n", On_Red BWhite, Color_Off, topic_desc);
+        return -1;
+    }
+    ssize_t written = write(fd, content, len);
+    close(fd);
+    if(written != (ssize_t)len) {
+        printf("%sERROR%s --> cannot write %s\n", On_Red BWhite, Color_Off, topic_desc);
+        return -1;
+    }
+    return 0;
+}
+
+PRIVATE int keep_good_topic_desc(const char *topic_name)
+{
+    char topic_dir[PATH_MAX];
+    char topic_desc[PATH_MAX];
+    build_path(topic_dir, sizeof(topic_dir), path_database, topic_name, NULL);
+    build_path(topic_desc, sizeof(topic_desc), topic_dir, "topic_desc.json", NULL);
+    int fd = open(topic_desc, O_RDONLY);
+    if(fd < 0) {
+        printf("%sERROR%s --> cannot open %s\n", On_Red BWhite, Color_Off, topic_desc);
+        return -1;
+    }
+    ssize_t n = read(fd, good_desc, sizeof(good_desc));
+    close(fd);
+    if(n <= 0 || (size_t)n >= sizeof(good_desc)) {
+        printf("%sERROR%s --> cannot read %s\n", On_Red BWhite, Color_Off, topic_desc);
+        return -1;
+    }
+    good_desc_len = (size_t)n;
+    return 0;
+}
+
+#define BROKEN_DESC_1   "{\"topic_name\": "
+#define BROKEN_DESC_2   "{\"topic_name\": \"broken, and longer\""
+
+/*
+ *  The causes the open logs for a topic_desc.json that does not parse
+ */
+PRIVATE json_t *expected_broken_open(BOOL with_queue)
+{
+    if(with_queue) {
+        return json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", MSG_JSON_BROKEN,
+            "msg", MSG_DESC,
+            "msg", "Cannot open topic",
+            "msg", "Queue without topic, it cannot be opened"
+        );
+    }
+    return json_pack("[{s:s},{s:s},{s:s}]",
+        "msg", MSG_JSON_BROKEN,
+        "msg", MSG_DESC,
+        "msg", "Cannot open topic"
+    );
+}
+
+PRIVATE int test_trq_topic_desc_broken(void)
+{
+    int result = 0;
+    const char *topic_name = "trq_broken";
+    rmrdir(path_database);
+
+    set_expected_results("trq_broken: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup();
+    tr_queue_t *trq = trq_open(tranger, topic_name, "tm", 0, 1 /* backup_queue_size */);
+    trq_load(trq);
+    q_msg_t *msg = trq_append2(trq, 946684801, json_pack("{s:i, s:I}", "n", 1, "tm", (json_int_t)946684801), 0);
+    trq_unload_msg(msg, 0);
+    msg = trq_append2(trq, 946684802, json_pack("{s:i, s:I}", "n", 2, "tm", (json_int_t)946684802), 0);
+    result += keep_good_topic_desc(topic_name);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    make_topic_unreadable(topic_name, TRUE);
+    set_expected_results("trq_broken: the queue loses its topic", expected_topic_lost(), NULL, NULL, 1);
+    result += expect_int("trq_broken: trq_check_backup() of a failed backup", trq_check_backup(trq), -1);
+    result += test_json(NULL);
+
+    /*
+     *  1. Readable, and broken: said once
+     */
+    result += write_topic_desc(topic_name, BROKEN_DESC_1, strlen(BROKEN_DESC_1));
+    set_expected_results("trq_broken: a read, the desc broken", expected_broken_open(TRUE), NULL, NULL, 1);
+    json_t *jn = trq_msg_json(msg);
+    result += expect_int("trq_broken: a read answers NULL", jn? 1: 0, 0);
+    JSON_DECREF(jn)
+    result += test_json(NULL);
+
+    set_expected_results("trq_broken: the next calls say nothing", NULL, NULL, NULL, 1);
+    for(int i = 0; i < 3; i++) {
+        jn = trq_msg_json(msg);
+        result += expect_int("trq_broken: a next read answers NULL", jn? 1: 0, 0);
+        JSON_DECREF(jn)
+        result += expect_int("trq_broken: a next ack answers -1",
+            trq_set_hard_flag(msg, TRQ_MSG_PENDING, 0), -1);
+        result += expect_int("trq_broken: a next check answers -1", trq_check_backup(trq), -1);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  2. Another broken content: tried once, the queue says nothing more
+     */
+    result += write_topic_desc(topic_name, BROKEN_DESC_2, strlen(BROKEN_DESC_2));
+    set_expected_results("trq_broken: a changed desc is tried once", expected_broken_open(FALSE), NULL, NULL, 1);
+    for(int i = 0; i < 3; i++) {
+        result += expect_int("trq_broken: a check answers -1", trq_check_backup(trq), -1);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  3. The good content: the read takes the topic again
+     */
+    result += write_topic_desc(topic_name, good_desc, good_desc_len);
+    set_expected_results("trq_broken: the read takes the topic again",
+        json_pack("[{s:s}]", "msg", "Queue topic taken again"), NULL, NULL, 1);
+    jn = trq_msg_json(msg);
+    result += expect_int("trq_broken: the read answers the message", jn? 1: 0, 1);
+    JSON_DECREF(jn)
+    result += expect_int("trq_broken: the ack works", trq_set_hard_flag(msg, TRQ_MSG_PENDING, 0), 0);
+    trq_unload_msg(msg, 0);
+    result += test_json(NULL);
+
+    set_expected_results("trq_broken: shutdown", NULL, NULL, NULL, 1);
+    trq_close(trq);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+PRIVATE int test_tr2q_topic_desc_broken(void)
+{
+    int result = 0;
+    const char *topic_name = "tr2q_broken";
+    rmrdir(path_database);
+
+    set_expected_results("tr2q_broken: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup();
+    tr2_queue_t *trq = tr2q_open(tranger, topic_name, "tm", 0, 10, 1 /* backup_queue_size */);
+    tr2q_load(trq);
+    q2_msg_t *msg = tr2q_append(trq, 946684801, tr2q_kw(1, 946684801), 0);
+    tr2q_unload_msg(msg, 0);
+    result += keep_good_topic_desc(topic_name);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    make_topic_unreadable(topic_name, TRUE);
+    set_expected_results("tr2q_broken: the queue loses its topic", expected_topic_lost(), NULL, NULL, 1);
+    result += expect_int("tr2q_broken: tr2q_check_backup() of a failed backup", tr2q_check_backup(trq), -1);
+    result += test_json(NULL);
+
+    /*
+     *  1. Readable, and broken: said once, then the broker's checks of every
+     *  second say nothing
+     */
+    result += write_topic_desc(topic_name, BROKEN_DESC_1, strlen(BROKEN_DESC_1));
+    set_expected_results("tr2q_broken: a check, the desc broken", expected_broken_open(TRUE), NULL, NULL, 1);
+    result += expect_int("tr2q_broken: a check answers -1", tr2q_check_backup(trq), -1);
+    result += test_json(NULL);
+
+    set_expected_results("tr2q_broken: the next checks say nothing", NULL, NULL, NULL, 1);
+    for(int i = 0; i < 5; i++) {
+        result += expect_int("tr2q_broken: a next check answers -1", tr2q_check_backup(trq), -1);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  2. Another broken content: tried once
+     */
+    result += write_topic_desc(topic_name, BROKEN_DESC_2, strlen(BROKEN_DESC_2));
+    set_expected_results("tr2q_broken: a changed desc is tried once", expected_broken_open(FALSE), NULL, NULL, 1);
+    for(int i = 0; i < 3; i++) {
+        result += expect_int("tr2q_broken: a check answers -1", tr2q_check_backup(trq), -1);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  3. The good content: taken again, and backed up
+     */
+    result += write_topic_desc(topic_name, good_desc, good_desc_len);
+    set_expected_results(
+        "tr2q_broken: the next check takes the topic again, and backs up",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "Queue topic taken again",
+            "msg", MSG_MOVING,
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    result += expect_int("tr2q_broken: tr2q_check_backup() backs up", tr2q_check_backup(trq), 0);
+    result += test_json(NULL);
+
+    set_expected_results("tr2q_broken: shutdown", NULL, NULL, NULL, 1);
+    tr2q_close(trq);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *  A create whose keys/ cannot be made, in a tranger that exits on a
  *  CRITICAL (LOG_OPT_EXIT_ZERO, the default of C_TRANGER, C_TREEDB and the
  *  broker's queues). The process exits, as it is told to -- but only once
@@ -813,6 +1039,8 @@ PRIVATE int do_test(void)
     } else {
         result += test_trq_topic_taken_again();
         result += test_tr2q_topic_taken_again();
+        result += test_trq_topic_desc_broken();
+        result += test_tr2q_topic_desc_broken();
     }
     atexit(exit_in_exit_zero_case);
     result += test_exit_zero_create_fails();

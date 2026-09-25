@@ -42,7 +42,11 @@ each one logged the three errors of the open again), and once the file can be
 read the queue takes
 its topic again by name (*"Queue topic taken again"*) and the next check backs
 it up; for `tr_queue` and for `tr2q`. Before this fix the topic stayed `NULL`
-for good. And a tranger opened with `on_critical_error` `LOG_OPT_EXIT_ZERO`
+for good. And a `topic_desc.json` that CAN be read but does not load (broken
+json; cases `trq_broken`, `tr2q_broken`): said once, the next calls log
+nothing, a changed content is tried once (the open logs its causes, the queue
+nothing), and the good content takes the topic again. Up to this fix a
+readable file was opened again at every call, three errors each time. And a tranger opened with `on_critical_error` `LOG_OPT_EXIT_ZERO`
 (the MQTT broker's queues): a backup whose new topic cannot be created does
 not exit (an `atexit()` handler turns such an exit into a failure), moves the
 backup back, and the queue keeps its message. And a plain create with `LOG_OPT_EXIT_ZERO` whose `keys/` cannot be made,
