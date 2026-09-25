@@ -41,6 +41,33 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 Typically used as the bottom gobj of a protocol GClass (C_PROT_TCP4H,
 C_WEBSOCKET and more.) or directly inside a C_CHANNEL.
 
+### A write that does not start
+
+`EV_TX_DATA` sends one gbuffer at a time; the next ones wait in a queue.
+A write that the loop refuses to start -- no memory to keep its submission,
+an empty gbuffer, a socket without fd (the cause is logged by
+`yev_start_event()`) -- will never complete, and its bytes are not sent. A
+stream cannot go on with a hole in it, so `C_TCP` destroys the write and
+DROPS the connection, with an ERROR *"Cannot start a write: the connection
+is dropped"*: `EV_DISCONNECTED` follows, and a client reconnects as after any
+disconnection. The same applies to the TLS writes and to the rest of a
+partial write.
+
+```C
+gbuffer_t *gbuf = gbuffer_create(16, 16);      // EMPTY: the write does not start
+gobj_send_event(gobj_tcp, EV_TX_DATA,
+    json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),   // the kw owns the gbuffer
+    gobj
+);
+// ERROR "Cannot start event: gbuffer WITHOUT data to write" (yev_loop),
+// ERROR "Cannot start a write: the connection is dropped", then EV_DISCONNECTED
+```
+
+Up to 7.25.4 the `-1` of the start was ignored: the write was counted in
+progress for ever, the event and its gbuffer leaked, the connection stayed
+up with every later write stuck behind it, and a stop waited in
+`ST_WAIT_STOPPED` for ever. `tests/c/c_tcp` (`test_tcp_test5`).
+
 ---
 
 (gclass-c-tcp-s)=

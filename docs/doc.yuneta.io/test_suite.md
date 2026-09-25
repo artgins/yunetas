@@ -121,6 +121,7 @@ Plain and TLS TCP through the full GObj protocol stack.
 | Binary | Description |
 |--------|-------------|
 | **`c_tcp/test1–4`** | Plain TCP: connect, disconnect, echo, and rapid multi-message burst. |
+| **`c_tcp/test5`** | A write that does not start (an empty gbuffer): `C_TCP` drops the connection, frees the write, and a stop reaches `ST_STOPPED`. |
 | **`c_tcp2/test1–4`** | Same scenarios using the newer [`C_TCP_S`](#gclass-c-tcp-s) method (no `child_tree_filter`). |
 | **`c_tcps/test1–4`** | TLS TCP: connect, disconnect, echo, and multi-message burst. |
 | **`c_tcps2/test1–4`** | TLS TCP with the newer method. |

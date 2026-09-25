@@ -74,6 +74,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj); // IDEMPOTENT
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE void set_inactivity_timeout(hgobj gobj);
 PRIVATE void start_pending_writes(hgobj gobj);
+PRIVATE int start_write_event(hgobj gobj, yev_event_h yev_write_event);
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error);
 PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf);
@@ -924,6 +925,37 @@ PRIVATE void set_disconnected(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Start a write of the connection, counted in tx_in_progress only when it
+ *  started. A write that does not start (no memory to keep its submission,
+ *  an empty gbuffer, a bad fd: logged by yev_start_event) will never
+ *  complete, and its bytes are not sent: the stream cannot go on with a
+ *  hole in it, so the event is destroyed and the connection is dropped.
+ *  Up to 7.25.4 the -1 was ignored: tx_in_progress counted a write that
+ *  never completes, the event and its gbuffer leaked, and a stop waited in
+ *  ST_WAIT_STOPPED for ever.
+ ***************************************************************************/
+PRIVATE int start_write_event(hgobj gobj, yev_event_h yev_write_event)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(yev_start_event(yev_write_event) < 0) {
+        gbuffer_t *gbuf = yev_get_gbuf(yev_write_event);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot start a write: the connection is dropped",
+            "len",          "%d", gbuf? (int)gbuffer_leftbytes(gbuf): 0,
+            NULL
+        );
+        yev_destroy_event(yev_write_event);
+        try_to_stop_yevents(gobj);
+        return -1;
+    }
+    priv->tx_in_progress++;
+    return 0;
+}
+
+/***************************************************************************
  *  Write the current gbuffer
  ***************************************************************************/
 PRIVATE int write_data(hgobj gobj)
@@ -976,9 +1008,21 @@ PRIVATE int write_data(hgobj gobj)
             fd,
             gbuffer_incref(gbuf)
         );
+        if(!yev_write_event) {
+            GBUFFER_DECREF(gbuf)    // the reference given to the event
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot create a write: the connection is dropped",
+                NULL
+            );
+            try_to_stop_yevents(gobj);
+            return -1;
+        }
 
-        priv->tx_in_progress++;
-        yev_start_event(yev_write_event);
+        if(start_write_event(gobj, yev_write_event) < 0) {
+            return -1;  // Error already logged
+        }
     }
     return 0;
 }
@@ -1430,8 +1474,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                                 );
                             }
 
-                            priv->tx_in_progress++;
-                            yev_start_event(yev_event);
+                            start_write_event(gobj, yev_event); // on failure: logged, connection dropped
                             break;
                         }
 
@@ -1758,9 +1801,20 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
         fd,
         gbuffer_incref(gbuf)
     );
+    if(!yev_write_event) {
+        GBUFFER_DECREF(gbuf)    // the reference given to the event
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot create a write: the connection is dropped",
+            NULL
+        );
+        try_to_stop_yevents(gobj);
+        KW_DECREF(kw)
+        return -1;
+    }
 
-    priv->tx_in_progress++;
-    yev_start_event(yev_write_event);
+    start_write_event(gobj, yev_write_event);   // on failure: logged, connection dropped
 
     KW_DECREF(kw)
     return 0;
