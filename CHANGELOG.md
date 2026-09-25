@@ -40,7 +40,7 @@ agents. No change in timeranger2, treedb or the transports.
 - `test_c_treedb_literal_wins`: a child that cannot take its own io_uring ring
   prints why before it exits.
 
-## `v7.25.5` (2026-09-25)
+## v7.25.5 (2026-09-25)
 
 What changed after 7.25.4. Each behaviour change has a test that fails on the
 code before it, except those listed under "No red test" in `TODO.md`.
