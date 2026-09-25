@@ -6,6 +6,34 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 `docs/doc.yuneta.io/yunos/mqtt_broker.md`,
 `docs/doc.yuneta.io/guide/guide_tls.md`) and git history.
 
+## Defects open after 7.25.5 (the next review round starts here)
+
+7.25.5 was released after twenty review rounds with these items found and not
+yet fixed. Each is a defect, not a design choice: fix it with a test that fails
+first.
+
+- **C_WEBSOCKET after `drop()`**: a TCP read still pending delivers `EV_RX_DATA`
+  to a C_WEBSOCKET already in `ST_DISCONNECTED` ("Event NOT DEFINED in state").
+  Seen when a peer sends more frames after one C_IEVENT_SRV closes the channel on.
+- **`ac_identity_card` (C_IEVENT_SRV, before authentication)** logs errors with
+  the whole kw dumped, once per connection: a peer-caused condition, so a capped
+  warning (decoder severity rule).
+- **C_TCP_S `connxs` / `tconnxs`** are `SDF_STATS` without `mt_reading`: they
+  always read 0.
+- **gobj-js subscriptions**: a repeated `__own_event__` / `__rename_event_name__`
+  subscription is probably made twice, as C did before 7.25.5 (C fixed in
+  `gobj_subscribe_event()` with `_subscription_match_kw()`).
+- **C_PROT_MQTT2 `db__message_update_outgoing()`**: "QoS mismatch" is still an
+  ERROR; the other sites are a WARNING plus a protocol error.
+- **Agent audit `peer_field()`**: when the redacted copy cannot be allocated it
+  writes the raw peer text (out-of-memory path only).
+- **timeranger2.c ~7505**: the log says "stat() FAILED" where the call is now
+  `lstat()`.
+- **C_TRANGER handles opened through the agent** are not reaped when the
+  operator's session ends (documented; they can pile up).
+- **`tests/c/tr_treedb_delete_instance/README.md`** lists about half of its cases.
+- About 20 older code comments say "up to this fix" without naming a version.
+
 ## Schema editing: the admin console
 
 The console is gui_agent's **Schemas** workspace (design and traps in
