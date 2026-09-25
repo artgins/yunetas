@@ -790,6 +790,20 @@ treedb_create_node(tranger, "my_db", "departments", json_pack("{s:s}", "id", "a^
 treedb_create_node(tranger, "my_db", "users", json_pack("{s:s}", "id", "a^b"));        // created: no hooks
 ```
 
+A pkey2 value is indexed as the record holds it. When the `kw` does not carry
+the pkey2 column, or carries it as another type than a string, the create
+takes the value the record gets (the column's `default`, a `wild`
+conversion), and looks up and fills the instance of that value. Until 7.25.4
+it used the raw value of the `kw`: a column with a default filled the slot of
+`""` while the record held the default, and the instance of the default was
+missing until a reload (new after 7.25.4).
+
+```C
+// 'version' is a pkey2 with 'default': 'v0'
+json_t *d = treedb_create_node(tranger, "my_db", "defaulted", json_pack("{s:s}", "id", "d"));
+treedb_get_instance(tranger, "my_db", "defaulted", "version", "d", "v0");   // d
+```
+
 See the [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md)
 §3.3 for the flags and §3.11 for why the schema topics are keyed this way.
 
@@ -2556,6 +2570,30 @@ json_t *x2 = json_incref(treedb_get_instance(tranger, "my_db", "kids", "version"
 treedb_delete_instance(tranger, x2, "version", 0);   // 0
 treedb_save_node(tranger, x2);                       // -1: no index holds it
 json_decref(x2);
+```
+
+A node whose pkey2 value was changed in place is not saved either. A pkey2
+value names the **instance**, and the record is written under the value that
+the node holds now: the new value is a new instance on disk, while memory keeps
+the node in the slot of the old value. [`treedb_update_node()`](<#treedb_update_node>)
+refuses such a change; a direct save of a node that another slot of its key
+holds answers `-1` and logs *"Cannot save a node whose pkey2 value changed in
+place: its record would be another instance"*, with `topic_name`, `id`,
+`pkey2_name`, `old_value` (the slot that holds the node) and `new_value`. Put
+the value back and the node saves again. To make the new value, create the
+instance. Only a topic with pkey2s is asked; an empty value is not (the save
+does not index it). Until 7.25.4 such a save wrote the new instance to disk,
+and when the new value was the one of another instance, it took that
+instance's slot in memory (new after 7.25.4).
+
+```C
+json_t *x = treedb_get_node(tranger, "my_db", "kids", "x");   // x/v1, the primary
+json_object_set_new(x, "version", json_string("v9"));
+treedb_save_node(tranger, x);                                 // -1: v9 would be a new instance
+json_object_set_new(x, "version", json_string("v1"));
+treedb_save_node(tranger, x);                                 // 0
+treedb_create_node(tranger, "my_db", "kids",                  // the new instance: x/v9
+    json_pack("{s:s, s:s}", "id", "x", "version", "v9"));
 ```
 
 ---

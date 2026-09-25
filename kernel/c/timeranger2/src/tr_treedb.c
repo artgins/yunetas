@@ -6183,6 +6183,63 @@ PRIVATE const char *build_qualified_id(
 }
 
 /***************************************************************************
+ *  The pkey2 values of a create are the ones its record will hold: a value
+ *  of `kw` that is not a string, or that `kw` does not carry, is written
+ *  back into `kw` as its column normalizes it (its default, a wild
+ *  conversion), as create_pure_record() will. So the slot a create looks
+ *  up and fills is the value on disk, the one a load and every save index
+ *  the node by (treedb_save_node() refuses a node its slot does not hold).
+ *  A string value, the case of every pkey2 in use, is left as it is.
+ *
+ *  Return 0, or -1 when a value cannot be normalized (logged).
+ ***************************************************************************/
+PRIVATE int set_create_key2_values(
+    json_t *tranger,
+    const char *topic_name,
+    json_t *pkey2s, // NOT owned
+    json_t *kw      // NOT owned, modified
+)
+{
+    int ret = 0;
+    json_t *cols = NULL;
+    int idx; json_t *jn_pkey2_name;
+    json_array_foreach(pkey2s, idx, jn_pkey2_name) {
+        const char *pkey2_name = json_string_value(jn_pkey2_name);
+        if(empty_string(pkey2_name)) {
+            continue;
+        }
+        json_t *value = json_object_get(kw, pkey2_name);
+        if(json_is_string(value)) {
+            continue;
+        }
+        if(!cols) {
+            cols = topic_cols_dict(tranger, topic_name);
+        }
+        json_t *col = json_object_get(cols, pkey2_name);
+        if(!col) {
+            continue;   // not a column: the record does not hold it
+        }
+        if(!value) {
+            value = json_object_get(col, "default");
+        }
+        json_t *normalized = json_object();
+        if(normalize_node_field_value(topic_name, pkey2_name, col, normalized, value)<0) {
+            // Error already logged
+            JSON_DECREF(normalized)
+            ret = -1;
+            break;
+        }
+        json_t *v = json_object_get(normalized, pkey2_name);
+        if(v) {
+            json_object_set(kw, pkey2_name, v);
+        }
+        JSON_DECREF(normalized)
+    }
+    JSON_DECREF(cols)
+    return ret;
+}
+
+/***************************************************************************
     Create a new node
  ***************************************************************************/
 PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
@@ -6366,6 +6423,13 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  Look for a secondary key change
      *-----------------------------------*/
     json_t *iter_pkey2s = treedb_topic_pkey2s(tranger, topic_name);
+    if(set_create_key2_values(tranger, topic_name, iter_pkey2s, kw)<0) {
+        // Error already logged
+        JSON_DECREF(iter_pkey2s)
+        JSON_DECREF(pkey2_list)
+        JSON_DECREF(kw)
+        return 0;
+    }
     int idx; json_t *jn_pkey2_name;
     json_array_foreach(iter_pkey2s, idx, jn_pkey2_name) {
         const char *pkey2_name = json_string_value(jn_pkey2_name);
@@ -7795,6 +7859,79 @@ PRIVATE BOOL node_is_indexed(
 }
 
 /***************************************************************************
+ *  Is `node` in the slot of its own pkey2 values? A pkey2 value names an
+ *  INSTANCE, and a save writes the record under the value the node holds
+ *  now: changed in place (an update refuses it), the record is a new
+ *  instance on disk while memory keeps the node in the slot of the old
+ *  value. The value found in another slot of the key that holds the node
+ *  (`slot_value`) is the one it had.
+ *
+ *  A node held in no slot of a pkey2 has moved nowhere: the save re-points
+ *  the slot to it, as it always did (the other instances of a topic with
+ *  more than one pkey2 share the slots of the values they have in common).
+ *  An empty value is not asked, as the save does not index it.
+ *
+ *  Return TRUE, or FALSE with the pkey2 that moved (logged).
+ ***************************************************************************/
+PRIVATE BOOL node_in_its_pkey2_slots(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *id,
+    json_t *node,   // NOT owned
+    json_t *pkey2s  // NOT owned
+)
+{
+    // HACK tranger keys have a maximum length (add_secondary_node())
+    char key_[RECORD_KEY_VALUE_MAX];
+    snprintf(key_, sizeof(key_), "%s", id);
+
+    int idx; json_t *jn_pkey2_name;
+    json_array_foreach(pkey2s, idx, jn_pkey2_name) {
+        const char *pkey2_name = json_string_value(jn_pkey2_name);
+        if(empty_string(pkey2_name)) {
+            continue;
+        }
+        const char *pkey2_value = get_key2_value(tranger, topic_name, pkey2_name, node);
+        if(empty_string(pkey2_value)) {
+            continue;
+        }
+        json_t *slots = json_object_get(
+            treedb_get_pkey2_index(tranger, treedb_name, topic_name, pkey2_name),
+            key_
+        );
+        if(json_object_get(slots, pkey2_value) == node) {
+            continue;
+        }
+        const char *slot_value; json_t *instance;
+        json_object_foreach(slots, slot_value, instance) {
+            if(instance != node) {
+                continue;
+            }
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Cannot save a node whose pkey2 value changed in place: its record would be another instance",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", id,
+                "pkey2_name",   "%s", pkey2_name,
+                "old_value",    "%s", slot_value,
+                "new_value",    "%s", pkey2_value,
+                NULL
+            );
+            gobj_log_set_last_message(
+                "Cannot save '%s^%s': its %s changed in place from '%s' to '%s', create the instance",
+                topic_name, id, pkey2_name, slot_value, pkey2_value
+            );
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
  *  How many children the hooks of the `instances` hold, all of them
  *  (count_node_children())
  ***************************************************************************/
@@ -8169,12 +8306,26 @@ PUBLIC int treedb_save_node(
         return -1;
     }
 
+    /*-------------------------------*
+     *  A pkey2 value changed in place: the record would be a new instance
+     *  on disk, while memory keeps the node in the slot of the old one.
+     *  Asked only of a topic with pkey2s.
+     *-------------------------------*/
+    json_t *pkey2s = treedb_topic_pkey2s(tranger, topic_name);
+    if(json_array_size(pkey2s) > 0 &&
+            !node_in_its_pkey2_slots(gobj, tranger, treedb_name, topic_name, node_id, node, pkey2s)) {
+        // Error already logged
+        JSON_DECREF(pkey2s)
+        return -1;
+    }
+
     /*-------------------------------------*
      *  Write to tranger (save, updating)
      *  Untagged, snap active or not (see above).
      *-------------------------------------*/
     if(append_node_record(gobj, tranger, topic_name, node, 0)<0) {
         // Error already logged
+        JSON_DECREF(pkey2s)
         return -1;
     }
 
@@ -8190,7 +8341,6 @@ PUBLIC int treedb_save_node(
      *  the node itself, so the secondary index shares the primary object and
      *  reflects this save. No-op for topics without pkey2s.
      *------------------------------------------------------------------*/
-    json_t *pkey2s = treedb_topic_pkey2s(tranger, topic_name);
     int idx_pkey2; json_t *jn_pkey2_name;
     json_array_foreach(pkey2s, idx_pkey2, jn_pkey2_name) {
         const char *pkey2_name = json_string_value(jn_pkey2_name);

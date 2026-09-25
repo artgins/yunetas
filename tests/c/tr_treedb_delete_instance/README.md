@@ -68,6 +68,15 @@ record) is the job of `treedb_delete_node()`.
      write one row and both survive the reopen. 7.25.4 answered a second
      object after a reopen: the update through it was lost, and the pointer
      was freed by the next save of the primary.
+   - `a save of a node whose pkey2 value changed in place is refused`: x/v1
+     changed in place to v9, and x/v2 to v1 (the primary's value), are not
+     saved (ERROR naming both values); put back, both save; after the reopen
+     x has v1 and v2 and no v9. 7.25.4 wrote x/v9 to disk and re-pointed the
+     slot of v1 to x/v2.
+   - `a create indexes a defaulted pkey2 by its record's value`: the topic
+     `defaulted` has a pkey2 with a default (v0); a create without it is the
+     instance d/v0 in memory, is updated and saved, and is d/v0 after the
+     reopen. 7.25.4 filled the slot of the kw's value, "".
 
 ## Run
 

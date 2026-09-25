@@ -898,8 +898,9 @@ PRIVATE json_t *new_links_db(const char *test, const char *db, char *path_root, 
     helper_quote2doublequote(schema_links);
 
     set_expected_results(test,
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
@@ -1702,6 +1703,149 @@ PRIVATE int test_save_of_unindexed_node_refused(void)
 }
 
 /***************************************************************************
+ *  A save of a node whose pkey2 value changed in place is refused.
+ *
+ *  A pkey2 value names the INSTANCE. An update refuses to change it, but a
+ *  value changed in place and saved wrote its record under the new value: a
+ *  new instance on disk, while memory kept the node in the slot of the old
+ *  one (7.25.4). Changed onto the value of another instance, the record of
+ *  x/v2 became a row of x/v1. The save refuses it, naming both values; put
+ *  back, the node saves again.
+ ***************************************************************************/
+PRIVATE int test_save_of_moved_pkey2_refused(void)
+{
+    int result = 0;
+    const char *test = "a save of a node whose pkey2 value changed in place is refused";
+    const char *DB = "tr_delete_instance_links9";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test,
+        json_pack("[{s:s, s:s, s:s},{s:s, s:s, s:s}]",
+            "msg", "Cannot save a node whose pkey2 value changed in place: its record would be another instance",
+            "old_value", "v1", "new_value", "v9",
+            "msg", "Cannot save a node whose pkey2 value changed in place: its record would be another instance",
+            "old_value", "v2", "new_value", "v1"),
+        NULL, NULL, 1);
+
+    l_create(tranger, L_KIDS, "x", "v1");
+    l_create(tranger, L_KIDS, "x", "v2");
+    json_t *x1 = l_node(tranger, L_KIDS, "x");
+    json_t *x2 = l_instance(tranger, L_KIDS, "x", "v2");
+
+    /*
+     *  The primary x/v1 moved to a value no instance has
+     */
+    json_object_set_new(x1, "version", json_string("v9"));
+    result += l_check(treedb_save_node(tranger, x1) < 0,
+        "the primary x/v1 was saved as x/v9"
+    );
+    json_object_set_new(x1, "version", json_string("v1"));
+    result += l_check(treedb_save_node(tranger, x1) == 0,
+        "the primary x/v1, put back, cannot be saved"
+    );
+
+    /*
+     *  The instance x/v2 moved onto the value of the primary
+     */
+    json_object_set_new(x2, "version", json_string("v1"));
+    result += l_check(treedb_save_node(tranger, x2) < 0,
+        "the instance x/v2 was saved as x/v1"
+    );
+    json_object_set_new(x2, "version", json_string("v2"));
+    result += l_check(treedb_save_node(tranger, x2) == 0,
+        "the instance x/v2, put back, cannot be saved"
+    );
+    result += l_check(l_instance(tranger, L_KIDS, "x", "v1") == x1,
+        "the slot x/v1 does not hold the primary"
+    );
+    result += l_check(l_instance(tranger, L_KIDS, "x", "v9") == NULL,
+        "a slot x/v9 exists"
+    );
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    /*
+     *  Reopen: x/v1 and x/v2, as they were, and no x/v9
+     */
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    json_t *i1 = l_instance(tranger, L_KIDS, "x", "v1");
+    json_t *i2 = l_instance(tranger, L_KIDS, "x", "v2");
+    result += l_check(l_instance(tranger, L_KIDS, "x", "v9") == NULL,
+        "x/v9 is on disk after the reopen"
+    );
+    result += l_check(i1 && strcmp(kw_get_str(0, i1, "version", "", 0), "v1") == 0,
+        "x/v1 is not x/v1 after the reopen"
+    );
+    result += l_check(i2 && strcmp(kw_get_str(0, i2, "version", "", 0), "v2") == 0,
+        "x/v2 is not x/v2 after the reopen"
+    );
+    json_t *instances = treedb_list_instances(tranger, L_TREEDB, L_KIDS, "version", json_pack("{s:s}", "id", "x"), NULL);
+    result += l_check(json_array_size(instances) == 2,
+        "x has not two instances after the reopen"
+    );
+    JSON_DECREF(instances)
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  A create that does not give a pkey2 with a DEFAULT indexes the node by
+ *  the value its record holds.
+ *
+ *  The create looked up and filled the slot of the value of its kw, "",
+ *  while the record got the default: in memory the instance of the default
+ *  value was missing until a reload (and the save, which asks that the
+ *  slot of the value hold the node, would refuse the next update).
+ ***************************************************************************/
+PRIVATE int test_create_indexes_default_pkey2(void)
+{
+    int result = 0;
+    const char *test = "a create indexes a defaulted pkey2 by its record's value";
+    const char *DB = "tr_delete_instance_links10";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    json_t *d = treedb_create_node(tranger, L_TREEDB, "defaulted",
+        json_pack("{s:s}", "id", "d")
+    );
+    result += l_check(d && strcmp(kw_get_str(0, d, "version", "", 0), "v0") == 0,
+        "the create of d did not take the default version v0"
+    );
+    result += l_check(d && treedb_get_instance(tranger, L_TREEDB, "defaulted", "version", "d", "v0") == d,
+        "the slot d/v0 does not hold the node created"
+    );
+    result += l_check(
+        treedb_get_instance(tranger, L_TREEDB, "defaulted", "version", "d", "") == NULL,
+        "a slot d/'' exists"
+    );
+    result += l_check(
+        d && treedb_update_node(tranger, d, json_pack("{s:s}", "note", "N"), TRUE) != NULL,
+        "the update of d was refused"
+    );
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    d = treedb_get_node(tranger, L_TREEDB, "defaulted", "d");
+    result += l_check(d && strcmp(kw_get_str(0, d, "note", "", 0), "N") == 0,
+        "after the reopen d lost its update"
+    );
+    result += l_check(d && treedb_get_instance(tranger, L_TREEDB, "defaulted", "version", "d", "v0") == d,
+        "after the reopen the slot d/v0 does not hold the primary"
+    );
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *              do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -1867,6 +2011,8 @@ int main(int argc, char *argv[])
     result += test_refused_forced_delete_puts_every_instance_back();
     result += test_save_of_unindexed_node_refused();
     result += test_instance_of_primary_is_primary_after_reopen();
+    result += test_save_of_moved_pkey2_refused();
+    result += test_create_indexes_default_pkey2();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

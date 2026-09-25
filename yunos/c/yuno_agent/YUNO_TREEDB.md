@@ -551,7 +551,13 @@ Six things to notice:
    through the instance lookup after a restart changed that copy: the
    primary kept the old values, and its next save wrote them back over the
    new ones. That save also dropped the copy, so a caller still holding the
-   instance pointer held freed memory.
+   instance pointer held freed memory. **A save keeps it since 7.25.5
+   too**: a node whose pkey2 value was changed in place (an update refuses
+   it) is refused by `treedb_save_node()` while another slot of its key
+   holds it -- the record would be a new instance on disk, and changed onto
+   the value of the primary, the save re-pointed the primary's slot to it.
+   And a create indexes the value its record holds (a column's `default`),
+   not the raw value of its kw.
 3. **`schema_version`** and **`topic_version`** — these are different.
    Schema is the overall layout. Topic is per-topic. **Raise
    `topic_version` every time you change `cols`** — §3.5.
