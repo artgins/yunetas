@@ -59,6 +59,22 @@ latest, pass its tag: `… | sudo sh -s -- 7.8.6`.
 What the script does step by step, and the full list of verified distros:
 [Installation](https://doc.yuneta.io/installation/).
 
+## Performance
+
+Every release ships a performance report: charts of what the release does on
+one machine, the release before measured the same way, and every loss with its
+reason.
+
+- **7.25.5** (against 7.25.4): an agent audit record 11x cheaper, a large
+  store opened in 13% less time, a treedb update in memory in 26% less time,
+  appends at the same speed with four new checks each.
+  [Report](performance/reports/7.25.5.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/7.25.5.html) ·
+  [raw figures](performance/reports/7.25.5.json)
+- Every report, and how one is made: [performance/reports/](performance/reports/README.md)
+- The trend, release after release: [doc.yuneta.io/performance](https://doc.yuneta.io/performance/)
+- The benchmarks: [performance/c/](performance/c/README.md)
+
 ## Build from source
 
 To develop the framework itself, or to build it with different options

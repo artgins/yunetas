@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 388" width="900" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" role="img" aria-label="Yuneta 7.25.5: operations per second on one core">
+<title>Yuneta 7.25.5: operations per second on one core</title>
+<style>
+  .bg { fill: #fcfcfb; stroke: rgba(11,11,11,0.10); }
+  .t { fill: #0b0b0b; font-size: 15px; font-weight: 600; }
+  .l { fill: #0b0b0b; font-size: 12.5px; }
+  .m { fill: #6f6d68; font-size: 11.5px; }
+  .g { fill: #6f6d68; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
+  .v { fill: #52514e; font-size: 12px; }
+  .grid { stroke: #e1e0d9; stroke-width: 1; }
+  .zero { stroke: #a3a198; stroke-width: 1; }
+  .gain { fill: #2a78d6; } .price { fill: #e34948; } .noise { fill: #b9b7ae; }
+  .cur { fill: #2a78d6; } .prev { fill: #9b9991; }
+  .curl { stroke: #2a78d6; stroke-width: 2; fill: none; }
+  .w { stroke: #52514e; stroke-width: 1.5; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #1a1a19; stroke: rgba(255,255,255,0.10); }
+    .t, .l { fill: #ffffff; } .m, .g { fill: #a3a198; } .v { fill: #c3c2b7; }
+    .grid { stroke: #2c2c2a; } .zero { stroke: #5c5b56; }
+    .gain, .cur { fill: #3987e5; } .price { fill: #e66767; } .noise { fill: #5c5b56; } .prev { fill: #7a786f; }
+    .curl { stroke: #3987e5; } .w { stroke: #c3c2b7; }
+  }
+</style>
+<rect class="bg" x="0.5" y="0.5" width="899" height="387" rx="10"/>
+<line class="grid" x1="330.0" x2="330.0" y1="66" y2="352"/>
+<text class="m" x="330.0" y="368" text-anchor="middle">0</text>
+<line class="grid" x1="429.7" x2="429.7" y1="66" y2="352"/>
+<text class="m" x="429.7" y="368" text-anchor="middle">50k</text>
+<line class="grid" x1="529.4" x2="529.4" y1="66" y2="352"/>
+<text class="m" x="529.4" y="368" text-anchor="middle">100k</text>
+<line class="grid" x1="629.1" x2="629.1" y1="66" y2="352"/>
+<text class="m" x="629.1" y="368" text-anchor="middle">150k</text>
+<line class="grid" x1="728.8" x2="728.8" y1="66" y2="352"/>
+<text class="m" x="728.8" y="368" text-anchor="middle">200k</text>
+<text class="t" x="20" y="30">Yuneta 7.25.5: operations per second on one core</text>
+<text class="m" x="20" y="48">as each benchmark counts them: a record stored or read, a message echoed, a round trip, a login</text>
+<text class="l" x="20" y="82">timeranger2 appends (records stored)</text>
+<rect class="cur" x="330" y="72" width="447.6" height="12" rx="3"/>
+<text class="v" x="783.6" y="82">224 K/s</text>
+<text class="l" x="20" y="108">appends with a live reader</text>
+<rect class="cur" x="330" y="98" width="332.3" height="12" rx="3"/>
+<text class="v" x="668.3" y="108">167 K/s</text>
+<text class="l" x="20" y="134">timeranger2 reads (records loaded)</text>
+<rect class="cur" x="330" y="124" width="374.7" height="12" rx="3"/>
+<text class="v" x="710.7" y="134">188 K/s</text>
+<text class="l" x="20" y="160">reads, page by page</text>
+<rect class="cur" x="330" y="150" width="329.7" height="12" rx="3"/>
+<text class="v" x="665.7" y="160">165 K/s</text>
+<text class="l" x="20" y="186">io_uring event loop alone (1 KB echo)</text>
+<rect class="cur" x="330" y="176" width="298.4" height="12" rx="3"/>
+<text class="v" x="634.4" y="186">150 K/s</text>
+<text class="l" x="20" y="212">event loop + timeranger2 append</text>
+<rect class="cur" x="330" y="202" width="169.3" height="12" rx="3"/>
+<text class="v" x="505.3" y="212">84.9 K/s</text>
+<text class="l" x="20" y="238">full gobj stack, TCP</text>
+<rect class="cur" x="330" y="228" width="77.0" height="12" rx="3"/>
+<text class="v" x="413.0" y="238">38.6 K/s</text>
+<text class="l" x="20" y="264">gobj stack, TCP + append</text>
+<rect class="cur" x="330" y="254" width="59.2" height="12" rx="3"/>
+<text class="v" x="395.2" y="264">29.7 K/s</text>
+<text class="l" x="20" y="290">gobj stack, TLS (OpenSSL)</text>
+<rect class="cur" x="330" y="280" width="58.2" height="12" rx="3"/>
+<text class="v" x="394.2" y="290">29.2 K/s</text>
+<text class="l" x="20" y="316">gobj stack, TLS + append</text>
+<rect class="cur" x="330" y="306" width="46.6" height="12" rx="3"/>
+<text class="v" x="382.6" y="316">23.4 K/s</text>
+<text class="l" x="20" y="342">OAuth2 BFF logins (HTTP, 5 clients)</text>
+<rect class="cur" x="330" y="332" width="16.8" height="12" rx="3"/>
+<text class="v" x="352.8" y="342">8.4 K/s</text>
+</svg>

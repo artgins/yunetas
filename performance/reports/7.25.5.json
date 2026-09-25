@@ -1,0 +1,2045 @@
+{
+    "schema": "yuneta-perf-report/1",
+    "version": "7.25.5",
+    "previous": "7.25.4",
+    "date": "2026-09-25",
+    "machine": {
+        "kind": "laptop",
+        "model": "Acer Nitro AN517-53",
+        "cpu": "11th Gen Intel Core i7-11370H @ 3.30 GHz",
+        "cores": 4,
+        "threads": 8,
+        "cpu_max_ghz": 4.8,
+        "l3_cache": "12 MiB",
+        "cpu_governor": "powersave (intel_pstate)",
+        "ram": "31 GiB",
+        "disk": "Samsung SSD 990 PRO 2TB (NVMe)",
+        "filesystem": "ext4",
+        "kernel": "Linux 7.0.0-34-generic x86_64",
+        "distro": "Ubuntu 26.04.1 LTS",
+        "glibc": "2.43",
+        "shared": "A development machine, with other work running at times; the A/B runs are alternated for that reason"
+    },
+    "build": {
+        "compiler": "gcc 15.2.0",
+        "build_type": "RelWithDebInfo (-O2 -g -DNDEBUG)",
+        "fully_static": true,
+        "debug_track_memory": true,
+        "debug_with_backtrace": true,
+        "tls": "OpenSSL 3.6.3 (bundled, static); mbedTLS not built on this machine",
+        "note": "CONFIG_DEBUG_TRACK_MEMORY is on (the .config of this machine): every allocation is tracked. A build without it does less work per allocation; that build was not measured here."
+    },
+    "method": {
+        "ab": "Each benchmark of 7.25.5 linked twice: with the 7.25.5 libraries, and with the 7.25.4 module (compiled with the 7.25.5 headers) put before them. The two binaries run alternated, with a sync and a pause before each run; mean +- standard deviation (median). Figures of scope \"change\" are an A/B of one commit alone; scratch benchmarks are not in the tree. Source: performance/c/README.md and CHANGELOG.md \"Performance, against 7.25.4\".",
+        "tag_run": "The benchmarks of performance/c/ and the ctest binaries test_topic_pkey_integer, test_topic_pkey_integer_iterator2 and test_topic_pkey_integer_iterator5, built from the 7.25.5 tree, run at tag time in rounds (n per figure: 5, or 3 for perf_c_treedb and perf_auth_bff), with a sync and a 3 s pause before each run and no CPU pinning. The per-second benchmarks drop their first and last second. Absolute figures of one machine: compare them with each other and with the reports of the same machine."
+    },
+    "ab": [
+        {
+            "id": "tr2.append_rate",
+            "group": "timeranger2",
+            "bench": "test_topic_pkey_integer",
+            "case": "without an rt list",
+            "label": "Appends per second",
+            "meaning": "How many records one yuno can store per second in a key-indexed topic.",
+            "unit": "appends/s",
+            "better": "higher",
+            "previous": {
+                "mean": 220120,
+                "sd": 4544,
+                "median": 220070
+            },
+            "current": {
+                "mean": 221588,
+                "sd": 4753,
+                "median": 220424
+            },
+            "n": 80,
+            "scope": "release",
+            "method": "Each module padded to the same .text size and linked 4 times with the libraries moved by 0, 320, 704 and 1472 bytes (removes the code-layout effect, up to 2.5% on one link); 20 rounds of each link, alternated.",
+            "verdict": "noise",
+            "reason": "Same speed, with the checks this release adds to every append: a flagged file, the tm order, a torn md2 tail, a stopped master.",
+            "change_pct": 0.7
+        },
+        {
+            "id": "tr2.append_rate_rt",
+            "group": "timeranger2",
+            "bench": "test_topic_pkey_integer",
+            "case": "with an rt list",
+            "label": "Appends per second, with a live reader",
+            "meaning": "The same appends while a real-time list follows the topic.",
+            "unit": "appends/s",
+            "better": "higher",
+            "previous": {
+                "mean": 166498,
+                "sd": 3354,
+                "median": 165816
+            },
+            "current": {
+                "mean": 167381,
+                "sd": 3306,
+                "median": 166189
+            },
+            "n": 80,
+            "scope": "release",
+            "method": "Each module padded to the same .text size and linked 4 times with the libraries moved by 0, 320, 704 and 1472 bytes (removes the code-layout effect, up to 2.5% on one link); 20 rounds of each link, alternated.",
+            "verdict": "noise",
+            "change_pct": 0.5,
+            "short": "Appends per second, live reader"
+        },
+        {
+            "id": "tr2.build_appends",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "build_appends",
+            "label": "400 000 appends into 20 000 files",
+            "meaning": "Filling a store: 2000 keys x 10 daily files x 20 rows.",
+            "unit": "ms",
+            "better": "lower",
+            "previous": {
+                "mean": 1733.5,
+                "sd": 31.2,
+                "median": 1740.3
+            },
+            "current": {
+                "mean": 1712.6,
+                "sd": 32.3,
+                "median": 1701.5
+            },
+            "n": 20,
+            "scope": "release",
+            "method": "The timeranger2.c of each release, linked alternated before the same libraries; sync and a pause before each run.",
+            "verdict": "noise",
+            "change_pct": -1.2
+        },
+        {
+            "id": "tr2.tm_build_appends",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "tm_build_appends",
+            "label": "600 000 appends into 30 files",
+            "meaning": "Filling one key of a topic that marks the tm order.",
+            "unit": "ms",
+            "better": "lower",
+            "previous": {
+                "mean": 1635.0,
+                "sd": 29.3,
+                "median": 1642.9
+            },
+            "current": {
+                "mean": 1627.3,
+                "sd": 32.8,
+                "median": 1626.1
+            },
+            "n": 20,
+            "scope": "release",
+            "method": "The timeranger2.c of each release, linked alternated before the same libraries; sync and a pause before each run.",
+            "verdict": "noise",
+            "change_pct": -0.5
+        },
+        {
+            "id": "tr2.open_master",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "open_master",
+            "label": "Open a store as master (20 000 md2 files)",
+            "meaning": "The start-up time of a yuno that owns a large store.",
+            "unit": "ms",
+            "better": "lower",
+            "previous": {
+                "mean": 92.5,
+                "sd": 1.9,
+                "median": 91.7
+            },
+            "current": {
+                "mean": 80.8,
+                "sd": 1.9,
+                "median": 80.1
+            },
+            "n": 10,
+            "scope": "release",
+            "method": "The timeranger2.c of each release, linked alternated before the same libraries; sync and a pause before each run.",
+            "verdict": "gain",
+            "reason": "The order markers are found in the listing of the key directory the open already reads, instead of one stat() per md2 file.",
+            "change_pct": -12.6,
+            "short": "Open a store as master"
+        },
+        {
+            "id": "tr2.open_replica",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "open_replica",
+            "label": "Open a store as replica (20 000 md2 files)",
+            "meaning": "The start-up time of a yuno that reads a store another yuno writes.",
+            "unit": "ms",
+            "better": "lower",
+            "previous": {
+                "mean": 89.7,
+                "sd": 2.1,
+                "median": 88.9
+            },
+            "current": {
+                "mean": 106.5,
+                "sd": 2.0,
+                "median": 105.9
+            },
+            "n": 10,
+            "scope": "release",
+            "method": "The timeranger2.c of each release, linked alternated before the same libraries; sync and a pause before each run.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: one more stat() per md2 file. A replica looks for the order markers on disk after reading each file, because a listing taken before could miss a marker the master writes during the open.",
+            "change_pct": 18.7,
+            "short": "Open a store as replica"
+        },
+        {
+            "id": "tr2.create_topic",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "create_topic",
+            "label": "Create 10 topics",
+            "meaning": "A one-time cost when a schema adds a topic.",
+            "unit": "ms",
+            "better": "lower",
+            "previous": {
+                "mean": 3.6,
+                "sd": 1.3,
+                "median": 4.3
+            },
+            "current": {
+                "mean": 118.9,
+                "sd": 13.1,
+                "median": 115.9
+            },
+            "n": 80,
+            "scope": "release",
+            "method": "The timeranger2.c of each release, linked alternated before the same libraries; sync and a pause before each run. 20 rounds of each of 4 padded links.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: 2 fsyncs per topic. A power cut never leaves a topic whose files are not on disk. Opening an existing store makes no fsync.",
+            "change_pct": 3202.8
+        },
+        {
+            "id": "tr2.topic_version_change",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "topic_version_change",
+            "label": "Change the topic_version of 10 topics",
+            "meaning": "A one-time cost when a schema changes the columns of a topic.",
+            "unit": "ms",
+            "better": "lower",
+            "previous": {
+                "mean": 1.7,
+                "sd": 0.9,
+                "median": 1.4
+            },
+            "current": {
+                "mean": 231.5,
+                "sd": 23.4,
+                "median": 224.2
+            },
+            "n": 80,
+            "scope": "release",
+            "method": "The timeranger2.c of each release, linked alternated before the same libraries; sync and a pause before each run. 20 rounds of each of 4 padded links.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: 4 fsyncs per change. A power cut never leaves a new topic_version over a topic_cols.json that is not on disk.",
+            "change_pct": 13517.6,
+            "short": "Change topic_version of 10 topics"
+        },
+        {
+            "id": "tr2.tm_query",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "tm_query_migrated",
+            "label": "Query one minute by tm (migrated topic)",
+            "meaning": "A time-range read: 1 key, 30 files x 20 000 rows.",
+            "unit": "ms",
+            "better": "lower",
+            "previous": {
+                "mean": 12.7,
+                "sd": 0.2,
+                "median": 12.7
+            },
+            "current": {
+                "mean": 7.4,
+                "sd": 0.1,
+                "median": 7.3
+            },
+            "n": 10,
+            "scope": "release",
+            "method": "The timeranger2.c of each release, linked alternated before the same libraries; sync and a pause before each run.",
+            "verdict": "gain",
+            "reason": "After `mark-tm-order` the query goes straight to the rows of the minute. The 7.25.4 figure is the query of 7.25.4 on the same data.",
+            "change_pct": -41.7,
+            "short": "tm query of a minute, migrated"
+        },
+        {
+            "id": "tr2.tm_query_unmigrated",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "tm_query_unmigrated",
+            "label": "Query one minute by tm (topic not migrated)",
+            "meaning": "The same query on a topic created by 7.25.4 or earlier.",
+            "unit": "ms",
+            "better": "lower",
+            "previous": {
+                "mean": 12.7,
+                "sd": 0.2,
+                "median": 12.7
+            },
+            "current": {
+                "mean": 391.6,
+                "sd": 8.2,
+                "median": 387.4
+            },
+            "n": 10,
+            "scope": "release",
+            "method": "The timeranger2.c of each release, linked alternated before the same libraries; sync and a pause before each run.",
+            "verdict": "price-until-migrated",
+            "reason": "Price until migrated: a topic of 7.25.4 or earlier does not say that its tm order holds, so the query reads every md2 row of the key. `mark-tm-order` (19 ms here) migrates it once; see the CHANGELOG \"Upgrade steps\".",
+            "change_pct": 2983.5,
+            "short": "tm query of a minute, not migrated"
+        },
+        {
+            "id": "treedb.update_memory",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "update_memory",
+            "label": "Update a node in memory",
+            "meaning": "A change of a node that is not saved.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 3.92,
+                "sd": 0.08,
+                "median": 3.94
+            },
+            "current": {
+                "mean": 2.92,
+                "sd": 0.53,
+                "median": 2.79
+            },
+            "n": 56,
+            "scope": "release",
+            "method": "The tr_treedb.c of each release, 4 link layouts, paired alternated runs pinned with taskset -c 6; CPU time of the process. 14 rounds x 4 layouts, N = 100 000.",
+            "verdict": "gain",
+            "reason": "An update deep-copied the node, with every child its hooks hold, for a check of the system schema on every treedb; now only on the system schema.",
+            "change_pct": -25.5
+        },
+        {
+            "id": "treedb.update_saved",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "update_saved",
+            "label": "Update a node and save it",
+            "meaning": "The common write: change a node and persist it.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 11.75,
+                "sd": 0.42,
+                "median": 11.73
+            },
+            "current": {
+                "mean": 10.81,
+                "sd": 1.51,
+                "median": 10.44
+            },
+            "n": 56,
+            "scope": "release",
+            "method": "The tr_treedb.c of each release, 4 link layouts, paired alternated runs pinned with taskset -c 6; CPU time of the process. 14 rounds x 4 layouts, N = 100 000.",
+            "verdict": "gain",
+            "change_pct": -8.0
+        },
+        {
+            "id": "treedb.link_unlink",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "link_unlink",
+            "label": "Link or unlink two nodes",
+            "meaning": "One relation made or undone (the child is saved).",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 11.27,
+                "sd": 0.27,
+                "median": 11.2
+            },
+            "current": {
+                "mean": 11.09,
+                "sd": 1.24,
+                "median": 10.85
+            },
+            "n": 56,
+            "scope": "release",
+            "method": "The tr_treedb.c of each release, 4 link layouts, paired alternated runs pinned with taskset -c 6; CPU time of the process. 14 rounds x 4 layouts, N = 100 000.",
+            "verdict": "noise",
+            "change_pct": -1.6
+        },
+        {
+            "id": "treedb.create_link_half",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "create_link_half",
+            "label": "Create a node (half of them linked)",
+            "meaning": "A new node, saved.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 53.92,
+                "sd": 1.88,
+                "median": 53.55
+            },
+            "current": {
+                "mean": 54.26,
+                "sd": 7.47,
+                "median": 52.6
+            },
+            "n": 56,
+            "scope": "release",
+            "method": "The tr_treedb.c of each release, 4 link layouts, paired alternated runs pinned with taskset -c 6; CPU time of the process. 14 rounds x 4 layouts, N = 100 000.",
+            "verdict": "noise",
+            "change_pct": 0.6,
+            "short": "Create a node"
+        },
+        {
+            "id": "treedb.reopen",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "reopen",
+            "label": "Reopen the treedb",
+            "meaning": "Loading every node and its links at start-up (us_per_op as the benchmark counts it).",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 396.6,
+                "sd": 13.8,
+                "median": 395.5
+            },
+            "current": {
+                "mean": 401.9,
+                "sd": 51.4,
+                "median": 394.4
+            },
+            "n": 56,
+            "scope": "release",
+            "method": "The tr_treedb.c of each release, 4 link layouts, paired alternated runs pinned with taskset -c 6; CPU time of the process. 14 rounds x 4 layouts, N = 100 000.",
+            "verdict": "noise",
+            "change_pct": 1.3
+        },
+        {
+            "id": "treedb.delete_force",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "delete_force",
+            "label": "Forced delete of a node",
+            "meaning": "Removing a node, linked or not.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 53.12,
+                "sd": 3.17,
+                "median": 52.65
+            },
+            "current": {
+                "mean": 54.05,
+                "sd": 5.5,
+                "median": 53.2
+            },
+            "n": 56,
+            "scope": "release",
+            "method": "The tr_treedb.c of each release, 4 link layouts, paired alternated runs pinned with taskset -c 6; CPU time of the process. 14 rounds x 4 layouts, N = 100 000.",
+            "verdict": "price",
+            "reason": "Price: ~1 us per delete. The delete holds its events and keeps the column that lets a refused delete change nothing.",
+            "change_pct": 1.8
+        },
+        {
+            "id": "treedb.delete_parent",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "delete_parent",
+            "label": "Forced delete of a parent with 200 children",
+            "meaning": "Each child is unlinked and saved.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 2952,
+                "sd": 375,
+                "median": 2896
+            },
+            "current": {
+                "mean": 2781,
+                "sd": 427,
+                "median": 2711
+            },
+            "n": 56,
+            "scope": "release",
+            "method": "The tr_treedb.c of each release, 4 link layouts, paired alternated runs pinned with taskset -c 6; CPU time of the process. 14 rounds x 4 layouts, N = 100 000.",
+            "verdict": "gain",
+            "reason": "The delete tells its children's events itself instead of holding two per child, and counts the children instead of building a reference string for each.",
+            "change_pct": -5.8,
+            "short": "Delete a parent of 200 children"
+        },
+        {
+            "id": "ctreedb.same_literal_release",
+            "group": "C_TREEDB",
+            "bench": "perf_c_treedb",
+            "case": "same_literal",
+            "label": "Open 40 treedbs whose schema did not change (release against release)",
+            "meaning": "The start-up of a yuno with many treedbs: the everyday case.",
+            "unit": "s",
+            "better": "lower",
+            "previous": {
+                "mean": 1.84,
+                "median": 1.84
+            },
+            "current": {
+                "mean": 0.6486,
+                "sd": 0.0035,
+                "median": 0.6467
+            },
+            "n": 3,
+            "scope": "release (separate runs)",
+            "method": "7.25.4 with its own JSON load: medians of 4-8 rounds of an earlier run; 7.25.5: the tag-time run of the release as shipped (3 rounds). Not one alternated run.",
+            "verdict": "gain",
+            "reason": "A JSON file is read whole, then parsed: json_loadfd() made one read() per byte, 60 000 system calls for a 60 KB schema. And the literal is parsed once, not twice.",
+            "change_pct": -64.8,
+            "short": "Open 40 treedbs, same schema"
+        },
+        {
+            "id": "ctreedb.same_literal",
+            "group": "C_TREEDB",
+            "bench": "perf_c_treedb",
+            "case": "same_literal",
+            "label": "Open 40 treedbs whose schema did not change (C_TREEDB alone)",
+            "meaning": "The same open, both sides on the 7.25.5 JSON load: what C_TREEDB itself changed.",
+            "unit": "s",
+            "better": "lower",
+            "previous": {
+                "mean": 0.672,
+                "sd": 0.071,
+                "median": 0.647
+            },
+            "current": {
+                "mean": 0.613,
+                "sd": 0.02,
+                "median": 0.61
+            },
+            "n": 10,
+            "scope": "release",
+            "method": "The c_treedb.c of 7.25.4 compiled with the 7.25.5 headers and linked before the 7.25.5 libraries, so both sides use the 7.25.5 JSON load; 10 alternated rounds.",
+            "verdict": "gain",
+            "reason": "The second parse_schema() of the literal is gone (~2.9 ms an open). A later fix of this release adds back ~0.9 ms an open (see ctreedb.same_literal_fix).",
+            "change_pct": -8.8,
+            "short": "Open 40 treedbs, same schema (module)"
+        },
+        {
+            "id": "ctreedb.seed",
+            "group": "C_TREEDB",
+            "bench": "perf_c_treedb",
+            "case": "seed",
+            "label": "First open of 40 treedbs (seed projection)",
+            "meaning": "A one-time cost: the first start of a new treedb.",
+            "unit": "s",
+            "better": "lower",
+            "previous": {
+                "mean": 9.87,
+                "sd": 0.42,
+                "median": 9.74
+            },
+            "current": {
+                "mean": 10.84,
+                "sd": 0.32,
+                "median": 10.75
+            },
+            "n": 10,
+            "scope": "release",
+            "method": "The c_treedb.c of 7.25.4 compiled with the 7.25.5 headers and linked before the 7.25.5 libraries, so both sides use the 7.25.5 JSON load; 10 alternated rounds.",
+            "verdict": "price",
+            "reason": "Price kept, by decision (~24 ms an open): the record of the projection in progress, written whole with its fsyncs before the first write, so a crash in the middle is finished at the next open; the index of __system__ and the orphan search keep a draft from being taken for a leftover.",
+            "change_pct": 9.8,
+            "short": "First open of 40 treedbs (seed)"
+        },
+        {
+            "id": "ctreedb.newer_literal",
+            "group": "C_TREEDB",
+            "bench": "perf_c_treedb",
+            "case": "newer_literal",
+            "label": "Open 40 treedbs with a newer schema",
+            "meaning": "A one-time cost: the first start after a schema upgrade.",
+            "unit": "s",
+            "better": "lower",
+            "previous": {
+                "mean": 12.79,
+                "sd": 0.44,
+                "median": 12.86
+            },
+            "current": {
+                "mean": 13.89,
+                "sd": 0.53,
+                "median": 14.02
+            },
+            "n": 10,
+            "scope": "release",
+            "method": "The c_treedb.c of 7.25.4 compiled with the 7.25.5 headers and linked before the 7.25.5 libraries, so both sides use the 7.25.5 JSON load; 10 alternated rounds.",
+            "verdict": "price",
+            "reason": "Price kept, by decision (~27 ms an open): the same crash-safe projection record, the drafts compared with the file in use, and the ownership checks of the projection.",
+            "change_pct": 8.6,
+            "short": "Open 40 treedbs, newer schema"
+        },
+        {
+            "id": "ctreedb.same_literal_fix",
+            "group": "C_TREEDB",
+            "bench": "perf_c_treedb",
+            "case": "same_literal",
+            "label": "Open one treedb whose schema did not change: the last schema fixes",
+            "meaning": "The cost of two correctness fixes on the everyday open.",
+            "unit": "ms",
+            "better": "lower",
+            "previous": {
+                "mean": 15.33,
+                "sd": 1.46
+            },
+            "current": {
+                "mean": 16.2,
+                "sd": 0.66
+            },
+            "n": 8,
+            "scope": "change",
+            "method": "A/B of that change alone, 8 alternated rounds, ms an open.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: one schema_diff() of the literal against the file, so a literal with other content under the same schema_version is said at every open.",
+            "commit": "2f692ac1d",
+            "change_pct": 5.7
+        },
+        {
+            "id": "rotatory.audit_record",
+            "group": "rotatory",
+            "bench": "perf_rotatory",
+            "case": "audit_record",
+            "label": "Write one agent audit record (300 bytes)",
+            "meaning": "What every command sent to the agent pays to be audited.",
+            "unit": "ns",
+            "better": "lower",
+            "previous": {
+                "mean": 6194,
+                "sd": 135,
+                "median": 6140
+            },
+            "current": {
+                "mean": 554,
+                "sd": 10,
+                "median": 555
+            },
+            "n": 8,
+            "scope": "release",
+            "method": "The rotatory.c of each release, 8 rounds.",
+            "verdict": "gain",
+            "reason": "A record is checked once and written whole. 7.25.4 rebuilt the file name (localtime()) and ran access() + fstat() for each piece of a record.",
+            "change_pct": -91.1,
+            "short": "One agent audit record"
+        },
+        {
+            "id": "rotatory.audit_record_flush",
+            "group": "rotatory",
+            "bench": "perf_rotatory",
+            "case": "audit_record_flush",
+            "label": "Write and flush one audit record",
+            "meaning": "What the agent does since 7.25.5: the record reaches the file before the command runs.",
+            "unit": "ns",
+            "better": "lower",
+            "previous": {
+                "mean": 7623,
+                "sd": 1105,
+                "median": 7252
+            },
+            "current": {
+                "mean": 1475,
+                "sd": 491,
+                "median": 1309
+            },
+            "n": 8,
+            "scope": "release",
+            "method": "The rotatory.c of each release, 8 rounds. A busier run.",
+            "verdict": "gain",
+            "reason": "7.25.4 did not flush (a record could be lost in a crash); with the flush 7.25.5 is still ~5x cheaper than 7.25.4 without it.",
+            "change_pct": -80.7,
+            "short": "One audit record, flushed"
+        },
+        {
+            "id": "net.yev_ping_pong",
+            "group": "event loop",
+            "bench": "perf_yev_ping_pong",
+            "case": "",
+            "label": "Raw io_uring echo (1 KB messages)",
+            "meaning": "The ceiling of the event loop alone, no gobj layer.",
+            "unit": "K msg/s",
+            "better": "higher",
+            "previous": {
+                "mean": 152.2,
+                "sd": 3.3,
+                "median": 153.7
+            },
+            "current": {
+                "mean": 150.5,
+                "sd": 2.9,
+                "median": 149.8
+            },
+            "n": 8,
+            "scope": "release",
+            "method": "The yev_loop.c of each release, 8 rounds.",
+            "verdict": "noise",
+            "change_pct": -1.1,
+            "short": "Event loop echo, 1 KB"
+        },
+        {
+            "id": "net.tcp_echo",
+            "group": "event loop",
+            "bench": "perf_tcp_test4",
+            "case": "",
+            "label": "TCP echo through the full gobj stack",
+            "meaning": "Round trips of a ~140-byte JSON message: C_IOGATE, C_TCP_S, C_PROT_TCP4H, C_CHANNEL.",
+            "unit": "round trips/s",
+            "better": "higher",
+            "previous": {
+                "mean": 38706,
+                "sd": 685,
+                "median": 38841
+            },
+            "current": {
+                "mean": 39344,
+                "sd": 771,
+                "median": 39831
+            },
+            "n": 8,
+            "scope": "release",
+            "method": "The yev_loop.c of each release, 8 rounds.",
+            "verdict": "noise",
+            "change_pct": 1.6,
+            "short": "TCP echo, gobj stack"
+        },
+        {
+            "id": "net.tcp_echo_persist",
+            "group": "event loop",
+            "bench": "perf_tcp_test5",
+            "case": "",
+            "label": "TCP echo + one timeranger2 append per message",
+            "meaning": "The same, storing every message.",
+            "unit": "round trips/s",
+            "better": "higher",
+            "previous": {
+                "mean": 30421,
+                "sd": 641,
+                "median": 30386
+            },
+            "current": {
+                "mean": 30181,
+                "sd": 597,
+                "median": 30323
+            },
+            "n": 8,
+            "scope": "release",
+            "method": "The yev_loop.c of each release, 8 rounds.",
+            "verdict": "noise",
+            "change_pct": -0.8,
+            "short": "TCP echo + append"
+        },
+        {
+            "id": "net.udp_round_trip",
+            "group": "event loop",
+            "bench": "c_udp_s_echo (scratch)",
+            "case": "",
+            "label": "UDP round trip (64-byte datagrams)",
+            "meaning": "C_UDP_S read path.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 11.88,
+                "sd": 0.77
+            },
+            "current": {
+                "mean": 11.59,
+                "sd": 0.35
+            },
+            "n": 8,
+            "scope": "change",
+            "method": "A scratch copy of the echo server of tests/c/c_udp_s_echo driven by a Python client, 20 000 round trips a round, 8 alternated rounds.",
+            "verdict": "noise",
+            "reason": "The read takes a new gbuffer only when the host keeps the received one.",
+            "commit": "62fa7dbc4",
+            "change_pct": -2.4
+        },
+        {
+            "id": "publish.250b.plain.1",
+            "group": "publish",
+            "bench": "bench_publish.c (scratch)",
+            "case": "250 B, 1 subscribers",
+            "label": "Publish one 250 B event to 1 subscriber",
+            "meaning": "gobj_publish_event(): the in-process message bus.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 1.78
+            },
+            "current": {
+                "mean": 1.78
+            },
+            "n": 8,
+            "scope": "release",
+            "method": "A benchmark written for the change (bench_publish.c, not in the tree): one event published to N subscribers of one gobj; only gobj.o differs (-O2); 8 alternated rounds at ~250 B, 16 at ~20 KB; mean.",
+            "verdict": "noise",
+            "change_pct": 0.0,
+            "short": "Publish 250 B, 1 subscribers"
+        },
+        {
+            "id": "publish.250b.plain.10",
+            "group": "publish",
+            "bench": "bench_publish.c (scratch)",
+            "case": "250 B, 10 subscribers",
+            "label": "Publish one 250 B event to 10 subscribers",
+            "meaning": "gobj_publish_event(): the in-process message bus.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 3.2
+            },
+            "current": {
+                "mean": 3.21
+            },
+            "n": 8,
+            "scope": "release",
+            "method": "A benchmark written for the change (bench_publish.c, not in the tree): one event published to N subscribers of one gobj; only gobj.o differs (-O2); 8 alternated rounds at ~250 B, 16 at ~20 KB; mean.",
+            "verdict": "noise",
+            "change_pct": 0.3,
+            "short": "Publish 250 B, 10 subscribers"
+        },
+        {
+            "id": "publish.250b.plain.100",
+            "group": "publish",
+            "bench": "bench_publish.c (scratch)",
+            "case": "250 B, 100 subscribers",
+            "label": "Publish one 250 B event to 100 subscribers",
+            "meaning": "gobj_publish_event(): the in-process message bus.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 19.86
+            },
+            "current": {
+                "mean": 18.86
+            },
+            "n": 8,
+            "scope": "release",
+            "method": "A benchmark written for the change (bench_publish.c, not in the tree): one event published to N subscribers of one gobj; only gobj.o differs (-O2); 8 alternated rounds at ~250 B, 16 at ~20 KB; mean.",
+            "verdict": "noise",
+            "change_pct": -5.0,
+            "short": "Publish 250 B, 100 subscribers"
+        },
+        {
+            "id": "publish.250b.global.1",
+            "group": "publish",
+            "bench": "bench_publish.c (scratch)",
+            "case": "250 B, 1 subscribers, __global__",
+            "label": "Publish one 250 B event to 1 subscriber with __global__",
+            "meaning": "gobj_publish_event(): the in-process message bus.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 1.95
+            },
+            "current": {
+                "mean": 2.08
+            },
+            "n": 8,
+            "scope": "release",
+            "method": "A benchmark written for the change (bench_publish.c, not in the tree): one event published to N subscribers of one gobj; only gobj.o differs (-O2); 8 alternated rounds at ~250 B, 16 at ~20 KB; mean.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: a subscription with __local__ or __global__ gets its own kw_twin() of the event (~0.23 us a delivery, whatever the size), so a peer's subscription can no longer change the event of every later subscriber. Every C_IEVENT_SRV (remote) subscription carries __global__.",
+            "change_pct": 6.7,
+            "short": "Publish 250 B, 1 subs, __global__"
+        },
+        {
+            "id": "publish.250b.global.10",
+            "group": "publish",
+            "bench": "bench_publish.c (scratch)",
+            "case": "250 B, 10 subscribers, __global__",
+            "label": "Publish one 250 B event to 10 subscribers with __global__",
+            "meaning": "gobj_publish_event(): the in-process message bus.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 3.71
+            },
+            "current": {
+                "mean": 5.93
+            },
+            "n": 8,
+            "scope": "release",
+            "method": "A benchmark written for the change (bench_publish.c, not in the tree): one event published to N subscribers of one gobj; only gobj.o differs (-O2); 8 alternated rounds at ~250 B, 16 at ~20 KB; mean.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: a subscription with __local__ or __global__ gets its own kw_twin() of the event (~0.23 us a delivery, whatever the size), so a peer's subscription can no longer change the event of every later subscriber. Every C_IEVENT_SRV (remote) subscription carries __global__.",
+            "change_pct": 59.8,
+            "short": "Publish 250 B, 10 subs, __global__"
+        },
+        {
+            "id": "publish.250b.global.100",
+            "group": "publish",
+            "bench": "bench_publish.c (scratch)",
+            "case": "250 B, 100 subscribers, __global__",
+            "label": "Publish one 250 B event to 100 subscribers with __global__",
+            "meaning": "gobj_publish_event(): the in-process message bus.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 21.76
+            },
+            "current": {
+                "mean": 44.94
+            },
+            "n": 8,
+            "scope": "release",
+            "method": "A benchmark written for the change (bench_publish.c, not in the tree): one event published to N subscribers of one gobj; only gobj.o differs (-O2); 8 alternated rounds at ~250 B, 16 at ~20 KB; mean.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: a subscription with __local__ or __global__ gets its own kw_twin() of the event (~0.23 us a delivery, whatever the size), so a peer's subscription can no longer change the event of every later subscriber. Every C_IEVENT_SRV (remote) subscription carries __global__.",
+            "change_pct": 106.5,
+            "short": "Publish 250 B, 100 subs, __global__"
+        },
+        {
+            "id": "publish.20kb.plain.1",
+            "group": "publish",
+            "bench": "bench_publish.c (scratch)",
+            "case": "20 KB, 1 subscribers",
+            "label": "Publish one 20 KB event to 1 subscriber",
+            "meaning": "gobj_publish_event(): the in-process message bus.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 63.03
+            },
+            "current": {
+                "mean": 62.76
+            },
+            "n": 16,
+            "scope": "release",
+            "method": "A benchmark written for the change (bench_publish.c, not in the tree): one event published to N subscribers of one gobj; only gobj.o differs (-O2); 8 alternated rounds at ~250 B, 16 at ~20 KB; mean.",
+            "verdict": "noise",
+            "change_pct": -0.4,
+            "short": "Publish 20 KB, 1 subscribers"
+        },
+        {
+            "id": "publish.20kb.plain.10",
+            "group": "publish",
+            "bench": "bench_publish.c (scratch)",
+            "case": "20 KB, 10 subscribers",
+            "label": "Publish one 20 KB event to 10 subscribers",
+            "meaning": "gobj_publish_event(): the in-process message bus.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 64.98
+            },
+            "current": {
+                "mean": 64.22
+            },
+            "n": 16,
+            "scope": "release",
+            "method": "A benchmark written for the change (bench_publish.c, not in the tree): one event published to N subscribers of one gobj; only gobj.o differs (-O2); 8 alternated rounds at ~250 B, 16 at ~20 KB; mean.",
+            "verdict": "noise",
+            "change_pct": -1.2,
+            "short": "Publish 20 KB, 10 subscribers"
+        },
+        {
+            "id": "publish.20kb.plain.100",
+            "group": "publish",
+            "bench": "bench_publish.c (scratch)",
+            "case": "20 KB, 100 subscribers",
+            "label": "Publish one 20 KB event to 100 subscribers",
+            "meaning": "gobj_publish_event(): the in-process message bus.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 79.59
+            },
+            "current": {
+                "mean": 81.28
+            },
+            "n": 16,
+            "scope": "release",
+            "method": "A benchmark written for the change (bench_publish.c, not in the tree): one event published to N subscribers of one gobj; only gobj.o differs (-O2); 8 alternated rounds at ~250 B, 16 at ~20 KB; mean.",
+            "verdict": "noise",
+            "change_pct": 2.1,
+            "short": "Publish 20 KB, 100 subscribers"
+        },
+        {
+            "id": "publish.20kb.global.1",
+            "group": "publish",
+            "bench": "bench_publish.c (scratch)",
+            "case": "20 KB, 1 subscribers, __global__",
+            "label": "Publish one 20 KB event to 1 subscriber with __global__",
+            "meaning": "gobj_publish_event(): the in-process message bus.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 64.37
+            },
+            "current": {
+                "mean": 63.88
+            },
+            "n": 16,
+            "scope": "release",
+            "method": "A benchmark written for the change (bench_publish.c, not in the tree): one event published to N subscribers of one gobj; only gobj.o differs (-O2); 8 alternated rounds at ~250 B, 16 at ~20 KB; mean.",
+            "verdict": "noise",
+            "reason": "Price kept, by decision: a subscription with __local__ or __global__ gets its own kw_twin() of the event (~0.23 us a delivery, whatever the size), so a peer's subscription can no longer change the event of every later subscriber. Every C_IEVENT_SRV (remote) subscription carries __global__.",
+            "change_pct": -0.8,
+            "short": "Publish 20 KB, 1 subs, __global__"
+        },
+        {
+            "id": "publish.20kb.global.10",
+            "group": "publish",
+            "bench": "bench_publish.c (scratch)",
+            "case": "20 KB, 10 subscribers, __global__",
+            "label": "Publish one 20 KB event to 10 subscribers with __global__",
+            "meaning": "gobj_publish_event(): the in-process message bus.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 65.65
+            },
+            "current": {
+                "mean": 67.54
+            },
+            "n": 16,
+            "scope": "release",
+            "method": "A benchmark written for the change (bench_publish.c, not in the tree): one event published to N subscribers of one gobj; only gobj.o differs (-O2); 8 alternated rounds at ~250 B, 16 at ~20 KB; mean.",
+            "verdict": "noise",
+            "reason": "Price kept, by decision: a subscription with __local__ or __global__ gets its own kw_twin() of the event (~0.23 us a delivery, whatever the size), so a peer's subscription can no longer change the event of every later subscriber. Every C_IEVENT_SRV (remote) subscription carries __global__.",
+            "change_pct": 2.9,
+            "short": "Publish 20 KB, 10 subs, __global__"
+        },
+        {
+            "id": "publish.20kb.global.100",
+            "group": "publish",
+            "bench": "bench_publish.c (scratch)",
+            "case": "20 KB, 100 subscribers, __global__",
+            "label": "Publish one 20 KB event to 100 subscribers with __global__",
+            "meaning": "gobj_publish_event(): the in-process message bus.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 82.44
+            },
+            "current": {
+                "mean": 104.93
+            },
+            "n": 16,
+            "scope": "release",
+            "method": "A benchmark written for the change (bench_publish.c, not in the tree): one event published to N subscribers of one gobj; only gobj.o differs (-O2); 8 alternated rounds at ~250 B, 16 at ~20 KB; mean.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: a subscription with __local__ or __global__ gets its own kw_twin() of the event (~0.23 us a delivery, whatever the size), so a peer's subscription can no longer change the event of every later subscriber. Every C_IEVENT_SRV (remote) subscription carries __global__.",
+            "change_pct": 27.3,
+            "short": "Publish 20 KB, 100 subs, __global__"
+        },
+        {
+            "id": "subscribe.100.plain",
+            "group": "publish",
+            "bench": "bench_subscribe.c (scratch)",
+            "case": "100 subscriptions",
+            "label": "Subscribe + unsubscribe with 100 subscriptions",
+            "meaning": "gobj_subscribe_event() / gobj_unsubscribe_event().",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 8.63
+            },
+            "current": {
+                "mean": 8.47
+            },
+            "n": 4,
+            "scope": "change",
+            "method": "A benchmark written for the change (bench_subscribe.c, not in the tree); only gobj.o differs; 4 alternated rounds; the median of the mean of a subscribe and an unsubscribe.",
+            "verdict": "noise",
+            "reason": "The kw is matched as it is stored.",
+            "commit": "b8aea552b",
+            "change_pct": -1.9
+        },
+        {
+            "id": "subscribe.100.config",
+            "group": "publish",
+            "bench": "bench_subscribe.c (scratch)",
+            "case": "100 subscriptions, __config__",
+            "label": "Subscribe + unsubscribe with 100 subscriptions with __config__",
+            "meaning": "gobj_subscribe_event() / gobj_unsubscribe_event().",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 11.24
+            },
+            "current": {
+                "mean": 10.69
+            },
+            "n": 4,
+            "scope": "change",
+            "method": "A benchmark written for the change (bench_subscribe.c, not in the tree); only gobj.o differs; 4 alternated rounds; the median of the mean of a subscribe and an unsubscribe.",
+            "verdict": "noise",
+            "reason": "The kw is matched as it is stored.",
+            "commit": "b8aea552b",
+            "change_pct": -4.9
+        },
+        {
+            "id": "subscribe.2000.plain",
+            "group": "publish",
+            "bench": "bench_subscribe.c (scratch)",
+            "case": "2000 subscriptions",
+            "label": "Subscribe + unsubscribe with 2000 subscriptions",
+            "meaning": "gobj_subscribe_event() / gobj_unsubscribe_event().",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 167.68
+            },
+            "current": {
+                "mean": 158.41
+            },
+            "n": 4,
+            "scope": "change",
+            "method": "A benchmark written for the change (bench_subscribe.c, not in the tree); only gobj.o differs; 4 alternated rounds; the median of the mean of a subscribe and an unsubscribe.",
+            "verdict": "noise",
+            "reason": "The kw is matched as it is stored.",
+            "commit": "b8aea552b",
+            "change_pct": -5.5
+        },
+        {
+            "id": "subscribe.2000.config",
+            "group": "publish",
+            "bench": "bench_subscribe.c (scratch)",
+            "case": "2000 subscriptions, __config__",
+            "label": "Subscribe + unsubscribe with 2000 subscriptions with __config__",
+            "meaning": "gobj_subscribe_event() / gobj_unsubscribe_event().",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 225.98
+            },
+            "current": {
+                "mean": 218.58
+            },
+            "n": 4,
+            "scope": "change",
+            "method": "A benchmark written for the change (bench_subscribe.c, not in the tree); only gobj.o differs; 4 alternated rounds; the median of the mean of a subscribe and an unsubscribe.",
+            "verdict": "noise",
+            "reason": "The kw is matched as it is stored.",
+            "commit": "b8aea552b",
+            "change_pct": -3.3
+        },
+        {
+            "id": "treedb.pkey2_reopen",
+            "group": "treedb",
+            "bench": "bench (scratch)",
+            "case": "reopen",
+            "label": "Reopen a pkey2 topic (4000 keys x 3 instances)",
+            "meaning": "Start-up of a treedb with secondary keys.",
+            "unit": "ms",
+            "better": "lower",
+            "previous": {
+                "mean": 353.5,
+                "sd": 16.8
+            },
+            "current": {
+                "mean": 327.2,
+                "sd": 8.7
+            },
+            "n": 12,
+            "scope": "change",
+            "method": "A benchmark written for the change (not in the tree), 12 alternated rounds.",
+            "verdict": "gain",
+            "reason": "The load puts the primary in its own pkey2 slot instead of building a copy of it.",
+            "commit": "a2b136144",
+            "change_pct": -7.4
+        },
+        {
+            "id": "treedb.pkey2_update",
+            "group": "treedb",
+            "bench": "bench (scratch)",
+            "case": "update",
+            "label": "Update through treedb_get_instance()",
+            "meaning": "A write addressed by a secondary key.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 29.4,
+                "sd": 1.5
+            },
+            "current": {
+                "mean": 28.6,
+                "sd": 1.3
+            },
+            "n": 12,
+            "scope": "change",
+            "method": "A benchmark written for the change (not in the tree), 12 alternated rounds.",
+            "verdict": "noise",
+            "commit": "a2b136144",
+            "change_pct": -2.7
+        },
+        {
+            "id": "audit.build.list_yunos",
+            "group": "rotatory",
+            "bench": "audit record (scratch)",
+            "case": "list-yunos",
+            "label": "Build and serialize the agent audit record of `list-yunos`",
+            "meaning": "The redaction work done before the record is written.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 1.51
+            },
+            "current": {
+                "mean": 1.55
+            },
+            "n": 8,
+            "scope": "change",
+            "method": "The record built and serialized, 8 alternated rounds, mean.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: names are judged with their JSON escapes decoded and a write-attr is looked for in every string of the kw, so no secret reaches the audit file.",
+            "commit": "b3f69daf5",
+            "change_pct": 2.6
+        },
+        {
+            "id": "audit.build.run_yuno",
+            "group": "rotatory",
+            "bench": "audit record (scratch)",
+            "case": "run-yuno",
+            "label": "Build and serialize the agent audit record of `run-yuno`",
+            "meaning": "The redaction work done before the record is written.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 6.44
+            },
+            "current": {
+                "mean": 6.57
+            },
+            "n": 8,
+            "scope": "change",
+            "method": "The record built and serialized, 8 alternated rounds, mean.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: names are judged with their JSON escapes decoded and a write-attr is looked for in every string of the kw, so no secret reaches the audit file.",
+            "commit": "b3f69daf5",
+            "change_pct": 2.0
+        },
+        {
+            "id": "audit.build.update_node_a_kw_with_a_json_text",
+            "group": "rotatory",
+            "bench": "audit record (scratch)",
+            "case": "update-node, a kw with a JSON text",
+            "label": "Build and serialize the agent audit record of `update-node, a kw with a JSON text`",
+            "meaning": "The redaction work done before the record is written.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 7.74
+            },
+            "current": {
+                "mean": 7.98
+            },
+            "n": 8,
+            "scope": "change",
+            "method": "The record built and serialized, 8 alternated rounds, mean.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: names are judged with their JSON escapes decoded and a write-attr is looked for in every string of the kw, so no secret reaches the audit file.",
+            "commit": "b3f69daf5",
+            "change_pct": 3.1
+        },
+        {
+            "id": "audit.build.update_node_an_escaped_json_text",
+            "group": "rotatory",
+            "bench": "audit record (scratch)",
+            "case": "update-node, an escaped JSON text",
+            "label": "Build and serialize the agent audit record of `update-node, an escaped JSON text`",
+            "meaning": "The redaction work done before the record is written.",
+            "unit": "us",
+            "better": "lower",
+            "previous": {
+                "mean": 8.05
+            },
+            "current": {
+                "mean": 8.29
+            },
+            "n": 8,
+            "scope": "change",
+            "method": "The record built and serialized, 8 alternated rounds, mean.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: names are judged with their JSON escapes decoded and a write-attr is looked for in every string of the kw, so no secret reaches the audit file.",
+            "commit": "b3f69daf5",
+            "change_pct": 3.0
+        },
+        {
+            "id": "ctest.treedb_schema_fidelity",
+            "group": "ctest",
+            "bench": "test_treedb_schema_fidelity",
+            "case": "",
+            "label": "test_treedb_schema_fidelity (four new stores)",
+            "meaning": "A test that creates four treedbs from nothing.",
+            "unit": "s",
+            "better": "lower",
+            "previous": {
+                "mean": 1.19,
+                "median": 1.19
+            },
+            "current": {
+                "mean": 1.66,
+                "median": 1.66
+            },
+            "n": 52,
+            "scope": "ctest trend",
+            "method": "build/*.txt of 52 runs of `yunetas test` (4 before the change, 48 after), medians.",
+            "verdict": "price",
+            "reason": "Price kept, by decision: its 88 fsyncs (~0.56 s) are the durable topic files and the projection record.",
+            "change_pct": 39.5
+        }
+    ],
+    "figures": [
+        {
+            "id": "net.yev_ping_pong",
+            "group": "event loop",
+            "bench": "perf_yev_ping_pong",
+            "case": "",
+            "label": "Raw io_uring echo (1 KB messages)",
+            "meaning": "The ceiling of the event loop alone, no gobj layer.",
+            "unit": "K msg/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 149.6332,
+            "median": 149.1143,
+            "min": 148.7143,
+            "max": 150.8,
+            "n": 5,
+            "sd": 0.9814,
+            "headline": true
+        },
+        {
+            "id": "net.yev_ping_pong_persist",
+            "group": "event loop",
+            "bench": "perf_yev_ping_pong2",
+            "case": "",
+            "label": "Raw io_uring echo + one timeranger2 append per message",
+            "meaning": "The event loop storing every message it receives.",
+            "unit": "K msg/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 84.8914,
+            "median": 84.6571,
+            "min": 83.9,
+            "max": 86.1,
+            "n": 5,
+            "sd": 0.811,
+            "headline": true
+        },
+        {
+            "id": "net.tcp_echo",
+            "group": "event loop",
+            "bench": "perf_tcp_test4",
+            "case": "",
+            "label": "TCP echo through the full gobj stack",
+            "meaning": "Round trips of a ~140-byte JSON message: C_IOGATE, C_TCP_S, C_PROT_TCP4H, C_CHANNEL.",
+            "unit": "round trips/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 38587.2,
+            "median": 38581.0,
+            "min": 38366.0,
+            "max": 38773.0,
+            "n": 5,
+            "sd": 168.1924,
+            "headline": true
+        },
+        {
+            "id": "net.tcp_echo_persist",
+            "group": "event loop",
+            "bench": "perf_tcp_test5",
+            "case": "",
+            "label": "TCP echo + one timeranger2 append per message",
+            "meaning": "The same, storing every message.",
+            "unit": "round trips/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 29699.4,
+            "median": 29735.0,
+            "min": 29170.0,
+            "max": 30290.0,
+            "n": 5,
+            "sd": 433.0777,
+            "headline": true
+        },
+        {
+            "id": "net.tls_echo",
+            "group": "event loop",
+            "bench": "perf_tcps_test4",
+            "case": "",
+            "label": "TLS echo through the full gobj stack (OpenSSL)",
+            "meaning": "The same round trips, encrypted.",
+            "unit": "round trips/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 29165.6,
+            "median": 29230.0,
+            "min": 28779.0,
+            "max": 29367.0,
+            "n": 5,
+            "sd": 224.4645,
+            "headline": true
+        },
+        {
+            "id": "net.tls_echo_persist",
+            "group": "event loop",
+            "bench": "perf_tcps_test5",
+            "case": "",
+            "label": "TLS echo + one timeranger2 append per message (OpenSSL)",
+            "meaning": "Encrypted, and storing every message.",
+            "unit": "round trips/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 23363.4,
+            "median": 23372.0,
+            "min": 23052.0,
+            "max": 23804.0,
+            "n": 5,
+            "sd": 279.7281,
+            "headline": true
+        },
+        {
+            "id": "net.auth_bff_login",
+            "group": "event loop",
+            "bench": "perf_auth_bff",
+            "case": "",
+            "label": "OAuth2 BFF login round trips (5 parallel clients)",
+            "meaning": "HTTP connect + POST /auth/login + answer + close, against a mock IdP with no latency.",
+            "unit": "logins/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 8445.8333,
+            "median": 8387.5,
+            "min": 8337.5,
+            "max": 8612.5,
+            "n": 3,
+            "sd": 146.4866
+        },
+        {
+            "id": "rotatory.audit_record",
+            "group": "rotatory",
+            "bench": "perf_rotatory",
+            "case": "audit_record",
+            "label": "Write one agent audit record (300 bytes)",
+            "meaning": "What every command sent to the agent pays to be audited.",
+            "unit": "ns",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 569.84,
+            "median": 562.3,
+            "min": 553.3,
+            "max": 589.5,
+            "n": 5,
+            "sd": 18.0839,
+            "headline": true
+        },
+        {
+            "id": "rotatory.audit_record_flush",
+            "group": "rotatory",
+            "bench": "perf_rotatory",
+            "case": "audit_record_flush",
+            "label": "Write and flush one audit record",
+            "meaning": "What the agent does since 7.25.5.",
+            "unit": "ns",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 1262.76,
+            "median": 1237.2,
+            "min": 1233.3,
+            "max": 1308.9,
+            "n": 5,
+            "sd": 37.2903,
+            "headline": true
+        },
+        {
+            "id": "rotatory.audit_record_retention",
+            "group": "rotatory",
+            "bench": "perf_rotatory",
+            "case": "audit_record_retention",
+            "label": "Audit record, retention subscribed",
+            "meaning": "The same with the retention callback set.",
+            "unit": "ns",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 546.78,
+            "median": 549.3,
+            "min": 533.2,
+            "max": 553.9,
+            "n": 5,
+            "sd": 8.1294
+        },
+        {
+            "id": "rotatory.log_record",
+            "group": "rotatory",
+            "bench": "perf_rotatory",
+            "case": "log_record",
+            "label": "Write one log record (300 bytes, with header)",
+            "meaning": "What a yuno pays per log line.",
+            "unit": "ns",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 380.86,
+            "median": 374.7,
+            "min": 372.2,
+            "max": 409.8,
+            "n": 5,
+            "sd": 16.2252,
+            "headline": true
+        },
+        {
+            "id": "treedb.update_memory",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "update_memory",
+            "label": "Update a node in memory",
+            "meaning": "A change of a node that is not saved.",
+            "unit": "us",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 2.7562,
+            "median": 2.763,
+            "min": 2.71,
+            "max": 2.789,
+            "n": 5,
+            "sd": 0.0298,
+            "headline": true
+        },
+        {
+            "id": "treedb.update_saved",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "update_saved",
+            "label": "Update a node and save it",
+            "meaning": "The common write: change a node and persist it.",
+            "unit": "us",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 10.3692,
+            "median": 10.361,
+            "min": 10.228,
+            "max": 10.478,
+            "n": 5,
+            "sd": 0.1053,
+            "headline": true
+        },
+        {
+            "id": "treedb.link_unlink",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "link_unlink",
+            "label": "Link or unlink two nodes",
+            "meaning": "One relation made or undone (the child is saved).",
+            "unit": "us",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 11.0208,
+            "median": 10.977,
+            "min": 10.924,
+            "max": 11.145,
+            "n": 5,
+            "sd": 0.0904,
+            "headline": true
+        },
+        {
+            "id": "treedb.create_link_half",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "create_link_half",
+            "label": "Create a node (half of them linked)",
+            "meaning": "A new node, saved.",
+            "unit": "us",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 71.0222,
+            "median": 71.34,
+            "min": 69.416,
+            "max": 72.33,
+            "n": 5,
+            "sd": 1.3162,
+            "headline": true
+        },
+        {
+            "id": "treedb.reopen",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "reopen",
+            "label": "Reopen the treedb",
+            "meaning": "Loading every node and its links (us_per_op as the benchmark counts it).",
+            "unit": "us",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 391.0292,
+            "median": 391.745,
+            "min": 377.623,
+            "max": 403.232,
+            "n": 5,
+            "sd": 10.7039
+        },
+        {
+            "id": "treedb.delete_force",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "delete_force",
+            "label": "Forced delete of a node",
+            "meaning": "Removing a node, linked or not.",
+            "unit": "us",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 69.1758,
+            "median": 69.65,
+            "min": 67.744,
+            "max": 70.001,
+            "n": 5,
+            "sd": 0.9461,
+            "headline": true
+        },
+        {
+            "id": "treedb.delete_parent",
+            "group": "treedb",
+            "bench": "perf_tr_treedb",
+            "case": "delete_parent",
+            "label": "Forced delete of a parent with 200 children",
+            "meaning": "Each child is unlinked and saved.",
+            "unit": "us",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 2978.2384,
+            "median": 2987.384,
+            "min": 2937.006,
+            "max": 3006.863,
+            "n": 5,
+            "sd": 29.1755
+        },
+        {
+            "id": "tr2.build_appends",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "build_appends",
+            "label": "400 000 appends into 20 000 files",
+            "meaning": "Filling a store: 2000 keys x 10 daily files x 20 rows.",
+            "unit": "ms",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 1738.7702,
+            "median": 1739.493,
+            "min": 1718.224,
+            "max": 1762.397,
+            "n": 5,
+            "sd": 16.8826
+        },
+        {
+            "id": "tr2.open_master",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "open_master",
+            "label": "Open a store as master (20 000 md2 files)",
+            "meaning": "The start-up time of a yuno that owns a large store.",
+            "unit": "ms",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 79.837,
+            "median": 79.364,
+            "min": 79.13,
+            "max": 81.578,
+            "n": 5,
+            "sd": 1.0123
+        },
+        {
+            "id": "tr2.open_replica",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "open_replica",
+            "label": "Open a store as replica (20 000 md2 files)",
+            "meaning": "The start-up of a yuno that reads a store another writes.",
+            "unit": "ms",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 105.4986,
+            "median": 105.594,
+            "min": 104.735,
+            "max": 106.297,
+            "n": 5,
+            "sd": 0.6071
+        },
+        {
+            "id": "tr2.create_topic",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "create_topic",
+            "label": "Create 10 topics",
+            "meaning": "A one-time cost when a schema adds a topic.",
+            "unit": "ms",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 127.8336,
+            "median": 116.388,
+            "min": 111.08,
+            "max": 152.246,
+            "n": 5,
+            "sd": 18.5507
+        },
+        {
+            "id": "tr2.topic_version_change",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "topic_version_change",
+            "label": "Change the topic_version of 10 topics",
+            "meaning": "A one-time cost of a column change.",
+            "unit": "ms",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 228.0654,
+            "median": 226.307,
+            "min": 223.965,
+            "max": 236.341,
+            "n": 5,
+            "sd": 4.8195
+        },
+        {
+            "id": "tr2.tm_build_appends",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "tm_build_appends",
+            "label": "600 000 appends into 30 files",
+            "meaning": "Filling one key.",
+            "unit": "ms",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 1642.1068,
+            "median": 1636.718,
+            "min": 1616.874,
+            "max": 1673.065,
+            "n": 5,
+            "sd": 26.2964
+        },
+        {
+            "id": "tr2.tm_query_unmigrated",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "tm_query_unmigrated",
+            "label": "Query one minute by tm (topic not migrated)",
+            "meaning": "Until `mark-tm-order` runs.",
+            "unit": "ms",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 390.6676,
+            "median": 390.896,
+            "min": 384.726,
+            "max": 398.837,
+            "n": 5,
+            "sd": 5.4145
+        },
+        {
+            "id": "tr2.mark_tm_order",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "mark_tm_order",
+            "label": "Migrate the topic (mark-tm-order)",
+            "meaning": "Once per topic created by 7.25.4 or earlier.",
+            "unit": "ms",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 17.4774,
+            "median": 17.49,
+            "min": 17.24,
+            "max": 17.751,
+            "n": 5,
+            "sd": 0.1851
+        },
+        {
+            "id": "tr2.tm_query",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "tm_query_migrated",
+            "label": "Query one minute by tm (migrated topic)",
+            "meaning": "A time-range read.",
+            "unit": "ms",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 7.2064,
+            "median": 7.224,
+            "min": 7.06,
+            "max": 7.32,
+            "n": 5,
+            "sd": 0.0995
+        },
+        {
+            "id": "tr2.append_rate_store",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "build_appends",
+            "label": "Appends per second, filling 20 000 files",
+            "meaning": "Records stored per second.",
+            "unit": "appends/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 230064.9716,
+            "median": 229952.0607,
+            "min": 226963.6183,
+            "max": 232798.5175,
+            "n": 5,
+            "sd": 2229.9475,
+            "headline": true,
+            "derived": "ops / seconds of build_appends"
+        },
+        {
+            "id": "tr2.append_rate_one_key",
+            "group": "timeranger2",
+            "bench": "perf_timeranger2",
+            "case": "tm_build_appends",
+            "label": "Appends per second, one key",
+            "meaning": "Records stored per second.",
+            "unit": "appends/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 365459.0407,
+            "median": 366587.2802,
+            "min": 358623.2454,
+            "max": 371086.4297,
+            "n": 5,
+            "sd": 5836.3056,
+            "headline": true,
+            "derived": "ops / seconds of tm_build_appends"
+        },
+        {
+            "id": "tr2.read_rate_iterator",
+            "group": "timeranger2",
+            "bench": "test_topic_pkey_integer_iterator2",
+            "case": "",
+            "label": "Records read per second (iterator with a callback)",
+            "meaning": "Every record of 2 keys (180 000) loaded from disk and parsed, one callback per record.",
+            "unit": "records/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 187913.8,
+            "median": 185870.0,
+            "min": 185081.0,
+            "max": 192645.0,
+            "n": 5,
+            "sd": 3378.802,
+            "headline": true
+        },
+        {
+            "id": "tr2.read_rate_pages",
+            "group": "timeranger2",
+            "bench": "test_topic_pkey_integer_iterator5",
+            "case": "",
+            "label": "Records read per second, page by page",
+            "meaning": "90 000 records of a key read in pages, as a GUI pages through a history.",
+            "unit": "records/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 165301.4,
+            "median": 165393.0,
+            "min": 162535.0,
+            "max": 167773.0,
+            "n": 5,
+            "sd": 1970.5196,
+            "headline": true
+        },
+        {
+            "id": "ctreedb.same_literal",
+            "group": "C_TREEDB",
+            "bench": "perf_c_treedb",
+            "case": "same_literal",
+            "label": "Open 40 treedbs whose schema did not change",
+            "meaning": "The start-up of a yuno with many treedbs.",
+            "unit": "s",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 0.6486,
+            "median": 0.6467,
+            "min": 0.6465,
+            "max": 0.6527,
+            "n": 3,
+            "sd": 0.0035,
+            "headline": true
+        },
+        {
+            "id": "ctreedb.seed",
+            "group": "C_TREEDB",
+            "bench": "perf_c_treedb",
+            "case": "seed",
+            "label": "First open of 40 treedbs (seed)",
+            "meaning": "The first start of a new treedb.",
+            "unit": "s",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 10.9955,
+            "median": 10.9743,
+            "min": 10.611,
+            "max": 11.4012,
+            "n": 3,
+            "sd": 0.3955
+        },
+        {
+            "id": "ctreedb.newer_literal",
+            "group": "C_TREEDB",
+            "bench": "perf_c_treedb",
+            "case": "newer_literal",
+            "label": "Open 40 treedbs with a newer schema",
+            "meaning": "The first start after a schema upgrade.",
+            "unit": "s",
+            "better": "lower",
+            "source": "tag-run",
+            "mean": 13.7024,
+            "median": 13.4131,
+            "min": 13.3558,
+            "max": 14.3384,
+            "n": 3,
+            "sd": 0.5515
+        },
+        {
+            "id": "tr2.append_rate",
+            "group": "timeranger2",
+            "bench": "test_topic_pkey_integer",
+            "case": "without an rt list",
+            "label": "Appends per second (180 000 appends)",
+            "meaning": "How many records one yuno stores per second in a key-indexed topic.",
+            "unit": "appends/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 224455.0,
+            "median": 225123.0,
+            "min": 220506.0,
+            "max": 227477.0,
+            "n": 5,
+            "sd": 2585.0223,
+            "headline": true
+        },
+        {
+            "id": "tr2.append_rate_rt",
+            "group": "timeranger2",
+            "bench": "test_topic_pkey_integer",
+            "case": "with an rt list",
+            "label": "Appends per second, with a live reader",
+            "meaning": "The same appends while a real-time list follows the topic.",
+            "unit": "appends/s",
+            "better": "higher",
+            "source": "tag-run",
+            "mean": 166653.8,
+            "median": 166086.0,
+            "min": 165063.0,
+            "max": 168562.0,
+            "n": 5,
+            "sd": 1748.1638
+        }
+    ],
+    "binaries": [
+        {
+            "name": "auth_bff",
+            "kind": "yuno",
+            "bytes": 33856184,
+            "stripped_bytes": 10108872,
+            "text": 9329211,
+            "data": 762692,
+            "bss": 114188,
+            "static": true,
+            "tls": "openssl"
+        },
+        {
+            "name": "controlcenter",
+            "kind": "yuno",
+            "bytes": 33955096,
+            "stripped_bytes": 10159976,
+            "text": 9349955,
+            "data": 793636,
+            "bss": 114092,
+            "static": true,
+            "tls": "openssl"
+        },
+        {
+            "name": "emailsender",
+            "kind": "yuno",
+            "bytes": 34002008,
+            "stripped_bytes": 10160808,
+            "text": 9362651,
+            "data": 778852,
+            "bss": 114220,
+            "static": true,
+            "tls": "openssl"
+        },
+        {
+            "name": "logcenter",
+            "kind": "yuno",
+            "bytes": 33923936,
+            "stripped_bytes": 10131272,
+            "text": 9347155,
+            "data": 765028,
+            "bss": 114604,
+            "static": true,
+            "tls": "openssl"
+        },
+        {
+            "name": "mqtt_broker",
+            "kind": "yuno",
+            "bytes": 34657192,
+            "stripped_bytes": 10402472,
+            "text": 9549659,
+            "data": 837028,
+            "bss": 114252,
+            "static": true,
+            "tls": "openssl"
+        },
+        {
+            "name": "sgateway",
+            "kind": "yuno",
+            "bytes": 33862200,
+            "stripped_bytes": 10109320,
+            "text": 9330587,
+            "data": 763396,
+            "bss": 114124,
+            "static": true,
+            "tls": "openssl"
+        },
+        {
+            "name": "watchfs",
+            "kind": "yuno",
+            "bytes": 33864392,
+            "stripped_bytes": 10109416,
+            "text": 9332603,
+            "data": 763524,
+            "bss": 114476,
+            "static": true,
+            "tls": "openssl"
+        },
+        {
+            "name": "webstats",
+            "kind": "yuno",
+            "bytes": 34170128,
+            "stripped_bytes": 10223752,
+            "text": 9438427,
+            "data": 768580,
+            "bss": 114220,
+            "static": true,
+            "tls": "openssl"
+        },
+        {
+            "name": "yuneta_agent",
+            "kind": "agent",
+            "bytes": 34639680,
+            "stripped_bytes": 10404520,
+            "text": 9526651,
+            "data": 862276,
+            "bss": 117004,
+            "static": true,
+            "tls": "openssl"
+        },
+        {
+            "name": "perf_yev_ping_pong",
+            "kind": "benchmark",
+            "bytes": 6531544,
+            "stripped_bytes": 2464920,
+            "text": 2418580,
+            "data": 31932,
+            "bss": 78720,
+            "static": true,
+            "tls": "openssl"
+        }
+    ]
+}

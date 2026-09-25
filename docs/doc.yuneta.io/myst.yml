@@ -42,6 +42,7 @@ project:
     - file: installation.md
     - file: activating.md
     - file: CHANGELOG.md
+    - file: performance.md
 
     - title: The `yunetas` CLI
       file: yunetas-cli.md

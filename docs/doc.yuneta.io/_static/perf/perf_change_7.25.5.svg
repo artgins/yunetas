@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 848" width="900" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" role="img" aria-label="Yuneta 7.25.5 against 7.25.4: change of the time one operation takes">
+<title>Yuneta 7.25.5 against 7.25.4: change of the time one operation takes</title>
+<style>
+  .bg { fill: #fcfcfb; stroke: rgba(11,11,11,0.10); }
+  .t { fill: #0b0b0b; font-size: 15px; font-weight: 600; }
+  .l { fill: #0b0b0b; font-size: 12.5px; }
+  .m { fill: #6f6d68; font-size: 11.5px; }
+  .g { fill: #6f6d68; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
+  .v { fill: #52514e; font-size: 12px; }
+  .grid { stroke: #e1e0d9; stroke-width: 1; }
+  .zero { stroke: #a3a198; stroke-width: 1; }
+  .gain { fill: #2a78d6; } .price { fill: #e34948; } .noise { fill: #b9b7ae; }
+  .cur { fill: #2a78d6; } .prev { fill: #9b9991; }
+  .curl { stroke: #2a78d6; stroke-width: 2; fill: none; }
+  .w { stroke: #52514e; stroke-width: 1.5; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #1a1a19; stroke: rgba(255,255,255,0.10); }
+    .t, .l { fill: #ffffff; } .m, .g { fill: #a3a198; } .v { fill: #c3c2b7; }
+    .grid { stroke: #2c2c2a; } .zero { stroke: #5c5b56; }
+    .gain, .cur { fill: #3987e5; } .price { fill: #e66767; } .noise { fill: #5c5b56; } .prev { fill: #7a786f; }
+    .curl { stroke: #3987e5; } .w { stroke: #c3c2b7; }
+  }
+</style>
+<rect class="bg" x="0.5" y="0.5" width="899" height="847" rx="10"/>
+<text class="t" x="20" y="30">Yuneta 7.25.5 against 7.25.4: change of the time one operation takes</text>
+<text class="m" x="20" y="48">left of zero is faster &#183; blue faster, grey within noise, red a price paid on purpose &#183; whisker &#177;1 sd &#183; bars past +40% are cut (factor on the right)</text>
+<line class="grid" x1="330.0" x2="330.0" y1="66" y2="816"/>
+<text class="m" x="330.0" y="832" text-anchor="middle">-100%</text>
+<line class="grid" x1="408.6" x2="408.6" y1="66" y2="816"/>
+<text class="m" x="408.6" y="832" text-anchor="middle">-75%</text>
+<line class="grid" x1="487.1" x2="487.1" y1="66" y2="816"/>
+<text class="m" x="487.1" y="832" text-anchor="middle">-50%</text>
+<line class="grid" x1="565.7" x2="565.7" y1="66" y2="816"/>
+<text class="m" x="565.7" y="832" text-anchor="middle">-25%</text>
+<line class="grid" x1="644.3" x2="644.3" y1="66" y2="816"/>
+<text class="m" x="644.3" y="832" text-anchor="middle">0%</text>
+<line class="grid" x1="722.9" x2="722.9" y1="66" y2="816"/>
+<text class="m" x="722.9" y="832" text-anchor="middle">+25%</text>
+<line class="zero" x1="644.3" x2="644.3" y1="66" y2="816"/>
+<text class="g" x="20" y="84">TIMERANGER2</text>
+<text class="l" x="20" y="106">Appends per second</text>
+<rect class="noise" x="642.2" y="97" width="2.1" height="10" rx="2"><title>Appends per second: -0.7%</title></rect>
+<path class="w" d="M632.9 102 H651.5 M632.9 98 V106 M651.5 98 V106"/>
+<text class="v" x="880" y="106" text-anchor="end">-0.7%</text>
+<text class="l" x="20" y="128">Appends per second, live reader</text>
+<rect class="noise" x="642.6" y="119" width="1.7" height="10" rx="2"><title>Appends per second, with a live reader: -0.5%</title></rect>
+<path class="w" d="M633.8 124 H651.4 M633.8 120 V128 M651.4 120 V128"/>
+<text class="v" x="880" y="128" text-anchor="end">-0.5%</text>
+<text class="l" x="20" y="150">400 000 appends into 20 000 files</text>
+<rect class="noise" x="640.5" y="141" width="3.8" height="10" rx="2"><title>400 000 appends into 20 000 files: -1.2%</title></rect>
+<path class="w" d="M632.4 146 H648.6 M632.4 142 V150 M648.6 142 V150"/>
+<text class="v" x="880" y="150" text-anchor="end">-1.2%</text>
+<text class="l" x="20" y="172">Open a store as master</text>
+<rect class="gain" x="604.5" y="163" width="39.8" height="10" rx="2"><title>Open a store as master (20 000 md2 files): -12.6%</title></rect>
+<path class="w" d="M596.0 168 H613.1 M596.0 164 V172 M613.1 164 V172"/>
+<text class="v" x="880" y="172" text-anchor="end">-12.6%</text>
+<text class="l" x="20" y="194">tm query of a minute, migrated</text>
+<rect class="gain" x="513.1" y="185" width="131.2" height="10" rx="2"><title>Query one minute by tm (migrated topic): -41.7%</title></rect>
+<path class="w" d="M509.3 190 H516.9 M509.3 186 V194 M516.9 186 V194"/>
+<text class="v" x="880" y="194" text-anchor="end">-41.7%</text>
+<text class="l" x="20" y="216">Open a store as replica</text>
+<rect class="price" x="644.3" y="207" width="58.9" height="10" rx="2"><title>Open a store as replica (20 000 md2 files): +18.7%</title></rect>
+<path class="w" d="M691.9 212 H714.3 M691.9 208 V216 M714.3 208 V216"/>
+<text class="v" x="880" y="216" text-anchor="end">+18.7%</text>
+<text class="l" x="20" y="238">Create 10 topics</text>
+<rect class="price" x="644.3" y="229" width="125.7" height="10" rx="2"><title>Create 10 topics: x33 slower</title></rect>
+<text class="v" x="880" y="238" text-anchor="end">x33 slower</text>
+<text class="l" x="20" y="260">Change topic_version of 10 topics</text>
+<rect class="price" x="644.3" y="251" width="125.7" height="10" rx="2"><title>Change the topic_version of 10 topics: x136 slower</title></rect>
+<text class="v" x="880" y="260" text-anchor="end">x136 slower</text>
+<text class="l" x="20" y="282">tm query of a minute, not migrated</text>
+<rect class="price" x="644.3" y="273" width="125.7" height="10" rx="2"><title>Query one minute by tm (topic not migrated): x31 slower</title></rect>
+<text class="v" x="880" y="282" text-anchor="end">x31 slower</text>
+<text class="g" x="20" y="308">TREEDB</text>
+<text class="l" x="20" y="330">Update a node in memory</text>
+<rect class="gain" x="564.1" y="321" width="80.2" height="10" rx="2"><title>Update a node in memory: -25.5%</title></rect>
+<path class="w" d="M521.4 326 H606.9 M521.4 322 V330 M606.9 322 V330"/>
+<text class="v" x="880" y="330" text-anchor="end">-25.5%</text>
+<text class="l" x="20" y="352">Update a node and save it</text>
+<rect class="gain" x="619.1" y="343" width="25.1" height="10" rx="2"><title>Update a node and save it: -8.0%</title></rect>
+<path class="w" d="M577.5 348 H660.8 M577.5 344 V352 M660.8 344 V352"/>
+<text class="v" x="880" y="352" text-anchor="end">-8.0%</text>
+<text class="l" x="20" y="374">Link or unlink two nodes</text>
+<rect class="noise" x="639.3" y="365" width="5.0" height="10" rx="2"><title>Link or unlink two nodes: -1.6%</title></rect>
+<path class="w" d="M603.9 370 H674.6 M603.9 366 V374 M674.6 366 V374"/>
+<text class="v" x="880" y="374" text-anchor="end">-1.6%</text>
+<text class="l" x="20" y="396">Create a node</text>
+<rect class="noise" x="644.3" y="387" width="2.0" height="10" rx="2"><title>Create a node (half of them linked): +0.6%</title></rect>
+<path class="w" d="M601.4 392 H691.2 M601.4 388 V396 M691.2 388 V396"/>
+<text class="v" x="880" y="396" text-anchor="end">+0.6%</text>
+<text class="l" x="20" y="418">Reopen the treedb</text>
+<rect class="noise" x="644.3" y="409" width="4.2" height="10" rx="2"><title>Reopen the treedb: +1.3%</title></rect>
+<path class="w" d="M606.3 414 H690.7 M606.3 410 V418 M690.7 410 V418"/>
+<text class="v" x="880" y="418" text-anchor="end">+1.3%</text>
+<text class="l" x="20" y="440">Forced delete of a node</text>
+<rect class="price" x="644.3" y="431" width="5.5" height="10" rx="2"><title>Forced delete of a node: +1.8%</title></rect>
+<path class="w" d="M612.1 436 H687.5 M612.1 432 V440 M687.5 432 V440"/>
+<text class="v" x="880" y="440" text-anchor="end">+1.8%</text>
+<text class="l" x="20" y="462">Delete a parent of 200 children</text>
+<rect class="gain" x="626.1" y="453" width="18.2" height="10" rx="2"><title>Forced delete of a parent with 200 children: -5.8%</title></rect>
+<path class="w" d="M567.1 458 H685.1 M567.1 454 V462 M685.1 454 V462"/>
+<text class="v" x="880" y="462" text-anchor="end">-5.8%</text>
+<text class="g" x="20" y="488">C_TREEDB</text>
+<text class="l" x="20" y="510">Open 40 treedbs, same schema</text>
+<rect class="gain" x="440.8" y="501" width="203.5" height="10" rx="2"><title>Open 40 treedbs whose schema did not change (release against release): x2.8 faster</title></rect>
+<text class="v" x="880" y="510" text-anchor="end">x2.8 faster</text>
+<text class="l" x="20" y="532">First open of 40 treedbs (seed)</text>
+<rect class="price" x="644.3" y="523" width="30.9" height="10" rx="2"><title>First open of 40 treedbs (seed projection): +9.8%</title></rect>
+<path class="w" d="M657.3 528 H693.0 M657.3 524 V532 M693.0 524 V532"/>
+<text class="v" x="880" y="532" text-anchor="end">+9.8%</text>
+<text class="l" x="20" y="554">Open 40 treedbs, newer schema</text>
+<rect class="price" x="644.3" y="545" width="27.0" height="10" rx="2"><title>Open 40 treedbs with a newer schema: +8.6%</title></rect>
+<path class="w" d="M653.8 550 H688.9 M653.8 546 V554 M688.9 546 V554"/>
+<text class="v" x="880" y="554" text-anchor="end">+8.6%</text>
+<text class="g" x="20" y="580">ROTATORY</text>
+<text class="l" x="20" y="602">One agent audit record</text>
+<rect class="gain" x="358.1" y="593" width="286.2" height="10" rx="2"><title>Write one agent audit record (300 bytes): x11 faster</title></rect>
+<path class="w" d="M357.3 598 H358.9 M357.3 594 V602 M358.9 594 V602"/>
+<text class="v" x="880" y="602" text-anchor="end">x11 faster</text>
+<text class="l" x="20" y="624">One audit record, flushed</text>
+<rect class="gain" x="390.8" y="615" width="253.5" height="10" rx="2"><title>Write and flush one audit record: x5.2 faster</title></rect>
+<path class="w" d="M368.7 620 H412.9 M368.7 616 V624 M412.9 616 V624"/>
+<text class="v" x="880" y="624" text-anchor="end">x5.2 faster</text>
+<text class="g" x="20" y="650">EVENT LOOP</text>
+<text class="l" x="20" y="672">Event loop echo, 1 KB</text>
+<rect class="noise" x="644.3" y="663" width="3.6" height="10" rx="2"><title>Raw io_uring echo (1 KB messages): +1.1%</title></rect>
+<path class="w" d="M638.6 668 H657.1 M638.6 664 V672 M657.1 664 V672"/>
+<text class="v" x="880" y="672" text-anchor="end">+1.1%</text>
+<text class="l" x="20" y="694">TCP echo, gobj stack</text>
+<rect class="noise" x="639.2" y="685" width="5.1" height="10" rx="2"><title>TCP echo through the full gobj stack: -1.6%</title></rect>
+<path class="w" d="M631.0 690 H647.4 M631.0 686 V694 M647.4 686 V694"/>
+<text class="v" x="880" y="694" text-anchor="end">-1.6%</text>
+<text class="l" x="20" y="716">TCP echo + append</text>
+<rect class="noise" x="644.3" y="707" width="2.5" height="10" rx="2"><title>TCP echo + one timeranger2 append per message: +0.8%</title></rect>
+<path class="w" d="M637.6 712 H655.9 M637.6 708 V716 M655.9 708 V716"/>
+<text class="v" x="880" y="716" text-anchor="end">+0.8%</text>
+<text class="g" x="20" y="742">PUBLISH</text>
+<text class="l" x="20" y="764">Publish 250 B, 100 subscribers</text>
+<rect class="noise" x="628.5" y="755" width="15.8" height="10" rx="2"><title>Publish one 250 B event to 100 subscribers: -5.0%</title></rect>
+<text class="v" x="880" y="764" text-anchor="end">-5.0%</text>
+<text class="l" x="20" y="786">Publish 250 B, 100 subs, __global__</text>
+<rect class="price" x="644.3" y="777" width="125.7" height="10" rx="2"><title>Publish one 250 B event to 100 subscribers with __global__: x2.1 slower</title></rect>
+<text class="v" x="880" y="786" text-anchor="end">x2.1 slower</text>
+<text class="l" x="20" y="808">Publish 20 KB, 100 subs, __global__</text>
+<rect class="price" x="644.3" y="799" width="85.7" height="10" rx="2"><title>Publish one 20 KB event to 100 subscribers with __global__: +27.3%</title></rect>
+<text class="v" x="880" y="808" text-anchor="end">+27.3%</text>
+</svg>
