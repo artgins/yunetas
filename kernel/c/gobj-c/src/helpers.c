@@ -3306,7 +3306,65 @@ PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL 
 
 
 /****************************************************************************
- *
+ *  What a level of _walk_tree() answers
+ ****************************************************************************/
+#define WALK_DONE       0   // the directory was walked (or skipped, logged)
+#define WALK_STOPPED    1   // a callback returned FALSE: the whole walk stops
+#define WALK_FAILED     -1  // the walk fails (logged)
+
+/****************************************************************************
+ *  The path of an entry of a walk: `directory` + "/" + `name`, in `bf`
+ *  (PATH_MAX). Refused with a log when it does not fit: up to 7.25.4
+ *  build_path() dropped the name, the path was the directory itself, and
+ *  the walk went into the SAME directory again, forever (a crash on a
+ *  tree deeper than PATH_MAX), or a file was stat'ed as its directory and
+ *  dropped from a listing.
+ ****************************************************************************/
+PRIVATE int walk_entry_path(
+    hgobj gobj,
+    char *bf,
+    const char *directory,
+    const char *name,
+    const char *function
+)
+{
+    size_t dir_len = strlen(directory);
+    size_t name_len = strlen(name);
+    if(dir_len + 1 + name_len >= PATH_MAX) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", function,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Path too long, the directory cannot be walked",
+            "path",         "%.256s", directory,
+            "name",         "%s", name,
+            "path_len",     "%d", (int)dir_len,
+            "PATH_MAX",     "%d", (int)PATH_MAX,
+            NULL
+        );
+        return -1;
+    }
+    build_path(bf, PATH_MAX, directory, name, NULL);
+    return 0;
+}
+
+/****************************************************************************
+ *  A SUBdirectory of a walk that cannot be opened for one of these causes
+ *  is skipped, with a warning: it is not readable by this user (EACCES),
+ *  it went away (ENOENT), or it is no longer a directory (ENOTDIR, ELOOP).
+ *  Any other cause is transient (EMFILE, ENFILE, ENOMEM, EIO): the walk
+ *  fails, because a listing that lost a subdirectory is not the listing.
+ *  Up to 7.25.4 it was skipped too, and the walk answered 0, short.
+ ****************************************************************************/
+PRIVATE BOOL walk_skips_subdirectory(int err)
+{
+    return (err == EACCES || err == ENOENT || err == ENOTDIR || err == ELOOP)? TRUE: FALSE;
+}
+
+/****************************************************************************
+ *  Walk a directory, and its subdirectories with WD_RECURSIVE.
+ *  Return WALK_DONE, WALK_STOPPED (a callback returned FALSE: every level
+ *  above stops too; up to 7.25.4 only the directory of the callback
+ *  stopped, and the walk went on with the next one), or WALK_FAILED.
  ****************************************************************************/
 PRIVATE int _walk_tree(
     hgobj gobj,
@@ -3321,27 +3379,50 @@ PRIVATE int _walk_tree(
     DIR *dir;
     struct stat st;
     wd_found_type type;
-    BOOL cb_stopped = FALSE;
     level++;
 
+    /*
+     *  Each level keeps its directory open and a path of PATH_MAX on the
+     *  stack: a deeper tree is refused, never walked into
+     */
+    if(level > MAX_TREE_DEPTH) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Tree too deep, the directory cannot be walked",
+            "path",         "%.256s", root_dir,
+            "max_depth",    "%d", MAX_TREE_DEPTH,
+            NULL
+        );
+        return WALK_FAILED;
+    }
+
     if (!(dir = opendir(root_dir))) {
-        // DO NOT take trace of, in a SUBdirectory (it is skipped):
-        // EACCES Permission denied (when it is a file opened by another, for example)
-        // ENOENT No such file or directory (Broken links, for example)
-        // The ROOT that cannot be opened is a walk that fails: always logged
-        // (up to 7.25.4 an EACCES root answered -1 with nothing logged).
-        if(level == 1 || !(errno==EACCES ||errno==ENOENT)) {
-            gobj_log_error(gobj, 0,
+        int last_errno = errno;
+        if(level > 1 && walk_skips_subdirectory(last_errno)) {
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "Cannot open directory",
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot open subdirectory, it is skipped",
                 "path",         "%s", root_dir,
-                "error",        "%d", errno,
-                "serror",       "%s", strerror(errno),
+                "errno",        "%d", last_errno,
+                "serrno",       "%s", strerror(last_errno),
                 NULL
             );
+            return WALK_DONE;
         }
-        return -1;
+        // The ROOT that cannot be opened is a walk that fails: always logged
+        // (up to 7.25.4 an EACCES root answered -1 with nothing logged).
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot open directory",
+            "path",         "%s", root_dir,
+            "errno",        "%d", last_errno,
+            "serrno",       "%s", strerror(last_errno),
+            NULL
+        );
+        return WALK_FAILED;
     }
 
     /*
@@ -3359,7 +3440,10 @@ PRIVATE int _walk_tree(
         }
 
         char path[PATH_MAX];
-        build_path(path, sizeof(path), root_dir, dname, NULL);
+        if(walk_entry_path(gobj, path, root_dir, dname, __FUNCTION__) < 0) {
+            closedir(dir);
+            return WALK_FAILED; // Error already logged
+        }
 
 #ifdef __linux__
         if(lstat(path, &st) == -1) {
@@ -3368,21 +3452,27 @@ PRIVATE int _walk_tree(
 #else
     #error "What S.O.?"
 #endif
-            // DO NOT take trace of:
-            // EACCES Permission denied (when it is a file opened by another, for example)
-            // ENOENT No such file or directory (Broken links, for example)
-            if(!(errno==EACCES ||errno==ENOENT)) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM,
-                    "msg",          "%s", "stat() FAILED",
-                    "path",         "%s", path,
-                    "error",        "%d", errno,
-                    "serror",       "%s", strerror(errno),
-                    NULL
-                );
+            /*
+             *  An entry that went away (ENOENT) or that this user cannot
+             *  see (EACCES) is not listed. Any other failure is an entry
+             *  lost: the walk fails (up to 7.25.4 it was logged and the
+             *  entry dropped, and the walk answered 0).
+             */
+            if(errno == EACCES || errno == ENOENT) {
+                continue;
             }
-            continue;
+            int last_errno = errno;
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "stat() FAILED, the directory cannot be walked",
+                "path",         "%s", path,
+                "errno",        "%d", last_errno,
+                "serrno",       "%s", strerror(last_errno),
+                NULL
+            );
+            closedir(dir);
+            return WALK_FAILED;
         }
         type = 0;
         if(S_ISDIR(st.st_mode)) {
@@ -3415,8 +3505,8 @@ PRIVATE int _walk_tree(
             if (regexec(reg, dname, 0, 0, 0)==0) {
                 if(!(cb)(gobj, user_data, type, path, root_dir, dname, level, opt)) {
                     // returning FALSE: don't want to continue traversing
-                    cb_stopped = TRUE;
-                    break;
+                    closedir(dir);
+                    return WALK_STOPPED;
                 }
             }
         }
@@ -3424,32 +3514,30 @@ PRIVATE int _walk_tree(
         /* recursively follow dirs */
         if(S_ISDIR(st.st_mode)) {
             if ((opt & WD_RECURSIVE)) {
-                /*
-                 *  A subdirectory that cannot be opened is skipped (-1); one
-                 *  that cannot be READ (-2) fails the whole walk
-                 */
-                if(_walk_tree(gobj, path, reg, user_data, opt, level, cb) == -2) {
+                int ret = _walk_tree(gobj, path, reg, user_data, opt, level, cb);
+                if(ret != WALK_DONE) {
                     closedir(dir);
-                    return -2;  // Error already logged
+                    return ret; // WALK_STOPPED, or WALK_FAILED with the error already logged
                 }
             }
         }
     }
-    if(!cb_stopped && errno != 0) {
+    if(errno != 0) {
+        int last_errno = errno;
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot read directory, readdir() FAILED",
             "path",         "%s", root_dir,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
+            "errno",        "%d", last_errno,
+            "serrno",       "%s", strerror(last_errno),
             NULL
         );
         closedir(dir);
-        return -2;
+        return WALK_FAILED;
     }
     closedir(dir);
-    return 0;
+    return WALK_DONE;
 }
 
 /****************************************************************************
@@ -3597,28 +3685,45 @@ PUBLIC int find_files_with_suffix_array(
         int is_file = 0;
 
         #ifdef DT_REG
+        BOOL ask_stat = (entry->d_type == DT_UNKNOWN)? TRUE: FALSE;
         if(entry->d_type == DT_REG) {
             is_file = 1;
-        } else if(entry->d_type == DT_UNKNOWN) {
-            struct stat st;
-            char path[PATH_MAX];
-
-            build_path(path, sizeof(path), directory, entry->d_name, NULL);
-            if(stat_no_follow(path, &st) == 0 && S_ISREG(st.st_mode)) {
-                is_file = 1;
-            }
         }
         #else
-        {
+        BOOL ask_stat = TRUE;
+        #endif
+        if(ask_stat) {
             struct stat st;
             char path[PATH_MAX];
 
-            build_path(path, sizeof(path), directory, entry->d_name, NULL);
-            if(stat_no_follow(path, &st) == 0 && S_ISREG(st.st_mode)) {
-                is_file = 1;
+            if(walk_entry_path(gobj, path, directory, entry->d_name, __FUNCTION__) < 0) {
+                closedir(dir);
+                dir_array_free(da);
+                return -1;  // Error already logged
+            }
+            if(stat_no_follow(path, &st) == 0) {
+                if(S_ISREG(st.st_mode)) {
+                    is_file = 1;
+                }
+            } else if(!(errno == ENOENT || errno == EACCES)) {
+                /*
+                 *  An entry lost, not an entry gone: the listing fails
+                 */
+                int last_errno = errno;
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot list directory, stat() FAILED",
+                    "path",         "%s", path,
+                    "errno",        "%d", last_errno,
+                    "serrno",       "%s", strerror(last_errno),
+                    NULL
+                );
+                closedir(dir);
+                dir_array_free(da);
+                return -1;
             }
         }
-        #endif
 
         if(!is_file) {
             continue;
@@ -3790,10 +3895,13 @@ PUBLIC int walk_dir_array(
     /*
      *  The root that cannot be opened is a listing that failed, not an
      *  empty one (up to 7.25.4 it answered 0). A subdirectory that cannot
-     *  be opened is skipped, as before. A directory that cannot be READ
+     *  be opened is skipped (logged) only for EACCES, ENOENT, ENOTDIR,
+     *  ELOOP; for a transient cause (EMFILE, EIO) it fails the listing (up
+     *  to 7.25.4 it was skipped). A directory that cannot be READ
      *  (readdir() fails), the root or a subdirectory, fails the listing:
-     *  up to 7.25.4 it was taken as the end of the directory. The cause
-     *  is logged by _walk_tree().
+     *  up to 7.25.4 it was taken as the end of the directory. So do a path
+     *  longer than PATH_MAX and a tree too deep. The cause is logged by
+     *  _walk_tree().
      */
     if(ret_walk < 0) {
         gobj_log_error(gobj, 0,

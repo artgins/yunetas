@@ -24,8 +24,36 @@
  *                 opened (mode 0) answers -1 AND logs it: its callers say
  *                 "Error already logged". Up to 7.25.4 nothing was logged.
  *
+ *          And the walks of review 18:
+ *
+ *              7. a SUBdirectory whose opendir() fails with EMFILE (a
+ *                 transient cause) fails the walk: -1, empty, logged. Up
+ *                 to 7.25.4 it was skipped, and the listing answered 0,
+ *                 short.
+ *              8. one whose opendir() fails with EACCES is skipped, with a
+ *                 warning (up to 7.25.4 without one), and the walk answers
+ *                 0 with the rest.
+ *              9. a callback that returns FALSE in a subdirectory stops
+ *                 the WHOLE walk. Up to 7.25.4 only that directory
+ *                 stopped, and the walk went on with the next one.
+ *             10. a tree whose paths do not fit in PATH_MAX: the walk
+ *                 answers -1, "Path too long". Up to 7.25.4 build_path()
+ *                 dropped the name, the walk went into the same directory
+ *                 again, forever: a crash (stack overflow), or with few
+ *                 files open a walk that answered 0 with the directory
+ *                 given to the callback as its own entry.
+ *             11. find_files_with_suffix_array() on a file system that
+ *                 gives no d_type (DT_UNKNOWN): the files are listed, and
+ *                 a name whose path does not fit fails the listing. Up to
+ *                 7.25.4 the directory was stat'ed instead of the file,
+ *                 and the file dropped with no log.
+ *             12. a tree deeper than 1024 levels: -1, logged, no crash.
+ *
  *          The failure of readdir() is made by __wrap_readdir() below, for
  *          the directory named by `failing_dir` (seen at its opendir()).
+ *          The failure of opendir() by __wrap_opendir(), for the directory
+ *          named by `failing_open_dir`. __wrap_readdir() also hides the
+ *          d_type of every entry when `hide_d_type` is set.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -34,6 +62,7 @@
 #include <string.h>
 #include <errno.h>
 #include <dirent.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <yunetas.h>
@@ -56,9 +85,16 @@ PRIVATE int entries_before_failure = 0;    // entries it gives before failing
 PRIVATE DIR *failing_dirp = NULL;
 PRIVATE int entries_given = 0;
 PRIVATE int failures = 0;
+PRIVATE const char *failing_open_dir = NULL;   // the directory whose opendir() fails
+PRIVATE int failing_open_errno = 0;
+PRIVATE BOOL hide_d_type = FALSE;
 
 DIR *__wrap_opendir(const char *name)
 {
+    if(failing_open_dir && strcmp(name, failing_open_dir) == 0) {
+        errno = failing_open_errno;
+        return NULL;
+    }
     DIR *dirp = __real_opendir(name);
     if(dirp && failing_dir && strcmp(name, failing_dir) == 0) {
         failing_dirp = dirp;
@@ -78,7 +114,11 @@ struct dirent *__wrap_readdir(DIR *dirp)
         }
         entries_given++;
     }
-    return __real_readdir(dirp);
+    struct dirent *dent = __real_readdir(dirp);
+    if(dent && hide_d_type) {
+        dent->d_type = DT_UNKNOWN;
+    }
+    return dent;
 }
 
 PRIVATE void fail_readdir_of(const char *directory, int entries)
@@ -102,6 +142,19 @@ PRIVATE void ok_or_fail(int cond, const char *name)
         printf("FAIL %s\n", name);
         global_result += -1;
     }
+}
+
+/*
+ *  The warnings and errors logged
+ */
+PRIVATE int s_logs = 0;
+PRIVATE char s_last_log[4096];
+
+PRIVATE int capture_logs(void *h, int priority, const char *bf, size_t len)
+{
+    snprintf(s_last_log, sizeof(s_last_log), "%.*s", (int)len, bf);
+    s_logs++;
+    return 0;
 }
 
 PRIVATE int entries = 0;
@@ -238,10 +291,227 @@ PRIVATE void test_root_cannot_be_opened(void)
 }
 
 /***************************************************************************
+ *  7-8. A SUBdirectory that cannot be opened
+ ***************************************************************************/
+PRIVATE void test_subdir_open_error(void)
+{
+    dir_array_t da;
+    int ret;
+
+    /*
+     *  7. EMFILE: transient, the walk fails
+     */
+    failing_open_dir = SUB;
+    failing_open_errno = EMFILE;
+    gobj_log_set_last_message("%s", "");
+    ret = walk_dir_array(0, BASE, ".*", WD_RECURSIVE|WD_MATCH_REGULAR_FILE, &da);
+    ok_or_fail(ret == -1, "7. walk_dir_array() answers -1 when a subdirectory cannot be opened (EMFILE)");
+    ok_or_fail(da.count == 0 && da.items == NULL, "7. and the listing is empty, not short");
+    ok_or_fail(strstr(gobj_log_last_message(), "Cannot list directory tree") != NULL,
+        "7. and it is logged");
+    dir_array_free(&da);
+
+    entries = 0;
+    ret = walk_dir_tree(0, BASE, ".*", WD_RECURSIVE|WD_MATCH_REGULAR_FILE, count_cb, NULL);
+    ok_or_fail(ret == -1, "7. walk_dir_tree() answers -1 too");
+
+    /*
+     *  8. EACCES: skipped, with a warning
+     */
+    failing_open_errno = EACCES;
+    int logs_before = s_logs;
+    ret = walk_dir_array(0, BASE, ".*", WD_RECURSIVE|WD_MATCH_REGULAR_FILE, &da);
+    ok_or_fail(ret == 0 && da.count == 3,
+        "8. a subdirectory that cannot be opened (EACCES) is skipped, the rest listed");
+    ok_or_fail(s_logs == logs_before + 1 && strstr(s_last_log, "it is skipped") != NULL,
+        "8. with a warning");
+    dir_array_free(&da);
+
+    failing_open_dir = NULL;
+    failing_open_errno = 0;
+}
+
+/***************************************************************************
+ *  9. A callback that stops the walk in a subdirectory
+ ***************************************************************************/
+#define STOP_BASE   "/tmp/test_dir_read_error_stop"
+
+PRIVATE int stop_calls = 0;
+PRIVATE BOOL stop_in_subdir_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,
+    char *fullpath,
+    const char *directory,
+    char *name,
+    int level,
+    wd_option opt
+)
+{
+    stop_calls++;
+    return (level == 2)? FALSE: TRUE;
+}
+
+PRIVATE void test_callback_stops(void)
+{
+    rmrdir(STOP_BASE);
+    const char *files[] = {STOP_BASE "/s1/f", STOP_BASE "/s2/f", STOP_BASE "/s3/f"};
+    for(size_t i = 0; i < ARRAY_SIZE(files); i++) {
+        char dir[PATH_MAX];
+        snprintf(dir, sizeof(dir), "%s", files[i]);
+        *strrchr(dir, '/') = 0;
+        mkrdir(dir, 02770);
+        int fd = newfile(files[i], 0660, FALSE);
+        if(fd >= 0) {
+            close(fd);
+        }
+    }
+
+    stop_calls = 0;
+    int ret = walk_dir_tree(0, STOP_BASE, NULL, WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
+        stop_in_subdir_cb, NULL);
+    ok_or_fail(ret == 0 && stop_calls == 1,
+        "9. a callback that returns FALSE in a subdirectory stops the whole walk");
+    if(stop_calls != 1) {
+        printf("     (the callback was called %d times)\n", stop_calls);
+    }
+    rmrdir(STOP_BASE);
+}
+
+/***************************************************************************
+ *  10-12. Paths that do not fit, a tree too deep
+ ***************************************************************************/
+#define DEEP_BASE   "/tmp/test_dir_read_error_deep"
+
+/*
+ *  Directories of `name_len` chars, with fds, while the path fits under
+ *  `max_len`; then `leaves` entries of 250 chars in the deepest one
+ *  (directories, or files). The path of the deepest one is left in `deepest`.
+ */
+PRIVATE void make_long_tree(size_t max_len, int levels, size_t name_len, BOOL leaf_files, char *deepest)
+{
+    mkdir(DEEP_BASE, 0775);
+    int fd = open(DEEP_BASE, O_RDONLY|O_DIRECTORY);
+    char name[NAME_MAX+1];
+    memset(name, 'd', name_len);
+    name[name_len] = 0;
+    size_t len = strlen(DEEP_BASE);
+    snprintf(deepest, PATH_MAX, "%s", DEEP_BASE);
+    for(int i=0; fd >= 0 && (levels == 0 || i < levels) && len + 1 + name_len < max_len; i++) {
+        mkdirat(fd, name, 0775);
+        int fd2 = openat(fd, name, O_RDONLY|O_DIRECTORY);
+        close(fd);
+        fd = fd2;
+        if(len + 1 + name_len < PATH_MAX) {
+            snprintf(deepest + len, PATH_MAX - len, "/%s", name);
+        }
+        len += 1 + name_len;
+    }
+    if(fd >= 0 && levels == 0) {
+        char leaf[256];
+        memset(leaf, 'a', 250);
+        leaf[250] = 0;
+        for(int i=0; i<2; i++) {
+            leaf[0] = (char)('a' + i);
+            if(leaf_files) {
+                int f = openat(fd, leaf, O_CREAT|O_WRONLY, 0664);
+                if(f >= 0) {
+                    close(f);
+                }
+            } else {
+                mkdirat(fd, leaf, 0775);
+            }
+        }
+    }
+    if(fd >= 0) {
+        close(fd);
+    }
+}
+
+PRIVATE void remove_long_tree(void)
+{
+    if(system("rm -rf " DEEP_BASE) != 0) {
+        printf("FAIL cannot remove %s\n", DEEP_BASE);
+        global_result += -1;
+    }
+}
+
+/*
+ *  10. The deepest directory is ~3900 chars: two subdirectories of 250
+ *  chars in it do not fit. Run LAST: up to 7.25.4 it crashed.
+ */
+PRIVATE void test_walk_path_too_long(void)
+{
+    char deepest[PATH_MAX];
+    int ret;
+    dir_array_t da;
+
+    remove_long_tree();
+
+    make_long_tree(PATH_MAX - 150, 0, 200, FALSE, deepest);
+    entries = 0;
+    int logs_before = s_logs;
+    ret = walk_dir_tree(0, DEEP_BASE, NULL, WD_RECURSIVE|WD_MATCH_DIRECTORY, count_cb, NULL);
+    ok_or_fail(ret == -1, "10. walk_dir_tree() of paths longer than PATH_MAX answers -1");
+    ok_or_fail(s_logs > logs_before && strstr(s_last_log, "Path too long") != NULL,
+        "10. and logs \"Path too long\"");
+    ok_or_fail(entries < 30, "10. and it does not walk the same directory again");
+
+    ret = walk_dir_array(0, DEEP_BASE, NULL, WD_RECURSIVE|WD_MATCH_DIRECTORY, &da);
+    ok_or_fail(ret == -1 && da.count == 0, "10. walk_dir_array() answers -1, empty");
+    dir_array_free(&da);
+    remove_long_tree();
+}
+
+PRIVATE void test_long_paths(void)
+{
+    char deepest[PATH_MAX];
+    int ret;
+    dir_array_t da;
+    int logs_before;
+
+    remove_long_tree();
+
+    /*
+     *  11. No d_type: the files are stat'ed
+     */
+    hide_d_type = TRUE;
+    ret = find_files_with_suffix_array(0, BASE, ".md2", &da);
+    ok_or_fail(ret == 0 && da.count == 3,
+        "11. find_files_with_suffix_array() without d_type lists the files");
+    dir_array_free(&da);
+
+    make_long_tree(PATH_MAX - 150, 0, 200, TRUE, deepest);
+    logs_before = s_logs;
+    ret = find_files_with_suffix_array(0, deepest, "", &da);
+    ok_or_fail(ret == -1 && da.count == 0,
+        "11. and a file whose path does not fit fails the listing");
+    ok_or_fail(s_logs > logs_before && strstr(s_last_log, "Path too long") != NULL,
+        "11. logged");
+    dir_array_free(&da);
+    hide_d_type = FALSE;
+    remove_long_tree();
+
+    /*
+     *  12. 1100 levels of 1 char: it fits, and it is deeper than a walk goes
+     */
+    make_long_tree(PATH_MAX, 1100, 1, FALSE, deepest);
+    logs_before = s_logs;
+    ret = walk_dir_tree(0, DEEP_BASE, NULL, WD_RECURSIVE|WD_MATCH_DIRECTORY, count_cb, NULL);
+    ok_or_fail(ret == -1 && s_logs > logs_before,
+        "12. a tree of 1100 levels: walk_dir_tree() answers -1, logged");
+    printf("     (%s)\n", strstr(s_last_log, "Tree too deep")? "tree too deep":
+        "stopped before: no more open files");
+    remove_long_tree();
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    setvbuf(stdout, NULL, _IOLBF, 0);   // what was checked is printed, also before a crash
+
     sys_malloc_fn_t malloc_func;
     sys_realloc_fn_t realloc_func;
     sys_calloc_fn_t calloc_func;
@@ -262,11 +532,17 @@ int main(int argc, char *argv[])
     );
 
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+    gobj_log_register_handler("capture_logs", 0, capture_logs, 0);
+    gobj_log_add_handler("capture_logs", "capture_logs", LOG_OPT_UP_WARNING, 0);
 
     make_tree();
     test_read_error();
     test_root_cannot_be_opened();
-    test_re_null();     // LAST: it crashed up to 7.25.4
+    test_subdir_open_error();
+    test_callback_stops();
+    test_long_paths();
+    test_re_null();     // it crashed up to 7.25.4
+    test_walk_path_too_long();  // LAST: it crashed up to 7.25.4
     rmrdir(BASE);
 
     gobj_end();

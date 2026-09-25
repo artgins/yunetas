@@ -105,3 +105,14 @@ the cause (*"see the log"*): it does not read the process-global
 directory, and a SHORT listing answered `0`. It also checks `re` / `pattern`
 `NULL` (every entry; up to 7.25.4 a crash in `regcomp()`), and that
 `walk_dir_tree()` of a root of mode 0 logs its `-1` (SKIPPED as root).
+It also checks the walks of review 18 (`--wrap=opendir` fails the `opendir()`
+of one directory, and the `readdir()` wrap can hide `d_type`): a SUBdirectory
+that cannot be opened for a transient cause (`EMFILE`) fails the walk, `-1`,
+empty (up to 7.25.4 it was skipped and the listing answered `0`, short); one
+with `EACCES` is skipped with a warning; a callback that returns `FALSE` in a
+subdirectory stops the WHOLE walk (up to 7.25.4 only that directory); paths
+longer than `PATH_MAX` fail `walk_dir_tree()` / `walk_dir_array()` with
+*"Path too long"* (up to 7.25.4 the walk went into the same directory again,
+forever: a crash; run last), and `find_files_with_suffix_array()` without
+`d_type` (up to 7.25.4 the directory was stat'ed instead of the file, and the
+file dropped); a tree of 1100 levels fails the walk (*"Tree too deep"*).

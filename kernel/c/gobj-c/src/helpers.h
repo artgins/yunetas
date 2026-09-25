@@ -704,11 +704,16 @@ typedef BOOL (*walkdir_cb)(
 );
 /*
  *  Walk directory tree calling callback witch each file found.
- *  If the callback returns FALSE, then stop traversing the tree.
- *  `pattern` NULL matches every name.
+ *  If the callback returns FALSE, the WHOLE walk stops, every level of it
+ *  (0 is returned). `pattern` NULL matches every name.
  *  Return standard unix: 0 success, -1 fail (logged): the root cannot be
- *  opened, or a directory of the tree cannot be read (readdir() fails).
- *  A SUBdirectory that cannot be opened is skipped.
+ *  opened, a directory of the tree cannot be read (readdir() fails), a
+ *  SUBdirectory cannot be opened for a transient cause (EMFILE, ENFILE,
+ *  ENOMEM, EIO), an entry cannot be stat'ed (other than EACCES, ENOENT),
+ *  a path does not fit in PATH_MAX, or the tree is deeper than 1024 levels
+ *  (16 on ESP32).
+ *  A SUBdirectory that cannot be opened because of EACCES, ENOENT, ENOTDIR
+ *  or ELOOP is skipped, with a warning.
  */
 PUBLIC int walk_dir_tree(
     hgobj gobj,
@@ -753,11 +758,13 @@ typedef struct dir_array_s {
 /*
  *  find_files_with_suffix_array(), walk_dir_array(), get_ordered_filename_array():
  *  0 on success; -1 (logged) when the directory cannot be opened, cannot be
- *  read (readdir() fails: EIO, ESTALE) or an entry cannot be kept (no
- *  memory), and then 'da' is EMPTY: a listing that lost an entry is not the
- *  listing of the directory. A walk skips a SUBdirectory it cannot open
- *  (EACCES, ENOENT: silent), but not its root, and not a directory it opened
- *  and cannot read. `re` NULL (walk_dir_array, get_ordered_filename_array)
+ *  read (readdir() fails: EIO, ESTALE), an entry cannot be kept (no
+ *  memory), a path does not fit in PATH_MAX, or (a walk) a SUBdirectory
+ *  cannot be opened for a transient cause (EMFILE, ENFILE, ENOMEM, EIO) or
+ *  the tree is deeper than 1024 levels; and then 'da' is EMPTY: a listing
+ *  that lost an entry is not the listing of the directory. A walk skips,
+ *  with a warning, a SUBdirectory it cannot open because of EACCES, ENOENT,
+ *  ENOTDIR or ELOOP. `re` NULL (walk_dir_array, get_ordered_filename_array)
  *  matches every name.
  */
 PUBLIC int find_files_with_suffix_array( // Remember to free 'da' with dir_array_free()

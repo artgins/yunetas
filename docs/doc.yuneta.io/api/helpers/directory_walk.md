@@ -34,11 +34,11 @@ int get_ordered_filename_array(
 
 **Returns**
 
-Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory or cannot be opened, a directory of the tree cannot be READ (`readdir()` fails: `EIO`, `ESTALE`), the pattern does not compile, or an entry cannot be kept (no memory). On error `da` is empty -- a listing that lost an entry is not the listing of the directory (up to 7.25.4 the entry was dropped, a root that could not be opened listed as empty, a `readdir()` that failed was taken as the end of the directory, and the call answered `0`). The log says which: *"Cannot open directory"* (not a directory, or the root cannot be opened, with `errno`), *"Cannot read directory, readdir() FAILED"* (with `errno`), *"regcomp() FAILED"*, then *"Cannot list directory tree, the directory cannot be opened or read"*; or *"Cannot list directory tree, no memory for an entry"*. Results are stored in the `da` structure. Free with `dir_array_free()`.
+Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory or cannot be opened, a directory of the tree cannot be READ (`readdir()` fails: `EIO`, `ESTALE`), the pattern does not compile, or an entry cannot be kept (no memory). On error `da` is empty -- a listing that lost an entry is not the listing of the directory (up to 7.25.4 the entry was dropped, a root that could not be opened listed as empty, a `readdir()` that failed was taken as the end of the directory, and the call answered `0`). The log says which: *"Cannot open directory"* (not a directory, or the root cannot be opened, with `errno`), *"Cannot read directory, readdir() FAILED"* (with `errno`), *"regcomp() FAILED"*, then *"Cannot list directory tree, the directory cannot be opened or read"*; or *"Cannot list directory tree, no memory for an entry"*. A SUBdirectory that cannot be opened is skipped with a WARNING (*"Cannot open subdirectory, it is skipped"*) only when the cause is `EACCES`, `ENOENT`, `ENOTDIR` or `ELOOP`; any other cause (`EMFILE`, `ENFILE`, `ENOMEM`, `EIO`) fails the walk, and so do an entry that cannot be `lstat()`'ed (other than `EACCES`, `ENOENT`), a path that does not fit in `PATH_MAX` (*"Path too long, the directory cannot be walked"*) and a tree deeper than 1024 levels (*"Tree too deep, the directory cannot be walked"*; 16 on ESP32). Up to 7.25.4 a subdirectory was skipped for any cause, silently for `EACCES` and `ENOENT`, and the walk answered `0` short; a path longer than `PATH_MAX` was cut by `build_path()`, and the walk went into the same directory again, forever (a crash), or gave the directory to the callback as its own entry. Results are stored in the `da` structure. Free with `dir_array_free()`.
 
 **Notes**
 
-It is [`walk_dir_array()`](#walk_dir_array) followed by [`dir_array_sort()`](#dir_array_sort): the array holds FULL paths, sorted with `qsort()` (too slow for thousands of files). The array must be freed with [`dir_array_free()`](#dir_array_free), also after a `-1`.
+It is [`walk_dir_array()`](#walk_dir_array) followed by [`dir_array_sort()`](#dir_array_sort): the array holds full paths, or names with `WD_ONLY_NAMES`, sorted with `qsort()` (too slow for thousands of files). The array must be freed with [`dir_array_free()`](#dir_array_free), also after a `-1`.
 
 **Example**
 
@@ -96,7 +96,7 @@ Returns 0 on success, or -1 (logged) if an error occurs: `root_dir` is not a dir
 
 **Notes**
 
-The callback function `cb` must return `TRUE` to continue traversal or `FALSE` to stop. The function uses `regcomp()` to compile the `pattern` and `regexec()` to match file names. A SUBdirectory that cannot be opened is skipped (silently for `EACCES` and `ENOENT`); one that opens and cannot be read fails the walk.
+The callback function `cb` must return `TRUE` to continue traversal or `FALSE` to stop the WHOLE walk: every level stops, and the call answers `0`. Up to 7.25.4 only the directory of the callback stopped, and the walk went on with the next one. The function uses `regcomp()` to compile the `pattern` and `regexec()` to match file names. A directory that opens and cannot be read fails the walk. A SUBdirectory that cannot be opened is skipped with a WARNING (*"Cannot open subdirectory, it is skipped"*) only when the cause is `EACCES`, `ENOENT`, `ENOTDIR` or `ELOOP`; any other cause (`EMFILE`, `ENFILE`, `ENOMEM`, `EIO`) fails the walk, and so do an entry that cannot be `lstat()`'ed (other than `EACCES`, `ENOENT`), a path that does not fit in `PATH_MAX` (*"Path too long, the directory cannot be walked"*) and a tree deeper than 1024 levels (*"Tree too deep, the directory cannot be walked"*; 16 on ESP32). Up to 7.25.4 a subdirectory was skipped for any cause, silently for `EACCES` and `ENOENT`, and the walk answered `0` short; a path longer than `PATH_MAX` was cut by `build_path()`, and the walk went into the same directory again, forever (a crash), or gave the directory to the callback as its own entry. `tests/c/helpers/test_dir_read_error`.
 
 **Example**
 
@@ -105,7 +105,7 @@ PRIVATE BOOL count_cb(hgobj gobj, void *user_data, wd_found_type type,
     char *fullpath, const char *directory, char *name, int level, wd_option opt)
 {
     (*(int *)user_data)++;
-    return TRUE;    // go on
+    return (*(int *)user_data < 1000)? TRUE: FALSE;    // FALSE: the whole walk stops
 }
 
 int files = 0;
@@ -214,7 +214,7 @@ int find_files_with_suffix_array(
 
 **Returns**
 
-Returns `0` on success, or `-1` on error (logged): the directory cannot be opened, cannot be read (`readdir()` fails: `EIO`, `ESTALE`; *"Cannot list directory, readdir() FAILED"*), or an entry cannot be kept (no memory, *"Cannot list directory, no memory for an entry"*). On error `da` is empty -- a listing that lost an entry is not the listing of the directory (up to 7.25.4 the entry was dropped, a `readdir()` that failed was taken as the end of the directory, and the call answered `0`: timeranger2 read a key without the `.md2` files not listed yet).
+Returns `0` on success, or `-1` on error (logged): the directory cannot be opened, cannot be read (`readdir()` fails: `EIO`, `ESTALE`; *"Cannot list directory, readdir() FAILED"*), or an entry cannot be kept (no memory, *"Cannot list directory, no memory for an entry"*). On a filesystem that gives no entry type (`DT_UNKNOWN`), also when the path of an entry does not fit in `PATH_MAX` (*"Path too long, the directory cannot be walked"*) or its `lstat()` fails for a cause other than `EACCES`, `ENOENT` (*"Cannot list directory, stat() FAILED"*). On error `da` is empty -- a listing that lost an entry is not the listing of the directory (up to 7.25.4 the entry was dropped, a `readdir()` that failed was taken as the end of the directory, and the call answered `0`: timeranger2 read a key without the `.md2` files not listed yet; up to 7.25.4 a path that did not fit was cut to the directory, which was stat'ed instead of the file, and the file dropped with no log).
 
 **Notes**
 
@@ -263,7 +263,7 @@ int walk_dir_array(
 
 **Returns**
 
-Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory or cannot be opened (mode `0`, `EMFILE`), a directory of the tree cannot be read (`readdir()` fails), the pattern does not compile, or an entry cannot be kept (no memory). On error `da` is empty (up to 7.25.4 a lost entry was dropped, a root that could not be opened listed as empty, a failed `readdir()` ended the directory, and the call answered `0`). A SUBdirectory that cannot be opened is skipped, silently for `EACCES` and `ENOENT`; one that opens and cannot be read fails the listing. `tests/c/helpers/test_dir_read_error`.
+Returns `0` on success, or `-1` on error (logged): `root_dir` is not a directory or cannot be opened (mode `0`, `EMFILE`), a directory of the tree cannot be read (`readdir()` fails), the pattern does not compile, or an entry cannot be kept (no memory). On error `da` is empty (up to 7.25.4 a lost entry was dropped, a root that could not be opened listed as empty, a failed `readdir()` ended the directory, and the call answered `0`). A directory that opens and cannot be read fails the listing. A SUBdirectory that cannot be opened is skipped with a WARNING (*"Cannot open subdirectory, it is skipped"*) only when the cause is `EACCES`, `ENOENT`, `ENOTDIR` or `ELOOP`; any other cause (`EMFILE`, `ENFILE`, `ENOMEM`, `EIO`) fails the walk, and so do an entry that cannot be `lstat()`'ed (other than `EACCES`, `ENOENT`), a path that does not fit in `PATH_MAX` (*"Path too long, the directory cannot be walked"*) and a tree deeper than 1024 levels (*"Tree too deep, the directory cannot be walked"*; 16 on ESP32). Up to 7.25.4 a subdirectory was skipped for any cause, silently for `EACCES` and `ENOENT`, and the walk answered `0` short; a path longer than `PATH_MAX` was cut by `build_path()`, and the walk went into the same directory again, forever (a crash), or gave the directory to the callback as its own entry. `tests/c/helpers/test_dir_read_error`.
 
 ```C
 dir_array_t da;
