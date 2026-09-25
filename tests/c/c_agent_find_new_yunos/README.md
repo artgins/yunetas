@@ -20,7 +20,14 @@ Each row now says whether its instance at the new release exists.
    `registered` false, with the `create-yuno` command to run;
 3. a yuno with nothing newer does not come back;
 4. a `yuno_multiple` row is judged by its own id: another instance of the same
-   role and name registered at the new release does not answer for it.
+   role and name registered at the new release does not answer for it;
+5. the fixture links each yuno to its realm, binary and configuration as
+   `create-yuno` does, so a new release links a child whose fkey already
+   names the yuno's id (the configuration it keeps, a binary installed later
+   that inherited the ref): that logs nothing. Up to 7.25.4 it warned
+   *"Parent ref already in child fkey, skipping duplicate"* on every
+   `create-yuno` of a new release. A real duplicate (yuno_c linked twice to
+   its binary) still warns, once: the strict FIFO of expected logs pins both.
 
 ## Run
 

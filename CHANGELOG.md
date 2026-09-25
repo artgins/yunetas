@@ -669,6 +669,17 @@ code before it, except those listed under "No red test" in `TODO.md`.
   now says *"list"*). A new instance of a child held through a list hook no
   longer warns *"Duplicate fkey on load, deduping parent hook"*. Test
   `test_tr_treedb_delete_instance`.
+- **A link that fills the hook of a new instance no longer warns**
+  *"Parent ref already in child fkey, skipping duplicate"* (7.25.4 too). The
+  ref names the parent's KEY, which all its instances share, so it is already
+  in the child's fkey when a new instance of the parent takes a child that an
+  older instance holds, or when a new instance of the child inherited it: every
+  `create-yuno` of a new release warned for its configuration (and for its
+  binary, when the binary was installed after the old release linked it). The
+  link fills the hook of the new instance and nothing else. The warning stays
+  for a real duplicate: the same pair linked twice. Test
+  `test_c_agent_find_new_yunos` (its fixture now links binaries and
+  configurations as `create-yuno` does).
 - **Lost lock.** A master that lost its lock while stopped (another process
   took the store) writes nothing: every write path, including the three md2
   flag rewriters (`tranger2_write_user_flag`, `tranger2_set_user_flag`,

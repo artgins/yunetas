@@ -111,8 +111,11 @@ static int register_yuno_and_more(void)
          *  "Creating topic": the five of the agent's schema and the three the
          *  treedb adds (__snaps__, __graphs__, __assets__). One "new release
          *  found" per yuno with a newer binary: yuno_a, yuno_b, yuno_m1,
-         *  yuno_m2 (yuno_c has none). */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+         *  yuno_m2 (yuno_c has none). ONE "Parent ref already in child
+         *  fkey": the real duplicate link of yuno_c; the new releases of
+         *  yuno_a and yuno_m1 link children whose fkey already names them,
+         *  and that is not one (it warned up to 7.25.4). */
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -125,6 +128,7 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Playing yuno",
+            "msg", "Parent ref already in child fkey, skipping duplicate",
             "msg", "new release found",
             "msg", "new release found",
             "msg", "new release found",

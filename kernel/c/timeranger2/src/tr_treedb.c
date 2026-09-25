@@ -10937,6 +10937,7 @@ PRIVATE int _link_nodes(
      *--------------------------------------------------*/
     BOOL changed = FALSE;
     BOOL child_changed = FALSE;
+    BOOL hook_took_child = FALSE;   // this parent's hook did not hold the child
 
     /*--------------------------------------------------*
      *  A single-valued fkey does not add, it REPLACES:
@@ -11001,6 +11002,7 @@ PRIVATE int _link_nodes(
                     json_array_append(parent_hook_data, child_node);
                 }
                 changed = TRUE;
+                hook_took_child = TRUE;
             } else {
                 /*
                  *  Already hooked: idempotent link. Suspicious (double link
@@ -11031,11 +11033,13 @@ PRIVATE int _link_nodes(
                 );
                 if(!json_object_get(parent_hook_data, child_key)) {
                     changed = TRUE;
+                    hook_took_child = TRUE;
                 }
                 json_object_set(parent_hook_data, child_key, child_data);
             } else {
                 if(!json_object_get(parent_hook_data, child_id)) {
                     changed = TRUE;
+                    hook_took_child = TRUE;
                 }
                 if(dict_hook_takes_child(
                         tranger, treedb_name, parent_hook_data,
@@ -11085,10 +11089,20 @@ PRIVATE int _link_nodes(
                 );
                 changed = TRUE;
                 child_changed = TRUE;
-            } else {
+            } else if(!hook_took_child) {
                 /*
-                 *  fkey ref already present: idempotent link. Warn, don't
-                 *  duplicate the parent reference on the child.
+                 *  fkey ref already present AND the hook already held the
+                 *  child: the same pair linked twice. Warn, don't duplicate
+                 *  the parent reference on the child.
+                 *
+                 *  Not when this link filled the hook: the ref names the
+                 *  parent's KEY, which every instance of it shares, so it is
+                 *  already there when a new instance of the parent takes a
+                 *  child an older instance holds (the configuration a new
+                 *  release of a yuno keeps), or a new instance of the child
+                 *  inherited it (inherit_links()). The link only fills this
+                 *  instance's hook; it warned on every `create-yuno` of a new
+                 *  release (up to 7.25.4).
                  */
                 gobj_log_warning(gobj, 0,
                     "function",             "%s", __FUNCTION__,

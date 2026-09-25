@@ -21,7 +21,11 @@
  *              - a yuno with nothing newer does not come back at all;
  *              - a yuno_multiple row is judged by its own id: another
  *                instance of the same role and name registered at the new
- *                release does not answer for it.
+ *                release does not answer for it;
+ *              - a new release links children whose fkey already names the
+ *                yuno (the configuration it keeps, a binary that inherited
+ *                the ref) without the warning "Parent ref already in child
+ *                fkey"; a real duplicate link still warns.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -234,8 +238,61 @@ PRIVATE json_t *seed_node(hgobj gobj, const char *topic_name, json_t *kw)
 }
 
 /***************************************************************************
+ *  The instance of `id` at `version` in `topic_name` (yours), or NULL
+ *  (logged). As the agent's find_binary_version() and
+ *  find_configuration_version() look it up.
+ ***************************************************************************/
+PRIVATE json_t *find_instance(
+    hgobj gobj,
+    const char *topic_name,
+    const char *id,
+    const char *version
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *iter = gobj_list_instances(
+        priv->gobj_node,
+        topic_name,
+        "",
+        json_pack("{s:s}", "id", id),
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+    json_t *found = NULL;
+    int idx; json_t *hs;
+    json_array_foreach(iter, idx, hs) {
+        if(strcmp(kw_get_str(gobj, hs, "version", "", 0), version)==0) {
+            found = json_incref(hs);
+            break;
+        }
+    }
+    JSON_DECREF(iter)
+
+    if(!found) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: fixture instance not found",
+            "topic_name", "%s", topic_name,
+            "id", "%s", id,
+            "version", "%s", version,
+            NULL
+        );
+    }
+    return found;
+}
+
+/***************************************************************************
  *  A yuno row as create-yuno writes it: the node, then its realm, binary
  *  and configuration links. Returns 0 or -1 (logged).
+ *
+ *  A second release of a yuno links the SAME child (the configuration it
+ *  keeps) or a new instance of it (the new binary, which inherited the
+ *  fkeys of the one before) to its new instance: the child's fkey already
+ *  names the yuno's id. Up to 7.25.4 that logged "Parent ref already in
+ *  child fkey" on every create-yuno of a new release; the strict FIFO of
+ *  expected logs catches it coming back.
  ***************************************************************************/
 PRIVATE int seed_yuno(
     hgobj gobj,
@@ -274,16 +331,28 @@ PRIVATE int seed_yuno(
         return -1;
     }
 
-    int ret = gobj_link_nodes(
+    char config_id[NAME_MAX];
+    snprintf(config_id, sizeof(config_id), "%s.%s", yuno_role, yuno_name);
+    json_t *binary = find_instance(gobj, "binaries", yuno_role, role_version);
+    json_t *configuration = find_instance(gobj, "configurations", config_id, name_version);
+    if(!binary || !configuration) {
+        // Error already logged
+        JSON_DECREF(binary)
+        JSON_DECREF(configuration)
+        JSON_DECREF(yuno)
+        return -1;
+    }
+
+    int ret = 0;
+    if(gobj_link_nodes(
         priv->gobj_node,
         "yunos",
         "realms",
         json_incref(realm),
         "yunos",
-        yuno,   // owned
+        json_incref(yuno),
         gobj
-    );
-    if(ret < 0) {
+    )<0) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
             "msgset", "%s", MSGSET_INTERNAL,
@@ -291,6 +360,43 @@ PRIVATE int seed_yuno(
             "id", "%s", id,
             NULL
         );
+        ret = -1;
+    }
+    if(gobj_link_nodes(
+        priv->gobj_node,
+        "binary",
+        "yunos",
+        json_incref(yuno),
+        "binaries",
+        binary, // owned
+        gobj
+    )<0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: cannot link the yuno to its binary",
+            "id", "%s", id,
+            NULL
+        );
+        ret = -1;
+    }
+    if(gobj_link_nodes(
+        priv->gobj_node,
+        "configurations",
+        "yunos",
+        yuno,   // owned
+        "configurations",
+        configuration,  // owned
+        gobj
+    )<0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: cannot link the yuno to its configuration",
+            "id", "%s", id,
+            NULL
+        );
+        ret = -1;
     }
     return ret;
 }
@@ -385,11 +491,15 @@ PRIVATE int run_tests(hgobj gobj)
         return -1;
     }
 
+    /*
+     *  role_a 1.1.0 is installed later, after yuno_a runs 1.0.0, so it
+     *  inherits the fkey of role_a 1.0.0 as install-binary's does.
+     */
     struct {
         const char *id;
         const char *version;
     } binaries[] = {
-        {"role_a", "1.0.0"}, {"role_a", "1.1.0"},
+        {"role_a", "1.0.0"},
         {"role_b", "2.0.0"}, {"role_b", "2.1.0"},
         {"role_c", "3.0.0"},
         {"role_m", "4.0.0"}, {"role_m", "4.1.0"},
@@ -433,6 +543,16 @@ PRIVATE int run_tests(hgobj gobj)
      *          4.0.0-1; only yuno_m1 registered at 4.1.0-1.
      *-----------------------------------------------*/
     result += seed_yuno(gobj, realm, "yuno_a", "role_a", "1.0.0", "name_a", "1", FALSE);
+    json_t *binary_a2 = seed_node(gobj, "binaries", json_pack("{s:s, s:s, s:s, s:s}",
+        "id", "role_a",
+        "version", "1.1.0",
+        "date", "2026/09/24 00:00:00",
+        "binary", "/bin/true"
+    ));
+    if(!binary_a2) {
+        result += -1;
+    }
+    JSON_DECREF(binary_a2)
     result += seed_yuno(gobj, realm, "yuno_a", "role_a", "1.1.0", "name_a", "1", FALSE);
     result += seed_yuno(gobj, realm, "yuno_b", "role_b", "2.0.0", "name_b", "1", FALSE);
     result += seed_yuno(gobj, realm, "yuno_c", "role_c", "3.0.0", "name_c", "1", FALSE);
@@ -440,6 +560,41 @@ PRIVATE int run_tests(hgobj gobj)
     result += seed_yuno(gobj, realm, "yuno_m2", "role_m", "4.0.0", "name_m", "1", TRUE);
     result += seed_yuno(gobj, realm, "yuno_m1", "role_m", "4.1.0", "name_m", "1", TRUE);
     JSON_DECREF(realm)
+
+    /*
+     *  A REAL duplicate still warns: yuno_c linked again to the binary it
+     *  already holds. The one "Parent ref already in child fkey" of the
+     *  expected logs.
+     */
+    json_t *yuno_c = gobj_get_node(
+        priv->gobj_node,
+        "yunos",
+        json_pack("{s:s}", "id", "yuno_c"),
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+    json_t *binary_c = find_instance(gobj, "binaries", "role_c", "3.0.0");
+    if(!yuno_c || !binary_c) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: yuno_c or its binary not found",
+            NULL
+        );
+        JSON_DECREF(yuno_c)
+        JSON_DECREF(binary_c)
+        result += -1;
+    } else {
+        result += gobj_link_nodes(
+            priv->gobj_node,
+            "binary",
+            "yunos",
+            yuno_c,     // owned
+            "binaries",
+            binary_c,   // owned
+            gobj
+        );
+    }
 
     /*
      *  The fixture reproduces what it claims: the old release of yuno_a is

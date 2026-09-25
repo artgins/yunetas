@@ -1655,7 +1655,9 @@ memory and is rebuilt at the next load. So a link that only fills a hook
 writes nothing: that is the ordinary case of a second instance of a node,
 which inherits the fkey of the instance before it (the ref names the
 parent's **id**, shared by both instances) while the hook of the new parent
-is empty. A link asked twice, with nothing to move on either side, writes
+is empty. Such a link logs nothing either (up to 7.25.4 it warned *"Parent
+ref already in child fkey"*, once per `create-yuno` of a new release). A link
+asked twice, with nothing to move on either side, writes
 nothing and publishes nothing, and it warns (*"Parent ref already in child
 fkey, skipping duplicate"*). The link EVENT follows either side: filling a
 hook is a new relationship in memory even when nothing is written.

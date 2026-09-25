@@ -99,10 +99,6 @@ open:
 - **Apply is off on every in-tree yuno:** each one forces `impose_c_schema`,
   so gui_agent's Apply is off on all of them until one stops forcing it.
 
-**Low, worth keeping:**
-the warning *"Parent ref already in child fkey"* still fires in the legitimate case of
-4e4dcdc00, once per `create-yuno`.
-
 ## TreeDB / timeranger2: what 7.25.5 leaves open
 
 What the changes after 7.25.4 (`CHANGELOG.md`, Unreleased) leave open:
