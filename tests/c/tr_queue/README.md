@@ -9,6 +9,16 @@ periodic backup (`trq_check_backup()` / `tr2q_check_backup()`, called while
 the queue is empty) is refused and says so once, and after the md2 is put back
 a restart loads every pending message.
 
+`test_tr2q_queued` covers the QUEUED messages of an mqtt queue (above
+`max_inflight_messages`, on disk without their content). A queued message
+whose content cannot be read (the content file cut) stays queued:
+`tr2q_move_from_queued_to_inflight()` answers -1 with *"Cannot load the content
+of a queued message: it stays queued"*. Up to 7.25.4 it was moved in flight
+first and left there with no content (red: 2 in flight, 0 queued). And
+`tr2q_check_backup()` with nothing in flight and a message queued answers 0 and
+does not back up: the queued message keeps its content. Up to 7.25.4 the
+backup was made and the content was lost (red: topic size 0).
+
 `test_tr_queue_backup_failed` covers a backup that FAILS (the backup name
 taken by a file: the `rename()` fails): `trq_check_backup()` /
 `tr2q_check_backup()` answer -1, the queue keeps its topic (the backup opens
@@ -39,7 +49,9 @@ backup back, and the queue keeps its message. And a plain create with `LOG_OPT_E
 in a child process: the child exits(0), as told, but only after it removed
 what it made, and the next create makes the topic whole. Up to this fix it
 exited in the log of the failed `mkdir`, and the next start opened the half
-topic.
+topic. The CRITICAL *"Cannot create TimeRanger subdir. mkrdir()
+FAILED"* is checked to name `ENOSPC` (*"No space left on device"*): up to this
+fix the log of `mkrdir()` before it changed `errno`, and it said *"Success"*.
 
 ## Run
 

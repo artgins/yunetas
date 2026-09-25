@@ -2,6 +2,25 @@
 
 Structured logging API. Every log call emits a JSON record with severity, gobj context, and user-supplied key/value pairs. Handlers (UDP, rotatory file, stdout…) are registered separately and receive a copy of each record.
 
+**A log call leaves `errno` as it found it.** `gobj_log_*()` and the trace functions that write through `_log_bf()` save `errno` on entry and put it back before they return. So a function can log its failure, answer `-1`, and leave the cause in `errno` for its caller, which logs `strerror(errno)` in turn and names the same cause:
+
+```C
+if(mkrdir(path, xpermission) < 0) {
+    // mkrdir() logged "newdir() FAILED" with errno 28; errno is still ENOSPC here
+    gobj_log_critical(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_SYSTEM,
+        "msg",          "%s", "Cannot create subdir. mkrdir() FAILED",
+        "errno",        "%d", errno,
+        "serrno",       "%s", strerror(errno),     // "No space left on device"
+        NULL
+    );
+    return -1;
+}
+```
+
+Up to this fix the handlers of a log (a `write()`, the json dump) could change `errno`. The caller's log then named another cause, or *"Success"*: `tranger2_create_topic()`'s *"Cannot create TimeRanger subdir. mkrdir() FAILED"* always said errno 0.
+
 Source code:
 
 - [`gobj.h`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.h)

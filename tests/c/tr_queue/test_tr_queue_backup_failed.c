@@ -49,6 +49,10 @@
  *  this fix it exited in the log of the failed mkdir, and the next start
  *  opened the half topic.
  *
+ *  And the CRITICAL "Cannot create TimeRanger subdir. mkrdir() FAILED"
+ *  names the cause (ENOSPC): up to this fix the log of mkrdir() before it
+ *  changed errno, and it said "Success".
+ *
  *  And while the queue's topic cannot be opened, only the FIRST call says
  *  so: the next ones ask the disk quietly (up to this fix each one logged
  *  the three errors of the open again).
@@ -365,10 +369,14 @@ PRIVATE int test_create_keys_fails(void)
     build_path(failing_mkdir, sizeof(failing_mkdir), topic_dir, "keys", NULL);
     set_expected_results(
         "keys: a create whose keys/ cannot be made",
-        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s, s:s},{s:s, s:s},{s:s}]",
             "msg", "Creating topic",
-            "msg", "newdir() FAILED",
-            "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED",
+            "msg", "newdir() FAILED", "serrno", "No space left on device",
+            /*
+             *  The cause, not "Success": the log of mkrdir() in between
+             *  changed errno (up to this fix every log did)
+             */
+            "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED", "serrno", "No space left on device",
             "msg", MSG_ABANDON
         ),
         NULL, NULL, 1
@@ -755,10 +763,10 @@ PRIVATE int test_exit_zero_create_fails(void)
 
     set_expected_results(
         "exit_zero: the new topic cannot be created",
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s, s:s},{s:s},{s:s},{s:s}]",
             "msg", MSG_MOVING,
             "msg", "newdir() FAILED",
-            "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED",
+            "msg", "Cannot create TimeRanger subdir. mkrdir() FAILED", "serrno", "No space left on device",
             "msg", MSG_ABANDON,
             "msg", MSG_REOPENED,
             "msg", MSG_QUEUE

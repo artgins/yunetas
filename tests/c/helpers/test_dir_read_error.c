@@ -60,6 +60,11 @@
  *                 not read stays. Up to this fix rmrcontentdir() took the
  *                 failure as the end and answered 0 with nothing removed
  *                 and nothing logged, and rmrdir() blamed the rmdir().
+ *             17. mkrdir() that fails leaves the cause in errno, after its
+ *                 own log: a path under a FILE is ENOTDIR, a path longer than
+ *                 PATH_MAX is ENAMETOOLONG. Up to this fix the log changed
+ *                 errno, and a caller that logged strerror(errno) said
+ *                 "Success".
  *
  *          The failure of readdir() is made by __wrap_readdir() below, for
  *          the directory named by `failing_dir` (seen at its opendir()).
@@ -474,6 +479,28 @@ PRIVATE void test_remove_read_error(void)
 }
 
 /***************************************************************************
+ *  17. The errno of a failed mkrdir()
+ ***************************************************************************/
+PRIVATE void test_mkrdir_errno(void)
+{
+    errno = 0;
+    int ret = mkrdir(BASE "/a.md2/sub", 02770);
+    int err = errno;
+    ok_or_fail(ret == -1 && err == ENOTDIR,
+        "17. mkrdir() under a file answers -1 with errno ENOTDIR, after its log");
+
+    char long_path[PATH_MAX + 16];
+    memset(long_path, 'x', sizeof(long_path) - 1);
+    long_path[0] = '/';
+    long_path[sizeof(long_path) - 1] = 0;
+    errno = 0;
+    ret = mkrdir(long_path, 02770);
+    err = errno;
+    ok_or_fail(ret == -1 && err == ENAMETOOLONG,
+        "17. mkrdir() of a path too long answers -1 with errno ENAMETOOLONG");
+}
+
+/***************************************************************************
  *  9. A callback that stops the walk in a subdirectory
  ***************************************************************************/
 #define STOP_BASE   "/tmp/test_dir_read_error_stop"
@@ -683,6 +710,7 @@ int main(int argc, char *argv[])
     test_subdir_open_error();
     test_stat_errors();
     test_remove_read_error();
+    test_mkrdir_errno();
     test_callback_stops();
     test_long_paths();
     test_re_null();     // it crashed up to 7.25.4

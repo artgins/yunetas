@@ -188,7 +188,7 @@ PUBLIC BOOL file_exists(const char *directory, const char *filename);
 PUBLIC BOOL subdir_exists(const char *directory, const char *subdir);
 PUBLIC int file_remove(const char *directory, const char *filename);
 
-PUBLIC int mkrdir(const char *path, int xpermission);
+PUBLIC int mkrdir(const char *path, int xpermission); // -1 logged, errno the cause
 PUBLIC int rmrdir(const char *path);
 PUBLIC int rmrcontentdir(const char *root_dir);
 

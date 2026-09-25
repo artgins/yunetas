@@ -355,6 +355,7 @@ PRIVATE int ensure_one_directory(const char *path, int xpermission)
             "serrno",       "%s", strerror(ENOTDIR),
             NULL
         );
+        errno = ENOTDIR;
         return -1;
     }
     if(errno != ENOENT) {
@@ -385,6 +386,7 @@ PRIVATE int ensure_one_directory(const char *path, int xpermission)
             "serrno",       "%s", strerror(err),
             NULL
         );
+        errno = err;
         return -1;
     }
     return 0;
@@ -398,6 +400,9 @@ PRIVATE int ensure_one_directory(const char *path, int xpermission)
  *  could never be true and the second was taken as "exists": both answered 0
  *  with no directory there. A path longer than PATH_MAX is refused with a
  *  log (-1).
+ *  On -1 errno is the cause (ENAMETOOLONG, EINVAL for an empty path,
+ *  ENOTDIR, or the errno of the stat()/mkdir() that failed), for a caller
+ *  that logs it too: up to this fix the logs in between had changed it.
  ***************************************************************************/
 PUBLIC int mkrdir(const char *path, int xpermission)
 {
@@ -411,6 +416,7 @@ PUBLIC int mkrdir(const char *path, int xpermission)
             "msg",          "%s", "path EMPTY",
             NULL
         );
+        errno = EINVAL;
         return -1;
     }
     if(len >= sizeof(tmp)) {
@@ -427,6 +433,7 @@ PUBLIC int mkrdir(const char *path, int xpermission)
             "PATH_MAX",     "%d", (int)PATH_MAX,
             NULL
         );
+        errno = ENAMETOOLONG;
         return -1;
     }
     memcpy(tmp, path, len + 1);
@@ -520,6 +527,7 @@ PRIVATE int walk_path_append(char *path, size_t path_len, const char *name)
             "PATH_MAX",     "%d", (int)PATH_MAX,
             NULL
         );
+        errno = ENAMETOOLONG;
         return -1;
     }
     if(sep) {
@@ -666,6 +674,7 @@ PRIVATE int walk_path_start(char *bf, const char *path)
             "path_len",     "%d", (int)len,
             NULL
         );
+        errno = len? ENAMETOOLONG: EINVAL;
         return -1;
     }
     memcpy(bf, path, len + 1);

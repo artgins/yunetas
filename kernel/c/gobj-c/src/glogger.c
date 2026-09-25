@@ -8,6 +8,7 @@
  *              All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <wchar.h>
@@ -110,6 +111,8 @@ typedef int hgen_t;
  *              Prototypes
  ***************************************************************/
 PRIVATE void _log_jnbf(hgobj gobj, int priority, log_opt_t opt, va_list ap);
+PRIVATE void write_json_log(hgobj gobj, int priority, log_opt_t opt, va_list ap);
+PRIVATE void write_log_bf(int priority, log_opt_t opt, const char *bf, size_t len);
 PRIVATE void discover(hgobj gobj, hgen_t hgen);
 
 /*****************************************************************
@@ -936,8 +939,20 @@ PUBLIC void print_error(
 /*****************************************************************
  *      Log data in transparent format
  *      Used in trace_machine and trace_vjson
+ *
+ *  A log leaves errno as it found it, as _log_jnbf() does.
  *****************************************************************/
 PUBLIC void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
+{
+    int saved_errno = errno;
+    write_log_bf(priority, opt, bf, len);
+    errno = saved_errno;
+}
+
+/*****************************************************************
+ *      The body of _log_bf()
+ *****************************************************************/
+PRIVATE void write_log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
 {
     if(len <= 0) {
         return;
@@ -990,8 +1005,24 @@ PUBLIC void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
 /*****************************************************************
  *      Log data in json format
  *      Used in gobj_log_*()
+ *
+ *  A log leaves errno as it found it. A caller that logs a failure
+ *  and then answers -1 leaves the cause in errno for ITS caller,
+ *  which logs strerror(errno) in turn: up to this fix the handlers
+ *  (a write(), a json dump) had changed it by then, and that log named
+ *  another cause, or "Success" (a failed mkrdir() said errno 0).
  *****************************************************************/
 PRIVATE void _log_jnbf(hgobj gobj, int priority, log_opt_t opt, va_list ap)
+{
+    int saved_errno = errno;
+    write_json_log(gobj, priority, opt, ap);
+    errno = saved_errno;
+}
+
+/*****************************************************************
+ *      The body of _log_jnbf()
+ *****************************************************************/
+PRIVATE void write_json_log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
 {
     if(!__initialized__) {
         return;
