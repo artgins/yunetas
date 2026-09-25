@@ -25,6 +25,13 @@
  *              Up to 7.25.4 the attribute was documented and never read,
  *              and the deny-list not asked: every peer was heard.
  *
+ *          3.  A refused peer is said on the transition, not per datagram
+ *              (the source of a datagram can be forged): the refused peers
+ *              send three datagrams each, and there is ONE warning per
+ *              cause (denied, not allowed); the six drops are counted in
+ *              the stat `rxRefusedMsgs`. Before this fix each datagram was a
+ *              warning, and nothing counted them.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -270,6 +277,14 @@ PRIVATE int mt_play(hgobj gobj)
     sendto(priv->peer_fd[4], "local", 5, 0, (struct sockaddr *)&allow_addr, sizeof(allow_addr));
     sendto(priv->peer_fd[5], "both", 4, 0, (struct sockaddr *)&allow_addr, sizeof(allow_addr));
 
+    /*
+     *  3. The refused peers insist: counted, not said again
+     */
+    for(int i=0; i<2; i++) {
+        sendto(priv->peer_fd[2], "denied", 6, 0, (struct sockaddr *)&allow_addr, sizeof(allow_addr));
+        sendto(priv->peer_fd[5], "both", 4, 0, (struct sockaddr *)&allow_addr, sizeof(allow_addr));
+    }
+
     set_timeout(priv->timer, 300);
     return 0;
 }
@@ -336,9 +351,11 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    json_int_t refused = gobj_read_integer_attr(priv->gobj_allow, "rxRefusedMsgs");
     if(strcmp(priv->frames, "a1a2 b1b2") != 0 ||
             priv->opened != 2 ||
-            strcmp(priv->heard, "allowed local") != 0) {
+            strcmp(priv->heard, "allowed local") != 0 ||
+            refused != 6) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
@@ -348,6 +365,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "channels",     "%d", priv->opened,
             "heard",        "%s", priv->heard,
             "heard_expected", "%s", "allowed local",
+            "rxRefusedMsgs", "%ld", (long)refused,
+            "rxRefusedMsgs_expected", "%d", 6,
             NULL
         );
     } else {

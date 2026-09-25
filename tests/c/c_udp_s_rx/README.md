@@ -19,6 +19,11 @@ A driver gclass (`C_TEST_UDP_RX`) creates two children:
    (*"UDP_S: Ip not allowed, datagram dropped"*) and the last (*"UDP_S: Ip
    denied, datagram dropped"*: denied wins) with a warning. Up to 7.25.4 the
    attribute was documented and never read, and the deny-list not asked.
+3. The refused peers send two more datagrams each: still ONE warning per cause
+   (said on the transition, then at most once a minute with the count of the
+   drops: the source of a datagram can be forged), and the stat
+   `rxRefusedMsgs` counts the six drops. Before this fix every datagram was a
+   warning, and no stat counted them.
 
 The loopback is `127.0.0.0/8` on Linux, so the peers need no interface of
 their own.

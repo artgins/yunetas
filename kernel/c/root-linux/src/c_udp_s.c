@@ -27,6 +27,19 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+/*
+ *  A refused datagram is said with a WARNING on the transition: the first
+ *  one of a cause, then at most one each REFUSAL_WARN_SECONDS, with the
+ *  count of the ones dropped in between. The source of a datagram can be
+ *  forged: a warning per datagram was a flood of the log.
+ */
+#define REFUSAL_WARN_SECONDS    60
+
+typedef enum {
+    REFUSAL_DENIED = 0,     // the peer is in denied_ips
+    REFUSAL_NOT_ALLOWED,    // only_allowed_ips, and the peer is not in allowed_ips
+    REFUSAL_CAUSES
+} refusal_cause_t;
 
 /***************************************************************************
  *              Prototypes
@@ -79,6 +92,7 @@ SDATA (DTP_INTEGER,     "txBytes",          SDF_RSTATS,     "0", "Messages trans
 SDATA (DTP_INTEGER,     "rxBytes",          SDF_RSTATS,     "0", "Messages received"),
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_RSTATS,     "0", "Messages transmitted"),
 SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RSTATS,     "0", "Messages received"),
+SDATA (DTP_INTEGER,     "rxRefusedMsgs",    SDF_RSTATS,     "0", "Datagrams dropped: their peer is in denied_ips, or not in allowed_ips with only_allowed_ips"),
 SDATA (DTP_STRING,      "sockname",         SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
 SDATA (DTP_POINTER,     "user_data",        0,  0, "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,  0, "more user data"),
@@ -120,6 +134,10 @@ typedef struct _PRIVATE_DATA {
     json_int_t rxMsgs;
     json_int_t txBytes;
     json_int_t rxBytes;
+    json_int_t rxRefusedMsgs;
+
+    time_t t_refusal_warn[REFUSAL_CAUSES];          // next warning of a cause
+    json_int_t refused_since_warn[REFUSAL_CAUSES];  // dropped since the last warning
 
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
@@ -445,6 +463,9 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     } else if(strcmp(name, "rxMsgs")==0) {
         v.found = 1;
         v.v.i = priv->rxMsgs;
+    } else if(strcmp(name, "rxRefusedMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->rxRefusedMsgs;
     } else if(strcmp(name, "cur_tx_queue")==0) {
         v.v.i = (json_int_t)dl_size(&priv->dl_tx);
     }
@@ -852,25 +873,107 @@ PRIVATE BOOL is_loopback_peer(const char *peername)
 }
 
 /***************************************************************************
- *  Why the datagram of this peer is not heard, or NULL: the yuno's ip lists,
- *  as C_TCP_S asks them at accept. A loopback peer is exempt from both; a
- *  peer in `denied_ips` is refused always, and wins; with
- *  `only_allowed_ips`, a peer not in `allowed_ips` is refused.
+ *  Is the datagram of this peer refused? The yuno's ip lists, as C_TCP_S
+ *  asks them at accept. A loopback peer is exempt from both; a peer in
+ *  `denied_ips` is refused always, and wins; with `only_allowed_ips`, a
+ *  peer not in `allowed_ips` is refused.
  ***************************************************************************/
-PRIVATE const char *peer_refusal(hgobj gobj, const char *peername)
+PRIVATE BOOL peer_is_refused(hgobj gobj, const char *peername, refusal_cause_t *cause)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(is_loopback_peer(peername)) {
-        return NULL;
+        return FALSE;
     }
     if(is_ip_denied(peername)) {
-        return "UDP_S: Ip denied, datagram dropped";
+        *cause = REFUSAL_DENIED;
+        return TRUE;
     }
     if(priv->only_allowed_ips && !is_ip_allowed(peername)) {
-        return "UDP_S: Ip not allowed, datagram dropped";
+        *cause = REFUSAL_NOT_ALLOWED;
+        return TRUE;
     }
-    return NULL;
+    return FALSE;
+}
+
+/***************************************************************************
+ *  A refused datagram: counted always (rxRefusedMsgs), said on the
+ *  transition. The first one of a cause is a WARNING, then at most one each
+ *  REFUSAL_WARN_SECONDS, with the datagrams of that cause dropped since the
+ *  last one (`dropped`, this one included). Before this fix every datagram
+ *  was a WARNING: a flood of a forged source was a flood of the log.
+ ***************************************************************************/
+PRIVATE void note_refused_datagram(
+    hgobj gobj,
+    refusal_cause_t cause,
+    const char *peername,
+    size_t len
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->rxRefusedMsgs++;
+    priv->refused_since_warn[cause]++;
+
+    if(priv->t_refusal_warn[cause] != 0 && !test_sectimer(priv->t_refusal_warn[cause])) {
+        return; // counted, said at the next warning of this cause
+    }
+
+    const char *refusal = (cause == REFUSAL_DENIED)?
+        "UDP_S: Ip denied, datagram dropped":
+        "UDP_S: Ip not allowed, datagram dropped";
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",          "%s", refusal,
+        "msg2",         "%s", refusal,
+        "url",          "%s", priv->url,
+        "peername",     "%s", peername,
+        "len",          "%d", (int)len,
+        "dropped",      "%ld", (long)priv->refused_since_warn[cause],
+        "rxRefusedMsgs", "%ld", (long)priv->rxRefusedMsgs,
+        "next_warning_in", "%d", REFUSAL_WARN_SECONDS,
+        NULL
+    );
+    priv->refused_since_warn[cause] = 0;
+    priv->t_refusal_warn[cause] = start_sectimer(REFUSAL_WARN_SECONDS);
+}
+
+/***************************************************************************
+ *  Read the next datagram. The gbuffer of the one just published is used
+ *  again when nobody kept it, the common case. When the host kept it --
+ *  it answered IN it (EV_TX_DATA with the kw of the EV_RX_DATA: the peer
+ *  address is there already), and the answer waits in the queue or is in
+ *  flight -- the next datagram goes to a NEW gbuffer. Up to 7.25.4 it was
+ *  cleared and read into again: the answer was sent empty (dropped, "Cannot
+ *  send datagram"), or with the bytes and the peer of the next datagram,
+ *  and a zero-copy send could read memory the next read was writing.
+ ***************************************************************************/
+PRIVATE void rearm_read(hgobj gobj, yev_event_h yev_event)
+{
+    gbuffer_t *gbuf = yev_get_gbuf(yev_event);
+
+    if(gbuf && gbuf->refcount > 1) {
+        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
+        gbuffer_t *gbuf_new = gbuffer_create((size_t)rx_buffer_size, (size_t)rx_buffer_size);
+        if(!gbuf_new) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "UDP: no memory for the next read, the server stops listening",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "rx_buffer_size", "%ld", (long)rx_buffer_size,
+                NULL
+            );
+            try_to_stop_yevents(gobj);
+            return;
+        }
+        yev_set_gbuffer(yev_event, NULL);       // the host keeps its reference
+        yev_set_gbuffer(yev_event, gbuf_new);   // owned by the event
+    } else {
+        gbuffer_clear(gbuf);
+    }
+    yev_start_event(yev_event); // a failure is logged by yev_start_event()
 }
 
 /***************************************************************************
@@ -932,7 +1035,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                 if(yev_state == YEV_ST_IDLE) {
                     /*
                      *  The peer, with the length the kernel gave: an answer
-                     *  written in this gbuffer goes back to it (write_data)
+                     *  written in this gbuffer goes back to it (write_data;
+                     *  the next read takes a new gbuffer, see rearm_read())
                      */
                     gbuffer_setaddr(
                         gbuf,
@@ -949,25 +1053,15 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         );
                     }
 
-                    const char *refusal = peer_refusal(gobj, peername);
-                    if(refusal) {
+                    refusal_cause_t cause;
+                    if(peer_is_refused(gobj, peername, &cause)) {
                         /*
                          *  Up to 7.25.4 `only_allowed_ips` was documented
                          *  and never read, and the deny-list not asked:
                          *  every peer was heard
                          */
-                        gobj_log_warning(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                            "msg",          "%s", refusal,
-                            "msg2",         "%s", refusal,
-                            "url",          "%s", priv->url,
-                            "peername",     "%s", peername,
-                            "len",          "%d", (int)gbuffer_leftbytes(gbuf),
-                            NULL
-                        );
-                        gbuffer_clear(gbuf);
-                        yev_start_event(yev_event);
+                        note_refused_datagram(gobj, cause, peername, gbuffer_leftbytes(gbuf));
+                        rearm_read(gobj, yev_event);
                         break;
                     }
 
@@ -1002,7 +1096,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     }
 
                     /*
-                     *  Clear buffer, re-arm read
+                     *  Re-arm read (a new gbuffer if the host kept this one)
                      *  Check ret is 0 because the EV_RX_DATA could provoke
                      *      stop or destroy of gobj
                      *      or order to disconnect (EV_DROP)
@@ -1011,8 +1105,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      *  If it's in idle then re-arm
                      */
                     if(ret == 0 && yev_event_is_idle(yev_event)) {
-                        gbuffer_clear(gbuf);
-                        yev_start_event(yev_event);
+                        rearm_read(gobj, yev_event);
                     }
 
                 } else {

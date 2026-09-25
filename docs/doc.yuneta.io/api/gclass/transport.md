@@ -183,14 +183,28 @@ connection ([IP lists at accept](#tcp_s_ip_lists)), before it is published:
 
 1. A loopback peer (`127.0.0.x`, `::1`, `::ffff:127.0.0.x`) is always heard.
 2. A peer in `denied_ips` is dropped, with or without `only_allowed_ips`, and
-   it wins over `allowed_ips`: a WARNING, *"UDP_S: Ip denied, datagram
-   dropped"*.
-3. With `only_allowed_ips`, a peer that is not in `allowed_ips` is dropped: a
-   WARNING, *"UDP_S: Ip not allowed, datagram dropped"*.
+   it wins over `allowed_ips`: *"UDP_S: Ip denied, datagram dropped"*.
+3. With `only_allowed_ips`, a peer that is not in `allowed_ips` is dropped:
+   *"UDP_S: Ip not allowed, datagram dropped"*.
 
-Each warning names the `peername` and the length. Up to 7.25.4
-`only_allowed_ips` was documented and never read, and the deny-list was not
-asked: every peer was heard.
+Every dropped datagram is counted in the stat `rxRefusedMsgs`. The drops are
+SAID on the transition, not per datagram, because the source address of a
+datagram can be forged and a flood of them was a flood of the log: the first
+drop of a cause is a WARNING, then at most one each 60 seconds per cause, with
+`dropped` (the datagrams of that cause dropped since the previous warning, this
+one included), the total `rxRefusedMsgs`, the `peername` of the datagram that
+is said and its length. Before this fix each datagram was a WARNING, and nothing
+counted them. Up to 7.25.4 `only_allowed_ips` was documented and never read,
+and the deny-list was not asked: every peer was heard.
+
+```text
+WARN  note_refused_datagram: UDP_S: Ip denied, datagram dropped  peername=203.0.113.7:5000 len=64 dropped=1 rxRefusedMsgs=1 next_warning_in=60
+WARN  note_refused_datagram: UDP_S: Ip denied, datagram dropped  peername=203.0.113.9:5000 len=64 dropped=4211 rxRefusedMsgs=4212 next_warning_in=60
+```
+
+```bash
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-attrs gobj=<full name of the C_UDP_S>'   # rxRefusedMsgs, among its attrs
+```
 
 ```C
 json_t *kw_udp = json_pack("{s:s, s:b}",
@@ -214,6 +228,26 @@ listening"*. It is the only failure that stops it.
 `gbuffer_setaddr()` -- the gbuffer of an `EV_RX_DATA` has it already, so an
 answer goes back to the sender. One datagram is sent at a time; the others
 wait in a queue, in order, and each completion sends the next:
+
+```C
+PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    // The answer IN the rx gbuffer: rewrite it (or not, an echo) and send the kw back
+    return gobj_send_event(gobj_udp_s, EV_TX_DATA, kw, gobj);
+}
+```
+
+The rx gbuffer is the host's to keep: when the host still holds it after the
+`EV_RX_DATA` (an answer in it waiting in the queue or in flight, or a
+reference kept for later), `C_UDP_S` reads the next datagram into a NEW
+gbuffer, of `rx_buffer_size`; when nobody kept it, the same gbuffer is read
+into again, as always. Up to 7.25.4 it was always cleared and read into again:
+an answer in it was sent empty (dropped: *"Cannot start event: gbuffer WITHOUT
+data to write"*, *"Cannot send datagram: dropped"*) or with the bytes and the
+peer of the next datagram, and a zero-copy send could read memory the next read
+was writing. `tests/c/c_udp_s_echo`.
+
+A new datagram is built like this:
 
 ```C
 gbuffer_t *gbuf = gbuffer_create(64, 64);
@@ -269,7 +303,9 @@ and `tests/c/c_udp_s_rx` for the receive side.
 | `shared` | `bool` | Enable port sharing. |
 | `set_broadcast` | `bool` | Enable broadcast. |
 | `only_allowed_ips` | `bool` | Hear only the peers in the yuno's `allowed_ips` (see *Receive*; `denied_ips` applies with or without it); writable, it takes effect at the next datagram. |
-| `rx_buffer_size` | `integer` | Receive buffer size. |
+| `rx_buffer_size` | `integer` | Receive buffer size: the gbuffer of each read (a new one when the host kept the previous one, see *Transmit*). |
+| `txMsgs` / `rxMsgs` / `txBytes` / `rxBytes` | `integer` | Counters (stats). |
+| `rxRefusedMsgs` | `integer` | Datagrams dropped by the ip lists (stats, see *Receive*). |
 
 ---
 

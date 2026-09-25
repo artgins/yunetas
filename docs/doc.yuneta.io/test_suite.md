@@ -132,9 +132,10 @@ Plain and TLS TCP through the full GObj protocol stack.
 |--------|-------------|
 | **`test_c_udp_s_tx`** | [`C_UDP_S`](#gclass-c-udp-s) sends every datagram of its queue, in order, and drops one it cannot send -- no peer address (an error), refused by the kernel, a peer port `0` (a warning with the peer and `EINVAL`) -- leaking nothing, and goes on listening. |
 | **`test_c_udp_s_restart`** | [`C_UDP_S`](#gclass-c-udp-s) stopped with a send in flight ends the stop with `EV_STOPPED`; started again after a file took the number of its old socket, it reads and sends again; stopped and started in the same turn (its read still canceling), it reads again. |
-| **`test_c_udp_s_rx`** | The pieces of two long frames of two peers, interleaved, come out whole from [`C_GSS_UDP_S`](#gclass-c-gss-udp-s): every datagram is labelled with its peer. The yuno's ip lists: with `only_allowed_ips` a peer that is not allowed is dropped with a warning, a peer in `denied_ips` too (denied wins over allowed), an allowed one and the loopback are heard. |
+| **`test_c_udp_s_rx`** | The pieces of two long frames of two peers, interleaved, come out whole from [`C_GSS_UDP_S`](#gclass-c-gss-udp-s): every datagram is labelled with its peer. The yuno's ip lists: with `only_allowed_ips` a peer that is not allowed is dropped with a warning, a peer in `denied_ips` too (denied wins over allowed), an allowed one and the loopback are heard. A refused peer that insists is said once per cause, not per datagram, and the stat `rxRefusedMsgs` counts every drop. |
+| **`test_c_udp_s_echo`** | A host that answers IN the gbuffer of each [`C_UDP_S`](#gclass-c-udp-s) `EV_RX_DATA` (its kw sent back as `EV_TX_DATA`): with five sends waiting in the queue and two peers talking in the same turn, and with three datagrams read while each answer is in flight, every answer reaches its own sender, whole, with no error. Up to 7.25.4 the gbuffer was cleared and read into again: an answer was sent empty (dropped) or with the bytes and the peer of another datagram. |
 
-**Source:** `tests/c/c_udp_s_tx/`, `tests/c/c_udp_s_restart/`, `tests/c/c_udp_s_rx/`
+**Source:** `tests/c/c_udp_s_tx/`, `tests/c/c_udp_s_restart/`, `tests/c/c_udp_s_rx/`, `tests/c/c_udp_s_echo/`
 
 ## TLS certificate hot-reload
 
