@@ -13,15 +13,6 @@ The console is gui_agent's **Schemas** workspace (design and traps in
 
 What that workspace still lacks:
 
-- **Applying needs an agent carrying the `ac_final_count` fix of 7.13.0.** The workspace
-    does it now (`kill-yuno` → `run-yuno play=0` → `play-yuno`, confirmed
-    first), but those commands answer through `ac_final_count()`, which dropped
-    the answer of any client behind a controlcenter until now. Against an older
-    agent the sequence stops at the first step with the yuno KILLED and not
-    restarted; the tab gives up after 30 s and says so, but the yuno stays
-    down until somebody runs it. Deploy the agent before using Apply on a
-    node.
-
 - **Authz is the yuno's, and nobody provisions it.** The commands run in the
     target yuno with the logged-in identity, so a console user needs the `read`
     / `create` / `update` / `delete` authz of that `C_NODE` in **that yuno's**
@@ -53,14 +44,15 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     nothing says so. Deciding what the GUI does here (warn, refuse, offer to
     keep it hidden) needs the record side, not the schema side.
 
-- **Applying an edit costs a `pause-yuno` + `play-yuno`.** That is the whole
-    yuno, not just the treedb: its gate goes down for the cycle, and any client
+- **Applying an edit restarts the whole yuno** (`kill-yuno` → `run-yuno
+    play=0` → `play-yuno`), not just the treedb: its gate goes down for the cycle, and any client
     connected to it — the editor included — has to reconnect. Reopening only the
     treedb is not available to a third party and should not be: `close-treedb`
     destroys services whose handles the owner has cached (it now refuses while
     the yuno plays). A true in-place reload would live in the owner, as a local
     method it implements — "reload your schema" — using
-    `tranger2_write_topic_cols()` (written, called by nobody) plus
+    `tranger2_write_topic_cols()` (called only by `tranger2_create_topic()`;
+    no reload path uses it) plus
     `parse_schema_cols()` + `parse_hooks()` and a link reload when hooks or
     fkeys change.
 

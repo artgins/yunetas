@@ -350,6 +350,21 @@ changed code at all), the layout effect of a relink described above. The
 topics of `perf_tr_treedb` have no pkey2, and the new scans of the instances
 run only for a child topic that has one.
 
+The newest record of each key kept on the instance that wrote it (a forced
+delete, a refused delete or a failed unlink taken back, a snap shot: commit
+41b6597c8), as an A/B of that change alone (only `tr_treedb.o` differs; 12
+alternated rounds, `taskset` to one CPU, CPU us per operation, mean +-
+standard deviation):
+
+| Case | before | after | Change |
+|------|--------|-------|--------|
+| `update_saved` | 10.955 +- 0.11 | 10.947 +- 0.53 | -0.1% |
+| `delete_force` | 73.07 +- 4.1 | 74.53 +- 5.4 | +2.0% |
+| `delete_parent` | 3308 +- 409 | 3210 +- 134 | -3.0% |
+
+Every move is inside the spread of its case: noise. The benchmark's topics
+have no pkey2, so there the new code is one lookup per child.
+
 `timeranger2/test_topic_pkey_integer` (appends/s, 180 000 appends; 20
 rounds, the order swapped at each round):
 
@@ -632,6 +647,13 @@ loop (commit 354e818e6), 8 alternated rounds: `perf_yev_ping_pong` 137.8 +-
 5.0 -> 140.5 +- 4.6 K msg/s (+2.0%), noise. The scan runs only when an fd is
 closed with something pending on it.
 
+yev_loop, the entry of the ring cleared when it is handed out (its fd and its
+owner), and the cancel of a running stop prepared before the fd closes
+(commit 3dc800efa), 6 alternated rounds, K msg/s of `perf_yev_ping_pong`:
+before 153.9 / 142.0 / 137.3 / 148.2 / 147.2 / 152.7, after 150.3 / 123.0 /
+147.5 / 147.8 / 147.9 / 152.9. Medians 147.7 -> 147.9 (+0.1%): no change;
+the 123.0 is one round alone.
+
 Publish (`gobj_publish_event()`), a subscription with `__local__` or
 `__global__` given its own kw (commits 42a6818b6, then b307eef3f). There is
 no publish benchmark in the tree; a scratch one (`bench_publish.c`, not in
@@ -669,20 +691,41 @@ subscriber pays the twin, beside the serialization of the kw it already
 paid. This is the price of the fix of a peer's subscription that changed the
 event of every later subscriber (see the CHANGELOG, "Security").
 
-ctest timing trend (`build/*.txt`, 47 runs of `yunetas test` from 2026-09-23
-10:20 to 2026-09-25 09:43): of the tests whose code did not change after
+Subscribe (`gobj_subscribe_event()` / `gobj_unsubscribe_event()`), the kw
+matched as it is stored (a repeated `__own_event__` / `__rename_event_name__`
+subscription replaces the one there: commit b8aea552b). A scratch benchmark
+(`bench_subscribe.c`, not in the tree) makes N subscriptions of one gobj and
+withdraws them; only `gobj.o` differs, 4 alternated rounds, us an operation,
+the median of the mean of a subscribe and an unsubscribe:
+
+| Subscriptions | `__config__` | before | after | Change |
+|----|----|----|----|----|
+| 100 | no | 8.63 | 8.47 | -1.9% (one cold round of 26 us in "after") |
+| 100 | yes | 11.24 | 10.69 | -4.8% |
+| 2000 | no | 167.68 | 158.41 | -5.5% |
+| 2000 | yes | 225.98 | 218.58 | -3.3% |
+
+The publish of the same run (`bench_publish.c`, above) moves -3.4% .. +2.7%
+(medians), noise. C_IEVENT_SRV's own subscribe adds one scan of the
+channel's subscriptions (at most `max_subscriptions`), and it stores a
+smaller back-metadata, which every event of the subscription copies: not
+measured.
+
+ctest timing trend (`build/*.txt`, 52 runs of `yunetas test` from 2026-09-23
+10:20 to 2026-09-25 12:26): of the tests whose code did not change after
 7.25.4, only `test_treedb_schema_fidelity` moved more than 10%, from
 1.14-1.26 s (the 4 runs before the change, median 1.19 s) to 1.55-1.81 s (the
-43 after it, median 1.65 s; +36% .. +44% minimum against minimum and maximum
+48 after it, median 1.66 s; +36% .. +44% minimum against minimum and maximum
 against maximum, +39% median against median). It
 opens four treedbs in four new stores, and its fsyncs (88 in the current
 build) take ~0.56 s: the price of the durable topic files and of the
-projection record. The `c_tcp` and `c_tcp2` tests wait on whole seconds of
+projection record. The `c_tcp`, `c_tcp2` and `c_tcps` tests wait on whole seconds of
 their retry timers and moved by whole seconds in every period
-(`c_tcp/test2` 9-15 s, `c_tcp/test3` 2-4 s): noise. `test_c_treedb_system_schema`,
-`test_c_treedb_literal_wins` (2.3 s -> 138 s: a kill at every write of a
-projection) and `test_tr_treedb_files` gained cases, so their times cannot be
-compared. `timeranger2/test_topic_pkey_integer` stays at 1.84-2.12 s.
+(`c_tcp/test2` 9-15 s, `c_tcp/test3` 2-4 s, `c_tcps/test1` 12-14 s): noise.
+`test_c_treedb_system_schema`, `test_c_treedb_literal_wins` (2.3 s -> ~225 s,
+218-235 s in the runs since 2026-09-24 18:59: a kill at every write of a
+projection), `test_tr_treedb_delete_instance` and `test_tr_treedb_files`
+gained cases, so their times cannot be compared. `timeranger2/test_topic_pkey_integer` stays at 1.84-2.12 s.
 
 ### Key takeaways
 
