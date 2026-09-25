@@ -568,12 +568,22 @@ gobj_subscribe_event(gobj_remote, EV_REALTIME_TRACK, json_pack("{s:{s:b}, s:{s:s
 ```
 
 A channel holds at most `max_subscriptions` of its peer (default 5000), and
-a `__filter__` or `__global__` bigger than `max_subscription_size` (default
-16 KB) is refused: each subscription costs a scan of the publisher's list on
-every publish.
+a `__filter__`, a `__global__` or a routing back bigger than
+`max_subscription_size` (default 16 KB) is refused: each subscription costs a
+scan of the publisher's list on every publish. The routing back that the gate
+stores is only the reversed top hop of the frame's stack, nothing else of the
+peer's `__md_iev__`. A subscription that repeats one the channel holds is
+left as it is: no second `mt_subscription_added()`, no second first shot.
+
+A frame of a session without its routing (`__md_iev__` with the ievent stack)
+closes the channel; a frame for a service the channel may not reach is
+refused (a command gets a negative answer). Each of these logs at most one
+capped WARNING per 10 s per channel, with no stack: a peer can repeat them
+frame after frame.
 
 Details and the list of keys: [`ievent.md`](../../../docs/doc.yuneta.io/api/gclass/ievent.md),
-*What a peer may put in a subscription* and *What a peer may hold*.
+*What a peer may put in a subscription*, *What a peer may hold* and *A frame
+the gate cannot route*.
 
 ### 4.7 Two identities travel on a channel — do not confuse them
 

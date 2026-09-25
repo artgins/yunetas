@@ -67,6 +67,23 @@
  *                 subscription without filter gets it, without the
  *                 `gbuffer` she set (up to 7.25.4 the gate took her integer
  *                 for a gbuffer when it serialized the event: a crash).
+ *              5. What the gate keeps to route the events back:
+ *                 `alice`'s EV_TEST_OPEN frame carries a 4 KB key of her
+ *                 own in `__md_iev__`, which is not stored (up to 7.25.4 the
+ *                 whole `__md_iev__` was, after max_subscription_size was
+ *                 measured), and a subscription whose routing (a 1 KB
+ *                 `host`) is over the 512 bytes is refused, logged once.
+ *              6. `alice` repeats her EV_TEST_BIN subscription 3 times: it
+ *                 is kept as it is (no delete and add again, no second
+ *                 mt_subscription_added), logged once. Up to 7.25.4 each
+ *                 repeat logged a warning with a stack and the whole kw.
+ *              7. `alice` sends 3 commands, with a 2 KB key, to `tester`, a
+ *                 service her channel may not reach: 3 negative answers,
+ *                 ONE warning, capped; 2 commands that name no command: 2
+ *                 negative answers, ONE warning; then a frame without routing (no
+ *                 `__md_iev__`, 50 KB): a warning, capped, and her channel
+ *                 is closed. Up to 7.25.4 each such frame logged an error
+ *                 with a stack and the whole kw, and was processed.
  *
  *          A wrong result is logged as an error, which the expected-logs
  *          check of main.c does not expect.
@@ -95,6 +112,17 @@ PRIVATE int send_raw_iev(
     gobj_event_t event,
     json_t *kw      // owned
 );
+PRIVATE int send_raw_iev2(
+    hgobj gobj,
+    hgobj cli,
+    const char *msg_type,
+    gobj_event_t event,
+    json_t *kw,     // owned
+    const char *dst_service,
+    const char *host
+);
+PRIVATE int send_frame_without_routing(hgobj gobj, hgobj cli, gobj_event_t event, json_t *kw);
+PRIVATE void check_alice_routing(hgobj gobj);
 PRIVATE int check(hgobj gobj, const char *what, BOOL ok);
 PRIVATE json_t *received_one(hgobj gobj, const char *name);
 PRIVATE int count_subscriptions_of(hgobj gobj, hgobj publisher, gobj_event_t event, const char *username);
@@ -110,6 +138,10 @@ PRIVATE json_t *received = 0;   // subscriber name -> [kw, ...] of EV_TEST_FEED
 PRIVATE json_t *stamped = 0;    // "command", "stats", "event" -> the kw the service saw
 PRIVATE json_t *bins = 0;       // subscriber name -> the bytes of EV_TEST_BIN it got
 PRIVATE int bin_refcount_after = -1;    // the gbuffer's refcount when the publish returned
+PRIVATE int bin_subscriptions_added = 0;    // mt_subscription_added of EV_TEST_BIN
+PRIVATE int bin_added_before_repeat = -1;
+PRIVATE int negative_answers = 0;       // command answers with a negative result
+PRIVATE BOOL alice_closed = FALSE;
 
 GOBJ_DEFINE_EVENT(EV_TEST_FEED);
 GOBJ_DEFINE_EVENT(EV_TEST_OPEN);
@@ -302,15 +334,31 @@ PRIVATE int send_raw_iev(
     json_t *kw      // owned
 )
 {
+    return send_raw_iev2(gobj, cli, msg_type, event, kw, "publisher", "");
+}
+
+/***************************************************************************
+ *  A frame of a peer, to `dst_service`, from `host`
+ ***************************************************************************/
+PRIVATE int send_raw_iev2(
+    hgobj gobj,
+    hgobj cli,
+    const char *msg_type,
+    gobj_event_t event,
+    json_t *kw,     // owned
+    const char *dst_service,
+    const char *host
+)
+{
     json_t *jn_ievent_id = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "dst_yuno", "",
         "dst_role", "",
-        "dst_service", "publisher",
+        "dst_service", dst_service,
         "src_yuno", gobj_yuno_name(),
         "src_role", gobj_yuno_role(),
         "src_service", gobj_name(gobj),
         "user", "",
-        "host", ""
+        "host", host
     );
     /*
      *  What the gate stamps, forged: it must overwrite them
@@ -351,6 +399,59 @@ PRIVATE int check(hgobj gobj, const char *what, BOOL ok)
         return -1;
     }
     return 0;
+}
+
+/***************************************************************************
+ *  A frame with no routing at all: no `__md_iev__`
+ ***************************************************************************/
+PRIVATE int send_frame_without_routing(hgobj gobj, hgobj cli, gobj_event_t event, json_t *kw)
+{
+    gbuffer_t *gbuf = iev_create_to_gbuffer(gobj, event, kw);
+    if(!gbuf) {
+        // Error already logged
+        return -1;
+    }
+    return gobj_send_event(
+        gobj_bottom_gobj(cli),
+        EV_SEND_MESSAGE,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+        cli
+    );
+}
+
+/***************************************************************************
+ *  What the gate keeps, in alice's EV_TEST_OPEN subscriptions, to route the
+ *  events back: the reversed hop of her frame and nothing of hers
+ ***************************************************************************/
+PRIVATE void check_alice_routing(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *dl_subs = gobj_find_subscriptions(priv->publisher, EV_TEST_OPEN, NULL, NULL);
+    int seen = 0;
+    size_t idx; json_t *subs;
+    json_array_foreach(dl_subs, idx, subs) {
+        hgobj subscriber = (hgobj)(uintptr_t)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
+        if(!gobj_has_attr(subscriber, "__username__") ||
+                strcmp(gobj_read_str_attr(subscriber, "__username__"), "alice")!=0) {
+            continue;
+        }
+        seen++;
+        json_t *md_iev = json_object_get(json_object_get(subs, "__global__"), "__md_iev__");
+        check(gobj, "alice's routing is stored", json_is_object(md_iev));
+        check(gobj, "alice's routing: no key of hers", json_object_get(md_iev, "pad") == NULL);
+        check(gobj, "alice's routing: only the stack", json_object_size(md_iev) == 1);
+        json_t *jn_stack = json_object_get(md_iev, IEVENT_STACK_ID);
+        check(gobj, "alice's routing: one hop", json_array_size(jn_stack) == 1);
+        check(gobj, "alice's routing: reversed",
+            strcmp(kw_get_str(gobj, json_array_get(jn_stack, 0), "dst_service", "", 0),
+                gobj_name(gobj))==0
+        );
+        size_t size = json_dumpb(json_object_get(subs, "__global__"), NULL, 0, JSON_COMPACT);
+        check(gobj, "alice's __global__ is small", size < 1024);
+    }
+    JSON_DECREF(dl_subs)
+    check(gobj, "alice holds 2 EV_TEST_OPEN", seen == 2);
 }
 
 /***************************************************************************
@@ -463,11 +564,23 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "junk", 1
             )
         );
+        char pad[4096];
+        memset(pad, 'P', sizeof(pad));
+        pad[sizeof(pad)-1] = 0;
         send_raw_iev(gobj, priv->cli_alice, "__subscribing__", EV_TEST_OPEN,
-            json_pack("{s:{s:i}}", "__global__", "gbuffer", 1)
+            json_pack("{s:{s:i}, s:{s:s}}",
+                "__global__", "gbuffer", 1,
+                "__md_iev__", "pad", pad    // 5. not stored
+            )
         );
         send_raw_iev(gobj, priv->cli_alice, "__subscribing__", EV_TEST_BIN,
             json_object()
+        );
+        pad[1024] = 0;
+        send_raw_iev2(gobj, priv->cli_alice, "__subscribing__", EV_TEST_OPEN,
+            json_pack("{s:{s:i}}", "__filter__", "n", 50),
+            "publisher",
+            pad         // 5. a routing over 512 bytes: refused
         );
         gobj_subscribe_event(priv->cli_bob, EV_TEST_BIN, 0, gobj);
         gobj_subscribe_event(
@@ -491,6 +604,11 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->cli_alice) {
+        alice_closed = TRUE;
+    }
     JSON_DECREF(kw)
     return 0;
 }
@@ -534,6 +652,9 @@ PRIVATE int ac_peer_msg(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    if(kw_get_int(gobj, kw, "result", 0, 0) < 0) {
+        negative_answers++;
+    }
     JSON_DECREF(kw)
     return 0;
 }
@@ -546,6 +667,15 @@ PRIVATE json_t *pub_mt_command_parser(hgobj gobj, const char *command, json_t *k
     json_object_set_new(stamped, "command", json_deep_copy(kw));
     KW_DECREF(kw)
     return build_command_response(gobj, 0, 0, 0, 0);
+}
+
+PRIVATE int pub_mt_subscription_added(hgobj gobj, json_t *subs)
+{
+    gobj_event_t event = (gobj_event_t)(uintptr_t)kw_get_int(gobj, subs, "event", 0, KW_REQUIRED);
+    if(event == EV_TEST_BIN) {
+        bin_subscriptions_added++;
+    }
+    return 0;
 }
 
 PRIVATE json_t *pub_mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
@@ -698,6 +828,22 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
 
             /*
+             *  7. A service alice's channel may not reach
+             */
+            for(int i=0; i<3; i++) {
+                send_raw_iev2(gobj, priv->cli_alice, "__command__", EV_MT_COMMAND,
+                    json_pack("{s:s, s:s}", "__command__", "help", "junk", big),
+                    "tester",
+                    ""
+                );
+            }
+            for(int i=0; i<2; i++) {    // a command that names no command
+                send_raw_iev(gobj, priv->cli_alice, "__command__", EV_MT_COMMAND,
+                    json_pack("{s:s}", "junk", big)
+                );
+            }
+
+            /*
              *  3. bob withdraws his subscription, as C_IEVENT_CLI does it
              */
             gobj_unsubscribe_event(
@@ -722,6 +868,18 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check_stamped(gobj, "command");
             check_stamped(gobj, "stats");
             check_stamped(gobj, "event");
+            check(gobj, "5 negative answers: a service not authorized, no command", negative_answers == 5);
+            check_alice_routing(gobj);
+
+            /*
+             *  6. alice repeats a subscription she holds
+             */
+            bin_added_before_repeat = bin_subscriptions_added;
+            for(int i=0; i<3; i++) {
+                send_raw_iev(gobj, priv->cli_alice, "__subscribing__", EV_TEST_BIN,
+                    json_object()
+                );
+            }
 
             /*
              *  4. alice's subscription with a `gbuffer`; 3c. a real one
@@ -749,11 +907,36 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check(gobj, "EV_TEST_BIN to local",
                 strcmp(kw_get_str(gobj, bins, "local", "", 0), "binary payload")==0
             );
+            check(gobj, "a repeated subscription is kept as it is",
+                bin_subscriptions_added == bin_added_before_repeat
+            );
+            check(gobj, "alice still holds max_subscriptions",
+                count_subscriptions_of(gobj, priv->publisher, NULL, "alice") == 4
+            );
             gobj_unsubscribe_event(priv->publisher, EV_TEST_BIN, 0, priv->sink_local);
             gobj_unsubscribe_event(priv->publisher, EV_TEST_FEED, 0, priv->sink_local);
             gobj_unsubscribe_event(priv->publisher, EV_TEST_FEED, 0, priv->sink_strip);
-            gobj_stop_tree(priv->cli_alice);
             gobj_stop_tree(priv->cli_bob);
+
+            /*
+             *  7. A frame without routing. One: the channel is closed on
+             *  the first, and what the peer sends after it is not read.
+             */
+            {
+                char *pad2 = gbmem_malloc(50*1024+1);
+                memset(pad2, 'Q', 50*1024);
+                pad2[50*1024] = 0;
+                send_frame_without_routing(gobj, priv->cli_alice, EV_TEST_PEER_MSG,
+                    json_pack("{s:s}", "pad", pad2)
+                );
+                gbmem_free(pad2);
+            }
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 4:
+            check(gobj, "a frame without routing closes the channel", alice_closed);
+            gobj_stop_tree(priv->cli_alice);
             set_timeout(priv->timer, 300);
             break;
 
@@ -827,6 +1010,7 @@ PRIVATE const GMETHODS gmt = {
 PRIVATE const GMETHODS gmt_pub = {
     .mt_stats = pub_mt_stats,
     .mt_command_parser = pub_mt_command_parser,
+    .mt_subscription_added = pub_mt_subscription_added,
 };
 PRIVATE const GMETHODS gmt_sink = {
     0

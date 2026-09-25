@@ -254,6 +254,26 @@ static BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj 
 int no_match_lines = 0;
 size_t no_match_longest = 0;
 
+/*
+ *  The same, for the other logs a peer can repeat: the first four ONE line
+ *  each, capped, and no stack (a stack is written as more lines of the same
+ *  log); the last two none at all
+ */
+typedef struct {
+    const char *mark;
+    int lines;
+    size_t longest;
+} peer_log_count_t;
+peer_log_count_t peer_log_counts[] = {
+    {"dst_service not authorized for this channel", 0, 0},
+    {"Frame without its routing", 0, 0},
+    {"SUBSCRIBING repeated", 0, 0},
+    {"Request without the command", 0, 0},
+    {"REPEATED, will be deleted", 0, 0},
+    {"__md_iev__ NOT FOUND", 0, 0},
+    {0, 0, 0}
+};
+
 static int no_match_write(void *v, int priority, const char *bf, size_t len)
 {
     const char *mark = "UNSUBSCRIBING event matches no subscription";
@@ -261,6 +281,15 @@ static int no_match_write(void *v, int priority, const char *bf, size_t len)
         no_match_lines++;
         if(len > no_match_longest) {
             no_match_longest = len;
+        }
+    }
+    for(int i=0; peer_log_counts[i].mark; i++) {
+        peer_log_count_t *c = &peer_log_counts[i];
+        if(memmem(bf, len, c->mark, strlen(c->mark))) {
+            c->lines++;
+            if(len > c->longest) {
+                c->longest = len;
+            }
         }
     }
     return 0;
@@ -290,12 +319,17 @@ static int register_yuno_and_more(void)
          *  main() takes nothing below a warning), each ONCE although the
          *  peer repeats what causes it. A wrong result is an error, which is
          *  not in this list.  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "SUBSCRIBING keys a peer may not set, ignored",
+            "msg", "SUBSCRIBING refused, its routing is bigger than max_subscription_size",
             "msg", "SUBSCRIBING refused, the peer holds max_subscriptions",
             "msg", "SUBSCRIBING refused, bigger than max_subscription_size",
             "msg", "UNSUBSCRIBING event matches no subscription of this channel",
-            "msg", "No permission to subscribe event"
+            "msg", "No permission to subscribe event",
+            "msg", "event ignored, dst_service not authorized for this channel",
+            "msg", "Request without the command or stats it asks, refused",
+            "msg", "SUBSCRIBING repeated, the one held is kept",
+            "msg", "Frame without its routing (__md_iev__ ievent stack), channel closed"
         ),
         NULL,   // expected
         NULL,   // ignore_keys
@@ -330,6 +364,22 @@ static void cleaning(void)
             Color_Off
         );
         result += -1;
+    }
+    for(int i=0; peer_log_counts[i].mark; i++) {
+        peer_log_count_t *c = &peer_log_counts[i];
+        int expected = (i < 4)? 1: 0;
+        if(c->lines != expected || c->longest > 1500) {
+            printf("%sERROR --> %s: '%s' lines %d (expected %d), longest %lu%s\n",
+                On_Red BWhite,
+                "a log a peer repeats is written per frame, or uncapped",
+                c->mark,
+                c->lines,
+                expected,
+                (unsigned long)c->longest,
+                Color_Off
+            );
+            result += -1;
+        }
     }
     if(test_peer_subs_failed) {
         result += -1;

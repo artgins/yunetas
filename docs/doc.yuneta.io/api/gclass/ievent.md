@@ -73,7 +73,7 @@ services, and handles WebSocket upgrade.
 | `this_service` | `string` | Local service name this gate serves. |
 | `authenticated` | `bool` | Whether the connection is authenticated. |
 | `max_subscriptions` | `integer` | Subscriptions a peer may hold on the channel (default `5000`, `0` no limit). See *What a peer may hold*. |
-| `max_subscription_size` | `integer` | Bytes, as compact json, of the `__filter__` and of the `__global__` of a peer's subscription (default `16384`, `0` no limit). |
+| `max_subscription_size` | `integer` | Bytes, as compact json, of the `__filter__`, of the `__global__` and of the routing back (`__md_iev__`) of a peer's subscription, each one (default `16384`, `0` no limit). |
 
 ### Lifecycle of a channel
 
@@ -187,6 +187,20 @@ set, ignored"*, at most once per 10 s per channel. A `__filter__` or a
 `__global__` bigger than `max_subscription_size` refuses the subscription
 (*"SUBSCRIBING refused, bigger than max_subscription_size"*, same pace).
 
+To route every event of the subscription back to the peer, the gate adds
+its own back-metadata to the stored `__global__`: `__md_yuno__`, and a
+`__md_iev__` built from the TOP record of the frame's routing stack (the hop
+of this peer, with the gate's stamps), reversed. Nothing else of the frame's
+`__md_iev__` is kept: no key of the peer's own and no deeper hop. That
+routing is measured against `max_subscription_size` too, after it is built:
+a bigger one (a record with long strings) refuses the subscription,
+*"SUBSCRIBING refused, its routing is bigger than max_subscription_size"*,
+at most once per 10 s. Before, the frame's whole `__md_iev__` was copied,
+and not measured (the cap measured the `__global__` before it was added): a
+peer could store as much as a frame holds in each subscription (200 KB with
+a cap of 512 bytes), up to `max_subscriptions` of them, and got it back with
+every event.
+
 Up to 7.25.4 only `__config__` was filtered, and the publish shared ONE kw
 with every subscriber, so a peer's subscription changed the event of every
 subscriber after it: its `__global__` forged keys of the event (a
@@ -262,8 +276,24 @@ without end: 20000 subscriptions of one peer blocked the event
 loop for 80 s, and every later publish took 13 ms. So a channel holds at most
 `max_subscriptions` of its peer. Beyond it a subscription is refused, logged
 once (*"SUBSCRIBING refused, the peer holds max_subscriptions"*), and not
-again until the peer is under the cap. A subscription that repeats one the
-peer holds replaces it, and takes no room.
+again until the peer is under the cap.
+
+A subscription that repeats one the peer holds takes no room:
+
+- the SAME subscription (the same `__filter__`, `__global__` and
+  `__config__`) is left as it is. It is not made again: no
+  `mt_subscription_deleted()` / `mt_subscription_added()`, and no second
+  `__first_shot__`.
+- one that overrides a subscription it holds (a match of
+  `gobj_subscribe_event()`: the new one has no `__filter__`, say) takes that
+  one out and is made.
+
+Both are logged as a warning, at most once per 10 s per channel
+(*"SUBSCRIBING repeated, the one held is kept"*, *"SUBSCRIBING overrides one
+held, it is replaced"*). A client does not send either: `C_IEVENT_CLI`
+withdraws the subscription it replaces first. Up to 7.25.4 every repeated
+frame went to `gobj_subscribe_event()`, which deleted the subscription, made
+it again, and logged a warning with a stack trace and the whole kw.
 
 A gate whose peers subscribe per device (two subscriptions per device, in the
 SPAs of hidraulia) raises the cap in the `kw` of the `C_IEVENT_SRV` of its
@@ -298,5 +328,35 @@ of the command:
 The service gets `"__username__": "bob"` when the channel's user is `bob`.
 Up to 7.25.4 [`kw_set_dict_value()`](#kw_set_dict_value) kept a key that
 already existed, so the peer's `admin` reached the service.
+
+### A frame the gate cannot route
+
+Every frame of a session carries its routing: `__md_iev__` with the ievent
+stack, whose top record says where the frame comes from (`src_yuno`,
+`src_role`, `src_service`, strings) and, if it says, where it goes
+(`dst_yuno`, `dst_role`, `dst_service`, strings). `C_IEVENT_CLI` (C and JS)
+pushes it on every request, and an answer copies the one of its request.
+The gate reads what the peer sent with plain json calls, never with a
+`kw_get_*()` reader that logs a wrong type with a stack. What it refuses,
+and how:
+
+| The frame | What the gate does | Log (per channel) |
+|-----------|--------------------|-------------------|
+| No routing, or a malformed one | Closes the channel, as for a frame that is not json. It cannot be answered, nor routed back. | *"Frame without its routing (\_\_md_iev\_\_ ievent stack), channel closed"*, WARNING, `MSGSET_PROTOCOL`, the kw capped to 256 bytes, at most once per 10 s. |
+| For another yuno (`dst_role`, `dst_yuno`) | Closes the channel. | *"It's not my role, channel closed"* / *"It's not my name, channel closed"*, WARNING, the routing capped. |
+| For a service the channel may not reach | A command or a stats request gets a negative answer and the channel stays; a subscription, a withdrawal or an event closes it. | *"event ignored, dst_service not authorized for this channel"*, WARNING, `MSGSET_AUTH`, the kw capped, at most once per 10 s. |
+| For a service that does not exist | The same. | *"event ignored, service not found"*, WARNING, same pace. |
+| A subscription or a withdrawal of an event that is not public | Refused; the channel stays. | *"SUBSCRIBING event ignored, not PUBLIC..."*, WARNING, same pace. |
+| A command or a stats request that names no command (neither `__command__` in the kw nor in its stack), or whose `service` is not a string | Answered with an error; the channel stays. | *"Request without the command or stats it asks, refused"*, WARNING, the kw capped, same pace. |
+| A command or a stats request whose `service` does not exist, or (stats) is one the channel may not reach | Answered with an error; the channel stays. | *"Service not found"* / *"Not authorized to request stats of a different service"*, WARNING, same pace. |
+
+Each of these is the peer's to repeat, frame after frame, so none writes a
+line per frame, none carries a stack trace, and none dumps the whole kw. Up
+to 7.25.4 a frame without routing logged an error with a stack and the whole
+kw (the lookup was verbose, "TODO check") and was processed all the same; a
+command to a service the channel may not reach logged an error, the whole
+kw, the authorized services and the routing, for each frame; and a
+subscription to an event that is not public returned an error without
+closing the channel, which left it connected and deaf.
 
 `tests/c/c_ievent_srv_peer_subs`.

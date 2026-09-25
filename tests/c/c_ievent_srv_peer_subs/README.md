@@ -57,6 +57,24 @@ test writes by hand, as a hostile peer would, and `bob`, a plain client.
    for a gbuffer when it serialized the event back to her, and the yuno
    crashed.
 
+6. What the gate keeps to route the events back: `alice`'s `EV_TEST_OPEN`
+   frame carries a 4 KB key of her own in `__md_iev__`, and the stored
+   subscription holds only the reversed hop of her frame (up to 7.25.4 the
+   whole `__md_iev__`, unmeasured). A subscription whose routing (a 1 KB
+   `host`) is over the 512 bytes is refused, logged once.
+7. `alice` repeats her `EV_TEST_BIN` subscription 3 times: it is kept as it
+   is (the publisher's `mt_subscription_added` is not called again), one
+   warning. Up to 7.25.4 each repeat was deleted and made again, with a
+   warning carrying a stack trace and the whole kw.
+8. `alice` sends 3 commands to `tester`, a service her channel may not
+   reach: 3 negative answers, one warning, capped; and 2 commands that name
+   no command: 2 negative answers, one warning. Then a frame with no
+   `__md_iev__` (50 KB): one warning, capped, and her channel is closed. Up
+   to 7.25.4 each such frame logged an error with a stack trace and the
+   whole kw, and the frame without routing was processed.
+
+`main.c` counts the lines of each of these logs and measures them.
+
 ## Run
 
 ```bash
