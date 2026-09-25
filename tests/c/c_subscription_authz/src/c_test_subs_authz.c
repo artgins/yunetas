@@ -20,6 +20,10 @@
  *          EV_TREEDB_NODE_* are EVF_AUTHZ_SUBSCRIBE and whose `read` carries
  *          the `__subscribe_event__` alias.
  *
+ *          Before anything, the six channel commands of the gate C_IOGATE
+ *          are asked with a channel_name that matches no channel: each
+ *          answers with no channel (up to 7.25.4 each looped for ever).
+ *
  *          C_TEST_SUBS_AUTHZ (service `subscriber`) drives the test through
  *          three C_IEVENT_CLI of the same yuno, connected by websocket over
  *          loopback (the stack of the agent and of the SPAs) to
@@ -36,7 +40,9 @@
  *                                                          -> REFUSED
  *                           `reader` subscribes EV_TREEDB_NODE_UPDATED
  *                                                          -> accepted,
- *                           the checker being asked `read` every time
+ *                           the checker being asked `read` every time,
+ *                           with the global `authzs` trace on (up to
+ *                           7.25.4 it printed a kw already freed)
  *              3. the publisher publishes both events and a node of the
  *                 treedb is updated: EV_TEST_FEED and EV_TREEDB_NODE_UPDATED
  *                 arrive twice each (the subscriptions of 1 and of
@@ -84,6 +90,7 @@ PRIVATE int check_subscriptions(
     const char *usernames   // expected, sorted, joined by ','
 );
 PRIVATE int check_count(hgobj gobj, const char *what, int expected, int got);
+PRIVATE int check_channel_commands(hgobj gobj, hgobj input_side);
 PRIVATE json_t *kw_treedb_service(void);
 
 /***************************************************************************
@@ -375,6 +382,67 @@ PRIVATE int check_count(hgobj gobj, const char *what, int expected, int got)
 
 
 /***************************************************************************
+ *  The channel commands of C_IOGATE with a channel_name that names no
+ *  channel. Up to 7.25.4 each of the six looped for ever (the `continue` of
+ *  a regexec mismatch skipped gobj_next_child), blocking the event loop.
+ ***************************************************************************/
+PRIVATE int check_channel_commands(hgobj gobj, hgobj input_side)
+{
+    int ret = 0;
+    const char *commands[] = {
+        "view-channels",
+        "enable-channel",
+        "disable-channel",
+        "trace-on-channel",
+        "trace-off-channel",
+        "reset-stats-channel",
+        0
+    };
+
+    for(int i=0; commands[i]; i++) {
+        json_t *jn_resp = gobj_command(
+            input_side,
+            commands[i],
+            json_pack("{s:s}", "channel_name", "nomatch"),
+            gobj
+        );
+        int result = (int)kw_get_int(gobj, jn_resp, "result", -1, 0);
+        json_t *jn_data = kw_get_list(gobj, jn_resp, "data", 0, 0);
+        /*
+         *  Each answers with the view of the channels it touched: the two
+         *  header rows and no channel.
+         */
+        ret += check_count(gobj, commands[i], 0, result);
+        ret += check_count(gobj, commands[i], 2, (int)json_array_size(jn_data));
+        JSON_DECREF(jn_resp)
+    }
+
+    struct {
+        const char *channel_name;
+        int rows;
+    } views[] = {
+        {"input-2",         3},
+        {"^input-[0-9]$",   5},
+        {0, 0}
+    };
+    for(int i=0; views[i].channel_name; i++) {
+        json_t *jn_resp = gobj_command(
+            input_side,
+            "view-channels",
+            json_pack("{s:s}", "channel_name", views[i].channel_name),
+            gobj
+        );
+        json_t *jn_data = kw_get_list(gobj, jn_resp, "data", 0, 0);
+        ret += check_count(gobj, views[i].channel_name,
+            views[i].rows, (int)json_array_size(jn_data)
+        );
+        JSON_DECREF(jn_resp)
+    }
+
+    return ret;
+}
+
+/***************************************************************************
  *  The kw of a remote (un)subscription to the treedb service instead of the
  *  client's `remote_yuno_service`
  ***************************************************************************/
@@ -456,6 +524,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     switch(priv->step++) {
         case 0:
+            check_channel_commands(gobj, gobj_find_service("__input_side__", TRUE));
+
             check_subscriptions(gobj, priv->publisher, EV_TEST_FEED, "nobody");
             check_subscriptions(gobj, priv->treedb, EV_TREEDB_NODE_UPDATED, "nobody");
             check_count(gobj, "authz asked with the gate off",
@@ -463,8 +533,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
 
             /*
-             *  2. gate ON
+             *  2. gate ON, with the `authzs` trace on: it prints the kw of
+             *  each check after the verdict, and up to 7.25.4 that kw had
+             *  already been freed by the checker (main() makes glibc
+             *  scribble on every free, so a read of it crashes).
              */
+            gobj_set_global_trace("authzs", TRUE);
             gobj_write_bool_attr(gobj_yuno(), "enable_subscription_authz", TRUE);
             gobj_subscribe_event(priv->cli_nobody, EV_TEST_FEED, 0, gobj);
             gobj_subscribe_event(priv->cli_nobody, EV_TEST_OPEN, 0, gobj);
@@ -479,6 +553,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
 
         case 1:
+            gobj_set_global_trace("authzs", FALSE);
             check_subscriptions(gobj, priv->publisher, EV_TEST_FEED, "nobody,reader");
             check_subscriptions(gobj, priv->publisher, EV_TEST_OPEN, "nobody");
             check_subscriptions(gobj, priv->treedb, EV_TREEDB_NODE_UPDATED, "nobody,reader");

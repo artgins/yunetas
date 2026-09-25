@@ -403,7 +403,9 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("regcomp() failed"),
+                json_sprintf("%s: channel_name is not a valid regular expression: '%s'",
+                    gobj_yuno_role_plus_name(), channel
+                ),
                 0,
                 jn_data, // owned
                 kw  // owned
@@ -415,6 +417,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
             if(gobj_gclass_name(child) == C_CHANNEL) {
                 const char *name = gobj_name(child);
                 if(regexec(&_re_name, name, 0, 0, 0)!=0) {
+                    child = gobj_next_child(child);
                     continue;
                 }
                 if(opened) {
@@ -470,7 +473,9 @@ PRIVATE json_t *cmd_enable_channels(hgobj gobj, const char *cmd, json_t *kw, hgo
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("regcomp() failed"),
+                json_sprintf("%s: channel_name is not a valid regular expression: '%s'",
+                    gobj_yuno_role_plus_name(), channel
+                ),
                 0,
                 0, // owned
                 kw  // owned
@@ -485,6 +490,7 @@ PRIVATE json_t *cmd_enable_channels(hgobj gobj, const char *cmd, json_t *kw, hgo
             if(gobj_match_gobj(child, json_incref(jn_filter))) {
                 const char *name = gobj_name(child);
                 if(regexec(&_re_name, name, 0, 0, 0)!=0) {
+                    child = gobj_next_child(child);
                     continue;
                 }
                 if(gobj_is_disabled(child)) {
@@ -527,7 +533,9 @@ PRIVATE json_t *cmd_disable_channels(hgobj gobj, const char *cmd, json_t *kw, hg
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("regcomp() failed"),
+                json_sprintf("%s: channel_name is not a valid regular expression: '%s'",
+                    gobj_yuno_role_plus_name(), channel
+                ),
                 0,
                 0, // owned
                 kw  // owned
@@ -542,6 +550,7 @@ PRIVATE json_t *cmd_disable_channels(hgobj gobj, const char *cmd, json_t *kw, hg
             if(gobj_match_gobj(child, json_incref(jn_filter))) {
                 const char *name = gobj_name(child);
                 if(regexec(&_re_name, name, 0, 0, 0)!=0) {
+                    child = gobj_next_child(child);
                     continue;
                 }
                 if(!gobj_is_disabled(child)) {
@@ -582,7 +591,9 @@ PRIVATE json_t *cmd_trace_on_channels(hgobj gobj, const char *cmd, json_t *kw, h
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("regcomp() failed"),
+                json_sprintf("%s: channel_name is not a valid regular expression: '%s'",
+                    gobj_yuno_role_plus_name(), channel
+                ),
                 0,
                 0, // owned
                 kw  // owned
@@ -597,6 +608,7 @@ PRIVATE json_t *cmd_trace_on_channels(hgobj gobj, const char *cmd, json_t *kw, h
             if(gobj_match_gobj(child, json_incref(jn_filter))) {
                 const char *name = gobj_name(child);
                 if(regexec(&_re_name, name, 0, 0, 0)!=0) {
+                    child = gobj_next_child(child);
                     continue;
                 }
                 gobj_set_gobj_trace(child, "", TRUE, 0);
@@ -635,7 +647,9 @@ PRIVATE json_t *cmd_trace_off_channels(hgobj gobj, const char *cmd, json_t *kw, 
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("regcomp() failed"),
+                json_sprintf("%s: channel_name is not a valid regular expression: '%s'",
+                    gobj_yuno_role_plus_name(), channel
+                ),
                 0,
                 0, // owned
                 kw  // owned
@@ -650,6 +664,7 @@ PRIVATE json_t *cmd_trace_off_channels(hgobj gobj, const char *cmd, json_t *kw, 
             if(gobj_match_gobj(child, json_incref(jn_filter))) {
                 const char *name = gobj_name(child);
                 if(regexec(&_re_name, name, 0, 0, 0)!=0) {
+                    child = gobj_next_child(child);
                     continue;
                 }
                 gobj_set_gobj_trace(child, "", FALSE, 0);
@@ -689,7 +704,9 @@ PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("regcomp() failed"),
+                json_sprintf("%s: channel_name is not a valid regular expression: '%s'",
+                    gobj_yuno_role_plus_name(), channel
+                ),
                 0,
                 0, // owned
                 kw  // owned
@@ -704,6 +721,7 @@ PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw
             if(gobj_match_gobj(child, json_incref(jn_filter))) {
                 const char *name = gobj_name(child);
                 if(regexec(&_re_name, name, 0, 0, 0)!=0) {
+                    child = gobj_next_child(child);
                     continue;
                 }
                 json_t *jn_stats = gobj_stats(child, "__reset__", 0, gobj);

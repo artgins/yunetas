@@ -10,6 +10,11 @@ One yuno holds both sides: a `C_IEVENT_SRV` gate on `ws://127.0.0.1:7794`, a
 `C_IEVENT_CLI` authenticated as `nobody`, `nobody` and `reader` by the test's
 authentication parser. It checks:
 
+- the channel commands of `C_IOGATE` (`view-channels`, `enable-channel`,
+  `disable-channel`, `trace-on-channel`, `trace-off-channel`,
+  `reset-stats-channel`) with a `channel_name` that matches no channel
+  answer with no channel (up to 7.25.4 each looped for ever and blocked the
+  event loop), and a matching one still selects its channels;
 - gate off: `nobody` subscribes a flagged event, of `publisher` and
   `EV_TREEDB_NODE_UPDATED` of the `C_NODE`, as up to 7.25.4;
 - gate on: `nobody` is refused both (logged, the channel stays open), an
