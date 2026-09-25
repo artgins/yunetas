@@ -18,9 +18,16 @@
  *              127.0.0.1   accepted (loopback is exempt, even if listed)
  *
  *          Phase 2, only_allowed_ips = true, allowed: 127.0.1.2, 127.0.1.4
- *              127.0.1.2   refused ("TCP_S: Ip denied": denied wins)
+ *              127.0.1.2   refused (denied wins; not logged: see phase 3)
  *              127.0.1.3   refused ("TCP_S: Ip not allowed")
  *              127.0.1.4   accepted
+ *
+ *          Phase 3, 127.0.1.2 connects 5 times more: refused, not logged.
+ *              A refusal is logged on the transition, the first one of a
+ *              cause and then one a minute at most, with the count of the
+ *              ones in between; refusedConnxs counts all 8. Up to 7.25.4
+ *              each refusal wrote its line: a denied host in a loop was a
+ *              flood of the log.
  *
  *          And the key a peername is looked up by: the ip without its port,
  *          for ipv4, ipv6 ("[2001:db8::1]:443") and an ipv4 seen by a
@@ -88,6 +95,14 @@ PRIVATE peer_t phase2[] = {
     {"127.0.1.2", FALSE, -1},
     {"127.0.1.3", FALSE, -1},
     {"127.0.1.4", TRUE,  -1},
+    {0}
+};
+PRIVATE peer_t phase3[] = {
+    {"127.0.1.2", FALSE, -1},
+    {"127.0.1.2", FALSE, -1},
+    {"127.0.1.2", FALSE, -1},
+    {"127.0.1.2", FALSE, -1},
+    {"127.0.1.2", FALSE, -1},
     {0}
 };
 
@@ -163,6 +178,7 @@ PRIVATE int mt_stop(hgobj gobj)
     gobj_stop(priv->timer);
     close_peers(phase1);
     close_peers(phase2);
+    close_peers(phase3);
     return 0;
 }
 
@@ -614,9 +630,33 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             break;
 
-        default:
+        case 2:
             check_peers(gobj, phase2, "deny-list with only_allowed_ips");
             close_peers(phase2);
+            connect_peers(gobj, phase3);
+            set_timeout(priv->timer, 300);
+            break;
+
+        default:
+            {
+                check_peers(gobj, phase3, "a denied host that reconnects");
+                close_peers(phase3);
+                hgobj server_port = gobj_find_child(
+                    priv->gobj_input_side,
+                    json_pack("{s:s}", "__gclass_name__", C_TCP_S)
+                );
+                json_int_t refused = gobj_read_integer_attr(server_port, "refusedConnxs");
+                if(refused != 8) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "wrong count of refused connections",
+                        "expected",     "%d", 8,
+                        "got",          "%ld", (long)refused,
+                        NULL
+                    );
+                }
+            }
             if(priv->opens != 3) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,

@@ -8,6 +8,10 @@ exempt loopback peer:
 - a peer in `denied_ips` is refused with or without `only_allowed_ips`, and
   it wins over `allowed_ips`;
 - with `only_allowed_ips`, a peer not in `allowed_ips` is refused;
+- a refusal is logged on the transition, one line a minute at most for each
+  cause, and counted in the stat `refusedConnxs`: a denied peer that
+  connects 5 times more writes no line (up to 7.25.4 each refusal wrote
+  one);
 - loopback is accepted even when listed;
 - the list key of a peername is its ip without the port, for ipv4, ipv6 and
   an ipv4 seen by a dual-stack socket;

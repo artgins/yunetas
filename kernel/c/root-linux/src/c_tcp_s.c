@@ -27,16 +27,34 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+/*
+ *  A connection refused by the ip lists is said on the transition: the
+ *  first one of a cause, then at most one each REFUSAL_LOG_MSEC, with the
+ *  count of the ones refused in between (as C_UDP_S does with a refused
+ *  datagram). A denied host that reconnects in a loop must not be a flood
+ *  of the log. Timed on the monotonic clock (msectimer).
+ */
+#define REFUSAL_LOG_MSEC        60000
 
 /***************************************************************************
  *              Structures
  ***************************************************************************/
+typedef enum {
+    REFUSAL_DENIED = 0,     // the peer is in denied_ips
+    REFUSAL_NOT_ALLOWED,    // only_allowed_ips, and the peer is not in allowed_ips
+    REFUSAL_CAUSES
+} refusal_cause_t;
 
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE BOOL is_loopback_peer(const char *peername);
+PRIVATE void note_refused_connection(
+    hgobj gobj,
+    refusal_cause_t cause,
+    const char *peername
+);
 PRIVATE int reload_ytls_from_attrs(hgobj gobj);
 PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_cert(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -85,6 +103,7 @@ SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,             0,          
 SDATA (DTP_DICT,        "clisrv_kw",            SDF_RD,             0,              "kw of clisrv gobj"),
 SDATA (DTP_INTEGER,     "connxs",               SDF_RD|SDF_STATS,   0,              "Current connections"),
 SDATA (DTP_INTEGER,     "tconnxs",              SDF_RD|SDF_STATS,   0,              "Total connections"),
+SDATA (DTP_INTEGER,     "refusedConnxs",        SDF_RD|SDF_RSTATS,  "0",            "Connections refused at accept: the peer is in denied_ips, or not in allowed_ips with only_allowed_ips"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,                  0,              "subscriber of output-events. Default if null is parent."),
@@ -120,6 +139,10 @@ typedef struct _PRIVATE_DATA {
 
     json_int_t connxs;
     json_int_t tconnxs;
+    json_int_t refusedConnxs;
+
+    uint64_t t_refusal_log[REFUSAL_CAUSES];         // next log of a cause (msectimer)
+    json_int_t refused_since_log[REFUSAL_CAUSES];   // refused since the last log
 
     yev_event_h yev_server_accept;
     int use_dups;
@@ -172,6 +195,22 @@ PRIVATE void mt_create(hgobj gobj)
         subscriber = gobj_parent(gobj);
     }
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+}
+
+/***************************************************************************
+ *      Framework Method reading
+ ***************************************************************************/
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    SData_Value_t v = {0,{0}};
+    if(strcmp(name, "refusedConnxs")==0) {
+        v.found = 1;
+        v.v.i = priv->refusedConnxs;
+    }
+
+    return v;
 }
 
 /***************************************************************************
@@ -568,6 +607,48 @@ PRIVATE BOOL is_loopback_peer(const char *peername)
 }
 
 /***************************************************************************
+ *  A connection refused by the ip lists: counted always (refusedConnxs),
+ *  said on the transition. The first one of a cause is logged, then at
+ *  most one each REFUSAL_LOG_MSEC, with the connections of that cause
+ *  refused since the last one (`refused`, this one included). Up to
+ *  7.25.4 each refusal wrote its line, and the deny-list was new: a denied
+ *  host that reconnects in a loop was a flood of the log.
+ ***************************************************************************/
+PRIVATE void note_refused_connection(
+    hgobj gobj,
+    refusal_cause_t cause,
+    const char *peername
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->refusedConnxs++;
+    priv->refused_since_log[cause]++;
+
+    if(priv->t_refusal_log[cause] != 0 && !test_msectimer(priv->t_refusal_log[cause])) {
+        return; // counted, said at the next log of this cause
+    }
+
+    const char *refusal = (cause == REFUSAL_DENIED)?
+        "TCP_S: Ip denied":
+        "TCP_S: Ip not allowed";
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",          "%s", refusal,
+        "msg2",         "%s", refusal,
+        "url",          "%s", priv->url,
+        "peername",     "%s", peername,
+        "refused",      "%ld", (long)priv->refused_since_log[cause],
+        "refusedConnxs", "%ld", (long)priv->refusedConnxs,
+        "next_log_in_ms", "%d", REFUSAL_LOG_MSEC,
+        NULL
+    );
+    priv->refused_since_log[cause] = 0;
+    priv->t_refusal_log[cause] = start_msectimer(REFUSAL_LOG_MSEC);
+}
+
+/***************************************************************************
  *  Accept cb
  *  WARNING yev_callback() return -1 will break the loop of yevent
  ***************************************************************************/
@@ -672,22 +753,13 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     char peername[80];
     get_peername(peername, sizeof(peername), fd_clisrv);
     if(!is_loopback_peer(peername)) {
-        const char *refusal = NULL;
         if(is_ip_denied(peername)) {
-            refusal = "TCP_S: Ip denied";
-        } else if(priv->only_allowed_ips && !is_ip_allowed(peername)) {
-            refusal = "TCP_S: Ip not allowed";
+            note_refused_connection(gobj, REFUSAL_DENIED, peername);
+            close(fd_clisrv);
+            return 0;
         }
-        if(refusal) {
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                "msg",          "%s", refusal,
-                "msg2",         "%s", refusal,
-                "url",          "%s", priv->url,
-                "peername",     "%s", peername,
-                NULL
-            );
+        if(priv->only_allowed_ips && !is_ip_allowed(peername)) {
+            note_refused_connection(gobj, REFUSAL_NOT_ALLOWED, peername);
             close(fd_clisrv);
             return 0;
         }
@@ -1002,6 +1074,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_destroy = mt_destroy,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
+    .mt_reading = mt_reading,
 };
 
 /*------------------------*

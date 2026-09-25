@@ -209,11 +209,13 @@ static int register_yuno_and_more(void)
          *  typed by 7.25.4 and normalised at load: allowed_ips drops a
          *  link-local address without its interface and renames a mapped
          *  ipv4; denied_ips renames three (two of them one ip) and drops
-         *  three that are no ip. Then one refusal in phase 1, two in phase
-         *  2; a wrong verdict is an error, which is not in this list.  */
+         *  three that are no ip. Then one refusal in phase 1, and in phase
+         *  2 only the one of the other cause: a refusal is logged on the
+         *  transition, one a minute of each cause (phase 3 adds none); a
+         *  wrong verdict is an error, which is not in this list.  */
         json_pack("[{s:s}, {s:s,s:s}, {s:s,s:s}, "
                   "{s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s}, "
-                  "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+                  "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "ip list entry dropped, it never matched a peer", "entry", "fe80::7",
             "msg", "ip list entry renamed to the form a peer is looked up by", "entry", "::FFFF:10.9.9.12",
@@ -224,7 +226,6 @@ static int register_yuno_and_more(void)
             "msg", "ip list entry dropped, it never matched a peer", "entry", "[2001:db8::6]",
             "msg", "ip list entry dropped, it never matched a peer", "entry", "not-an-ip",
             "msg", "Playing yuno",
-            "msg", "TCP_S: Ip denied",
             "msg", "TCP_S: Ip denied",
             "msg", "TCP_S: Ip not allowed",
             "msg", "Exit to die",
