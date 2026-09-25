@@ -210,10 +210,10 @@ frame for `seconds_inactivity`. So three caps bound it:
 | `max_pending_bytes` | the datagram is dropped, with the unfinished frame of its peer | *"Too many bytes in unfinished frames, ..."*, at most once per 10 s, with the count |
 
 The buffer of a frame starts at 4 KB and doubles as bytes come, up to
-`max_frame_size`. In 7.25.5, before these caps, it was 1 MB from the first
-byte of each peer, and a sender of one-byte datagrams from many source ports
-took logcenter to its memory ceiling (up to 7.25.4 every peer shared one
-channel, and the corrupt joins above were the price). `tests/c/c_udp_s_rx`,
+`max_frame_size`. A buffer of 1 MB from the first byte of each peer, with no
+cap on the peers, would let a sender of one-byte datagrams from many source
+ports take logcenter to its memory ceiling. (Up to 7.25.4 every peer shared
+one channel, and the corrupt joins above were the price.) `tests/c/c_udp_s_rx`,
 case 4.
 
 The defaults fit logcenter, which creates its `C_GSS_UDP_S` with only the

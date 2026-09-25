@@ -101,10 +101,12 @@ ycommand -c 'command-yuno id=<id> service=__input_side__ command=disable-channel
 ycommand -c 'command-yuno id=<id> service=__input_side__ command=enable-channel channel_name=^input-1$'
 ```
 
-`channel_name` is a regular expression. One that matches no channel selects
-nothing, and the command answers with the header of the view only. (Up to
-7.25.4 each of the six channel commands looped for ever on it and blocked
-the yuno.) A text that is not a valid regular expression is refused with -1,
+`channel_name` is a regular expression. It selects the channels whose name
+it matches: `^input-1$` on a gate with `input-1` and `input-2` selects only
+`input-1`. One that matches no channel selects nothing, and the command
+answers with the header of the view only. (Up to 7.25.4 each of the six
+commands looped for ever on the first channel that did not match, and
+blocked the yuno.) A text that is not a valid regular expression is refused with -1,
 for example `channel_name=input-[` answers *"<role^name>: channel_name is not
 a valid regular expression: 'input-['"* (up to 7.25.4: *"regcomp() failed"*).
 
@@ -256,7 +258,7 @@ gobj_unsubscribe_event(gobj_remote, EV_REALTIME_TRACK, kw, gobj);   // the same 
 
 Every subscription costs a scan of the publisher's subscriptions when it is
 made, and one more on every publish of its event. A peer could make them
-without end: in review 19, 20000 subscriptions of one peer blocked the event
+without end: 20000 subscriptions of one peer blocked the event
 loop for 80 s, and every later publish took 13 ms. So a channel holds at most
 `max_subscriptions` of its peer. Beyond it a subscription is refused, logged
 once (*"SUBSCRIBING refused, the peer holds max_subscriptions"*), and not
@@ -276,5 +278,25 @@ channel tree:
     }
 }
 ```
+
+### What the gate stamps
+
+The gate writes who sent a message into the kw it hands on, and overwrites
+whatever the peer put there under the same key. In a command, a stats
+request and an event, `__username__` is the channel's authenticated user
+(set by `C_AUTHZ`), whatever the peer sent. In the routing stack of an event
+(`__md_iev__`), `__username__`, `input_channel` and `input_service` are the
+gate's. The command parser's authz check reads that `__username__`.
+
+Example: a peer sends `list-yunos` with a `__username__` of its own in the kw
+of the command:
+
+```json
+{"__username__": "admin"}
+```
+
+The service gets `"__username__": "bob"` when the channel's user is `bob`.
+Up to 7.25.4 [`kw_set_dict_value()`](#kw_set_dict_value) kept a key that
+already existed, so the peer's `admin` reached the service.
 
 `tests/c/c_ievent_srv_peer_subs`.

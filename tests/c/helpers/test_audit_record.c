@@ -28,8 +28,7 @@
  *          - an escaped json key with a blank or a slash, a quote inside a
  *            quoted secret value (\", the shell's '\''), a JWT at the end
  *            of a sentence, a write-attr whose names carry \u escapes or
- *            that comes as json text in a kw string: no secret is written
- *            (review 19),
+ *            that comes as json text in a kw string: no secret is written,
  *          and what one record costs, 7.25.4's way and the new way.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -1321,7 +1320,7 @@ PRIVATE char *nested_json_text(const char *inner, int levels)
 PRIVATE void test_json_text_in_json_text(void)
 {
     /*
-     *  The shapes of review 17 (P1, P4), and more levels
+     *  The nested shapes, and more levels
      */
     check_no_secret(
         "update-node topic_name=x content='{\"cfg\":\"{\\\"password\\\":\\\"P1LEAK\\\"}\"}'",
@@ -1598,7 +1597,7 @@ PRIVATE void test_quote_before_json_text(void)
 }
 
 /***************************************************************************
- *  (u) The shapes of review 19, as they were found:
+ *  (u) Keys with blanks, quotes inside a secret, a JWT before a '.':
  *  - an escaped json key read by its shape was only its last word, so a
  *    key with a blank or a slash ("secret key", "password/db") was not a
  *    secret there;
@@ -1619,7 +1618,7 @@ PRIVATE void check_command_written(const char *command, const char *expected, co
     JSON_DECREF(jn_record)
 }
 
-PRIVATE void test_review19_shapes(void)
+PRIVATE void test_blank_keys_inner_quotes_jwt_dot(void)
 {
     check_no_secret("x cfg='{\\\"secret key\\\":\\\"S3CRa\\\"}'", NULL, "S3CRa",
         "(u) '{\\\"secret key\\\":...}': an escaped key with a blank");
@@ -1698,7 +1697,7 @@ PRIVATE void test_review19_shapes(void)
  *  quotes, in the text and in a kw string. No secret survives; the
  *  parameter before them all is kept. Deterministic seed.
  *
- *  And the shapes of review 19: a json key with blanks or a slash
+ *  And a json key with blanks or a slash
  *  ("secret key", "private key", "password/db"), escaped or not; a quote
  *  inside a quoted secret value (password="a\" S", the shell's
  *  password='it'\''s S', a json string holding a "'" inside a '...'
@@ -2202,7 +2201,7 @@ int main(int argc, char *argv[])
     test_more_secrets();
     test_json_text_in_json_text();
     test_quote_before_json_text();
-    test_review19_shapes();
+    test_blank_keys_inner_quotes_jwt_dot();
     test_generated_commands();
     test_cost();
 

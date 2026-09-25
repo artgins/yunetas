@@ -595,12 +595,14 @@ operator drives a node *through* the controlcenter, the operator's
 
 1. `C_IEVENT_SRV` on the controlcenter authenticates the operator and
    **overwrites** `kw`__username__`` with the authenticated principal — a wire
-   client cannot spoof it.
+   client cannot spoof it (since 7.25.5; up to 7.25.4 `kw_set_dict_value()`
+   kept a `__username__` the peer had put in the kw, and the peer's name
+   reached the service).
 2. `cmd_command_agent` checks its own `command-agent` permission for that
    operator, then deletes a fixed key list from the kw before forwarding —
    `__username__` is **not** in that list, so it survives.
 3. The kw goes down the reverse channel unchanged.
-4. On the agent, `authz_checker` reads `kw`__username__`` **first**, and only
+4. On the agent, `authz_checker` reads `kw`__username__`` **first**, and
    reads `gobj_read_str_attr(src, "__username__")` only when the kw has
    none.
 

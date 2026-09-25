@@ -619,6 +619,19 @@ nearest first:
   update-node topic_name=x cfg='{"attr\u0069bute":"api_key","value":"hunter2"}'
   ```
 
+  A secret value that ends where a `"…"` value ends is only the secret: the
+  closing quote and what follows it stay. This command
+
+  ```text
+  command-yuno id=x command="write-attr attribute=api_key value=hunter2" n=1
+  ```
+
+  is recorded as
+
+  ```text
+  command-yuno id=x command="write-attr attribute=api_key value=<redacted>" n=1
+  ```
+
   Also the
   token after `Bearer `, the credentials after `Basic ` when they are base64
   of `user:password`, and anything with the shape of a JWT (`eyJ…`, three

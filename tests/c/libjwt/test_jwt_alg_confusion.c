@@ -547,7 +547,7 @@ static void test_null_safety(void)
 
     /*
      *  Not guarded upstream either (as of its master): a local patch, since
-     *  review 19 found the commit that guarded the others claimed them too
+     *  the commit that guarded the others claimed them too
      */
     check(jwks_item_count(NULL) == 0,         "item_count(NULL set) == 0");
     check(jwks_find_bykid(NULL, "k") == NULL, "find_bykid(NULL set) == NULL");

@@ -813,8 +813,8 @@ PRIVATE size_t put_utf8(char *out, unsigned code)
  *  The text of a json string with its escapes decoded, leniently (it is
  *  scanned, not validated): an escape that json does not know stays as it
  *  is, backslash and char (the shell's \' of password='it'\''s S': taken
- *  as "'" it made a different word of the value, and the rest of the
- *  secret was written; up to review 19), a \u
+ *  as "'" it would make a different word of the value, and the rest of
+ *  the secret would be written), a \u
  *  without 4 hex digits is "u", a code point that is not ASCII is written
  *  in UTF-8, and a lone surrogate and \u0000 as U+FFFD (the text stays a
  *  C string). `out` holds `len` + 1 bytes: a decoded text is never longer.
@@ -921,8 +921,8 @@ PRIVATE key_kind_t json_key_kind(const char *key, size_t len, const redact_ctx_t
  *  more over it with its json escapes decoded, for each level of them (at
  *  most MAX_ESCAPE_LEVELS): "api\u005fkey" is api_key, and so is
  *  "api\\u005fkey" one json text down; "attr\u0069bute" is the key too.
- *  Up to review 19 the name was read up to its first '\', and the value
- *  of such a write-attr was written.
+ *  A name read only up to its first '\' would let the value of such a
+ *  write-attr be written.
  ***************************************************************************/
 #define ATTRIBUTE_KEY   "attribute"
 #define ATTRIBUTE_AROUND " \t'\"\\"    // blanks, quotes and the backslashes of an escaped json
@@ -1502,9 +1502,9 @@ PRIVATE const char *word_beyond_region(scan_state_t *st, const char *w, const ch
 /***************************************************************************
  *  The value at `v` of a secret or a content64 parameter (see
  *  scan_param()): its whole word, the shell's way (see word_end()), not
- *  what the parser would take. Up to review 19 a quoted value ended at the
- *  first quote of its kind, escaped or not, and a quote inside a secret
- *  left the rest of it in the record (password="a\" S",
+ *  what the parser would take. A quoted value that ended at the first
+ *  quote of its kind, escaped or not, would let a quote inside a secret
+ *  leave the rest of it in the record (password="a\" S",
  *  password='it'\''s S'). In a json text decoded from a quoted run
  *  (escape_level > 0), a value that reaches the end of the text can go on
  *  after the run's closing quote: the run is the text between two
@@ -1685,8 +1685,8 @@ PRIVATE const char *scan_param(redact_scan_t *sc, scan_state_t *st, const char *
  *  its own ('{\"password\":...}') -- or a key after a value the scan
  *  jumped over. An escaped key is the WHOLE string from the escaped quote
  *  before it with the same backslashes (\"secret key\", \"password/db\"),
- *  judged as a paired key is; up to review 19 it was the last word only,
- *  so "secret key" was read as "key". A key whose opening quote is not
+ *  judged as a paired key is; read as its last word only, "secret key"
+ *  would be "key". A key whose opening quote is not
  *  the escaped quote just before (a deeper quote inside it), or a key of
  *  plain quotes, is the word before the quote. Its value is then taken
  *  with the quotes of that level, up to the end of the text.
@@ -1843,8 +1843,8 @@ PRIVATE const char *scan_basic(redact_scan_t *sc, scan_state_t *st, const char *
 /***************************************************************************
  *  A JWT at `p` ("eyJ" = base64url of '{"', three parts joined by '.'):
  *  redacted. The dots at the end of the run are not its own: a JWT at the
- *  end of a sentence ("... eyJ.eyJ.sig.") is one, and its dot stays (up to
- *  review 19 it was taken as a fourth part, and written). Return where the
+ *  end of a sentence ("... eyJ.eyJ.sig.") is one, and its dot stays (taken
+ *  as a fourth part, the JWT would not be one, and would be written). Return where the
  *  scan goes on (the end of the run of base64url bytes, a JWT or not: it
  *  holds no '=', ':' or quote).
  ***************************************************************************/
@@ -1950,8 +1950,8 @@ PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const 
     /*
      *  In a '...' region the run goes on to its quote beyond the region: the
      *  region ends at the first "'", and a json string can hold one
-     *  (cfg='{"a":"{\"password\":\"it's S\"}"}': up to review 19 the run
-     *  ended at "it", and the rest of the secret was written)
+     *  (cfg='{"a":"{\"password\":\"it's S\"}"}': a run ended at the region
+     *  would end at "it", and the rest of the secret would be written)
      */
     const char *hi = (st->depth > 0 && st->lo[-1] == '\'')? st->end: st->hi;
     BOOL has_backslash = FALSE;
@@ -2049,8 +2049,8 @@ PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const 
                 /*
                  *  The value reached the end of a "..." value: its quote
                  *  ends it (command="write-attr ... value=S" n=1), and it
-                 *  stays. Up to review 19 the quote, and all after it up
-                 *  to the next '"', was redacted too.
+                 *  stays: the quote, and all after it up to the next '"',
+                 *  is not the secret's.
                  */
                 break;
             }
@@ -2242,8 +2242,8 @@ PRIVATE json_t *redacted_copy(json_t *jn, redact_ctx_t *ctx)
     if(json_is_string(jn)) {
         /*
          *  A write-attr given as json text in a string: its `value` is a
-         *  secret in that string (up to review 19 only the command text
-         *  and a decoded run were asked)
+         *  secret in that string, not only in the command text and in a
+         *  decoded run
          */
         size_t len = json_string_length(jn);
         BOOL value_is_secret = ctx->value_is_secret;

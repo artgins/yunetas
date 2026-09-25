@@ -1,7 +1,7 @@
 # c_ievent_srv_peer_subs test
 
 Tests what a remote peer may put in a subscription, and what it may hold,
-through `C_IEVENT_SRV` (security review 19, SDK 7.25.5).
+through `C_IEVENT_SRV` (SDK 7.25.5).
 
 One yuno holds both sides: a `C_IEVENT_SRV` gate on `ws://127.0.0.1:7795`
 whose channels allow `max_subscriptions` 4 and `max_subscription_size` 512,

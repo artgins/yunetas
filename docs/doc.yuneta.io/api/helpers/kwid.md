@@ -1152,20 +1152,6 @@ kw_set_dict_value(gobj, kw, "parent`k", json_true());     // -1: "parent" is a s
 
 Until 7.25.4 it wrote only a key that did not exist: over a key that was there it dropped the value and answered `0`, against its own header and against its gobj-js twin, which always overwrote. Every caller meant to overwrite. Two of them paid for it: a stale ref the treedb clears from a STRING fkey column stayed (the node could never be cleaned or force-deleted), and the `__username__` that `C_IEVENT_SRV` sets in the kw a peer sends did not replace one the peer had put there. It also answered `0` when it wrote nothing.
 
----|---|---|
-| `gobj` | `hgobj` | A handle to the GObj context, used for logging and error handling. |
-| `kw` | `json_t *` | A JSON dictionary where the value will be set. Must be a valid JSON object. |
-| `path` | `const char *` | A dot-delimited path specifying where to set the value. The last segment is the key. |
-| `value` | `json_t *` | The JSON value to set at the specified path. Ownership is transferred. |
-
-**Returns**
-
-Returns `0` on success, or `-1` if an error occurs (for example if `kw` is not a dictionary).
-
-**Notes**
-
-If the path does not exist, intermediate objects are created as dictionaries. Arrays are not created automatically. The function uses [`kw_find_path()`](<#kw_find_path>) internally to navigate the JSON structure.
-
 ---
 
 (kw_set_path_delimiter)=

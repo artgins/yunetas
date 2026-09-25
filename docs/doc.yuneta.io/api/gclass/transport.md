@@ -162,8 +162,9 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=add-denied-ip ip=203.
 ycommand -c 'command-yuno id=<id> service=__yuno__ command=list-denied-ips'
 ```
 
-`denied=1` is necessary: `add-denied-ip ip=X` alone writes `X: false`, which
-does not deny. The list is persistent (`SDF_PERSIST`). `remove-denied-ip
+`denied` is required: without it the command answers -1, *"<role^name>:
+Denied, TRUE or FALSE?"*. `denied=0` writes `false`, which denies nothing
+(`add-allowed-ip` asks `allowed` the same way). The list is persistent (`SDF_PERSIST`). `remove-denied-ip
 ip=203.0.113.7` removes the ban.
 
 :::{note}

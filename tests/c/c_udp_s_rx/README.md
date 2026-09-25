@@ -22,8 +22,7 @@ A driver gclass (`C_TEST_UDP_RX`) creates two children:
 3. The refused peers send two more datagrams each: still ONE warning per cause
    (said on the transition, then at most once a minute with the count of the
    drops: the source of a datagram can be forged), and the stat
-   `rxRefusedMsgs` counts the six drops. Before this fix every datagram was a
-   warning, and no stat counted them.
+   `rxRefusedMsgs` counts the six drops.
 
 4. What a peer holds in a `C_GSS_UDP_S` is capped. A second one, with
    `max_channels` 3, `max_frame_size` 32 and `max_pending_bytes` 40, gets

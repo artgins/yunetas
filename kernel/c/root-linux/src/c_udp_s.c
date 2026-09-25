@@ -901,8 +901,8 @@ PRIVATE BOOL peer_is_refused(hgobj gobj, const char *peername, refusal_cause_t *
  *  A refused datagram: counted always (rxRefusedMsgs), said on the
  *  transition. The first one of a cause is a WARNING, then at most one each
  *  REFUSAL_WARN_MSEC, with the datagrams of that cause dropped since the
- *  last one (`dropped`, this one included). Before this fix every datagram
- *  was a WARNING: a flood of a forged source was a flood of the log.
+ *  last one (`dropped`, this one included). Said on the transition: a
+ *  flood of a forged source must not be a flood of the log.
  ***************************************************************************/
 PRIVATE void note_refused_datagram(
     hgobj gobj,

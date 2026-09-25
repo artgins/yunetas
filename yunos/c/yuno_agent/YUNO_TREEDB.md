@@ -2682,8 +2682,6 @@ ycommand -c 'command-yuno id=<id> service=treedbs command=saved-schema treedb_na
 
 The drafts in `__system__` are another matter: the projection of the literal
 replaced them before the open, and they stay replaced (`topics` says which).
-(Until 7.25.4 the saved schema was removed before `treedb_open_db()` ran, and
-a literal the library refused took the operator's save with it.)
 
 Every answer of every command of `C_TREEDB` starts with the yuno
 (`<role^name>: ...`), the refusals of their parameters and of a permission

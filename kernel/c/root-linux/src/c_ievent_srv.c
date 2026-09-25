@@ -175,7 +175,7 @@ SDATA (DTP_INTEGER,     "timeout_idgot",        SDF_RD, "5000", "timeout waiting
 
 // What one peer may hold. Every subscription costs a scan of the publisher's
 // subscriptions, when it is made and on every publish, and a peer could make
-// them without end (review 19: 20000 of them blocked the loop for 80 s).
+// them without end (20000 of them blocked the loop for 80 s).
 SDATA (DTP_INTEGER,     "max_subscriptions",    SDF_RD, "5000", "Maximum subscriptions a peer may hold on this channel, 0 no limit. Above it a subscription is refused, logged once until the peer is under it again"),
 SDATA (DTP_INTEGER,     "max_subscription_size",SDF_RD, "16384", "Maximum size, in bytes of compact json, of the __filter__ and of the __global__ of a peer's subscription, 0 no limit. A bigger one is refused"),
 

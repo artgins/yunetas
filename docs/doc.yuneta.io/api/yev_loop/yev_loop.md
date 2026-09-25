@@ -80,10 +80,12 @@ canceled"* (with `fd` and `type`). What the kernel already has is not
 touched: the kernel holds its own reference to the file. Without memory for
 that completion the submissions are dropped all the same, with an ERROR
 (*"...: dropped, the event will not complete"*): an event that waits is
-better than bytes sent to another file. Up to this fix they were handed to
-the kernel at the next cycle and ran on whatever file had taken the number:
-the bytes of an old connection went to a new peer, and the write callback
-said they were sent.
+better than bytes sent to another file. Handed to the kernel later, they
+would run on whatever file had taken the number: the bytes of an old
+connection would go to a new peer, and the write callback would say they
+were sent. (7.25.4 kept no submission; an entry that a failed submit left in
+the queue went to the kernel at the next submit that worked, on whatever
+file had the number by then.)
 
 ```C
 /*
@@ -286,8 +288,7 @@ first:
   end of the process, with a WARNING *"Loop destroyed with zero-copy sends
   whose notification did not come: NOT freed, the kernel may still read
   their gbuffer"* (with `events`). A freed gbuffer, reused, would be sent
-  with whatever was written into it. Up to this fix it was freed after 1
-  second, with the ERROR above.
+  with whatever was written into it.
 - When the submission queue has no entry for that cancel (full, and the
   kernel takes nothing), the loop says so before it waits: *"Submission
   queue full: the cancel of the events left is NOT submitted, their

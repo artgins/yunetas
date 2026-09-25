@@ -2,7 +2,7 @@
  *          C_TEST_PEER_SUBS.C
  *
  *          GClasses to test what a remote peer may put in a subscription,
- *          and what it may hold (security review 19).
+ *          and what it may hold.
  *
  *          C_TEST_PEER_SINK: a local subscriber, keeps what it gets under
  *          its name.

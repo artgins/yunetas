@@ -19,7 +19,7 @@ if(mkrdir(path, xpermission) < 0) {
 }
 ```
 
-Up to this fix the handlers of a log (a `write()`, the json dump) could change `errno`. The caller's log then named another cause, or *"Success"*: `tranger2_create_topic()`'s *"Cannot create TimeRanger subdir. mkrdir() FAILED"* always said errno 0.
+Up to 7.25.4 the handlers of a log (a `write()`, the json dump) could change `errno`. The caller's log then named another cause, or *"Success"*: `tranger2_create_topic()`'s *"Cannot create TimeRanger subdir. mkrdir() FAILED"* always said errno 0.
 
 Source code:
 

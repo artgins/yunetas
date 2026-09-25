@@ -658,7 +658,7 @@ whole, what was made is removed"* is logged after the removal, as a CRITICAL
 at the tranger's own `on_critical_error`. So a tranger that exits on a
 critical -- `LOG_OPT_EXIT_ZERO`, the default of `C_TRANGER` and what
 `C_TREEDB` and the MQTT broker's queues pass -- exits there, with nothing of
-the topic left on disk. Before this fix it exited in the log of the first
+the topic left on disk. Up to 7.25.4 it exited in the log of the first
 failure: the `topic_desc.json`, `topic_cols.json` and `topic_var.json` stayed
 without `keys/` or `disks/`, and the next start opened that half topic (or
 could not open it at all, when the failure was the write of
@@ -787,7 +787,7 @@ The deletion is **propagated to subscribers**:
   not reached do not hear it, and that is logged: *"Cannot tell the rt_disk
   feeds that a key was deleted, opendir() of disks/ FAILED"* or *"Cannot tell
   every rt_disk feed that a key was deleted, readdir() of disks/ FAILED"*.
-  The delete itself is done and answers `0`. Up to this fix both were silent.
+  The delete itself is done and answers `0`. Up to 7.25.4 both were silent.
 - Each follower watches its own `disks/<rt_id>/`. It clears the key from its
   topic cache and fires the callback of **that feed only**, once.
 - In-process `rt_mem`, `open_iterator`, and `rt_disk` subscribers without a
@@ -826,7 +826,7 @@ A `key` with no directory on disk (its `stat()` fails with `ENOENT`) is logged
 is removed from memory all the same. Any OTHER failure of that `stat()`
 (`EACCES` on `keys/`, `EIO`) says nothing of the key: the call answers `-1`
 with *"Cannot delete key, stat() of its directory FAILED"*, and nothing is
-deleted, dropped from memory or announced. Up to this fix it was taken as
+deleted, dropped from memory or announced. Up to 7.25.4 it was taken as
 "not found": the key left the cache, the delete was announced to every feed
 and follower, and the call answered `0` over files still on disk, which came
 back at the next open.
@@ -2264,7 +2264,7 @@ This function is idempotent. This means that calling it multiple times with the 
 
 It returns `NULL`, never a critical, when the name is refused by the [topic name rule](<#timeranger2-topic-name-rule>), and when the directory exists but is not a topic (it has no `topic_desc.json`): *"Not a topic: topic_desc.json not found"*, logged only with `verbose`. A peer can send any name, and with `on_critical_error=2` a critical is an `exit(0)` of the yuno.
 
-It also returns `NULL` when the `keys/` directory of the topic exists and cannot be listed (`EMFILE`, `EACCES`, `ENOMEM`, or a `readdir()` that fails): *"Cannot list the keys of the topic"* (with `errno`), then *"Cannot open topic: its keys cannot be listed"*. On a filesystem whose `readdir()` gives no `d_type` (XFS with `ftype=0`, NFS, FUSE, overlay) each key is asked with `stat()`, and a `stat()` that fails with anything but `ENOENT` (a key removed meanwhile) fails the listing the same way: *"Cannot list the keys of the topic, stat() FAILED"*. Before this fix that key was taken as "not a directory" and left out with no log, and the topic opened without it. The topic is not left open: opened with no keys, a key nobody read looked like a key that does not exist, and a treedb accepted a create of its id (so up to 7.25.4). The next open, or the next [`tranger2_topic()`](#tranger2_topic), tries again:
+It also returns `NULL` when the `keys/` directory of the topic exists and cannot be listed (`EMFILE`, `EACCES`, `ENOMEM`, or a `readdir()` that fails): *"Cannot list the keys of the topic"* (with `errno`), then *"Cannot open topic: its keys cannot be listed"*. On a filesystem whose `readdir()` gives no `d_type` (XFS with `ftype=0`, NFS, FUSE, overlay) each key is asked with `stat()`, and a `stat()` that fails with anything but `ENOENT` (a key removed meanwhile) fails the listing the same way: *"Cannot list the keys of the topic, stat() FAILED"*. Up to 7.25.4 that key was taken as "not a directory" and left out with no log, and the topic opened without it. The topic is not left open: opened with no keys, a key nobody read looked like a key that does not exist, and a treedb accepted a create of its id (so up to 7.25.4). The next open, or the next [`tranger2_topic()`](#tranger2_topic), tries again:
 
 ```C
 json_t *topic = tranger2_open_topic(tranger, "devices", TRUE);

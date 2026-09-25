@@ -3,7 +3,7 @@
  *
  *          Main of test_c_ievent_srv_peer_subs
  *          Tests what a remote peer may put in a subscription, and what it
- *          may hold, through C_IEVENT_SRV (security review 19)
+ *          may hold, through C_IEVENT_SRV
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
