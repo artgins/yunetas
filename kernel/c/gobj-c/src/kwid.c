@@ -2475,6 +2475,49 @@ PUBLIC json_t *kw_duplicate(
 }
 
 /***************************************************************************
+ *  A twin of a kw dict: its own top level, its values shared (increfed),
+ *  its binary fields increfed as kw_incref() does
+ ***************************************************************************/
+PUBLIC json_t *kw_twin(
+    hgobj gobj,
+    json_t *kw  // NOT owned
+)
+{
+    if(!json_is_object(kw)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "kw to twin must be an object",
+            NULL
+        );
+        return 0;
+    }
+
+    json_t *twin = json_copy(kw);
+    if(!twin) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "json_copy() FAILED",
+            NULL
+        );
+        return 0;
+    }
+
+    serialize_fields_t * pf = serialize_fields;
+    while(pf->binary_field_name) {
+        void *binary = (void *)(uintptr_t) json_integer_value(
+            json_object_get(twin, pf->binary_field_name)
+        );
+        if(binary && pf->incref_fn) {
+            pf->incref_fn(binary);
+        }
+        pf++;
+    }
+    return twin;
+}
+
+/***************************************************************************
     Return a new kw only with the keys got by path.
     It's not a deep copy, new keys are the paths.
     Not valid with lists.

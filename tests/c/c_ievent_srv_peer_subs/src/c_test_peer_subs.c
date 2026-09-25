@@ -38,8 +38,8 @@
  *                 her keys but not the framework's, and the secret (a peer
  *                 may not remove keys), and the publisher's kw is left as it
  *                 was. The keys dropped are logged once.
- *              2. `alice` holds 2; she asks 4 more of EV_TEST_OPEN: 2 are
- *                 accepted, 2 refused (max_subscriptions, logged once), 2
+ *              2. `alice` holds 3; she asks 4 more of EV_TEST_OPEN: 1 is
+ *                 accepted, 3 refused (max_subscriptions, logged once), 2
  *                 with a __filter__ over 512 bytes are refused (logged
  *                 once); she withdraws 5 times what she never had, with a
  *                 2 KB key (logged once, capped); she asks EV_TEST_SECRET 3
@@ -57,6 +57,12 @@
  *                 gate's values, never the peer's (up to 7.25.4
  *                 kw_set_dict_value() kept a key that was already there, so
  *                 the peer's `__username__` reached command_parser's authz).
+ *              3c. EV_TEST_BIN carries a gbuffer, to two remote
+ *                 subscribers (`alice`, `bob`: each subscription a twin of
+ *                 the kw, sharing its gbuffer) and one local (`local`, the
+ *                 kw itself). Each gets the bytes, and when the publish
+ *                 returns the gbuffer holds only the publisher's reference:
+ *                 no twin releases it twice, none keeps it.
  *              4. The publisher publishes EV_TEST_OPEN: `alice`'s
  *                 subscription without filter gets it, without the
  *                 `gbuffer` she set (up to 7.25.4 the gate took her integer
@@ -91,9 +97,10 @@ PRIVATE int send_raw_iev(
 );
 PRIVATE int check(hgobj gobj, const char *what, BOOL ok);
 PRIVATE json_t *received_one(hgobj gobj, const char *name);
-PRIVATE int count_subscriptions_of(hgobj gobj, hgobj publisher, const char *username);
+PRIVATE int count_subscriptions_of(hgobj gobj, hgobj publisher, gobj_event_t event, const char *username);
 PRIVATE void record_feed(const char *name, json_t *kw);
 PRIVATE void check_stamped(hgobj gobj, const char *what);
+PRIVATE void record_bin(hgobj gobj, const char *name, json_t *kw);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -101,12 +108,15 @@ PRIVATE void check_stamped(hgobj gobj, const char *what);
 int test_peer_subs_failed = 0;
 PRIVATE json_t *received = 0;   // subscriber name -> [kw, ...] of EV_TEST_FEED
 PRIVATE json_t *stamped = 0;    // "command", "stats", "event" -> the kw the service saw
+PRIVATE json_t *bins = 0;       // subscriber name -> the bytes of EV_TEST_BIN it got
+PRIVATE int bin_refcount_after = -1;    // the gbuffer's refcount when the publish returned
 
 GOBJ_DEFINE_EVENT(EV_TEST_FEED);
 GOBJ_DEFINE_EVENT(EV_TEST_OPEN);
 GOBJ_DEFINE_EVENT(EV_TEST_SECRET);
 GOBJ_DEFINE_EVENT(EV_TEST_EMIT);
 GOBJ_DEFINE_EVENT(EV_TEST_PEER_MSG);
+GOBJ_DEFINE_EVENT(EV_TEST_BIN);
 
 /*---------------------------------------------*
  *      Attributes
@@ -172,6 +182,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->sink_local = gobj_create_pure_child("local", C_TEST_PEER_SINK, 0, gobj);
     received = json_object();
     stamped = json_object();
+    bins = json_object();
 }
 
 /***************************************************************************
@@ -181,6 +192,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     JSON_DECREF(received)
     JSON_DECREF(stamped)
+    JSON_DECREF(bins)
 }
 
 /***************************************************************************
@@ -234,6 +246,7 @@ PRIVATE int mt_play(hgobj gobj)
         ),
         priv->sink_strip
     );
+    gobj_subscribe_event(priv->publisher, EV_TEST_BIN, 0, priv->sink_local);
 
     /*
      *  All events (event NULL) is a local subscription: C_IEVENT_CLI sends
@@ -399,12 +412,12 @@ PRIVATE void record_feed(const char *name, json_t *kw)
 }
 
 /***************************************************************************
- *  The subscriptions of `publisher` whose subscriber is a channel of
- *  `username`
+ *  The subscriptions of `publisher` (to `event`, or to any if NULL) whose
+ *  subscriber is a channel of `username`
  ***************************************************************************/
-PRIVATE int count_subscriptions_of(hgobj gobj, hgobj publisher, const char *username)
+PRIVATE int count_subscriptions_of(hgobj gobj, hgobj publisher, gobj_event_t event, const char *username)
 {
-    json_t *dl_subs = gobj_find_subscriptions(publisher, NULL, NULL, NULL);
+    json_t *dl_subs = gobj_find_subscriptions(publisher, event, NULL, NULL);
     int count = 0;
     size_t idx; json_t *subs;
     json_array_foreach(dl_subs, idx, subs) {
@@ -453,6 +466,10 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         send_raw_iev(gobj, priv->cli_alice, "__subscribing__", EV_TEST_OPEN,
             json_pack("{s:{s:i}}", "__global__", "gbuffer", 1)
         );
+        send_raw_iev(gobj, priv->cli_alice, "__subscribing__", EV_TEST_BIN,
+            json_object()
+        );
+        gobj_subscribe_event(priv->cli_bob, EV_TEST_BIN, 0, gobj);
         gobj_subscribe_event(
             priv->cli_bob,
             EV_TEST_FEED,
@@ -536,6 +553,45 @@ PRIVATE json_t *pub_mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj sr
     json_object_set_new(stamped, "stats", json_deep_copy(kw));
     KW_DECREF(kw)
     return build_command_response(gobj, 0, 0, 0, 0);
+}
+
+/***************************************************************************
+ *  Keep the bytes of the gbuffer of an EV_TEST_BIN
+ ***************************************************************************/
+PRIVATE void record_bin(hgobj gobj, const char *name, json_t *kw)
+{
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    char text[64] = {0};
+    if(gbuf) {
+        snprintf(text, sizeof(text), "%.*s",
+            (int)gbuffer_leftbytes(gbuf), (const char *)gbuffer_cur_rd_pointer(gbuf)
+        );
+    }
+    json_object_set_new(bins, name, json_string(text));
+}
+
+/***************************************************************************
+ *  EV_TEST_BIN of a remote subscription
+ ***************************************************************************/
+PRIVATE int ac_test_bin(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    record_bin(gobj, src == priv->cli_alice? "alice": src == priv->cli_bob? "bob": "?", kw);
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  EV_TEST_BIN of a local sink
+ ***************************************************************************/
+PRIVATE int ac_sink_bin(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    record_bin(gobj, gobj_name(gobj), kw);
+
+    KW_DECREF(kw)
+    return 0;
 }
 
 /***************************************************************************
@@ -658,26 +714,42 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 2:
             check(gobj, "alice holds max_subscriptions",
-                count_subscriptions_of(gobj, priv->publisher, "alice") == 4
+                count_subscriptions_of(gobj, priv->publisher, NULL, "alice") == 4
             );
             check(gobj, "bob withdrew his subscription with a __global__",
-                count_subscriptions_of(gobj, priv->publisher, "bob") == 0
+                count_subscriptions_of(gobj, priv->publisher, EV_TEST_FEED, "bob") == 0
             );
             check_stamped(gobj, "command");
             check_stamped(gobj, "stats");
             check_stamped(gobj, "event");
 
             /*
-             *  4. alice's subscription with a `gbuffer`
+             *  4. alice's subscription with a `gbuffer`; 3c. a real one
              */
             gobj_send_event(priv->publisher, EV_TEST_EMIT,
                 json_pack("{s:s}", "event", "open"), gobj
+            );
+            gobj_send_event(priv->publisher, EV_TEST_EMIT,
+                json_pack("{s:s}", "event", "bin"), gobj
             );
             set_timeout(priv->timer, 300);
             break;
 
         case 3:
             check(gobj, "EV_TEST_OPEN to alice", priv->opens_to_alice == 1);
+            check(gobj, "EV_TEST_BIN: the gbuffer has only the publisher's reference",
+                bin_refcount_after == 1
+            );
+            check(gobj, "EV_TEST_BIN to alice",
+                strcmp(kw_get_str(gobj, bins, "alice", "", 0), "binary payload")==0
+            );
+            check(gobj, "EV_TEST_BIN to bob",
+                strcmp(kw_get_str(gobj, bins, "bob", "", 0), "binary payload")==0
+            );
+            check(gobj, "EV_TEST_BIN to local",
+                strcmp(kw_get_str(gobj, bins, "local", "", 0), "binary payload")==0
+            );
+            gobj_unsubscribe_event(priv->publisher, EV_TEST_BIN, 0, priv->sink_local);
             gobj_unsubscribe_event(priv->publisher, EV_TEST_FEED, 0, priv->sink_local);
             gobj_unsubscribe_event(priv->publisher, EV_TEST_FEED, 0, priv->sink_strip);
             gobj_stop_tree(priv->cli_alice);
@@ -719,6 +791,14 @@ PRIVATE int ac_test_emit(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         check(gobj, "the publisher's kw is left as it was", json_equal(kw_kept, kw_before));
         JSON_DECREF(kw_kept)
         JSON_DECREF(kw_before)
+    } else if(strcmp(what, "bin")==0) {
+        gbuffer_t *gbuf = gbuffer_create(64, 64);
+        gbuffer_append_string(gbuf, "binary payload");
+        json_t *kw_bin = json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf);
+        json_t *kw_kept = kw_incref(kw_bin);
+        gobj_publish_event(gobj, EV_TEST_BIN, kw_bin);
+        bin_refcount_after = gbuf->refcount;
+        KW_DECREF(kw_kept)
     } else {
         gobj_publish_event(gobj, EV_TEST_OPEN, json_pack("{s:s}", "what", "open"));
     }
@@ -794,6 +874,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TEST_FEED,              ac_test_feed,               0},
         {EV_TEST_OPEN,              ac_test_feed,               0},
         {EV_TEST_PEER_MSG,          ac_peer_msg,                0},
+        {EV_TEST_BIN,               ac_test_bin,                0},
         {EV_MT_COMMAND_ANSWER,      ac_answer,                  0},
         {EV_MT_STATS_ANSWER,        ac_answer,                  0},
         {0,0,0}
@@ -811,6 +892,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TEST_FEED,              EVF_PUBLIC_EVENT},
         {EV_TEST_OPEN,              EVF_PUBLIC_EVENT},
         {EV_TEST_PEER_MSG,          0},
+        {EV_TEST_BIN,               EVF_PUBLIC_EVENT},
         {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
         {EV_MT_STATS_ANSWER,        EVF_PUBLIC_EVENT},
         {0, 0}
@@ -873,6 +955,7 @@ PRIVATE int create_gclass_pub(gclass_name_t gclass_name)
         {EV_TEST_OPEN,              EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_TEST_SECRET,            EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS|EVF_AUTHZ_SUBSCRIBE},
         {EV_TEST_PEER_MSG,          EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},  // public: the gate must know it
+        {EV_TEST_BIN,               EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {0, 0}
     };
 
@@ -916,6 +999,7 @@ PRIVATE int create_gclass_sink(gclass_name_t gclass_name)
 
     ev_action_t st_idle[] = {
         {EV_TEST_FEED,              ac_sink_feed,               0},
+        {EV_TEST_BIN,               ac_sink_bin,                0},
         {0,0,0}
     };
 
@@ -926,6 +1010,7 @@ PRIVATE int create_gclass_sink(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_TEST_FEED,              0},
+        {EV_TEST_BIN,               0},
         {0, 0}
     };
 

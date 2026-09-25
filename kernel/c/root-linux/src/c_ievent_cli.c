@@ -367,15 +367,26 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
          *  published one, which gobj_publish_event() hands the SAME to
          *  every subscriber that does not rewrite it: up to 7.25.4 what
          *  this gobj wrote in it reached every subscriber after it, and
-         *  the publisher.
+         *  the publisher. Its top level is enough (kw_twin()): the one
+         *  nested value changed in place, __md_iev__, is copied below.
          */
-        json_t *kw_own = kw_duplicate(gobj, kw);
+        json_t *kw_own = kw_twin(gobj, kw);
         KW_DECREF(kw)
         if(!kw_own) {
             // Error already logged
             return -1;
         }
         kw = kw_own;
+    }
+
+    /*
+     *  The ievent stack and the message type are written INTO __md_iev__:
+     *  a copy of our own when anybody else holds it (the kw this one was
+     *  twinned from, or the __global__ of the subscription that put it).
+     */
+    json_t *md_iev = json_object_get(kw, "__md_iev__");
+    if(md_iev && md_iev->refcount > 1) {
+        json_object_set_new(kw, "__md_iev__", json_deep_copy(md_iev));
     }
 
     /*

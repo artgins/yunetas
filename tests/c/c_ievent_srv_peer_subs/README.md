@@ -28,8 +28,8 @@ test writes by hand, as a hostile peer would, and `bob`, a plain client.
    Up to 7.25.4 the publish shared one kw: `bob` got nothing (alice's
    `topic_name` failed his filter), `local` got the forgery without the
    secret and alice's `__md_iev__`, and the publisher's kw was changed.
-2. `alice` holds 2 subscriptions and asks 4 more: 2 are accepted, 2 refused
-   (`max_subscriptions`, logged once); 2 with a `__filter__` over 512 bytes
+2. `alice` holds 3 subscriptions (the third, `EV_TEST_BIN`, below) and asks
+   4 more: 1 is accepted, 3 refused (`max_subscriptions`, logged once); 2 with a `__filter__` over 512 bytes
    are refused (logged once); 5 withdrawals of nothing, each with a 2 KB
    key, are ONE warning, capped (`main.c` counts the lines and measures
    them); 3 subscriptions of `EV_TEST_SECRET`, which only `bob` may read,
@@ -38,6 +38,12 @@ test writes by hand, as a hostile peer would, and `bob`, a plain client.
    `C_IEVENT_CLI` does it: it goes. Up to 7.25.4 the server compared it with
    the `__global__` it had stored, which carries its own back-metadata, and
    the subscription stayed until the channel closed.
+3c. `EV_TEST_BIN` carries a gbuffer to two remote subscribers (`alice`,
+   `bob`: each subscription gets a `kw_twin()` of the kw, sharing the
+   gbuffer, which the gate serializes and releases) and one local (`local`,
+   the kw itself). Each gets the bytes, and when the publish returns the
+   gbuffer holds only the publisher's own reference: no twin releases it
+   twice, none keeps it.
 4. `alice` sends a command, a stats request and an event (and one more
    subscription), each with a `__username__` of her own (`admin`, `bob`) and,
    in the routing stack, a forged `__username__`, `input_channel` and

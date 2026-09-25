@@ -1611,11 +1611,14 @@ PUBLIC json_t *gobj_list_subscribings(
  *
  *      3) KW filling
  *          - A subscription with __local__ or __global__ gets a twin of the
- *            kw (kw_duplicate), and only that twin is changed:
+ *            kw (kw_twin: its own top level, the values and binary fields
+ *            shared and increfed), and only that twin is changed:
  *          - Remove local keys (defined in __local__)
  *          - Add global keys (defined in __global__)
  *          Every other subscriber gets the SAME kw (kw_incref): a receiver
- *          that changes the kw it got must change a copy of its own.
+ *          that changes the kw it got must change a copy of its own, and
+ *          one that changes a nested value in place (a twin shares them,
+ *          with the __global__ of the subscription too) a copy of that value.
  *
  *      4) Publish (gobj_send_event to subscriber)
  *          If __own_event__ defined and return -1 don't continue publishing

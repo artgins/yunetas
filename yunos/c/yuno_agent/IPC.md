@@ -208,11 +208,13 @@ Entry at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj
 applying the subscription's `__filter__`, `__local__` and `__global__` (§3.4).
 `kw2publish` is the publisher's kw itself, shared by every subscriber
 (`kw_incref`), unless the subscription has a `__local__` or a `__global__`:
-then it is a twin of its own (`kw_duplicate`), so the keys one subscription
-removes or adds reach no other subscriber, nor the publisher. Up to 7.25.4 it
-was shared always, and a remote peer's `__global__` forged the event of every
-subscriber after it (§4.6). A receiver that changes the kw it got works on its
-own copy when somebody else holds it (`C_IEVENT_SRV`'s `mt_inject_event`).
+then it is a twin of its own (`kw_twin`: a new top level, the values and
+binary fields shared and increfed), so the keys one subscription removes or
+adds reach no other subscriber, nor the publisher. Up to 7.25.4 it was shared
+always, and a remote peer's `__global__` forged the event of every subscriber
+after it (§4.6). A receiver that changes the kw it got works on a twin of its
+own when somebody else holds it, and copies a nested value before changing it
+in place (`C_IEVENT_SRV`'s `mt_inject_event` and its `__md_iev__`).
 
 If there are no subscribers, [`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.c) logs
 *"Publish event WITHOUT subscribers"* at `LOG_WARNING` — unless the

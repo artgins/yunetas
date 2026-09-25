@@ -434,6 +434,20 @@ PUBLIC json_t *kw_duplicate(
     json_t *kw  // NOT owned
 );
 
+/**rst**
+   Make a twin of a kw dict: a NEW top-level object whose values are the
+   SAME json of kw (increfed, not copied), and whose binary fields (gbuffer)
+   are increfed as kw_incref() does. So the twin is a kw of its own for
+   kw_decref(): adding, removing or replacing a top-level key of it does not
+   touch kw, and each of the two releases its own reference of a gbuffer.
+   A nested value is SHARED: a caller that changes one in place replaces it
+   with a copy first. Return NULL (logged) if kw is not a dict.
+**rst**/
+PUBLIC json_t *kw_twin(
+    hgobj gobj,
+    json_t *kw  // NOT owned
+);
+
 
 /**rst**
     Return a new kw only with the keys got by path.

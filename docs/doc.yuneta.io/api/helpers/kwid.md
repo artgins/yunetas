@@ -384,6 +384,49 @@ Unlike `json_deep_copy()`, [`kw_duplicate()`](#kw_duplicate) processes serialize
 
 ---
 
+(kw_twin)=
+## [`kw_twin()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/kwid.c#L2481)
+
+`kw_twin()` makes a twin of a kw dict: a NEW top-level object whose values are the SAME json values of `kw`, increfed, not copied. Its binary fields (`gbuffer`) are increfed as [`kw_incref()`](#kw_incref) does.
+
+```C
+json_t *kw_twin(
+    hgobj gobj,
+    json_t *kw  // NOT owned
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj, for the log of an error. |
+| `kw` | `json_t *` | The kw dict to twin. It is not owned. |
+
+**Returns**
+
+A new kw dict, yours, which you release with `KW_DECREF`. Returns `NULL`, logged, when `kw` is not a dict.
+
+**Notes**
+
+The twin is a kw of its own at the top level. Adding, removing or replacing a top-level key of it does not touch `kw`. Each of the two releases its own reference of a gbuffer, so `kw_decref()` of both never releases one twice.
+
+A nested value is SHARED with `kw`. A caller that changes a nested value in place replaces it with a copy first.
+
+The cost does not grow with the size of the nested values, unlike [`kw_duplicate()`](#kw_duplicate). [`gobj_publish_event()`](#gobj_publish_event) gives one to each subscription with a `__local__` or a `__global__` (since 7.25.5).
+
+```C
+json_t *twin = kw_twin(gobj, kw);           // kw carries a "gbuffer"
+json_object_set_new(twin, "tag", json_string("mine"));   // kw has no "tag"
+json_t *md = json_object_get(twin, "__md_iev__");
+if(md && md->refcount > 1) {                 // shared with kw: copy it before changing it
+    json_object_set_new(twin, "__md_iev__", json_deep_copy(md));
+}
+KW_DECREF(twin)                              // releases the twin's gbuffer reference only
+```
+
+---
+
 (kw_filter_metadata)=
 ## [`kw_filter_metadata()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/kwid.c#L3328)
 

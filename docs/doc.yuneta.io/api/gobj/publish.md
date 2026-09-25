@@ -138,13 +138,17 @@ If the event is a system event, it is only sent to subscribers that support syst
 **One kw, or a twin.** Every subscriber gets the SAME kw (`kw_incref()`), which
 costs nothing however many subscribers there are, unless its subscription
 rewrites it: a subscription with a `__local__` (keys removed) or a
-`__global__` (keys added) gets a twin of its own (`kw_duplicate()`, which
-increfs the binary fields), and only the twin is changed. The `__filter__` of
-each subscription is evaluated on the publisher's kw as it came. So what one
-subscription changes reaches no other subscriber, and the publisher gets its
-kw back as it gave it. A receiver that changes the kw it got (as
-`C_IEVENT_SRV` does to send it on) must change a copy of its own when anybody
-else holds it. Up to 7.25.4 the kw was shared always, and the `__local__` and
+`__global__` (keys added) gets a twin of its own ([`kw_twin()`](#kw_twin): a
+new top level, the values and the binary fields shared and increfed, so its
+cost does not grow with the size of the event), and only the twin is changed.
+The `__filter__` of each subscription is evaluated on the publisher's kw as it
+came. So what one subscription changes reaches no other subscriber, and the
+publisher gets its kw back as it gave it. A receiver that changes the kw it
+got (as `C_IEVENT_SRV` does to send it on) must change a twin of its own when
+anybody else holds it, and a nested value it changes in place (the
+`__md_iev__` stack, for `C_IEVENT_SRV`) a copy of that value: a twin shares
+them with the publisher, and the values of a `__global__` with the
+subscription. Up to 7.25.4 the kw was shared always, and the `__local__` and
 `__global__` of one subscription changed the event of every subscriber after
 it -- including those of a remote peer, see
 [What a peer may put in a subscription](#gclass-c-ievent-srv).

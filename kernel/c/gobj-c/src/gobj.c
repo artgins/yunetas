@@ -9484,13 +9484,14 @@ PUBLIC int gobj_publish_event(
              *  the publisher, nor the __filter__ of the next subscription.
              *  Up to 7.25.4 the kw was shared always, and a remote peer's
              *  subscription forged or stripped the event of everybody after
-             *  it. The twin is a kw_duplicate(), which increfs the binary
-             *  fields, and __global__ goes in as a copy, so the receiver may
-             *  change what it got without touching the subscription.
+             *  it. Both touch only the TOP level, so the twin is only that
+             *  (kw_twin(): the values shared, the binary fields increfed);
+             *  a receiver that changes a nested value in place copies that
+             *  value first (C_IEVENT_SRV its __md_iev__).
              */
             json_t *kw2publish = 0;
             if(json_size(__local__)>0 || json_size(__global__)>0) {
-                kw2publish = kw_duplicate(publisher, kw);
+                kw2publish = kw_twin(publisher, kw);
                 if(!kw2publish) {
                     // Error already logged
                     continue;
@@ -9525,7 +9526,7 @@ PUBLIC int gobj_publish_event(
              *  Add global keys
              */
             if(json_size(__global__)>0) {
-                json_object_update_new(kw2publish, json_deep_copy(__global__));
+                json_object_update(kw2publish, __global__);
             }
 
             /*
