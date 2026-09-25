@@ -38,7 +38,15 @@ test writes by hand, as a hostile peer would, and `bob`, a plain client.
    `C_IEVENT_CLI` does it: it goes. Up to 7.25.4 the server compared it with
    the `__global__` it had stored, which carries its own back-metadata, and
    the subscription stayed until the channel closed.
-4. The publisher publishes `EV_TEST_OPEN`: `alice`'s subscription without a
+4. `alice` sends a command, a stats request and an event (and one more
+   subscription), each with a `__username__` of her own (`admin`, `bob`) and,
+   in the routing stack, a forged `__username__`, `input_channel` and
+   `input_service`. The service gets the gate's values, never hers. Up to
+   7.25.4 `kw_set_dict_value()` kept a key that was already there, so the
+   peer's `__username__` reached the command, the stats and the event -- and
+   the authz of `command_parser` reads that key (fixed in `kwid.c` by
+   fdf138144; this test holds it).
+5. The publisher publishes `EV_TEST_OPEN`: `alice`'s subscription without a
    filter gets it, without `gbuffer`. Up to 7.25.4 the gate took her integer
    for a gbuffer when it serialized the event back to her, and the yuno
    crashed.

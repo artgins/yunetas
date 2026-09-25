@@ -50,6 +50,13 @@
  *                 goes (up to 7.25.4 the server compared it with the one it
  *                 had stored, which carries the back-metadata of the gate,
  *                 and it stayed until the channel closed).
+ *              3b. `alice` sends a command, a stats request and an event,
+ *                 and a subscription, each with its own `__username__`
+ *                 ("admin") and, in the routing stack, `__username__`,
+ *                 `input_channel` and `input_service`: the service sees the
+ *                 gate's values, never the peer's (up to 7.25.4
+ *                 kw_set_dict_value() kept a key that was already there, so
+ *                 the peer's `__username__` reached command_parser's authz).
  *              4. The publisher publishes EV_TEST_OPEN: `alice`'s
  *                 subscription without filter gets it, without the
  *                 `gbuffer` she set (up to 7.25.4 the gate took her integer
@@ -86,17 +93,20 @@ PRIVATE int check(hgobj gobj, const char *what, BOOL ok);
 PRIVATE json_t *received_one(hgobj gobj, const char *name);
 PRIVATE int count_subscriptions_of(hgobj gobj, hgobj publisher, const char *username);
 PRIVATE void record_feed(const char *name, json_t *kw);
+PRIVATE void check_stamped(hgobj gobj, const char *what);
 
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
 int test_peer_subs_failed = 0;
 PRIVATE json_t *received = 0;   // subscriber name -> [kw, ...] of EV_TEST_FEED
+PRIVATE json_t *stamped = 0;    // "command", "stats", "event" -> the kw the service saw
 
 GOBJ_DEFINE_EVENT(EV_TEST_FEED);
 GOBJ_DEFINE_EVENT(EV_TEST_OPEN);
 GOBJ_DEFINE_EVENT(EV_TEST_SECRET);
 GOBJ_DEFINE_EVENT(EV_TEST_EMIT);
+GOBJ_DEFINE_EVENT(EV_TEST_PEER_MSG);
 
 /*---------------------------------------------*
  *      Attributes
@@ -161,6 +171,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->sink_strip = gobj_create_pure_child("strip", C_TEST_PEER_SINK, 0, gobj);
     priv->sink_local = gobj_create_pure_child("local", C_TEST_PEER_SINK, 0, gobj);
     received = json_object();
+    stamped = json_object();
 }
 
 /***************************************************************************
@@ -169,6 +180,7 @@ PRIVATE void mt_create(hgobj gobj)
 PRIVATE void mt_destroy(hgobj gobj)
 {
     JSON_DECREF(received)
+    JSON_DECREF(stamped)
 }
 
 /***************************************************************************
@@ -287,6 +299,12 @@ PRIVATE int send_raw_iev(
         "user", "",
         "host", ""
     );
+    /*
+     *  What the gate stamps, forged: it must overwrite them
+     */
+    json_object_set_new(jn_ievent_id, "__username__", json_string("admin"));
+    json_object_set_new(jn_ievent_id, "input_channel", json_string("forged"));
+    json_object_set_new(jn_ievent_id, "input_service", json_string("forged"));
     msg_iev_push_stack(gobj, kw, IEVENT_STACK_ID, jn_ievent_id);
     msg_iev_set_msg_type(gobj, kw, msg_type);
 
@@ -341,6 +359,30 @@ PRIVATE json_t *received_one(hgobj gobj, const char *name)
         return NULL;
     }
     return json_array_get(jn_list, 0);
+}
+
+/***************************************************************************
+ *  The kw a service got from `alice` carries the gate's stamps, not hers
+ ***************************************************************************/
+PRIVATE void check_stamped(hgobj gobj, const char *what)
+{
+    char name[80];
+    json_t *kw = json_object_get(stamped, what);
+    snprintf(name, sizeof(name), "%s reached the service", what);
+    if(check(gobj, name, kw != NULL) < 0) {
+        return;
+    }
+    snprintf(name, sizeof(name), "%s: __username__ is the gate's", what);
+    check(gobj, name, strcmp(kw_get_str(gobj, kw, "__username__", "", 0), "alice")==0);
+
+    json_t *jn_stack = kw_get_list(gobj, kw, "__md_iev__`" IEVENT_STACK_ID, 0, 0);
+    json_t *jn_top = json_array_get(jn_stack, 0);
+    snprintf(name, sizeof(name), "%s: the stack's __username__ is the gate's", what);
+    check(gobj, name, strcmp(kw_get_str(gobj, jn_top, "__username__", "", 0), "alice")==0);
+    snprintf(name, sizeof(name), "%s: the stack's input_channel is the gate's", what);
+    check(gobj, name, strncmp(kw_get_str(gobj, jn_top, "input_channel", "", 0), "input-", 6)==0);
+    snprintf(name, sizeof(name), "%s: the stack's input_service is the gate's", what);
+    check(gobj, name, strcmp(kw_get_str(gobj, jn_top, "input_service", "", 0), "forged")!=0);
 }
 
 /***************************************************************************
@@ -459,6 +501,44 @@ PRIVATE int ac_test_feed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  An event a peer sent, as the gate hands it on (through its channel and
+ *  the C_IOGATE, which this gobj subscribes)
+ ***************************************************************************/
+PRIVATE int ac_peer_msg(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    json_object_set_new(stamped, "event", json_deep_copy(kw));
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The answers of the command and the stats that alice asked
+ ***************************************************************************/
+PRIVATE int ac_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The publisher's command and stats: keep the kw they got
+ ***************************************************************************/
+PRIVATE json_t *pub_mt_command_parser(hgobj gobj, const char *command, json_t *kw, hgobj src)
+{
+    json_object_set_new(stamped, "command", json_deep_copy(kw));
+    KW_DECREF(kw)
+    return build_command_response(gobj, 0, 0, 0, 0);
+}
+
+PRIVATE json_t *pub_mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
+{
+    json_object_set_new(stamped, "stats", json_deep_copy(kw));
+    KW_DECREF(kw)
+    return build_command_response(gobj, 0, 0, 0, 0);
+}
+
+/***************************************************************************
  *  A sink: keeps what it gets under its name
  ***************************************************************************/
 PRIVATE int ac_sink_feed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -546,6 +626,22 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
 
             /*
+             *  3b. What the gate stamps, sent by the peer
+             */
+            send_raw_iev(gobj, priv->cli_alice, "__subscribing__", EV_TEST_SECRET,
+                json_pack("{s:{s:i}, s:s}", "__filter__", "n", 9, "__username__", "bob")
+            );
+            send_raw_iev(gobj, priv->cli_alice, "__command__", EV_MT_COMMAND,
+                json_pack("{s:s, s:s}", "__command__", "whoami", "__username__", "admin")
+            );
+            send_raw_iev(gobj, priv->cli_alice, "__stats__", EV_MT_STATS,
+                json_pack("{s:s, s:s}", "__stats__", "whoami", "__username__", "admin")
+            );
+            send_raw_iev(gobj, priv->cli_alice, "__message__", EV_TEST_PEER_MSG,
+                json_pack("{s:s}", "__username__", "admin")
+            );
+
+            /*
              *  3. bob withdraws his subscription, as C_IEVENT_CLI does it
              */
             gobj_unsubscribe_event(
@@ -567,6 +663,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check(gobj, "bob withdrew his subscription with a __global__",
                 count_subscriptions_of(gobj, priv->publisher, "bob") == 0
             );
+            check_stamped(gobj, "command");
+            check_stamped(gobj, "stats");
+            check_stamped(gobj, "event");
 
             /*
              *  4. alice's subscription with a `gbuffer`
@@ -646,7 +745,8 @@ PRIVATE const GMETHODS gmt = {
     .mt_pause = mt_pause,
 };
 PRIVATE const GMETHODS gmt_pub = {
-    0
+    .mt_stats = pub_mt_stats,
+    .mt_command_parser = pub_mt_command_parser,
 };
 PRIVATE const GMETHODS gmt_sink = {
     0
@@ -693,6 +793,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,               ac_on_close,                0},
         {EV_TEST_FEED,              ac_test_feed,               0},
         {EV_TEST_OPEN,              ac_test_feed,               0},
+        {EV_TEST_PEER_MSG,          ac_peer_msg,                0},
+        {EV_MT_COMMAND_ANSWER,      ac_answer,                  0},
+        {EV_MT_STATS_ANSWER,        ac_answer,                  0},
         {0,0,0}
     };
 
@@ -707,6 +810,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,               0},
         {EV_TEST_FEED,              EVF_PUBLIC_EVENT},
         {EV_TEST_OPEN,              EVF_PUBLIC_EVENT},
+        {EV_TEST_PEER_MSG,          0},
+        {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
+        {EV_MT_STATS_ANSWER,        EVF_PUBLIC_EVENT},
         {0, 0}
     };
 
@@ -766,6 +872,7 @@ PRIVATE int create_gclass_pub(gclass_name_t gclass_name)
         {EV_TEST_FEED,              EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_TEST_OPEN,              EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_TEST_SECRET,            EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS|EVF_AUTHZ_SUBSCRIBE},
+        {EV_TEST_PEER_MSG,          EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},  // public: the gate must know it
         {0, 0}
     };
 
