@@ -7114,6 +7114,253 @@ PRIVATE int scenario_moved_col_saved(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A save of nothing: "nothing to save", no topic_versions
+ ***************************************************************************/
+PRIVATE int check_nothing_to_save(hgobj gobj, const char *treedb_name, const char *label)
+{
+    json_t *jn_resp = treedb_cmd(gobj, treedb_name, "save-schema", json_object());
+    int ret = 0;
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            !strstr(kw_get_str(gobj, jn_resp, "comment", "", 0), "nothing to save") ||
+            kw_get_dict(gobj, jn_resp, "data`topic_versions", 0, 0)) {
+        ret = test_fail(gobj, treedb_name, label, json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    return ret;
+}
+
+/***************************************************************************
+ *  The save of a draft: the topics it publishes (`topic_versions`, owned)
+ *  and the nodes it does not place (`not_placed`, owned, [id, ...]: what
+ *  `places_not_written` must say)
+ ***************************************************************************/
+PRIVATE int save_publishing(hgobj gobj, const char *treedb_name, const char *label,
+    json_t *topic_versions, // owned
+    json_t *not_placed)     // owned
+{
+    json_t *jn_resp = treedb_cmd(gobj, treedb_name, "save-schema", json_object());
+    int ret = 0;
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            !json_equal(kw_get_dict(gobj, jn_resp, "data`topic_versions", 0, 0), topic_versions) ||
+            !json_equal(kw_get_list(gobj, jn_resp, "data`places_not_written", 0, 0), not_placed)) {
+        ret = test_fail(gobj, treedb_name, label,
+            json_pack("{s:O, s:O, s:O}",
+                "expected_topic_versions", topic_versions,
+                "expected_places_not_written", not_placed,
+                "save_schema", jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    JSON_DECREF(topic_versions)
+    JSON_DECREF(not_placed)
+    return ret;
+}
+
+/***************************************************************************
+ *  SC: a column with TWO parents. The operator links
+ *  `tw_sc.departments.name` to `users` TOO (the meta-schema's fkeys are
+ *  lists: a node may hang from several parents, and NP's open takes it
+ *  back only when a newer literal comes). The save publishes `users`, and
+ *  says the column in `places_not_written`: its one `order` cannot say its
+ *  place in both topics, so it keeps the one it has, and it is compared
+ *  by no save. Right after the save `draft_changed` is {}, a save again
+ *  publishes the same (`users` alone, at the same topic_version), and
+ *  after the apply `draft_changed` is {} and a save has nothing to save.
+ *
+ *  ST: a topic with TWO parents. The operator links `tw_sb.extra` into
+ *  `tw_sa`; it stays in `tw_sb` too. The save of `tw_sa` publishes it and
+ *  does not place it; neither treedb reads a draft afterwards, a save of
+ *  `tw_sa` again publishes `extra` alone, and `tw_sb` has nothing to save.
+ *
+ *  Red before: each save wrote the node's place in ITS parent, and the
+ *  other parent read the node as moved. SC: saves of `tw_sc` flipped
+ *  between `{users}` and `{users, departments}` for ever, raising the
+ *  topic_versions of topics nobody edited. ST: each treedb's save made the
+ *  other read `extra` as unsaved, and a save of `tw_sa` re-sorted
+ *  `departments` too.
+ ***************************************************************************/
+PRIVATE int scenario_node_of_two_parents(hgobj gobj)
+{
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    /*
+     *  SC
+     */
+    const char *db = "tw_sc";
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    if(gobj_link_nodes(sys, "cols",
+            "topics", json_pack("{s:s}", "id", "tw_sc.users"),
+            "cols", json_pack("{s:s}", "id", "tw_sc.departments.name"), gobj) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: SC, the operator's link was refused", NULL);
+    }
+    result += check_draft_changed(gobj, db, "TEST FAIL: SC, the second parent is not a draft",
+        json_pack("{s:b}", "users", 1));
+    for(int i = 0; i < 3; i++) {
+        result += save_publishing(gobj, db,
+            "TEST FAIL: SC, a save of a column of two parents published other topics, "
+            "or did not say the column",
+            json_pack("{s:i}", "users", 2),
+            json_pack("[s]", "tw_sc.departments.name"));
+        result += check_draft_changed(gobj, db,
+            "TEST FAIL: SC, a column of two parents reads as unsaved right after its save",
+            json_object());
+    }
+    result += apply_schema(gobj, db);
+    close_db(gobj, db);
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: SC, the applied column of two parents reads as a draft", json_object());
+    result += check_nothing_to_save(gobj, db,
+        "TEST FAIL: SC, a save after the apply published the column of two parents again");
+    close_db(gobj, db);
+    drop_treedb(gobj, db);
+
+    /*
+     *  ST
+     */
+    if(open_db(gobj, "tw_sa", users_departments_v1("tw_sa"), FALSE) < 0) {
+        return result - 1;
+    }
+    json_t *sb = schema_of("tw_sb", 1, json_pack("[o,o]",
+        topic_of("extra", 1, json_pack("{s:o}", "id", col_id())),
+        topic_of("other", 1, json_pack("{s:o}", "id", col_id()))));
+    if(open_db(gobj, "tw_sb", sb, FALSE) < 0) {
+        close_db(gobj, "tw_sa");
+        return result - 1;
+    }
+    if(gobj_link_nodes(sys, "topics",
+            "treedbs", json_pack("{s:s}", "id", "tw_sa"),
+            "topics", json_pack("{s:s}", "id", "tw_sb.extra"), gobj) < 0) {
+        result += test_fail(gobj, "tw_sa", "TEST FAIL: ST, the operator's link was refused", NULL);
+    }
+    result += check_draft_changed(gobj, "tw_sa", "TEST FAIL: ST, the linked topic is not a draft",
+        json_pack("{s:b}", "extra", 1));
+    for(int i = 0; i < 3; i++) {
+        result += save_publishing(gobj, "tw_sa",
+            "TEST FAIL: ST, a save of a topic of two parents published other topics, "
+            "or did not say the topic",
+            json_pack("{s:i}", "extra", 1),
+            json_pack("[s]", "tw_sb.extra"));
+        result += check_draft_changed(gobj, "tw_sa",
+            "TEST FAIL: ST, a topic of two parents reads as unsaved right after its save",
+            json_object());
+        result += check_draft_changed(gobj, "tw_sb",
+            "TEST FAIL: ST, the save of one parent made the other read the topic as moved",
+            json_object());
+        result += check_nothing_to_save(gobj, "tw_sb",
+            "TEST FAIL: ST, the other parent published the topic of two parents");
+    }
+    close_db(gobj, "tw_sa");
+    close_db(gobj, "tw_sb");
+    drop_treedb(gobj, "tw_sa");
+    drop_treedb(gobj, "tw_sb");
+    return result;
+}
+
+/***************************************************************************
+ *  DT: two topics with ONE name in one treedb. `tw_da` and `tw_db` both
+ *  have `users`:
+ *
+ *    - linking `tw_db.users` into `tw_da` is refused, with ONE ERROR
+ *      ("Treedb already has a topic with this name"), as a second column
+ *      of one name in a topic is;
+ *    - the same pair made by an autolink update, which the link guard
+ *      does not see, is refused by save-schema: -1, naming both ids in
+ *      the comment and in `data.twins`, with ONE ERROR, and nothing
+ *      saved;
+ *    - unlinked again, the save goes.
+ *
+ *  Red before: the link was accepted, `saved-schema` said nothing of it,
+ *  and a save of an edit of `departments` published `tw_db`'s `users` (a
+ *  schema is keyed by name: the rebuild kept the last of the two, the
+ *  diff found the first) at the topic_version `tw_da`'s ran, so the apply
+ *  reached nothing and nobody was told.
+ ***************************************************************************/
+PRIVATE int scenario_two_topics_of_one_name(hgobj gobj)
+{
+    int result = 0;
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, "tw_da", users_departments_v1("tw_da"), FALSE) < 0) {
+        return -1;
+    }
+    if(open_db(gobj, "tw_db", users_departments_v1("tw_db"), FALSE) < 0) {
+        close_db(gobj, "tw_da");
+        return -1;
+    }
+    result += edit_header(gobj, "tw_db", "users", "username", "From B");
+
+    json_int_t e0 = log_count(gobj, "error");
+    int ret = gobj_link_nodes(sys, "topics",
+        "treedbs", json_pack("{s:s}", "id", "tw_da"),
+        "topics", json_pack("{s:s}", "id", "tw_db.users"), gobj);
+    json_int_t e = log_count(gobj, "error") - e0;
+    if(ret >= 0 || e != 1) {
+        result += test_fail(gobj, "tw_da",
+            "TEST FAIL: DT, a second topic of one name was linked into the treedb",
+            json_pack("{s:i, s:I}", "ret", ret, "errors", e));
+    }
+
+    json_t *node = gobj_update_node(sys, "topics",
+        json_pack("{s:s, s:[s,s]}",
+            "id", "tw_db.users",
+            "treedbs", "treedbs^tw_db^topics", "treedbs^tw_da^topics"),
+        json_pack("{s:b}", "autolink", 1),
+        gobj);
+    if(!node) {
+        result += test_fail(gobj, "tw_da", "TEST FAIL: DT, cannot set up the twin topics", NULL);
+    }
+    JSON_DECREF(node)
+    result += edit_header(gobj, "tw_da", "departments", "name", "A edit");
+
+    e0 = log_count(gobj, "error");
+    json_t *jn_resp = treedb_cmd(gobj, "tw_da", "save-schema", json_object());
+    e = log_count(gobj, "error") - e0;
+    const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
+    const char *first = kw_get_str(gobj, jn_resp, "data`twins`first", "", 0);
+    const char *second = kw_get_str(gobj, jn_resp, "data`twins`second", "", 0);
+    BOOL both = (strcmp(first, "tw_da.users")==0 && strcmp(second, "tw_db.users")==0) ||
+        (strcmp(first, "tw_db.users")==0 && strcmp(second, "tw_da.users")==0);
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0 || e != 1 || !both ||
+            !strstr(comment, "tw_da.users") || !strstr(comment, "tw_db.users")) {
+        result += test_fail(gobj, "tw_da",
+            "TEST FAIL: DT, a save of two topics of one name was not refused naming both",
+            json_pack("{s:O, s:I}", "save_schema", jn_resp, "errors", e));
+    }
+    JSON_DECREF(jn_resp)
+    jn_resp = treedb_cmd(gobj, "tw_da", "saved-schema", json_object());
+    if(kw_get_bool(gobj, jn_resp, "data`saved", 0, 0)) {
+        result += test_fail(gobj, "tw_da", "TEST FAIL: DT, the refused save wrote a saved schema",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+
+    if(gobj_unlink_nodes(sys, "topics",
+            "treedbs", json_pack("{s:s}", "id", "tw_da"),
+            "topics", json_pack("{s:s}", "id", "tw_db.users"), gobj) < 0) {
+        result += test_fail(gobj, "tw_da", "TEST FAIL: DT, cannot unlink the twin", NULL);
+    }
+    jn_resp = treedb_cmd(gobj, "tw_da", "save-schema", json_object());
+    json_t *tv = kw_get_dict(gobj, jn_resp, "data`topic_versions", 0, 0);
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0 ||
+            !json_object_get(tv, "departments") || json_object_get(tv, "users")) {
+        result += test_fail(gobj, "tw_da", "TEST FAIL: DT, the save of the treedb's own topics failed",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+
+    close_db(gobj, "tw_da");
+    close_db(gobj, "tw_db");
+    drop_treedb(gobj, "tw_da");
+    drop_treedb(gobj, "tw_db");
+    return result;
+}
+
+/***************************************************************************
  *  BH: a store that runs a topic AHEAD of its schema file. The operator's
  *  apply of `users` ran (topic_version 2, with `email`); then a newer
  *  literal (schema_version 3) declares `users` at topic_version 1, without
@@ -7492,6 +7739,8 @@ PRIVATE int (*late_scenarios[])(hgobj gobj) = {
     scenario_imposed_same_version_other_content,
     scenario_draft_order_is_not_its_place,
     scenario_moved_col_saved,
+    scenario_node_of_two_parents,
+    scenario_two_topics_of_one_name,
     scenario_file_behind_what_runs,
     scenario_saved_schema_written_whole,
     scenario_kw_gbuffer_every_treedb,

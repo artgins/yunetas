@@ -1045,6 +1045,33 @@ treedb_delete_node(tranger, x1, json_object());                     // -1: has u
 treedb_delete_node(tranger, x1, json_pack("{s:b}", "force", 1));   // 0: O2.kids is []
 ```
 
+**An instance of a child that NAMES the node is a down link, held or not.** An
+instance of a child inherits the fkeys of its primary at its create, and a
+hook holds one object per child id: so an instance can name the node with no
+hook holding it. The guard counts them, in the child topics with pkey2s (a
+topic without pkey2s has one node per key, which the hook holds when it names
+the node: nothing more is looked at). Without `force` they refuse the delete
+(*"Cannot delete node: has down links"*, with `children` and
+`unheld_instances`). With `force` each one stops naming the node and is saved,
+before the children are unlinked (the primaries of their keys last). A delete
+that is refused puts them back. Up to 7.25.4 the delete did not see them: it
+went without `force`, and they named a node that is gone (*"Node not found"*
+at the next open, once one of them was the newest record of its key); and a
+forced delete saved a child it unlinked through one hook with its ref of
+another hook still there.
+
+```C
+/*  a/v1 moved from P to Q (a relink moves the instance it is given);
+ *  a/v2 still names P, and P's hooks hold nothing  */
+treedb_delete_node(tranger, P, json_object());                     // -1: has down links
+treedb_delete_node(tranger, P, json_pack("{s:b}", "force", 1));   // 0: a/v2["parent"] is ""
+```
+
+**A key that only the secondary indexes hold** is deleted whole, quietly. With a
+snap active the primary index holds what the snap tagged, and a key created
+after the snap has instances and no primary. Up to 7.25.4 its delete logged
+*"delete_primary_node() FAILED"*, with a stack, on a delete that went.
+
 **Every child a hook holds is a down link, whatever its id.** A topic without
 hooks keeps any id (an id that holds `^`, or one of `NAME_MAX` bytes), and such
 a child hangs from its parent like any other. A delete without `force` is
@@ -1207,7 +1234,7 @@ treedb_file_ext("text/plain");         /* "bin" */
 (treedb_gc_files)=
 ## [`treedb_gc_files()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/timeranger2/src/tr_treedb.c#L13767)
 
-The garbage collector of the bytes of `file` columns. It takes every asset of `__assets__` that **no live node and no snapshotted version of a node** links (row and bytes), and every blob of `.blobs/` that no row names (what an interrupted write leaves: the blob goes down before the index node). Never automatic: `treedb_delete_node()` with `force` UNLINKS the children instead of deleting them, so an unlinked asset is a normal intermediate state of a bulk operation. It reads the snapshots on disk, which makes the answer conservative. The command is C_NODE's `gc-assets`.
+The garbage collector of the bytes of `file` columns. It takes every asset of `__assets__` that **no live node, no instance of one, and no snapshotted version of a node** links (row and bytes), and every blob of `.blobs/` that no row names (what an interrupted write leaves: the blob goes down before the index node). Never automatic: `treedb_delete_node()` with `force` UNLINKS the children instead of deleting them, so an unlinked asset is a normal intermediate state of a bulk operation. It reads the snapshots on disk, which makes the answer conservative. The command is C_NODE's `gc-assets`.
 
 ```C
 json_t *treedb_gc_files(
@@ -1234,6 +1261,18 @@ The list of asset ids taken (or that would be taken), **yours** to decref. `NULL
 - while a **snap is active** in any treedb of the tranger. The nodes in memory are then the snap's photo: a node written after the snap is not there, and the asset it links reads as linked by nobody. *"gc refused: a snap is active, the nodes in memory are its photo and not the live links (deactivate it first)"*. Up to 7.25.4 (since 7.18.1) the gc took the row and the bytes of such an asset, a live node's on disk.
 - when what the snapshots hold cannot be read whole: a tagged record of an existing snap whose content is not an object, a key of a topic with a `file` column whose records do not load (*"cannot read every instance of a topic: the assets a snapshot holds are unknown"*), or a `__snaps__` that did not load whole. The log says which, and *"gc refused: cannot tell which assets a snapshot links"*. Such a record may name any blob, so no asset is taken; until 7.25.4 the gc took the ones it could not see held. [`treedb_delete_node()`](<#treedb_delete_node>) of an `__assets__` node refuses in the same case: *"cannot delete asset, cannot tell whether a snapshot links it"*.
 - when a topic that links assets, or `__assets__`, in any treedb of the tranger, did not load whole (see [A topic that did not load whole](<#treedb-topic-not-loaded-whole>)): a node that did not load links its asset all the same, so the live links are unknown (*"gc refused: a topic that links assets did not load whole, the live links are unknown"*). This holds after a restart too: a key whose files were damaged while the yuno was down fails its load the same way.
+
+**An instance holds its asset.** After a reopen only the primaries are linked,
+so the hooks of `__assets__` do not show what the other instances of a node
+name: the gc reads the `file` columns of every node the secondary indexes hold
+(in the topics with pkey2s), and holds what they name. Up to 7.25.4 it took the
+asset of an instance that is not the primary, row and bytes; once that
+instance was the newest record of its key, the reload said *"Node not found"*.
+
+```C
+/*  docs has pkey2 `version`: d/v1 holds photo A, d/v2 (the primary) photo B  */
+json_t *taken = treedb_gc_files(tranger, "my_db", FALSE);   // []: A is d/v1's
+```
 
 A refusal takes nothing, not even the blobs no row names. [`treedb_gc_files2()`](<#treedb_gc_files2>) sweeps those blobs on a refusal too, and says which blobs it took. What to do after a refusal: see *What the operator does* under [`treedb_open_db()`](<#treedb_open_db>).
 
@@ -1388,6 +1427,20 @@ json_t *x = treedb_get_node(tranger, "my_db", "kids", "x");
 json_t *inst = treedb_get_instance(tranger, "my_db", "kids", "version", "x", "v2");
 /*  inst == x: an update through inst is an update of x, saved once  */
 treedb_update_node(tranger, inst, json_pack("{s:s}", "note", "A"), TRUE);
+```
+
+It holds with more than one pkey2 (a save never takes the slot the primary
+holds, see [`treedb_save_node()`](<#treedb_save_node>)), and for a key that
+has instances and no primary -- what a snap active shows of a key created
+after it: the create that makes the primary takes the slot of its value, where
+up to 7.25.4 the slot kept the loaded object, a second one of the same
+instance.
+
+```C
+/*  snap s1 active; P was created after it: P/v2 is loaded, P has no primary  */
+json_t *P = treedb_create_node(tranger, "my_db", "parents",
+    json_pack("{s:s, s:s}", "id", "P", "version", "v2"));
+treedb_get_instance(tranger, "my_db", "parents", "version", "P", "v2");   // P
 ```
 
 ---
@@ -1650,6 +1703,21 @@ treedb_link_nodes(tranger, "members", owner, user_x);   // 0
 treedb_link_nodes(tranger, "members", owner, group_x);  // 0: members holds both
 treedb_link_nodes(tranger, "tagged", owner, user_x);    // 0
 treedb_link_nodes(tranger, "tagged", owner, group_x);   // -1: the slot "x" is the user's
+```
+
+**In the `__system__` treedb, a name is unique among siblings.** A schema is
+rebuilt by name, so the link of a column into a topic that already has a
+column of that name, and of a topic into a treedb that already has a topic of
+that name, is refused and nothing moves (*"Topic already has a column with this
+name"*, *"Treedb already has a topic with this name"*, with `id` and
+`sibling_id`). The child already linked there is no clash, and neither is a
+child keyed by its qualified id under that parent (`<parent id>.<name>`): the
+name is its own there. For example, with the treedbs `treedb_x` and
+`treedb_y` both holding a topic `users`:
+
+```C
+treedb_link_nodes(tranger, "topics", treedb_x, treedb_y_users);    // -1
+treedb_link_nodes(tranger, "topics", treedb_x, treedb_x_users);    // 0: already there
 ```
 
 A link is refused, and nothing moves, when the reference of the parent
@@ -2596,6 +2664,22 @@ treedb_create_node(tranger, "my_db", "kids",                  // the new instanc
     json_pack("{s:s, s:s}", "id", "x", "version", "v9"));
 ```
 
+**A save never takes the slot the primary holds.** A save points the slot of
+each pkey2 value of the node at the node, and with MORE than one pkey2 an
+instance shares with the primary the slots of the values they have in common.
+The slot the primary holds stays the primary's: the invariant *"the instance of
+the primary's value is the primary"* (see [`treedb_get_instance()`](<#treedb_get_instance>))
+holds with any number of pkey2s. Up to 7.25.4 a save of the instance took it: a
+lookup of the primary's value answered the instance, and C_NODE's delete-node
+through it tombstoned the rows of the primary too, and answered `0`.
+
+```C
+/*  pkey2s ['a', 'b']: P (a=1, b=1) is the primary of x, Q (a=1, b=2) an instance  */
+treedb_update_node(tranger, Q, json_pack("{s:s}", "note", "q"), TRUE);
+treedb_get_instance(tranger, "my_db", "multi", "a", "x", "1");   // P, not Q
+treedb_get_instance(tranger, "my_db", "multi", "b", "x", "2");   // Q
+```
+
 ---
 
 (treedb_set_callback)=
@@ -3088,6 +3172,38 @@ The function does not take ownership of `parent_node` or `child_node`. This mean
 
 A save of the child that fails takes the unlink back in memory, answers `-1`,
 and tells no event (see [`treedb_link_nodes()`](<#treedb_link_nodes>)).
+
+**The link undone is the child KEY's.** A child's fkey names the parent's key,
+and a new instance of the child inherits the fkeys of its primary at its
+create, while a hook holds one object per child id: so the OTHER instances of
+the child name the parent too, and no hook holds them. The unlink clears the
+ref in each of them and saves each one, before the child (the primary of the
+key last among them, the child after all: a save makes its record the newest
+of its key, the one a reload takes for the primary). When one of those saves
+fails, or the child's does, all of them are put back as they were, saved again,
+and the unlink answers `-1`. Not for a `file` column (a parent in
+`__assets__`): an asset is what each instance holds, its own. Up to 7.25.4 the
+other instances kept naming the parent: a delete of it without `force` went,
+and they named a node that is gone (*"Node not found"* at the next open, once
+one of them was the newest record); or, once one of them was the newest
+record, the reload hung the child from the parent it was unlinked from.
+
+```C
+/*  a/v1 hangs from P through `kids`; a/v2 was created after, and inherited
+ *  a["parent"] = "parents^P^kids"  */
+treedb_unlink_nodes(tranger, "kids", P, a1);   // 0: a/v1 AND a/v2 have parent ""
+```
+
+An instance of the child that the parent's hook does not hold is no error of
+the unlink either: the hook holds another instance of the child (which names
+the parent itself and stays), or, for an instance that is not the primary,
+nothing (it inherited the ref and no hook took it). A relink of such an
+instance to another parent logged *"Child data not found in dict parent
+hook"*, of a list hook, though the relink went (up to 7.25.4). A dict hook is
+emptied by pointer only: the slot that holds another instance of the child
+stays. A primary that names the parent and that no hook holds is a hook that
+lost its child: *"Child data not found in list parent hook"* (or *"... in dict
+parent hook"*).
 
 ---
 

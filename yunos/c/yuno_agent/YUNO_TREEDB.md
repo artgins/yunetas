@@ -1578,6 +1578,39 @@ the fix, the place went to the id composed from the names,
 save, and every later save published it again. The same held for a topic of
 another treedb linked here.)
 
+**A node of more than one parent keeps its `order`.** The fkeys of the
+meta-schema are lists (`topics.treedbs`, `cols.topics`), so a node can hang
+from two parents: the operator links `treedb_x.departments.name` to `users`
+TOO, or links the topic `treedb_y.extra` into `treedb_x` and it stays in
+`treedb_y`. `order` is one field, and a place is per parent. So the save does
+not write the place of such a node, the draft places it where the schema file
+in use declares it (else last) instead of by its `order`, and the comparison
+of drafts does not look at its `order`. The save names it:
+`"places_not_written": ["treedb_x.departments.name"]`, and the comment says
+*"1 node(s) hang from more than one parent and keep their place (one `order`
+cannot say a place in each)"*. Written from each parent's save, the place in
+one parent read as a move in the other: every save flipped between saved and
+unsaved, and published topics nobody edited. (A newer literal still takes the
+second parent back at the open, see *"What the operator LINKED
+differently"* below.)
+
+**Two siblings with one name are refused.** A schema is keyed by name, so two
+topics of a treedb named `users` (the treedb's own and a topic of another
+treedb linked here), or two columns of a topic named `name`, are one entry:
+the rebuild kept the LAST, and the diff and the writes of the save found the
+FIRST. The link refuses the pair (*"Treedb already has a topic with this
+name"*, *"Topic already has a column with this name"*); a node linked under
+its own qualified id (`<parent id>.<name>`) is never refused, because the id
+migration and the projection link it while a legacy or foreign twin is still
+there and take the twin away after. What the link does not see (an autolink
+update, a store written before the guard) is refused by `save-schema`: ONE
+ERROR *"Schema refused: two topics of the treedb in __system__ have the same
+name, unlink or rename one of them"* with both ids, and `-1` with
+`data.twins`, for example `{"what": "topics", "name": "users", "first":
+"treedb_x.users", "second": "treedb_y.users"}`. (In 7.25.4 the save published
+`treedb_y`'s `users` in place of `treedb_x`'s, at the `topic_version` that
+`treedb_x` ran, so the apply reached nothing and nobody was told.)
+
 Two more things hold that order down, below the schema. The keys of a topic
 are read **sorted** (`find_keys_in_disk()`), because `readdir()` order was
 never a contract: the same store read back differently twice, and two replicas
@@ -3063,10 +3096,19 @@ because none of these is loud later:
   `topic_desc.json` is written at creation and never rewritten, so the change
   would be stored here, shown by every reader, and ignored by the topic for
   good;
-- two columns with the same name in one topic are refused **when the column
-  is linked** to it, which is when the clash becomes real. The name is the key
-  a schema is rebuilt by, so a duplicate drops one of the two definitions on
-  the next read.
+- two columns with the same name in one topic, and two topics with the same
+  name in one treedb, are refused **when the node is linked** to its parent,
+  which is when the clash becomes real (*"Topic already has a column with
+  this name"*, *"Treedb already has a topic with this name"*). The name is
+  the key a schema is rebuilt by, so a duplicate drops one of the two
+  definitions on the next read. For example, linking the topic
+  `treedb_y.users` into `treedb_x`, which has its own `users`, answers `-1`:
+
+  ```C
+  gobj_link_nodes(gobj_node_system, "topics",
+      "treedbs", json_pack("{s:s}", "id", "treedb_x"),
+      "topics", json_pack("{s:s}", "id", "treedb_y.users"), src);   // -1
+  ```
 
 **Applying an edit: `pause-yuno` + `play-yuno`, never `close-treedb`.** An
 edited schema reaches a running treedb only when the treedb is reopened, and

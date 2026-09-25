@@ -311,6 +311,8 @@ PRIVATE BOOL col_of_treedb(
 PRIVATE json_t *load_schema_file_in_use(hgobj gobj, const char *treedb_name);
 PRIVATE json_t *system_node_at(hgobj gobj, const char *id, BOOL *p_is_topic);
 PRIVATE json_t *node_parents(json_t *node, BOOL is_topic);
+PRIVATE size_t node_parents_count(json_t *node, BOOL is_topic);
+PRIVATE json_t *twin_names_in_tree(hgobj gobj, const char *treedb_name, json_t *tree);
 PRIVATE json_t *schema_id_collision(
     hgobj gobj,
     const char *treedb_name,
@@ -2383,11 +2385,25 @@ PRIVATE BOOL system_is_written_here(hgobj gobj)
  *  here keeps its treedb's. Composed from the names, those ids named no
  *  node, their place was never written, and their topic read as unsaved
  *  after every save, and as a draft after the apply.
+ *
+ *  A node that hangs from MORE THAN ONE parent (the fkeys of the
+ *  meta-schema are lists: a column the operator linked to a second topic
+ *  too, a topic of another treedb linked here and still in its own) keeps
+ *  its `order`: one field cannot say its place in each parent. Written
+ *  from each parent's save, the place of one made the other read it as
+ *  moved, and saves flipped between "saved" and "unsaved" for ever (and
+ *  re-sorted its neighbours). Its id goes to `not_placed`, which the save
+ *  says. The rebuild places it by the file in use, else last
+ *  (forget_order_of_a_shared_node), and diff_treedb_schema() does not
+ *  compare its `order` (keep_order_of_a_shared_node). With `dry_run`
+ *  nothing is written, and `not_placed` is filled all the same.
  ***************************************************************************/
 PRIVATE int write_saved_positions(
     hgobj gobj,
     const char *treedb_name,
-    json_t *schema      // not owned, the schema the save writes: topics a list, cols as it orders them
+    json_t *schema,     // not owned, the schema the save writes: topics a list, cols as it orders them
+    json_t *not_placed, // not owned, MUTATED: [id, ...] of the nodes whose place is not written
+    BOOL dry_run
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -2416,7 +2432,9 @@ PRIVATE int write_saved_positions(
         const char *topic_id = kw_get_str(gobj, stored_topic, "id", "", 0);
 
         json_t *places = json_array();  // of [system topic, id, place]
-        if(kw_get_int(gobj, stored_topic, "order", -1, KW_WILD_NUMBER) != idx) {
+        if(node_parents_count(stored_topic, TRUE) > 1) {
+            json_array_append_new(not_placed, json_string(topic_id));
+        } else if(kw_get_int(gobj, stored_topic, "order", -1, KW_WILD_NUMBER) != idx) {
             json_array_append_new(places, json_pack("[s,s,i]", "topics", topic_id, idx));
         }
         json_t *stored_cols = kw_get_dict(gobj, stored_topic, "cols", 0, 0);
@@ -2439,12 +2457,22 @@ PRIVATE int write_saved_positions(
                 ret = -1;
                 continue;
             }
-            if(kw_get_int(gobj, stored_col, "order", -1, KW_WILD_NUMBER) != idx2) {
+            if(node_parents_count(stored_col, FALSE) > 1) {
+                if(json_list_str_index(not_placed, kw_get_str(gobj, stored_col, "id", "", 0), FALSE) < 0) {
+                    json_array_append_new(not_placed,
+                        json_string(kw_get_str(gobj, stored_col, "id", "", 0)));
+                }
+            } else if(kw_get_int(gobj, stored_col, "order", -1, KW_WILD_NUMBER) != idx2) {
                 json_array_append_new(places, json_pack("[s,s,i]",
                     "cols", kw_get_str(gobj, stored_col, "id", "", 0), idx2));
             }
         }
         JSON_DECREF(cols)
+
+        if(dry_run) {
+            JSON_DECREF(places)
+            continue;
+        }
 
         json_t *place;
         json_array_foreach(places, idx2, place) {
@@ -2541,6 +2569,31 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
     JSON_DECREF(unfinished)
+
+    /*
+     *  Two siblings with one name (see twin_names_in_tree): the save would
+     *  publish one of them in place of the other
+     */
+    json_t *twin_tree = system_tree_of(gobj, treedb_name);
+    json_t *twins = twin_tree? twin_names_in_tree(gobj, treedb_name, twin_tree) : NULL;
+    JSON_DECREF(twin_tree)
+    if(twins) {
+        json_t *comment = json_sprintf("%s: cannot save the schema of '%s': %s '%s' and '%s' "
+            "have the same name '%s'%s%s, and a schema keeps one per name: unlink or rename one of them",
+            gobj_yuno_role_plus_name(), treedb_name,
+            strcmp(kw_get_str(gobj, twins, "what", "", 0), "topics")==0? "the topics" : "the columns",
+            kw_get_str(gobj, twins, "first", "", 0),
+            kw_get_str(gobj, twins, "second", "", 0),
+            kw_get_str(gobj, twins, "name", "", 0),
+            strcmp(kw_get_str(gobj, twins, "what", "", 0), "topics")==0? "" : " in topic ",
+            kw_get_str(gobj, twins, "topic_name", "", 0));
+        return msg_iev_build_response(gobj, -1,
+            comment,
+            0,
+            json_pack("{s:s, s:o}", "treedb_name", treedb_name, "twins", twins),
+            kw
+        );
+    }
 
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
@@ -2832,7 +2885,10 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     JSON_DECREF(changed)
     JSON_DECREF(in_use)
 
-    if(!dry_run) {
+    json_t *not_placed = json_array();  // nodes of more than one parent: their `order` stays
+    if(dry_run) {
+        write_saved_positions(gobj, treedb_name, schema, not_placed, TRUE);
+    } else {
         /*
          *  Into __system__ first: the draft IS the saved schema, versions
          *  included, so the next save of it publishes the same numbers
@@ -2892,7 +2948,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         /*
          *  And the places: the draft is the saved schema in its order too
          */
-        if(write_saved_positions(gobj, treedb_name, schema) < 0) {
+        if(write_saved_positions(gobj, treedb_name, schema, not_placed, FALSE) < 0) {
             ret = -1;   // Error already logged
         }
 
@@ -2910,6 +2966,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             JSON_DECREF(versions)
             JSON_DECREF(rows)
             JSON_DECREF(left_ids)
+            JSON_DECREF(not_placed)
             return msg_iev_build_response(gobj, -1,
                 json_sprintf("%s: cannot save the schema of '%s': the versions of its draft "
                     "or the file %s could not be written (see the log)",
@@ -2928,22 +2985,38 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
+    /*
+     *  A node of more than one parent keeps its `order` (see
+     *  write_saved_positions): said, because its place in each parent is
+     *  then what its neighbours make of it, not what the save wrote
+     */
+    char not_placed_said[PATH_MAX];
+    not_placed_said[0] = 0;
+    if(json_array_size(not_placed) > 0) {
+        snprintf(not_placed_said, sizeof(not_placed_said),
+            "; %d node(s) hang from more than one parent and keep their place "
+            "(one `order` cannot say a place in each): see places_not_written",
+            (int)json_array_size(not_placed));
+    }
+
     return msg_iev_build_response(gobj, 0,
-        json_sprintf("%s: %s '%s', schema_version %d%s",
+        json_sprintf("%s: %s '%s', schema_version %d%s%s",
             gobj_yuno_role_plus_name(),
             dry_run? "would save": "saved",
             treedb_name,
             (int)schema_version,
-            dry_run? "": "; apply-schema puts it in use"),
+            dry_run? "": "; apply-schema puts it in use",
+            not_placed_said),
         0,
-        json_pack("{s:s, s:I, s:o, s:s, s:o, s:o, s:o}",
+        json_pack("{s:s, s:I, s:o, s:s, s:o, s:o, s:o, s:o}",
             "treedb_name", treedb_name,
             "schema_version", schema_version,
             "topic_versions", versions,
             "path", saved_path,
             "changes", rows,
             "schema", schema,
-            "left_by_older_release", left_ids
+            "left_by_older_release", left_ids,
+            "places_not_written", not_placed
         ),
         kw
     );
@@ -7971,6 +8044,117 @@ PRIVATE json_t *node_parents(json_t *node, BOOL is_topic)   // not owned
 }
 
 /***************************************************************************
+ *  How many parents a node of __system__ hangs from, as its own fkey says
+ *  them (`treedbs` for a topic, `topics` for a column), in whatever shape
+ *  the read gave the fkey: one ref, or a list of refs, ids or dicts.
+ ***************************************************************************/
+PRIVATE size_t node_parents_count(json_t *node, BOOL is_topic)   // not owned
+{
+    json_t *refs = json_object_get(node, is_topic? "treedbs" : "topics");
+    if(json_is_string(refs)) {
+        return empty_string(json_string_value(refs))? 0 : 1;
+    }
+    if(json_is_array(refs)) {
+        return json_array_size(refs);
+    }
+    if(json_is_object(refs)) {
+        return json_object_size(refs);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The first two nodes of `siblings` (a `topics` or `cols` hook expanded,
+ *  {id: node}) that hold one name in `value`: [first id, second id, name],
+ *  or NULL. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *twin_among(hgobj gobj, json_t *siblings)   // not owned
+{
+    json_t *seen = json_object();   // {name: id}
+    json_t *twin = NULL;
+    const char *id; json_t *node;
+    json_object_foreach(siblings, id, node) {
+        const char *name = kw_get_str(gobj, node, "value", "", 0);
+        if(empty_string(name)) {
+            continue;
+        }
+        json_t *first = json_object_get(seen, name);
+        if(first) {
+            twin = json_pack("[O,s,s]", first, id, name);
+            break;
+        }
+        json_object_set_new(seen, name, json_string(id));
+    }
+    JSON_DECREF(seen)
+    return twin;
+}
+
+/***************************************************************************
+ *  Two siblings of the tree of `treedb_name` in __system__ with ONE name:
+ *  two topics of the treedb (a topic of another treedb linked here under
+ *  a name the treedb has), or two columns of a topic. A schema is keyed
+ *  by name, so the rebuild (get_treedb_schema) kept the LAST of the two
+ *  while the diff and the writes of a save (find_node_by_name) found the
+ *  FIRST: a save published the other one, at a topic_version nobody
+ *  raised, in silence. The link refuses such a pair
+ *  (treedb_link_nodes()), but an autolink update, or a store written
+ *  before the guard, can still hold one. ERROR logged naming both ids.
+ *
+ *  Return {what, treedb_name, topic_name, name, first, second} of the
+ *  first pair found, or NULL. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *twin_names_in_tree(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *tree        // not owned, the node tree of the treedb
+)
+{
+    json_t *topics = kw_get_dict(gobj, tree, "topics", 0, 0);
+    json_t *twin = twin_among(gobj, topics);
+    const char *what = "topics";
+    const char *topic_name = "";
+    if(!twin) {
+        const char *topic_id; json_t *topic;
+        json_object_foreach(topics, topic_id, topic) {
+            twin = twin_among(gobj, kw_get_dict(gobj, topic, "cols", 0, 0));
+            if(twin) {
+                what = "cols";
+                topic_name = kw_get_str(gobj, topic, "value", topic_id, 0);
+                break;
+            }
+        }
+    }
+    if(!twin) {
+        return NULL;
+    }
+
+    json_t *said = json_pack("{s:s, s:s, s:s, s:O, s:O, s:O}",
+        "what", what,
+        "treedb_name", treedb_name,
+        "topic_name", topic_name,
+        "name", json_array_get(twin, 2),
+        "first", json_array_get(twin, 0),
+        "second", json_array_get(twin, 1)
+    );
+    JSON_DECREF(twin)
+
+    gobj_log_error(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_TREEDB,
+        "msg",              "%s", strcmp(what, "topics")==0?
+            "Schema refused: two topics of the treedb in __system__ have the same name, unlink or rename one of them" :
+            "Schema refused: two columns of a topic in __system__ have the same name, unlink or rename one of them",
+        "treedb_name",      "%s", treedb_name,
+        "topic_name",       "%s", topic_name,
+        "name",             "%s", kw_get_str(gobj, said, "name", "", 0),
+        "first",            "%s", kw_get_str(gobj, said, "first", "", 0),
+        "second",           "%s", kw_get_str(gobj, said, "second", "", 0),
+        NULL
+    );
+    return said;
+}
+
+/***************************************************************************
  *  The node of __system__ at the id `id`, a topic or else a column
  *  (`*p_is_topic` says which), wherever it is: in a topic of the treedb,
  *  in another, or in NONE (an unlink leaves it there). Its links as refs.
@@ -10307,6 +10491,22 @@ PRIVATE json_t *order_schema_nodes(
 }
 
 /***************************************************************************
+ *  A node of the rebuilt schema that hangs from more than one parent says
+ *  nothing about its place: its one `order` is its place in ONE of them
+ *  (see write_saved_positions), and read in another it pushed that
+ *  parent's own nodes down -- a topic of another treedb, first there, went
+ *  first here, and the next save published every topic it displaced. It
+ *  goes where the schema file in use declares it, else last
+ *  (order_schema_nodes). `node` is the copy being rebuilt, MUTATED.
+ ***************************************************************************/
+PRIVATE void forget_order_of_a_shared_node(json_t *node, BOOL is_topic)
+{
+    if(node_parents_count(node, is_topic) > 1) {
+        json_object_del(node, "order");
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *get_treedb_schema(
@@ -10348,6 +10548,17 @@ PRIVATE json_t *get_treedb_schema(
     }
 
     /*
+     *  Two siblings with one name: keyed by the name below, one of them
+     *  would be dropped, and which one is the order of the hook
+     */
+    json_t *twins = twin_names_in_tree(gobj, treedb_name, treedb);
+    if(twins) {
+        JSON_DECREF(twins)
+        JSON_DECREF(treedb)
+        return 0;   // Error already logged
+    }
+
+    /*
      *  HACK Both `topics` and `cols` are keyed by their qualified name and
      *  carry the bare one in `value` (a name is unique only inside its
      *  parent), so the schema is re-keyed by the bare name on the way out —
@@ -10381,6 +10592,7 @@ PRIVATE json_t *get_treedb_schema(
         if(!cols) {
             continue;
         }
+        forget_order_of_a_shared_node(topic, TRUE);
         /*
          *  TODO delete fkey's
          */
@@ -10401,6 +10613,7 @@ PRIVATE json_t *get_treedb_schema(
                 continue;
             }
 
+            forget_order_of_a_shared_node(col, FALSE);
             /*
              *  TODO delete fkey's
              */
@@ -11001,6 +11214,30 @@ PRIVATE void drop_order_the_stored_node_does_not_say(
 }
 
 /***************************************************************************
+ *  Take `order` out of the comparison, in the projected node `projected`
+ *  (MUTATED), when the stored node hangs from more than one parent: its
+ *  one `order` cannot say a place in each, and a save does not write it
+ *  (see write_saved_positions). Compared, the place it has in one parent
+ *  read as a move in the other after every save of the first.
+ ***************************************************************************/
+PRIVATE void keep_order_of_a_shared_node(
+    json_t *projected,  // not owned, MUTATED
+    json_t *stored,     // not owned
+    BOOL is_topic
+)
+{
+    if(node_parents_count(stored, is_topic) <= 1) {
+        return;
+    }
+    json_t *stored_order = json_object_get(stored, "order");
+    if(stored_order) {
+        json_object_set(projected, "order", stored_order);
+    } else {
+        json_object_del(projected, "order");
+    }
+}
+
+/***************************************************************************
  *  Append one difference.
  ***************************************************************************/
 PRIVATE int add_diff_row(
@@ -11213,6 +11450,7 @@ PRIVATE json_t *diff_treedb_schema(
          *  (pkey, tkey, order), so the two sides are already symmetric.
          */
         drop_order_the_stored_node_does_not_say(projected_topic, stored_topic);
+        keep_order_of_a_shared_node(projected_topic, stored_topic, TRUE);
         diff_node_attrs(
             gobj, rows, treedb_name, topic_name, NULL, projected_topic, stored_topic,
             schema_topic_skip, NULL
@@ -11261,6 +11499,7 @@ PRIVATE json_t *diff_treedb_schema(
             }
 
             drop_order_the_stored_node_does_not_say(projected_col, stored_col);
+            keep_order_of_a_shared_node(projected_col, stored_col, FALSE);
             diff_node_attrs(
                 gobj,
                 rows,

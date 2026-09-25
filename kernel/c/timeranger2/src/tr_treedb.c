@@ -12189,30 +12189,52 @@ PUBLIC int treedb_link_nodes(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     /*
-     *  A column joins a topic here, so this is where "the topic now has two
-     *  columns with the same name" becomes true. It is worth refusing: the
-     *  name is the key a schema is rebuilt by, so a duplicate silently drops
-     *  one of the two definitions on the next read.
+     *  A column joins a topic here, and a topic joins a treedb, so this is
+     *  where "two columns of a topic (two topics of a treedb) have the same
+     *  name" becomes true. It is worth refusing: the name is the key a
+     *  schema is rebuilt by, so a duplicate silently drops one of the two
+     *  definitions on the next read -- and a save found the other one.
+     *  The child itself is no clash: a link already made is made again.
+     *  Nor is a child keyed by its qualified id under this parent
+     *  (`<parent id>.<name>`): the name is its own there, and the id
+     *  migration and the projection link it while a legacy or foreign
+     *  twin is still hooked, and take the twin away after.
      */
+    const char *child_topic = kw_get_str(gobj, child_node, "__md_treedb__`topic_name", "", 0);
     if(strcmp(kw_get_str(gobj, child_node, "__md_treedb__`treedb_name", "", 0),
             TREEDB_SYSTEM_SCHEMA_NAME)==0 &&
-        strcmp(kw_get_str(gobj, child_node, "__md_treedb__`topic_name", "", 0), "cols")==0 &&
-        strcmp(hook_name, "cols")==0
+        ((strcmp(child_topic, "cols")==0 && strcmp(hook_name, "cols")==0) ||
+         (strcmp(child_topic, "topics")==0 && strcmp(hook_name, "topics")==0))
     ) {
-        const char *col_name = kw_get_str(gobj, child_node, "value", "", 0);
-        json_t *siblings = get_hook_list(
+        BOOL is_col = strcmp(child_topic, "cols")==0? TRUE : FALSE;
+        const char *child_id = kw_get_str(gobj, child_node, "id", "", 0);
+        const char *name = kw_get_str(gobj, child_node, "value", "", 0);
+        char owner_id[RECORD_KEY_VALUE_MAX];
+        snprintf(owner_id, sizeof(owner_id), "%s.%s",
+            kw_get_str(gobj, parent_node, "id", "", 0), name);
+        BOOL is_owner = strcmp(owner_id, child_id)==0? TRUE : FALSE;
+        json_t *siblings = is_owner? NULL : get_hook_list(
             gobj,
             kw_get_dict_value(gobj, parent_node, hook_name, 0, 0)
         );
         int idx; json_t *sibling;
         json_array_foreach(siblings, idx, sibling) {
-            if(strcmp(kw_get_str(gobj, sibling, "value", "", 0), col_name)==0) {
+            if(strcmp(kw_get_str(gobj, sibling, "id", "", 0), child_id)==0) {
+                continue;
+            }
+            if(strcmp(kw_get_str(gobj, sibling, "value", "", 0), name)==0) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
-                    "msg",          "%s", "Topic already has a column with this name",
-                    "topic",        "%s", kw_get_str(gobj, parent_node, "value", "", 0),
-                    "col",          "%s", col_name,
+                    "msg",          "%s", is_col?
+                        "Topic already has a column with this name" :
+                        "Treedb already has a topic with this name",
+                    is_col? "topic" : "treedb", "%s", is_col?
+                        kw_get_str(gobj, parent_node, "value", "", 0) :
+                        kw_get_str(gobj, parent_node, "id", "", 0),
+                    is_col? "col" : "topic_name", "%s", name,
+                    "id",           "%s", child_id,
+                    "sibling_id",   "%s", kw_get_str(gobj, sibling, "id", "", 0),
                     NULL
                 );
                 JSON_DECREF(siblings)
