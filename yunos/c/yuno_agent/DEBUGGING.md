@@ -573,6 +573,17 @@ nearest first:
   WARNING (msgset `Protocol`, no stack): it is data of a peer. For example a
   hop that arrives as `{"src_role": 7}` is written `"role": ""` with the log
   line *"Audit: bad __md_iev__ from a peer, written as empty"*.
+- `user`, each field of a hop, `console_purpose` and the console name of a
+  console write are data of a peer too: each one is redacted like any other
+  string (a secret, a `Bearer` token, a JWT in it becomes `<redacted>`), and
+  one longer than 1024 bytes is written as `<N bytes, not scanned,
+  sha256:HEX>`. A hop whose `user` is a JWT is recorded as
+
+  ```json
+  {"role":"gui_agent","yuno":"gui_agent_yuno","service":"agent_link","user":"<redacted>","host":"…"}
+  ```
+
+  In the first cut of 7.25.5 these fields were written as sent.
 - **A `content64` is never written.** Everywhere (in the command text, where
   `ycommand` puts it, with or without blanks around the `=`, and in any kw key
   named `content64`), the value is replaced by `<N bytes sha256:HEX>`: the size

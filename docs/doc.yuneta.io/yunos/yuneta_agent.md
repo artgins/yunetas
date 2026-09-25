@@ -43,7 +43,10 @@ The agent writes every command that it runs to a daily audit file in
 - A secret (a parameter named like `password`, `pwd`, `secret`, `token`, `jwt`,
   `api_key`, `cookie`, `authorization`, `private_key`, …) is never written:
   its value is `<redacted>`. So are the token after `Bearer ` and anything
-  with the shape of a JWT.
+  with the shape of a JWT, wherever they are: also in the `user`, the hops of
+  `source`, the console purpose and the console name, which come from a peer
+  (a field of those longer than 1024 bytes is written as its size and
+  sha256 only).
 - The command word is taken as the command parser takes it (any case,
   quotes, aliases): `WRITE-TTY` and `EV_WRITE_TTY` are `write-tty`.
 - The scan of a command is one pass in linear time, and one record scans at

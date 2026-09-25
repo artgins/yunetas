@@ -105,7 +105,10 @@
  *            user of the nearest hop. The peer address of the channel is
  *            not in the kw and is not looked up. A field of a hop that is
  *            not a string is written as "" and logged as a WARNING (it is
- *            data of a peer).
+ *            data of a peer). These strings, and the console name of a
+ *            console write, are data of a peer too: each one is redacted
+ *            like any other string, and one longer than
+ *            AUDIT_PEER_FIELD_MAX is written as its size and sha256.
  *            __command__ is dropped when it repeats the command text.
  *
  *          - A read-only command is recorded as {command, date, user} and
@@ -173,6 +176,14 @@
  *  the last level is not written: its size and sha256 only.
  */
 #define MAX_ESCAPE_LEVELS   8
+
+/*
+ *  A string of the routing of a peer (a field of a hop, the user, the
+ *  console purpose, the console name) is written redacted, and up to this
+ *  size: a longer one is not scanned and not written, its size and sha256
+ *  only.
+ */
+#define AUDIT_PEER_FIELD_MAX    1024
 
 /*
  *  Read-only commands, by name
@@ -312,6 +323,7 @@ typedef struct {
  *              Prototypes
  ***************************************************************************/
 PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx);
+PRIVATE json_t *peer_field(const char *text);
 PRIVATE char *not_scanned_text(const char *text, size_t len);
 PRIVATE json_t *redacted_copy(json_t *jn, redact_ctx_t *ctx);
 PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const char *q, BOOL value_run);
@@ -2279,6 +2291,42 @@ PRIVATE const char *hop_str(json_t *jn_hop, const char *key, const char **bad)
     return "";
 }
 
+/***************************************************************************
+ *  A string of the routing of a peer as the record writes it: redacted
+ *  (redact_text(), with a budget of its own: a big command does not leave
+ *  the user unscanned), and beyond AUDIT_PEER_FIELD_MAX its size and sha256
+ *  only. A first version wrote `user`, the hops and `console_purpose` as
+ *  sent: a JWT or a `password=...` there was in the file, which says a
+ *  token is never written, wherever it is.
+ ***************************************************************************/
+PRIVATE json_t *peer_field(const char *text)
+{
+    size_t len = strlen(text);
+    char *written;
+    if(len > AUDIT_PEER_FIELD_MAX) {
+        written = not_scanned_text(text, len);
+    } else {
+        redact_ctx_t ctx = {
+            .tty = FALSE,
+            .value_is_secret = FALSE,
+            .budget = len
+        };
+        written = redact_text(text, len, &ctx);
+    }
+    json_t *jn = json_string(written? written: text);
+    GBMEM_FREE(written);
+    if(!jn) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Audit: a field of a peer cannot be written",
+            NULL
+        );
+        jn = json_string("");
+    }
+    return jn;
+}
+
 PRIVATE void warn_bad_md_iev(const char *what, const char *field, json_t *jn)
 {
     char *text = jn? json2uglystr(jn): NULL;
@@ -2307,7 +2355,7 @@ PRIVATE json_t *source_summary(json_t *kw)
     json_t *jn_source = json_object();
     json_t *jn_purpose = json_object_get(jn_md, "console_purpose");
     if(json_is_string(jn_purpose) && json_string_length(jn_purpose) > 0) {
-        json_object_set(jn_source, "console_purpose", jn_purpose);
+        json_object_set_new(jn_source, "console_purpose", peer_field(json_string_value(jn_purpose)));
     }
 
     json_t *jn_stack = json_object_get(jn_md, "ievent_gate_stack");
@@ -2327,12 +2375,12 @@ PRIVATE json_t *source_summary(json_t *kw)
         if(empty_string(user)) {
             user = hop_str(jn_hop, "__username__", &bad);
         }
-        json_array_append_new(jn_hops, json_pack("{s:s, s:s, s:s, s:s, s:s}",
-            "role",     hop_str(jn_hop, "src_role", &bad),
-            "yuno",     hop_str(jn_hop, "src_yuno", &bad),
-            "service",  hop_str(jn_hop, "src_service", &bad),
-            "user",     user,
-            "host",     hop_str(jn_hop, "host", &bad)
+        json_array_append_new(jn_hops, json_pack("{s:o, s:o, s:o, s:o, s:o}",
+            "role",     peer_field(hop_str(jn_hop, "src_role", &bad)),
+            "yuno",     peer_field(hop_str(jn_hop, "src_yuno", &bad)),
+            "service",  peer_field(hop_str(jn_hop, "src_service", &bad)),
+            "user",     peer_field(user),
+            "host",     peer_field(hop_str(jn_hop, "host", &bad))
         ));
         if(bad) {
             warn_bad_md_iev("a field of a hop is not a string", bad, json_object_get(jn_hop, bad));
@@ -2347,25 +2395,25 @@ PRIVATE json_t *source_summary(json_t *kw)
 }
 
 /***************************************************************************
- *  The user of the command: the end user if known
+ *  The user of the command: the end user if known, as written (peer_field())
  ***************************************************************************/
-PRIVATE const char *command_user(json_t *kw)
+PRIVATE json_t *command_user(json_t *kw)
 {
     if(!json_is_object(kw)) {
-        return "";
+        return json_string("");
     }
     json_t *jn_user = json_object_get(kw, "__username__");
     if(json_is_string(jn_user) && json_string_length(jn_user) > 0) {
-        return json_string_value(jn_user);
+        return peer_field(json_string_value(jn_user));
     }
     json_t *jn_md = json_object_get(kw, "__md_iev__");
     json_t *jn_stack = json_is_object(jn_md)? json_object_get(jn_md, "ievent_gate_stack"): NULL;
     json_t *jn_hop = json_array_get(jn_stack, 0);
     if(json_is_object(jn_hop)) {
         const char *bad = NULL;
-        return hop_str(jn_hop, "user", &bad);   // a bad one is logged by source_summary()
+        return peer_field(hop_str(jn_hop, "user", &bad));   // a bad one is logged by source_summary()
     }
-    return "";
+    return json_string("");
 }
 
 /***************************************************************************
@@ -2456,7 +2504,7 @@ PRIVATE json_t *record_build(
         json_t *jn_command = (wrapper && !inner_in_text)?
             json_sprintf("%s command=%s", command_text, inner):
             json_string(command_text);
-        jn_record = json_pack("{s:o, s:s, s:s}",
+        jn_record = json_pack("{s:o, s:s, s:o}",
             "command", jn_command,
             "date", date,
             "user", command_user(kw)
@@ -2479,7 +2527,7 @@ PRIVATE json_t *record_build(
             }
         }
 
-        jn_record = json_pack("{s:s, s:s, s:s}",
+        jn_record = json_pack("{s:s, s:s, s:o}",
             "command", command_text,
             "date", date,
             "user", command_user(kw)
@@ -2542,11 +2590,11 @@ PRIVATE json_t *tty_record(
     json_t *jn_source    // not owned
 )
 {
-    json_t *jn_record = json_pack("{s:s, s:s, s:s, s:s, s:I, s:I}",
+    json_t *jn_record = json_pack("{s:s, s:s, s:s, s:o, s:I, s:I}",
         "command",  TTY_WRITE,
         "date",     date,
-        "user",     user,
-        "console",  console,
+        "user",     user,           // already written by command_user()
+        "console",  peer_field(console),
         "writes",   writes,
         "bytes",    bytes
     );
@@ -2652,7 +2700,8 @@ PRIVATE BOOL tty_command(
     char *content64 = param_value(text, kw, CONTENT64_KEY);
     ssize_t size = content64? base64_decoded_size(content64, strlen(content64)): -1;
     json_int_t bytes = (size > 0)? (json_int_t)size: 0;
-    const char *user = command_user(kw);
+    json_t *jn_user = command_user(kw);
+    const char *user = json_string_value(jn_user);
     json_t *jn_source = source_summary(kw);
     const char *console_name = console? console: "";
 
@@ -2703,6 +2752,7 @@ PRIVATE BOOL tty_command(
     }
 
     JSON_DECREF(jn_source)
+    JSON_DECREF(jn_user)
     GBMEM_FREE(console);
     GBMEM_FREE(content64);
     return TRUE;

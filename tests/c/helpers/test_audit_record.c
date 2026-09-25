@@ -21,6 +21,10 @@
  *            json keys with escapes, Bearer tokens and JWTs,
  *          - a json text inside a json text (escaped quotes, one level or
  *            more): its secrets are redacted too,
+ *          - the routing of a peer (`user`, each hop of `source`,
+ *            `console_purpose`, the console name) is redacted like any
+ *            other string, and a field of it too long is its size and
+ *            sha256,
  *          - whatever quotes come before it, or cut it (a stray quote, a
  *            double-quoted parameter, the parser's quote ending at an
  *            escaped one), and in generated commands with every quoting
@@ -375,6 +379,87 @@ PRIVATE BOOL record_holds(json_t *jn_record, const char *text)
     BOOL found = strstr(s, text)? TRUE: FALSE;
     GBMEM_FREE(s);
     return found;
+}
+
+/***************************************************************************
+ *  The routing of a peer (the user, the hops, the console purpose, the
+ *  console name) is data of the peer: redacted, and capped. A first
+ *  version (7.25.5 before its release) wrote it as sent.
+ ***************************************************************************/
+PRIVATE void test_peer_fields_redacted(void)
+{
+    const char *jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJTM0NSM1QifQ.S3CR3TVALUESIG";
+    char long_host[4096];
+    memset(long_host, 'h', sizeof(long_host));
+    long_host[sizeof(long_host)-1] = 0;
+
+    json_t *md_iev = json_pack("{s:s, s:[{s:s, s:s, s:s, s:s, s:s}, {s:s, s:s, s:s, s:s, s:s}]}",
+        "console_purpose", "Bearer S3CR3TBEARER",
+        "ievent_gate_stack",
+            "src_yuno", "yuno", "src_role", "role", "src_service", "svc",
+            "user", jwt,
+            "host", "password=hunter2",
+            "src_yuno", "yuno2", "src_role", "role2", "src_service", "svc2",
+            "user", "someone",
+            "host", long_host
+    );
+
+    /*
+     *  A write (run-yuno): the full record, with its source
+     */
+    json_t *kw = json_pack("{s:s, s:O}", "id", "gate", "__md_iev__", md_iev);
+    json_t *jn_record = audit_record_build("run-yuno", kw, DATE, command_table);
+    check(jn_record && !record_holds(jn_record, "S3CR3T") && !record_holds(jn_record, "hunter2"),
+        "(peer) run-yuno: no JWT, Bearer token nor password of the routing is written");
+    json_t *jn_hops = json_object_get(json_object_get(jn_record, "source"), "hops");
+    check(strstr(kw_get_str(0, json_array_get(jn_hops, 1), "host", "", 0), "not scanned") != NULL &&
+        size_of_record(jn_record) < 4096,
+        "(peer) run-yuno: a field of a hop over the cap is its size and sha256");
+    check(strcmp(kw_get_str(0, json_array_get(jn_hops, 1), "user", "", 0), "someone") == 0,
+        "(peer) run-yuno: a field with nothing to redact is written as it is");
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+
+    /*
+     *  A read-only command: the user of the top level, then of the hop
+     */
+    kw = json_pack("{s:s}", "__username__", "password=hunter2");
+    jn_record = audit_record_build("list-yunos", kw, DATE, command_table);
+    check(jn_record && !record_holds(jn_record, "hunter2"),
+        "(peer) list-yunos: a __username__ holding a password is redacted");
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+
+    kw = json_pack("{s:O}", "__md_iev__", md_iev);
+    jn_record = audit_record_build("list-yunos", kw, DATE, command_table);
+    check(jn_record && !record_holds(jn_record, "S3CR3T"),
+        "(peer) list-yunos: the user of the hop, a JWT, is redacted");
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+
+    /*
+     *  A console write: user, source and console name
+     */
+    json_t *jn_bursts = json_object();
+    json_t *jn_records = json_array();
+    char line[256];
+    snprintf(line, sizeof(line), "write-tty name=%s content64=YQ==", jwt);
+    kw = json_pack("{s:O}", "__md_iev__", md_iev);
+    audit_tty_command(jn_bursts, line, kw, DATE, 3600, command_table, jn_records);
+    audit_tty_close_bursts(jn_bursts, jn_records);
+    BOOL clean = json_array_size(jn_records) > 0;
+    size_t idx;
+    json_array_foreach(jn_records, idx, jn_record) {
+        if(record_holds(jn_record, "S3CR3T") || record_holds(jn_record, "hunter2")) {
+            clean = FALSE;
+        }
+    }
+    check(clean, "(peer) write-tty: no JWT in the user, the source nor the console name");
+    JSON_DECREF(kw)
+    JSON_DECREF(jn_records)
+    JSON_DECREF(jn_bursts)
+
+    JSON_DECREF(md_iev)
 }
 
 /***************************************************************************
@@ -2200,6 +2285,7 @@ int main(int argc, char *argv[])
     test_command_word();
     test_more_secrets();
     test_json_text_in_json_text();
+    test_peer_fields_redacted();
     test_quote_before_json_text();
     test_blank_keys_inner_quotes_jwt_dot();
     test_generated_commands();
