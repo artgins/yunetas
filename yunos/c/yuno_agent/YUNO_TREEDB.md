@@ -1654,19 +1654,24 @@ different topics.) A dry run answers the same and writes nothing, and
 whose places the draft shifts too, `{"users": true, "departments": true}`,
 so the editor's marks agree with what the save publishes.
 
-**A node of more than one parent keeps its `order`.** The fkeys of the
-meta-schema are lists (`topics.treedbs`, `cols.topics`), so a node can hang
-from two parents: the operator links `treedb_x.departments.name` to `users`
-TOO, or links the topic `treedb_y.extra` into `treedb_x` and it stays in
-`treedb_y`. `order` is one field, and a place is per parent. So the save does
-not write the place of such a node, the draft places it where the schema file
-in use declares it (else last) instead of by its `order`, and the comparison
-of drafts does not look at its `order`. The save names it:
-`"places_not_written": ["treedb_x.departments.name"]`, and the comment says
-*"1 node(s) hang from more than one parent and keep their place (one `order`
-cannot say a place in each)"*. Written from each parent's save, the place in
-one parent read as a move in the other: every save flipped between saved and
-unsaved, and published topics nobody edited. (A newer literal still takes the
+**A node of more than one parent gets no place of its own.** The fkeys of
+the meta-schema are lists (`topics.treedbs`, `cols.topics`), so a node can
+hang from two parents: the operator links `treedb_x.departments.name` to
+`users` TOO, or links the topic `treedb_y.extra` into `treedb_x` and it stays
+in `treedb_y`. `order` is one field, and a place is per parent. So the save
+writes the `order` of such a node as 9999 (says nothing), the draft places it
+where the schema file in use declares it, then where the schema from C
+declares it, then last, and the comparison of drafts does not look at its
+`order`. The save names it: `"places_not_written":
+["treedb_x.departments.name"]`, and the comment says *"1 node(s) hang from
+more than one parent and get no place of their own (one `order` cannot say a
+place in each)"*. Written from each parent's save, the place in one parent
+read as a move in the other: every save flipped between saved and unsaved,
+and published topics nobody edited. And a node that STOPS being shared goes
+where the file of the parent that remains put it: link `treedb_y.extra` into
+`treedb_x`, save and apply `treedb_x`, unlink it from `treedb_y`, and
+`treedb_x` reads no draft. Kept, the `order` was its place in `treedb_y`, and
+`treedb_x`, edited by nobody, read `extra` and `departments` as moved. (A newer literal still takes the
 second parent back at the open, see *"What the operator LINKED
 differently"* below.)
 
@@ -2501,7 +2506,7 @@ ycommand -c 'command-yuno id=<id> service=treedbs command=save-schema treedb_nam
 # 0: <role>^<name>: nothing to save, the draft of 'treedb_x' is the schema in use; the store
 #    runs 'users' ahead of it with other columns, which the draft cannot say: to keep what
 #    runs, edit the topic in __system__ to those columns and save again; to run the file's,
-#    raise its topic_version in the schema from C
+#    raise its topic_version and its schema_version in the schema from C
 # data: {..., "store_ahead": {"users": {"topic_version": 1, "running_version": 2,
 #        "path": ".../treedb_x/users"}}}
 ```

@@ -7171,12 +7171,23 @@ PRIVATE int save_publishing(hgobj gobj, const char *treedb_name, const char *lab
  *  does not place it; neither treedb reads a draft afterwards, a save of
  *  `tw_sa` again publishes `extra` alone, and `tw_sb` has nothing to save.
  *
+ *  Then each node STOPS being shared, by an edit of the OTHER parent only:
+ *  SC unlinks the column from `departments`, ST unlinks `extra` from
+ *  `tw_sb` (the second step of moving a topic from one treedb to another).
+ *  The parent that remains reads no draft: SC's `draft_changed` is
+ *  `{departments}` alone and its save publishes `departments` alone; ST's
+ *  `tw_sa` has `draft_changed` {} and nothing to save.
+ *
  *  Red before: each save wrote the node's place in ITS parent, and the
  *  other parent read the node as moved. SC: saves of `tw_sc` flipped
  *  between `{users}` and `{users, departments}` for ever, raising the
  *  topic_versions of topics nobody edited. ST: each treedb's save made the
  *  other read `extra` as unsaved, and a save of `tw_sa` re-sorted
- *  `departments` too.
+ *  `departments` too. And with the place not written, the node kept the
+ *  `order` of its FIRST parent: unshared, that stale `order` read as a
+ *  real place in the parent that remained, which answered drafts nobody
+ *  made (`{extra, departments}` in `tw_sa`) and a save that published a
+ *  reorder of both.
  ***************************************************************************/
 PRIVATE int scenario_node_of_two_parents(hgobj gobj)
 {
@@ -7216,6 +7227,21 @@ PRIVATE int scenario_node_of_two_parents(hgobj gobj)
         "TEST FAIL: SC, the applied column of two parents reads as a draft", json_object());
     result += check_nothing_to_save(gobj, db,
         "TEST FAIL: SC, a save after the apply published the column of two parents again");
+    if(gobj_unlink_nodes(sys, "cols",
+            "topics", json_pack("{s:s}", "id", "tw_sc.departments"),
+            "cols", json_pack("{s:s}", "id", "tw_sc.departments.name"), gobj) < 0) {
+        result += test_fail(gobj, db, "TEST FAIL: SC, the operator's unlink was refused", NULL);
+    }
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: SC, the column no longer shared reads as moved in the topic that remains",
+        json_pack("{s:b}", "departments", 1));
+    result += save_publishing(gobj, db,
+        "TEST FAIL: SC, the save of the unlink published the topic that remains",
+        json_pack("{s:i}", "departments", 2),
+        json_array());
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: SC, the unlink reads as unsaved right after its save",
+        json_object());
     close_db(gobj, db);
     drop_treedb(gobj, db);
 
@@ -7254,6 +7280,22 @@ PRIVATE int scenario_node_of_two_parents(hgobj gobj)
         result += check_nothing_to_save(gobj, "tw_sb",
             "TEST FAIL: ST, the other parent published the topic of two parents");
     }
+    result += apply_schema(gobj, "tw_sa");
+    close_db(gobj, "tw_sa");
+    if(open_db(gobj, "tw_sa", users_departments_v1("tw_sa"), FALSE) < 0) {
+        close_db(gobj, "tw_sb");
+        return result - 1;
+    }
+    if(gobj_unlink_nodes(sys, "topics",
+            "treedbs", json_pack("{s:s}", "id", "tw_sb"),
+            "topics", json_pack("{s:s}", "id", "tw_sb.extra"), gobj) < 0) {
+        result += test_fail(gobj, "tw_sb", "TEST FAIL: ST, the operator's unlink was refused", NULL);
+    }
+    result += check_draft_changed(gobj, "tw_sa",
+        "TEST FAIL: ST, the topic no longer shared reads as moved in the treedb that remains",
+        json_object());
+    result += check_nothing_to_save(gobj, "tw_sa",
+        "TEST FAIL: ST, the treedb that remains published the topic no longer shared");
     close_db(gobj, "tw_sa");
     close_db(gobj, "tw_sb");
     drop_treedb(gobj, "tw_sa");

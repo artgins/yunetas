@@ -2388,6 +2388,17 @@ PRIVATE BOOL system_is_written_here(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Whether the `order` of a node of __system__ says a place: an integer
+ *  that is not ORDER_SAYS_NOTHING (see order_schema_nodes)
+ ***************************************************************************/
+PRIVATE BOOL order_says_a_place(json_t *node)   // not owned
+{
+    json_t *jn_order = json_object_get(node, "order");
+    return (json_is_integer(jn_order) &&
+        json_integer_value(jn_order) != ORDER_SAYS_NOTHING)? TRUE: FALSE;
+}
+
+/***************************************************************************
  *  Write into __system__ the PLACE each topic and column has in the schema
  *  a save writes, where its node says another `order`: the draft IS the
  *  saved schema, its places as its versions. `order` is an index while a
@@ -2408,15 +2419,27 @@ PRIVATE BOOL system_is_written_here(hgobj gobj)
  *
  *  A node that hangs from MORE THAN ONE parent (the fkeys of the
  *  meta-schema are lists: a column the operator linked to a second topic
- *  too, a topic of another treedb linked here and still in its own) keeps
- *  its `order`: one field cannot say its place in each parent. Written
- *  from each parent's save, the place of one made the other read it as
- *  moved, and saves flipped between "saved" and "unsaved" for ever (and
- *  re-sorted its neighbours). Its id goes to `not_placed`, which the save
- *  says. The rebuild places it by the file in use, else last
- *  (forget_order_of_a_shared_node), and diff_treedb_schema() does not
- *  compare its `order` (keep_order_of_a_shared_node). With `dry_run`
- *  nothing is written, and `not_placed` is filled all the same.
+ *  too, a topic of another treedb linked here and still in its own) gets
+ *  no place: one field cannot say its place in each parent. Written from
+ *  each parent's save, the place of one made the other read it as moved,
+ *  and saves flipped between "saved" and "unsaved" for ever (and re-sorted
+ *  its neighbours). Its id goes to `not_placed`, which the save says. The
+ *  rebuild places it by the file in use, then the schema from C, then
+ *  last (forget_order_of_a_shared_node), and diff_treedb_schema() does not
+ *  compare its `order` (keep_order_of_a_shared_node).
+ *
+ *  And its `order` is written as ORDER_SAYS_NOTHING, which is what the
+ *  file this save writes says of it: nothing, it was placed by the files.
+ *  Left as it was, it kept its place in ONE parent (the first one), and a
+ *  node that stops being shared -- unlinked from that parent, the second
+ *  step of moving a topic from one treedb to another -- has one parent
+ *  again: the stale `order` read there as a real place, and the parent
+ *  that remained, edited by nobody, answered drafts (the node and every
+ *  sibling it pushed down as moved) that a save published. Saying
+ *  nothing, it goes where the file of that parent put it, and is not
+ *  compared. While it is shared nothing reads its `order`, so the write
+ *  is no draft of either parent. With `dry_run` nothing is written, and
+ *  `not_placed` is filled all the same.
  ***************************************************************************/
 PRIVATE int write_saved_positions(
     hgobj gobj,
@@ -2454,6 +2477,10 @@ PRIVATE int write_saved_positions(
         json_t *places = json_array();  // of [system topic, id, place]
         if(node_parents_count(stored_topic, TRUE) > 1) {
             json_array_append_new(not_placed, json_string(topic_id));
+            if(order_says_a_place(stored_topic)) {
+                json_array_append_new(places,
+                    json_pack("[s,s,i]", "topics", topic_id, ORDER_SAYS_NOTHING));
+            }
         } else if(kw_get_int(gobj, stored_topic, "order", -1, KW_WILD_NUMBER) != idx) {
             json_array_append_new(places, json_pack("[s,s,i]", "topics", topic_id, idx));
         }
@@ -2478,9 +2505,13 @@ PRIVATE int write_saved_positions(
                 continue;
             }
             if(node_parents_count(stored_col, FALSE) > 1) {
-                if(json_list_str_index(not_placed, kw_get_str(gobj, stored_col, "id", "", 0), FALSE) < 0) {
-                    json_array_append_new(not_placed,
-                        json_string(kw_get_str(gobj, stored_col, "id", "", 0)));
+                const char *col_id = kw_get_str(gobj, stored_col, "id", "", 0);
+                if(json_list_str_index(not_placed, col_id, FALSE) < 0) {
+                    json_array_append_new(not_placed, json_string(col_id));
+                    if(order_says_a_place(stored_col)) {
+                        json_array_append_new(places,
+                            json_pack("[s,s,i]", "cols", col_id, ORDER_SAYS_NOTHING));
+                    }
                 }
             } else if(kw_get_int(gobj, stored_col, "order", -1, KW_WILD_NUMBER) != idx2) {
                 json_array_append_new(places, json_pack("[s,s,i]",
@@ -2858,7 +2889,8 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             snprintf(ahead_said, sizeof(ahead_said),
                 "; the store runs %s ahead of it with other columns, which the draft cannot "
                 "say: to keep what runs, edit the topic in __system__ to those columns and save "
-                "again; to run the file's, raise its topic_version in the schema from C",
+                "again; to run the file's, raise its topic_version and its schema_version "
+                "in the schema from C",
                 ahead_names);
         }
 
@@ -3001,7 +3033,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     JSON_DECREF(changed)
     JSON_DECREF(in_use)
 
-    json_t *not_placed = json_array();  // nodes of more than one parent: their `order` stays
+    json_t *not_placed = json_array();  // nodes of more than one parent: their `order` says nothing
     if(dry_run) {
         write_saved_positions(gobj, treedb_name, schema, not_placed, TRUE);
     } else {
@@ -3102,15 +3134,15 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     /*
-     *  A node of more than one parent keeps its `order` (see
+     *  A node of more than one parent gets no place of its own (see
      *  write_saved_positions): said, because its place in each parent is
-     *  then what its neighbours make of it, not what the save wrote
+     *  then what that parent's files make of it, not what the save wrote
      */
     char not_placed_said[PATH_MAX];
     not_placed_said[0] = 0;
     if(json_array_size(not_placed) > 0) {
         snprintf(not_placed_said, sizeof(not_placed_said),
-            "; %d node(s) hang from more than one parent and keep their place "
+            "; %d node(s) hang from more than one parent and get no place of their own "
             "(one `order` cannot say a place in each): see places_not_written",
             (int)json_array_size(not_placed));
     }
@@ -10734,8 +10766,9 @@ PRIVATE json_t *order_schema_nodes(
  *  (see write_saved_positions), and read in another it pushed that
  *  parent's own nodes down -- a topic of another treedb, first there, went
  *  first here, and the next save published every topic it displaced. It
- *  goes where the schema file in use declares it, else last
- *  (order_schema_nodes). `node` is the copy being rebuilt, MUTATED.
+ *  goes where the schema file in use declares it, then where the schema
+ *  from C declares it, then last (order_schema_nodes). `node` is the copy
+ *  being rebuilt, MUTATED.
  ***************************************************************************/
 PRIVATE void forget_order_of_a_shared_node(json_t *node, BOOL is_topic)
 {
@@ -11454,9 +11487,9 @@ PRIVATE void drop_order_the_stored_node_does_not_say(
 /***************************************************************************
  *  Take `order` out of the comparison, in the projected node `projected`
  *  (MUTATED), when the stored node hangs from more than one parent: its
- *  one `order` cannot say a place in each, and a save does not write it
- *  (see write_saved_positions). Compared, the place it has in one parent
- *  read as a move in the other after every save of the first.
+ *  one `order` cannot say a place in each, and a save writes it as saying
+ *  nothing (see write_saved_positions). Compared, the place it has in one
+ *  parent read as a move in the other after every save of the first.
  ***************************************************************************/
 PRIVATE void keep_order_of_a_shared_node(
     json_t *projected,  // not owned, MUTATED
