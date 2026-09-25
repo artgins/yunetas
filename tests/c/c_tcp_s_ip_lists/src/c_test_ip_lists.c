@@ -27,6 +27,16 @@
  *          dual-stack socket ("[::ffff:1.2.3.4]:80"). Up to 7.25.4 the port
  *          was cut at the first ':', so no list could name an ipv6 peer.
  *
+ *          Before the peers, the form the lists are kept in: the entries
+ *          the config brings as 7.25.4 stored them (typed by hand) are
+ *          renamed at load to the form a peer is looked up by, or dropped
+ *          when they are no ip; and the add-/remove- commands store that
+ *          form, refuse what is not an ip, and take a link-local address
+ *          with its interface (required in allowed_ips; in denied_ips an
+ *          entry without it denies the address on every interface). Up to
+ *          7.25.4 an entry like 2001:DB8::1 was stored as typed, answered
+ *          success, and never matched a peer.
+ *
  *          A wrong verdict is logged as an error, which the expected-logs
  *          check of main.c does not expect.
  *
@@ -62,6 +72,8 @@ PRIVATE int connect_peers(hgobj gobj, peer_t *peers);
 PRIVATE int check_peers(hgobj gobj, peer_t *peers, const char *phase);
 PRIVATE void close_peers(peer_t *peers);
 PRIVATE int check_peername_keys(hgobj gobj);
+PRIVATE int check_normalized_lists(hgobj gobj);
+PRIVATE int check_ip_commands(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -160,6 +172,9 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    check_normalized_lists(gobj);
+    check_ip_commands(gobj);
 
     json_t *denied_ips = gobj_read_json_attr(gobj_yuno(), "denied_ips");
     json_object_set_new(denied_ips, "127.0.1.2", json_true());
@@ -316,6 +331,230 @@ PRIVATE int check_peername_keys(hgobj gobj)
 
     json_object_del(denied_ips, "10.1.2.3");
     json_object_del(denied_ips, "2001:db8::1");
+    return ret;
+}
+
+/***************************************************************************
+ *  The lists as the config left them, normalised at load (main.c)
+ ***************************************************************************/
+extern int ip_list_saves_allowed;
+extern int ip_list_saves_denied;
+
+PRIVATE int check_normalized_lists(hgobj gobj)
+{
+    int ret = 0;
+    if(ip_list_saves_allowed != 1 || ip_list_saves_denied != 1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "ip lists normalised at load and not saved",
+            "saves_allowed","%d", ip_list_saves_allowed,
+            "saves_denied", "%d", ip_list_saves_denied,
+            NULL
+        );
+        ret = -1;
+    }
+    json_t *expected_allowed = json_pack("{s:b, s:b}",
+        "fe80::8%1", 1,
+        "10.9.9.12", 1
+    );
+    json_t *expected_denied = json_pack("{s:b, s:b, s:b}",
+        "2001:db8::5", 1,
+        "10.9.9.9", 1,
+        "10.9.9.11", 1
+    );
+    struct {
+        const char *attr;
+        json_t *expected;
+    } lists[] = {
+        {"allowed_ips", expected_allowed},
+        {"denied_ips",  expected_denied},
+        {0}
+    };
+    for(int i=0; lists[i].attr; i++) {
+        json_t *jn_list = gobj_read_json_attr(gobj_yuno(), lists[i].attr);
+        if(!json_equal(jn_list, lists[i].expected)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "ip list not normalised at load",
+                "attr",         "%s", lists[i].attr,
+                "expected",     "%j", lists[i].expected,
+                "got",          "%j", jn_list,
+                NULL
+            );
+            ret = -1;
+        }
+        JSON_DECREF(lists[i].expected)
+    }
+
+    json_object_clear(gobj_read_json_attr(gobj_yuno(), "allowed_ips"));
+    json_object_clear(gobj_read_json_attr(gobj_yuno(), "denied_ips"));
+    return ret;
+}
+
+/***************************************************************************
+ *  The add-/remove- commands store the form a peer is looked up by, and
+ *  refuse what is not an ip. Up to 7.25.4 they stored the text as typed and
+ *  answered success, and an entry like 2001:DB8::1 never matched a peer.
+ ***************************************************************************/
+PRIVATE int check_ip_commands(hgobj gobj)
+{
+    struct {
+        const char *command;
+        const char *ip;
+        int result;
+        const char *stored;     // key expected in the list, or NULL
+    } cases[] = {
+        {"add-denied-ip",       "2001:DB8::1",              0,  "2001:db8::1"},
+        {"add-denied-ip",       "2001:db8:0:0:0:0:0:2",     0,  "2001:db8::2"},
+        {"add-denied-ip",       "::ffff:203.0.113.7",       0,  "203.0.113.7"},
+        {"add-denied-ip",       "fe80::1",                  0,  "fe80::1"},
+        {"add-denied-ip",       "fe80::2%lo",               0,  "fe80::2%1"},
+        {"add-denied-ip",       "[2001:db8::3]",            -1, NULL},
+        {"add-denied-ip",       "203.0.113.8:443",          -1, NULL},
+        {"add-denied-ip",       "localhost",                -1, NULL},
+        {"add-denied-ip",       "203.0.113.9%eth0",         -1, NULL},
+        {"add-denied-ip",       "2001:db8::4%1",            -1, NULL},
+        {"add-denied-ip",       "fe80::5%nosuchif0",        -1, NULL},
+        {"add-allowed-ip",      "FE80::9",                  -1, NULL},
+        {"add-allowed-ip",      "fe80::9%1",                0,  "fe80::9%1"},
+        {"add-allowed-ip",      "::FFFF:198.51.100.1",      0,  "198.51.100.1"},
+        {0}
+    };
+
+    int ret = 0;
+    for(int i=0; cases[i].command; i++) {
+        BOOL denied_list = strstr(cases[i].command, "denied")?TRUE:FALSE;
+        json_t *jn_resp = gobj_command(
+            gobj_yuno(),
+            cases[i].command,
+            json_pack("{s:s, s:b}",
+                "ip", cases[i].ip,
+                denied_list?"denied":"allowed", 1
+            ),
+            gobj
+        );
+        int result = (int)kw_get_int(gobj, jn_resp, "result", -99, 0);
+        json_t *jn_list = gobj_read_json_attr(
+            gobj_yuno(), denied_list?"denied_ips":"allowed_ips"
+        );
+        BOOL stored_ok = cases[i].stored?
+            json_is_true(json_object_get(jn_list, cases[i].stored)):
+            (json_object_get(jn_list, cases[i].ip)==NULL);
+        if(result != cases[i].result || !stored_ok) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "wrong answer of an ip list command",
+                "command",      "%s", cases[i].command,
+                "ip",           "%s", cases[i].ip,
+                "expected",     "%d", cases[i].result,
+                "got",          "%d", result,
+                "stored",       "%s", cases[i].stored?cases[i].stored:"(nothing)",
+                "response",     "%j", jn_resp,
+                NULL
+            );
+            ret = -1;
+        }
+        JSON_DECREF(jn_resp)
+    }
+
+    /*
+     *  What each entry does to a peer
+     */
+    struct {
+        const char *peername;
+        BOOL denied;
+        BOOL allowed;
+    } peers[] = {
+        {"[2001:db8::1]:443",           TRUE,   FALSE},
+        {"[2001:db8::2]:443",           TRUE,   FALSE},
+        {"203.0.113.7:5000",            TRUE,   FALSE},
+        {"[::ffff:203.0.113.7]:5000",   TRUE,   FALSE},
+        {"[fe80::1%2]:22",              TRUE,   FALSE},     // no interface: every one
+        {"[fe80::1%7]:22",              TRUE,   FALSE},
+        {"[fe80::2%1]:22",              TRUE,   FALSE},
+        {"[fe80::2%2]:22",              FALSE,  FALSE},     // another interface
+        {"[fe80::9%1]:22",              FALSE,  TRUE},
+        {"[fe80::9%2]:22",              FALSE,  FALSE},     // another link, another host
+        {"[::ffff:198.51.100.1]:80",    FALSE,  TRUE},
+        {0}
+    };
+    for(int i=0; peers[i].peername; i++) {
+        BOOL denied = is_ip_denied(peers[i].peername);
+        BOOL allowed = is_ip_allowed(peers[i].peername);
+        if(denied != peers[i].denied || allowed != peers[i].allowed) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "wrong ip list verdict for a peername",
+                "peername",     "%s", peers[i].peername,
+                "denied",       "%s", denied?"yes":"no",
+                "allowed",      "%s", allowed?"yes":"no",
+                NULL
+            );
+            ret = -1;
+        }
+    }
+
+    /*
+     *  Removed by any form of the same ip; one not in the list is an error
+     */
+    struct {
+        const char *command;
+        const char *ip;
+        int result;
+    } removes[] = {
+        {"remove-denied-ip",    "2001:DB8:0:0:0:0:0:1",     0},
+        {"remove-denied-ip",    "2001:db8::2",              0},
+        {"remove-denied-ip",    "::FFFF:203.0.113.7",       0},
+        {"remove-denied-ip",    "fe80::1",                  0},
+        {"remove-denied-ip",    "fe80::2%1",                0},
+        {"remove-denied-ip",    "fe80::2%1",                -1},
+        {"remove-denied-ip",    "not-an-ip",                -1},
+        {"remove-allowed-ip",   "fe80::9%lo",               0},
+        {"remove-allowed-ip",   "198.51.100.1",             0},
+        {0}
+    };
+    for(int i=0; removes[i].command; i++) {
+        json_t *jn_resp = gobj_command(
+            gobj_yuno(),
+            removes[i].command,
+            json_pack("{s:s}", "ip", removes[i].ip),
+            gobj
+        );
+        int result = (int)kw_get_int(gobj, jn_resp, "result", -99, 0);
+        if(result != removes[i].result) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "wrong answer of an ip list command",
+                "command",      "%s", removes[i].command,
+                "ip",           "%s", removes[i].ip,
+                "expected",     "%d", removes[i].result,
+                "got",          "%d", result,
+                "response",     "%j", jn_resp,
+                NULL
+            );
+            ret = -1;
+        }
+        JSON_DECREF(jn_resp)
+    }
+
+    size_t left = json_object_size(gobj_read_json_attr(gobj_yuno(), "denied_ips")) +
+        json_object_size(gobj_read_json_attr(gobj_yuno(), "allowed_ips"));
+    if(left != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "ip lists not empty after the removes",
+            "denied_ips",   "%j", gobj_read_json_attr(gobj_yuno(), "denied_ips"),
+            "allowed_ips",  "%j", gobj_read_json_attr(gobj_yuno(), "allowed_ips"),
+            NULL
+        );
+        ret = -1;
+    }
     return ret;
 }
 

@@ -135,13 +135,60 @@ attributes (`SDF_PERSIST`) and the `add-allowed-ip`, `remove-allowed-ip`,
 `add-denied-ip`, `remove-denied-ip` commands.
 :::
 
+(yuno_ip_list_entries)=
+### The form of an entry
+
+A peer is looked up by the text that the kernel gives for its address, so an
+entry must be in the same form. Since 7.25.5 the `add-` and `remove-`
+commands convert what you type to that form, and refuse what is not an ip:
+
+| You type | Stored as |
+|---|---|
+| `2001:DB8::1`, `2001:db8:0:0:0:0:0:1` | `2001:db8::1` (lowercase, compressed) |
+| `::ffff:203.0.113.7` | `203.0.113.7` (an ipv4-mapped ipv6 is its ipv4) |
+| `fe80::1%eth0`, `fe80::1%2` | `fe80::1%2` (a link-local address with its interface index) |
+| `fe80::1` | `fe80::1` in `denied_ips` only: it denies the address on every interface |
+| `[2001:db8::1]`, `203.0.113.7:443`, `localhost`, `10.0.0.1%eth0` | refused, with the cause |
+
+```bash
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=add-denied-ip ip=2001:DB8::1 denied=1'
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=add-allowed-ip ip=fe80::10%eth0 allowed=1'
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=remove-denied-ip ip=2001:db8:0:0:0:0:0:1'
+```
+
+A link-local address (`fe80::/10`, `ff02::/16`) is the same text on every
+link, and on another link it is another host. So `allowed_ips` requires its
+interface, and matches it exactly: `fe80::10%2` does not let in `fe80::10`
+that arrives on interface 3. `denied_ips` accepts it without the interface,
+and then denies the address on every interface. A deny broader than asked is
+the safe side.
+
+`remove-` takes any form of the same ip. It answers an error when the ip is
+not in the list.
+
+Up to 7.25.4 the commands stored the text as typed and answered success,
+so an entry like `2001:DB8::1` was shown by `list-denied-ips` and never
+matched a peer.
+
+**Upgrade.** When the yuno starts, it rewrites the entries that an older
+version stored as typed. An entry that names an ip in another form is
+renamed, with a warning (*"ip list entry renamed to the form a peer is looked
+up by"*). An entry that is not an ip (`203.0.113.7:443`, `[2001:db8::1]`, a
+host name, or a link-local address without its interface in `allowed_ips`)
+is removed, with a warning (*"ip list entry dropped, it never matched a
+peer"*) that names it. Add it again in a valid form. Two entries of one ip
+become one: in `denied_ips` the deny wins, in `allowed_ips` the refusal wins.
+The lists are saved once, rewritten.
+
 ---
 
 (is_ip_denied)=
 ## [`is_ip_denied()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/c_yuno.c#L5979)
 
 Checks whether an IP address is in the denied-IPs list, with the same
-lookup key as [`is_ip_allowed()`](#is_ip_allowed).
+lookup key as [`is_ip_allowed()`](#is_ip_allowed). A link-local peer
+(`fe80::1%2`) is also denied by the entry without its interface (`fe80::1`),
+see [The form of an entry](#yuno_ip_list_entries).
 Denied IPs take precedence over allowed IPs.
 
 ```C

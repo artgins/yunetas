@@ -7,6 +7,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <string.h>
 #include <yunetas.h>
 #include "c_test_ip_lists.h"
 
@@ -47,6 +48,20 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'yuno': {                                                       \n\
         'autoplay': true,                                           \n\
+        'allowed_ips': {                                            \n\
+            'fe80::7': true,                                        \n\
+            'fe80::8%1': true,                                      \n\
+            '::FFFF:10.9.9.12': true                                \n\
+        },                                                          \n\
+        'denied_ips': {                                             \n\
+            '2001:DB8::5': true,                                    \n\
+            '2001:db8:0:0:0:0:0:5': false,                          \n\
+            '::ffff:10.9.9.9': true,                                \n\
+            '10.9.9.10:443': true,                                  \n\
+            '[2001:db8::6]': true,                                  \n\
+            'not-an-ip': true,                                      \n\
+            '10.9.9.11': true                                       \n\
+        },                                                          \n\
         'required_services': [],                                    \n\
         'public_services': [],                                      \n\
         'service_descriptor': {                                     \n\
@@ -121,6 +136,55 @@ PRIVATE char variable_config[]= "\
 time_measure_t time_measure;
 
 /***************************************************************************
+ *  Persistent attrs: nothing is kept (the test has no realm), each save of
+ *  an ip list is counted
+ ***************************************************************************/
+int ip_list_saves_allowed = 0;
+int ip_list_saves_denied = 0;
+
+static int test_persist_startup(void)
+{
+    return 0;
+}
+static void test_persist_end(void)
+{
+}
+static int test_persist_load(hgobj gobj, json_t *keys)
+{
+    JSON_DECREF(keys)
+    return 0;
+}
+static int test_persist_save(hgobj gobj, json_t *keys)
+{
+    const char *attr = json_string_value(keys);
+    if(attr && strcmp(attr, "allowed_ips")==0) {
+        ip_list_saves_allowed++;
+    } else if(attr && strcmp(attr, "denied_ips")==0) {
+        ip_list_saves_denied++;
+    }
+    JSON_DECREF(keys)
+    return 0;
+}
+static int test_persist_remove(hgobj gobj, json_t *keys)
+{
+    JSON_DECREF(keys)
+    return 0;
+}
+static json_t *test_persist_list(hgobj gobj, json_t *keys)
+{
+    JSON_DECREF(keys)
+    return json_object();
+}
+static const persistent_attrs_t test_persistent_attrs = {
+    test_persist_startup,
+    test_persist_end,
+    test_persist_load,
+    test_persist_save,
+    test_persist_remove,
+    test_persist_list
+};
+
+/***************************************************************************
  *  HACK This function is executed on yunetas environment (mem, log, paths)
  *  BEFORE creating the yuno
  ***************************************************************************/
@@ -141,10 +205,24 @@ static int register_yuno_and_more(void)
     set_expected_results(
         APP_NAME,
         /*  Strict FIFO: every gobj_log_info the run emits, in order.
-         *  One refusal in phase 1, two in phase 2; a wrong verdict is an
-         *  error, which is not in this list.  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+         *  After the start, the entries of the ip lists of the config, stored as
+         *  typed by 7.25.4 and normalised at load: allowed_ips drops a
+         *  link-local address without its interface and renames a mapped
+         *  ipv4; denied_ips renames three (two of them one ip) and drops
+         *  three that are no ip. Then one refusal in phase 1, two in phase
+         *  2; a wrong verdict is an error, which is not in this list.  */
+        json_pack("[{s:s}, {s:s,s:s}, {s:s,s:s}, "
+                  "{s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s}, "
+                  "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
+            "msg", "ip list entry dropped, it never matched a peer", "entry", "fe80::7",
+            "msg", "ip list entry renamed to the form a peer is looked up by", "entry", "::FFFF:10.9.9.12",
+            "msg", "ip list entry renamed to the form a peer is looked up by", "entry", "2001:DB8::5",
+            "msg", "ip list entry renamed to the form a peer is looked up by", "entry", "2001:db8:0:0:0:0:0:5",
+            "msg", "ip list entry renamed to the form a peer is looked up by", "entry", "::ffff:10.9.9.9",
+            "msg", "ip list entry dropped, it never matched a peer", "entry", "10.9.9.10:443",
+            "msg", "ip list entry dropped, it never matched a peer", "entry", "[2001:db8::6]",
+            "msg", "ip list entry dropped, it never matched a peer", "entry", "not-an-ip",
             "msg", "Playing yuno",
             "msg", "TCP_S: Ip denied",
             "msg", "TCP_S: Ip denied",
@@ -207,7 +285,7 @@ int main(int argc, char *argv[])
     helper_quote2doublequote(fixed_config);
     helper_quote2doublequote(variable_config);
     yuneta_setup(
-        NULL,       // persistent_attrs
+        &test_persistent_attrs,
         NULL,       // command_parser
         NULL,       // stats_parser
         NULL,       // authz_checker

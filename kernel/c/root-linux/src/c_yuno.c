@@ -82,6 +82,13 @@ PRIVATE json_t *get_machine_memory_info(void);
  *  c_authz ask it once per connection.
  */
 PRIVATE void peername_to_ip(char *ip, size_t ip_size, const char *peername);
+PRIVATE int canonical_ip(
+    char *ip, size_t ip_size,
+    char *cause, size_t cause_size,
+    const char *text,
+    BOOL scope_required
+);
+PRIVATE int normalize_ip_list(hgobj gobj, const char *attr, BOOL scope_required);
 PRIVATE int add_allowed_ip(const char *ip, BOOL allowed);
 PRIVATE int remove_allowed_ip(const char *ip);
 PRIVATE int add_denied_ip(const char *ip, BOOL denied);
@@ -800,6 +807,14 @@ PRIVATE void mt_create(hgobj gobj)
         );
         gobj_write_str_attr(gobj, "yuno_role_plus_name", role_plus_name);
     }
+
+    /*-----------------------------------------------------*
+     *  The ip lists, loaded from the persistent attrs, in
+     *  the form a peer is looked up by (7.25.4 stored the
+     *  entries as typed)
+     *-----------------------------------------------------*/
+    normalize_ip_list(gobj, "allowed_ips", TRUE);
+    normalize_ip_list(gobj, "denied_ips", FALSE);
 
     /*--------------------------*
      *  Create the event loop
@@ -4060,7 +4075,21 @@ PRIVATE json_t* cmd_add_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgob
         );
     }
 
-    add_allowed_ip(ip, allowed);
+    char canonical[NAME_MAX];
+    char cause[NAME_MAX];
+    if(canonical_ip(canonical, sizeof(canonical), cause, sizeof(cause), ip, TRUE)<0) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: %s", gobj_yuno_role_plus_name(), cause),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    add_allowed_ip(canonical, allowed);
 
     /*
      *  Inform
@@ -4068,7 +4097,8 @@ PRIVATE json_t* cmd_add_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgob
     json_t *kw_response = build_command_response(
         gobj,
         0,
-        0,
+        strcmp(canonical, ip)!=0?
+            json_sprintf("%s: '%s' stored as '%s'", gobj_yuno_role_plus_name(), ip, canonical):0,
         0,
         json_incref(gobj_read_json_attr(gobj_yuno(), "allowed_ips"))
     );
@@ -4093,7 +4123,33 @@ PRIVATE json_t* cmd_remove_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, h
         );
     }
 
-    remove_allowed_ip(ip);
+    char canonical[NAME_MAX];
+    char cause[NAME_MAX];
+    if(canonical_ip(canonical, sizeof(canonical), cause, sizeof(cause), ip, FALSE)<0) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: %s", gobj_yuno_role_plus_name(), cause),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    if(!json_object_get(gobj_read_json_attr(gobj_yuno(), "allowed_ips"), canonical)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: ip '%s' is not in allowed_ips", gobj_yuno_role_plus_name(), canonical),
+            0,      // jn_schema
+            json_incref(gobj_read_json_attr(gobj_yuno(), "allowed_ips"))
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    remove_allowed_ip(canonical);
 
     /*
      *  Inform
@@ -4157,7 +4213,21 @@ PRIVATE json_t* cmd_add_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj
         );
     }
 
-    add_denied_ip(ip, denied);
+    char canonical[NAME_MAX];
+    char cause[NAME_MAX];
+    if(canonical_ip(canonical, sizeof(canonical), cause, sizeof(cause), ip, FALSE)<0) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: %s", gobj_yuno_role_plus_name(), cause),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    add_denied_ip(canonical, denied);
 
     /*
      *  Inform
@@ -4165,7 +4235,8 @@ PRIVATE json_t* cmd_add_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj
     json_t *kw_response = build_command_response(
         gobj,
         0,
-        0,
+        strcmp(canonical, ip)!=0?
+            json_sprintf("%s: '%s' stored as '%s'", gobj_yuno_role_plus_name(), ip, canonical):0,
         0,
         json_incref(gobj_read_json_attr(gobj_yuno(), "denied_ips"))
     );
@@ -4190,7 +4261,33 @@ PRIVATE json_t* cmd_remove_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hg
         );
     }
 
-    remove_denied_ip(ip);
+    char canonical[NAME_MAX];
+    char cause[NAME_MAX];
+    if(canonical_ip(canonical, sizeof(canonical), cause, sizeof(cause), ip, FALSE)<0) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: %s", gobj_yuno_role_plus_name(), cause),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    if(!json_object_get(gobj_read_json_attr(gobj_yuno(), "denied_ips"), canonical)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: ip '%s' is not in denied_ips", gobj_yuno_role_plus_name(), canonical),
+            0,      // jn_schema
+            json_incref(gobj_read_json_attr(gobj_yuno(), "denied_ips"))
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    remove_denied_ip(canonical);
 
     /*
      *  Inform
@@ -5964,6 +6061,203 @@ PRIVATE void peername_to_ip(char *ip, size_t ip_size, const char *peername)
 }
 
 /***************************************************************************
+ *  The form of an ip that the lists are looked up by: the text inet_ntop()
+ *  gives, the one peername_to_ip() takes from a peername. An ipv6 in
+ *  lowercase and compressed (2001:DB8:0:0::1 -> 2001:db8::1), an ipv4 in
+ *  dotted decimal, and an ipv4-mapped ipv6 as its ipv4 (::ffff:203.0.113.7
+ *  -> 203.0.113.7). A link-local address (fe80::/10, ff02::/16) is named
+ *  with its interface, by name or index (fe80::1%eth0, fe80::1%2), and is
+ *  stored with the index -- what the kernel puts in the peername.
+ *
+ *  `scope_required`: the allowed list needs the interface of a link-local
+ *  address, because the same address on another link is another host and
+ *  must not be let in by it. The denied list takes one without it, and it
+ *  then denies the address on every interface (is_ip_denied): a deny that
+ *  is broader than asked is the safe side.
+ *
+ *  Refused, with the cause: text that is not a numeric address (a host
+ *  name, an address with a port or in brackets), and an interface on an
+ *  address that is not link-local.
+ *
+ *  Up to 7.25.4 the commands stored the text as typed, answered success,
+ *  and an entry that was not in this form never matched a peer.
+ ***************************************************************************/
+PRIVATE int canonical_ip(
+    char *ip, size_t ip_size,
+    char *cause, size_t cause_size,
+    const char *text,
+    BOOL scope_required
+)
+{
+    char addr[INET6_ADDRSTRLEN + IF_NAMESIZE + 2];
+    if(strlen(text) >= sizeof(addr)) {
+        snprintf(cause, cause_size, "ip '%.60s...' is too long", text);
+        return -1;
+    }
+    snprintf(addr, sizeof(addr), "%s", text);
+
+    char *scope = strchr(addr, '%');
+    if(scope) {
+        *scope = 0;
+        scope++;
+    }
+
+    struct in_addr a4;
+    struct in6_addr a6;
+    char ntop[INET6_ADDRSTRLEN];
+
+    if(inet_pton(AF_INET, addr, &a4) == 1) {
+        if(scope) {
+            snprintf(cause, cause_size,
+                "ip '%s': an interface (%%) only goes with an ipv6 link-local address", text
+            );
+            return -1;
+        }
+        inet_ntop(AF_INET, &a4, ntop, sizeof(ntop));
+        snprintf(ip, ip_size, "%s", ntop);
+        return 0;
+    }
+
+    if(inet_pton(AF_INET6, addr, &a6) != 1) {
+        snprintf(cause, cause_size,
+            "ip '%s' is not a numeric ipv4 or ipv6 address (no host name, port or brackets)",
+            text
+        );
+        return -1;
+    }
+
+    if(IN6_IS_ADDR_V4MAPPED(&a6)) {
+        if(scope) {
+            snprintf(cause, cause_size,
+                "ip '%s': an interface (%%) only goes with an ipv6 link-local address", text
+            );
+            return -1;
+        }
+        inet_ntop(AF_INET, &a6.s6_addr[12], ntop, sizeof(ntop));
+        snprintf(ip, ip_size, "%s", ntop);
+        return 0;
+    }
+
+    inet_ntop(AF_INET6, &a6, ntop, sizeof(ntop));
+
+    BOOL link_local = IN6_IS_ADDR_LINKLOCAL(&a6) || IN6_IS_ADDR_MC_LINKLOCAL(&a6);
+    if(!link_local) {
+        if(scope) {
+            snprintf(cause, cause_size,
+                "ip '%s': an interface (%%) only goes with an ipv6 link-local address", text
+            );
+            return -1;
+        }
+        snprintf(ip, ip_size, "%s", ntop);
+        return 0;
+    }
+
+    if(!scope || !*scope) {
+        if(scope_required) {
+            snprintf(cause, cause_size,
+                "ip '%s' is link-local: name its interface, like %s%%eth0 or %s%%2",
+                text, ntop, ntop
+            );
+            return -1;
+        }
+        snprintf(ip, ip_size, "%s", ntop);
+        return 0;
+    }
+
+    unsigned int index = 0;
+    if(all_numbers(scope)) {
+        index = (unsigned int)strtoul(scope, NULL, 10);
+    } else {
+        index = if_nametoindex(scope);
+    }
+    if(index == 0) {
+        snprintf(cause, cause_size, "ip '%s': no interface '%s' in this host", text, scope);
+        return -1;
+    }
+    snprintf(ip, ip_size, "%s%%%u", ntop, index);
+    return 0;
+}
+
+/***************************************************************************
+ *  Rewrite each entry of a list (allowed_ips, denied_ips) in its canonical
+ *  form, as the add- commands store it now. An entry stored by 7.25.4 or
+ *  earlier as typed never matched a peer: it is renamed, or dropped when it
+ *  cannot be read as an ip, and either is logged, once, and saved.
+ ***************************************************************************/
+PRIVATE int normalize_ip_list(hgobj gobj, const char *attr, BOOL scope_required)
+{
+    json_t *jn_list = gobj_read_json_attr(gobj, attr);
+    if(!json_is_object(jn_list)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "ip list is not a dict",
+            "attr",         "%s", attr,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *jn_new = json_object();
+    int changes = 0;
+    const char *key; json_t *jn_value;
+    json_object_foreach(jn_list, key, jn_value) {
+        char canonical[NAME_MAX];
+        char cause[NAME_MAX];
+        if(canonical_ip(canonical, sizeof(canonical), cause, sizeof(cause), key, scope_required)<0) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", "ip list entry dropped, it never matched a peer",
+                "attr",         "%s", attr,
+                "entry",        "%s", key,
+                "value",        "%j", jn_value,
+                "cause",        "%s", cause,
+                NULL
+            );
+            changes++;
+            continue;
+        }
+        if(strcmp(canonical, key)!=0) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", "ip list entry renamed to the form a peer is looked up by",
+                "attr",         "%s", attr,
+                "entry",        "%s", key,
+                "canonical",    "%s", canonical,
+                "value",        "%j", jn_value,
+                NULL
+            );
+            changes++;
+        }
+
+        json_t *jn_prev = json_object_get(jn_new, canonical);
+        if(jn_prev) {
+            /*
+             *  Two entries that name one ip: a deny wins in denied_ips, a
+             *  refusal wins in allowed_ips.
+             */
+            BOOL deny_list = scope_required?FALSE:TRUE;
+            BOOL merged = deny_list?
+                (json_is_true(jn_prev) || json_is_true(jn_value)):
+                (json_is_true(jn_prev) && json_is_true(jn_value));
+            json_object_set_new(jn_new, canonical, json_boolean(merged));
+        } else {
+            json_object_set(jn_new, canonical, jn_value);
+        }
+    }
+
+    if(changes) {
+        json_object_clear(jn_list);
+        json_object_update(jn_list, jn_new);
+        gobj_save_persistent_attrs(gobj, json_string(attr));
+    }
+    JSON_DECREF(jn_new)
+    return changes;
+}
+
+/***************************************************************************
  *  Is ip or peername allowed?
  *  IP's must be numeric
  ***************************************************************************/
@@ -5971,6 +6265,10 @@ PUBLIC BOOL is_ip_allowed(const char *peername)
 {
     char ip[NAME_MAX];
     peername_to_ip(ip, sizeof(ip), peername);
+    /*
+     *  Exact: a link-local peer carries its interface (fe80::1%2), and so
+     *  does every link-local entry of this list (canonical_ip).
+     */
     json_t *b = json_object_get(gobj_read_json_attr(gobj_yuno(), "allowed_ips"), ip);
     return json_is_true(b)?TRUE:FALSE;
 }
@@ -6010,8 +6308,25 @@ PUBLIC BOOL is_ip_denied(const char *peername)
 {
     char ip[NAME_MAX];
     peername_to_ip(ip, sizeof(ip), peername);
-    json_t *b = json_object_get(gobj_read_json_attr(gobj_yuno(), "denied_ips"), ip);
-    return json_is_true(b)?TRUE:FALSE;
+    json_t *denied_ips = gobj_read_json_attr(gobj_yuno(), "denied_ips");
+    json_t *b = json_object_get(denied_ips, ip);
+    if(json_is_true(b)) {
+        return TRUE;
+    }
+
+    /*
+     *  A link-local entry without its interface denies the address on
+     *  every interface: the peer fe80::1%2 is denied by fe80::1 too.
+     */
+    char *scope = strchr(ip, '%');
+    if(scope) {
+        *scope = 0;
+        b = json_object_get(denied_ips, ip);
+        if(json_is_true(b)) {
+            return TRUE;
+        }
+    }
+    return FALSE;
 }
 
 /***************************************************************************
