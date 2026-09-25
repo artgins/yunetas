@@ -7,6 +7,9 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <unistd.h>
+#include <limits.h>
+#include <helpers.h>
 #include "tr2q_mqtt.h"
 
 /***************************************************************
@@ -204,16 +207,42 @@ PUBLIC void tr2q_set_verbose(tr2_queue_t *trq, BOOL verbose)
 }
 
 /***************************************************************************
+ *  Can the topic of the queue be opened? Asked of the disk, quietly: its
+ *  topic_desc.json is there and can be read. Only then is it opened, and
+ *  the open logs its causes when it fails all the same (a topic_desc.json
+ *  that does not load).
+ ***************************************************************************/
+PRIVATE BOOL queue_topic_can_be_opened(tr2_queue_t *trq)
+{
+    char topic_dir[PATH_MAX];
+    char path[PATH_MAX];
+    if(tranger2_topic_path(topic_dir, sizeof(topic_dir), trq->tranger, trq->topic_name) < 0) {
+        return FALSE;   // Error already logged
+    }
+    if(!build_path(path, sizeof(path), topic_dir, "topic_desc.json", NULL)) {
+        return FALSE;   // Error already logged
+    }
+    return (access(path, R_OK) == 0)? TRUE: FALSE;
+}
+
+/***************************************************************************
  *  The topic of the queue. A backup that failed, and could not open the
  *  topic again, left it NULL: it is taken again by name as soon as it can
  *  be opened (before this fix it stayed NULL for good: every read and ack of
  *  the queue failed, and the backup was never tried again). NULL while it
- *  cannot, said once.
+ *  cannot, said once: once said, the disk is asked quietly before the open
+ *  is tried again (up to this fix every call went through
+ *  tranger2_topic(), which logs three errors for a topic it cannot open,
+ *  and the broker asks every second per session).
  ***************************************************************************/
 PRIVATE json_t *take_queue_topic(tr2_queue_t *trq)
 {
     if(trq->topic) {
         return trq->topic;
+    }
+
+    if(trq->topic_missing_said && !queue_topic_can_be_opened(trq)) {
+        return NULL;    // said already
     }
 
     hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));

@@ -20,6 +20,18 @@
  *        removed leaves a FILTERED paging iterator of the key its rows.
  *        Before this fix the failure emptied its index (a filtered index
  *        is built only at the open): total_rows 0 for a key still on disk.
+ *      - do_test_key_dir_unstatable: a key whose directory cannot be
+ *        stat'ed (EIO, EACCES on keys/) is not "not found": the delete
+ *        answers -1, announces nothing, and the key keeps its records.
+ *        Up to this fix it was taken as not found: 0, the key dropped from
+ *        the cache, the delete announced, and the files left on disk.
+ *      - do_test_mirror_fails:       the delete cannot list disks/ (its
+ *        opendir() or its readdir() fails): the feeds of the replicas are
+ *        not told, and that is logged. Up to this fix it was silent.
+ *
+ *  The failures of stat(), opendir() and readdir() are made by the
+ *  __wrap_*() below (the test links with --wrap=stat,opendir,readdir), for
+ *  the one path each is told to fail.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -30,6 +42,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -45,6 +58,57 @@
 #define KEY_A       "0000000000000000001"
 #define KEY_B       "0000000000000000002"
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
+
+/***************************************************************
+ *              A stat(), opendir(), readdir() that fail
+ ***************************************************************/
+int __real_stat(const char *path, struct stat *st);
+int __wrap_stat(const char *path, struct stat *st);
+DIR *__real_opendir(const char *name);
+DIR *__wrap_opendir(const char *name);
+struct dirent *__real_readdir(DIR *dirp);
+struct dirent *__wrap_readdir(DIR *dirp);
+
+PRIVATE char failing_stat[PATH_MAX] = "";      // the path whose stat() fails (EIO)
+PRIVATE char failing_opendir[PATH_MAX] = "";   // the directory whose opendir() fails (EMFILE)
+PRIVATE char failing_readdir[PATH_MAX] = "";   // the directory whose readdir() fails (EIO)
+PRIVATE DIR *failing_dirp = NULL;
+PRIVATE int wrapped_failures = 0;
+
+int __wrap_stat(const char *path, struct stat *st)
+{
+    if(failing_stat[0] && strcmp(path, failing_stat) == 0) {
+        wrapped_failures++;
+        errno = EIO;
+        return -1;
+    }
+    return __real_stat(path, st);
+}
+
+DIR *__wrap_opendir(const char *name)
+{
+    if(failing_opendir[0] && strcmp(name, failing_opendir) == 0) {
+        wrapped_failures++;
+        errno = EMFILE;
+        return NULL;
+    }
+    DIR *dirp = __real_opendir(name);
+    if(dirp && failing_readdir[0] && strcmp(name, failing_readdir) == 0) {
+        failing_dirp = dirp;
+    }
+    return dirp;
+}
+
+struct dirent *__wrap_readdir(DIR *dirp)
+{
+    if(dirp && dirp == failing_dirp) {
+        failing_dirp = NULL;
+        wrapped_failures++;
+        errno = EIO;
+        return NULL;
+    }
+    return __real_readdir(dirp);
+}
 
 /***************************************************************
  *              Data
@@ -962,6 +1026,192 @@ PRIVATE int do_test_cache_cleared(void)
 }
 
 /***************************************************************************
+ *  do_test_key_dir_unstatable
+ *  The stat() of keys/<key> fails with EIO: the delete does not know if
+ *  the key is there, so it deletes nothing and announces nothing.
+ ***************************************************************************/
+PRIVATE int do_test_key_dir_unstatable(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+    reset_callback_state();
+
+    set_expected_results(
+        "unstatable: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tranger = startup_master(path_root, FALSE);
+    if(!tranger || create_topic(tranger) < 0 || append_to(tranger, 1, 3) < 0) {
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        return -1;
+    }
+    json_t *rt = tranger2_open_rt_mem(
+        tranger, TOPIC_NAME, "", NULL, my_record_callback, "unstatable", "", NULL
+    );
+    tranger2_set_rt_key_deleted_callback(rt, my_key_deleted_callback, NULL);
+    result += test_json(NULL);
+
+    set_expected_results(
+        "unstatable: a key whose directory cannot be stat'ed is not deleted",
+        json_pack("[{s:s}]",
+            "msg", "Cannot delete key, stat() of its directory FAILED"
+        ),
+        NULL, NULL, 1
+    );
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_topic, "keys", KEY_A, NULL);
+    snprintf(failing_stat, sizeof(failing_stat), "%s", key_dir);
+    wrapped_failures = 0;
+    int ret = tranger2_delete_key(tranger, TOPIC_NAME, KEY_A);
+    failing_stat[0] = 0;
+    if(wrapped_failures == 0) {
+        printf("%sERROR%s --> unstatable: no stat() failed, the test proves nothing\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(ret != -1) {
+        printf("%sERROR%s --> unstatable: the delete answered %d, expected -1\n",
+            On_Red BWhite, Color_Off, ret);
+        result += -1;
+    }
+    if(deleted_callback_count != 0) {
+        printf("%sERROR%s --> unstatable: a delete that did not happen was announced %zu time(s)\n",
+            On_Red BWhite, Color_Off, deleted_callback_count);
+        result += -1;
+    }
+    if(tranger2_topic_key_size(tranger, TOPIC_NAME, KEY_A) != 3) {
+        printf("%sERROR%s --> unstatable: the key lost its records in memory: %d\n",
+            On_Red BWhite, Color_Off, (int)tranger2_topic_key_size(tranger, TOPIC_NAME, KEY_A));
+        result += -1;
+    }
+    if(!is_directory(key_dir)) {
+        printf("%sERROR%s --> unstatable: the key directory is gone\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("unstatable: the delete once it can be done", NULL, NULL, NULL, 1);
+    if(tranger2_delete_key(tranger, TOPIC_NAME, KEY_A) < 0) {
+        printf("%sERROR%s --> unstatable: the second delete failed\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(deleted_callback_count != 1) {
+        printf("%sERROR%s --> unstatable: expected 1 fire, got %zu\n",
+            On_Red BWhite, Color_Off, deleted_callback_count);
+        result += -1;
+    }
+    tranger2_close_rt_mem(tranger, rt);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  do_test_mirror_fails
+ *  The delete is done, and disks/ cannot be listed to tell the feeds of
+ *  the replicas: first its opendir() fails, then its readdir(). Each is
+ *  logged; the in-process subscribers are told anyway.
+ ***************************************************************************/
+PRIVATE int do_test_mirror_fails(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+    reset_callback_state();
+
+    set_expected_results(
+        "mirror_fails: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tranger = startup_master(path_root, FALSE);
+    if(!tranger || create_topic(tranger) < 0 ||
+            append_to(tranger, 1, 2) < 0 || append_to(tranger, 2, 2) < 0) {
+        if(tranger) {
+            tranger2_shutdown(tranger);
+        }
+        return -1;
+    }
+    json_t *rt = tranger2_open_rt_mem(
+        tranger, TOPIC_NAME, "", NULL, my_record_callback, "mirror", "", NULL
+    );
+    tranger2_set_rt_key_deleted_callback(rt, my_key_deleted_callback, NULL);
+    result += test_json(NULL);
+
+    char disks_dir[PATH_MAX];
+    build_path(disks_dir, sizeof(disks_dir), path_topic, "disks", NULL);
+
+    set_expected_results(
+        "mirror_fails: disks/ cannot be opened",
+        json_pack("[{s:s}]",
+            "msg", "Cannot tell the rt_disk feeds that a key was deleted, opendir() of disks/ FAILED"
+        ),
+        NULL, NULL, 1
+    );
+    snprintf(failing_opendir, sizeof(failing_opendir), "%s", disks_dir);
+    wrapped_failures = 0;
+    int ret = tranger2_delete_key(tranger, TOPIC_NAME, KEY_A);
+    failing_opendir[0] = 0;
+    if(wrapped_failures != 1) {
+        printf("%sERROR%s --> mirror_fails: no opendir() failed, the test proves nothing\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(ret != 0 || deleted_callback_count != 1) {
+        printf("%sERROR%s --> mirror_fails: the delete is done: ret %d, fired %zu\n",
+            On_Red BWhite, Color_Off, ret, deleted_callback_count);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results(
+        "mirror_fails: disks/ cannot be read",
+        json_pack("[{s:s}]",
+            "msg", "Cannot tell every rt_disk feed that a key was deleted, readdir() of disks/ FAILED"
+        ),
+        NULL, NULL, 1
+    );
+    snprintf(failing_readdir, sizeof(failing_readdir), "%s", disks_dir);
+    wrapped_failures = 0;
+    ret = tranger2_delete_key(tranger, TOPIC_NAME, KEY_B);
+    failing_readdir[0] = 0;
+    failing_dirp = NULL;
+    if(wrapped_failures != 1) {
+        printf("%sERROR%s --> mirror_fails: no readdir() failed, the test proves nothing\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(ret != 0 || deleted_callback_count != 2) {
+        printf("%sERROR%s --> mirror_fails: the delete is done: ret %d, fired %zu\n",
+            On_Red BWhite, Color_Off, ret, deleted_callback_count);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("mirror_fails: shutdown", NULL, NULL, NULL, 1);
+    tranger2_close_rt_mem(tranger, rt);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *              Main
  ***************************************************************************/
 PRIVATE void quit_sighandler(int sig)
@@ -1021,6 +1271,8 @@ int main(int argc, char *argv[])
     result += do_test_cache_cleared();
     result += do_test_rmrdir_fails();
     result += do_test_rmrdir_fails_filtered();
+    result += do_test_key_dir_unstatable();
+    result += do_test_mirror_fails();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

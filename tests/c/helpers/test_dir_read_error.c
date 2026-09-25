@@ -48,12 +48,25 @@
  *                 7.25.4 the directory was stat'ed instead of the file,
  *                 and the file dropped with no log.
  *             12. a tree deeper than 1024 levels: -1, logged, no crash.
+ *             13. an entry whose lstat() fails with EIO (not EACCES, not
+ *                 ENOENT) fails the walk: -1, logged.
+ *             14. find_files_with_suffix_array() without d_type, and the
+ *                 lstat() of a file fails with EIO: -1, empty, logged.
+ *             15. a SUBdirectory whose opendir() fails with ENOTDIR or
+ *                 ELOOP (it is no longer a directory) is skipped, with a
+ *                 warning, like EACCES.
+ *             16. rmrcontentdir() and rmrdir() of a directory whose
+ *                 readdir() fails: -1, logged "readdir() FAILED", what was
+ *                 not read stays. Up to this fix rmrcontentdir() took the
+ *                 failure as the end and answered 0 with nothing removed
+ *                 and nothing logged, and rmrdir() blamed the rmdir().
  *
  *          The failure of readdir() is made by __wrap_readdir() below, for
  *          the directory named by `failing_dir` (seen at its opendir()).
  *          The failure of opendir() by __wrap_opendir(), for the directory
  *          named by `failing_open_dir`. __wrap_readdir() also hides the
- *          d_type of every entry when `hide_d_type` is set.
+ *          d_type of every entry when `hide_d_type` is set. The failure of
+ *          lstat() by __wrap_lstat(), for the path `failing_lstat`.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -119,6 +132,22 @@ struct dirent *__wrap_readdir(DIR *dirp)
         dent->d_type = DT_UNKNOWN;
     }
     return dent;
+}
+
+int __real_lstat(const char *path, struct stat *st);
+int __wrap_lstat(const char *path, struct stat *st);
+
+PRIVATE const char *failing_lstat = NULL;  // the path whose lstat() fails (EIO)
+PRIVATE int lstat_failures = 0;
+
+int __wrap_lstat(const char *path, struct stat *st)
+{
+    if(failing_lstat && strcmp(path, failing_lstat) == 0) {
+        lstat_failures++;
+        errno = EIO;
+        return -1;
+    }
+    return __real_lstat(path, st);
 }
 
 PRIVATE void fail_readdir_of(const char *directory, int entries)
@@ -332,6 +361,119 @@ PRIVATE void test_subdir_open_error(void)
 }
 
 /***************************************************************************
+ *  13-15. An entry that cannot be stat'ed, a subdirectory that is no
+ *  longer one
+ ***************************************************************************/
+PRIVATE void test_stat_errors(void)
+{
+    dir_array_t da;
+    int ret;
+    int logs_before;
+
+    /*
+     *  13. lstat() EIO in a walk
+     */
+    failing_lstat = BASE "/b.md2";
+    lstat_failures = 0;
+    logs_before = s_logs;
+    entries = 0;
+    ret = walk_dir_tree(0, BASE, ".*", WD_RECURSIVE|WD_MATCH_REGULAR_FILE, count_cb, NULL);
+    ok_or_fail(lstat_failures == 1, "13. the lstat() of the entry failed");
+    ok_or_fail(ret == -1, "13. walk_dir_tree() answers -1 when an entry cannot be stat'ed (EIO)");
+    ok_or_fail(s_logs > logs_before && strstr(s_last_log, "stat() FAILED") != NULL,
+        "13. and it is logged");
+    ret = walk_dir_array(0, BASE, ".*", WD_RECURSIVE|WD_MATCH_REGULAR_FILE, &da);
+    ok_or_fail(ret == -1 && da.count == 0 && da.items == NULL,
+        "13. walk_dir_array() answers -1, empty");
+    dir_array_free(&da);
+
+    /*
+     *  14. lstat() EIO in find_files_with_suffix_array() without d_type
+     */
+    hide_d_type = TRUE;
+    lstat_failures = 0;
+    logs_before = s_logs;
+    ret = find_files_with_suffix_array(0, BASE, ".md2", &da);
+    hide_d_type = FALSE;
+    ok_or_fail(lstat_failures == 1, "14. the lstat() of the file failed");
+    ok_or_fail(ret == -1 && da.count == 0 && da.items == NULL,
+        "14. find_files_with_suffix_array() without d_type answers -1, empty");
+    ok_or_fail(s_logs > logs_before && strstr(s_last_log, "stat() FAILED") != NULL,
+        "14. and it is logged");
+    dir_array_free(&da);
+    failing_lstat = NULL;
+
+    /*
+     *  15. ENOTDIR and ELOOP: skipped, with a warning
+     */
+    int errs[] = {ENOTDIR, ELOOP};
+    for(size_t i = 0; i < ARRAY_SIZE(errs); i++) {
+        failing_open_dir = SUB;
+        failing_open_errno = errs[i];
+        logs_before = s_logs;
+        ret = walk_dir_array(0, BASE, ".*", WD_RECURSIVE|WD_MATCH_REGULAR_FILE, &da);
+        char name[128];
+        snprintf(name, sizeof(name),
+            "15. a subdirectory that cannot be opened (%s) is skipped, the rest listed",
+            strerror(errs[i]));
+        ok_or_fail(ret == 0 && da.count == 3, name);
+        ok_or_fail(s_logs == logs_before + 1 && strstr(s_last_log, "it is skipped") != NULL,
+            "15. with a warning");
+        dir_array_free(&da);
+    }
+    failing_open_dir = NULL;
+    failing_open_errno = 0;
+}
+
+/***************************************************************************
+ *  16. A removal whose readdir() fails
+ ***************************************************************************/
+#define RM_BASE     "/tmp/test_dir_read_error_rm"
+
+PRIVATE void make_rm_tree(void)
+{
+    rmrdir(RM_BASE);
+    mkrdir(RM_BASE "/sub", 02770);
+    const char *files[] = {RM_BASE "/f1", RM_BASE "/sub/f2"};
+    for(size_t i = 0; i < ARRAY_SIZE(files); i++) {
+        int fd = newfile(files[i], 0660, FALSE);
+        if(fd >= 0) {
+            close(fd);
+        }
+    }
+}
+
+PRIVATE void test_remove_read_error(void)
+{
+    int ret;
+
+    make_rm_tree();
+    fail_readdir_of(RM_BASE, 0);
+    gobj_log_set_last_message("%s", "");
+    ret = rmrcontentdir(RM_BASE);
+    ok_or_fail(failures == 1, "16. the readdir() of the directory failed");
+    ok_or_fail(ret == -1, "16. rmrcontentdir() answers -1 when readdir() fails");
+    ok_or_fail(strstr(gobj_log_last_message(), "readdir() FAILED") != NULL, "16. and it is logged");
+    ok_or_fail(access(RM_BASE "/f1", F_OK) == 0, "16. and what was not read stays");
+
+    fail_readdir_of(RM_BASE "/sub", 0);
+    gobj_log_set_last_message("%s", "");
+    ret = rmrdir(RM_BASE);
+    ok_or_fail(failures == 1, "16. the readdir() of the subdirectory failed");
+    ok_or_fail(ret == -1, "16. rmrdir() answers -1 when a readdir() fails");
+    ok_or_fail(strstr(gobj_log_last_message(), "readdir() FAILED") != NULL,
+        "16. and it logs the readdir(), not the rmdir() that follows");
+    ok_or_fail(access(RM_BASE "/sub/f2", F_OK) == 0, "16. and what was not read stays");
+    fail_readdir_of(NULL, 0);
+
+    ret = rmrcontentdir(RM_BASE);
+    ok_or_fail(ret == 0 && access(RM_BASE "/sub", F_OK) != 0,
+        "16. without the failure rmrcontentdir() empties it");
+    ret = rmrdir(RM_BASE);
+    ok_or_fail(ret == 0 && access(RM_BASE, F_OK) != 0, "16. and rmrdir() removes it");
+}
+
+/***************************************************************************
  *  9. A callback that stops the walk in a subdirectory
  ***************************************************************************/
 #define STOP_BASE   "/tmp/test_dir_read_error_stop"
@@ -539,6 +681,8 @@ int main(int argc, char *argv[])
     test_read_error();
     test_root_cannot_be_opened();
     test_subdir_open_error();
+    test_stat_errors();
+    test_remove_read_error();
     test_callback_stops();
     test_long_paths();
     test_re_null();     // it crashed up to 7.25.4

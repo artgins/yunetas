@@ -73,8 +73,9 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 # Every readdir() of the libraries goes through the test's __wrap_readdir(),
-# which can hide d_type: a static binary cannot be LD_PRELOADed.
-target_link_options(${PROJECT_NAME} PRIVATE "-Wl,--wrap=readdir")
+# which can hide d_type: a static binary cannot be LD_PRELOADed. And every
+# stat() through its __wrap_stat(), which can fail the stat() of one key.
+target_link_options(${PROJECT_NAME} PRIVATE "-Wl,--wrap=readdir,--wrap=stat")
 
 ##############################################
 #   Test

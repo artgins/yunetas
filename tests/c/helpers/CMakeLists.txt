@@ -94,8 +94,8 @@ target_link_options(test_helpers PUBLIC LINKER:--wrap=lstat)
 # test_rotatory fakes the free space of one directory, the clocks (wall and monotonic) and a failing rename (see its header)
 target_link_options(test_rotatory PUBLIC LINKER:--wrap=statvfs,--wrap=fstatvfs,--wrap=time,--wrap=clock_gettime,--wrap=rename)
 
-# test_dir_read_error fails the readdir() of one directory (see its header)
-target_link_options(test_dir_read_error PUBLIC LINKER:--wrap=opendir,--wrap=readdir)
+# test_dir_read_error fails the readdir(), opendir() or lstat() of one path (see its header)
+target_link_options(test_dir_read_error PUBLIC LINKER:--wrap=opendir,--wrap=readdir,--wrap=lstat)
 
 # test_audit_record tests the audit record builder of yuno_agent (its own source)
 target_sources(test_audit_record PRIVATE

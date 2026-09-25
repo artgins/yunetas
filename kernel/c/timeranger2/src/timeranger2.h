@@ -318,7 +318,10 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
    topic_desc.json, topic_cols.json, topic_var.json, keys/ or disks/ cannot
    be made, the directory it made is removed, nothing is kept in memory, and
    NULL is answered ("Cannot create topic: it is not whole, what was made is
-   removed"); the next create starts again from nothing.
+   removed"); the next create starts again from nothing. That last line is
+   the one CRITICAL at the tranger's on_critical_error: the failures before
+   it are logged without the exit bits, so with LOG_OPT_EXIT_ZERO the process
+   exits only once what was made is removed.
 */
 PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,    // If the topic exists then only needs (tranger, topic_name) parameters
@@ -368,7 +371,8 @@ PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
 /*
    Write "<tranger directory>/<topic_name>" into the caller buffer `bf`.
    Pure string build: it does NOT validate that the topic exists on disk or in
-   memory. Always returns 0.
+   memory. Returns 0, or -1 (logged, `bf` empty) for a topic name that is not
+   a single directory component of the store (a '/', "..", a leading '.').
 */
 PUBLIC int tranger2_topic_path(
     char *bf,

@@ -27,13 +27,19 @@ and the backup took it as the queue's new topic.
 And a backup that fails and cannot open the topic again
 either (its `topic_desc.json` of mode 0 for a moment; SKIPPED as root): the
 queue has no topic, a read and an ack fail and say it once (*"Queue without
-topic, it cannot be opened"*), and once the file can be read the queue takes
+topic, it cannot be opened"*; the next calls log nothing, where up to this fix
+each one logged the three errors of the open again), and once the file can be
+read the queue takes
 its topic again by name (*"Queue topic taken again"*) and the next check backs
 it up; for `tr_queue` and for `tr2q`. Before this fix the topic stayed `NULL`
 for good. And a tranger opened with `on_critical_error` `LOG_OPT_EXIT_ZERO`
 (the MQTT broker's queues): a backup whose new topic cannot be created does
 not exit (an `atexit()` handler turns such an exit into a failure), moves the
-backup back, and the queue keeps its message.
+backup back, and the queue keeps its message. And a plain create with `LOG_OPT_EXIT_ZERO` whose `keys/` cannot be made,
+in a child process: the child exits(0), as told, but only after it removed
+what it made, and the next create makes the topic whole. Up to this fix it
+exited in the log of the failed `mkdir`, and the next start opened the half
+topic.
 
 ## Run
 

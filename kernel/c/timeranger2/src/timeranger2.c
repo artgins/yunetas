@@ -246,6 +246,7 @@ PRIVATE int build_topic_cache_from_disk(
     json_t *topic,
     BOOL master
 );
+PRIVATE log_opt_t critical_opt(hgobj gobj, json_t *tranger, BOOL keep_running);
 PRIVATE json_t *get_key_cache(
     json_t *topic,
     const char *key
@@ -1267,13 +1268,27 @@ PRIVATE int replace_topic_var(
  *  A create that failed half way: the topic directory it made is removed
  *  (it did not exist before the create), so the next create starts again
  *  from nothing, and no half topic is ever opened.
+ *
+ *  The failures of the create are logged with the exit bits of
+ *  on_critical_error dropped (critical_opt(..., TRUE)), and this is the
+ *  CRITICAL at the tranger's own on_critical_error: with LOG_OPT_EXIT_ZERO
+ *  (the default of C_TRANGER, C_TREEDB and the broker's queues) the process
+ *  exits HERE, once what was made is gone. Up to this fix it exited in the
+ *  log of the first failure, before the removal, and the next start opened
+ *  the half topic (or could not open it at all, when the failure was the
+ *  write of its topic_desc.json).
  ***************************************************************************/
-PRIVATE void abandon_topic_create(hgobj gobj, const char *directory, const char *topic_name)
+PRIVATE void abandon_topic_create(
+    hgobj gobj,
+    json_t *tranger,
+    const char *directory,
+    const char *topic_name
+)
 {
     if(is_directory(directory)) {
         rmrdir(directory);  // a failure is logged by rmrdir
     }
-    gobj_log_error(gobj, 0,
+    gobj_log_critical(gobj, critical_opt(gobj, tranger, FALSE),
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_TRANGER,
         "msg",          "%s", "Cannot create topic: it is not whole, what was made is removed",
@@ -1375,8 +1390,15 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             return 0;
         }
 
+        /*
+         *  Every failure of the create is logged without its exit bits:
+         *  abandon_topic_create() removes what was made, THEN logs the
+         *  critical that exits (see it).
+         */
+        log_opt_t create_critical_opt = critical_opt(gobj, tranger, TRUE);
+
         if(mkrdir(directory, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
-            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            gobj_log_critical(gobj, create_critical_opt,
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", directory,
                 "msgset",       "%s", MSGSET_SYSTEM,
@@ -1385,7 +1407,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
-            abandon_topic_create(gobj, directory, topic_name);
+            abandon_topic_create(gobj, tranger, directory, topic_name);
             JSON_DECREF(jn_cols)
             JSON_DECREF(jn_var)
             JSON_DECREF(jn_topic_ext)
@@ -1420,6 +1442,8 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                     "msg",          "%s", "tranger_create_topic(): What key type?",
                     NULL
                 );
+                JSON_DECREF(jn_topic_desc)
+                abandon_topic_create(gobj, tranger, directory, topic_name);
                 JSON_DECREF(jn_cols)
                 JSON_DECREF(jn_var)
                 JSON_DECREF(jn_topic_ext)
@@ -1455,7 +1479,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             "topic_desc.json",
             (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
             (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
-            kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            create_critical_opt,
             master? TRUE:FALSE, //create
             TRUE,  //only_read
             topic_desc  // owned
@@ -1530,7 +1554,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             directory
         );
         if(created && mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
-            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            gobj_log_critical(gobj, create_critical_opt,
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", full_path,
                 "msgset",       "%s", MSGSET_SYSTEM,
@@ -1549,7 +1573,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             directory
         );
         if(created && mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
-            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            gobj_log_critical(gobj, create_critical_opt,
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", full_path,
                 "msgset",       "%s", MSGSET_SYSTEM,
@@ -1570,7 +1594,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
          *  disks/ to watch.
          */
         if(!created) {
-            abandon_topic_create(gobj, directory, topic_name);
+            abandon_topic_create(gobj, tranger, directory, topic_name);
             JSON_DECREF(jn_cols)
             JSON_DECREF(jn_var)
             JSON_DECREF(jn_topic_ext)
@@ -4347,16 +4371,31 @@ PRIVATE void mirror_key_delete_to_disks(
 
     char disks_root[PATH_MAX];
     snprintf(disks_root, sizeof(disks_root), "%s/disks", topic_dir);
-    if(!is_directory(disks_root)) {
-        return;
-    }
 
+    /*
+     *  No disks/, no feed to tell. Any other failure to list it is a
+     *  replica that will not hear of the delete: logged (up to this fix it
+     *  was silent, and so was a readdir() that failed half way).
+     */
     DIR *dir = opendir(disks_root);
     if(!dir) {
+        if(errno == ENOENT) {
+            return;
+        }
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot tell the rt_disk feeds that a key was deleted, opendir() of disks/ FAILED",
+            "path",         "%s", disks_root,
+            "key",          "%s", key,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
         return;
     }
     struct dirent *entry;
-    while((entry = readdir(dir)) != NULL) {
+    while((errno = 0, entry = readdir(dir)) != NULL) {   // errno tells the end from a failure
         if(entry->d_name[0] == '.' &&
           (entry->d_name[1] == '\0' ||
            (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
@@ -4396,6 +4435,18 @@ PRIVATE void mirror_key_delete_to_disks(
             }
         }
     }
+    if(errno != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot tell every rt_disk feed that a key was deleted, readdir() of disks/ FAILED",
+            "path",         "%s", disks_root,
+            "key",          "%s", key,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
     closedir(dir);
 }
 
@@ -4410,7 +4461,8 @@ PRIVATE void mirror_key_delete_to_disks(
     `key_deleted_callback`s on rt_mem / iterators / rt_disk subscribers.
     When the key dir cannot be removed (-1), nothing is announced: the
     cache of the key is read again from what is left on disk, and its
-    iterators take their segments again from it.
+    iterators take their segments again from it. When it cannot even be
+    stat'ed (any errno but ENOENT), -1 with nothing done.
  ***************************************************************************/
 PUBLIC int tranger2_delete_key(
     json_t *tranger,
@@ -4492,7 +4544,35 @@ PUBLIC int tranger2_delete_key(
     if(!build_path(path_key, sizeof(path_key), topic_dir, "keys", key, NULL)) {
         return -1;  // Error already logged
     }
-    if(is_directory(path_key)) {
+
+    /*
+     *  Only ENOENT says the key is not on disk. Any other failure of the
+     *  stat() (EACCES on keys/, EIO) says nothing of it: nothing is
+     *  deleted, nothing announced. Up to this fix it was taken as "not
+     *  found": the key was dropped from the cache, the delete announced to
+     *  every feed and follower, and 0 answered -- over files still on disk,
+     *  which came back at the next open.
+     */
+    struct stat st;
+    BOOL key_on_disk = FALSE;
+    if(stat(path_key, &st) == 0) {
+        key_on_disk = S_ISDIR(st.st_mode)? TRUE: FALSE;
+    } else if(errno != ENOENT) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot delete key, stat() of its directory FAILED",
+            "path",         "%s", path_key,
+            "topic",        "%s", topic_name,
+            "key",          "%s", key,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    if(key_on_disk) {
         if(rmrdir(path_key)<0) {
             gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -7384,26 +7464,43 @@ PRIVATE int find_keys_in_disk(
          *  opened with an empty cache over files that were all there.
          */
         #ifdef DT_DIR
+        BOOL ask_stat = (entry->d_type == DT_UNKNOWN)? TRUE: FALSE;
         if(entry->d_type == DT_DIR) {
             is_dir = 1;
-        } else if(entry->d_type == DT_UNKNOWN) {
-            struct stat st;
-            char path[PATH_MAX];
-            build_path(path, sizeof(path), full_path, entry->d_name, NULL);
-            if(stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-                is_dir = 1;
-            }
         }
         #else
-        {
+        BOOL ask_stat = TRUE;
+        #endif
+        if(ask_stat) {
             struct stat st;
             char path[PATH_MAX];
             build_path(path, sizeof(path), full_path, entry->d_name, NULL);
-            if(stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-                is_dir = 1;
+            if(stat(path, &st) == 0) {
+                if(S_ISDIR(st.st_mode)) {
+                    is_dir = 1;
+                }
+            } else if(errno != ENOENT) {
+                /*
+                 *  A key lost, not a key gone (ENOENT: removed between the
+                 *  readdir() and the stat()): the listing fails, as
+                 *  find_files_with_suffix_array() fails for a file. Up to
+                 *  this fix the key was taken as "not a directory" and left
+                 *  out with no log, and the topic opened without it.
+                 */
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot list the keys of the topic, stat() FAILED",
+                    "path",         "%s", path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                   NULL
+                );
+                closedir(dir);
+                json_decref(jn_keys);
+                return -1;
             }
         }
-        #endif
 
         if(!is_dir) {
             continue;

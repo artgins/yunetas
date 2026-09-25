@@ -116,3 +116,10 @@ longer than `PATH_MAX` fail `walk_dir_tree()` / `walk_dir_array()` with
 forever: a crash; run last), and `find_files_with_suffix_array()` without
 `d_type` (up to 7.25.4 the directory was stat'ed instead of the file, and the
 file dropped); a tree of 1100 levels fails the walk (*"Tree too deep"*).
+And with `--wrap=lstat`: an entry whose `lstat()` fails with `EIO` fails the
+walk and `find_files_with_suffix_array()` without `d_type`, `-1`, logged; a
+subdirectory whose `opendir()` fails with `ENOTDIR` or `ELOOP` is skipped with
+a warning, as with `EACCES`. And `rmrcontentdir()` / `rmrdir()` of a directory
+whose `readdir()` fails answer `-1` and log *"readdir() FAILED"*, with what
+was not read left in place (up to this fix `rmrcontentdir()` answered `0` with
+nothing removed and nothing logged, and `rmrdir()` blamed the `rmdir()`).

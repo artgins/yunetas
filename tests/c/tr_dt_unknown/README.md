@@ -11,7 +11,7 @@ append started a cell `{rows:1}` over a file that held N, so the wrong record
 was served from then on.
 
 ext4 and tmpfs always fill `d_type`, and a fully static test binary cannot be
-`LD_PRELOAD`ed. So this test links with `-Wl,--wrap=readdir` (see its
+`LD_PRELOAD`ed. So this test links with `-Wl,--wrap=readdir,--wrap=stat` (see its
 `CMakeLists.txt`): every `readdir()` of the libraries goes through the test's
 `__wrap_readdir()`, which can hide the type the way such a filesystem does:
 
@@ -31,3 +31,11 @@ The test checks:
 1. A topic with two keys and five records is written and closed.
 2. Reopened with `d_type` hidden, it finds both keys and all five records,
    and the wrapper really served entries without a type.
+3. Reopened with `d_type` hidden and the `stat()` of key `B` failing with
+   `EIO` (the test's `__wrap_stat()`), the topic does **not** open:
+   *"Cannot list the keys of the topic, stat() FAILED"* and *"Cannot open
+   topic: its keys cannot be listed"*. Up to this fix the key was taken as
+   "not a directory" and left out of the cache with no log, so the topic
+   opened without it. Only `ENOENT` (the key went away between the
+   `readdir()` and the `stat()`) leaves a key out, as
+   `find_files_with_suffix_array()` does with a file.

@@ -43,6 +43,16 @@
  *  failed mkdir called exit(0) before the put-back, and the data stayed in
  *  the backup (an atexit() handler below turns that exit into a failure).
  *
+ *  And a plain create with LOG_OPT_EXIT_ZERO whose keys/ cannot be made:
+ *  the process exits, as it is told to, but only once what was made is
+ *  removed (the create runs in a child; the parent looks at the disk). Up to
+ *  this fix it exited in the log of the failed mkdir, and the next start
+ *  opened the half topic.
+ *
+ *  And while the queue's topic cannot be opened, only the FIRST call says
+ *  so: the next ones ask the disk quietly (up to this fix each one logged
+ *  the three errors of the open again).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -52,6 +62,7 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -463,9 +474,16 @@ PRIVATE json_t *expected_topic_lost(void)
     );
 }
 
-PRIVATE json_t *expected_topic_not_opened(BOOL said)
+/*
+ *  The first call that finds no topic says it, with the causes the open
+ *  logs. The next ones say NOTHING while the topic still cannot be opened:
+ *  they ask the disk quietly first. (Up to this fix every call logged the
+ *  three errors of the open again; the broker calls tr2q_check_backup()
+ *  every second per session.)
+ */
+PRIVATE json_t *expected_topic_not_opened(BOOL first)
 {
-    if(said) {
+    if(first) {
         return json_pack("[{s:s},{s:s},{s:s},{s:s}]",
             "msg", MSG_JSON_FILE,
             "msg", MSG_DESC,
@@ -473,11 +491,7 @@ PRIVATE json_t *expected_topic_not_opened(BOOL said)
             "msg", "Queue without topic, it cannot be opened"
         );
     }
-    return json_pack("[{s:s},{s:s},{s:s}]",
-        "msg", MSG_JSON_FILE,
-        "msg", MSG_DESC,
-        "msg", "Cannot open topic"
-    );
+    return NULL;
 }
 
 PRIVATE int test_trq_topic_taken_again(void)
@@ -514,9 +528,11 @@ PRIVATE int test_trq_topic_taken_again(void)
     JSON_DECREF(jn)
     result += test_json(NULL);
 
-    set_expected_results("trq_retake: an ack without topic", expected_topic_not_opened(FALSE), NULL, NULL, 1);
+    set_expected_results("trq_retake: an ack without topic says nothing more",
+        expected_topic_not_opened(FALSE), NULL, NULL, 1);
     result += expect_int("trq_retake: an ack without topic answers -1",
         trq_set_hard_flag(msg, TRQ_MSG_PENDING, 0), -1);
+    result += expect_int("trq_retake: a check without topic answers -1", trq_check_backup(trq), -1);
     result += test_json(NULL);
 
     /*
@@ -585,6 +601,14 @@ PRIVATE int test_tr2q_topic_taken_again(void)
     result += expect_int("tr2q_retake: tr2q_check_backup() without topic answers -1", ret, -1);
     result += test_json(NULL);
 
+    set_expected_results("tr2q_retake: the next checks without topic say nothing",
+        expected_topic_not_opened(FALSE), NULL, NULL, 1);
+    for(int i = 0; i < 3; i++) {
+        ret = tr2q_check_backup(trq);
+        result += expect_int("tr2q_retake: a next check without topic answers -1", ret, -1);
+    }
+    result += test_json(NULL);
+
     make_topic_unreadable(topic_name, FALSE);
     set_expected_results(
         "tr2q_retake: the next check takes the topic again, and backs up",
@@ -614,6 +638,72 @@ PRIVATE int test_tr2q_topic_taken_again(void)
         tr2q_unload_msg(msg, 0);
     }
     tr2q_close(trq);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  A create whose keys/ cannot be made, in a tranger that exits on a
+ *  CRITICAL (LOG_OPT_EXIT_ZERO, the default of C_TRANGER, C_TREEDB and the
+ *  broker's queues). The process exits, as it is told to -- but only once
+ *  what was made is removed. Up to this fix the CRITICAL of the mkdir
+ *  exited first: the topic_desc.json, topic_cols.json and topic_var.json
+ *  stayed with no keys/, and the next start opened that half topic.
+ *
+ *  The exit is the expected end, so the create runs in a child process;
+ *  the parent looks at what the child left on disk.
+ ***************************************************************************/
+PRIVATE int test_create_exit_zero(void)
+{
+    int result = 0;
+    const char *direct = "t_exit_zero";
+    rmrdir(path_database);
+
+    char topic_dir[PATH_MAX];
+    build_path(topic_dir, sizeof(topic_dir), path_database, direct, NULL);
+
+    set_expected_results("create_exit_zero: the child", NULL, NULL, NULL, 0);
+    fflush(stdout);
+    pid_t pid = fork();
+    if(pid == 0) {
+        json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+            "path", path_root,
+            "database", DATABASE,
+            "master", 1,
+            "on_critical_error", (int)LOG_OPT_EXIT_ZERO
+        ), 0);
+        build_path(failing_mkdir, sizeof(failing_mkdir), topic_dir, "keys", NULL);
+        tranger2_create_topic(tranger, direct, "id", "tm", NULL, sf_string_key,
+            json_pack("{s:s, s:I}", "id", "", "tm", (json_int_t)0), 0);
+        printf("%sERROR%s --> create_exit_zero: the create returned, it did not exit\n",
+            On_Red BWhite, Color_Off);
+        fflush(stdout);
+        _exit(3);
+    }
+    if(pid < 0) {
+        printf("%sERROR%s --> create_exit_zero: fork() FAILED\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    test_json(NULL);    // the logs of the child are not in this process
+
+    result += expect_int("create_exit_zero: the child exited(0) on the CRITICAL",
+        WIFEXITED(status)? WEXITSTATUS(status): -1, 0);
+    result += expect_int("create_exit_zero: nothing of the topic on disk",
+        (json_int_t)is_directory(topic_dir), 0);
+
+    set_expected_results("create_exit_zero: the next create makes it whole",
+        json_pack("[{s:s}]", "msg", "Creating topic"), NULL, NULL, 1);
+    json_t *tranger = startup();
+    json_t *topic = tranger2_create_topic(tranger, direct, "id", "tm", NULL, sf_string_key,
+        json_pack("{s:s, s:I}", "id", "", "tm", (json_int_t)0), 0);
+    char keys_dir[PATH_MAX];
+    build_path(keys_dir, sizeof(keys_dir), topic_dir, "keys", NULL);
+    result += expect_int("create_exit_zero: the next create answers the topic", topic? 1: 0, 1);
+    result += expect_int("create_exit_zero: with its keys/", (json_int_t)is_directory(keys_dir), 1);
     tranger2_shutdown(tranger);
     result += test_json(NULL);
 
@@ -709,6 +799,7 @@ PRIVATE int do_test(void)
     result += test_tr2q();
     result += test_trq_create_fails();
     result += test_create_keys_fails();
+    result += test_create_exit_zero();
     if(geteuid() == 0) {
         printf("skip trq_retake, tr2q_retake: as root a file of mode 0 can be read\n");
     } else {

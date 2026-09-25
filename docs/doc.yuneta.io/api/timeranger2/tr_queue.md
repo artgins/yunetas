@@ -104,13 +104,25 @@ takes its topic again BY NAME as soon as it can be opened: at the next call,
 and at the next [`trq_msg_json()`](<#trq_msg_json>) or ack
 ([`trq_set_hard_flag()`](<#trq_set_hard_flag>)) of a message, with an INFO,
 *"Queue topic taken again"*. While it cannot, those calls fail (`-1`, `NULL`)
-and the queue says it once, *"Queue without topic, it cannot be opened"*:
+and the queue says it once, *"Queue without topic, it cannot be opened"*,
+after the causes the open logs. From then on the queue asks the disk quietly
+first (its `topic_desc.json` is there and can be read, `access(R_OK)`), and
+tries the open again only when it can: the next calls log nothing. Before this
+fix every call went through `tranger2_topic()`, which logs three errors for a
+topic it cannot open, and the MQTT broker calls `tr2q_check_backup()` every
+second for each session with nothing in flight:
 
 ```text
-ERROR trq_check_backup: Queue backup failed, and the queue has no topic
+CRITICAL load_persistent_json: Cannot open a json file                (first call)
+ERROR tranger2_open_topic: Cannot open topic: topic_desc.json does not load
+ERROR tranger2_topic: Cannot open topic
 ERROR take_queue_topic: Queue without topic, it cannot be opened      (once)
+                                                                      (next calls: nothing)
 INFO  take_queue_topic: Queue topic taken again                       (the file is back)
 ```
+
+A `topic_desc.json` that can be read and does not load (a broken file) is
+opened, and logged, at every call: it needs a person anyway.
 
 The mqtt queues (`tr2q_check_backup()`, `tr2q_msg_json()`,
 `tr2q_save_hard_mark()`) do the same.

@@ -17,6 +17,12 @@
  *
  *      1. write a topic with two keys and five records, and close it
  *      2. reopen it with d_type hidden: both keys and all five records
+ *      3. reopen it with d_type hidden and the stat() of one key failing
+ *         (EIO, by __wrap_stat() below): the topic does not open, logged.
+ *         Up to this fix the key was taken as "not a directory" and left
+ *         out of the cache with no log -- the topic opened without it, and
+ *         a treedb accepted a create of its id. Only ENOENT (the key went
+ *         away between the readdir() and the stat()) leaves a key out.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -24,6 +30,8 @@
 #include <string.h>
 #include <limits.h>
 #include <dirent.h>
+#include <errno.h>
+#include <sys/stat.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -53,6 +61,25 @@ struct dirent *__wrap_readdir(DIR *dirp)
         entries_without_type++;
     }
     return entry;
+}
+
+/***************************************************************
+ *              A stat() that fails (EIO) for one path
+ ***************************************************************/
+int __real_stat(const char *path, struct stat *st);
+int __wrap_stat(const char *path, struct stat *st);
+
+PRIVATE char failing_stat[PATH_MAX] = "";
+PRIVATE int stat_failures = 0;
+
+int __wrap_stat(const char *path, struct stat *st)
+{
+    if(failing_stat[0] && strcmp(path, failing_stat) == 0) {
+        stat_failures++;
+        errno = EIO;
+        return -1;
+    }
+    return __real_stat(path, st);
 }
 
 /***************************************************************
@@ -174,6 +201,39 @@ PRIVATE int do_test(void)
     JSON_DECREF(keys)
     tranger2_shutdown(tranger);
     hide_d_type = FALSE;
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  3. The stat() of a key fails
+     *-------------------------------------*/
+    set_expected_results(
+        "a key that cannot be stat'ed fails the listing",
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "Cannot list the keys of the topic, stat() FAILED",
+            "msg", "Cannot open topic: its keys cannot be listed"
+        ),
+        NULL, NULL, 1
+    );
+    build_path(failing_stat, sizeof(failing_stat), path_database, TOPIC_NAME, "keys", "B", NULL);
+    stat_failures = 0;
+    hide_d_type = TRUE;
+    tranger = startup_tranger(path_root);
+    json_t *opened = tranger? tranger2_open_topic(tranger, TOPIC_NAME, FALSE): NULL;
+    hide_d_type = FALSE;
+    failing_stat[0] = 0;
+    if(stat_failures == 0) {
+        printf("%sERROR%s --> no stat() of the key failed: the test proves nothing\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(opened) {
+        printf("%sERROR%s --> the topic opened with a key it could not stat, %d records\n",
+            On_Red BWhite, Color_Off, (int)tranger2_topic_size(tranger, TOPIC_NAME));
+        result += -1;
+    }
+    if(tranger) {
+        tranger2_shutdown(tranger);
+    }
     result += test_json(NULL);
 
     return result;

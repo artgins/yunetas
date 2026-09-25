@@ -594,7 +594,7 @@ PRIVATE int remove_tree_walk(char *path, int depth)
     }
 
     size_t path_len = strlen(path);
-    while((dir_entry = readdir(dir)) != NULL) {
+    while((errno = 0, dir_entry = readdir(dir)) != NULL) {   // errno tells the end from a failure
         if(strcmp(dir_entry->d_name, ".") == 0 || strcmp(dir_entry->d_name, "..") == 0) {
             continue;
         }
@@ -609,6 +609,24 @@ PRIVATE int remove_tree_walk(char *path, int depth)
             closedir(dir);
             return -1;  // Error already logged
         }
+    }
+    if(errno != 0) {
+        /*
+         *  Up to this fix a failed readdir() was the end, and the rmdir()
+         *  below failed with ENOTEMPTY: the log blamed the rmdir()
+         */
+        int last_errno = errno;
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot remove directory, readdir() FAILED",
+            "path",         "%s", path,
+            "errno",        "%d", last_errno,
+            "serrno",       "%s", strerror(last_errno),
+            NULL
+        );
+        closedir(dir);
+        return -1;
     }
 
     closedir(dir);
@@ -685,6 +703,8 @@ PUBLIC int rmrdir(const char *path)
 /****************************************************************************
  *  Recursively remove the content of a directory
  *  A symbolic link is removed as a link and never descended (see rmrdir()).
+ *  A readdir() that fails is a removal that fails: -1, logged, and what
+ *  was not read yet stays.
  ****************************************************************************/
 PUBLIC int rmrcontentdir(const char *root_dir)
 {
@@ -710,7 +730,7 @@ PUBLIC int rmrcontentdir(const char *root_dir)
     }
 
     size_t root_len = strlen(bf);
-    while ((dent = readdir(dir))) {
+    while ((errno = 0, dent = readdir(dir))) {   // errno tells the end from a failure
         char *dname = dent->d_name;
         if (!strcmp(dname, ".") || !strcmp(dname, "..")) {
             continue;
@@ -725,6 +745,24 @@ PUBLIC int rmrcontentdir(const char *root_dir)
             closedir(dir);
             return -1;  // Error already logged
         }
+    }
+    if(errno != 0) {
+        /*
+         *  Up to this fix a failed readdir() was the end: 0, with the
+         *  entries not read yet still there, and nothing logged
+         */
+        int last_errno = errno;
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot remove the content of directory, readdir() FAILED",
+            "path",         "%s", root_dir,
+            "errno",        "%d", last_errno,
+            "serrno",       "%s", strerror(last_errno),
+            NULL
+        );
+        closedir(dir);
+        return -1;
     }
     closedir(dir);
     return 0;

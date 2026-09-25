@@ -405,6 +405,8 @@ This function does not remove the root directory itself, only its contents. It s
 
 A symbolic link inside the directory is removed as a link. The function never goes into it, so the files of the link target stay (see [`rmrdir()`](#rmrdir)). An entry that another process removes during the walk is not an error. Every failure is logged. A tree that is too long or too deep is refused, as in [`rmrdir()`](#rmrdir-deep-tree).
 
+A `readdir()` that fails (`EIO`, a stale NFS handle) is a removal that fails: the function returns `-1` and logs *"Cannot remove the content of directory, readdir() FAILED"* (or, in a subdirectory, *"Cannot remove directory, readdir() FAILED"*), with the `errno`. What was not read yet stays. Before this fix the failure was taken as the end of the directory: the function returned `0` with the content still there and nothing logged.
+
 **Example**
 
 ```C
@@ -452,6 +454,8 @@ Up to 7.25.4 the function used `stat()`, which follows links. A link to a direct
 A `path` that does not exist returns `-1` without a log, because callers use `rmrdir()` to make sure that a directory is gone. Every other failure is logged.
 
 An entry inside the tree that another process removes during the walk (between `readdir()` and `lstat()`) is already gone, so it is not an error: the walk continues. Up to 7.25.4 that case returned `-1` with no log.
+
+A `readdir()` that fails inside the tree returns `-1` with *"Cannot remove directory, readdir() FAILED"* and its `errno`, and what was not read stays. Before this fix the failure was taken as the end of the directory, and the log blamed the `rmdir()` that followed (*"rmdir() FAILED"*, `ENOTEMPTY`).
 
 (rmrdir-deep-tree)=
 A tree whose paths do not fit in `PATH_MAX`, or deeper than 1024 levels, is refused: the log is *"Path too long, the tree is not removed"* or *"Tree too deep, it is not removed"*, and the function returns `-1`. What the walk removed before it stays removed, the rest stays. The walk keeps one path buffer for the whole tree, and one open directory for each level. To remove such a tree, use `rm -rf`.
