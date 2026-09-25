@@ -20,7 +20,9 @@
  *        subscriber filters on (they carried none)
  *      - a handle of one session is refused to another session: close-rt,
  *        close-iterator, close-list, get-page and get-list-data answer -403
- *        (any session could close or read another's by its id)
+ *        (any session could close or read another's by its id); through
+ *        the agent's one link (a C_IEVENT_CLI) it is refused to another
+ *        user (every relayed command was trusted)
  *      - mark-tm-order and add-record ask `write`, and answer -403 on a
  *        refusal (a counting authz checker, installed at the start up)
  *
@@ -410,7 +412,8 @@ PRIVATE int do_test(void)
      *      Create the C_TRANGER gobj as master yuno
      *-------------------------------------------------*/
     if(register_c_tranger() != 0 || register_rtprobe() != 0 ||
-            register_c_timer() != 0 || register_c_ievent_srv() != 0) {
+            register_c_timer() != 0 || register_c_ievent_srv() != 0 ||
+            register_c_ievent_cli() != 0) {
         printf("%s: FAIL (register gclasses)\n", APP);
         return -1;
     }
@@ -2327,6 +2330,74 @@ PRIVATE int do_test(void)
     gobj_publish_event(sessA, EV_ON_CLOSE, json_object());
     gobj_destroy(sessA);
     gobj_destroy(sessB);
+    global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
+     *      The same through the agent. Every command-yuno reaches the
+     *      yuno over its ONE link to the agent (a C_IEVENT_CLI), whoever
+     *      sent it, with the `__username__` the agent stamped: the channel
+     *      names nobody, the user does. Another user is refused, and so is
+     *      a relayed command of no user; the same user is not (through the
+     *      agent two sessions of one user are one owner). (The first
+     *      version of the refusal trusted every relayed command: bob closed
+     *      alice's iterator with result 0.)
+     *-------------------------------------------------*/
+    set_expected_results("a handle of another user through the agent is refused", NULL, NULL, NULL, 1);
+    gobj_log_add_handler("count_not_owner", "not_owner", LOG_OPT_UP_WARNING, 0);
+    hgobj relay = gobj_create("agent_client", C_IEVENT_CLI, 0, probe);
+    if(!relay) {
+        printf("%s: FAIL (relay create)\n", APP);
+        return -1;
+    }
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:s}", "iterator_id", "itRelay", "topic_name", TOPIC_NAME,
+            "key", KEY_A, "__username__", "alice"), relay);
+    check_int("alice opens an iterator through the agent", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s, s:s, s:s, s:s}", "rt_id", "rtRelay", "topic_name", TOPIC_NAME,
+            "key", KEY_A, "__username__", "alice"), relay);
+    check_int("alice opens a feed through the agent", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    g_not_owner_said = 0;
+    struct {
+        const char *command;
+        json_t *kw;
+    } relayed[] = {
+        {"close-iterator",  json_pack("{s:s, s:s}", "iterator_id", "itRelay", "__username__", "bob")},
+        {"get-page",        json_pack("{s:s, s:i, s:i, s:s}", "iterator_id", "itRelay",
+                                "from_rowid", 1, "limit", 1, "__username__", "bob")},
+        {"close-rt",        json_pack("{s:s, s:s}", "rt_id", "rtRelay", "__username__", "bob")},
+        {"close-iterator",  json_pack("{s:s}", "iterator_id", "itRelay")},
+    };
+    for(size_t i = 0; i < ARRAY_SIZE(relayed); i++) {
+        r = gobj_command(yuno, relayed[i].command, relayed[i].kw, relay);
+        char name[80];
+        snprintf(name, sizeof(name), "%s by another user through the agent", relayed[i].command);
+        check_int(name, kw_get_int(0, r, "result", -999, 0), -403);
+        JSON_DECREF(r)
+    }
+    check_int("each relayed refusal is said", g_not_owner_said, (json_int_t)ARRAY_SIZE(relayed));
+
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i, s:s}", "iterator_id", "itRelay", "from_rowid", 1, "limit", 1,
+            "__username__", "alice"), relay);
+    check_int("get-page by its user through the agent", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s, s:s}", "iterator_id", "itRelay", "__username__", "alice"), relay);
+    check_int("close-iterator by its user through the agent", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-rt",
+        json_pack("{s:s, s:s}", "rt_id", "rtRelay", "__username__", "alice"), relay);
+    check_bool("close-rt by its user through the agent",
+        strncmp(kw_get_str(0, r, "comment", "", 0), "Realtime feed closed", 20) == 0, TRUE);
+    JSON_DECREF(r)
+    check_int("nothing more is refused through the agent", g_not_owner_said,
+        (json_int_t)ARRAY_SIZE(relayed));
+    gobj_log_del_handler("count_not_owner");
+    gobj_destroy(relay);
     global_result += test_json(NULL);
 
     /*-------------------------------------------------*

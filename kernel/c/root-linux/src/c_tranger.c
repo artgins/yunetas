@@ -76,9 +76,12 @@ a remote subscription to EV_TRANGER_RECORD_ADDED needs `read` (its alias is
 only its own feed with a `__filter__` on its `rt_id`. The appends a live list
 (open-list without return_data) pushes carry the list_id as their `rt_id`.
 
-A handle (feed, iterator, list) is the session's that opened it: another
-session neither reads nor closes it (-403, and a warning). A gobj of this yuno
-is trusted.
+A handle (feed, iterator, list) is its opener's: the channel the command
+came by and the user it came as. Another session neither reads nor closes it
+(-403, and a warning). A command-yuno relayed by the agent comes by the yuno's
+one link to the agent, whoever sent it, so there the owner is the user the
+agent stamped (__username__): another user is refused, two sessions of the
+same user through the agent are one owner. A gobj of this yuno is trusted.
 
 add-record appends a record (it carries the topic's pkey): permission `write`,
 master-only.
@@ -106,6 +109,7 @@ master-only.
 #include "msg_ievent.h"
 #include "c_yuno.h"
 #include "c_ievent_srv.h"
+#include "c_ievent_cli.h"
 #include "c_tranger.h"
 
 /***************************************************************************
@@ -212,6 +216,7 @@ PRIVATE json_t *find_handle_by_identity(
 PRIVATE json_t *open_part(hgobj gobj, const char *iterator_id, json_t *entry, json_t *part);
 PRIVATE json_int_t topic_epoch(hgobj gobj, const char *topic_name);
 PRIVATE void watch_owner(hgobj gobj, hgobj src);
+PRIVATE void stamp_owner_user(hgobj gobj, json_t *jn_entry, json_t *kw);
 PRIVATE json_t *refuse_foreign_handle(
     hgobj gobj,
     json_t *jn_entry,
@@ -639,12 +644,44 @@ PRIVATE json_t *live_handle(hgobj gobj, json_t *registry, const char *id)
 }
 
 /***************************************************************************
- *  A handle is its session's. An inbound session (C_IEVENT_SRV, the only
- *  `src` that is somebody else, see watch_owner) that is not the one that
- *  opened it neither reads nor closes it: the answer is -403, and the
- *  refusal is logged. A gobj of this yuno is trusted. Up to this fix any
- *  session closed or read any handle by its id, and the ids are shown to
- *  every `read` user by print-tranger.
+ *  The user a handle was opened as: the `__username__` of the command. The
+ *  external entry (C_IEVENT_SRV) writes it into every command it takes in,
+ *  over whatever the peer sent, and the agent forwards it in a command-yuno.
+ *  Empty for a command that did not come from outside.
+ ***************************************************************************/
+PRIVATE void stamp_owner_user(hgobj gobj, json_t *jn_entry, json_t *kw)
+{
+    if(!jn_entry) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Handle not registered, its owner user cannot be stamped",
+            NULL
+        );
+        return;
+    }
+    json_object_set_new(
+        jn_entry,
+        "src_user",
+        json_string(kw_get_str(gobj, kw, "__username__", "", 0))
+    );
+}
+
+/***************************************************************************
+ *  A handle is its opener's: the channel the command came by AND the user
+ *  it came as. Asked only of a command that came from outside:
+ *  - an inbound session (C_IEVENT_SRV, see watch_owner): each session is
+ *    its own channel, so another session is refused;
+ *  - a command relayed to this yuno over one of its OUTBOUND links
+ *    (C_IEVENT_CLI): every command-yuno arrives by the yuno's single link
+ *    to the agent, whoever the operator is, so the channel names nobody.
+ *    The user does: the agent's own entry stamped `__username__`, and the
+ *    agent forwards it. Another user is refused; two sessions of the SAME
+ *    user through the agent are one owner, they cannot be told apart here.
+ *  A gobj of this yuno is trusted. Up to this fix any session closed or
+ *  read any handle by its id, and the ids are shown to every `read` user by
+ *  print-tranger; and the first version of the refusal (never released)
+ *  trusted every relayed command, so it did not hold for command-yuno.
  *
  *  NULL when `src` may use it; else the refusal (the answer, kw owned).
  ***************************************************************************/
@@ -657,11 +694,17 @@ PRIVATE json_t *refuse_foreign_handle(
     hgobj src
 )
 {
-    if(!src || strcmp(gobj_gclass_name(src), C_IEVENT_SRV) != 0) {
+    if(!src) {
+        return NULL;
+    }
+    const char *gclass_name = gobj_gclass_name(src);
+    if(strcmp(gclass_name, C_IEVENT_SRV) != 0 && strcmp(gclass_name, C_IEVENT_CLI) != 0) {
         return NULL;
     }
     hgobj owner = (hgobj)(uintptr_t)kw_get_int(gobj, jn_entry, "src_gobj", 0, 0);
-    if(owner == src) {
+    const char *owner_user = kw_get_str(gobj, jn_entry, "src_user", "", 0);
+    const char *user = kw_get_str(gobj, kw, "__username__", "", 0);
+    if(owner == src && strcmp(owner_user, user) == 0) {
         return NULL;
     }
     gobj_log_warning(gobj, 0,
@@ -671,6 +714,7 @@ PRIVATE json_t *refuse_foreign_handle(
         "kind",         "%s", kind,
         "id",           "%s", id,
         "src",          "%s", gobj_short_name(src),
+        "user",         "%s", user,
         NULL
     );
     return msg_iev_build_response(
@@ -2469,6 +2513,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         "src_gobj",
         json_integer((json_int_t)(uintptr_t)src)
     );
+    stamp_owner_user(gobj, json_object_get(priv->lists, list_id), kw);
     watch_owner(gobj, src);
 
     return msg_iev_build_response(
@@ -3259,6 +3304,7 @@ PRIVATE json_t *open_multi_key_iterator(
         "backward", kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER),
         "keys_watch", jn_watch_id   // owned
     ));
+    stamp_owner_user(gobj, json_object_get(priv->iterators, iterator_id), kw);
     watch_owner(gobj, src);
 
     return msg_iev_build_response(
@@ -3427,6 +3473,7 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         "src_gobj",
         json_integer((json_int_t)(uintptr_t)src)
     );
+    stamp_owner_user(gobj, json_object_get(priv->iterators, iterator_id), kw);
     json_object_set_new(
         json_object_get(priv->iterators, iterator_id),
         "backward",
@@ -3817,6 +3864,7 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         "src_gobj",
         json_integer((json_int_t)(uintptr_t)src)
     );
+    stamp_owner_user(gobj, json_object_get(priv->rts, rt_id), kw);
     watch_owner(gobj, src);
 
     return msg_iev_build_response(

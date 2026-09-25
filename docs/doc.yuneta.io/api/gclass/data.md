@@ -75,22 +75,43 @@ gobj_subscribe_event(gobj_remote_tranger, "EV_TRANGER_RECORD_ADDED", {
 }, gobj);
 ```
 
-**A handle is its session's.** The feeds, iterators and live lists that a
-remote session opens are that session's. `close-rt`, `close-iterator`,
-`close-list`, `get-page` and `get-list-data` from ANOTHER session answer
-`-403` *"\<role^name>: iterator 'it1' is not yours: another session opened
-it"*, and log a warning, *"Handle of another session, refused"*; the handle is
-left as it was. A gobj of the yuno itself (a local caller) is not refused. Up
-to this fix any session could close or read any handle by its id, and
+**A handle is its opener's: the channel it was opened by, and the user.** The
+feeds, iterators and live lists that a remote session opens are that
+session's. `close-rt`, `close-iterator`, `close-list`, `get-page` and
+`get-list-data` from ANOTHER session answer `-403` *"\<role^name>: iterator
+'it1' is not yours: another session opened it"*, and log a warning, *"Handle of
+another session, refused"* (with the `src` and the `user`); the handle is left
+as it was. A gobj of the yuno itself (a local caller) is not refused. Up to
+this fix any session could close or read any handle by its id, and
 `print-tranger` shows the ids to every `read` user.
 
+What "session" means depends on how the command arrives:
+
+| The command comes | It comes by | The owner is |
+|---|---|---|
+| from a client connected to the yuno itself (a GUI, `ycommand` on the yuno's own port) | its own `C_IEVENT_SRV`, one per connection | that connection (and its user) |
+| relayed by the agent (`command-yuno`) | the yuno's ONE link to the agent, a `C_IEVENT_CLI`, whoever the operator is | the user the agent stamped in the command (`__username__`) |
+
+So through the agent another USER is refused, and a relayed command of no user
+is refused a handle that a user opened; two sessions of the SAME user through
+the agent are one owner, and each can close what the other opened -- the
+channel cannot tell them apart. The handles of a relayed command are not
+reaped when the operator's session closes (only a direct session is watched,
+see `open-iterator`): close them. In the first version of the refusal (not
+released) every relayed command was trusted, so it did not hold for
+`command-yuno` at all.
+
 ```bash
-# session A
-command-yuno id=1911 service=tranger command=open-iterator iterator_id=it1 topic_name=pp key=1
-# session B, the same id
-command-yuno id=1911 service=tranger command=close-iterator iterator_id=it1
+# user alice, through the agent
+ycommand -c 'command-yuno id=1911 service=tranger command=open-iterator iterator_id=it1 topic_name=pp key=1'
+# user bob, through the agent, the same id
+ycommand -c 'command-yuno id=1911 service=tranger command=close-iterator iterator_id=it1'
 # -> -403: <role^name>: iterator 'it1' is not yours: another session opened it
 ```
+
+The same holds, per connection, for two clients connected to the yuno
+directly: a GUI that opened `it1` keeps it from another GUI, even one of the
+same user.
 
 **`open-iterator` match conditions** (all optional, and `0` or empty means unset):
 `from_t`/`to_t`, `from_tm`/`to_tm`, `from_rowid`/`to_rowid`, `backward`, and the
