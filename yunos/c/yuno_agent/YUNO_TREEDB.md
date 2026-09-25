@@ -2384,9 +2384,10 @@ withdraws it. `delete-treedb` removes the record.
 operator's work over the old file. The open logs ONE warning, *"Schema from C
 withdrew work on the schema at open"*, with `treedb_name`, `schema_version`
 (the literal), `in_use_version` (the old file), `saved_schema_version` (the
-saved schema it withdrew, `0` when none) and `topics`. `treedbs` (each row)
-and `saved-schema` answer the same as `withdrawn_at_open`, until the next
-open of that treedb:
+saved schema it withdraws, `0` when none) and `topics`. The saved schema
+itself is removed only when the open OPENS (see *"A failed open keeps the
+saved schema"* below). `treedbs` (each row) and `saved-schema` answer the
+same as `withdrawn_at_open`, until the next open of that treedb:
 
 | Kind in `topics` | The literal replaced, or removed |
 |---|---|
@@ -2635,20 +2636,39 @@ ycommand -c 'command-yuno id=<id> service=treedbs command=close-treedb treedb_na
 (In 7.25.4 that close logged *"TreeDB not found"* twice, with a stack, and
 `delete-treedb` answered *"while it is OPEN"*.)
 
-**Known limitation: a failed open has already withdrawn the saved schema.** An
-open that installs a newer literal withdraws the treedb's saved schema while
-it reconciles `__system__`, BEFORE `treedb_open_db()` runs (WARNING *"Schema
-from C withdrew work on the schema at open"*, with `saved_schema_version`).
-When `treedb_open_db()` then refuses the schema, the saved schema is gone all
-the same, and `saved-schema` answers no pending save for that treedb. It could
-wait for an open that succeeds; until it does, keep a copy of a saved schema
-you need before deploying a literal you are not sure of:
+**A failed open keeps the saved schema.** An open that installs a newer
+literal withdraws the treedb's saved schema, which was published against the
+file that goes. The decision is made while it reconciles `__system__`,
+before `treedb_open_db()` runs, and it is said there (WARNING *"Schema from C
+withdrew work on the schema at open"*, with `saved_schema_version`). The file
+is removed only when the open OPENS. An open that does not open keeps it: it
+is the operator's work, and the new schema is not running. The open says it:
+INFO *"Saved schema kept: the open that installs the schema from C did not
+open; the next one that installs a schema from C and opens withdraws it"*
+(`saved_schema_version`, `path`), and `withdrawn_at_open` answers
+`saved_schema_version` 0.
+
+What the kept save is worth depends on the file in use. `treedb_open_db()`
+writes the literal over the file BEFORE it checks the rest, so after a
+literal it refused, the file is that literal and the save is `stale` (below
+it, `can_apply` false). Put the good file back and roll the literal back, and
+the save is pending again. For example, with `users` edited and saved (saved
+schema 2 over the file 1), a literal 3 with no `topics`:
 
 ```bash
+ycommand -c 'command-yuno id=<id> service=treedbs command=open-treedb treedb_name=treedb_x ...'
+# -1: <role^name>: treedb 'treedb_x' did not open, its schema was refused (see the log): ...
 ycommand -c 'command-yuno id=<id> service=treedbs command=saved-schema treedb_name=treedb_x'
-# data: {"treedb_name": "treedb_x", "saved": true, "saved_schema_version": 4, "path": ".../__system__/saved_schemas/treedb_x.treedb_schema.json", ...}
-cp .../__system__/saved_schemas/treedb_x.treedb_schema.json ~/
+# data: {"saved": false, "stale": true, "saved_schema_version": 2, "in_use_schema_version": 3,
+#        "withdrawn_at_open": {"schema_version": 3, "saved_schema_version": 0, "topics": {"users": "saved"}}, ...}
+# close-treedb, put treedb_x.treedb_schema.json (version 1) back, start the binary with the literal 1:
+# data: {"saved": true, "saved_schema_version": 2, "can_apply": true, ...}
 ```
+
+The drafts in `__system__` are another matter: the projection of the literal
+replaced them before the open, and they stay replaced (`topics` says which).
+(Until 7.25.4 the saved schema was removed before `treedb_open_db()` ran, and
+a literal the library refused took the operator's save with it.)
 
 Every answer of every command of `C_TREEDB` starts with the yuno
 (`<role^name>: ...`), the refusals of their parameters and of a permission

@@ -7361,6 +7361,82 @@ PRIVATE int scenario_two_topics_of_one_name(hgobj gobj)
 }
 
 /***************************************************************************
+ *  KS: an open that installs a newer literal and does NOT open keeps the
+ *  saved schema. The operator saved an edit of `users` (saved schema 2,
+ *  over the file 1). A literal 3 with no `topics` is installed by the
+ *  reconcile and refused by treedb_open_db() ("No topics found"), which
+ *  wrote it over the file first. The saved schema stays, the operator's
+ *  work: an INFO says it, `withdrawn_at_open` says `saved_schema_version`
+ *  0, and `saved-schema` answers it `stale` (below the broken file 3, it
+ *  cannot be applied). The operator puts the file 1 back and rolls the
+ *  literal back to 1: the save is pending again, and apply-schema installs
+ *  it.
+ *
+ *  Red before: the reconcile removed the saved schema BEFORE
+ *  treedb_open_db() ran, and the refused literal took it with it.
+ ***************************************************************************/
+PRIVATE int scenario_failed_open_keeps_the_save(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+    const char *db = "tw_ks";
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    result += edit_header(gobj, db, "users", "username", "Operator user");
+    result += save_schema(gobj, db);
+    close_db(gobj, db);
+
+    json_t *jn_resp = open_db_resp(gobj, db, json_pack("{s:s, s:i}", "id", db, "schema_version", 3));
+    if(kw_get_int(gobj, jn_resp, "result", 0, 0) >= 0) {
+        result += test_fail(gobj, db, "TEST FAIL: KS, the literal with no topics opened",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+
+    char saved_dir[PATH_MAX];
+    build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.treedb_schema.json", db);
+    json_t *saved = file_exists(saved_dir, filename)?
+        load_json_from_file(gobj, saved_dir, filename, 0) : NULL;
+    if(kw_get_int(gobj, saved, "schema_version", 0, KW_WILD_NUMBER) != 2) {
+        result += test_fail(gobj, db, "TEST FAIL: KS, an open that did not open withdrew the saved schema",
+            saved? json_incref(saved) : NULL);
+    }
+    JSON_DECREF(saved)
+    result += check_withdrawn(gobj, db,
+        "TEST FAIL: KS, an open that did not open says the saved schema withdrawn",
+        0, json_pack("{s:s}", "users", "saved"));
+    jn_resp = treedb_cmd(gobj, db, "saved-schema", json_object());
+    if(kw_get_bool(gobj, jn_resp, "data`saved", 0, 0) ||
+            !kw_get_bool(gobj, jn_resp, "data`stale", 0, 0)) {
+        result += test_fail(gobj, db, "TEST FAIL: KS, the kept save below the broken file is not stale",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    close_db(gobj, db);
+
+    result += write_schema_file(gobj, db, users_departments_v1(db));
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return result - 1;
+    }
+    jn_resp = treedb_cmd(gobj, db, "saved-schema", json_object());
+    if(!kw_get_bool(gobj, jn_resp, "data`saved", 0, 0) ||
+            kw_get_int(gobj, jn_resp, "data`saved_schema_version", 0, 0) != 2 ||
+            !kw_get_bool(gobj, jn_resp, "data`can_apply", 0, 0)) {
+        result += test_fail(gobj, db, "TEST FAIL: KS, the kept save is not pending over the file put back",
+            json_incref(jn_resp));
+    }
+    JSON_DECREF(jn_resp)
+    result += apply_schema(gobj, db);
+    close_db(gobj, db);
+    drop_treedb(gobj, db);
+    return result;
+}
+
+/***************************************************************************
  *  BH: a store that runs a topic AHEAD of its schema file. The operator's
  *  apply of `users` ran (topic_version 2, with `email`); then a newer
  *  literal (schema_version 3) declares `users` at topic_version 1, without
@@ -7741,6 +7817,7 @@ PRIVATE int (*late_scenarios[])(hgobj gobj) = {
     scenario_moved_col_saved,
     scenario_node_of_two_parents,
     scenario_two_topics_of_one_name,
+    scenario_failed_open_keeps_the_save,
     scenario_file_behind_what_runs,
     scenario_saved_schema_written_whole,
     scenario_kw_gbuffer_every_treedb,

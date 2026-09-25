@@ -223,6 +223,7 @@ PRIVATE int record_apply(
 PRIVATE void restore_apply_record(hgobj gobj, const char *treedb_name, json_t *previous);
 PRIVATE void remove_apply_record(hgobj gobj, const char *treedb_name);
 PRIVATE void settle_apply_record(hgobj gobj, const char *treedb_name);
+PRIVATE void settle_saved_schema(hgobj gobj, const char *treedb_name, BOOL opened);
 PRIVATE json_t *load_unfinished_record(hgobj gobj, const char *treedb_name);
 PRIVATE void remove_unfinished_record(hgobj gobj, const char *treedb_name);
 PRIVATE void remove_upgrade_record(hgobj gobj, const char *treedb_name);
@@ -545,6 +546,7 @@ typedef struct _PRIVATE_DATA {
     json_t *jn_forced_treedbs;          // treedbs whose yuno's code imposes the schema from C
     json_t *jn_withdrawn_at_open;       // what the last open of each treedb withdrew, see reconcile
     json_t *jn_apply_record_at_open;    // {treedb: "remove"|"ran"} done once the open succeeds
+    json_t *jn_saved_at_open;           // {treedb: saved_schema_version} withdrawn once the open succeeds
     json_t *jn_not_opened;              // {treedb: true} whose services exist but treedb_open_db() refused it
     json_t *jn_records_not_written;     // {treedb: record} of an unfinished projection the disk refused
     json_t *jn_upgrade_records;         // {treedb: {record, stat}} read from saved_schemas/, see load_upgrade_record
@@ -585,6 +587,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->jn_forced_treedbs = json_object();
     priv->jn_withdrawn_at_open = json_object();
     priv->jn_apply_record_at_open = json_object();
+    priv->jn_saved_at_open = json_object();
     priv->jn_not_opened = json_object();
     priv->jn_records_not_written = json_object();
     priv->jn_upgrade_records = json_object();
@@ -711,6 +714,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->jn_forced_treedbs)
     JSON_DECREF(priv->jn_withdrawn_at_open)
     JSON_DECREF(priv->jn_apply_record_at_open)
+    JSON_DECREF(priv->jn_saved_at_open)
     JSON_DECREF(priv->jn_not_opened)
     JSON_DECREF(priv->jn_records_not_written)
     JSON_DECREF(priv->jn_upgrade_records)
@@ -998,6 +1002,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         get_client_treedb_schema(gobj, treedb_name, _jn_treedb_schema, tranger_client);
     if(!jn_client_treedb_schema) {
         json_object_del(priv->jn_apply_record_at_open, treedb_name);
+        settle_saved_schema(gobj, treedb_name, FALSE);
         gobj_destroy(gobj_client_tranger);
         return msg_iev_build_response(
             gobj,
@@ -1073,13 +1078,16 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*
      *  The record of an apply is settled only by an open that OPENED:
      *  removed when the literal replaced the apply, marked "in_use" when
-     *  the apply runs now. An open that failed leaves it as it is.
+     *  the apply runs now. An open that failed leaves it as it is. So is
+     *  the saved schema a literal withdraws: an open that failed left the
+     *  file in use as it was, and the save is still good against it.
      */
     if(started == 0) {
         settle_apply_record(gobj, treedb_name);
     } else {
         json_object_del(priv->jn_apply_record_at_open, treedb_name);
     }
+    settle_saved_schema(gobj, treedb_name, started == 0? TRUE : FALSE);
 
     if(forced_by_code && gobj_client_node) {
         json_object_set_new(priv->jn_forced_treedbs, treedb_name, json_true());
@@ -7146,6 +7154,72 @@ PRIVATE void settle_apply_record(hgobj gobj, const char *treedb_name)
 }
 
 /***************************************************************************
+ *  The saved schema that reconcile withdraws (a literal installed over the
+ *  file it was published against), removed now that the open OPENED.
+ *
+ *  An open that did NOT open keeps it, and says so: it is the operator's
+ *  work, and the new schema is not running. When the file in use is still
+ *  the one it was saved against it is pending again, and apply-schema can
+ *  install it -- after a binary with the literal that failed is rolled
+ *  back, for example. When treedb_open_db() had written the refused
+ *  literal over the file first (it does, before it checks the rest), it
+ *  is `stale` until the file is put back; a save replaces it, and the
+ *  next open that installs a literal and opens withdraws it. Removed
+ *  before treedb_open_db() ran (7.25.4 and before), a refused literal
+ *  took the operator's pending save with it. `withdrawn_at_open` says 0
+ *  for a saved schema that is still there.
+ ***************************************************************************/
+PRIVATE void forget_saved_schema_withdrawn(hgobj gobj, const char *treedb_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *w = json_object_get(priv->jn_withdrawn_at_open, treedb_name);
+    if(!w) {
+        return;
+    }
+    json_object_set_new(w, "saved_schema_version", json_integer(0));
+    if(json_object_size(json_object_get(w, "topics")) == 0) {
+        json_object_del(priv->jn_withdrawn_at_open, treedb_name);
+    }
+}
+
+PRIVATE void settle_saved_schema(hgobj gobj, const char *treedb_name, BOOL opened)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_version = json_object_get(priv->jn_saved_at_open, treedb_name);
+    if(!jn_version) {
+        return;
+    }
+    json_int_t saved_version = json_integer_value(jn_version);
+
+    if(opened) {
+        json_int_t removed_version = 0;
+        if(remove_saved_schema(gobj, treedb_name, &removed_version) < 0) {
+            forget_saved_schema_withdrawn(gobj, treedb_name);   // Error already logged
+        }
+    } else {
+        char saved_dir[PATH_MAX];
+        saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+        char filename[NAME_MAX];
+        snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
+        char saved_path[PATH_MAX];
+        build_path(saved_path, sizeof(saved_path), saved_dir, filename, NULL);
+        gobj_log_info(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_INFO,
+            "msg",                  "%s", "Saved schema kept: the open that installs the schema from C did not open; the next one that installs a schema from C and opens withdraws it",
+            "treedb_name",          "%s", treedb_name,
+            "saved_schema_version", "%d", (int)saved_version,
+            "path",                 "%s", saved_path,
+            NULL
+        );
+        forget_saved_schema_withdrawn(gobj, treedb_name);
+    }
+    json_object_del(priv->jn_saved_at_open, treedb_name);
+}
+
+/***************************************************************************
  *  Do two schemas say different things? The comparison of CONTENT that
  *  the tie is judged by (schema_diff): cols listed or keyed by name, each
  *  carrying its `id` or not, are the same schema.
@@ -9832,6 +9906,27 @@ PRIVATE int project_literal_into_system(
 }
 
 /***************************************************************************
+ *  Is there a saved schema of the treedb? `*p_version` is the
+ *  schema_version it has, 0 when there is none or it says none.
+ ***************************************************************************/
+PRIVATE BOOL saved_schema_exists(hgobj gobj, const char *treedb_name, json_int_t *p_version)
+{
+    *p_version = 0;
+
+    char saved_dir[PATH_MAX];
+    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
+    if(!file_exists(saved_dir, filename)) {
+        return FALSE;
+    }
+    json_t *saved = load_json_from_file(gobj, saved_dir, filename, 0);
+    *p_version = schema_version_of(gobj, saved);
+    JSON_DECREF(saved)
+    return TRUE;
+}
+
+/***************************************************************************
  *  Remove the saved schema of a treedb, if there is one. `*p_version` is
  *  the schema_version it had, 0 when there was none. -1 when it could not
  *  be removed (logged).
@@ -10149,6 +10244,7 @@ PRIVATE int reconcile_treedb_schema(
      */
     json_object_del(priv->jn_withdrawn_at_open, treedb_name);
     json_object_del(priv->jn_apply_record_at_open, treedb_name);
+    json_object_del(priv->jn_saved_at_open, treedb_name);
     if(!tranger_writes_now(gobj, priv->tranger_system_)) {
         return 0;
     }
@@ -10284,8 +10380,12 @@ PRIVATE int reconcile_treedb_schema(
                 json_pack("{s:s}", "action", "remove"));
         }
 
-        if(remove_saved_schema(gobj, treedb_name, &saved_version) < 0) {
-            saved_version = 0;  // it could not be removed (logged): not withdrawn
+        /*
+         *  Published against the file that goes: withdrawn, by the open
+         *  that OPENS (settle_saved_schema). Said now, with the rest
+         */
+        if(saved_schema_exists(gobj, treedb_name, &saved_version)) {
+            json_object_set_new(priv->jn_saved_at_open, treedb_name, json_integer(saved_version));
         }
 
         warn_topics_not_raised(gobj, treedb_name, jn_schema, imposing);
