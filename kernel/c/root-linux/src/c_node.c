@@ -1367,6 +1367,18 @@ PRIVATE int mt_delete_node(
 
     /*
      *  Check if it has secondary keys
+     *
+     *  The branch below relies on this invariant of tr_treedb: a pkey2
+     *  lookup of the PRIMARY's own value answers the primary node itself.
+     *  The index keeps one node per (id, key2) and the slot of the
+     *  primary's value names the primary: a create does not make a new
+     *  instance the primary, a save re-points the slot of its value (and
+     *  refuses a value changed in place), a load puts the primary in it.
+     *  So `node != main_node` is never the primary's instance, and a
+     *  delete that names the primary's value reaches treedb_delete_node()
+     *  alone, which takes every instance of the key -- or none, when it is
+     *  refused. Would the lookup answer a copy of the primary, its rows
+     *  were tombstoned here before a refused delete of the key (7.25.4).
      */
     json_t *pkey2s_list = treedb_topic_pkey2s(priv->tranger, topic_name);
     int idx; json_t *jn_pkey2_name;

@@ -14,7 +14,9 @@
  *          aborts or fails answers -1; export-db names its file with the
  *          integer schema_version; a content that is not json is the
  *          peer's, a warning that names it. snap-content reads only the
- *          topics of its treedb.
+ *          topics of its treedb. delete-node of a key with pkey2 instances
+ *          (its own treedb, reopened): a lookup of the primary's value is
+ *          the primary, a refused delete leaves every instance.
  *
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
@@ -182,6 +184,64 @@ PRIVATE char schema_link_test[] = "\
                     'hook': {                                       \n\
                         'users': 'departments'                      \n\
                     }                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
+/***************************************************************************
+ *  Schema for the delete-node of a key with instances (test 21): parents
+ *  with a pkey2 ("version") and a list hook, kids with the fkey
+ ***************************************************************************/
+#define PKEY2_DATABASE  "c_node_link_events_pkey2"
+#define PKEY2_TREEDB    "treedb_pkey2_test"
+
+PRIVATE char schema_pkey2_test[] = "\
+{                                                                   \n\
+    'schema_version': 1,                                            \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'topic_name': 'parents',                                \n\
+            'pkey': 'id',                                           \n\
+            'pkey2s': 'version',                                    \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'version': {                                        \n\
+                    'header': 'Version',                            \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'kids': {                                           \n\
+                    'header': 'Kids',                               \n\
+                    'type': 'array',                                \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'kids': 'parent'                            \n\
+                    }                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'topic_name': 'kids',                                   \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'parent': {                                         \n\
+                    'header': 'Parent',                             \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
                 }                                                   \n\
             }                                                       \n\
         }                                                           \n\
@@ -397,6 +457,195 @@ PRIVATE int expect_alice_saved(
 /***************************************************************************
  *  Run all tests — called from timer callback inside the event loop
  ***************************************************************************/
+/***************************************************************************
+ *  Test 21 helpers: a tranger and a C_NODE of their own, over a database
+ *  that is closed and opened again: a load from DISK
+ ***************************************************************************/
+PRIVATE json_t *pkey2_tranger_start(void)
+{
+    char path_root[PATH_MAX];
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", PKEY2_DATABASE,
+        "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK
+    );
+    return tranger2_startup(0, jn_tranger, 0);
+}
+
+PRIVATE json_t *pkey2_reopen(hgobj gobj_node, json_t *tranger)
+{
+    gobj_stop(gobj_node);   // closes the treedb
+    tranger2_shutdown(tranger);
+    tranger = pkey2_tranger_start();
+    gobj_write_pointer_attr(gobj_node, "tranger", tranger);
+    gobj_start(gobj_node);
+    return tranger;
+}
+
+PRIVATE int pkey2_check(hgobj gobj, BOOL ok, const char *what)
+{
+    if(!ok) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: delete-node of a key with instances",
+            "what", "%s", what,
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+PRIVATE BOOL pkey2_kids_holds(json_t *parent, json_t *kid)
+{
+    size_t idx; json_t *v;
+    json_array_foreach(json_object_get(parent, "kids"), idx, v) {
+        if(v == kid) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Test 21: C_NODE's delete-node of a key with instances.
+ *
+ *  mt_delete_node() deletes the instances the kw names that are not the
+ *  primary, then the primary (treedb_delete_node(), every instance of the
+ *  key). It relies on a pkey2 lookup of the PRIMARY's value answering the
+ *  primary node itself. Up to 7.25.4 it did not after a load (it answered a
+ *  copy): a delete-node {id, version of the primary}, without force, of a
+ *  key with a child, tombstoned the rows of the primary's version and then
+ *  was refused -- after the next open the key was back at an older version
+ *  and its links were gone.
+ *
+ *  P/v1, then P/v2 (in memory the primary stays P/v1), kid a hangs from P.
+ *  Before and after a reopen (where P/v2, the newest row, is the primary)
+ *  the lookup of the primary's value answers the primary; delete-node
+ *  {P, v2} without force is refused and, after a reopen, both instances
+ *  and the link are there. delete-node {P, v1}, an instance that is not the
+ *  primary, deletes that instance alone.
+ ***************************************************************************/
+PRIVATE int test_delete_node_of_primary_instance(hgobj gobj)
+{
+    int result = 0;
+
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    build_path(path_database, sizeof(path_database), path_root, PKEY2_DATABASE, NULL);
+    rmrdir(path_database);
+
+    json_t *tranger = pkey2_tranger_start();
+    helper_quote2doublequote(schema_pkey2_test);
+    hgobj gobj_node = gobj_create_pure_child(
+        "test_node_pkey2",
+        C_NODE,
+        json_pack("{s:I, s:s, s:o, s:i}",
+            "tranger", (json_int_t)(uintptr_t)tranger,
+            "treedb_name", PKEY2_TREEDB,
+            "treedb_schema", legalstring2json(schema_pkey2_test, TRUE),
+            "exit_on_error", LOG_OPT_TRACE_STACK
+        ),
+        gobj
+    );
+    gobj_start(gobj_node);
+
+    json_t *p1 = treedb_create_node(tranger, PKEY2_TREEDB, "parents",
+        json_pack("{s:s, s:s}", "id", "P", "version", "v1"));
+    json_t *p2 = treedb_create_node(tranger, PKEY2_TREEDB, "parents",
+        json_pack("{s:s, s:s}", "id", "P", "version", "v2"));
+    json_t *a = treedb_create_node(tranger, PKEY2_TREEDB, "kids",
+        json_pack("{s:s}", "id", "a"));
+    result += pkey2_check(gobj, p1 && p2 && a, "the nodes were not created");
+    json_t *P = treedb_get_node(tranger, PKEY2_TREEDB, "parents", "P");
+    result += pkey2_check(gobj, P == p1, "a new instance P/v2 became the primary in memory");
+    result += pkey2_check(gobj,
+        treedb_get_instance(tranger, PKEY2_TREEDB, "parents", "version", "P", "v1") == P,
+        "after the creates the lookup of P/v1 is not the primary"
+    );
+    result += pkey2_check(gobj,
+        a && P && treedb_link_nodes(tranger, "kids", P, a) == 0,
+        "cannot link P <- a"
+    );
+
+    /*
+     *  Reopen: P/v2 wrote the newest row, it is the primary
+     */
+    tranger = pkey2_reopen(gobj_node, tranger);
+    P = treedb_get_node(tranger, PKEY2_TREEDB, "parents", "P");
+    result += pkey2_check(gobj,
+        P && strcmp(kw_get_str(gobj, P, "version", "", 0), "v2") == 0,
+        "after the reopen P/v2 is not the primary"
+    );
+    result += pkey2_check(gobj,
+        treedb_get_instance(tranger, PKEY2_TREEDB, "parents", "version", "P", "v2") == P,
+        "after the reopen the lookup of P/v2 is not the primary"
+    );
+    json_t *i1 = treedb_get_instance(tranger, PKEY2_TREEDB, "parents", "version", "P", "v1");
+    result += pkey2_check(gobj, i1 && i1 != P, "after the reopen P/v1 is not an instance of its own");
+    a = treedb_get_node(tranger, PKEY2_TREEDB, "kids", "a");
+    result += pkey2_check(gobj, pkey2_kids_holds(P, a), "after the reopen P does not hold a");
+
+    /*
+     *  delete-node {P, v2}, without force, P holds a: refused, nothing goes
+     */
+    result += pkey2_check(gobj,
+        gobj_delete_node(gobj_node, "parents",
+            json_pack("{s:s, s:s}", "id", "P", "version", "v2"),
+            json_object(),
+            gobj
+        ) < 0,
+        "delete-node {P, v2} WITHOUT force went, with a hanging from P"
+    );
+
+    tranger = pkey2_reopen(gobj_node, tranger);
+    P = treedb_get_node(tranger, PKEY2_TREEDB, "parents", "P");
+    result += pkey2_check(gobj,
+        P && strcmp(kw_get_str(gobj, P, "version", "", 0), "v2") == 0,
+        "after a refused delete P is not at its version v2"
+    );
+    result += pkey2_check(gobj,
+        treedb_get_instance(tranger, PKEY2_TREEDB, "parents", "version", "P", "v1") != NULL,
+        "after a refused delete the instance P/v1 is gone"
+    );
+    a = treedb_get_node(tranger, PKEY2_TREEDB, "kids", "a");
+    result += pkey2_check(gobj, pkey2_kids_holds(P, a), "after a refused delete P does not hold a");
+
+    /*
+     *  delete-node {P, v1}: the instance that is not the primary, alone
+     */
+    result += pkey2_check(gobj,
+        gobj_delete_node(gobj_node, "parents",
+            json_pack("{s:s, s:s}", "id", "P", "version", "v1"),
+            json_object(),
+            gobj
+        ) == 0,
+        "delete-node {P, v1} of the instance that is not the primary failed"
+    );
+    tranger = pkey2_reopen(gobj_node, tranger);
+    P = treedb_get_node(tranger, PKEY2_TREEDB, "parents", "P");
+    result += pkey2_check(gobj,
+        treedb_get_instance(tranger, PKEY2_TREEDB, "parents", "version", "P", "v1") == NULL,
+        "after delete-node {P, v1} the instance P/v1 is there"
+    );
+    result += pkey2_check(gobj,
+        P && strcmp(kw_get_str(gobj, P, "version", "", 0), "v2") == 0,
+        "after delete-node {P, v1} P/v2 is gone"
+    );
+    a = treedb_get_node(tranger, PKEY2_TREEDB, "kids", "a");
+    result += pkey2_check(gobj, pkey2_kids_holds(P, a), "after delete-node {P, v1} P does not hold a");
+
+    gobj_stop(gobj_node);
+    gobj_destroy(gobj_node);
+    tranger2_shutdown(tranger);
+
+    return result;
+}
+
 PRIVATE int run_tests(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1187,6 +1436,11 @@ PRIVATE int run_tests(hgobj gobj)
         }
         JSON_DECREF(jn_resp)
     }
+
+    /*-----------------------------------------------*
+     *  Test 21: delete-node of a key with instances
+     *-----------------------------------------------*/
+    result += test_delete_node_of_primary_instance(gobj);
 
     if(result == 0) {
         gobj_log_info(gobj, 0,

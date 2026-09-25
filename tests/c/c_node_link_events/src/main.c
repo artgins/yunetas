@@ -108,7 +108,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -132,6 +132,14 @@ static int register_yuno_and_more(void)
             "msg", "Node already exists",
             "msg", "frame is not json", "msgset", "Protocol", "peername", "test-peer",
             "msg", "Creating topic",
+            "msg", "Creating __timeranger2__.json",                 // test 21, its own treedb
+            "msg", "Creating TreeDB schema file",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Cannot delete node: has down links",            // delete-node {P, v2}
             "msg", "All c_node link event tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",
