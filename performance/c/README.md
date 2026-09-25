@@ -326,6 +326,30 @@ never reaches the changed code: it moved about +-5% between builds, and a
 build with the new functions present and never called showed the same
 swing, so that is code layout, not the change.
 
+The unlink and the delete that clear the parent's ref in every instance of
+the child key, the create that takes the primary's slot, and the gc that
+keeps an instance's asset (commit fdf138144), as an A/B of that change alone
+(only `tr_treedb.o` and `kwid.o` differ; 12 alternated rounds, `taskset`
+to one CPU, CPU us per operation, mean +- standard deviation (median); the
+change is the mean of the 12 paired ratios after/before +- its standard
+error):
+
+| Case | before | after | Paired change |
+|------|--------|-------|---------------|
+| `update_memory` (no save) | 2.820 +- 0.021 (2.826) | 2.753 +- 0.052 (2.753) | -2.4% +- 0.6% |
+| `update_saved` | 10.61 +- 0.14 (10.55) | 10.21 +- 0.12 (10.16) | -3.8% +- 0.4% |
+| `link_unlink` | 10.92 +- 0.24 (10.84) | 10.95 +- 0.47 (10.78) | +0.3% +- 0.7% |
+| `create_link_half` | 70.56 +- 1.39 (71.00) | 71.42 +- 2.82 (70.48) | +1.3% +- 1.4% |
+| `reopen` | 393.3 +- 7.3 (394.7) | 390.2 +- 7.2 (389.6) | -0.8% +- 0.7% |
+| `delete_force` | 68.5 +- 4.9 (66.8) | 69.4 +- 1.4 (69.2) | +1.7% +- 2.0% |
+| `delete_parent` | 3040 +- 114 (3003) | 2944 +- 65 (2923) | -3.0% +- 1.2% |
+
+No loss: the moves are -3.8% .. +1.7%, and the two outside their error are
+faster (`update_saved`, and `update_memory`, which does not reach the
+changed code at all), the layout effect of a relink described above. The
+topics of `perf_tr_treedb` have no pkey2, and the new scans of the instances
+run only for a child topic that has one.
+
 `timeranger2/test_topic_pkey_integer` (appends/s, 180 000 appends; 20
 rounds, the order swapped at each round):
 
@@ -413,7 +437,9 @@ differ from the ones above):
 
 Every difference is within one standard deviation; the only change on the
 path of a record is one test of a bool. The flush of each record costs
-0.7-0.9 us (`audit_record_flush` against `audit_record`).
+~0.75 us: `audit_record_flush` against `audit_record` of the same run,
+1 342.4 - 597.8 = 745 ns (and 1 336.8 - 591.5 = 745 ns in the "before"
+column; the `exit_on_fail` run below gives 727 and 718 ns).
 
 The rotatory fixes after them (the newfile callback kept when a new file
 fails to open, no size rotation at a new name, the keep_all retry on the
@@ -466,6 +492,51 @@ swapped (ns a record, mean):
 | `log_record` | 386 | 387 | +0.3% |
 
 Only the failure paths of an open changed.
+
+The size limit compared in bytes instead of whole megabytes (commit
+ee3cd4081), 8 alternated rounds, only `rotatory.c` swapped (ns a record,
+mean +- standard deviation (median)):
+
+| Case | before | after | Change |
+|------|--------|-------|--------|
+| `audit_record` | 555 +- 9 (554) | 574 +- 26 (559) | +3.4% |
+| `audit_record_retention` | 564 +- 25 (557) | 565 +- 12 (561) | +0.1% |
+| `audit_record_flush` | 1 310 +- 18 (1 305) | 1 300 +- 10 (1 297) | -0.8% |
+| `log_record` | 391 +- 12 (386) | 388 +- 4 (388) | -0.8% |
+
+Noise: the `audit_record` mean is pulled by three rounds of the "after"
+binary at 602-608 ns, and its median moves +0.9%. The size check is one
+comparison per record in both.
+
+The audit fixes that followed (an escaped key read as its whole string, a
+secret value taken as its whole shell word, a JWT before a `.`: commit
+d85dbf66d), the record built and serialized (us a record, 10 alternated
+rounds, mean (median)):
+
+| Record | before | after | Change |
+|------|--------|-------|--------|
+| `list-yunos` | 1.59 (1.58) | 1.70 (1.56) | +6.9% (median -1.3%) |
+| `run-yuno` | 6.88 (6.82) | 6.97 (6.90) | +1.4% |
+| `update-node`, a kw with a JSON text | 8.22 (8.20) | 8.31 (8.20) | +1.1% |
+| `update-node`, a JSON text holding an escaped JSON text | 8.49 (8.50) | 8.60 (8.63) | +1.4% |
+
+The `list-yunos` mean is one outlier round (2.16 us); its median does not
+move. The rest is +1.1% .. +1.4%, inside the spread of a run.
+
+The names judged with their JSON escapes decoded, and a write-attr looked for
+in every string of the kw (commit b3f69daf5), 8 alternated rounds (us a
+record, mean (median)):
+
+| Record | before | after | Change |
+|------|--------|-------|--------|
+| `list-yunos` | 1.51 (1.50) | 1.55 (1.55) | +2.4% |
+| `run-yuno` | 6.44 (6.42) | 6.57 (6.59) | +2.1% |
+| `update-node`, a kw with a JSON text | 7.74 (7.75) | 7.98 (7.97) | +3.1% |
+| `update-node`, a JSON text holding an escaped JSON text | 8.05 (8.08) | 8.29 (8.30) | +3.0% |
+
+Every record pays +2-3% (0.04-0.24 us): each string of the kw is now
+checked for a write-attr, and a name that holds `\u` is decoded once per
+level.
 
 `perf_c_treedb` (seconds for 40 opens). The 7.25.4 columns are the
 `c_treedb.c` of 7.25.4 compiled with the headers of 7.25.5 and linked before
@@ -555,10 +626,55 @@ client: 64-byte datagrams, 20 000 round trips a round, 8 alternated rounds,
 11.88 +- 0.77 -> 11.59 +- 0.35 us a round trip (-2.4%), noise. When nobody
 keeps the gbuffer, the common path pays one refcount test.
 
-ctest timing trend (`build/*.txt`, 30 runs of `yunetas test` from 2026-09-23
-to 2026-09-25): of the tests whose code did not change after 7.25.4, only
-`test_treedb_schema_fidelity` moved more than 10%, from 1.14-1.26 s (the 4
-runs before the change) to 1.55-1.81 s (the 26 after it; +36% .. +44%). It
+yev_loop, the close of an fd that takes back the submissions of other
+events on it, and the zero-copy notification waited for at the end of the
+loop (commit 354e818e6), 8 alternated rounds: `perf_yev_ping_pong` 137.8 +-
+5.0 -> 140.5 +- 4.6 K msg/s (+2.0%), noise. The scan runs only when an fd is
+closed with something pending on it.
+
+Publish (`gobj_publish_event()`), a subscription with `__local__` or
+`__global__` given its own kw (commits 42a6818b6, then b307eef3f). There is
+no publish benchmark in the tree; a scratch one (`bench_publish.c`, not in
+the tree) publishes one event to N subscribers of one gobj, a kw of ~250
+bytes and 18 values, or of ~20 KB; only `gobj.o` differs between the
+binaries (`-O2`), all alternated (us a publish, mean; 8 rounds of each at
+250 B, 16 at 20 KB). "7.25.4" is the shared kw of 7.25.4, "deep" is a
+`kw_duplicate()` per such subscription (42a6818b6), "twin" is the
+`kw_twin()` that the release ships (its own top level, the values and
+gbuffers shared):
+
+| kw | `__global__` | subscribers | 7.25.4 | deep | twin | twin against 7.25.4 |
+|----|----|----|----|----|----|----|
+| 250 B | no | 1 | 1.78 | 1.78 | 1.78 | -0.1% |
+| 250 B | no | 10 | 3.20 | 3.28 | 3.21 | +0.3% |
+| 250 B | no | 100 | 19.86 | 19.19 | 18.86 | -5.0% (sd 3.2 us, noise) |
+| 250 B | yes | 1 | 1.95 | 3.88 | 2.08 | +6.6% |
+| 250 B | yes | 10 | 3.71 | 21.51 | 5.93 | +59.9% |
+| 250 B | yes | 100 | 21.76 | 200.28 | 44.94 | +106.5% |
+| 20 KB | no | 1 | 63.03 | 62.56 | 62.76 | -0.4% |
+| 20 KB | no | 10 | 64.98 | 64.36 | 64.22 | -1.2% |
+| 20 KB | no | 100 | 79.59 | 79.36 | 81.28 | +2.1% (sd 12.4 us, noise) |
+| 20 KB | yes | 1 | 64.37 | 118.42 | 63.88 | -0.7% |
+| 20 KB | yes | 10 | 65.65 | 620.01 | 67.54 | +2.9% |
+| 20 KB | yes | 100 | 82.44 | 5 554.46 | 104.93 | +27.3% |
+
+A subscriber without `__local__` / `__global__` still shares the publisher's
+kw: nothing moves beyond the noise. A twinned delivery costs ~0.23 us,
+whatever the size of the event ((44.94 - 21.76) / 100 at 250 B, (104.93 -
+82.44) / 100 at 20 KB); the deep copy cost ~1.8 us at 250 B and ~55 us at
+20 KB. Building the 20 KB kw takes ~60 us of each 20 KB publish, so the
+percentages of that half understate the change. Every C_IEVENT_SRV
+subscription carries `__global__` (the gate's back-metadata), so a remote
+subscriber pays the twin, beside the serialization of the kw it already
+paid. This is the price of the fix of a peer's subscription that changed the
+event of every later subscriber (see the CHANGELOG, "Security").
+
+ctest timing trend (`build/*.txt`, 47 runs of `yunetas test` from 2026-09-23
+10:20 to 2026-09-25 09:43): of the tests whose code did not change after
+7.25.4, only `test_treedb_schema_fidelity` moved more than 10%, from
+1.14-1.26 s (the 4 runs before the change, median 1.19 s) to 1.55-1.81 s (the
+43 after it, median 1.65 s; +36% .. +44% minimum against minimum and maximum
+against maximum, +39% median against median). It
 opens four treedbs in four new stores, and its fsyncs (88 in the current
 build) take ~0.56 s: the price of the durable topic files and of the
 projection record. The `c_tcp` and `c_tcp2` tests wait on whole seconds of

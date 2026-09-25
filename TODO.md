@@ -73,14 +73,18 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
   not kept. Next time it fails, keep `build/Testing/Temporary/LastTest.log`
   before running anything else: ctest overwrites it.
 
-**Tests nobody has**: C_NODE commands with no ctest: `node`, `instances`,
-`pkey2s`, `jtree`, `parents`, `children`, `hooks`, `links`, `treedb-info`, the
-snap commands (their permissions are tested, their behaviour is not, except
-the refusal of `snap-content` for another treedb's topic, test 20) and
-`print-tranger`; `import-db` and `export-db` are tested only for their error
-count by cause, their link failures and abort, and the file name of the
-export, and a content that is not json (`c_node_link_events`, tests 14-17
-and 19). The refusals on a replica are tested since
+**Tests nobody has**: C_NODE commands whose behaviour has no ctest (their
+permissions are tested, and some of their refusals, in `test_c_node_authz`):
+`node`, `instances` (only its *"What topic_name?"* refusal is tested),
+`pkey2s`, `jtree`, `parents`, `children`, `hooks`, `links`, `treedb-info`,
+and what the snap commands do to the data (`shoot-snap`, `activate-snap`,
+`deactivate-snap`: their answers are tested in `test_c_node_authz`, the
+refusal of `snap-content` for another treedb's topic in test 20 of
+`c_node_link_events`, and `gc-assets` under an active snap in `c_assets`,
+case 7a), and `print-tranger`; `import-db` and `export-db` are tested only
+for their error count by cause, their link failures and abort, and the file
+name of the export, and a content that is not json (`c_node_link_events`,
+tests 14-17 and 19). The refusals on a replica are tested since
 7.25.0 (`test_c_node_authz`) and, for C_TREEDB, since 7.25.4.
 In gobj-ui, the treedb views got their first wiring tests on 2026-09-23
 (`test/dom_double.js`); the save kw as it leaves `publish_treedb_write` is
@@ -109,8 +113,8 @@ What the changes after 7.25.4 (`CHANGELOG.md`, Unreleased) leave open:
 - A marker that cannot be written is retried only by the next append to the
   same FILE; a file never appended again keeps it missing (logged) until
   `mark-tm-order` runs.
-- `mark-tm-order` runs synchronously and blocks the yuno (linear; ~80 ms for
-  4 keys x 3 650 files on a warm cache).
+- `mark-tm-order` runs synchronously and blocks the yuno (linear; ~19 ms for
+  1 key x 30 files x 20 000 rows, `perf_timeranger2`).
 - A demoted master never takes its lock back while the process lives; it needs
   a restart (documented).
 - In a partial topic, operations on other ids are allowed (creates, updates,
@@ -121,8 +125,6 @@ What the changes after 7.25.4 (`CHANGELOG.md`, Unreleased) leave open:
   are single-node conveniences by design (philosophy.md, "the key").
 - `default: {}` placeholders are dropped by save + apply, so a `required`
   column whose literal really declared `'default': {}` loses it (as in 7.25.4).
-- A failed `open-treedb` withdraws the saved schema at once; it could wait for
-  an open that succeeds.
 - msg2db consumers (the db_history alarms of wattyzer, yunovatios,
   estadodelaire, hidraulia) do not use `msg2db_id_incomplete()` yet: an alarm
   absent after a damaged load can be announced again as new
@@ -141,8 +143,12 @@ What the changes after 7.25.4 (`CHANGELOG.md`, Unreleased) leave open:
   rows already registered (the preview is tested, `c_agent_find_new_yunos`; the
   skip in `c_agent.c` runs in no ctest); the relink of a test after an installed
   archive changed (shown by hand: the build prints the link line once, then
-  nothing). Not exercised live: a form Save through
-  a real websocket drop.
+  nothing); the test harness no longer counting *"io_uring_queue_init_params()
+  pinned-memory pressure, retrying"* as an unexpected log (gobj-c
+  `testing.c`: it needs the machine short of locked memory while the test
+  creates its loop); `create-yuno` refusing a release name longer than
+  `NAME_MAX` (`cmd_create_yuno()` lives in `c_agent.c`, which no ctest
+  compiles). Not exercised live: a form Save through a real websocket drop.
 
 ## Agent: the spare agent is only refreshed on the package path
 

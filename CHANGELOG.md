@@ -74,14 +74,16 @@ code before it, except those listed under "No red test" in `TODO.md`.
   does not authenticate (see "Security"). Before upgrading, review each list:
   `command-yuno id=<id> service=__yuno__ command=list-denied-ips` (the agent:
   `command-agent service=__yuno__ command=list-denied-ips`). To ban an ip:
-  `add-denied-ip ip=203.0.113.7 denied=1` -- without `denied=1` the command
-  writes `false`, which denies nothing. A C_UDP_S with `only_allowed_ips` now
+  `add-denied-ip ip=203.0.113.7 denied=1`. `denied` is required: without it
+  the command answers -1, *"<role^name>: Denied, TRUE or FALSE?"*, and
+  `denied=0` writes `false`, which denies nothing. A C_UDP_S with
+  `only_allowed_ips` now
   drops every peer that `allowed_ips` does not name (7.25.4 never read the
   attribute): check `list-allowed-ips` on those yunos too. Loopback is exempt
   from both lists. C_UDP_S says a refused peer at its first datagram of each
   cause and then at most once a minute; the new stat `rxRefusedMsgs` counts
-  every datagram it drops (an alert on the WARNING per datagram gets one a
-  minute now).
+  every datagram it drops (these WARNINGs are new: 7.25.4 dropped no datagram
+  and said nothing).
 - **The stored ip lists are rewritten once, at the first start.** A list
   entry is now kept in the form a peer is looked up by (see "Security"). At
   its first start with this release each yuno normalises its persisted
@@ -109,18 +111,121 @@ code before it, except those listed under "No red test" in `TODO.md`.
   ignored"*).
 - **A yuno no longer exits when a log file cannot be opened after its
   start.** It prints one line on stdout and syslog (*"_rotatory(): Cannot open
-  '<path>' file, <err>"*), goes on, and prints *"_rotatory(): '<path>' is
-  open again"* when the file opens again. Look for the first line in syslog:
-  it is the only sign that a yuno is not writing its log (7.25.4 exited, see
-  "Agent, gobj-c and tools").
-- **Use the `yunetas` CLI 0.19.4 once it is published** (`pipx upgrade
-  yunetas`). `find-new-yunos` now marks a row already registered at the new
-  release, and `yunetas upgrade-yunos` 0.19.4 counts those rows apart
-  (`N created, M already registered`); 0.19.3 works with this agent but
-  counts them as created.
+  '<path>' file, <err>"*; on a full disk the new day's file fails at its
+  create, *"_rotatory(): Cannot create '<path>' file, <err>"* or *"Cannot
+  create '<dir>' directory, <err>"*; *"_rotatory_truncate(): ..."* for a
+  truncate), goes on, and prints *"_rotatory(): '<path>' is open again"*
+  when the file opens again. Look for those lines in syslog: they are the
+  only sign that a yuno is not writing its log (7.25.4 exited, see "Agent,
+  gobj-c and tools").
+- **A peer holds at most 5000 subscriptions on a channel of a gate.** New
+  C_IEVENT_SRV attributes `max_subscriptions` (default `5000`, `0` no limit)
+  and `max_subscription_size` (default `16384` bytes of compact json, for the
+  `__filter__` and the `__global__` of a peer's subscription). A subscription
+  beyond them is refused, with a WARNING logged once (*"SUBSCRIBING refused,
+  the peer holds max_subscriptions"*). A gate whose peers subscribe per
+  device must raise the cap before the upgrade: the SPAs of hidraulia
+  subscribe twice per device. Set it in the `kw` of the `C_IEVENT_SRV` of the
+  gate's channel tree, for example
+  `{"name": "input-(^^__range__^^)", "gclass": "C_IEVENT_SRV", "kw":
+  {"max_subscriptions": 20000}}` (see ievent.md, "What a peer may hold").
+- **A peer's `__global__` keys that start with `_` are dropped**, with a WARNING
+  (*"SUBSCRIBING keys a peer may not set, ignored"*, with `keys`, at most one
+  each 10 s), as are a `gbuffer` key and the peer's `__local__`: of a peer's
+  subscription C_IEVENT_SRV keeps only `__filter__`, the allowed `__config__`
+  keys and the `__global__` keys of the peer's own (see "Security"). The C and
+  gobj-js clients of this SDK send no such key.
+- **The logcenter's C_GSS_UDP_S has caps now**, and the logcenter runs on
+  their defaults: `max_channels` `1024` (peers, a source ip:port each, held
+  at once; a new peer beyond it is dropped), `max_pending_bytes` `8388608`
+  (8 MB of unfinished frames of all peers together; beyond it a datagram is
+  dropped with its peer's unfinished frame) and `max_frame_size` `1048576`
+  (1 MB; a bigger frame is delivered cut). A logcenter that hears more than
+  1024 yunos at once sets `max_channels` in its config.
+- **Use the `yunetas` CLI 0.19.4 once it is published.** It is not
+  published yet: today `pipx upgrade yunetas` gives 0.19.3.
+  `find-new-yunos` now marks a row already registered at the new release,
+  and `yunetas upgrade-yunos` 0.19.4 counts those rows apart (`N created, M
+  already registered`); 0.19.3 works with this agent but counts them as
+  created.
 
 ### Security
 
+- **A remote peer's subscription changed the event of every later
+  subscriber (HIGH; 7.25.4 too).** `gobj_publish_event()` gave every
+  subscriber the same kw, and applied each subscription's `__local__` (keys
+  removed) and `__global__` (keys added) to it. A peer that subscribed
+  through a gate could forge or strip keys of the event for every subscriber
+  after it and for the publisher, make a later subscription's `__filter__`
+  drop events or pass events it should not, and have the gate's `__md_iev__`
+  (another user's name and channel) reach the local subscribers after the
+  gate. A `gbuffer` key in a peer's `__global__` crashed the yuno: it was
+  merged into the kw, and the gate's serializer took the integer for a
+  pointer -- any authenticated peer could crash the yuno remotely. Now a
+  subscription with a non-empty `__local__` or `__global__` gets its own kw,
+  a `kw_twin()` (a new top level; the values shared, a `gbuffer` increfed);
+  the `__filter__` and `mt_publication_filter` of every subscription see the
+  publisher's kw, and the other subscribers still share it, at no cost. The
+  gate's and the client's `mt_inject_event()` work on a twin of a shared kw,
+  and copy the `__md_iev__` they write into (7.25.4 also wrote the message
+  type into the subscription's stored `__global__`). A twinned delivery
+  costs ~0.23 us more, whatever the size of the event (see "Performance").
+  gobj-js 7.25.8 has the same fix (see the JS section). Test
+  `test_c_ievent_srv_peer_subs`.
+- **C_IEVENT_SRV keeps of a peer's subscription only what a peer may set**:
+  its `__filter__`, the allowed `__config__` keys (`__first_shot__`, below)
+  and the keys of its own in `__global__`. A `__global__` key that starts
+  with `_` (the framework's: `__md_iev__`, `__md_yuno__`, `__service__`, ...)
+  or is `gbuffer`, the peer's `__local__` and any other key of the frame are
+  dropped, with a WARNING (*"SUBSCRIBING keys a peer may not set,
+  ignored"*, with `keys`); up to 7.25.4 each of them reached the publish. A
+  key of the peer's own comes back to that peer only. Test
+  `test_c_ievent_srv_peer_subs`.
+- **A peer could hold any number of subscriptions (7.25.4 too).** Each one
+  costs a scan of the publisher's subscriptions when it is made, and one more
+  on every publish of its event: 20 000 subscriptions of one peer blocked the
+  event loop for 80 s, and every later publish took 13 ms. New C_IEVENT_SRV
+  attributes: `max_subscriptions` (default `5000`, `0` no limit; beyond it
+  a subscription is refused, WARNING *"SUBSCRIBING refused, the peer holds
+  max_subscriptions"*, logged once until the peer is under the cap; a
+  repeat of a subscription the peer holds takes no room) and
+  `max_subscription_size` (default `16384` bytes of compact json, for the
+  `__filter__` and for the `__global__`; WARNING *"SUBSCRIBING refused,
+  bigger than max_subscription_size"*). See "Upgrade steps". Test
+  `test_c_ievent_srv_peer_subs`.
+- **A peer no longer sets the size and the rate of the gate's log lines.**
+  The WARNING of an unsubscribe that matches nothing dumps at most 256 bytes
+  of the kw, with `kw_size`; it, the WARNINGs of dropped keys, the size
+  refusal and the INFO of a withdrawal of a refused subscription are logged
+  at most once each 10 s per kind and channel, with a `suppressed` count; an
+  authz refusal (*"No permission to subscribe event"*) is logged once per
+  service and event on a channel. A peer that repeated a bad frame wrote one
+  line (and one stack) per frame, of any size. Test
+  `test_c_ievent_srv_peer_subs` (a repeated withdrawal with a 2 KB key: one
+  line, capped).
+- **A peer's own `__username__` reached the service (7.25.4 too).** The gate
+  stamps `__username__` on a command, a stats request and an event with
+  `kw_set_dict_value()`, which kept a key that was already there: a peer that
+  put its own `__username__` in the kw was that user for the service, and
+  `command_parser.c`'s authz check reads that key. `kw_set_dict_value()` now
+  overwrites (see "Agent, gobj-c and tools"). The routing stamps
+  (`input_channel`, `input_service`) were already overwritten. Test
+  `test_c_ievent_srv_peer_subs` (a peer sends `"__username__": "admin"` in
+  a command, a stats request, an event and a subscription).
+- **C_GSS_UDP_S (the logcenter) caps what its peers make it hold**:
+  `max_channels` (1024 peers), `max_pending_bytes` (8 MB of unfinished
+  frames of all peers together) and `max_frame_size` (1 MB a frame, whose
+  buffer now starts at 4 KB and grows): a sender of one-byte datagrams from
+  many source ports cannot take the logcenter to its memory ceiling. See
+  "Transports", the per-peer label. Test `c_udp_s_rx` (case 4).
+- **C_TRANGER: a handle opened by one session is refused to another (7.25.4
+  too).** `close-rt`, `close-iterator`, `close-list`, `get-page` and
+  `get-list-data` of an id that another C_IEVENT_SRV session opened answer
+  -403, *"<role^name>: <kind> '<id>' is not yours: another session opened
+  it"*, with a WARNING (*"Handle of another session, refused"*); a peer
+  could read the pages of another user's iterator, or close its feed.
+  Before the liveness check, so such a request cannot reap the handle
+  either. A local gobj is trusted. Test `test_c_tranger`.
 - **jansson overflowed its buffers on a long string** (v2.15.1; not fixed
   upstream, and the distribution's libjansson does the same). Its lexer
   ignored a failed save and wrote past its buffers: a json string longer than
@@ -141,8 +246,9 @@ code before it, except those listed under "No red test" in `TODO.md`.
   `set-user-pwd` wrote the password, a `write-attr` of a secret attribute its
   value, and every console keystroke (`write-tty`) its bytes in base64, in
   files kept for ever under `/yuneta/realms/agent/agent/audit/`. A secret is
-  now `<redacted>` (also inside a JSON text given as a string, and the
-  credentials after `Basic ` or `Bearer `) and a keystroke is only counted
+  now `<redacted>` (also inside a JSON text given as a string, under a name
+  written with json escapes, and the credentials after `Basic ` or
+  `Bearer `) and a keystroke is only counted
   (see "Agent, gobj-c and tools", the audit record). Audit files written
   before the upgrade keep
   what they hold: remove or protect them.
@@ -192,8 +298,8 @@ code before it, except those listed under "No red test" in `TODO.md`.
   publish before later subscribers got it. The close of a channel now
   removes every subscription the channel made, hard or not. Test
   `c_subscription_authz` (a client asks hard, own, rename and first_shot).
-- **C_IOGATE: a `channel_name` that matches no channel no longer hangs the
-  yuno.** `view-channels`, `enable-channel`, `disable-channel`,
+- **C_IOGATE: a `channel_name` that does not match every channel no longer
+  hangs the yuno.** `view-channels`, `enable-channel`, `disable-channel`,
   `trace-on-channel`, `trace-off-channel` and `reset-stats-channel` looped
   for ever on the first channel that did not match (7.25.4 too): the event
   loop was blocked, and the process ignored SIGTERM. With
@@ -239,7 +345,11 @@ code before it, except those listed under "No red test" in `TODO.md`.
 - libjwt (vendored): the `jwks_*` keyring getters (`jwks_item_get()`,
   `jwks_error_any()`, `jwks_error()`, `jwks_error_msg()`,
   `jwks_error_clear()`) accept a NULL set, as upstream's do:
-  `jwks_item_get(NULL, 0)` crashed. C_AUTHZ never passed a NULL set. Test
+  `jwks_item_get(NULL, 0)` crashed. So do `jwks_item_count()` (0),
+  `jwks_find_bykid()` (NULL, also for a NULL kid), `jwks_item_add()` (1)
+  and `jwks_item_free_bad()` (0), which upstream does not guard either: they
+  carry local guards (`// ArtGins: NULL-safety, beyond upstream`, listed in
+  `kernel/c/libjwt/README.md`). C_AUTHZ never passed a NULL set. Test
   `libjwt/test_jwt_alg_confusion`.
 
 ### Data loss and integrity
@@ -291,9 +401,11 @@ code before it, except those listed under "No red test" in `TODO.md`.
   unread message is not announced, and `msg2db_list_messages()` leaves it
   out. `tr_msg2db.md` shows how a consumer can use `msg2db_id_incomplete()`
   to avoid the repeat; no project repo was changed.
-- **An append that was never acknowledged is not damage.** When the md2 write
-  of an append fails, the content written for it is truncated back, BEFORE
-  the critical log (with the default `on_critical_error` the process exits
+- **An append that was never acknowledged is not damage.** When the md2 of
+  an append cannot be opened or created, or its seek or write fails, the
+  content written for it is truncated back, BEFORE the critical log (*"Cannot
+  append record, its md2 file cannot be opened: its content was cut back"*
+  for the open) (with the default `on_critical_error` the process exits
   there, and 7.25.4 left the bytes behind). An md2 with 0 rows beside a
   non-empty `.json` (a kill or a power cut between the two writes) is ignored
   with a warning, and its key loads (7.25.4 ignored its rows too, without a
@@ -410,7 +522,13 @@ code before it, except those listed under "No red test" in `TODO.md`.
   children of every instance are counted (without `force` the delete is
   refused) or unlinked and saved (with `force`); every other instance that a
   parent's hook holds refuses a delete without `force`, and with `force` it
-  leaves that hook. A refused delete puts all of it back.
+  leaves that hook. A refused delete puts all of it back. The instances of a
+  child that name the key and that no hook holds (a non-primary instance
+  that nothing links) are counted too: without `force` the delete is refused
+  (*"Cannot delete node: has down links"*, now with `children` and
+  `unheld_instances`), and with `force` their ref is cleared and saved first,
+  the primaries last, and put back if the delete is refused (7.25.4 left
+  them naming a key that is gone).
 - **`treedb_delete_instance()` takes the instance out of the hooks of its
   parents, and hands its children to the primary** (7.25.4 did neither). A
   non-primary instance sits in a hook when it is linked into a slot that does
@@ -441,8 +559,8 @@ code before it, except those listed under "No red test" in `TODO.md`.
   deleted"*): a deleted key or instance still reachable through a pointer
   that a hook or a caller kept. In 7.25.4 such a save wrote a record into the
   deleted key, and the node came back at the next open. Test
-  `tr_treedb_delete_instance` (every case of these five bullets, each red
-  before its fix).
+  `test_tr_treedb_delete_instance` (every case of these five bullets, each
+  red before its fix).
 - **`treedb_save_node()` refuses a node whose pkey2 value was changed in
   place** (ERROR *"Cannot save a node whose pkey2 value changed in place: its
   record would be another instance"*, with `pkey2_name`, `old_value` and
@@ -455,9 +573,12 @@ code before it, except those listed under "No red test" in `TODO.md`.
   slot of a pkey2 holds is saved as before. **`treedb_create_node()` indexes
   the pkey2 value its record holds** (a column `default`, a converted
   value); 7.25.4 indexed the raw kw value, so the instance of a defaulted
-  value was missing until a reload. `c_node_link_events` test 21 asserts the
-  invariant C_NODE's `delete-node` relies on: a pkey2 lookup of the
-  primary's own value returns the primary, before and after a reopen.
+  value was missing until a reload. `test_c_node_link_events` test 21
+  asserts the invariant C_NODE's `delete-node` relies on: a pkey2 lookup of
+  the primary's own value returns the primary, before and after a reopen.
+  It holds with more than one pkey2 too (a save no longer re-points a slot
+  that the primary holds, where a second pkey2 took the primary's slot of
+  the first), and for a key with instances and no primary (below, a snap).
 - **A reference is never cut in silence.** 7.25.4 wrote `topic^id^hook` into
   `char[NAME_MAX]` and decoded it into parts of `NAME_MAX` with no check. A
   reference with a part that cannot be decoded back is refused and nothing
@@ -478,7 +599,7 @@ code before it, except those listed under "No red test" in `TODO.md`.
   (*"Node not found"*). The guard no longer builds a reference string for
   each child only to count them (that change alone takes 2-4% off
   `delete_parent`, on top of the ~6% against 7.25.4; see "Performance"). Test
-  `tr_treedb_hook_hygiene` (`test_children_without_ref()`). The `refs` /
+  `test_tr_treedb_hook_hygiene` (`test_children_without_ref()`). The `refs` /
   `hook_refs` option of a hook lists every child, also one whose id holds a
   `^` or is `NAME_MAX` bytes long (`"users^a^b"`); in 7.25.4 the reference of
   a long id was cut in silence, and named another node or none.
@@ -503,11 +624,51 @@ code before it, except those listed under "No red test" in `TODO.md`.
 - A link to a parent whose id cannot make a reference (an id of `NAME_MAX` or
   more, or holding `^`, loaded from an older store) is refused and nothing
   moves (the *"Cannot build the reference of a node"* above); in 7.25.4 the
-  reference was cut, the link answered 0, and it was lost at the next open. A
-  save
-  that meets a wrong reference in an fkey column leaves out that reference
-  alone, and logs it: it saved the record without the whole column, so the
-  valid links of the column were lost at the next open (7.25.4 too).
+  reference was cut, the link answered 0, and it was lost at the next open.
+  A save that meets a wrong reference in an fkey column leaves out that
+  reference alone, and logs it: it saved the record without the whole
+  column, so the valid links of the column were lost at the next open
+  (7.25.4 too).
+- **An unlink clears the parent's ref in every instance of the child**
+  (7.25.4 too). A topic with a `pkey2` has several instances of one key, and
+  each carries the fkey it was saved with; the unlink cleared the ref only in
+  the instance it was given, so the other instances still named the parent,
+  and a reload linked them back. Now every other instance that names the
+  parent is cleared and saved first, the primary last, so the child's record
+  stays the newest; if any of those saves fails, everything is put back and
+  saved again, and the unlink answers -1. A `file` column is left alone:
+  each instance holds its own asset. Test `test_tr_treedb_delete_instance`.
+- **A stale ref in a string fkey column is removed** (7.25.4 too). A ref
+  whose hook was renamed or re-pointed is removed from the child by the
+  first relink, clean or forced delete; in a column whose fkey is a single
+  string, the removal wrote the value through `kw_set_dict_value()`, which
+  kept the old value (see "Agent, gobj-c and tools"), so the clean and the
+  forced delete of such a child failed for ever (*"Cannot clean the
+  links"*). Test `tr_treedb_hook_rename` (a string fkey with a renamed hook,
+  clean and forced delete).
+- **With a snap active, the create of a key that the snap does not hold
+  takes the slot of its value** (7.25.4 too). A key created after the snap
+  has instances in the secondary indexes and no primary in memory; its
+  create made a second object for the same instance, and C_NODE's
+  `delete-node` of that key then went half way (*"delete_primary_node()
+  FAILED"*, then *"Node not found"*). A create that makes the primary of
+  such a key now takes the
+  slot of its value, so the slot of the primary holds the primary. A delete
+  of a key that only the secondary indexes hold no longer logs
+  *"delete_primary_node() FAILED"*. Test `test_tr_treedb_delete_instance`.
+- **`gc-assets` keeps the asset that a non-primary instance names** (7.25.4
+  too): only the primaries were read, so the gc took the asset of an older
+  instance that still names it. Test `test_tr_treedb_delete_instance`.
+- **An unlink of one instance of a child no longer takes a sibling instance out
+  of a dict hook** (7.25.4 too): the slot was removed by the child's id, so a
+  sibling instance that still named the parent left the hook with it. The slot
+  is removed only when it holds that very node. The two normal cases are no
+  longer errors: the hook holds another instance of the child, or the child is a
+  non-primary instance that nothing holds (7.25.4 logged the ERROR *"Child data
+  not found in ... parent hook"*; one of the list-hook cases said *"dict"*, and
+  now says *"list"*). A new instance of a child held through a list hook no
+  longer warns *"Duplicate fkey on load, deduping parent hook"*. Test
+  `test_tr_treedb_delete_instance`.
 - **Lost lock.** A master that lost its lock while stopped (another process
   took the store) writes nothing: every write path, including the three md2
   flag rewriters (`tranger2_write_user_flag`, `tranger2_set_user_flag`,
@@ -529,8 +690,10 @@ code before it, except those listed under "No red test" in `TODO.md`.
 - C_NODE link, unlink and delete are refused on a replica before memory moves
   (direct C callers; the commands already checked).
 - **A key directory that cannot be LISTED** (EMFILE, EACCES, ENOMEM, or no
-  memory for an entry of the listing) loaded in 7.25.4 as an EMPTY key, with
-  no sign: after a restart a treedb node was absent, a create of its id was
+  memory for an entry of the listing) loaded in 7.25.4 as an EMPTY key: the
+  load said nothing (only the helper's ERROR *"Cannot open directory"* when
+  the directory could not be opened; nothing at all for a lost entry). After
+  a restart a treedb node was absent, a create of its id was
   accepted over the history nobody read, and an append counted its row as the
   first of its file. The key is flagged (`"unlisted"`, ERROR *"key directory
   cannot be listed when its cache was built: every load of the key says
@@ -542,23 +705,33 @@ code before it, except those listed under "No red test" in `TODO.md`.
   NULL, *"Cannot open topic: its keys cannot be listed"*; the next open tries
   again); it opened with no keys. `find_files_with_suffix_array()`,
   `walk_dir_array()` and `get_ordered_filename_array()` answer -1 with the
-  listing empty when an entry cannot be kept (7.25.4 kept a NULL entry and
-  answered 0), and the last two also when the ROOT cannot be opened (7.25.4:
-  0 and an empty listing). A `readdir()` that fails is a failed listing too,
+  listing empty when an entry cannot be kept (7.25.4 dropped the entry, or
+  kept it as NULL, and answered 0), and the last two also when the ROOT is a
+  directory that cannot be opened (7.25.4: 0 and an empty listing; a root
+  that is not a directory already answered -1). A `readdir()` that fails is
+  a failed listing too,
   in those three and in `walk_dir_tree()` (-1, *"Cannot list directory,
   readdir() FAILED"* / *"Cannot read directory, readdir() FAILED"*): 7.25.4
   took it for the end of the directory, and timeranger2 could load a key
   without some of its md2 files. A subdirectory that cannot be opened is
-  skipped, with a WARNING (*"Cannot open subdirectory, it is skipped"*; 7.25.4
-  was silent for `EACCES` and `ENOENT`), only for `EACCES`, `ENOENT`, `ENOTDIR` and `ELOOP`; for a
-  transient cause (`EMFILE`, `ENFILE`, `ENOMEM`, `EIO`), or when it cannot be
-  read, it fails the walk (7.25.4 skipped it and answered 0 with a short
-  listing), and so does an entry whose `lstat()` fails for a cause other than
-  `EACCES` / `ENOENT` (7.25.4 logged it and dropped the entry). `walk_dir_array()`
-  with a NULL pattern lists every entry (7.25.4 crashed), and a root of
-  `walk_dir_tree()` that cannot be opened is always logged (an `EACCES` root
-  answered -1 with no log). Tests `timeranger2/test_unlistable_dirs`,
-  `helpers/test_dir_array_nomem`, `helpers/test_dir_read_error`.
+  skipped, with a WARNING (*"Cannot open subdirectory, it is skipped"*;
+  7.25.4 was silent for `EACCES` and `ENOENT`), only for `EACCES`, `ENOENT`,
+  `ENOTDIR` and `ELOOP`; for a transient cause (`EMFILE`, `ENFILE`,
+  `ENOMEM`, `EIO`), or when it cannot be read, it fails the walk (7.25.4
+  skipped it and answered 0 with a short listing), and so does an entry
+  whose `lstat()` fails for a cause other than `EACCES` / `ENOENT` (7.25.4
+  logged it and dropped the entry). `walk_dir_array()` with a NULL pattern
+  lists every entry (7.25.4 crashed), and a root of `walk_dir_tree()` that
+  cannot be opened is always logged (an `EACCES` root answered -1 with no
+  log). On a filesystem without `d_type`, a key whose `stat()` fails for a
+  cause other than `ENOENT` fails the listing of the topic's keys (*"Cannot
+  list the keys of the topic, stat() FAILED"*; 7.25.4 dropped the key in
+  silence), so the topic does not open. `rmrcontentdir()` and `rmrdir()`
+  fail on a `readdir()` error, with a log (7.25.4: `rmrcontentdir()`
+  answered 0 in silence, and `rmrdir()` blamed the `rmdir()` with
+  `ENOTEMPTY`). Tests `timeranger2/test_unlistable_dirs`,
+  `timeranger2/test_tr_dt_unknown`, `helpers/test_dir_array_nomem`,
+  `helpers/test_dir_read_error`.
 - **A flag goes when its cause goes, on a replica too.** A load tries the
   flags of its key first: it lists an `unlisted` key again when its directory
   changed since it was flagged (ctime) or opens now after an open failure
@@ -600,15 +773,19 @@ code before it, except those listed under "No red test" in `TODO.md`.
   whose topic cannot be opened again either (*"Queue backup failed, and the
   queue has no topic"*) takes it again by name as soon as it can be opened:
   at the next `trq_check_backup()` / `tr2q_check_backup()`, read, ack or
-  load (INFO *"Queue topic taken again"*); until then those calls fail, and
-  the queue says it once (ERROR *"Queue without topic, it cannot be
-  opened"*). Test `tr_queue/test_tr_queue_backup_failed`.
+  load (INFO *"Queue topic taken again"*); until then those calls fail:
+  only the first one says it (ERROR *"Queue without topic, it cannot be
+  opened"*), the next ones ask the disk quietly (is `topic_desc.json`
+  readable?) and log nothing. Test `tr_queue/test_tr_queue_backup_failed`.
 - **A new topic is created whole or not at all.** When any part of a NEW
   topic cannot be made (its directory, `topic_desc.json`, `topic_cols.json`,
   `topic_var.json`, `keys/` or `disks/`), `tranger2_create_topic()` removes
-  the directory it made, keeps nothing in memory and answers NULL (ERROR
-  *"Cannot create topic: it is not whole, what was made is removed"*, after
-  the cause); the next create starts again from nothing. In 7.25.4 each
+  the directory it made, keeps nothing in memory and answers NULL (CRITICAL
+  *"Cannot create topic: it is not whole, what was made is removed"*, at
+  `on_critical_error`, logged after the removal); the next create starts
+  again from nothing. The failures before it are logged without the exit
+  bits, so under `LOG_OPT_EXIT_ZERO` (C_TRANGER, C_TREEDB, the broker's
+  queues) the process exits only once what was made is removed. In 7.25.4 each
   failure was logged and the create went on: a topic without its `keys/` or
   `disks/` was opened and returned as created (a replica had nothing to
   watch), and a queue backup took that half topic as the queue's new one,
@@ -653,7 +830,17 @@ code before it, except those listed under "No red test" in `TODO.md`.
   directory is removed first, and a removal that fails announces nothing,
   reads the key's cache again from what is left, and indexes the key again
   in its filtered iterators (ERROR *"Cannot index the key again after its
-  files changed: the filtered iterator is empty"* when it cannot).
+  files changed: the filtered iterator is empty"* when it cannot). A key
+  directory whose `stat()` fails with anything other than `ENOENT` answers
+  -1 (*"Cannot delete key, stat() of its directory FAILED"*), with nothing
+  deleted, dropped from the cache or announced; 7.25.4 answered 0, dropped
+  the key from the cache and announced it, with its files left on disk.
+  Only `ENOENT` is "not found" (logged, 0, as before). The mirror of the
+  delete to the rt_disk feeds (`disks/`) logs an `opendir()` or `readdir()`
+  that fails (*"Cannot tell the rt_disk feeds that a key was deleted,
+  opendir() of disks/ FAILED"*, *"Cannot tell every rt_disk feed ...,
+  readdir() of disks/ FAILED"*); 7.25.4 was silent. The delete itself still
+  answers 0 then. Test `timeranger2/test_delete_key_propagation`.
 - rt disk ids: an empty id and a same-creator duplicate are warnings (peer
   input) like another creator's; `tranger2_open_iterator()` no longer leaks
   on a bad topic.
@@ -671,10 +858,13 @@ newfile callback; then the instances of a delete, the pkey2 load, the
 readdir failures, the schema order, the audit of a JSON text inside a JSON
 text; then the pkey2 save guard, the audit's quote-proof scan, the rotatory
 `exit_on_fail`, the directory walks and the queue backups, and the C_UDP_S
-read buffer) were measured by an A/B of each change alone, on a machine
-shared with other builds; the pkey2 load with a benchmark written for it,
-and the C_UDP_S round trip with an echo server and a client written for it
-(neither in the tree). The raw figures, with their spread, are in `performance/c/README.md`.
+read buffer; then the instances that follow an unlink or a delete of their
+parent, the rotatory size limit in bytes, the audit of escaped names, the
+yev_loop fd close, and the kw of a subscription that rewrites it) were
+measured by an A/B of each change alone, on a machine shared with other
+builds; the pkey2 load, the C_UDP_S round trip and the publish each with a
+program written for it (none in the tree). The raw figures, with their
+spread, are in `performance/c/README.md`.
 
 - **timeranger2.**
     - An append costs what it cost in 7.25.4, with the checks this release adds
@@ -744,7 +934,12 @@ and the C_UDP_S round trip with an echo server and a client written for it
   alternated rounds, medians): a saved update 10.805 -> 10.836 us (+0.3%),
   link+unlink -0.4%, `create_link_half` -0.7%. The benchmark's topics have
   no pkey2, so the guard itself does not run there; the pkey2 list it needs
-  is fetched once per save and reused.
+  is fetched once per save and reused. The unlink and the delete that clear
+  the parent's ref in every instance of the child key (A/B of that change
+  alone, 12 alternated rounds, paired change): -3.8% .. +1.7%, no loss (a
+  saved update 10.61 -> 10.21 us, `delete_parent` 3040 -> 2944 us); the
+  benchmark's topics have no pkey2, and the new scans run only for a child
+  topic that has one.
 - **A pkey2 topic opens faster**: the load puts the primary in its own pkey2
   slot instead of building a copy of it. 4000 keys x 3 instances, 12
   alternated rounds: a reopen 353.5 -> 327.2 ms (-7.4%), an update through
@@ -828,7 +1023,18 @@ and the C_UDP_S round trip with an echo server and a client written for it
   (`exit_on_fail`, 8 alternated rounds, ns a record): `audit_record` 553 ->
   547 (-1.1%), `audit_record_retention` 547 -> 545 (-0.4%),
   `audit_record_flush` 1 280 -> 1 265 (-1.2%), `log_record` 386 -> 387
-  (+0.3%): only the failure paths moved.
+  (+0.3%): only the failure paths moved. The size limit compared in bytes
+  (8 alternated rounds, ns a record): `audit_record` 555 -> 574 (+3.4%, its
+  median +0.9%: three slow rounds), `audit_record_retention` 564 -> 565
+  (+0.1%), `audit_record_flush` 1 310 -> 1 300 (-0.8%), `log_record` 391 ->
+  388 (-0.8%), noise. The audit that reads an escaped key as its whole
+  string and a secret value as its whole shell word (10 alternated rounds, us
+  a record): +1.1% .. +1.4%, and `list-yunos` +6.9% from one outlier round
+  (its median -1.3%). **Price:** the audit that decodes the JSON escapes of
+  the names and looks for a write-attr in every string of the kw costs every
+  record +2-3% (8 alternated rounds, us a record: `list-yunos` 1.51 -> 1.55,
+  `run-yuno` 6.44 -> 6.57, a kw with a JSON text 7.74 -> 7.98, an escaped
+  JSON text 8.05 -> 8.29).
 - **yev_loop**: `perf_yev_ping_pong` -1.1%, `perf_tcp_test4` +1.6%,
   `perf_tcp_test5` -0.8% (8 rounds, noise); the last fixes (a take-back that
   wakes the loop, a stop without memory) -0.4% on `perf_yev_ping_pong` (6
@@ -837,15 +1043,36 @@ and the C_UDP_S round trip with an echo server and a client written for it
   read that takes a new gbuffer when the host keeps the received one was
   measured with an echo server and a client written for it (64-byte
   datagrams, 20 000 round trips a round, 8 alternated rounds): 11.88 +- 0.77
-  -> 11.59 +- 0.35 us a round trip (-2.4%), noise.
-- **ctest times** (`build/*.txt`, 30 runs of `yunetas test` from 2026-09-23
-  to 2026-09-25): of the tests whose code did not change after 7.25.4, only
-  `test_treedb_schema_fidelity` moved more than 10%, 1.14-1.26 s -> 1.55-1.81
-  s (+36% .. +44%). It opens four treedbs in four new stores, and its fsyncs
-  (88, ~0.56 s) are the price of the durable topic files and of the
-  projection record. The `c_tcp` / `c_tcp2` tests wait on whole seconds of
-  their retry timers and moved by whole seconds in every period
-  (`c_tcp/test2` 9-15 s, `c_tcp/test3` 2-4 s): noise.
+  -> 11.59 +- 0.35 us a round trip (-2.4%), noise. The close of an fd that
+  takes back the submissions of other events on it (8 alternated rounds):
+  `perf_yev_ping_pong` 137.8 +- 5.0 -> 140.5 +- 4.6 K msg/s (+2.0%), noise.
+- **Price kept, by decision: a subscription that rewrites the kw gets its
+  own.** `gobj_publish_event()` gives a subscription with `__local__` or
+  `__global__` a `kw_twin()` of the event (its own top level, the values and
+  gbuffers shared); every other subscriber shares the publisher's kw, as in
+  7.25.4 (see "Security"). No benchmark in the tree; one written for it, only
+  `gobj.o` swapped, us a publish (8 alternated rounds at ~250 bytes, 16 at
+  ~20 KB), 7.25.4 -> now:
+    - no `__local__` / `__global__`: 1.78 -> 1.78, 3.20 -> 3.21 and 19.86 ->
+      18.86 (1, 10, 100 subscribers, 250 B); 63.03 -> 62.76, 64.98 -> 64.22
+      and 79.59 -> 81.28 (20 KB): -5.0% .. +2.1%, noise.
+    - `__global__` on every subscription: 1.95 -> 2.08 (+6.6%), 3.71 -> 5.93
+      (+59.9%), 21.76 -> 44.94 (+106.5%) at 250 B; 64.37 -> 63.88 (-0.7%),
+      65.65 -> 67.54 (+2.9%), 82.44 -> 104.93 (+27.3%) at 20 KB.
+  A twinned delivery costs ~0.23 us whatever the size of the event (a deep
+  copy of the kw would cost ~1.8 us at 250 B and ~55 us at 20 KB). Every
+  C_IEVENT_SRV subscription carries `__global__` (the gate's
+  back-metadata), so a remote subscriber pays it, beside the serialization
+  of the kw it already paid.
+- **ctest times** (`build/*.txt`, 47 runs of `yunetas test` from 2026-09-23 to
+  2026-09-25): of the tests whose code did not change after 7.25.4, only
+  `test_treedb_schema_fidelity` moved more than 10%, 1.14-1.26 s (the 4 runs
+  before the change) -> 1.55-1.81 s (the 43 after it; +36% .. +44%, median 1.19
+  -> 1.65 s, +39%). It opens four treedbs in four new stores, and its fsyncs
+  (88, ~0.56 s) are the price of the durable topic files and of the projection
+  record. The `c_tcp` / `c_tcp2` tests wait on whole seconds of their retry
+  timers and moved by whole seconds in every period (`c_tcp/test2` 9-15 s,
+  `c_tcp/test3` 2-4 s): noise.
 
 ### Schemas (C_TREEDB)
 
@@ -1009,26 +1236,25 @@ and the C_UDP_S round trip with an echo server and a client written for it
   succeeded; a new node is created with them at 0 (7.25.4 wrote them first,
   so a process that died half way left a projection that said it was
   complete).
-- **A second `open-treedb` of an open treedb is refused first** ("already
-  open here: close-treedb first, nothing was changed"); 7.25.4 reconciled
-  `__system__` first and then failed with "Internal error, tranger client
-  NULL", and with this release's whole projection that reconcile would delete
-  topics and withdraw the saved schema. An open that fails before its treedb
-  starts (no valid schema, a collision, no C_NODE) destroys the tranger it
-  created; when the schema is refused, its services stay until
-  `close-treedb`. When the treedb's schema is refused (`treedb_open_db()` fails) the
-  answer is -1 ("did not open, its schema was refused (see the log):
-  close-treedb it before opening it again"); 7.25.4 answered 0 "Treedb
-  opened!". Until `close-treedb`, a second open of it answers -1 ("did not
-  open at its last open-treedb...") and its `treedbs` row says `opened:
-  false`. `delete-treedb` of it answers that it did not open and to
-  close-treedb it first (7.25.4: "while it is OPEN"). C_NODE gives a treedb
-  that `treedb_open_db()` refused no callback and does not close it at stop,
-  so the failed open logs only its cause and `close-treedb` logs nothing
-  (7.25.4 logged "TreeDB not found" at the open and twice at the close, with
-  stacks); a write of `with_link_events` on it sets no callback either.
-  Every answer of `open-treedb`, `close-treedb` and `delete-treedb` starts
-  with the yuno.
+- **A second `open-treedb` of an open treedb is refused first** ("already open
+  here: close-treedb first, nothing was changed"); 7.25.4 reconciled
+  `__system__` first and then failed with "Internal error, tranger client NULL",
+  and with this release's whole projection that reconcile would delete topics
+  and withdraw the saved schema. An open that fails before its treedb starts (no
+  valid schema, a collision, no C_NODE) destroys the tranger it created; when
+  the schema is refused, its services stay until `close-treedb`. When the
+  treedb's schema is refused (`treedb_open_db()` fails) the answer is -1 ("did
+  not open, its schema was refused (see the log): close-treedb it before opening
+  it again"); 7.25.4 answered 0 "Treedb opened!". Until `close-treedb`, a second
+  open of it answers -1 ("did not open at its last open-treedb...") and its
+  `treedbs` row says `opened: false`. `delete-treedb` of it answers that it did
+  not open and to close-treedb it first (7.25.4: "while it is OPEN"). C_NODE
+  gives a treedb that `treedb_open_db()` refused no callback and does not close
+  it at stop, so the failed open logs only its cause and `close-treedb` logs
+  nothing (7.25.4 logged "TreeDB not found" at the open and twice at the close,
+  with stacks); a write of `with_link_events` on it sets no callback either.
+  Every answer of `open-treedb`, `close-treedb` and `delete-treedb` starts with
+  the yuno.
 - **The agent stops when its treedb does not open.** The agent opens its treedb
   (`treedb_yuneta_agent`) with its schema imposed and exits 0 on a -1 answer
   (its log has the answer, syslog *"Cannot start agent treedb: ..."*); ydaemon
@@ -1112,35 +1338,76 @@ and the C_UDP_S round trip with an echo server and a client written for it
   topic and column that nobody made, and `apply-schema` put it in the file.
   Such a node now goes where the schema file in use declares it, then where
   the literal declares it, then last (scenario LQ).
-- **A save writes the places too.** `save-schema` writes into `__system__`
-  the position each topic and column has in the saved schema, where it
-  differs: a column the operator added with an `order` that is not its
-  position (e.g. 99) no longer reads as unsaved right after its save, nor as
-  a draft over the file after the apply. Each topic and column is found by
-  name, as the diff finds it, and written under its own id: a column the
-  operator moved to another topic keeps its old id, and a topic of another
-  treedb linked here keeps its treedb's. The `topic_version` a save writes is
-  found the same way. A name of the saved schema that `__system__` does not
-  hold is an ERROR (*"Topic of a saved schema not found in __system__, its
-  place is not written"*, and the same for a column and for the
-  `topic_version`): the schema is built from that same tree (scenarios OP,
-  OM).
+- **A save writes the places too.** A reorder is now a difference (above),
+  so `save-schema` writes into `__system__` the position each topic and
+  column has in the saved schema, where it differs. A column added with an
+  `order` that is not its position (e.g. 99) therefore does not read as
+  unsaved after its save, nor as a draft after the apply. Each topic and
+  column is found by name, as the diff finds it, and written under its own
+  id: a column the operator moved to another topic keeps its old id, and a
+  topic of another treedb linked here keeps its treedb's. The
+  `topic_version` a save writes is found the same way (7.25.4 wrote it under
+  the id composed from the names, which missed such a topic). A name of the
+  saved schema that `__system__` does not hold is an ERROR (*"Topic of a
+  saved schema not found in __system__, its place is not written"*, and the
+  same for a column and for the `topic_version`): the schema is built from
+  that same tree (scenarios OP, OM). The same save publishes every topic
+  whose saved place is not the file's: a node placed in front of its
+  siblings shifts them (with `order` 5 written on `users`, the draft is
+  `departments, users`), and the save publishes `users` and `departments`,
+  each with an `order` row in `changes` (scenario OX). `saved-schema` says
+  it before the save: its `draft_changed` is `{"users": true,
+  "departments": true}`, so the schema editor's draft marks and Save/Apply
+  agree with what the save publishes. A node that hangs from more than one
+  parent (the meta-schema's fkeys are lists: a column linked to a second
+  topic, a topic of another treedb linked in and still in its own) keeps
+  its `order`, which cannot say a place in each parent: the save does not
+  write it and names it in `data.places_not_written`, the draft places it by
+  the file in use, else last, and the diff does not compare its `order`
+  (scenarios SC, ST).
+- **Two topics with one name in one treedb are refused** (7.25.4 too). A
+  topic of another treedb linked in under a name the treedb has made two
+  topics of one name; the schema is keyed by name, so the rebuild kept the
+  last and the diff found the first, and a save published the other treedb's
+  topic, at a `topic_version` it did not raise, with no word.
+  `treedb_link_nodes()` refuses that link (*"Treedb already has a topic with
+  this name"*, with `id` and `sibling_id`), as it already refused two
+  columns of one name in a topic; it still takes the child that is already
+  linked there, and one keyed `<parent id>.<name>` (the move of a
+  rowid-keyed projection). What the link does not see (an autolink update,
+  an older store) is refused by `save-schema`, a dry run included, and by
+  the rebuild of the draft: ONE ERROR naming both ids (*"Schema refused: two
+  topics of the treedb in __system__ have the same name, unlink or rename
+  one of them"*, and the same for two columns of a topic), and -1 with
+  `data.twins` `{what, treedb_name, topic_name, name, first, second}`
+  (scenario DT).
+- **A failed `open-treedb` keeps the saved schema.** An open that installs a
+  newer literal withdraws the pending saved schema (`withdrawn_at_open`,
+  above) only when the treedb OPENS, so a literal that is refused does not
+  take the operator's save with it. The open that does not open keeps the
+  file, with an INFO (*"Saved schema kept: the open that installs
+  the schema from C did not open; the next one that installs a schema from
+  C and opens withdraws it"*), and `withdrawn_at_open.saved_schema_version`
+  is 0. While the refused literal is the file in use the kept save reads
+  `stale` (`treedb_open_db()` writes the literal over the file before it
+  checks the rest); with the good file back and the literal rolled back, it
+  is pending again (scenario KS).
 - **A save publishes a topic past what runs.** A store can run a topic at a
-  `topic_version` above the one of its schema file (a file written whole
-  over a topic that an apply had raised, by an older release or by a newer
-  literal installed whole). `save-schema` gave the topic the file's version
-  plus one, which was not above what ran, so the apply reached nothing and
-  nothing said so (7.25.4 too). It now raises the topic past the higher of
-  the two, and every open that runs such a file says it, per topic (WARNING
-  *"Schema file in use declares other columns than the store runs, at a
-  topic_version behind the store's ..."*, with `topic_version`,
-  `running_version` and `path`, the directory whose `topic_cols.json` says
-  what runs). `__system__` holds the file's columns, so a save with no edit
-  has nothing to save: its answer names such a topic in the comment and in
-  `data.store_ahead`, which both "nothing to save" answers of `save-schema`
-  carry (`{}` when there is none), for example `"store_ahead": {"users": {"topic_version": 1,
-  "running_version": 2, "path": "..."}}`. To keep what runs, edit the topic in `__system__` to those columns, then
-  `save-schema` and `apply-schema`. To run the file's, raise its
+  `topic_version` above the one of its schema file (a file written whole over a
+  topic that an apply had raised, by an older release or by a newer literal
+  installed whole). `save-schema` gave the topic the file's version plus one,
+  which was not above what ran, so the apply reached nothing and nothing said so
+  (7.25.4 too). It now raises the topic past the higher of the two, and every
+  open that runs such a file says it, per topic (WARNING *"Schema file in use
+  declares other columns than the store runs, at a topic_version behind the
+  store's ..."*, with `topic_version`, `running_version` and `path`, the
+  directory whose `topic_cols.json` says what runs). `__system__` holds the
+  file's columns, so a save with no edit has nothing to save: its answer names
+  such a topic in the comment and in `data.store_ahead`, which both "nothing to
+  save" answers of `save-schema` carry (`{}` when there is none), for example
+  `"store_ahead": {"users": {"topic_version": 1, "running_version": 2, "path":
+  "..."}}`. To keep what runs, edit the topic in `__system__` to those columns,
+  then `save-schema` and `apply-schema`. To run the file's, raise its
   `topic_version` above `running_version`, and the `schema_version`, in the
   schema from C (scenario BH).
 
@@ -1186,6 +1453,20 @@ and the C_UDP_S round trip with an echo server and a client written for it
   for its cancel and no memory to keep it answers -1 and gives up nothing: the
   event keeps its gbuffer and the fd of a timer or connect, and a read then
   completes with its data (test `yev_events/test_yevent_stop_nomem`).
+- **A closed fd takes back the submissions of other events on it.** A write
+  still in the submission queue after a failed `io_uring_submit()` went to
+  the kernel at the next submit that worked (7.25.4 too), and so did a kept
+  submission: when the event that owns the fd (a connect, an accept, a
+  timer) was stopped or destroyed and the fd closed, the operation ran on
+  whatever file reused the number -- the bytes of the old connection went
+  to the new one. Before the `close()`, the loop now takes back every
+  submission of another event on that fd that the kernel has not taken, in
+  the kept list and in the queue, and that event completes as `STOPPED`,
+  `-ECANCELED`, at the next cycle, with a WARNING (*"An fd is closed with
+  submissions of other events on it that the kernel did not take: taken
+  back, completed as canceled"*); with no memory for that completion they
+  are dropped all the same, with an ERROR (*"...: dropped, the event will
+  not complete"*). Test `yev_events/test_yevent_close_fd_kept`.
 - A zero-copy UDP send (`io_uring_prep_sendmsg_zc()`) gives two completions,
   the result (`IORING_CQE_F_MORE`) and a notification (`IORING_CQE_F_NOTIF`);
   the loop counted one, so an event destroyed at the first completion -- as
@@ -1212,7 +1493,12 @@ and the C_UDP_S round trip with an echo server and a client written for it
   come: it cancels what the kernel still has, collects the completions for up to
   1 s, and frees the rest with an ERROR (*"Loop destroyed with events whose
   completions did not come: freed"*, with `cancel_submitted`); in 7.25.4 they
-  leaked, or were freed while the kernel still had their operation. When there
+  leaked, or were freed while the kernel still had their operation. A
+  zero-copy send whose notification has not come is waited for up to 5 s in
+  all, and then NOT freed, with a WARNING (*"Loop destroyed with zero-copy
+  sends whose notification did not come: NOT freed, the kernel may still
+  read their gbuffer"*): the kernel may still read its gbuffer. Test
+  `yev_events/test_yevent_loop_end_drain` (case E). When there
   is no entry for that cancel, an ERROR says so first (*"Submission queue
   full: the cancel of the events left is NOT submitted, their completions may
   not come"*).
@@ -1256,7 +1542,19 @@ and the C_UDP_S round trip with an echo server and a client written for it
 - **The `EV_RX_DATA` gbuffer of C_UDP_S always carries the peer as its
   label.** In 7.25.4 the label was set only when tracing, so C_GSS_UDP_S (the
   logcenter) put every peer on one channel and joined the pieces of long log
-  lines from different yunos into corrupt records. Test `c_udp_s_rx`.
+  lines from different yunos into corrupt records. C_GSS_UDP_S keeps a
+  channel per peer (a source ip:port), and caps what the peers make it hold:
+  a frame buffer starts at 4 KB and doubles up to `max_frame_size` (default
+  1 MB, the old fixed size); a frame with no end within it is delivered cut,
+  with a WARNING at most each 10 s (*"Frame without end within
+  max_frame_size, delivered cut"*); `max_channels` (default 1024) drops the
+  datagrams of new peers beyond it (WARNING *"Too many peers, datagrams of
+  new peers dropped"*, on the transition); `max_pending_bytes` (default
+  8 MB, all peers together) drops a datagram beyond it with its peer's
+  unfinished frame (WARNING *"Too many bytes in unfinished frames, datagram
+  dropped with the unfinished frame of its peer"*, at most each 10 s, with a
+  count); a channel that cannot be allocated is logged, never dereferenced.
+  Test `c_udp_s_rx` (case 4: one-byte datagrams from many ports).
 - C_UDP_S publishes `EV_STOPPED` when a stop completes. Its event table
   declared the STATE name `ST_STOPPED` as an output event, and nothing was
   published (7.25.4 too). `EV_TX_READY` is declared and never published
@@ -1279,6 +1577,42 @@ and the C_UDP_S round trip with an echo server and a client written for it
   every datagram, counts every drop in the new stat `rxRefusedMsgs`, and says
   it at the first drop of each cause and then at most once a minute (see
   "Security"). Test `c_udp_s_rx`.
+- **C_TCP: a write that does not start drops the connection** (7.25.4 too).
+  A write whose event could not be created or started (no memory to keep its
+  submission, an empty gbuffer) was ignored: the event and its gbuffer
+  leaked, `tx_in_progress` stayed above 0, the later writes waited for ever,
+  and a stop waited in `ST_WAIT_STOPPED` for ever. The connection is now
+  dropped, with an ERROR (*"Cannot start a write: the connection is
+  dropped"* / *"Cannot create a write: the connection is dropped"*): a TCP
+  stream cannot go on with a piece missing (C_UDP_S drops one datagram and
+  sends the next). Test `c_tcp/test5`.
+- **C_TCP: the stop of a client already disconnected publishes
+  `EV_STOPPED`** (7.25.4 too). A client stopped while it waited for its
+  reconnect timer (after a failed connect) went to `ST_STOPPED`, published
+  nothing and kept its connect event, so the next `gobj_start()` failed
+  with *"yev_connect ALREADY exists"* and the client never connected again.
+  That stop now frees the connect event and publishes `EV_STOPPED` once,
+  inside `gobj_stop()`, like every other stop of C_TCP: a host that sets its
+  flags after `gobj_stop()` gets the event before they are set.
+  transport.md, "The stop". Test `c_tcp/test6`.
+- **A C client can withdraw a subscription that carries a `__global__`**
+  (7.25.4 too). C_IEVENT_SRV compared the withdrawal with the stored
+  `__global__`, which also holds the gate's back-metadata that the peer
+  never repeats: nothing matched, and the subscription stayed until the
+  channel closed. The withdrawal is filtered as the subscription is, and its
+  `__global__` is compared with the stored one without the gate's `_` keys.
+  Test `test_c_ievent_srv_peer_subs`.
+- **A repeated hard subscription is one** (7.25.4 too).
+  `gobj_subscribe_event()` stores a subscription's `__config__` without
+  `__hard_subscription__`, so a second hard subscription with the same kw
+  matched nothing: it was made again, with no log, and each event arrived
+  twice; a hard subscription over a plain one did not replace it either.
+  `__hard_subscription__` is no longer compared: a subscription that matches
+  a hard one returns the hard one, with a WARNING (*"Hard subscription
+  REPEATED, the one there is kept and returned"*), and a hard one over a
+  plain one replaces it. A repeated plain subscription is still replaced
+  (*"subscription(s) REPEATED, will be deleted and override"*). Test
+  `c_subscriptions/test3`.
 - **C_IEVENT_CLI sends nothing to a stopping transport.** A subscription
   added or withdrawn while the client is stopping (after `gobj_stop()`,
   before the close arrives) sent its frame down to the transport that was
@@ -1319,6 +1653,31 @@ and the C_UDP_S round trip with an echo server and a client written for it
   in mosquitto. Only a session reloaded with more pending QoS 2 messages than
   `max_inflight_messages` (the limit lowered between two connections) has
   queued ones. Test `c_mqtt/queued_in` (a raw client).
+- **C_PROT_MQTT2 client: a QoS 2 message received again with DUP=1 is found
+  by its packet id** (7.25.4 too). It was looked up by queue rowid: the old
+  copy stayed in flight for ever, the next message with the same packet id
+  delivered the stale copy again, and an unrelated message could be removed
+  instead. Now the copy waiting for its PUBREL is found by packet id, in
+  flight or queued, as in mosquitto, and replaced (WARNING *"QoS 2 message
+  received again (dup): it replaces the copy waiting for its PUBREL"*, was
+  *"removing an inflight qos2 dup message"*). And a client's QoS 2 PUBREL no
+  longer logs *"QoS mismatch"*: the qos flag bits (32) were compared with the
+  qos level (2). Test `c_mqtt/client_queues`.
+- **MQTT queues: a message that expires before it is sent gives its slot to
+  the queued ones** (7.25.4 too). The send loop dropped the expired message
+  and left the queued messages waiting, although a slot was free: with 20 in
+  flight and the 21st expired, the 22nd was never sent. The release now moves
+  queued messages in flight while there is room, sends, and repeats while an
+  expiry frees a slot. Test `c_mqtt/client_queues`.
+- **A queued MQTT message moves in flight with its content** (7.25.4 too).
+  `tr2q_move_from_queued_to_inflight()` moved the message first and read its
+  content after: a read that failed left an incoming QoS 2 message in flight
+  with no content, and no PUBREC was sent. The content is read first; on a
+  failure the message stays queued (ERROR *"Cannot load the content of a
+  queued message: it stays queued"*) and the call answers -1. And
+  `tr2q_check_backup()` does not back up while messages are queued (it
+  answers 0): the backup could lose their content. Test
+  `tr_queue/test_tr2q_queued`.
 
 ### Agent, gobj-c and tools
 
@@ -1338,50 +1697,56 @@ and the C_UDP_S round trip with an echo server and a client written for it
   5.5) is written as `{command, date, user}` only. A command with a `__reset__`
   value (`stats-yuno stats=__reset__`) is a write. The command word is read as
   the parser reads it (any case, quotes, aliases, looked up in the agent's
-  command table): `WRITE-TTY`, `'write-tty'`, `EV_WRITE_TTY` are console
-  writes too, and `CLOSE-CONSOLE` ends the bursts. `command-yuno` /
-  `command-agent` are judged by the command they carry, the one its handler
-  reads: the key exactly `command` (the parser stores a key as typed), so
-  `command-yuno id=gate COMMAND=list-yunos` with a kw `command=delete-yuno`
-  runs delete-yuno and gets the full record; a `command` key in any other case
-  is never read-only, and `write-tty NAME=x` does not move the record to
-  another console. Any other command is written as
-  `{command, date, user, source, kw}`: `__md_iev__` is no longer written, and `source` keeps the console purpose and
-  each inter-yuno hop (role, yuno, service, user, host). A `content64` is never
-  written (blanks around the `=` included): it becomes `<N bytes sha256:HEX>` of
-  the decoded content (the `sha256sum` of the binary). A secret is never
-  written: the value of a parameter named like `password`, `pwd`, `secret`,
-  `token`, `jwt`, `private_key`, `api_key` (set with `write-attr
-  attribute=api_key value=...` on wattyzer's `gate_pvpc`), `apikey`,
-  `x-api-key`, `cookie`, `session_key`, `__session_id__`, `auth_data`,
-  `passphrase`, `credential`, `authorization`, `bearer` or `salt` (and the
-  `value` of a `write-attr` of such an attribute, also as `{attribute, value}`
-  in a json object of the kw) is `<redacted>`, in the kw at any depth and in
-  any string, as are the token after `Bearer `, the credentials after
-  `Basic ` (the base64 of `user:password`) and anything shaped like a JWT; a
-  quoted secret value is taken whole (`password=\"two words\"`). A json key
-  is read with its escapes, and a JSON text given inside a JSON text (quotes
+  command table): `WRITE-TTY`, `'write-tty'`, `EV_WRITE_TTY` are console writes
+  too, and `CLOSE-CONSOLE` ends the bursts. `command-yuno` / `command-agent` are
+  judged by the command they carry, the one its handler reads: the key exactly
+  `command` (the parser stores a key as typed), so `command-yuno id=gate
+  COMMAND=list-yunos` with a kw `command=delete-yuno` runs delete-yuno and gets
+  the full record; a `command` key in any other case is never read-only, and
+  `write-tty NAME=x` does not move the record to another console. Any other
+  command is written as `{command, date, user, source, kw}`: `__md_iev__` is no
+  longer written, and `source` keeps the console purpose and each inter-yuno hop
+  (role, yuno, service, user, host). A `content64` is never written (blanks
+  around the `=` included): it becomes `<N bytes sha256:HEX>` of the decoded
+  content (the `sha256sum` of the binary). A secret is never written: the value
+  of a parameter named like `password`, `pwd`, `secret`, `token`, `jwt`,
+  `private_key`, `api_key` (set with `write-attr attribute=api_key value=...` on
+  wattyzer's `gate_pvpc`), `apikey`, `x-api-key`, `cookie`, `session_key`,
+  `__session_id__`, `auth_data`, `passphrase`, `credential`, `authorization`,
+  `bearer` or `salt` (and the `value` of a `write-attr` of such an attribute,
+  also as `{attribute, value}` in a json object of the kw) is `<redacted>`, in
+  the kw at any depth and in any string, as are the token after `Bearer `, the
+  credentials after `Basic ` (the base64 of `user:password`) and anything shaped
+  like a JWT (also one followed by a `.`). The value of a secret `name=value` is
+  its whole shell word, quoted pieces and escapes included: `password=\"two
+  words\"`, `password="a\" S"`, `password='it'\''s S'`; the closing quote of a
+  `"..."` value that ends with the secret stays in the record
+  (`command="write-attr attribute=api_key value=S" n=1` is written
+  `value=<redacted>" n=1`). A name is judged with its json escapes decoded, at
+  any level: a key (`\"secret key\":`, `\"password/db\":`, a key or an
+  `attribute` written `api\u005fkey`), and a `write-attr` given as JSON text
+  inside a string of the kw is recognized:
+  `{"x":"{\"attribute\":\"api_key\",\"value\":\"S\"}"}` writes no `S`. A json
+  key is read with its escapes, and a JSON text given inside a JSON text (quotes
   escaped as `\"` or `\u0022`, up to 8 levels) is scanned with its escapes
-  decoded, the record keeping the same JSON text (deeper than 8 levels the
-  run is written as `<N bytes, not scanned, sha256:HEX>`), whatever quotes
-  come before it (a double-quoted parameter, a stray quote). When no quoted
-  run holds it whole (`x="{\"password\":...}"`, where the parser's value
-  ends at the first `\"`, or `'{\"password\":...}'`), the key is read by its
-  shape and its value is taken with the quotes of its level. The redaction
-  is stricter than the
+  decoded, the record keeping the same JSON text (deeper than 8 levels the run
+  is written as `<N bytes, not scanned, sha256:HEX>`), whatever quotes come
+  before it (a double-quoted parameter, a stray quote). When no quoted run holds
+  it whole (`x="{\"password\":...}"`, where the parser's value ends at the first
+  `\"`, or `'{\"password\":...}'`), the key is read by its shape and its value
+  is taken with the quotes of its level. The redaction is stricter than the
   parser: `attribute` / `value` match in any case, and a write-tty or a secret
   carried under `COMMAND=` is hidden too. Up to 7.25.4 `check-user-pwd` and
   `set-user-pwd` wrote the password in clear text (see "Security"). The record
   is built before the command parser and the authz, from the text of any peer
-  that can send a command: its scan is one pass in linear time at each level
-  of escaped JSON text (at most 8), and it scans at most 128 MB of strings
-  per record, all levels together (a string past that
-  budget is written as `<N bytes, not scanned, sha256:HEX>`; of the command
-  text, its first word comes first). A console keystroke (`write-tty`) keeps
-  only who, when, which console, and how
-  many writes and bytes: one record at the first write of a burst (one user, one
-  console, up to 60 s) and one for the rest when the burst ends; up to 7.25.4
-  each keystroke wrote the whole kw with the keystroke in base64 (1000
+  that can send a command: its scan is one pass in linear time at each level of
+  escaped JSON text (at most 8), and it scans at most 128 MB of strings per
+  record, all levels together (a string past that budget is written as `<N
+  bytes, not scanned, sha256:HEX>`; of the command text, its first word comes
+  first). A console keystroke (`write-tty`) keeps only who, when, which console,
+  and how many writes and bytes: one record at the first write of a burst (one
+  user, one console, up to 60 s) and one for the rest when the burst ends; up to
+  7.25.4 each keystroke wrote the whole kw with the keystroke in base64 (1000
   keystrokes: 922 KB, now 945 bytes). A field of a `__md_iev__` hop from a peer
   that is not a string is written as `""`, with one WARNING (*"Audit: bad
   __md_iev__ from a peer, written as empty"*). An `install-binary` of a 32 MB
@@ -1393,9 +1758,10 @@ and the C_UDP_S round trip with an echo server and a client written for it
   `rotatory_keep_all_old_files()` (off by default: the yuno logs keep their one
   `.OLD`).
 - The agent flushes every audit record before the command runs (one `write()`
-  per command, 0.7-0.9 us more: `perf_rotatory` `audit_record_flush` 1.48 us
-  against `audit_record` 0.55 us): up to 7.25.4 a record could wait in the
-  buffer of the file and be lost in a crash.
+  per command, about 0.75 us more: `perf_rotatory` `audit_record_flush` 1.34
+  us against `audit_record` 0.60 us, the same 12 alternated rounds): up to
+  7.25.4 a record could wait in the buffer of the file and be lost in a
+  crash.
 - **A command whose kw carries a `gbuffer` releases it once.** The command
   parser gives the handler a new kw with the keys of the caller's kw, and it
   copied them with `json_object_update_missing()` (every command, with or
@@ -1409,6 +1775,35 @@ and the C_UDP_S round trip with an echo server and a client written for it
   had worked around it (they took a second reference of the bytes of the
   `file` columns); they take the command kw's own now. Test
   `command_binary_kw`.
+- **`kw_set_dict_value()` overwrites**, as its header always said, and
+  answers -1, logged, when it writes nothing (a scalar or a null in the
+  middle of the path, *"long path"*; an index outside its list; an empty
+  path, *"path empty"*). Up to 7.25.4 a key that already existed kept its
+  old value, with no sign: a peer's own `__username__` survived the gate
+  (see "Security"), a stale ref in a string fkey column could never be
+  removed (see "Data loss and integrity"), and `gobj_set_stat()` /
+  `gobj_incr_stat()` / `gobj_decr_stat()` never changed a stat that
+  existed. All 38 callers in the tree were checked: none relied on "set only
+  if absent", and none reads the return. gobj-js's `kw_set_dict_value()`
+  already overwrote. Test `kw/test_kw_set_dict_value`.
+- **New `kw_twin(gobj, kw)`**: a new kw with its own top level, the values
+  shared, and each binary field (`gbuffer`) increfed as `kw_incref()` does,
+  so the twin and the original each release their own reference. It is what
+  `gobj_publish_event()` gives a subscription that rewrites the kw (see
+  "Security"), for a kw written at the top level only:
+  `json_t *mine = kw_twin(gobj, kw);`, then
+  `json_object_set_new(mine, "x", json_integer(1));` leaves `kw` as it was,
+  and `KW_DECREF(mine)` releases the twin (kwid.md).
+- **A log call leaves `errno` as it found it** (`gobj_log_*()`, the traces),
+  and a failed `mkrdir()` leaves the cause in `errno` (`ENOTDIR` when a part
+  of the path is not a directory, `ENAMETOOLONG`, `EINVAL` for an empty
+  path, or the syscall's); `rmrdir()` / `rmrcontentdir()` set `ENAMETOOLONG`
+  / `EINVAL` on their refusals. A caller that logged `strerror(errno)` after
+  a helper that logged its own failure named another cause, or "Success"
+  (7.25.4 too): `tranger2_create_topic()`'s CRITICAL *"Cannot create
+  TimeRanger subdir. mkrdir() FAILED"* always said errno 0, and callers in
+  timeranger2, C_TREEDB and the agent had the same defect. Tests
+  `tr_queue/test_tr_queue_backup_failed`, `helpers/test_dir_read_error`.
 - `gbuffer_base64_to_binary()` decodes `base64_len` chars instead of reading
   up to a `'\0'`: a slice of a longer text (a `content64='...'` inside a
   command line) failed to decode.
@@ -1525,6 +1920,11 @@ and the C_UDP_S round trip with an echo server and a client written for it
   (its audit) and every yuno (its file log). `rotatory_open(..., TRUE)` still
   exits when the open itself fails. Test `helpers/test_rotatory` (each case in
   a forked child with `exit_on_fail`).
+- **rotatory: the size limit is compared in bytes** (7.25.4 too). It was
+  compared in whole megabytes, so a limit of 8 MB rotated a file at 9 MB, and
+  a yuno's logs reached 126 MB instead of 112 MB (7 days x 2 pieces x 8 MB;
+  DEBUGGING.md 5.3). A file of exactly the limit is not rotated; the next
+  record over it is. Test `helpers/test_rotatory`.
 - rotatory: at a new day the file of the day before is not size-rotated. In
   7.25.4 a day whose last piece crossed the size limit had that file renamed
   to `.OLD` at the first record of the next day, and the day's earlier
@@ -1560,6 +1960,14 @@ and the C_UDP_S round trip with an echo server and a client written for it
   pages when the test created its loop), and the loop retries and goes on. A
   full suite run beside other work failed `test_yevent_listen1` on it; the
   message is still printed.
+- **`create-yuno` refuses a release name too long for it** (7.25.4 too). It
+  built `yuno_release` into 120 bytes and ignored the failure: a binary
+  version plus a configuration version longer than that stored a cut pkey2
+  and answered success; `find-new-yunos` never found that name, offered the
+  yuno again at every call, and `create=1` failed on it with "Yuno already
+  exists" for ever. The buffer is `NAME_MAX`, and a name that does not fit
+  answers -1: *"<role^name>: Yuno '<role>.<name>': release name too long
+  ('<binary version>' + '<config version>')"*.
 - **`find-new-yunos` says which rows are already registered.** On a resumed
   upgrade (a `find-new-yunos create=1` that ran, and no `deactivate-snap`
   after it) its preview listed those rows again as new, and `create=1` failed
@@ -1599,6 +2007,18 @@ and the C_UDP_S round trip with an echo server and a client written for it
   (*"<role^name>: cannot open topic '<t>' (see the log)"*).
 - `gc-assets` answers a report (`dry_run`, `assets`, `blobs`, `refused`,
   `blobs_refused`) instead of the list of ids taken.
+- **C_TRANGER `add-record` works** (7.25.4: a stub that answered -1
+  *"Pending to review"* and logged an ERROR with a stack). It appends a
+  record that carries the topic's pkey, on the master only, with the
+  permission `write`: `command-yuno id=<id> service=<tranger>
+  command=add-record topic_name=pp record='{"id":"1","tm":1700000000}'`
+  answers *"<role^name>: record added to topic 'pp', rowid <n>"* with
+  `data: {topic_name, rowid, t, tm}`. `record` is a dict or its json text;
+  `__t__` (0: now) and `user_flag` are optional. A replica answers -1 before
+  the library is called. Test `test_c_tranger`.
+- **The pushes of a C_TRANGER live list carry its id as `rt_id`** (7.25.4:
+  no id), so a client with two lists open on one topic tells their records
+  apart. Test `test_c_tranger`.
 - `instances` no longer leaks its `filter` when it answers "What
   topic_name?". An `update-node` with `create` whose create is refused logs
   *"Cannot update node: it does not exist and it cannot be created (see the
@@ -1643,9 +2063,13 @@ and the C_UDP_S round trip with an echo server and a client written for it
 
 ### JS: gobj-js, gobj-ui, gui_agent, gui_treedb
 
-- The versions: gobj-js 7.25.1 - 7.25.6, gobj-ui 7.25.6 - 7.25.20, gui_agent
-  0.22.79 - 0.22.95, gui_treedb 0.17.58 - 0.17.68 (7.25.4 shipped gobj-js
-  7.25.0, gobj-ui 7.25.5, gui_agent 0.22.78, gui_treedb 0.17.57).
+- The versions: gobj-js 7.25.1 - 7.25.8, gobj-ui 7.25.6 - 7.25.21, gui_agent
+  0.22.79 - 0.22.97, gui_treedb 0.17.58 - 0.17.70 (SDK 7.25.4 shipped
+  gobj-js 7.25.0, gobj-ui 7.25.5, gui_agent 0.22.78, gui_treedb 0.17.57). In
+  this section a bare version is the package's own; the SDK is written "SDK
+  7.25.4". Each package version named was published on npm, so a
+  parenthesis about one of them (for example "gobj-ui 7.25.15 - 7.25.19
+  applied ...") is about a version a consumer may have installed.
 - Deployed to artgins.yunetacontrol.com and .ovh (gui_agent) and
   artgins.ytreedb.com (gui_treedb); every deploy console-checked (login,
   session, Schemas editor, forced reconnect, navigation and clicks during
@@ -1680,7 +2104,7 @@ and the C_UDP_S round trip with an echo server and a client written for it
   `delete` / `cancel` (they rendered in English in every locale).
 - gobj-ui 7.25.13 / 7.25.14: in `C_YUI_TREEDB_TOPICS`, a write cut by the
   drop no longer asks for its topic out of session (the adapter logged
-  "cannot route 'nodes' -- not in session"). A drop marks the view, and the
+  "cannot route 'nodes' — not in session"). A drop marks the view, and the
   first edge that finds the transport in session reads every open topic
   table again, once: a node another writer created, changed or deleted during
   the drop shows. An "up" before the transport is in session, or with no drop
@@ -1705,7 +2129,7 @@ and the C_UDP_S round trip with an echo server and a client written for it
 - gui_agent 0.22.87: an `apply` timeout decides with the answers that came.
   One treedb applied means restart, so kill / run / play goes on without the
   silent owners, and the toast names them and says their state is unknown
-  (the tab of 7.25.4 stopped and left the applied schema for the next
+  (the tab of SDK 7.25.4 stopped and left the applied schema for the next
   unrelated restart). With nothing applied there is no restart, and the toast
   names the silent owners. New locale keys (en, es). 0.22.88: only the
   gobj-ui range (^7.25.14).
@@ -1730,8 +2154,8 @@ and the C_UDP_S round trip with an echo server and a client written for it
   counts its loads (each `EV_CLEAR_DATA` is one), sends `graphs_load` in the
   `EV_UPDATE_NODE` of `__graphs__`, `C_YUI_TREEDB_GRAPH` echoes it back on the
   three refusal paths, and a refusal from an older load is ignored with a
-  warning (7.25.15 - 7.25.19 applied a refusal answered after a reload to the
-  fresh load). A host that sends no `graphs_load` is handled as before.
+  warning (gobj-ui 7.25.15 - 7.25.19 applied a refusal answered after a reload
+  to the fresh load). A host that sends no `graphs_load` is handled as before.
 - The ranges: gui_treedb 0.17.58 - 0.17.61 took gobj-ui ^7.25.11 - ^7.25.14
   (gobj-js stayed ^7.22.2); gui_agent 0.22.89 and gui_treedb 0.17.62 took
   gobj-ui ^7.25.15 and gobj-js ^7.25.1.
@@ -1746,7 +2170,8 @@ and the C_UDP_S round trip with an echo server and a client written for it
   `KW_REQUIRED`, as C does (*"path MUST BE a json boolean"*, the kw traced);
   with `KW_WILD_NUMBER` it reads a number (`0` is false), a `"true"` /
   `"false"` string in any case (else its decimal integer, as `atoi()` does:
-  `"0x1F"` is false since 7.25.5, 7.25.2 read it as hex) or `null` (false),
+  `"0x1F"` is false since gobj-js 7.25.5, 7.25.2 read it as hex) or `null`
+  (false),
   and a
   list or a dict is `false` and logged (*"path MUST BE a simple json
   element"*), as in C: `kw_get_bool(gobj, {on: "false"}, "on", true,
@@ -1755,8 +2180,9 @@ and the C_UDP_S round trip with an echo server and a client written for it
   `KW_REQUIRED` logs a wrong type. `kw_set_subdict_value()` passed
   `KW_REQUIRED` where it meant `KW_CREATE`, and `trace_json()` no longer
   needs `window` (in a worker or node a `KW_REQUIRED` miss threw instead of
-  logging). With no gobj, `kw_get_list()` / `kw_get_dict()` logged a false
-  *"gobj bad type"* until 7.25.5. No caller in the SDK or the project SPAs
+  logging). With no gobj, `kw_get_list()` / `kw_get_dict()` of gobj-js
+  7.25.2 - 7.25.4 logged a false *"gobj bad type"* (fixed in 7.25.5). No
+  caller in the SDK or the project SPAs
   relied on the old answers; every caller of `kw_get_bool()` passes a boolean
   (`__hard_subscription__`, `__own_event__`, `options.create`).
 - gobj-ui 7.25.16: `C_YUI_SCHEMA_EDITOR` hears a Refresh during a Save and
@@ -1766,8 +2192,8 @@ and the C_UDP_S round trip with an echo server and a client written for it
   again on the schemas it read, with only the changed fields put back on top
   (two new consumer i18n keys). `C_G6_NODES_TREE`: a refused `__graphs__`
   write keeps Save lit until a Save writes it, or until an echo of the
-  `__graphs__` topic shows it written (7.25.19; 7.25.15-7.25.18 kept it owed
-  after such an echo). The shell dialogs' default
+  `__graphs__` topic shows it written (gobj-ui 7.25.19; 7.25.15 - 7.25.18
+  kept it owed after such an echo). The shell dialogs' default
   labels are the i18n keys `ok`, `yes`, `no`, `delete`, `cancel` (they were
   English literals no locale holds); `yui_install` asks `install this app`.
   Every consumer SPA that shows these dialogs carries the keys (yunovatios
@@ -1781,32 +2207,30 @@ and the C_UDP_S round trip with an echo server and a client written for it
   again cannot take an old tab's answer. Five new locale keys (en, es).
   gui_agent 0.22.90 and gui_treedb 0.17.63: the ranges (gobj-ui ^7.25.16,
   gobj-js ^7.25.2); gui_treedb gets the `ok` key.
-- **gobj-ui 7.25.17, gobj-js 7.25.3, gui_agent 0.22.91, gui_treedb 0.17.64.**
-  In the treedb graph, a Save whose `__graphs__` write the backend refused
-  lit Save again only in tests: the real transports (`C_IEVENT_CLI`,
-  gui_agent's `C_AGENT_TREEDB_LINK`) answer with the request's
-  `__md_command__` and not its `record`, so the view logged *"a refused
-  __graphs__ write names no topic"* and the next Save found nothing to
-  write. The topic now travels in `__md_command__` (`graph_topic`). In the
-  schema editor, a write in flight also makes its body `inert`: the pointer
-  was already blocked, but the keyboard reached the focused row and sent
-  actions `ST_SAVING` does not declare (*"Event NOT DEFINED"*). A write marks
-  the topic of its record, not the topic on screen (an import from the
-  topics screen marked nothing, so no draft chip and no export warning). The
-  reason a load failed changes language; a treedb or topic name in a notice
-  is shown as it is (7.25.17 translated it: a topic `nodes` read "Nodos";
-  fixed in 7.25.19). In gui_agent's Schemas tab, a Save
-  or a `saved-schema` round whose owner never answers ends after 30 s (a
-  `C_TIMER` per round, like the apply steps) and names the silent owners
-  (new keys `save unanswered`, `saved schemas unanswered`); it stayed open
-  until the session dropped, and Apply stayed off with it. A Save cut by a
-  drop reads the saved schemas again when the session is back, and since
-  0.22.94 a read that shows the Save landed clears "unsaved changes" (an
-  error answer, or data that is not a list, proves nothing and keeps it, with
-  a warning naming the owner; 0.22.94 cleared it); a late
-  `save-schema` / `saved-schema` answer is logged as a warning (0.22.91 -
-  0.22.93 dropped it with no log). The ranges: gobj-ui ^7.25.17, gobj-js
-  ^7.25.3.
+- **gobj-ui 7.25.17, gobj-js 7.25.3, gui_agent 0.22.91, gui_treedb 0.17.64.** In
+  the treedb graph, a Save whose `__graphs__` write the backend refused lit Save
+  again only in tests: the real transports (`C_IEVENT_CLI`, gui_agent's
+  `C_AGENT_TREEDB_LINK`) answer with the request's `__md_command__` and not its
+  `record`, so the view logged *"a refused __graphs__ write names no topic"* and
+  the next Save found nothing to write. The topic now travels in
+  `__md_command__` (`graph_topic`). In the schema editor, a write in flight also
+  makes its body `inert`: the pointer was already blocked, but the keyboard
+  reached the focused row and sent actions `ST_SAVING` does not declare (*"Event
+  NOT DEFINED"*). A write marks the topic of its record, not the topic on screen
+  (an import from the topics screen marked nothing, so no draft chip and no
+  export warning). The reason a load failed changes language; a treedb or topic
+  name in a notice is shown as it is (gobj-ui 7.25.17 translated it: a topic
+  `nodes` read "Nodos"; fixed in 7.25.19). In gui_agent's Schemas tab, a Save or
+  a `saved-schema` round whose owner never answers ends after 30 s (a `C_TIMER`
+  per round, like the apply steps) and names the silent owners (new keys `save
+  unanswered`, `saved schemas unanswered`); it stayed open until the session
+  dropped, and Apply stayed off with it. A Save cut by a drop reads the saved
+  schemas again when the session is back, and since 0.22.94 a read that shows
+  the Save landed clears "unsaved changes" (an error answer, or data that is not
+  a list, proves nothing and keeps it, with a warning naming the owner;
+  gui_agent 0.22.94 cleared it); a late `save-schema` / `saved-schema` answer is
+  logged as a warning (gui_agent 0.22.91 - 0.22.93 dropped it with no log). The
+  ranges: gobj-ui ^7.25.17, gobj-js ^7.25.3.
 - **gobj-ui 7.25.18, gui_agent 0.22.92, gui_treedb 0.17.65.** The treedb
   topics and graph views publish `EV_RECORD_WRITTEN` when one of their writes
   lands, to tell the host which record was written. Its `treedb_name` and
@@ -1835,64 +2259,111 @@ and the C_UDP_S round trip with an echo server and a client written for it
   relied on the old behaviour. gui_agent 0.22.93 and gui_treedb 0.17.66 take
   gobj-js `^7.25.4`.
 - **gobj-js 7.25.5, gobj-ui 7.25.19, gui_agent 0.22.94, gui_treedb 0.17.67.**
-  `kw_get_str()` logs a value that is not a string (*"path MUST BE a json
-  str"*, the kw traced) with or without `KW_REQUIRED`, as C does, and gives
-  the default back; a `null` value, or a key present with `undefined`, is
-  never logged, and `KW_REQUIRED` still logs a missing path (7.25.4 logged
-  nothing for a value of another type). With no gobj, `kw_get_str()` no
-  longer logs a false *"gobj bad type"*, and the three readers use the C
-  wording. In gui_agent's Schemas tab, Save, Differences and Apply work only
-  in `ST_READY`: a re-discovery left the old tree on screen with the three
-  live, and each click answered *"Event NOT DEFINED in state"* (7.25.4 too).
-  The discovery has a 30 s deadline (new key `discovery unanswered`), and one
-  that fails or finds no treedb removes the old tree and says why. A write
-  in a data treedb no longer lights "unsaved changes" (only a write in
-  `treedb_system_schema` does). Since 0.22.95 the three also need the session
-  (`toolbar_ready()`: `ST_READY` and the agent link connected; the tooltip
-  says `not connected to an agent`), and an Apply confirmed out of session is
-  refused, with a toast, before the tree is taken down: in 7.25.4 the Apply
-  dialog could be confirmed after a drop, took the tree down and then failed
-  to send (0.22.94 gated the three on the state alone). A Save or
-  Differences out of session is said in a toast too. The treedb topics view publishes
-  `EV_RECORD_WRITTEN` for a delete too, with the node the treedb answered,
-  and `created` is true for its +New. `C_YUI_NODE` declares its navs'
-  `EV_NAV_ITEM_CLOSE` and `EV_DRAWER_CLOSE_REQUESTED`, and every nav event in
-  `ST_OFF`; the topic form declares its json viewers' `EV_EXPAND_PATH` (it
-  answers `EV_SUBTREE_ERROR`, new key `this part cannot be loaded here`):
-  each was a latent *"Event NOT DEFINED in state"*. Since gobj-ui 7.25.20
-  `EV_SUBTREE_ERROR` takes `{path, error | i18n, by_design}`: `C_YUI_JSON`
-  draws an `i18n` key with `t()` and `data-i18n`, so the stub changes
-  language, and logs a `by_design` refusal as a WARNING (a free-text
+  `kw_get_str()` logs a value that is not a string (*"path MUST BE a json str"*,
+  the kw traced) with or without `KW_REQUIRED`, as C does, and gives the default
+  back; a `null` value, or a key present with `undefined`, is never logged, and
+  `KW_REQUIRED` still logs a missing path (the gobj-js 7.25.0 of SDK 7.25.4
+  logged it only with `KW_REQUIRED`). With no gobj, `kw_get_str()` no longer
+  logs a false *"gobj bad type"*, and the three readers use the C wording. In
+  gui_agent's Schemas tab, Save, Differences and Apply work only in `ST_READY`:
+  a re-discovery left the old tree on screen with the three live, and each click
+  answered *"Event NOT DEFINED in state"* (SDK 7.25.4 too). The discovery has a
+  30 s deadline (new key `discovery unanswered`), and one that fails or finds no
+  treedb removes the old tree and says why. A write in a data treedb no longer
+  lights "unsaved changes" (only a write in `treedb_system_schema` does). Since
+  0.22.95 the three also need the session (`toolbar_ready()`: `ST_READY` and the
+  agent link connected; the tooltip says `not connected to an agent`), and an
+  Apply confirmed out of session is refused, with a toast, before the tree is
+  taken down: in SDK 7.25.4 the Apply dialog could be confirmed after a drop,
+  took the tree down and then failed to send (0.22.94 gated the three on the
+  state alone). A Save or Differences out of session is said in a toast too. The
+  treedb topics view publishes `EV_RECORD_WRITTEN` for a delete too, with the
+  node the treedb answered, and `created` is true for its +New. `C_YUI_NODE`
+  declares its navs' `EV_NAV_ITEM_CLOSE` and `EV_DRAWER_CLOSE_REQUESTED`, and
+  every nav event in `ST_OFF`; the topic form declares its json viewers'
+  `EV_EXPAND_PATH` (it answers `EV_SUBTREE_ERROR`, new key `this part cannot be
+  loaded here`): each was a latent *"Event NOT DEFINED in state"*. Since gobj-ui
+  7.25.20 `EV_SUBTREE_ERROR` takes `{path, error | i18n, by_design}`:
+  `C_YUI_JSON` draws an `i18n` key with `t()` and `data-i18n`, so the stub
+  changes language, and logs a `by_design` refusal as a WARNING (a free-text
   `error` is drawn as it came and logged as an ERROR). The form and
   `C_YUI_JSON_PAD` (`collapsed in the source`) send `by_design` keys, and the
-  "no session" of the topics, graph and gui_treedb views sends a key (7.25.19
-  drew the form's stub in the language it was clicked in, and logged an ERROR
-  at each click). The toast key `raw json
-  viewer unavailable` is in every app locale. `C_YUI_UPLOT` keeps a `stroke`
-  / `fill` given as a function. The consumers' `kw_get_str()` calls were
-  audited: none reads a value that is not a string. gui_agent 0.22.94 and
-  gui_treedb 0.17.67 take gobj-js `^7.25.5` and gobj-ui `^7.25.19`.
+  "no session" of the topics, graph and gui_treedb views sends a key (gobj-ui
+  7.25.19 drew the form's stub in the language it was clicked in, and logged an
+  ERROR at each click). The toast key `raw json viewer unavailable` is in every
+  app locale. `C_YUI_UPLOT` no longer reads `stroke` / `fill` with
+  `kw_get_str()` (a function there is not logged). The consumers' `kw_get_str()`
+  calls were audited: none reads a value that is not a string. gui_agent 0.22.94
+  and gui_treedb 0.17.67 take gobj-js `^7.25.5` and gobj-ui `^7.25.19`.
 - **gobj-js 7.25.6, gobj-ui 7.25.20, gui_agent 0.22.95, gui_treedb 0.17.68.**
-  `kw_find_path()` answers as C (7.25.4 too): a kw that is not a dict or a
-  list returned `0`, so `kw_get_int()` / `kw_get_real()` answered `0` instead
-  of the default, `kw_get_str()` / `kw_get_bool()` logged a second line, and
-  the log went through `gobj_short_name(null)` (*"gobj bad type"*); a `null`
-  middle segment threw a `TypeError` where C gives the default. Now the answer
-  is `undefined`, logged once (*"kw must be list or dict: '<path>'"*); a
-  missing or null middle segment is logged only when verbose, a scalar one
-  always, as the C recursion does. `KW_CREATE` no longer writes into a null
-  kw. No caller passed such a kw. In the treedb graph, a `__graphs__` create
-  echo goes through `apply_graphs_echo()`, as the update echo does: in 7.25.4
-  it rebuilt the saved copy of every topic from the live objects, so the
-  unsaved edits of the other topics counted as saved and the next Save did
-  not write them. The schema editor's writes check the session first (7.25.4
-  too): out of session a write is not sent, the editor leaves `ST_SAVING`
-  with *"cannot reach the treedb"*, and the reconnect reloads; with a direct
-  `C_IEVENT_CLI` it waited in `ST_SAVING` with no way out (no deployed
-  consumer was hit). Its refused-write toast gets the key, not a text
-  translated before it. gui_agent 0.22.95 and gui_treedb 0.17.68 take
-  gobj-js `^7.25.6` and gobj-ui `^7.25.20`; gui_treedb sends a key for its
-  "no session" stub.
+  `kw_find_path()` answers as C (SDK 7.25.4 too): a kw that is not a dict or a
+  list returned `0`, so `kw_get_int()` / `kw_get_real()` answered `0` and
+  `kw_get_bool()` answered `false` instead of the default, and the log went
+  through `gobj_short_name(null)` (*"gobj bad type"*); from gobj-js 7.25.2 on,
+  `kw_get_str()` / `kw_get_bool()` also logged a second line. A `null` middle
+  segment threw a `TypeError` where C gives the default. Now the answer is
+  `undefined`, logged once (*"kw must be list or dict: '<path>'"*); a missing or
+  null middle segment is logged only when verbose, a scalar one always, as the C
+  recursion does. `KW_CREATE` no longer writes into a null kw. No caller passed
+  such a kw. In the treedb graph, a `__graphs__` create echo goes through
+  `apply_graphs_echo()`, as the update echo does: in SDK 7.25.4 it rebuilt the
+  saved copy of every topic from the live objects, so the unsaved edits of the
+  other topics counted as saved and the next Save did not write them. The schema
+  editor's writes check the session first (SDK 7.25.4 too): out of session a
+  write is not sent, the editor leaves `ST_SAVING` with *"cannot reach the
+  treedb"*, and the reconnect reloads; with a direct `C_IEVENT_CLI` it waited in
+  `ST_SAVING` with no way out (no deployed consumer was hit). Its refused-write
+  toast gets the key, not a text translated before it. gui_agent 0.22.95 and
+  gui_treedb 0.17.68 take gobj-js `^7.25.6` and gobj-ui `^7.25.20`; gui_treedb
+  sends a key for its "no session" stub.
+
+- **gobj-js 7.25.7, gobj-ui 7.25.21, gui_agent 0.22.96, gui_treedb
+  0.17.69.** The raw-json viewer of `C_YUI_TREEDB_TOPICS` /
+  `C_YUI_TREEDB_GRAPH` answers a drill asked out of session (a warning, no
+  command sent, `EV_SUBTREE_ERROR` with the key `no session`) or refused by
+  the transport (the refusal text); a refused drill of the whole document is
+  also a toast. In SDK 7.25.4 the stub stayed on "loading" for the life of
+  the viewer, even after the reconnect. gobj-js `kw_set_dict_value()` logs
+  and answers -1 when a middle segment is `null` or a scalar (*"segment
+  '<k>' is not a dict or a list: '<path>'"*), with the kw unchanged, instead
+  of throwing a `TypeError` (SDK 7.25.4 too): every typed reader with
+  `KW_CREATE` over such a path answers its default, as C does (gobj-js 7.25.6
+  said so, and still threw with `KW_CREATE`). gui_agent's Differences has a
+  30 s deadline (`diff_deadline`, a `C_TIMER` child) and a round number
+  (`diff_round`): one owner that never answered kept the button off for the
+  life of the tab, and an answer of an earlier comparison counted in the
+  next (SDK 7.25.4 too); now the report shows what came, with the silent
+  owners named at its top (new key `differences unanswered`, en and es), and
+  a late answer is logged. Save's title and aria-label say why it is off
+  (`no schema owner in this yuno`, the busy reason, `not connected to an
+  agent`) and change language, as Differences and Apply already did (gui_agent
+  0.22.95 left Save without it). The gui_agent console answers a click on a
+  `__collapsed__` stub of an answer (`print-tranger expanded=1`) with `this
+  part cannot be loaded here` (a warning, nothing sent): its viewer had no
+  subscriber, and the stub stayed on "loading" in silence (SDK 7.25.4 too);
+  type the command again with `path=`. gui_agent and gui_treedb take gobj-js
+  `^7.25.7` and gobj-ui `^7.25.21`.
+- **gobj-js 7.25.8, gui_agent 0.22.97, gui_treedb 0.17.70: a subscription
+  that rewrites the kw gets its own** (security; SDK 7.25.4 too). The port of
+  the C fix (see "Security"). `gobj_publish_event()` gave every subscriber
+  the same kw, and each subscription's `__local__` (`kw_pop`) and
+  `__global__` changed it: one subscription forged or stripped the event of
+  every subscriber after it and of the publisher, and a later `__filter__`
+  was evaluated on the altered kw. `C_IEVENT_CLI`'s `mt_inject_event()` also
+  wrote its ievent stack, `__msg_type__` and the removal of `__service__`
+  into the published kw, so a local subscriber after the transport got the
+  transport's `__md_iev__`. Now a subscription with a non-empty `__local__`
+  / `__global__` gets a shallow twin (`Object.assign({}, kw)`: its own top
+  level, the nested values shared), `__global__` goes in as a copy (a
+  receiver cannot change the subscription), and `__filter__` and
+  `mt_publication_filter` see the publisher's kw; every other subscriber
+  shares the publisher's kw, at no cost. `mt_inject_event()` works on a
+  shallow copy with `__md_iev__` copied deep. No JS consumer sets
+  `__global__` / `__local__` (gobj-ui, yunos-js, wattyzer, yunovatios,
+  estadodelaire, hidraulia, yunomusica: 0 hits), so gui_agent 0.22.97 and
+  gui_treedb 0.17.70 only take the fixed runtime (gobj-js `^7.25.8`);
+  gobj-ui's devDependency moved to `^7.25.8`, with no gobj-ui release.
+  events.md.
 
 ### BREAKING
 
@@ -1929,7 +2400,8 @@ and the C_UDP_S round trip with an echo server and a client written for it
   (logged) for a tree too long or too deep. `find_files_with_suffix_array()`,
   `walk_dir_array()` and `get_ordered_filename_array()` return -1 with the
   listing empty when an entry cannot be kept, and the last two also when the
-  root cannot be opened (7.25.4: 0); those three and `walk_dir_tree()` return
+  root is a directory that cannot be opened (7.25.4: 0; a root that is not a
+  directory already answered -1); those three and `walk_dir_tree()` return
   -1 when a `readdir()` fails (7.25.4: 0, with the entries not read missing),
   and a subdirectory that cannot be read fails the walk. A walk callback
   that returns FALSE stops the whole walk (7.25.4: only its directory); a
@@ -1962,8 +2434,9 @@ and the C_UDP_S round trip with an echo server and a client written for it
 - rotatory: `exit_on_fail` applies to `rotatory_open()` only; a later open
   that fails is printed once and tried again at the next record (7.25.4
   exited the process).
-- The agent removes audit files older than `audit_keep_days` (default 7) at
-  its first start.
+- The agent removes audit files older than `audit_keep_days` (default 7; 0
+  keeps all) at every start and at each new audit file; the first start
+  after the upgrade removes the backlog.
 - gobj-c: the kw a command handler gets holds its own reference of a
   `gbuffer` (the parser increfs it, `kw_update_missing()`). A handler that
   took a second reference to work around the old double release now leaks
@@ -2163,6 +2636,70 @@ and the C_UDP_S round trip with an echo server and a client written for it
   failure answer is *"<role^name>: cannot list '<dir>', see the log"*. MQTT
   broker: `list-queues queue=<name>` answers -1 for a queue that cannot be
   opened or read whole (7.25.4: 0).
+- gobj-c: `kw_set_dict_value()` overwrites a key that exists (7.25.4 kept
+  the old value) and returns -1, logged, when it writes nothing (a scalar or
+  null in the middle of the path, an index outside its list, an empty path).
+  New `kw_twin()`. `gobj_publish_event()` gives a subscription with a
+  non-empty `__local__` / `__global__` its own `kw_twin()` of the event: such
+  a subscriber no longer sees, nor changes, what another one changed, and
+  the `__filter__` of every subscription sees the publisher's kw (7.25.4
+  applied each `__local__` / `__global__` to the one kw of every
+  subscriber). `gobj_subscribe_event()` of a subscription that matches a
+  hard one returns the hard one, with a WARNING (7.25.4 made a second one),
+  and a hard subscription over a plain one replaces it. A log call leaves
+  `errno` as it found it, and a failed `mkrdir()` leaves the cause in
+  `errno`; `rmrdir()` / `rmrcontentdir()` return -1 on a `readdir()` error
+  (7.25.4: `rmrcontentdir()` returned 0).
+- C_IEVENT_SRV: of a peer's subscription only `__filter__`, the allowed
+  `__config__` keys and the `__global__` keys that do not start with `_` (nor
+  `gbuffer`) are kept; the rest is dropped with a WARNING. New attributes
+  `max_subscriptions` (default 5000) and `max_subscription_size` (default
+  16384): a subscription beyond them is refused. The withdrawal of a
+  subscription is filtered the same way, and matches one with a `__global__`.
+  `C_IEVENT_SRV` / `C_IEVENT_CLI` `mt_inject_event()` work on a twin of a
+  shared kw. C_GSS_UDP_S: new `max_channels` (1024), `max_pending_bytes`
+  (8 MB) and `max_frame_size` (1 MB, the old size of every frame buffer,
+  which now starts at 4 KB); a frame longer than `max_frame_size` is
+  delivered cut, without an ERROR.
+- C_TCP: a stop always publishes `EV_STOPPED` once, also the stop of a
+  client that is already disconnected (7.25.4 published nothing there and
+  kept the connect event); it can come inside `gobj_stop()`. A write that
+  cannot be created or started drops the connection, with an ERROR (7.25.4
+  ignored it, and the connection hung).
+- C_TRANGER: `add-record` appends (master-only, `write`; 7.25.4 answered -1
+  *"Pending to review"*); the pushes of a live list carry `rt_id`, its
+  `list_id`; `close-rt`, `close-iterator`, `close-list`, `get-page` and
+  `get-list-data` of a handle opened by another session answer -403.
+- C_TREEDB: `save-schema` publishes every topic whose saved place is not the
+  file's (an `order` row in `changes`), writes no `order` for a node with
+  more than one parent and names it in `data.places_not_written`, and
+  answers -1 with `data.twins` when two topics of a treedb (or two columns
+  of a topic) have one name; `saved-schema`'s `draft_changed` names the
+  topics whose places the draft shifts; a failed `open-treedb` keeps the
+  saved schema (`withdrawn_at_open.saved_schema_version` 0). tr_treedb:
+  `treedb_link_nodes()` refuses a topic under a name its treedb already has
+  (*"Treedb already has a topic with this name"*); an unlink clears the
+  parent's ref in every instance of the child, and a delete counts (without
+  `force`) or clears (with `force`) the instances of a child that name it
+  and that no hook holds.
+- timeranger2: `tranger2_delete_key()` returns -1 when the `stat()` of the
+  key directory fails with anything but `ENOENT` (7.25.4: 0, and the key was
+  dropped from the cache and announced); a topic whose key listing meets a
+  `stat()` failure (no `d_type`) does not open. `tr2q_check_backup()` does
+  not back up while messages are queued (answers 0);
+  `tr2q_move_from_queued_to_inflight()` answers -1, the message kept queued,
+  when its content cannot be read.
+- yev_loop: the close of an fd takes back the submissions of other events on
+  it that the kernel has not taken; those events complete as `STOPPED`,
+  `-ECANCELED`. `yev_loop_destroy()` does not free a zero-copy send whose
+  notification has not come after 5 s (a WARNING).
+- rotatory: the size limit is compared in bytes (7.25.4: whole megabytes, so
+  a limit of 8 MB rotated at 9 MB).
+- yuno_agent: `create-yuno` answers -1 for a release name longer than
+  `NAME_MAX` (7.25.4 stored it cut and answered 0).
+- gobj-js 7.25.7: `kw_set_dict_value()` answers -1, logged, when a middle
+  segment is `null` or a scalar (it threw). gobj-js 7.25.8: the publish twin
+  rule, as in C.
 - **Log texts** -- match on the new ones if you alert on them:
     - timeranger2: *"Cannot read last record, md2 file corrupted"* is gone
       (see the md2 bullets above). *"Cannot read first/last record of md2
@@ -2208,11 +2745,31 @@ and the C_UDP_S round trip with an echo server and a client written for it
       in the backup"*; tr_queue / tr2q_mqtt: *"Queue backup failed: the
       queue goes on in its topic, not backed up"*, *"Queue backup failed, and
       the queue has no topic"*, the ERROR *"Queue without topic, it cannot
-      be opened"* and the INFO *"Queue topic taken again"*; a create:
-      *"Cannot create topic: it is not
-      whole, what was made is removed"*; a failed `delete_key`: *"Cannot
-      index the key again after its files changed: the filtered iterator is
-      empty"*.
+      be opened"* and the INFO *"Queue topic taken again"*; a create: the
+      CRITICAL (at `on_critical_error`, after the removal) *"Cannot create
+      topic: it is not whole, what was made is removed"*; a failed
+      `delete_key`: *"Cannot index the key again after its files changed:
+      the filtered iterator is empty"*, *"Cannot delete key, stat() of its
+      directory FAILED"* (the key is not deleted, dropped from the cache nor
+      announced), *"Cannot tell the rt_disk feeds that a key was deleted,
+      opendir() of disks/ FAILED"*, *"Cannot tell every rt_disk feed that a
+      key was deleted, readdir() of disks/ FAILED"*; *"Cannot list the keys
+      of the topic, stat() FAILED"*; the CRITICAL *"Cannot append record, its
+      md2 file cannot be opened: its content was cut back"*; the ERRORs
+      *"md2 file of the key unreadable when its cache was built: every load
+      of the key says load_failed"* and *"The history of the key is not
+      whole: a md2 file of it could not be read when its cache was built"*;
+      tr_queue / tr2q_mqtt: the ERRORs *"Queue backup refused: its last load
+      did not read every pending message"* and *"Queue loaded without some
+      of its messages: its first_rowid is not moved nor saved"*.
+    - msg2db, new: the ERRORs *"msg2db: a key whose history did not load
+      whole: only the messages newer than the damage are served, a pkey2
+      whose newest message was not read is ABSENT and its state unknown
+      (msg2db_id_incomplete)"*, *"msg2db: the damaged file of the key is the
+      file of the current period: every new message of the key is REFUSED
+      until the file is repaired or the period changes"* and *"msg2db:
+      load_failed_keys holds an item that is not a string: that key is not
+      reloaded"*.
     - tr_treedb: new ERRORs *"A write that did not reach the disk could not
       be taken back whole in memory: ..."* and *"A refused delete cannot put
       back a child it had unlinked: ..."*.
@@ -2247,7 +2804,16 @@ and the C_UDP_S round trip with an echo server and a client written for it
       child of a deleted instance is not handed to the primary"*, *"Cannot
       hand the children of a node without treedb_name, topic_name or id"*,
       *"Cannot look for the parents of a node without treedb_name or
-      id"*.
+      id"*, *"Treedb already has a topic with this name"* (with `id` and
+      `sibling_id`; the column text now carries `sibling_id` too), *"A write
+      taken back cannot save again an instance that stopped naming a parent:
+      on disk it names it no more"*. *"Cannot delete node: has down links"*
+      carries `children` and `unheld_instances`. *"Child data not found in
+      list parent hook"* / *"... dict parent hook"*, *"Duplicate fkey on
+      load, deduping parent hook"* and *"delete_primary_node() FAILED"* are
+      no longer logged for another instance of the key (a relink or unlink
+      of a sibling instance, an instance held through a list hook, a key
+      only the secondary indexes hold).
     - tr_treedb: `treedb_autolink()`'s *"update_node, new link: parent node not
       found"* is *"fkey reference: parent node not found"*, the text of
       `treedb_replace_links()`. *"cannot delete asset, a snapshot still links
@@ -2272,7 +2838,17 @@ and the C_UDP_S round trip with an echo server and a client written for it
       cause); the root that cannot be opened is the ERROR *"Cannot open
       directory"*.
       `gobj_unsubscribe_event()`: the WARNING *"Hard subscription not
-      removed, only gobj_unsubscribe_list() with force removes it"*.
+      removed, only gobj_unsubscribe_list() with force removes it"*;
+      `gobj_subscribe_event()`: the WARNING *"Hard subscription REPEATED, the
+      one there is kept and returned"*. New: *"Cannot remove directory,
+      readdir() FAILED"* (`rmrdir()`) and *"Cannot remove the content of
+      directory, readdir() FAILED"* (`rmrcontentdir()`).
+      `kw_set_dict_value()`: new ERRORs *"path empty"*, *"json_object_set()
+      FAILED"*, *"json_array_set() FAILED"*; a scalar middle segment logs
+      *"long path"* (its *"short path"* is gone). `kw_twin()`: *"kw to twin
+      must be an object"*, *"json_copy() FAILED"*. A caller's CRITICAL after
+      a failed `mkrdir()` (*"Cannot create TimeRanger subdir. mkrdir()
+      FAILED"*) now names the real errno (it said "Success").
     - rotatory (stdout and syslog): *"_rotatory(): vfprintf() FAILED, <err>"*
       is *"_rotatory(): fwrite() FAILED, '<path>', <err>"*; *"_rotatory():
       Cannot rename '<path>' to '<old>', <err>"* ends with what follows (*",
@@ -2303,7 +2879,40 @@ and the C_UDP_S round trip with an echo server and a client written for it
       channel"* for any other unsubscribe that matches nothing (both in
       place of the ERROR *"No subscription found"* with a stack); the
       WARNINGs *"SUBSCRIBING __config__ keys a peer may not set, ignored"*
-      (with `keys`) and *"SUBSCRIBING __config__ is not a dict, ignored"*.
+      (with `keys`) and *"SUBSCRIBING __config__ is not a dict, ignored"*;
+      the WARNINGs *"SUBSCRIBING keys a peer may not set, ignored"* (its
+      `keys` name the `__local__`, any stray key and each dropped
+      `` __global__`<key> ``), *"SUBSCRIBING refused, bigger than
+      max_subscription_size"* (`field`, `size`) and *"SUBSCRIBING refused,
+      the peer holds max_subscriptions"* (once, until the peer is under the
+      cap). The dropped-keys WARNINGs, the size refusal and both
+      UNSUBSCRIBING texts are logged at most once per kind, per channel, per
+      10 s, with `suppressed` (the no-match WARNING dumps at most 256 bytes
+      of the kw, with `kw_size`); *"No permission to subscribe event"* is
+      logged at the first refusal of each service and event on a channel.
+    - C_GSS_UDP_S, new: the WARNINGs *"Too many peers, datagrams of new
+      peers dropped"* (on the transition), *"Too many bytes in unfinished
+      frames, datagram dropped with the unfinished frame of its peer"* and
+      *"Frame without end within max_frame_size, delivered cut"* (at most
+      once per 10 s, with a count); the ERROR *"gbuffer_append() FAILED"* of
+      a frame that did not fit, and the frame buffer's *"no memory"*, are
+      gone.
+    - C_TCP, new: the ERRORs *"Cannot start a write: the connection is
+      dropped"* and *"Cannot create a write: the connection is dropped"*.
+    - C_TRANGER, new: the WARNING *"Handle of another session, refused"*
+      (`kind`, `id`, `src`) and the -403 answer *"<role^name>: <kind> '<id>'
+      is not yours: another session opened it"*; `add-record` answers
+      *"<role^name>: record added to topic '<t>', rowid <n>"*,
+      *"<role^name>: What record? It must be a dict with the pkey of topic
+      '<t>'"*, *"<role^name>: cannot add the record to topic '<t>' (see the
+      log)"* and *"<role^name>: tranger '<name>' is READ-ONLY, this yuno is
+      not its master: add-record runs on the master"* (its ERROR *"TODO
+      pending to review"* and answer *"Pending to review"* are gone).
+    - MQTT (C_PROT_MQTT2 client): the WARNING *"removing an inflight qos2
+      dup message"* is *"QoS 2 message received again (dup): it replaces the
+      copy waiting for its PUBREL"*; new ERROR *"Cannot load the content of a
+      queued message: it stays queued"*; a client's QoS 2 PUBREL no longer
+      logs *"QoS mismatch"*.
     - C_IOGATE: *"regcomp() failed"* is *"<role^name>: channel_name is not a
       valid regular expression: '<re>'"*.
     - C_YUNO ip lists, new: the WARNINGs *"ip list entry renamed to the form
@@ -2327,7 +2936,10 @@ and the C_UDP_S round trip with an echo server and a client written for it
       registered, pending promotion (deactivate-snap): create-yuno ..."*,
       comments *"<role^name>: N yuno(s) already registered at the new
       release, pending promotion: run deactivate-snap"*, and logs the ERROR
-      *"yuno release name too long"*.
+      *"yuno release name too long"*; `create-yuno` answers -1
+      *"<role^name>: Yuno '<role>.<name>': release name too long ('<binary
+      version>' + '<config version>')"* after that ERROR (7.25.4 stored the
+      name cut, with no log).
     - C_TREEDB: *"Topic from C differs from the one in use, but its
       topic_version is not higher: not applied"* is *"Topic from C declares
       other columns than the store runs, without raising its topic_version
@@ -2359,14 +2971,28 @@ and the C_UDP_S round trip with an echo server and a client written for it
       the WARNING *"frame is not json"* (`Protocol`, `peername`) in place of
       the ERROR *"json_load_callback() FAILED"* with a stack. C_TRANGER
       `mark-tm-order` answers *"<role^name>: cannot open topic '<t>' (see the
-      log)"* for a topic that cannot be opened.
+      log)"* for a topic that cannot be opened. The ERRORs *"Schema refused:
+      two topics of the treedb in __system__ have the same name, unlink or
+      rename one of them"* / *"Schema refused: two columns of a topic in
+      __system__ have the same name, ..."* (with `name`, `first`, `second`),
+      and the `save-schema` answer *"<role^name>: cannot save the schema of
+      '<db>': the topics '<topic1>' and '<topic2>' have the same name '<n>',
+      and a schema keeps one per name: unlink or rename one of them"*; a save
+      comment may end *"; N node(s) hang from more than one parent and keep
+      their place (one `order` cannot say a place in each): see
+      places_not_written"*; the INFO *"Saved schema kept: the open that
+      installs the schema from C did not open; the next one that installs a
+      schema from C and opens withdraws it"*.
     - C_NODE: *"Cannot save the node after its links (autolink)"* is gone;
       a create logs *"Node created, but its links cannot be saved
       (autolink): the node stays without them"*. An `update-node` of a node
       that does not exist logs *"Cannot update node: it does not exist"*, or
       with `create` *"Cannot update node: it does not exist and it cannot be
       created (see the previous log)"* (7.25.4 logged the last message of the
-      process, or *"treedb_create_node failed"*).
+      process, or *"treedb_create_node failed"*). New: the ERRORs *"Cannot
+      delete a node on a READ-ONLY replica"*, *"Cannot link nodes on a
+      READ-ONLY replica"* and *"Cannot unlink nodes on a READ-ONLY replica"*
+      (7.25.4 had only *"Cannot write a node on a READ-ONLY replica"*).
     - yev_loop: *"io_uring_get_sqe() FAILED"* is gone. New: the WARNINGs
       *"Submission queue full and the kernel takes nothing: kept for the next
       cycle"* and *"Submissions the kernel did not take: submitted again at
@@ -2383,7 +3009,12 @@ and the C_UDP_S round trip with an echo server and a client written for it
       the connect"* (new), *"getaddrinfo() src_url FAILED"* (unchanged) or
       *"bind() src_url FAILED"* (was *"bind() FAILED"*). *"Cannot start
       event: sendmsg addr NULL"* is
-      *"Cannot start event: sendmsg addr NULL or bad addr length"*.
+      *"Cannot start event: sendmsg addr NULL or bad addr length"*. New: the
+      WARNING *"An fd is closed with submissions of other events on it that
+      the kernel did not take: taken back, completed as canceled"*, the ERROR
+      *"...: dropped, the event will not complete"*, and the WARNING *"Loop
+      destroyed with zero-copy sends whose notification did not come: NOT
+      freed, the kernel may still read their gbuffer"*.
     - tr2migrate: *"Bad data, json_loadfd() FAILED."* is *"Bad data, the
       content of the record is not json"*; a json file it cannot load logs
       the texts of `load_json_from_file()`.
@@ -2392,7 +3023,16 @@ and the C_UDP_S round trip with an echo server and a client written for it
 
 - `default: {}` placeholders are dropped by save + apply, so a `required`
   column whose literal really declared `'default': {}` loses it.
-- A failed `open-treedb` withdraws the saved schema at once.
+- `getaddrinfo()` runs synchronously inside the event loop (connect, source
+  bind, listen): a lookup blocks every gobj of the process, and a dead first
+  `nameserver` costs ~6 s per lookup (3 s x 2 per query). The cache of 7.8.2
+  makes it one lookup per host per TTL.
+- OIDC discovery requires `end_session_endpoint`: against Auth0, and some
+  Cognito setups, which do not publish it, discovery fails; set
+  `token_endpoint` and `end_session_endpoint` explicitly for those IdPs.
+- Each Live card of a C_TRANGER opens its own rt_disk feed, one inotify
+  instance each: many Live cards can use up `fs.inotify.max_user_instances`
+  (128 by default), as they did on one node.
 - An md2 truncated to 0 rows behind the yuno's back loses its rows, as in
   7.25.4 (now with a warning); check the `.json` size before repairing.
 - With `enable_subscription_authz` off (the default), the `EV_TREEDB_NODE_*`
