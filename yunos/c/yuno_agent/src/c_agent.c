@@ -4590,8 +4590,31 @@ json_t* cmd_create_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
     /*---------------------------------------------*
      *      Release
      *---------------------------------------------*/
-    char yuno_release[120];
-    build_release_name(gobj, yuno_release, sizeof(yuno_release), hs_binary, hs_configuration);
+    char yuno_release[NAME_MAX];
+    if(build_release_name(gobj, yuno_release, sizeof(yuno_release), hs_binary, hs_configuration)<0) {
+        /*
+         *  Error already logged. A release cut short was stored before: a
+         *  pkey2 that find-new-yunos never finds, so it offered the yuno
+         *  again at every call, and create=1 failed on it for ever.
+         */
+        json_t *comment = json_sprintf(
+            "%s: Yuno '%s.%s': release name too long ('%s' + '%s')",
+            gobj_yuno_role_plus_name(),
+            yuno_role, yuno_name,
+            SDATA_GET_STR(hs_binary, "version"),
+            SDATA_GET_STR(hs_configuration, "version")
+        );
+        json_decref(hs_realm);
+        json_decref(hs_binary);
+        json_decref(hs_configuration);
+        return msg_iev_build_response(gobj,
+            -1,
+            comment,
+            0,
+            0,
+            kw  // owned
+        );
+    }
     json_object_set_new(kw, "yuno_release", json_string(yuno_release));
 
     if(empty_string(role_version)) {
