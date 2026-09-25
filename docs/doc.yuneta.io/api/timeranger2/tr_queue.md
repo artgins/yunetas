@@ -105,14 +105,22 @@ and at the next [`trq_msg_json()`](<#trq_msg_json>) or ack
 ([`trq_set_hard_flag()`](<#trq_set_hard_flag>)) of a message, with an INFO,
 *"Queue topic taken again"*. While it cannot, those calls fail (`-1`, `NULL`)
 and the queue says it once, *"Queue without topic, it cannot be opened"*,
-after the causes the open logs. From then on the queue asks the disk quietly
-first, and tries the open again only when its `topic_desc.json` can be read
-(`access(R_OK)`) AND is not the file the last open failed on: the queue keeps
-what the file was (inode, size, mtime, ctime, taken with `stat()` just before
-each open) and compares. The next calls log nothing. Asked through
-`tranger2_topic()` at every call, a topic that cannot be opened would log three
-errors each time, and the MQTT broker calls `tr2q_check_backup()` every second
-for each session with nothing in flight:
+after the causes the open logs. A topic the tranger already has open again
+(an append opens it by name) is taken as it is. Otherwise the queue asks the
+disk quietly first, and tries the open again only when what stopped the last
+one may be gone. After a failed open it asks what that was, the way the open
+reads the topic, and without a log:
+
+| What stopped the open | The open is tried again when |
+|---|---|
+| `topic_desc.json` cannot be opened (not there, no permission, no descriptor left), or `keys/` cannot be listed (`EACCES`, `EMFILE`, `EIO`, a key whose type cannot be asked) | the file can be opened AND `keys/` can be listed |
+| `topic_desc.json` opens and is not json | the file changes (inode, mode, size, mtime, ctime, taken with `stat()` just before each open) |
+| nothing the queue can see | `topic_desc.json` or `keys/` changes |
+
+The next calls log nothing. Asked through `tranger2_topic()` at every call, a
+topic that cannot be opened would log three errors each time, and the MQTT
+broker calls `tr2q_check_backup()` every second for each session with nothing
+in flight:
 
 ```text
 CRITICAL load_persistent_json: Cannot open a json file                (first call)
@@ -139,6 +147,24 @@ logs the three errors of the open again (the new cause), but not the queue's
 line; the good content takes the topic again with the INFO. Up to the fix of
 this case (7.25.5) a readable broken file was opened, and logged, at every
 call.
+
+A `keys/` that cannot be listed (here of mode `0`) is said the same way, and
+the topic is taken again once `keys/` can be listed, although
+`topic_desc.json` never changed:
+
+```text
+ERROR find_keys_in_disk: Cannot list the keys of the topic            (first call)
+ERROR tranger2_open_topic: Cannot open topic: its keys cannot be listed
+ERROR tranger2_topic: Cannot open topic
+ERROR take_queue_topic: Queue without topic, it cannot be opened      (once)
+                                                                      (next calls: nothing)
+INFO  take_queue_topic: Queue topic taken again                       (keys/ listed again)
+```
+
+Up to that fix (7.25.5) the queue waited for `topic_desc.json` to change, so a
+cause outside it (`keys/`, a lack of descriptors) left the queue without topic
+until a restart: every ack and read failed, and the acked messages were sent
+again after the restart.
 
 The mqtt queues (`tr2q_check_backup()`, `tr2q_msg_json()`,
 `tr2q_save_hard_mark()`) do the same.

@@ -37,7 +37,9 @@ typedef struct {
     BOOL load_failed;           // the last trq_load() did not read every pending message
     BOOL backup_refused_said;   // trq_check_backup() said once that it refuses
     BOOL topic_missing_said;    // said once that the topic cannot be taken again
-    struct stat topic_desc_stat;    // its topic_desc.json at the last open: tried again when it changes
+    int topic_blocked_by;         // what stopped the last open of the topic: what is asked before trying again
+    struct stat topic_desc_stat;    // its topic_desc.json at the last open
+    struct stat topic_keys_stat;    // its keys/ at the last open
 } tr_queue_t;
 
 typedef struct {

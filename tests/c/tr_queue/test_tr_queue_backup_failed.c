@@ -62,6 +62,12 @@
  *  when the open failed and tries again only when it changes. Up to this
  *  fix every call opened it again and logged three errors.
  *
+ *  And a topic that cannot be opened again for a cause OUTSIDE its
+ *  topic_desc.json: keys/ cannot be listed (mode 0). Said once; once keys/
+ *  can be listed the queue takes its topic again, and it takes the topic the
+ *  tranger already has open. Up to this fix it waited for topic_desc.json to
+ *  change, and stayed without topic until a restart.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -879,6 +885,215 @@ PRIVATE int test_tr2q_topic_desc_broken(void)
 }
 
 /***************************************************************************
+ *  A topic that cannot be opened again for a cause OUTSIDE topic_desc.json:
+ *  its keys/ cannot be listed (mode 0 here; EMFILE or EIO in the field).
+ *  The file the queue watched does not change when that cause goes, so up
+ *  to this fix the queue never tried again: every read and ack failed, with
+ *  no log, until a restart -- even once the tranger itself had the topic
+ *  open again (an append opens it by name). Now the queue takes the topic
+ *  the tranger has open, and asks the disk quietly whether what failed
+ *  (keys/) can be listed again before it opens it: said once, taken again
+ *  once the cause is gone.
+ ***************************************************************************/
+PRIVATE void make_keys_unlistable(const char *topic_name, BOOL unlistable)
+{
+    char keys[PATH_MAX];
+    build_path(keys, sizeof(keys), path_database, topic_name, "keys", NULL);
+    chmod(keys, unlistable? 0: 02770);
+}
+
+PRIVATE void free_backup_name(const char *topic_name)
+{
+    char name[NAME_MAX];
+    snprintf(name, sizeof(name), "%s.bak", topic_name);
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), path_database, name, NULL);
+    unlink(path);
+}
+
+#define MSG_KEYS_NOT_LISTED "Cannot list the keys of the topic"
+#define MSG_KEYS_OPEN       "Cannot open topic: its keys cannot be listed"
+
+PRIVATE json_t *expected_keys_lost(void)
+{
+    return json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        "msg", MSG_MOVING,
+        "msg", MSG_RENAME,
+        "msg", MSG_KEYS_NOT_LISTED,     // the backup cannot open the topic again
+        "msg", MSG_KEYS_OPEN,
+        "msg", "Backup of topic failed, and the topic cannot be opened again",
+        "msg", MSG_KEYS_NOT_LISTED,     // nor can the queue
+        "msg", MSG_KEYS_OPEN,
+        "msg", "Cannot open topic",
+        "msg", "Queue backup failed, and the queue has no topic"
+    );
+}
+
+PRIVATE int test_trq_keys_unlistable(void)
+{
+    int result = 0;
+    const char *topic_name = "trq_keys";
+    make_keys_unlistable(topic_name, FALSE);   // a run that died left it so
+    rmrdir(path_database);
+
+    set_expected_results("trq_keys: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup();
+    tr_queue_t *trq = trq_open(tranger, topic_name, "tm", 0, 1 /* backup_queue_size */);
+    trq_load(trq);
+    q_msg_t *msg = trq_append2(trq, 946684801, json_pack("{s:i, s:I}", "n", 1, "tm", (json_int_t)946684801), 0);
+    trq_unload_msg(msg, 0);
+    msg = trq_append2(trq, 946684802, json_pack("{s:i, s:I}", "n", 2, "tm", (json_int_t)946684802), 0);
+    take_backup_name(topic_name);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    /*
+     *  1. The backup fails, and keys/ cannot be listed: no topic
+     */
+    make_keys_unlistable(topic_name, TRUE);
+    set_expected_results("trq_keys: the queue loses its topic", expected_keys_lost(), NULL, NULL, 1);
+    result += expect_int("trq_keys: trq_check_backup() of a failed backup", trq_check_backup(trq), -1);
+    result += expect_int("trq_keys: the queue has no topic", trq->topic? 1: 0, 0);
+    result += test_json(NULL);
+
+    /*
+     *  2. Said once, then nothing while keys/ still cannot be listed
+     */
+    set_expected_results("trq_keys: a read without topic",
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", MSG_KEYS_NOT_LISTED,
+            "msg", MSG_KEYS_OPEN,
+            "msg", "Cannot open topic",
+            "msg", "Queue without topic, it cannot be opened"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *jn = trq_msg_json(msg);
+    result += expect_int("trq_keys: a read without topic answers NULL", jn? 1: 0, 0);
+    JSON_DECREF(jn)
+    result += test_json(NULL);
+
+    set_expected_results("trq_keys: the next calls say nothing", NULL, NULL, NULL, 1);
+    for(int i = 0; i < 3; i++) {
+        jn = trq_msg_json(msg);
+        result += expect_int("trq_keys: a next read answers NULL", jn? 1: 0, 0);
+        JSON_DECREF(jn)
+        result += expect_int("trq_keys: a next ack answers -1",
+            trq_set_hard_flag(msg, TRQ_MSG_PENDING, 0), -1);
+        result += expect_int("trq_keys: a next check answers -1", trq_check_backup(trq), -1);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  3. keys/ can be listed again, topic_desc.json never changed: the read
+     *  takes the topic again, and the ack works
+     */
+    make_keys_unlistable(topic_name, FALSE);
+    free_backup_name(topic_name);
+    set_expected_results("trq_keys: the read takes the topic again",
+        json_pack("[{s:s}]", "msg", "Queue topic taken again"), NULL, NULL, 1);
+    jn = trq_msg_json(msg);
+    result += expect_int("trq_keys: the read answers the message", jn? 1: 0, 1);
+    JSON_DECREF(jn)
+    if(!trq->topic || trq->topic != tranger2_topic(tranger, topic_name)) {
+        printf("%sERROR%s --> trq_keys: the queue did not take its topic again\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += expect_int("trq_keys: the ack works", trq_set_hard_flag(msg, TRQ_MSG_PENDING, 0), 0);
+    trq_unload_msg(msg, 0);
+    result += test_json(NULL);
+
+    set_expected_results("trq_keys: shutdown", NULL, NULL, NULL, 1);
+    trq_close(trq);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+PRIVATE int test_tr2q_keys_unlistable(void)
+{
+    int result = 0;
+    const char *topic_name = "tr2q_keys";
+    make_keys_unlistable(topic_name, FALSE);   // a run that died left it so
+    rmrdir(path_database);
+
+    set_expected_results("tr2q_keys: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup();
+    tr2_queue_t *trq = tr2q_open(tranger, topic_name, "tm", 0, 10, 1 /* backup_queue_size */);
+    tr2q_load(trq);
+    q2_msg_t *msg = tr2q_append(trq, 946684801, tr2q_kw(1, 946684801), 0);
+    tr2q_unload_msg(msg, 0);
+    take_backup_name(topic_name);
+    test_json(NULL);    // the setup logs are not what is tested
+
+    make_keys_unlistable(topic_name, TRUE);
+    set_expected_results("tr2q_keys: the queue loses its topic", expected_keys_lost(), NULL, NULL, 1);
+    result += expect_int("tr2q_keys: tr2q_check_backup() of a failed backup", tr2q_check_backup(trq), -1);
+    result += expect_int("tr2q_keys: the queue has no topic", trq->topic? 1: 0, 0);
+    result += test_json(NULL);
+
+    set_expected_results("tr2q_keys: a check without topic",
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", MSG_KEYS_NOT_LISTED,
+            "msg", MSG_KEYS_OPEN,
+            "msg", "Cannot open topic",
+            "msg", "Queue without topic, it cannot be opened"
+        ),
+        NULL, NULL, 1
+    );
+    result += expect_int("tr2q_keys: a check without topic answers -1", tr2q_check_backup(trq), -1);
+    result += test_json(NULL);
+
+    set_expected_results("tr2q_keys: the next checks say nothing", NULL, NULL, NULL, 1);
+    for(int i = 0; i < 3; i++) {
+        result += expect_int("tr2q_keys: a next check answers -1", tr2q_check_backup(trq), -1);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  keys/ can be listed again, and the tranger opens the topic by name
+     *  (as an append does): the queue takes THAT topic, it does not stay
+     *  without one while the tranger has it
+     */
+    make_keys_unlistable(topic_name, FALSE);
+    free_backup_name(topic_name);
+    set_expected_results("tr2q_keys: the tranger opens the topic", NULL, NULL, NULL, 1);
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    result += expect_int("tr2q_keys: the tranger opens the topic", topic? 1: 0, 1);
+    result += test_json(NULL);
+
+    set_expected_results(
+        "tr2q_keys: the next check takes the topic again, and backs up",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "Queue topic taken again",
+            "msg", MSG_MOVING,
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    result += expect_int("tr2q_keys: tr2q_check_backup() backs up", tr2q_check_backup(trq), 0);
+    if(!trq->topic || trq->topic != tranger2_topic(tranger, topic_name)) {
+        printf("%sERROR%s --> tr2q_keys: the queue has no topic\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("tr2q_keys: the queue works", NULL, NULL, NULL, 1);
+    msg = tr2q_append(trq, 946684802, tr2q_kw(2, 946684802), 0);
+    result += expect_int("tr2q_keys: append", msg? 1: 0, 1);
+    if(msg) {
+        result += expect_int("tr2q_keys: a hard mark", tr2q_save_hard_mark(msg, 0), 0);
+        tr2q_unload_msg(msg, 0);
+    }
+    tr2q_close(trq);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *  A create whose keys/ cannot be made, in a tranger that exits on a
  *  CRITICAL (LOG_OPT_EXIT_ZERO, the default of C_TRANGER, C_TREEDB and the
  *  broker's queues). The process exits, as it is told to -- but only once
@@ -1035,12 +1250,14 @@ PRIVATE int do_test(void)
     result += test_create_keys_fails();
     result += test_create_exit_zero();
     if(geteuid() == 0) {
-        printf("skip trq_retake, tr2q_retake: as root a file of mode 0 can be read\n");
+        printf("skip trq_retake, tr2q_retake, *_broken, *_keys: as root a file of mode 0 can be read\n");
     } else {
         result += test_trq_topic_taken_again();
         result += test_tr2q_topic_taken_again();
         result += test_trq_topic_desc_broken();
         result += test_tr2q_topic_desc_broken();
+        result += test_trq_keys_unlistable();
+        result += test_tr2q_keys_unlistable();
     }
     atexit(exit_in_exit_zero_case);
     result += test_exit_zero_create_fails();

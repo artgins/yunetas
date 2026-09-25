@@ -9,6 +9,11 @@
 ***********************************************************************/
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <dirent.h>
+#include <limits.h>
+#include <sys/stat.h>
 
 #include <kwid.h>
 #include <helpers.h>
@@ -17,6 +22,12 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+/*
+ *  What stopped the last open of the queue's topic (topic_blocked_by)
+ */
+#define QUEUE_TOPIC_BLOCKED_UNSEEN  0   // nothing the queue can see: tried when a file changes
+#define QUEUE_TOPIC_BLOCKED_BY_DESC 1   // topic_desc.json is no json: tried when it changes
+#define QUEUE_TOPIC_BLOCKED_BY_DISK 2   // a file or keys/ cannot be opened: tried when they can
 
 /***************************************************************
  *              Structures
@@ -104,63 +115,178 @@ PUBLIC tr_queue_t *trq_open(
 }
 
 /***************************************************************************
- *  What the queue's topic_desc.json is on disk (inode, size, mtime, ctime),
- *  asked quietly. FALSE when it is not there or cannot be read.
+ *  The path of a file of the queue's topic, quietly
  ***************************************************************************/
-PRIVATE BOOL stat_queue_topic_desc(tr_queue_t *trq, struct stat *st)
+PRIVATE BOOL queue_topic_file_path(char *path, size_t size, tr_queue_t *trq, const char *filename)
 {
     char topic_dir[PATH_MAX];
-    char path[PATH_MAX];
     if(tranger2_topic_path(topic_dir, sizeof(topic_dir), trq->tranger, trq->topic_name) < 0) {
         return FALSE;   // Error already logged
     }
-    if(!build_path(path, sizeof(path), topic_dir, "topic_desc.json", NULL)) {
+    if(!build_path(path, size, topic_dir, filename, NULL)) {
         return FALSE;   // Error already logged
-    }
-    if(stat(path, st) < 0 || access(path, R_OK) < 0) {
-        return FALSE;
     }
     return TRUE;
 }
 
 /***************************************************************************
- *  Is the topic worth opening again? Only when its topic_desc.json can be
- *  read AND is not the file the last open failed on: a file that is
- *  readable but does not load (broken json) fails the same way every time,
- *  and each open logs its causes again.
+ *  What a file of the queue's topic is on disk (inode, size, mtime, ctime),
+ *  asked quietly. Zeroed when it is not there.
  ***************************************************************************/
-PRIVATE BOOL queue_topic_desc_changed(tr_queue_t *trq)
+PRIVATE void stat_queue_topic_file(tr_queue_t *trq, const char *filename, struct stat *st)
+{
+    char path[PATH_MAX];
+    if(!queue_topic_file_path(path, sizeof(path), trq, filename) || stat(path, st) < 0) {
+        memset(st, 0, sizeof(*st));
+    }
+}
+
+PRIVATE BOOL same_file_stat(const struct stat *a, const struct stat *b)
+{
+    return (a->st_dev == b->st_dev &&
+            a->st_ino == b->st_ino &&
+            a->st_mode == b->st_mode &&
+            a->st_size == b->st_size &&
+            a->st_mtim.tv_sec == b->st_mtim.tv_sec &&
+            a->st_mtim.tv_nsec == b->st_mtim.tv_nsec &&
+            a->st_ctim.tv_sec == b->st_ctim.tv_sec &&
+            a->st_ctim.tv_nsec == b->st_ctim.tv_nsec)? TRUE: FALSE;
+}
+
+/***************************************************************************
+ *  Does the queue's topic_desc.json load? Asked quietly, the way the open
+ *  reads it: -1 it cannot be opened (not there, no permission, no fd),
+ *  0 it opens and is not json, 1 it loads.
+ ***************************************************************************/
+PRIVATE int queue_topic_desc_loads(tr_queue_t *trq)
+{
+    char path[PATH_MAX];
+    if(!queue_topic_file_path(path, sizeof(path), trq, "topic_desc.json")) {
+        return -1;
+    }
+    int fd = open(path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+    if(fd < 0) {
+        return -1;
+    }
+    json_error_t error;
+    json_t *jn = json_loadfd(fd, 0, &error);
+    close(fd);
+    int loads = jn? 1: 0;
+    JSON_DECREF(jn)
+    return loads;
+}
+
+/***************************************************************************
+ *  Can the queue's keys/ be listed? Asked quietly, the way the open lists
+ *  it (find_keys_in_disk): a keys/ that is not there is nothing missing;
+ *  one that cannot be opened or read, or holds an entry whose type cannot
+ *  be asked, fails the open.
+ ***************************************************************************/
+PRIVATE BOOL queue_topic_keys_listable(tr_queue_t *trq)
+{
+    char keys[PATH_MAX];
+    if(!queue_topic_file_path(keys, sizeof(keys), trq, "keys")) {
+        return FALSE;
+    }
+    DIR *dir = opendir(keys);
+    if(!dir) {
+        return (errno == ENOENT)? TRUE: FALSE;
+    }
+    BOOL listable = TRUE;
+    struct dirent *entry;
+    while((errno = 0, entry = readdir(dir)) != NULL) {
+        #ifdef DT_DIR
+        if(entry->d_type != DT_UNKNOWN) {
+            continue;
+        }
+        #endif
+        if(entry->d_name[0] == '.' &&
+          (entry->d_name[1] == '\0' ||
+           (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
+            continue;
+        }
+        char path[PATH_MAX];
+        struct stat st;
+        if(!build_path(path, sizeof(path), keys, entry->d_name, NULL) ||
+                (lstat(path, &st) < 0 && errno != ENOENT)) {
+            listable = FALSE;
+            break;
+        }
+    }
+    if(listable && errno != 0) {
+        listable = FALSE;
+    }
+    closedir(dir);
+    return listable;
+}
+
+/***************************************************************************
+ *  What stopped the last open of the topic, asked quietly once it failed.
+ *  It decides what the queue asks before it tries the open again.
+ ***************************************************************************/
+PRIVATE int what_blocks_queue_topic(tr_queue_t *trq)
+{
+    int desc = queue_topic_desc_loads(trq);
+    if(desc == 0) {
+        return QUEUE_TOPIC_BLOCKED_BY_DESC;
+    }
+    if(desc < 0 || !queue_topic_keys_listable(trq)) {
+        return QUEUE_TOPIC_BLOCKED_BY_DISK;
+    }
+    return QUEUE_TOPIC_BLOCKED_UNSEEN;
+}
+
+/***************************************************************************
+ *  Is the topic worth opening again? Asked quietly, so a call that finds
+ *  the cause still there logs nothing:
+ *  - topic_desc.json loaded as no json: only once it changes. A readable
+ *    file that does not load fails the same way every time, and each open
+ *    logs its causes again.
+ *  - a file or keys/ could not be opened or listed (permissions, EMFILE,
+ *    EIO, a key whose type cannot be asked): once both can. Their cause
+ *    goes away with the file untouched (up to this fix the queue waited
+ *    for topic_desc.json to change, and never took its topic again).
+ *  - nothing the queue could see: once topic_desc.json or keys/ changes.
+ ***************************************************************************/
+PRIVATE BOOL queue_topic_worth_opening(tr_queue_t *trq)
 {
     struct stat st;
-    if(!stat_queue_topic_desc(trq, &st)) {
-        return FALSE;
+    switch(trq->topic_blocked_by) {
+        case QUEUE_TOPIC_BLOCKED_BY_DESC:
+            if(queue_topic_desc_loads(trq) < 0) {
+                return FALSE;
+            }
+            stat_queue_topic_file(trq, "topic_desc.json", &st);
+            return !same_file_stat(&st, &trq->topic_desc_stat);
+
+        case QUEUE_TOPIC_BLOCKED_BY_DISK:
+            return (queue_topic_desc_loads(trq) >= 0 && queue_topic_keys_listable(trq))?
+                TRUE: FALSE;
+
+        case QUEUE_TOPIC_BLOCKED_UNSEEN:
+        default:
+            stat_queue_topic_file(trq, "topic_desc.json", &st);
+            if(!same_file_stat(&st, &trq->topic_desc_stat)) {
+                return TRUE;
+            }
+            stat_queue_topic_file(trq, "keys", &st);
+            return !same_file_stat(&st, &trq->topic_keys_stat);
     }
-    const struct stat *old = &trq->topic_desc_stat;
-    if(st.st_dev == old->st_dev &&
-            st.st_ino == old->st_ino &&
-            st.st_size == old->st_size &&
-            st.st_mtim.tv_sec == old->st_mtim.tv_sec &&
-            st.st_mtim.tv_nsec == old->st_mtim.tv_nsec &&
-            st.st_ctim.tv_sec == old->st_ctim.tv_sec &&
-            st.st_ctim.tv_nsec == old->st_ctim.tv_nsec) {
-        return FALSE;
-    }
-    return TRUE;
 }
 
 /***************************************************************************
  *  The topic of the queue. A backup that failed, and could not open the
  *  topic again, left it NULL: it is taken again by name as soon as it can
  *  be opened (before this fix it stayed NULL for good: every read and ack of
- *  the queue failed, and the backup was never tried again). NULL while it
- *  cannot, said once, and once more when it is taken again. In between the
- *  open is tried again only when topic_desc.json changes (what it was is
- *  kept BEFORE each open, so a change during the open is not missed): up to
- *  this fix every call went through tranger2_topic() while the file could be
- *  read, and a readable but broken one logged the three errors of the open
- *  on every call -- the broker asks every second per session. A file that
- *  changes and still does not load is tried once: the open says its causes,
- *  the queue says nothing more.
+ *  the queue failed, and the backup was never tried again). The topic the
+ *  tranger already has open is taken as it is (an append opens it by name).
+ *  NULL while it cannot, said once, and once more when it is taken again.
+ *  In between the open is tried again only when what stopped it may be gone
+ *  (queue_topic_worth_opening), asked quietly: every call used to go through
+ *  tranger2_topic(), and a topic that could not be opened logged the errors
+ *  of the open on every call -- the broker asks every second per session.
+ *  What the files were is kept BEFORE each open, so a change during the
+ *  open is not missed.
  ***************************************************************************/
 PRIVATE json_t *take_queue_topic(tr_queue_t *trq)
 {
@@ -168,30 +294,33 @@ PRIVATE json_t *take_queue_topic(tr_queue_t *trq)
         return trq->topic;
     }
 
-    if(trq->topic_missing_said && !queue_topic_desc_changed(trq)) {
-        return NULL;    // said already
-    }
-
-    if(!stat_queue_topic_desc(trq, &trq->topic_desc_stat)) {
-        memset(&trq->topic_desc_stat, 0, sizeof(trq->topic_desc_stat));
-    }
-
     hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));
-    trq->topic = tranger2_topic(trq->tranger, trq->topic_name);  // logs the cause when it fails
-    if(!trq->topic) {
-        if(!trq->topic_missing_said) {
-            trq->topic_missing_said = TRUE;
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TRANGER,
-                "msg",          "%s", "Queue without topic, it cannot be opened",
-                "topic_name",   "%s", trq->topic_name,
-                NULL
-            );
+    json_t *topic = json_object_get(json_object_get(trq->tranger, "topics"), trq->topic_name);
+    if(!topic) {
+        if(trq->topic_missing_said && !queue_topic_worth_opening(trq)) {
+            return NULL;    // said already
         }
-        return NULL;
+
+        stat_queue_topic_file(trq, "topic_desc.json", &trq->topic_desc_stat);
+        stat_queue_topic_file(trq, "keys", &trq->topic_keys_stat);
+        topic = tranger2_topic(trq->tranger, trq->topic_name);  // logs the cause when it fails
+        if(!topic) {
+            trq->topic_blocked_by = what_blocks_queue_topic(trq);
+            if(!trq->topic_missing_said) {
+                trq->topic_missing_said = TRUE;
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TRANGER,
+                    "msg",          "%s", "Queue without topic, it cannot be opened",
+                    "topic_name",   "%s", trq->topic_name,
+                    NULL
+                );
+            }
+            return NULL;
+        }
     }
 
+    trq->topic = topic;
     trq->topic_missing_said = FALSE;
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
