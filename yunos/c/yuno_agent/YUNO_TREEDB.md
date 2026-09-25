@@ -1649,7 +1649,10 @@ file's (1) any more, so that same save publishes it too: `"topic_versions":
 apply a save has nothing to save. (Before the fix the first save published
 `users` alone, because the diff ran before the places were written, and the
 second save published `departments` too: two saves of one draft published
-different topics.) A dry run answers the same and writes nothing.
+different topics.) A dry run answers the same and writes nothing, and
+`saved-schema` says it before the save: its `draft_changed` names the topics
+whose places the draft shifts too, `{"users": true, "departments": true}`,
+so the editor's marks agree with what the save publishes.
 
 **A node of more than one parent keeps its `order`.** The fkeys of the
 meta-schema are lists (`topics.treedbs`, `cols.topics`), so a node can hang

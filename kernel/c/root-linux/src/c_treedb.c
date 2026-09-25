@@ -324,7 +324,8 @@ PRIVATE int add_diff_row(
     json_t *stored,
     json_t *from_c
 );
-PRIVATE json_t *twin_names_in_tree(hgobj gobj, const char *treedb_name, json_t *tree);
+PRIVATE json_t *twin_names_in_tree(hgobj gobj, const char *treedb_name, json_t *tree, BOOL say);
+PRIVATE json_t *left_out_of_rebuild(hgobj gobj, json_t *tree, json_t *left);
 PRIVATE json_t *schema_id_collision(
     hgobj gobj,
     const char *treedb_name,
@@ -2616,6 +2617,28 @@ PRIVATE void places_moved_from_file(
     JSON_DECREF(tree)
 }
 
+/***************************************************************************
+ *  What the rebuild of a draft leaves out of what an older release left
+ *  (`left`, {id: topic name}, see left_by_older_release_now): all of it,
+ *  but a left topic that holds a column somebody added since, which is a
+ *  draft (rows_without_leftovers keeps its row) and stays, without its
+ *  left columns. Return {id: true}, YOURS.
+ ***************************************************************************/
+PRIVATE json_t *left_out_of_rebuild(hgobj gobj, json_t *tree, json_t *left)
+{
+    json_t *left_out = json_object();
+    json_t *tree_topics = tree? kw_get_dict(gobj, tree, "topics", 0, 0) : NULL;
+    const char *left_id; json_t *v;
+    json_object_foreach(left, left_id, v) {
+        if(json_object_get(tree_topics, left_id) &&
+                topic_holds_other_cols(gobj, tree, left_id, left)) {
+            continue;
+        }
+        json_object_set_new(left_out, left_id, json_true());
+    }
+    return left_out;
+}
+
 PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -2674,7 +2697,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  publish one of them in place of the other
      */
     json_t *twin_tree = system_tree_of(gobj, treedb_name);
-    json_t *twins = twin_tree? twin_names_in_tree(gobj, treedb_name, twin_tree) : NULL;
+    json_t *twins = twin_tree? twin_names_in_tree(gobj, treedb_name, twin_tree, TRUE) : NULL;
     JSON_DECREF(twin_tree)
     if(twins) {
         json_t *comment = json_sprintf("%s: cannot save the schema of '%s': %s '%s' and '%s' "
@@ -2737,19 +2760,8 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         }
         if(json_array_size(left_ids) > 0) {
             json_t *tree = system_tree_of(gobj, treedb_name);
-            json_t *tree_topics = tree? kw_get_dict(gobj, tree, "topics", 0, 0) : NULL;
-            json_object_foreach(left, left_id, v) {
-                /*
-                 *  A left topic that holds a column somebody added since
-                 *  is a draft (rows_without_leftovers keeps its row): it
-                 *  stays, without its left columns
-                 */
-                if(json_object_get(tree_topics, left_id) &&
-                        topic_holds_other_cols(gobj, tree, left_id, left)) {
-                    continue;
-                }
-                json_object_set_new(left_out, left_id, json_true());
-            }
+            JSON_DECREF(left_out)
+            left_out = left_out_of_rebuild(gobj, tree, left);
             rows = rows_without_leftovers(gobj, treedb_name, tree, rows, left_ids);
             JSON_DECREF(tree)
         }
@@ -3245,12 +3257,9 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                 json_array_append_new(leftovers, json_string(left_id));
             }
         }
-        JSON_DECREF(left)
         JSON_DECREF(upgrade)
         rows = rows_without_leftovers(gobj, treedb_name, tree, rows, leftovers);
         JSON_DECREF(leftovers)
-        JSON_DECREF(tree)
-        JSON_DECREF(record)
 
         JSON_DECREF(draft_changed)
         draft_changed = draft_changed_from_rows(gobj, rows);
@@ -3261,6 +3270,34 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_object_set_new(draft_changed, json_string_value(jn_topic), json_true());
         }
         JSON_DECREF(edited)
+
+        /*
+         *  And the topics whose PLACES the draft shifts: a save publishes
+         *  them (places_moved_from_file), so the draft says them, and the
+         *  editor's marks agree with the save. Only for a draft a save
+         *  would take: one that changes something, whose projection is
+         *  complete (no record: asked from the one read above, since a
+         *  record that cannot be read says so at every read), with no two
+         *  siblings of one name (a save refuses those, and asking is not
+         *  refusing: nothing is logged here)
+         */
+        json_t *twins = tree? twin_names_in_tree(gobj, treedb_name, tree, FALSE) : NULL;
+        if(json_object_size(draft_changed) > 0 && !record && !twins) {
+            json_t *left_out = left_out_of_rebuild(gobj, tree, left);
+            json_t *draft = get_treedb_schema(gobj, treedb_name, in_use, left_out);
+            JSON_DECREF(left_out)
+            if(draft) {
+                prune_schema(draft);
+                json_t *place_rows = json_array();
+                places_moved_from_file(gobj, treedb_name, draft, draft_base, draft_changed, place_rows);
+                JSON_DECREF(place_rows)
+                JSON_DECREF(draft)
+            }
+        }
+        JSON_DECREF(twins)
+        JSON_DECREF(left)
+        JSON_DECREF(tree)
+        JSON_DECREF(record)
     }
     JSON_DECREF(in_use)
     JSON_DECREF(saved)
@@ -8268,7 +8305,8 @@ PRIVATE json_t *twin_among(hgobj gobj, json_t *siblings)   // not owned
  *  FIRST: a save published the other one, at a topic_version nobody
  *  raised, in silence. The link refuses such a pair
  *  (treedb_link_nodes()), but an autolink update, or a store written
- *  before the guard, can still hold one. ERROR logged naming both ids.
+ *  before the guard, can still hold one. ERROR logged naming both ids,
+ *  when `say`.
  *
  *  Return {what, treedb_name, topic_name, name, first, second} of the
  *  first pair found, or NULL. Return is YOURS.
@@ -8276,7 +8314,8 @@ PRIVATE json_t *twin_among(hgobj gobj, json_t *siblings)   // not owned
 PRIVATE json_t *twin_names_in_tree(
     hgobj gobj,
     const char *treedb_name,
-    json_t *tree        // not owned, the node tree of the treedb
+    json_t *tree,       // not owned, the node tree of the treedb
+    BOOL say            // log the ERROR (a refusal); FALSE for a question
 )
 {
     json_t *topics = kw_get_dict(gobj, tree, "topics", 0, 0);
@@ -8307,6 +8346,9 @@ PRIVATE json_t *twin_names_in_tree(
         "second", json_array_get(twin, 1)
     );
     JSON_DECREF(twin)
+    if(!say) {
+        return said;
+    }
 
     gobj_log_error(gobj, 0,
         "function",         "%s", __FUNCTION__,
@@ -10747,7 +10789,7 @@ PRIVATE json_t *get_treedb_schema(
      *  Two siblings with one name: keyed by the name below, one of them
      *  would be dropped, and which one is the order of the hook
      */
-    json_t *twins = twin_names_in_tree(gobj, treedb_name, treedb);
+    json_t *twins = twin_names_in_tree(gobj, treedb_name, treedb, TRUE);
     if(twins) {
         JSON_DECREF(twins)
         JSON_DECREF(treedb)

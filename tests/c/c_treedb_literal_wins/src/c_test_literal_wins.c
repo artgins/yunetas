@@ -7442,13 +7442,15 @@ PRIVATE int scenario_failed_open_keeps_the_save(hgobj gobj)
  *  `departments, users`. The save writes those places (departments 0,
  *  users 1), and departments' place is not the file's (1): it is part of
  *  what that save publishes, `{users: 2, departments: 2}`, with an `order`
- *  row for it. A save again publishes the same; after the apply and a
- *  reopen `draft_changed` is {} and a save has nothing to save.
+ *  row for it. Before that save `draft_changed` (saved-schema) names
+ *  both, as the save will publish them. A save again publishes the same;
+ *  after the apply and a reopen `draft_changed` is {} and a save has
+ *  nothing to save.
  *
  *  Red before: the first save published `{users: 2}` alone (departments'
  *  stored `order` still matched the file when the diff ran), and the next
  *  one `{users: 2, departments: 2}`: two saves of one draft published
- *  different topics.
+ *  different topics, and `draft_changed` named `users` alone.
  ***************************************************************************/
 PRIVATE int scenario_shifted_sibling_saved(hgobj gobj)
 {
@@ -7465,6 +7467,9 @@ PRIVATE int scenario_shifted_sibling_saved(hgobj gobj)
         result += test_fail(gobj, db, "TEST FAIL: OX, the operator's order was refused", NULL);
     }
     JSON_DECREF(node)
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: OX, the draft does not name the sibling its places shift",
+        json_pack("{s:b, s:b}", "users", 1, "departments", 1));
     for(int i = 0; i < 2; i++) {
         result += save_publishing(gobj, db,
             "TEST FAIL: OX, a save did not publish the sibling its places shift",
