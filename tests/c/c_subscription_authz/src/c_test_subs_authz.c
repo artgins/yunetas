@@ -18,7 +18,10 @@
  *          C_TEST_TREEDB_HOST (service `treedb_host`) opens a treedb in a
  *          real C_NODE, the service TREEDB_SERVICE, whose five
  *          EV_TREEDB_NODE_* are EVF_AUTHZ_SUBSCRIBE and whose `read` carries
- *          the `__subscribe_event__` alias.
+ *          the `__subscribe_event__` alias; and a real C_TRANGER, the
+ *          service TRANGER_NAME, whose realtime feed EV_TRANGER_RECORD_ADDED
+ *          is EVF_AUTHZ_SUBSCRIBE too, with the same alias on its `read`
+ *          (up to 7.25.4 it was open to any authenticated user).
  *
  *          Before anything, the six channel commands of the gate C_IOGATE
  *          are asked with a channel_name that matches no channel: each
@@ -39,6 +42,10 @@
  *                           `nobody` subscribes EV_TREEDB_NODE_UPDATED
  *                                                          -> REFUSED
  *                           `reader` subscribes EV_TREEDB_NODE_UPDATED
+ *                                                          -> accepted,
+ *                           `nobody` subscribes EV_TRANGER_RECORD_ADDED
+ *                                                          -> REFUSED
+ *                           `reader` subscribes EV_TRANGER_RECORD_ADDED
  *                                                          -> accepted,
  *                           the checker being asked `read` every time,
  *                           with the global `authzs` trace on (up to
@@ -75,6 +82,7 @@
  *              Constants
  ***************************************************************************/
 #define TREEDB_NAME     "treedb_subs_authz"
+#define TRANGER_NAME    "tranger_subs_authz"
 
 /***************************************************************************
  *              Structures
@@ -92,6 +100,7 @@ PRIVATE int check_subscriptions(
 PRIVATE int check_count(hgobj gobj, const char *what, int expected, int got);
 PRIVATE int check_channel_commands(hgobj gobj, hgobj input_side);
 PRIVATE json_t *kw_treedb_service(void);
+PRIVATE json_t *kw_tranger_service(void);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -141,6 +150,7 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj publisher;
     hgobj treedb;
+    hgobj tranger;
     hgobj cli_off;
     hgobj cli_nobody;
     hgobj cli_reader;
@@ -153,6 +163,7 @@ typedef struct _PRIVATE_DATA {
 
 typedef struct _PRIVATE_DATA_HOST {
     hgobj gobj_node;
+    hgobj gobj_tranger;
     json_t *tranger;
 } PRIVATE_DATA_HOST;
 
@@ -242,6 +253,7 @@ PRIVATE int mt_play(hgobj gobj)
 
     priv->publisher = gobj_find_service("publisher", TRUE);
     priv->treedb = gobj_find_service(TREEDB_NAME, TRUE);
+    priv->tranger = gobj_find_service(TRANGER_NAME, TRUE);
     priv->cli_off = gobj_find_service("cli_off", TRUE);
     priv->cli_nobody = gobj_find_service("cli_nobody", TRUE);
     priv->cli_reader = gobj_find_service("cli_reader", TRUE);
@@ -451,6 +463,14 @@ PRIVATE json_t *kw_treedb_service(void)
     return json_pack("{s:s}", "__service__", TREEDB_NAME);
 }
 
+/***************************************************************************
+ *  The same, to the tranger service
+ ***************************************************************************/
+PRIVATE json_t *kw_tranger_service(void)
+{
+    return json_pack("{s:s}", "__service__", TRANGER_NAME);
+}
+
 
 
 
@@ -549,6 +569,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_subscribe_event(
                 priv->cli_reader, EV_TREEDB_NODE_UPDATED, kw_treedb_service(), gobj
             );
+            gobj_subscribe_event(
+                priv->cli_nobody, EV_TRANGER_RECORD_ADDED, kw_tranger_service(), gobj
+            );
+            gobj_subscribe_event(
+                priv->cli_reader, EV_TRANGER_RECORD_ADDED, kw_tranger_service(), gobj
+            );
             set_timeout(priv->timer, 300);
             break;
 
@@ -557,7 +583,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check_subscriptions(gobj, priv->publisher, EV_TEST_FEED, "nobody,reader");
             check_subscriptions(gobj, priv->publisher, EV_TEST_OPEN, "nobody");
             check_subscriptions(gobj, priv->treedb, EV_TREEDB_NODE_UPDATED, "nobody,reader");
-            check_count(gobj, "authz asked for 'read'", 4, authz_asked_read);
+            check_subscriptions(gobj, priv->tranger, EV_TRANGER_RECORD_ADDED, "reader");
+            check_count(gobj, "authz asked for 'read'", 6, authz_asked_read);
             check_count(gobj, "authz asked for another permission", 0, authz_asked_other);
 
             /*
@@ -601,6 +628,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_unsubscribe_event(
                 priv->cli_nobody, EV_TREEDB_NODE_UPDATED, kw_treedb_service(), gobj
             );
+            gobj_unsubscribe_event(
+                priv->cli_nobody, EV_TRANGER_RECORD_ADDED, kw_tranger_service(), gobj
+            );
             set_timeout(priv->timer, 300);
             break;
 
@@ -608,6 +638,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check_subscriptions(gobj, priv->publisher, EV_TEST_FEED, "reader");
             check_subscriptions(gobj, priv->publisher, EV_TEST_OPEN, "");
             check_subscriptions(gobj, priv->treedb, EV_TREEDB_NODE_UPDATED, "reader");
+            check_subscriptions(gobj, priv->tranger, EV_TRANGER_RECORD_ADDED, "reader");
 
             /*
              *  5. `reader` goes with its subscriptions open, and they are
@@ -620,6 +651,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_unsubscribe_event(
                 priv->cli_reader, EV_TREEDB_NODE_UPDATED, kw_treedb_service(), gobj
             );
+            gobj_unsubscribe_event(
+                priv->cli_reader, EV_TRANGER_RECORD_ADDED, kw_tranger_service(), gobj
+            );
             set_timeout(priv->timer, 300);
             break;
 
@@ -629,6 +663,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              */
             check_subscriptions(gobj, priv->publisher, EV_TEST_FEED, "");
             check_subscriptions(gobj, priv->treedb, EV_TREEDB_NODE_UPDATED, "");
+            check_subscriptions(gobj, priv->tranger, EV_TRANGER_RECORD_ADDED, "");
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
@@ -697,6 +732,19 @@ PRIVATE void host_mt_create(hgobj gobj)
      *  A service: C_IEVENT_SRV routes a remote subscription by service name
      */
     priv->gobj_node = gobj_create_service(TREEDB_NAME, C_NODE, kw_node, gobj);
+
+    /*
+     *  A C_TRANGER service on a store of its own, for its realtime feed
+     */
+    char path_tranger[PATH_MAX];
+    build_path(path_tranger, sizeof(path_tranger), path_root, TRANGER_NAME, NULL);
+    rmrdir(path_tranger);
+    json_t *kw_tranger = json_pack("{s:s, s:s, s:b}",
+        "path", path_root,
+        "database", TRANGER_NAME,
+        "master", 1
+    );
+    priv->gobj_tranger = gobj_create_service(TRANGER_NAME, C_TRANGER, kw_tranger, gobj);
 }
 
 PRIVATE int host_mt_start(hgobj gobj)
@@ -704,6 +752,7 @@ PRIVATE int host_mt_start(hgobj gobj)
     PRIVATE_DATA_HOST *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->gobj_node);
+    gobj_start(priv->gobj_tranger);
 
     json_t *node = gobj_create_node(
         priv->gobj_node,
@@ -730,6 +779,7 @@ PRIVATE int host_mt_stop(hgobj gobj)
     PRIVATE_DATA_HOST *priv = gobj_priv_data(gobj);
 
     gobj_stop(priv->gobj_node);
+    gobj_stop(priv->gobj_tranger);
     return 0;
 }
 
@@ -815,6 +865,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TEST_FEED,              ac_test_feed,               0},
         {EV_TEST_OPEN,              ac_test_feed,               0},
         {EV_TREEDB_NODE_UPDATED,    ac_test_feed,               0},
+        {EV_TRANGER_RECORD_ADDED,   ac_test_feed,               0},
         {0,0,0}
     };
 
@@ -830,6 +881,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TEST_FEED,              EVF_PUBLIC_EVENT},
         {EV_TEST_OPEN,              EVF_PUBLIC_EVENT},
         {EV_TREEDB_NODE_UPDATED,    EVF_PUBLIC_EVENT},
+        {EV_TRANGER_RECORD_ADDED,   EVF_PUBLIC_EVENT},
         {0, 0}
     };
 

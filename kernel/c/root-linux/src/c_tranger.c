@@ -70,6 +70,11 @@ Realtime feed (streams new appends as EV_TRANGER_RECORD_ADDED to subscribers):
 command-yuno id=1911 service=tranger command=open-rt rt_id=rt1 topic_name=pp key=1
 command-yuno id=1911 service=tranger command=close-rt rt_id=rt1
 
+The feed is EVF_AUTHZ_SUBSCRIBE: when the yuno sets enable_subscription_authz,
+a remote subscription to EV_TRANGER_RECORD_ADDED needs `read` (its alias is
+`__subscribe_event__`), the permission that open-rt asks. A subscriber takes
+only its own feed with a `__filter__` on its `rt_id`.
+
 
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -479,13 +484,21 @@ SDATAPM0 (DTP_STRING,       "topic_name",       0,          "",             "Top
 SDATA_END()
 };
 
+/*
+ *  A subscription to EV_TRANGER_RECORD_ADDED (EVF_AUTHZ_SUBSCRIBE) asks what
+ *  a read of the same records asks: `read`, found by its alias. Up to 7.25.4
+ *  the feed carried no flag, so with enable_subscription_authz on a user
+ *  without `read` still got every record of the feeds that others opened.
+ */
+PRIVATE const char *read_alias[] = {"__subscribe_event__", 0};
+
 PRIVATE sdata_desc_t authz_table[] = {
-/*-AUTHZ-- type---------name------------flag----alias---items---------------description--*/
-SDATAAUTHZ (DTP_SCHEMA, "create",       0,      0,      pm_authz_create,    "Permission to create topics"),
-SDATAAUTHZ (DTP_SCHEMA, "write",        0,      0,      pm_authz_write,     "Permission to write topics"),
-SDATAAUTHZ (DTP_SCHEMA, "list",         0,      0,      pm_authz_list,      "Permission to list topics"),
-SDATAAUTHZ (DTP_SCHEMA, "read",         0,      0,      pm_authz_read,      "Permission to read topics"),
-SDATAAUTHZ (DTP_SCHEMA, "delete",       0,      0,      pm_authz_delete,    "Permission to delete topics and keys"),
+/*-AUTHZ-- type---------name------------flag----alias-------items---------------description--*/
+SDATAAUTHZ (DTP_SCHEMA, "create",       0,      0,          pm_authz_create,    "Permission to create topics"),
+SDATAAUTHZ (DTP_SCHEMA, "write",        0,      0,          pm_authz_write,     "Permission to write topics"),
+SDATAAUTHZ (DTP_SCHEMA, "list",         0,      0,          pm_authz_list,      "Permission to list topics"),
+SDATAAUTHZ (DTP_SCHEMA, "read",         0,      read_alias, pm_authz_read,      "Permission to read topics, and to subscribe to their realtime feed"),
+SDATAAUTHZ (DTP_SCHEMA, "delete",       0,      0,          pm_authz_delete,    "Permission to delete topics and keys"),
 SDATA_END()
 };
 
@@ -4309,7 +4322,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_TRANGER_RECORD_ADDED,       EVF_OUTPUT_EVENT|EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
+        {EV_TRANGER_RECORD_ADDED,       EVF_OUTPUT_EVENT|EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS|EVF_AUTHZ_SUBSCRIBE},
         {EV_TRANGER_ADD_RECORD,         0},
         /*  The death of a session that opened handles here: this service
          *  subscribes to it (watch_owner), the client asks for nothing.  */

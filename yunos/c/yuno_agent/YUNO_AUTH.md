@@ -628,6 +628,34 @@ event_type_t event_types[] = {
 };
 ```
 
+`C_TRANGER` declares its realtime feed the same way since 7.25.5:
+`EV_TRANGER_RECORD_ADDED` is `EVF_AUTHZ_SUBSCRIBE` and its `read` carries the
+alias. The feed is published to every subscriber, so a subscriber keeps to its
+own `rt_id` only with its `__filter__`. Up to 7.25.4, with the gate on, a user
+without `read` could not run `open-rt`, but could subscribe to the event with
+no filter and get every record of the feeds that other users opened, the
+topics of a treedb included.
+
+**Which public events carry the flag.** Every public output event of the SDK
+(`EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT` in `kernel/`, `modules/` and `yunos/`),
+and why it has the flag or not:
+
+| GClass | Events | `EVF_AUTHZ_SUBSCRIBE` | Why |
+|---|---|---|---|
+| `C_NODE` | `EV_TREEDB_NODE_CREATED`, `_UPDATED`, `_DELETED`, `_LINKED`, `_UNLINKED` | yes, `read` | The nodes of a treedb: the data that `nodes` and `node` guard with `read`. |
+| `C_TRANGER` | `EV_TRANGER_RECORD_ADDED` | yes, `read` (since 7.25.5) | The records of a topic: the data that `open-rt` and `open-list` guard with `read`. |
+| `C_PTY` | `EV_TTY_OPEN`, `EV_TTY_DATA`, `EV_TTY_CLOSE` | no | A console of the agent is a service named after the console, and a channel reaches it only when that name is in its `authorized_services` (a root role in practice). `C_PTY` has no permission of its own to ask. |
+| `C_AGENT`, `C_AGENT22` | `EV_PLAY_YUNO_ACK`, `EV_PAUSE_YUNO_ACK` | no | The acknowledgement of a play or pause, the yuno's identity and state, no data. The agent's service is reached only by its operators. |
+| `C_AGENT`, `C_AGENT22` | `EV_MT_COMMAND_ANSWER`, `EV_MT_STATS_ANSWER` | no | Declared public output, but never published: an answer is sent straight to the gobj that asked. |
+| `C_PROT_HTTP_SR` | `EV_ON_OPEN`, `EV_ON_MESSAGE`, `EV_ON_CLOSE` | no | A protocol child, never a service: a peer cannot name it. |
+| `C_POSTGRES` | `EV_ON_OPEN`, `EV_ON_MESSAGE`, `EV_ON_CLOSE` | no | Carries query results, but it is a child of `C_DBA_POSTGRES`, never a service. It has no permission table: a yuno that makes it a service must give it a `read`-like permission with the alias first, and then flag `EV_ON_MESSAGE`. |
+
+The other `EVF_PUBLIC_EVENT` of the SDK are input events (`EV_MT_COMMAND`,
+`EV_SEND_EMAIL`, …): they are injected, and a subscription to them is refused
+before any authz (*"not PUBLIC or PUBLIC event"*). A publisher of a project
+(the `db_history` yunos, for example) is guarded only when it flags its own
+events and aliases a permission.
+
 How a yuno turns the gate on (in its config, like `enable_command_authz`):
 
 ```json
@@ -650,9 +678,10 @@ The regression test is
 Three `C_IEVENT_CLI` connect to a `C_IEVENT_SRV` over loopback and cover four
 cases: gate off → subscribed, gate on without `read` → refused and logged,
 an event without the flag → subscribed, and gate on with `read` → subscribed,
-with the checker asked for `read`. It runs the cases against a test publisher
-and against a real `C_NODE` (`EV_TREEDB_NODE_UPDATED`). The feed then reaches
-only the accepted subscriptions.
+with the checker asked for `read`. It runs the cases against a test publisher,
+against a real `C_NODE` (`EV_TREEDB_NODE_UPDATED`) and against a real
+`C_TRANGER` (`EV_TRANGER_RECORD_ADDED`). The feed then reaches only the
+accepted subscriptions.
 
 ### 4.7 Where authz **is** enforced today
 
@@ -870,9 +899,12 @@ Points found so far (verified this session unless noted):
     the gobj-ui treedb views (`C_YUI_TREEDB_TOPICS`,
     `C_YUI_TREEDB_TOPIC_WITH_FORM`, `C_YUI_TREEDB_GRAPH`), gui_treedb, the
     treedb views of gui_agent, and the app GUIs built on them (wattyzer,
-    yunovatios). A gclass of a project that re-publishes the feed under its
-    own service (the `db_history` yunos) is its own publisher: it is guarded
-    only if it flags its events and aliases a permission.
+    yunovatios). The realtime feed of a `C_TRANGER` (`EV_TRANGER_RECORD_ADDED`)
+    follows the same gate since 7.25.5, and a GUI that streams a topic with
+    `open-rt` needs `read` on the tranger's service. A gclass of a project
+    that re-publishes the feed under its own service (the `db_history` yunos)
+    is its own publisher: it is guarded only if it flags its events and
+    aliases a permission (see the table in §4.6).
 
 When the final phase runs: author the matrix (roles × permissions ×
 realm/service scope), provision users, set `enable_command_authz` and

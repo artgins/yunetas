@@ -259,7 +259,8 @@ time_measure_t time_measure;
 
 /***************************************************************************
  *  Authentication without a C_AUTHZ: the user is the `jwt` of the identity
- *  card, and it may reach the `publisher` and `treedb_subs_authz` services. What C_AUTHZ leaves on
+ *  card, and it may reach the `publisher`, `treedb_subs_authz` and
+ *  `tranger_subs_authz` services. What C_AUTHZ leaves on
  *  the gate is repeated: `__username__` on the C_IEVENT_SRV (src).
  ***************************************************************************/
 static json_t *test_authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)
@@ -267,13 +268,14 @@ static json_t *test_authentication_parser(hgobj gobj_service, json_t *kw, hgobj 
     const char *username = kw_get_str(gobj_service, kw, "jwt", "", 0);
     gobj_write_str_attr(src, "__username__", username);
 
-    json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:{s:[], s:[]}}",
+    json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:{s:[], s:[], s:[]}}",
         "result", 0,
         "comment", "test authentication",
         "username", username,
         "services_roles",
             "publisher",
-            "treedb_subs_authz"
+            "treedb_subs_authz",
+            "tranger_subs_authz"
     );
     KW_DECREF(kw)
     return jn_resp;
@@ -340,11 +342,13 @@ static int register_yuno_and_more(void)
     set_expected_results(
         APP_NAME,
         /*  Strict FIFO of the warnings and errors (the capture handler of
-         *  main() takes nothing below a warning): the two refusals of
-         *  `nobody` with the gate on, EV_TEST_FEED of `publisher` and
-         *  EV_TREEDB_NODE_UPDATED of the C_NODE. A wrong result is an
-         *  error, which is not in this list.  */
-        json_pack("[{s:s}, {s:s}]",
+         *  main() takes nothing below a warning): the three refusals of
+         *  `nobody` with the gate on, EV_TEST_FEED of `publisher`,
+         *  EV_TREEDB_NODE_UPDATED of the C_NODE and EV_TRANGER_RECORD_ADDED
+         *  of the C_TRANGER. A wrong result is an error, which is not in
+         *  this list.  */
+        json_pack("[{s:s}, {s:s}, {s:s}]",
+            "msg", "No permission to subscribe event",
             "msg", "No permission to subscribe event",
             "msg", "No permission to subscribe event"
         ),
@@ -370,10 +374,10 @@ static void cleaning(void)
     result += test_json(NULL);
 
     /*
-     *  Four checks with the trace on: two subscriptions of `nobody`, two of
-     *  `reader` (and those of the tranger feed)
+     *  Six checks with the trace on: three subscriptions of `nobody`, three
+     *  of `reader`
      */
-    if(authzs_traces_without_kw > 0 || authzs_traces_with_kw < 4) {
+    if(authzs_traces_without_kw > 0 || authzs_traces_with_kw < 6) {
         printf("%sERROR --> %s: with kw %d, without kw %d%s\n",
             On_Red BWhite,
             "the authzs trace lost the kw it checked",

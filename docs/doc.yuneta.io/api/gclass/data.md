@@ -50,6 +50,27 @@ topics.
 | `print-tranger` | Dump tranger state as bounded JSON (`expanded`, `lists_limit` and `dicts_limit`. Unexpanded containers answer as `[[size]]`). |
 | `desc` | Describe topic schema. |
 
+**Who gets the realtime feed.** `EV_TRANGER_RECORD_ADDED` is published to
+every subscriber: a remote one keeps to its own feed with a `__filter__` on its
+`rt_id`. Since 7.25.5 the event is `EVF_AUTHZ_SUBSCRIBE`, and `read` carries the
+`__subscribe_event__` alias. So when the yuno sets `enable_subscription_authz`,
+a remote subscription to the feed needs `read` on the tranger's service, the
+permission that `open-rt` asks. Up to 7.25.4 a user without `read` could not
+open a feed, but could subscribe to the event with no filter and get every
+record of the feeds that other users opened. See
+[`YUNO_AUTH.md`](../../../../yunos/c/yuno_agent/YUNO_AUTH.md) §4.6.
+
+```bash
+# the feed, and the subscription of the same session to its own records
+command-yuno id=1911 service=tranger command=open-rt rt_id=rt1 topic_name=pp key=1
+```
+
+```js
+gobj_subscribe_event(gobj_remote_tranger, "EV_TRANGER_RECORD_ADDED", {
+    __filter__: {rt_id: "rt1"}
+}, gobj);
+```
+
 **`open-iterator` match conditions** (all optional, and `0` or empty means unset):
 `from_t`/`to_t`, `from_tm`/`to_tm`, `from_rowid`/`to_rowid`, `backward`, and the
 user_flag conditions (`user_flag`, `not_user_flag`, `user_flag_mask_set`,

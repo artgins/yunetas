@@ -6,7 +6,8 @@ and two things of the same stack that a subscription goes through.
 
 One yuno holds both sides: a `C_IEVENT_SRV` gate on `ws://127.0.0.1:7794`, a
 `publisher` service whose `read` permission is aliased `__subscribe_event__`
-(as `C_NODE`'s is), a real `C_NODE` service `treedb_subs_authz`, and three
+(as `C_NODE`'s is), a real `C_NODE` service `treedb_subs_authz`, a real
+`C_TRANGER` service `tranger_subs_authz`, and three
 `C_IEVENT_CLI` authenticated as `nobody`, `nobody` and `reader` by the test's
 authentication parser. It checks:
 
@@ -17,7 +18,9 @@ authentication parser. It checks:
   event loop), and a matching one still selects its channels;
 - gate off: `nobody` subscribes a flagged event, of `publisher` and
   `EV_TREEDB_NODE_UPDATED` of the `C_NODE`, as up to 7.25.4;
-- gate on: `nobody` is refused both (logged, the channel stays open), an
+- gate on: `nobody` is refused all three -- the tranger's realtime feed
+  `EV_TRANGER_RECORD_ADDED` too, open to any user up to 7.25.4 -- (logged,
+  the channel stays open), an
   event without the flag is still subscribed, `reader` is accepted, and the
   checker is asked `read`; the global `authzs` trace is on meanwhile, and
   each of its lines carries the kw it checked (up to 7.25.4 it printed that
