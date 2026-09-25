@@ -397,8 +397,8 @@ a clock set back across midnight empties nothing. A mask with no date letter
 (a fixed name such as `logcenter.log`) is never emptied by a date. The table of
 which masks empty a file is in [File names and rotation](#rotatory-file-names).
 
-The library also rotates the file when it crosses a size threshold (default
-8 MB, configurable via `max_megas_rotatoryfile_size`,
+The library also rotates the file when it becomes larger than a size threshold
+(default 8 MB, counted in bytes, configurable via `max_megas_rotatoryfile_size`,
 [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/root-linux/src/entry_point.c)):
 it renames the file to `<name>.OLD` (a previous `.OLD` is removed) and starts
 the file again. There is no cron. Both rotations happen on the next write.
@@ -435,7 +435,9 @@ rotatory(): logging to '/yuneta/realms/agent/agent/logs/yuneta_agent-4.log' agai
 
 See [a full disk](#rotatory-disk-full) in the rotatory page.
 
-With the defaults, one yuno uses at most 7 × 2 × 8 MB = 112 MB of log.
+With the defaults, one yuno uses at most 7 × 2 × 8 MB = 112 MB of log (each
+piece ends with the record that took it over 8 MB). Up to 7.25.4 the size was
+counted in whole megabytes, so a piece rotated only at 9 MB: 126 MB.
 
 ### 5.4 Where to configure handlers
 

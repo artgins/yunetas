@@ -696,7 +696,11 @@ PRIVATE int _rotatory_prepare(rotatory_log_t *hr)
             if(st.st_nlink == 0) {
                 open_it = TRUE;
             } else if(hr->max_megas_rotatoryfile_size &&
-                    ((uint64_t)st.st_size)/(1024*1024) > hr->max_megas_rotatoryfile_size) {
+                    (uint64_t)st.st_size > hr->max_megas_rotatoryfile_size*1024*1024) {
+                /*
+                 *  Bytes, not whole megas: up to 7.25.4 the size was
+                 *  divided first, so a limit of 8 MB rotated at 9 MB.
+                 */
                 if(hr->rename_failed && hr->keep_all_old && !test_msectimer(hr->rename_retry)) {
                     /*
                      *  keep_all: the rename failed, the file is appended to

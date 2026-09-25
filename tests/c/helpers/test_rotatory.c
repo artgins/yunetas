@@ -16,6 +16,8 @@
  *          "MM" name within its month) is not emptied at the open.
  *          And exit_on_fail is for rotatory_open() only: a handle opened
  *          with it is not exited by a file that cannot be opened later.
+ *          And the size limit is in bytes: a file of exactly the limit is
+ *          not rotated, one byte over it is at the next record.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -252,7 +254,7 @@ PRIVATE void test_retention(void)
     char line[1024];
     memset(line, 'a', sizeof(line)-1);
     line[sizeof(line)-1] = 0;
-    for(int i=0; i<2200; i++) {    // > 2 megas: siz/1M > 1
+    for(int i=0; i<2200; i++) {    // 2.2 MB: over the limit of 1 MB
         rotatory_write(hr, LOG_AUDIT, line, strlen(line));
     }
     check(s_newfile_calls >= 1 && s_removed_at_rotation == 1 &&
@@ -379,6 +381,70 @@ PRIVATE void test_write_path(void)
 }
 
 /***************************************************************************
+ *  The size limit is in bytes: a file LARGER than max_megas MB is rotated
+ *  at the next record, one exactly at the limit is not. Up to 7.25.4 the
+ *  size was divided into whole megas first (st_size/1M > max_megas), so a
+ *  limit of 1 MB rotated at 2 MB, and the default of 8 MB at 9 MB: the
+ *  7 x 2 x 8 MB of the yuno logs were 7 x 2 x 9 MB.
+ ***************************************************************************/
+PRIVATE off_t size_of_file(const char *path)
+{
+    struct stat st;
+    if(stat(path, &st) < 0) {
+        return -1;
+    }
+    return st.st_size;
+}
+
+PRIVATE void test_size_limit_in_bytes(void)
+{
+    rmrdir(BASE);
+    mkrdir(AUDIT_DIR, 02775);
+
+    hrotatory_h hr = rotatory_open(AUDIT_DIR "/" MASK, 0, 1, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return;
+    }
+    char current[PATH_MAX];
+    snprintf(current, sizeof(current), "%s", rotatory_path(hr));
+    char current_old[PATH_MAX+8];
+    snprintf(current_old, sizeof(current_old), "%s.OLD", current);
+
+    off_t mega = 1024*1024;
+    char *big = gbmem_malloc((size_t)mega);
+    if(!big) {
+        printf("FAIL no memory\n");
+        global_result += -1;
+        rotatory_close(hr);
+        return;
+    }
+    memset(big, 'L', (size_t)mega - 1);
+    big[mega - 1] = 0;
+
+    /*
+     *  Flushed after each record: the size checked is the size on disk
+     */
+    rotatory_write(hr, LOG_AUDIT, big, (size_t)mega - 1);   // + "\n": exactly 1 MB
+    rotatory_flush(hr);
+    rotatory_write(hr, LOG_AUDIT, "a", 1);
+    rotatory_flush(hr);
+    check(!exists_no_follow(current_old) && size_of_file(current) == mega + 2,
+        "size limit: a file of exactly 1 MB is not rotated at the next record");
+
+    rotatory_write(hr, LOG_AUDIT, "b", 1);
+    rotatory_flush(hr);
+    check(exists_no_follow(current_old) && size_of_file(current_old) == mega + 2 &&
+        size_of_file(current) == 2,
+        "size limit: 2 bytes over 1 MB, the next record rotates (up to 7.25.4: at 2 MB)");
+
+    GBMEM_FREE(big);
+    rotatory_close(hr);
+    rmrdir(BASE);
+}
+
+/***************************************************************************
  *  keep_all: a size rotation never removes a piece of the day.
  *
  *  Up to 7.25.4 each size rotation renamed the file to .OLD and removed
@@ -403,7 +469,9 @@ PRIVATE void test_keep_all_old(void)
 
     /*
      *  7 megas of 1001-byte records: with a limit of 1 mega the file
-     *  rotates when it is over 2 megas (whole megas), so three rotations
+     *  rotates at the first record after it is over 1 mega (1048 records
+     *  in each piece), so six rotations. Up to 7.25.4 it rotated when it
+     *  was over 2 megas (whole megas), and there were three.
      */
     char line[1001];
     memset(line, 'k', sizeof(line)-1);
@@ -425,7 +493,7 @@ PRIVATE void test_keep_all_old(void)
         }
     }
     snprintf(path, sizeof(path), "%s.OLD", current);
-    check(pieces >= 3 && !exists_no_follow(path), "keep_all: numbered .OLD.<n> pieces, no .OLD");
+    check(pieces == 6 && !exists_no_follow(path), "keep_all: numbered .OLD.<n> pieces (six), no .OLD");
     check(lines == (size_t)n_records, "keep_all: every record of the day is kept");
     printf("     (%d pieces, %d records of %d)\n", pieces, (int)lines, n_records);
 
@@ -1158,7 +1226,7 @@ PRIVATE void test_keep_all_rename_fails(void)
     s_count_newfile = 0;
     s_rename_calls = 0;
     s_fail_rename = TRUE;
-    int n_records = 4400;   // 4.4 MB: over the limit (whole megas > 1) from ~2 MB on
+    int n_records = 4400;   // 4.4 MB: over the limit (1 MB) from ~1 MB on
     for(int i=0; i<n_records; i++) {
         rotatory_write(hr, LOG_AUDIT, line, strlen(line));
     }
@@ -1200,7 +1268,7 @@ PRIVATE void test_keep_all_rename_fails(void)
      */
     s_fail_rename = FALSE;
     step_clocks(61, 61);
-    int n_after = 2048;     // the first one rotates; 2 MB: over the limit, the next record of the day would rotate
+    int n_after = 1025;     // the first one rotates; 1025 KB: over the limit, the next record of the day would rotate
     for(int i=0; i<n_after; i++) {
         rotatory_write(hr, LOG_AUDIT, line, strlen(line));
     }
@@ -1889,6 +1957,7 @@ int main(int argc, char *argv[])
     test_retention();
     test_write_path();
     test_keep_all_old();
+    test_size_limit_in_bytes();
     test_disk_full_per_handle();
     test_clock_set_back();
     test_zero_length_piece();
