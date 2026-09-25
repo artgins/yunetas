@@ -7437,6 +7437,58 @@ PRIVATE int scenario_failed_open_keeps_the_save(hgobj gobj)
 }
 
 /***************************************************************************
+ *  OX: a topic given an `order` behind its sibling SHIFTS that sibling.
+ *  The operator writes `order` 5 on `tw_ox.users`: the draft is
+ *  `departments, users`. The save writes those places (departments 0,
+ *  users 1), and departments' place is not the file's (1): it is part of
+ *  what that save publishes, `{users: 2, departments: 2}`, with an `order`
+ *  row for it. A save again publishes the same; after the apply and a
+ *  reopen `draft_changed` is {} and a save has nothing to save.
+ *
+ *  Red before: the first save published `{users: 2}` alone (departments'
+ *  stored `order` still matched the file when the diff ran), and the next
+ *  one `{users: 2, departments: 2}`: two saves of one draft published
+ *  different topics.
+ ***************************************************************************/
+PRIVATE int scenario_shifted_sibling_saved(hgobj gobj)
+{
+    int result = 0;
+    const char *db = "tw_ox";
+    hgobj sys = gobj_find_service(SYSTEM_TREEDB, FALSE);
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return -1;
+    }
+    json_t *node = gobj_update_node(sys, "topics",
+        json_pack("{s:s, s:i}", "id", "tw_ox.users", "order", 5), 0, gobj);
+    if(!node) {
+        result += test_fail(gobj, db, "TEST FAIL: OX, the operator's order was refused", NULL);
+    }
+    JSON_DECREF(node)
+    for(int i = 0; i < 2; i++) {
+        result += save_publishing(gobj, db,
+            "TEST FAIL: OX, a save did not publish the sibling its places shift",
+            json_pack("{s:i, s:i}", "users", 2, "departments", 2),
+            json_array());
+        result += check_draft_changed(gobj, db,
+            "TEST FAIL: OX, the draft reads as unsaved right after its save", json_object());
+    }
+    result += apply_schema(gobj, db);
+    close_db(gobj, db);
+
+    if(open_db(gobj, db, users_departments_v1(db), FALSE) < 0) {
+        return result - 1;
+    }
+    result += check_draft_changed(gobj, db,
+        "TEST FAIL: OX, the applied order reads as a draft", json_object());
+    result += check_nothing_to_save(gobj, db,
+        "TEST FAIL: OX, a save after the apply published something");
+    close_db(gobj, db);
+    drop_treedb(gobj, db);
+    return result;
+}
+
+/***************************************************************************
  *  BH: a store that runs a topic AHEAD of its schema file. The operator's
  *  apply of `users` ran (topic_version 2, with `email`); then a newer
  *  literal (schema_version 3) declares `users` at topic_version 1, without
@@ -7818,6 +7870,7 @@ PRIVATE int (*late_scenarios[])(hgobj gobj) = {
     scenario_node_of_two_parents,
     scenario_two_topics_of_one_name,
     scenario_failed_open_keeps_the_save,
+    scenario_shifted_sibling_saved,
     scenario_file_behind_what_runs,
     scenario_saved_schema_written_whole,
     scenario_kw_gbuffer_every_treedb,

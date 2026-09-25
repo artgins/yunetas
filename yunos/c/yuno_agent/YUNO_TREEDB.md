@@ -1639,6 +1639,18 @@ the fix, the place went to the id composed from the names,
 save, and every later save published it again. The same held for a topic of
 another treedb linked here.)
 
+**A save publishes what its places imply.** A node placed in front of its
+siblings SHIFTS them: the operator writes `order` 5 on `treedb_x.users`, the
+draft is `departments, users`, and the save writes `departments` 0 and
+`users` 1. `departments` itself did not change, but its place is not the
+file's (1) any more, so that same save publishes it too: `"topic_versions":
+{"users": 2, "departments": 2}`, with an `order` row for it in `changes`
+(`"stored": 0, "from_c": 1`). A save again publishes the same, and after the
+apply a save has nothing to save. (Before the fix the first save published
+`users` alone, because the diff ran before the places were written, and the
+second save published `departments` too: two saves of one draft published
+different topics.) A dry run answers the same and writes nothing.
+
 **A node of more than one parent keeps its `order`.** The fkeys of the
 meta-schema are lists (`topics.treedbs`, `cols.topics`), so a node can hang
 from two parents: the operator links `treedb_x.departments.name` to `users`

@@ -313,6 +313,17 @@ PRIVATE json_t *load_schema_file_in_use(hgobj gobj, const char *treedb_name);
 PRIVATE json_t *system_node_at(hgobj gobj, const char *id, BOOL *p_is_topic);
 PRIVATE json_t *node_parents(json_t *node, BOOL is_topic);
 PRIVATE size_t node_parents_count(json_t *node, BOOL is_topic);
+PRIVATE json_int_t declared_position(json_t *declared, const char *name);
+PRIVATE int add_diff_row(
+    json_t *rows,
+    const char *treedb_name,
+    const char *kind,
+    const char *topic_name,
+    const char *col_name,
+    const char *attr,
+    json_t *stored,
+    json_t *from_c
+);
 PRIVATE json_t *twin_names_in_tree(hgobj gobj, const char *treedb_name, json_t *tree);
 PRIVATE json_t *schema_id_collision(
     hgobj gobj,
@@ -2525,6 +2536,86 @@ PRIVATE int write_saved_positions(
  *  (`left_by_older_release`), the same set saved-schema leaves out of
  *  `draft_changed`.
  ***************************************************************************/
+/***************************************************************************
+ *  The topics a save publishes because of the PLACES it writes. The diff
+ *  compares each node's stored `order` with the file in use, and the save
+ *  then writes into __system__ the place each node has in the schema it
+ *  saves (write_saved_positions). A node placed in front of its siblings
+ *  (a topic the operator gave an `order` of 5, or added with 0) SHIFTS
+ *  them, and a shifted sibling was not published by that save, since its
+ *  stored `order` still matched the file, but it was by the next one,
+ *  when its written place no longer did: two saves of one draft published
+ *  different topics. So a node whose place in `schema` is not its place in
+ *  the file in use is a change of its topic now, one `order` row in
+ *  `rows` (`stored`: the place saved, `from_c`: the file's), its topic set
+ *  in `changed`. A node the file does not declare, a topic already
+ *  changed, and a node of more than one parent (its place is not written,
+ *  see write_saved_positions) are not looked at. Nothing is written: a
+ *  dry run answers the same.
+ ***************************************************************************/
+PRIVATE void places_moved_from_file(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *schema,     // not owned, the schema the save writes
+    json_t *in_use,     // not owned, the schema file in use
+    json_t *changed,    // not owned, MUTATED: {topic: true}
+    json_t *rows        // not owned, MUTATED: the rows of the save
+)
+{
+    json_t *tree = system_tree_of(gobj, treedb_name);
+    json_t *stored_topics = tree? kw_get_dict(gobj, tree, "topics", 0, 0) : NULL;
+    json_t *file_topics = names_list(json_object_get(in_use, "topics"));
+
+    int idx; json_t *topic;
+    json_array_foreach(json_object_get(schema, "topics"), idx, topic) {
+        const char *topic_name = kw_get_str(gobj, topic, "id", "", 0);
+        json_t *stored_topic = stored_topics?
+            find_node_by_name(gobj, stored_topics, topic_name) : NULL;
+        json_int_t file_pos = declared_position(file_topics, topic_name);
+        if(json_object_get(changed, topic_name) || !stored_topic || file_pos < 0) {
+            continue;
+        }
+        if(node_parents_count(stored_topic, TRUE) <= 1 && file_pos != idx) {
+            json_t *saved_place = json_integer(idx);
+            json_t *file_place = json_integer(file_pos);
+            add_diff_row(rows, treedb_name, "changed", topic_name, "", "order",
+                saved_place, file_place);
+            json_decref(saved_place);
+            json_decref(file_place);
+            json_object_set_new(changed, topic_name, json_true());
+            continue;
+        }
+
+        json_t *file_topic = schema_topic(in_use, topic_name);
+        json_t *file_cols = names_list(json_object_get(file_topic, "cols"));
+        json_t *stored_cols = kw_get_dict(gobj, stored_topic, "cols", 0, 0);
+        json_t *cols = kwid_new_list(gobj, topic, 0, "cols");
+        int idx2; json_t *col;
+        json_array_foreach(cols, idx2, col) {
+            const char *col_name = kw_get_str(gobj, col, "id", "", 0);
+            json_t *stored_col = stored_cols?
+                find_node_by_name(gobj, stored_cols, col_name) : NULL;
+            json_int_t col_file_pos = declared_position(file_cols, col_name);
+            if(!stored_col || col_file_pos < 0 || col_file_pos == idx2 ||
+                    node_parents_count(stored_col, FALSE) > 1) {
+                continue;
+            }
+            json_t *saved_place = json_integer(idx2);
+            json_t *file_place = json_integer(col_file_pos);
+            add_diff_row(rows, treedb_name, "changed", topic_name, col_name, "order",
+                saved_place, file_place);
+            json_decref(saved_place);
+            json_decref(file_place);
+            json_object_set_new(changed, topic_name, json_true());
+            break;
+        }
+        JSON_DECREF(cols)
+        JSON_DECREF(file_cols)
+    }
+    JSON_DECREF(file_topics)
+    JSON_DECREF(tree)
+}
+
 PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -2801,6 +2892,11 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             0, 0, kw
         );
     }
+
+    /*
+     *  What the places the save writes imply is published by THIS save
+     */
+    places_moved_from_file(gobj, treedb_name, schema, in_use, changed, rows);
 
     /*
      *  A draft whose elements get one id in __system__ (a name with a dot):
