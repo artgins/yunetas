@@ -91,7 +91,7 @@ with one binary registers it as `test_<directory>`.
 
 | Directory | Binaries |
 |---|---|
-| `yev_loop/yev_events` | `test_yevent_listen1` - `4`, `test_yevent_connect1`, `2`, `test_yevent_traffic1` - `6`, `test_yevent_udp_traffic1`, `test_yevent_udp_zerocopy`, `test_yevent_udp_ipv6`, `test_yevent_stop_in_flight`, `test_yevent_loop_end_drain`, `test_yevent_connect_src_url`, `test_yevent_timer_once1`, `2`, `test_yevent_timer_periodic1`, `test_yevent_sq_full`, `test_yevent_sq_retry`, `test_yevent_sq_nomem`, `test_yevent_stop_nomem`, `test_yevent_kept_after_post` (ctest names `yev_events/...`) |
+| `yev_loop/yev_events` | `test_yevent_listen1` - `4`, `test_yevent_connect1`, `2`, `test_yevent_traffic1` - `6`, `test_yevent_udp_traffic1`, `test_yevent_udp_zerocopy`, `test_yevent_udp_ipv6`, `test_yevent_stop_in_flight`, `test_yevent_loop_end_drain`, `test_yevent_connect_src_url`, `test_yevent_timer_once1`, `2`, `test_yevent_timer_periodic1`, `test_yevent_sq_full`, `test_yevent_sq_retry`, `test_yevent_sq_nomem`, `test_yevent_stop_nomem`, `test_yevent_kept_after_post`, `test_yevent_close_fd_kept` (ctest names `yev_events/...`) |
 | `yev_loop/yev_events_tls` | `test_yevent_traffic_secure1`, `test_yevent_reload_live`, `test_yevent_reload_stress` |
 | `yev_loop/static_resolv` | `test_static_resolv_spoof` (ctest name `static_resolv/...`) |
 | `ytls` | `test_cert_reload`, `test_cert_info`, `test_cert_reload_mem`, `test_handshake_reject_openssl`, `test_handshake_reject_mbedtls`, `test_tls_floor_openssl`, `test_tls_verify_openssl` |
@@ -125,6 +125,6 @@ The single-binary directories that also register under `<directory>/`:
 | `timeranger2` | `test_tm_order`, `test_lost_lock`, `test_topic_var_replace`, `test_key_reborn_pages`, `test_open_list_history`, `test_unreadable_at_open`, `test_mark_tm_order`, `test_uncommitted_append`, `test_torn_md2_tail`, `test_md2_read_error`, `test_md2_short_write`, `test_nul_escape_record`, `test_torn_tail_check_fails`, `test_cmp_file_ids`, `test_unlistable_dirs`, `test_unlisted_relist_once` |
 | `tr_msg2db` | `test_msg2db_load_failed` |
 | `tr_queue` | `test_tr_queue_load_failed`, `test_tr_queue_backup_failed` |
-| `yev_loop/yev_events` | `test_yevent_sq_full`, `test_yevent_sq_nomem`, `test_yevent_sq_retry`, `test_yevent_stop_in_flight`, `test_yevent_udp_ipv6`, `test_yevent_udp_zerocopy`, `test_yevent_loop_end_drain`, `test_yevent_connect_src_url`, `test_yevent_stop_nomem`, `test_yevent_kept_after_post` |
+| `yev_loop/yev_events` | `test_yevent_sq_full`, `test_yevent_sq_nomem`, `test_yevent_sq_retry`, `test_yevent_stop_in_flight`, `test_yevent_udp_ipv6`, `test_yevent_udp_zerocopy`, `test_yevent_loop_end_drain`, `test_yevent_connect_src_url`, `test_yevent_stop_nomem`, `test_yevent_kept_after_post`, `test_yevent_close_fd_kept` |
 
 Tests that compare against expected `INFO`-level log output rely on the backend being **silent in `set_trace()`** — see `kernel/c/ytls/README.md`.

@@ -102,6 +102,14 @@ int multishot_available = 0; // Available since kernel 5.19 NOT TESTED!! DONT'US
  */
 #define YEV_DYING_WAIT_MS           1000
 
+/*
+ *  How long it waits, in all, when what is left are zero-copy sends whose
+ *  notification has not come. A notification cannot be canceled: it comes
+ *  when the kernel frees the packet, and a packet waiting for an ARP
+ *  resolution that fails is held about 3 s (3 probes, 1 s apart).
+ */
+#define YEV_ZC_NOTIF_WAIT_MS        5000
+
 /***************************************************************
  *              Structures
  ***************************************************************/
@@ -164,6 +172,7 @@ struct yev_loop_s {
 PRIVATE yev_state_t yev_set_state(yev_event_t *yev_event, yev_state_t new_state);
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
 PRIVATE void forget_kept(yev_loop_t *yev_loop, yev_event_t *yev_event);
+PRIVATE void take_back_submissions_on_fd(yev_loop_t *yev_loop, int fd);
 PRIVATE void host_without_brackets(char *host);
 PRIVATE int bind_src_url(
     hgobj gobj,
@@ -432,6 +441,7 @@ PRIVATE void really_free_yev_event(yev_event_t *yev_event)
         case YEV_ACCEPT_TYPE:
         case YEV_TIMER_TYPE:
             if(yev_event->fd > 0) {
+                take_back_submissions_on_fd(yev_loop, yev_event->fd);
                 if(gobj_trace_level(0) & (TRACE_URING)) {
                     gobj_log_debug(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -486,6 +496,12 @@ PRIVATE void reap_at_end(yev_loop_t *yev_loop, uint64_t user_data, uint32_t flag
     if(!yev_event || yev_event == &taken_back_event) {
         return;
     }
+    if(flags & IORING_CQE_F_MORE) {
+        yev_event->zc_notif_pending = TRUE;
+    }
+    if(flags & IORING_CQE_F_NOTIF) {
+        yev_event->zc_notif_pending = FALSE;
+    }
     if(yev_event->in_flight > 0 && !(flags & IORING_CQE_F_MORE)) {
         yev_event->in_flight--;
     }
@@ -524,14 +540,33 @@ PRIVATE unsigned untaken_of(yev_loop_t *yev_loop, yev_event_t *yev_event)
 }
 
 /***************************************************************************
+ *  TRUE when a destroyed event waits for the notification of a zero-copy
+ *  send: it comes when the kernel frees the packet, and cannot be canceled
+ ***************************************************************************/
+PRIVATE BOOL zc_notifications_pending(yev_loop_t *yev_loop)
+{
+    for(yev_event_t *yev_event = yev_loop->dying; yev_event; yev_event = yev_event->dying_next) {
+        if(yev_event->zc_notif_pending) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  The loop ends with events destroyed whose completions have not come
  *  (a callback broke the loop, or the loop was stopped, before them). No
  *  one reaps them after this: without it they leak, with their gbuffers.
  *
  *  What the kernel never took is dropped. What it has is canceled, and the
- *  completions are reaped for YEV_DYING_WAIT_MS at most. What is left then
- *  is freed anyway, with an error: a completion that does not come after a
- *  cancel is a fault of the accounting (in_flight), not a slow kernel.
+ *  completions are reaped for YEV_DYING_WAIT_MS at most -- or for
+ *  YEV_ZC_NOTIF_WAIT_MS while a zero-copy send waits for its notification,
+ *  which a cancel does not reach. What is left then:
+ *    - a zero-copy send still waiting for its notification is NOT freed,
+ *      with a warning: the kernel may still read its gbuffer;
+ *    - the rest is freed anyway, with an error: a completion that does not
+ *      come after a cancel is a fault of the accounting (in_flight), not a
+ *      slow kernel.
  ***************************************************************************/
 PRIVATE void free_dying_events(yev_loop_t *yev_loop)
 {
@@ -576,7 +611,11 @@ PRIVATE void free_dying_events(yev_loop_t *yev_loop)
     }
 
     uint64_t wait = start_msectimer(YEV_DYING_WAIT_MS);
-    while(yev_loop->dying && !test_msectimer(wait)) {
+    uint64_t zc_wait = start_msectimer(YEV_ZC_NOTIF_WAIT_MS);
+    while(yev_loop->dying) {
+        if(test_msectimer(wait) && (!zc_notifications_pending(yev_loop) || test_msectimer(zc_wait))) {
+            break;
+        }
         struct __kernel_timespec ts = { .tv_sec = 0, .tv_nsec = 10*1000*1000 };
         struct io_uring_cqe *cqe;
         int err = io_uring_submit_and_wait_timeout(ring, &cqe, 1, &ts, NULL);
@@ -598,6 +637,44 @@ PRIVATE void free_dying_events(yev_loop_t *yev_loop)
             reaped++;
         }
         io_uring_cq_advance(ring, reaped);
+    }
+
+    /*
+     *  A zero-copy send whose notification has not come is NOT freed: the
+     *  kernel may still read its gbuffer (the notification says it is
+     *  done), and a gbuffer freed and reused would be sent with whatever
+     *  was written into it. It is left to the end of the process, said.
+     *  Up to this fix it was freed after YEV_DYING_WAIT_MS, as a fault of
+     *  the accounting, which it is not.
+     */
+    unsigned zc_left = 0;
+    for(yev_event_t *yev_event = yev_loop->dying; yev_event; yev_event = next) {
+        next = yev_event->dying_next;
+        if(!yev_event->zc_notif_pending) {
+            continue;
+        }
+        if(yev_event->dying_prev) {
+            yev_event->dying_prev->dying_next = yev_event->dying_next;
+        } else {
+            yev_loop->dying = yev_event->dying_next;
+        }
+        if(yev_event->dying_next) {
+            yev_event->dying_next->dying_prev = yev_event->dying_prev;
+        }
+        yev_event->dying_prev = NULL;
+        yev_event->dying_next = NULL;
+        yev_loop->dying_size--;
+        zc_left++;
+    }
+    if(zc_left > 0) {
+        gobj_log_warning(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBURING,
+            "msg",          "%s", "Loop destroyed with zero-copy sends whose notification did not come: NOT freed, the kernel may still read their gbuffer",
+            "events",       "%d", (int)zc_left,
+            "wait_ms",      "%d", YEV_ZC_NOTIF_WAIT_MS,
+            NULL
+        );
     }
 
     if(yev_loop->dying) {
@@ -929,6 +1006,83 @@ PRIVATE BOOL take_back_submissions(yev_loop_t *yev_loop, yev_event_t *yev_event)
 }
 
 /***************************************************************************
+ *  The event of the first submission on `fd` that the kernel has not taken
+ *  (kept by the loop, or in the submission queue), NULL if none
+ ***************************************************************************/
+PRIVATE yev_event_t *untaken_owner_of_fd(yev_loop_t *yev_loop, int fd)
+{
+    for(unsigned i = 0; i < yev_loop->kept_sqes_size; i++) {
+        struct io_uring_sqe *sqe = &yev_loop->kept_sqes[i];
+        if(sqe->fd == fd && sqe->user_data && sqe->user_data != (uint64_t)(uintptr_t)&taken_back_event) {
+            return (yev_event_t *)(uintptr_t)sqe->user_data;
+        }
+    }
+    if(io_uring_sq_ready(&yev_loop->ring) > 0) {
+        struct io_uring *ring = &yev_loop->ring;
+        struct io_uring_sq *sq = &ring->sq;
+        unsigned shift = io_uring_sqe_shift(ring);
+        for(unsigned i = io_uring_load_sq_head(ring); i != sq->sqe_tail; i++) {
+            struct io_uring_sqe *sqe = &sq->sqes[(i & sq->ring_mask) << shift];
+            if(sqe->fd == fd && sqe->user_data && sqe->user_data != (uint64_t)(uintptr_t)&taken_back_event) {
+                return (yev_event_t *)(uintptr_t)sqe->user_data;
+            }
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  The loop is about to close the fd of an event (a connect, an accept, a
+ *  timer: the event owns it). Other events may have submissions on the
+ *  same fd that the kernel has not taken yet -- a write of C_TCP on the
+ *  socket of its connect event, kept while io_uring_enter() refuses
+ *  submissions. Handed over after the close, they would run on whatever
+ *  file takes the number next: the bytes of an old connection sent to a
+ *  new peer, and the write told it was sent. Each one is taken back before
+ *  the close, and its event completes as canceled (STOPPED, -ECANCELED) at
+ *  the next cycle of the loop, as a stop makes it. What the kernel HAS is
+ *  not touched: the kernel holds its own reference to the file.
+ *
+ *  Without memory for the completion (take_back_submissions logs it) the
+ *  submissions are dropped all the same: the event then waits for a
+ *  completion that does not come, which is said, instead of sending its
+ *  data to another file.
+ ***************************************************************************/
+PRIVATE void take_back_submissions_on_fd(yev_loop_t *yev_loop, int fd)
+{
+    if(fd < 0 || !has_pending_submissions(yev_loop)) {
+        return;
+    }
+
+    yev_event_t *owner;
+    while((owner = untaken_owner_of_fd(yev_loop, fd)) != NULL) {
+        hgobj gobj = yev_loop->yuno? owner->gobj:0;
+        if(take_back_submissions(yev_loop, owner)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBURING,
+                "msg",          "%s", "An fd is closed with submissions of other events on it that the kernel did not take: taken back, completed as canceled",
+                "fd",           "%d", fd,
+                "type",         "%s", yev_event_type_name(owner),
+                "p",            "%p", owner,
+                NULL
+            );
+        } else {
+            forget_kept(yev_loop, owner);
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBURING,
+                "msg",          "%s", "An fd is closed with submissions of other events on it that the kernel did not take: dropped, the event will not complete",
+                "fd",           "%d", fd,
+                "type",         "%s", yev_event_type_name(owner),
+                "p",            "%p", owner,
+                NULL
+            );
+        }
+    }
+}
+
+/***************************************************************************
  *  An event freed for real takes with it what the loop keeps of it, and
  *  what is left of it in the submission queue
  ***************************************************************************/
@@ -989,6 +1143,12 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
      *  zero-copy send posts its notification (IORING_CQE_F_NOTIF) later,
      *  and the kernel reads the buffer until then
      */
+    if(cqe->flags & IORING_CQE_F_MORE) {
+        yev_event->zc_notif_pending = TRUE;
+    }
+    if(cqe->flags & IORING_CQE_F_NOTIF) {
+        yev_event->zc_notif_pending = FALSE;
+    }
     if(yev_event->in_flight > 0 && !(cqe->flags & IORING_CQE_F_MORE)) {
         yev_event->in_flight--;
     }
@@ -2798,6 +2958,7 @@ PRIVATE void release_on_stop(yev_event_t *yev_event, hgobj gobj, uint32_t trace_
             // Each connection needs a new socket fd, i.e., after each disconnection.
             // The timer (once) if it's in idle can be reused, if stopped you must create one new.
             if(yev_event->fd > 0) {
+                take_back_submissions_on_fd(yev_event->yev_loop, yev_event->fd);
                 if(trace_level & (TRACE_URING)) {
                     gobj_log_debug(gobj, 0,
                         "function",     "%s", __FUNCTION__,

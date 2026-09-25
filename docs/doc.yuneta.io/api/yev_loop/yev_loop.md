@@ -68,6 +68,35 @@ memory to keep a completion: submission handed over as it is"*): the
 submission goes to the kernel as it is, and the stop cancels it there as it
 cancels any operation the kernel has.
 
+The same applies to the submissions of **other** events on an fd that the
+loop closes. A connect, an accept and a timer event own their fd: the loop
+closes it at a stop (connect, timer) or at the free of the event. The writes
+of `C_TCP` are other events on the socket of its connect event. Before the
+close, every submission on that fd that the kernel did not take yet is taken
+back as above, and its event gets its callback `STOPPED`, `-ECANCELED`, at
+the next cycle, with a WARNING: *"An fd is closed with submissions of other
+events on it that the kernel did not take: taken back, completed as
+canceled"* (with `fd` and `type`). What the kernel already has is not
+touched: the kernel holds its own reference to the file. Without memory for
+that completion the submissions are dropped all the same, with an ERROR
+(*"...: dropped, the event will not complete"*): an event that waits is
+better than bytes sent to another file. Up to this fix they were handed to
+the kernel at the next cycle and ran on whatever file had taken the number:
+the bytes of an old connection went to a new peer, and the write callback
+said they were sent.
+
+```C
+/*
+ *  A write of a connection whose socket is closed before the kernel
+ *  took the write: the write is canceled, it never reaches the file
+ *  that takes the number next
+ */
+yev_event_h wr = yev_create_write_event(yev_loop, callback, gobj, yev_get_fd(yev_connect), gbuf);
+yev_start_event(wr);            // 0, kept: the kernel takes nothing now
+yev_stop_event(yev_connect);    // IDLE: its socket is closed, the write taken back
+yev_loop_run(yev_loop, 1);      // callback: wr STOPPED, result -ECANCELED
+```
+
 In 7.25.4 and earlier, a full queue ended the process at each of the 12
 places that ask for an entry: 10 used the NULL entry (a crash), and 2
 logged *"io_uring_get_sqe() FAILED"* and aborted. An entry left in the
@@ -98,7 +127,9 @@ yev_loop_run(yev_loop, 1);
 
 The tests are `tests/c/yev_loop/yev_events/test_yevent_sq_full.c` (a full
 queue), `test_yevent_sq_retry.c` (a failed submit, a stop with the fd used
-again, many cycles) and `test_yevent_sq_nomem.c` (no memory to keep).
+again, many cycles), `test_yevent_sq_nomem.c` (no memory to keep) and
+`test_yevent_close_fd_kept.c` (the fd of a connect closed with a write of
+another event kept, and in the queue).
 
 (yev-loop-zero-copy-sends)=
 ## Zero-copy sends
@@ -246,6 +277,17 @@ first:
   come: freed"*, whose `cancel_submitted` says whether the cancel was
   sent. After a cancel, a completion that does not come is a fault of the
   loop's accounting, not a slow kernel.
+- A zero-copy send that had its result and waits for its notification is
+  the exception. The notification cannot be canceled: it comes when the
+  kernel frees the packet (a packet waiting for an ARP resolution that
+  fails is held about 3 seconds), and until then the kernel may read the
+  gbuffer. While one waits, the loop reaps for up to 5 seconds in all.
+  If it still has not come, the event is **not** freed: it is left to the
+  end of the process, with a WARNING *"Loop destroyed with zero-copy sends
+  whose notification did not come: NOT freed, the kernel may still read
+  their gbuffer"* (with `events`). A freed gbuffer, reused, would be sent
+  with whatever was written into it. Up to this fix it was freed after 1
+  second, with the ERROR above.
 - When the submission queue has no entry for that cancel (full, and the
   kernel takes nothing), the loop says so before it waits: *"Submission
   queue full: the cancel of the events left is NOT submitted, their
@@ -754,7 +796,7 @@ This function does not return a value.
 **Notes**
 
 After calling `yev_loop_destroy()`, the `yev_loop_h` handle becomes invalid and must not be used.
-Before it closes the ring, it frees the destroyed events whose completions have not come: it cancels what the kernel still has, reaps the completions for 1 second at most (no callback is called), and frees what is left then with an ERROR *"Loop destroyed with events whose completions did not come: freed"*. When there is no submission entry for that cancel, it logs *"Submission queue full: the cancel of the events left is NOT submitted, their completions may not come"* first. See [The end of a loop](<#yev-loop-end-of-loop>).
+Before it closes the ring, it frees the destroyed events whose completions have not come: it cancels what the kernel still has, reaps the completions for 1 second at most (no callback is called), and frees what is left then with an ERROR *"Loop destroyed with events whose completions did not come: freed"*. A zero-copy send whose notification has not come is waited for up to 5 seconds, and then NOT freed, with a WARNING *"Loop destroyed with zero-copy sends whose notification did not come: NOT freed, the kernel may still read their gbuffer"*: the kernel may still read its gbuffer. When there is no submission entry for that cancel, it logs *"Submission queue full: the cancel of the events left is NOT submitted, their completions may not come"* first. See [The end of a loop](<#yev-loop-end-of-loop>).
 
 ```C
 yev_loop_stop(yev_loop);

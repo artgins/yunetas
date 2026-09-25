@@ -34,6 +34,14 @@
  *          D.  An event whose completion never comes (the test counts one
  *              more operation than the kernel has): yev_loop_destroy()
  *              waits 1 second, frees it, and logs an error.
+ *          E.  A zero-copy send that had its result and whose notification
+ *              does not come (the test marks it so: the kernel would still
+ *              hold the packet, as while an ARP resolution fails). A
+ *              notification cannot be canceled, and the kernel may read the
+ *              gbuffer until it comes: yev_loop_destroy() waits for it up
+ *              to 5 seconds, and then does NOT free the event, with a
+ *              warning. Up to this fix it was freed after 1 second, as a
+ *              fault of the accounting.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -288,6 +296,53 @@ PRIVATE int do_test(void)
         fail(temp);
     }
 
+    /*------------------------------------------------------------*
+     *  E.  A zero-copy notification that does not come
+     *------------------------------------------------------------*/
+    new_loop();
+    fd_tx = socket(AF_INET, SOCK_DGRAM, 0);
+    gbuf = gbuffer_create(256, 256);
+    gbuffer_append_string(gbuf, "a datagram the kernel still holds");
+    gbuf_probe = gbuffer_incref(gbuf);
+    yev_send = yev_create_sendmsg_event(
+        yev_loop,
+        send_callback,
+        NULL,   // gobj
+        fd_tx,
+        gbuf,   // owned by the event
+        (struct sockaddr *)&addr,
+        sizeof(addr)
+    );
+    yev_send->in_flight++;              // its result came (IORING_CQE_F_MORE),
+    yev_send->zc_notif_pending = TRUE;  // its notification did not
+    yev_destroy_event(yev_send);
+
+    t0 = time_in_milliseconds_monotonic();
+    end_loop();
+    waited = time_in_milliseconds_monotonic() - t0;
+
+    check_refcount("E: after yev_loop_destroy(), the kernel may still read the gbuffer", 2);
+    if(waited < 4500 || waited > 8000) {
+        char temp[256];
+        snprintf(temp, sizeof(temp), "E: yev_loop_destroy() waited %d ms, expected about 5000",
+            (int)waited
+        );
+        fail(temp);
+    }
+
+    /*
+     *  Left to the end of the process by the loop: the test frees it, its
+     *  memory is checked
+     */
+    if(gbuf_probe->refcount == 2) {
+        GBUFFER_DECREF(yev_send->gbuf)
+        GBMEM_FREE(yev_send->sock_info)
+        GBMEM_FREE(yev_send->msghdr)
+        GBMEM_FREE(yev_send)
+    }
+    GBUFFER_DECREF(gbuf_probe)
+    close(fd_tx);
+
     /*--------------------------------*
      *  End
      *--------------------------------*/
@@ -366,8 +421,9 @@ int main(int argc, char *argv[])
     const char *test = APP;
     set_expected_results(
         test,       // test name
-        json_pack("[{s:s}]",  // error_list: only case D logs
-            "msg", "Loop destroyed with events whose completions did not come: freed"
+        json_pack("[{s:s},{s:s}]",  // error_list: only cases D and E log
+            "msg", "Loop destroyed with events whose completions did not come: freed",
+            "msg", "Loop destroyed with zero-copy sends whose notification did not come: NOT freed, the kernel may still read their gbuffer"
         ),
         NULL,       // expected
         NULL,       // ignore_keys

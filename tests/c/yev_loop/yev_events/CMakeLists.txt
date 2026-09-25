@@ -80,6 +80,7 @@ set(SRCS
     test_yevent_sq_nomem
     test_yevent_stop_nomem
     test_yevent_kept_after_post
+    test_yevent_close_fd_kept
 )
 
 ##############################################
