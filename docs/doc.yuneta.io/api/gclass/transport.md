@@ -128,6 +128,7 @@ Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 | `only_allowed_ips` | `bool` | Accept only the peers in the yuno's `allowed_ips` list (whitelist mode). The `denied_ips` list applies with or without it. |
 | `connxs` | `integer` | Current connection count (stat). |
 | `tconnxs` | `integer` | Total connection count (stat). |
+| `refusedConnxs` | `integer` | Connections refused at accept by the ip lists (stat, since 7.25.5). |
 | `clisrv_kw` | `json` | Extra kw passed to each child client/server. |
 
 (tcp_s_ip_lists)=
@@ -151,9 +152,21 @@ peer:
    without `only_allowed_ips`, and it wins over `allowed_ips`.
 3. With `only_allowed_ips`, a peer that is not in `allowed_ips` is refused.
 
-A refused connection is closed at once and logged at info level, with the
-peer, as `TCP_S: Ip denied` or `TCP_S: Ip not allowed` (msgset
-`Connect Disconnect`). It does not use a channel of the pool.
+A refused connection is closed at once, and it does not use a channel of
+the pool. Every refusal is counted in the stat `refusedConnxs`. It is logged
+at info level (msgset `Connect Disconnect`) as `TCP_S: Ip denied` or
+`TCP_S: Ip not allowed`, on the transition and not per connection: the first
+refusal of a cause, then at most one each 60 seconds per cause, with
+`refused` (the connections of that cause refused since the previous log,
+this one included), the total `refusedConnxs` and the `peername` of the one
+that is said. The minute is timed on the monotonic clock. Up to 7.25.4 each
+refusal wrote its line, and a denied host that reconnects in a loop was a
+flood of the log (the deny-list is asked here since 7.25.5).
+
+```text
+INFO  note_refused_connection: TCP_S: Ip denied  peername=203.0.113.7:51544 refused=1 refusedConnxs=1 next_log_in_ms=60000
+INFO  note_refused_connection: TCP_S: Ip denied  peername=203.0.113.7:51702 refused=318 refusedConnxs=319 next_log_in_ms=60000
+```
 
 Example: ban one ip on every TCP listener of a yuno, and see the list:
 
@@ -287,10 +300,39 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=add-denied-ip ip=203.
 
 A read that FAILS while the server runs (not a read canceled by a stop) stops
 the server: logged as an ERROR, *"UDP: read FAILED, the server stops
-listening"*. The only other stop is a read that has no memory for its NEW
-gbuffer (see *Transmit*: the host kept the previous one): an ERROR, *"UDP: no
-memory for the next read, the server stops listening"*, with the
-`rx_buffer_size` it asked for.
+listening"*. The only other stops the server makes by itself are about its
+NEXT read: no memory for its new gbuffer (see *Transmit*: the host kept the
+previous one), an ERROR *"UDP: no memory for the next read, the server stops
+listening"*; and a read that cannot be started again (the cause logged by
+`yev_start_event()` first -- no memory to keep the submission, or a gbuffer
+with no room, as an `rx_buffer_size` of 0 makes it), an ERROR *"UDP: the read
+cannot be started again, the server stops listening"*. Both carry the
+`rx_buffer_size`. Up to 7.25.4 the second was not seen: the server stayed in
+`ST_IDLE`, "running", and read nothing more, with nothing logged.
+
+A stop the server makes by itself ends like any stop: in `ST_WAIT_STOPPED`
+while a send is in flight, then `ST_STOPPED` and `EV_STOPPED` when that send
+completes. The gobj still runs, so its host decides what to do (stop it, or
+stop and start it again). Up to 7.25.4 a self-stop with a send in flight never
+ended: the completion of the send took the path of a running server, the state
+stayed `ST_WAIT_STOPPED`, `EV_STOPPED` was never published, and every
+`EV_TX_DATA` of the host answered *"Event NOT DEFINED in state"*.
+`tests/c/c_udp_s_self_stop`.
+
+```C
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    /*
+     *  A C_UDP_S that stopped by itself still runs. Listen again LATER:
+     *  EV_STOPPED is published inside its stack, never stop or start it here.
+     */
+    if(gobj_is_running(src)) {
+        gobj_post_event(gobj, EV_RESTART_LISTENER, json_object(), gobj);   // an event of this host
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+```
 
 ### Transmit
 
@@ -369,7 +411,8 @@ and `tests/c/c_udp_s_rx` for the receive side.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `url` | `string` | Listening URL: `udp://0.0.0.0:5000`, or an IPv6 literal in brackets, `udp://[::1]:5000` (since 7.25.5: an IPv6 peer is kept with its real length and answered; up to 7.25.4 its address was cut to 16 bytes and the reply refused, `-EINVAL`). |
+| `url` | `string` | Listening URL: `udp://0.0.0.0:5000`, or an IPv6 literal in brackets, `udp://[::1]:5000` (since 7.25.5: an IPv6 peer is kept with its real length and answered; up to 7.25.4 its address was cut to 16 bytes and the reply refused, `-EINVAL`). A secure url (`udps://`) is REFUSED at the start: TLS over datagrams is DTLS, which ytls does not implement. An ERROR, *"A secure url (udps://) is not supported by C_UDP_S: there is no DTLS"*, and the start fails (with `exitOnError`, the default, the yuno exits). Up to 7.25.4 it was accepted, the server listened with no TLS session, and the first datagram crashed the yuno. |
+| `use_ssl` | `bool` | Always `false` (see `url`). The commands `reload-certs` and `view-cert` answer that there is no TLS. |
 | `shared` | `bool` | Enable port sharing. |
 | `set_broadcast` | `bool` | Enable broadcast. |
 | `only_allowed_ips` | `bool` | Hear only the peers in the yuno's `allowed_ips` (see *Receive*; `denied_ips` applies with or without it); writable, it takes effect at the next datagram. |

@@ -1,20 +1,20 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Main of test_c_udp_s_rx: the peer of each datagram, and the
- *          peers C_UDP_S does not hear (only_allowed_ips)
+ *          Main of test_c_udp_s_self_stop: the stops C_UDP_S makes by
+ *          itself end, and are said; a secure url is refused
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
-#include "c_test_udp_rx.h"
+#include "c_test_udp_self_stop.h"
 
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_c_udp_s_rx"
-#define APP_DOC         "Test the receive of C_UDP_S"
+#define APP_NAME        "test_c_udp_s_self_stop"
+#define APP_DOC         "Test the self-stops of C_UDP_S and its refusal of udps://"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -60,8 +60,8 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'test_udp_rx',                                     \n\
-            'gclass': 'C_TEST_UDP_RX',                               \n\
+            'name': 'test_udp_self_stop',                                     \n\
+            'gclass': 'C_TEST_UDP_SELF_STOP',                               \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
@@ -89,7 +89,7 @@ static int register_yuno_and_more(void)
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    result += register_c_test_udp_rx();
+    result += register_c_test_udp_self_stop();
 
     /*------------------------------------------------*
      *          Traces
@@ -103,21 +103,14 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "UDP listening ...",
-            "msg", "UDP listening ...",
-            "msg", "UDP listening ...",
             "msg", "Playing yuno",
-            "msg", "UDP_S: Ip not allowed, datagram dropped",
-            "msg", "UDP_S: Ip denied, datagram dropped",
-            "msg", "TEST: every peer has its channel, and a peer not allowed is not heard",
-            "msg", "Too many peers, datagrams of new peers dropped",
-            "msg", "Frame without end within max_frame_size, delivered cut",
-            "msg", "Too many bytes in unfinished frames, datagram dropped with the unfinished frame of its peer",
-            "msg", "TEST: what a peer holds is capped",
-            "msg", "EV_SEND_MESSAGE without a peer: no address, and its label names no known peer; dropped",
-            "msg", "TEST: a host answers the peers of the frames",
+            "msg", "Cannot start event: gbuffer WITHOUT space to read",
+            "msg", "UDP: the read cannot be started again, the server stops listening",
+            "msg", "A secure url (udps://) is not supported by C_UDP_S: there is no DTLS",
+            "msg", "TEST: the self-stop of C_UDP_S ended, and udps:// was refused",
             "msg", "Exit to die",
             "msg", "Pausing yuno",
             "msg", "Yuno stopped, gobj end"

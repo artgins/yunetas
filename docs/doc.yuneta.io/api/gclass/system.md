@@ -160,8 +160,8 @@ longer than one datagram in pieces, the NUL after the last one).
 | Property | Value |
 |----------|-------|
 | **States** | `ST_IDLE` |
-| **Input events** | `EV_SEND_MESSAGE` (a gbuffer to send, to the peer set with `gbuffer_setaddr()`), and from its `C_UDP_S`: `EV_RX_DATA`, `EV_TX_READY`, `EV_STOPPED`; `EV_TIMEOUT_PERIODIC` from its timer |
-| **Output events** | `EV_ON_OPEN` (a new channel), `EV_ON_MESSAGE` (a whole frame, its gbuffer in the kw, without the NUL), `EV_ON_CLOSE` (a channel with no datagram for `seconds_inactivity`) |
+| **Input events** | `EV_SEND_MESSAGE` (a gbuffer to send: to its address, or, with none, to the known peer its label names -- see *Answer a peer*), and from its `C_UDP_S`: `EV_RX_DATA`, `EV_TX_READY`, `EV_STOPPED`; `EV_TIMEOUT_PERIODIC` from its timer |
+| **Output events** | `EV_ON_OPEN` (a new channel), `EV_ON_MESSAGE` (a whole frame, its gbuffer in the kw, without the NUL; the gbuffer carries its peer as label and address), `EV_ON_CLOSE` (a channel with no datagram for `seconds_inactivity`) |
 
 A channel is keyed by the PEER of the datagram, the label `C_UDP_S` writes in
 the gbuffer (`"ip:port"`). So the pieces of the frames of two peers never mix,
@@ -184,6 +184,47 @@ json_t *kw_gss = json_pack("{s:s, s:I}",
 );
 hgobj gss = gobj_create("logs", C_GSS_UDP_S, kw_gss, gobj);    // gobj hears EV_ON_*
 ```
+
+### Answer a peer
+
+The gbuffer of an `EV_ON_MESSAGE` carries its peer twice: as its LABEL
+(`gbuffer_getlabel()`, `"ip:port"`, the name of its channel) and as its
+ADDRESS (`gbuffer_getaddr()`). `EV_SEND_MESSAGE` takes either:
+
+- a gbuffer with an address (`gbuffer_setaddr()`) goes to that address,
+  whatever its label;
+- a gbuffer with NO address goes to the known peer its label names -- a
+  channel that is open, whose address is taken;
+- with neither, it is refused: an ERROR, *"EV_SEND_MESSAGE without a peer: no
+  address, and its label names no known peer; dropped"*, and the event answers
+  -1.
+
+```C
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gbuffer_t *frame = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+
+    gbuffer_t *answer = gbuffer_create(64, 64);
+    gbuffer_append_string(answer, "ack");
+    gbuffer_setlabel(answer, gbuffer_getlabel(frame));  // or gbuffer_setaddr() with its address
+    gobj_send_event(gss, EV_SEND_MESSAGE,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)answer),   // the kw owns it
+        gobj
+    );
+
+    KW_DECREF(kw)
+    return 0;
+}
+```
+
+Up to 7.25.4 a frame carried neither its peer's label nor its address, so no
+host could answer the peer of a frame; and `EV_SEND_MESSAGE` looked the
+channel up by the label and did not use it: a send by address (the documented
+way) logged *"UDP channel NOT FOUND"* for every datagram, and a send by label
+had no address, so `C_UDP_S` refused it (*"Cannot send datagram: dropped"*).
+The label contract is the original one (the pre-v7 `C_UDP_S` sent to the
+`"ip:port"` of the label); the address is how `C_UDP_S` sends since v7.
+`tests/c/c_udp_s_rx`, case 5.
 
 ### Key attributes
 

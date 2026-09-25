@@ -24,7 +24,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 
 | Directory | Target |
 |---|---|
-| `yev_loop` (`yev_events`, `yev_events_tls`, `static_resolv`) | io_uring event loop: listen, connect, TCP and UDP traffic, timers, TLS, the static resolver; a full or failing submission queue, stops, the end of a loop, a closed fd with other events' submissions on it |
+| `yev_loop` (`yev_events`, `yev_events_tls`, `static_resolv`) | io_uring event loop: listen, connect, TCP and UDP traffic, timers, TLS, the static resolver; a full or failing submission queue, stops, the end of a loop, a closed fd with other events' submissions on it, a stop in a wrapped ring |
 | `ytls` | TLS layer: certificate info and reload, handshakes refused, the TLS floor, peer verification |
 | `timeranger2` | timeranger2 append / read / iterator tests |
 | `tr_msg` | msg2db wrapper (`tr_msg.c`) |
@@ -52,7 +52,8 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `c_tcp_s_ip_lists` | `C_TCP_S` at accept: a peer in `denied_ips` is refused (the deny wins over `allowed_ips`), with `only_allowed_ips` one not in `allowed_ips` is refused, loopback is exempt; the list key of each peername form (IPv4, bracketed IPv6, IPv4 on a dual-stack socket); the `add-`/`remove-` ip commands store the form a peer is looked up by, refuse what is not an ip, and a `remove-` of an ip not in the list answers `-1`; entries stored as typed are renamed or dropped at load |
 | `c_udp_s_tx` | `C_UDP_S` sends every datagram of its queue, and drops one it cannot send (no peer address: an error; refused by the kernel: a warning) and goes on listening |
 | `c_udp_s_restart` | `C_UDP_S` reads and sends again after a stop and a start (a file on the old socket number; a stop and a start in the same turn), and publishes `EV_STOPPED` |
-| `c_udp_s_rx` | `C_UDP_S` labels every datagram with its peer, so `C_GSS_UDP_S` joins the interleaved pieces of two peers apart; the yuno's ip lists drop a denied peer, and with `only_allowed_ips` one that is not allowed, with one warning per cause (not per datagram) and the drops counted in `rxRefusedMsgs`; the caps of what a peer holds in `C_GSS_UDP_S` (peers, frame size, pending bytes) |
+| `c_udp_s_self_stop` | `C_UDP_S` whose next read cannot start says it and stops by itself, and the stop ends (`EV_STOPPED`) with a send in flight; a `udps://` url is refused at the start |
+| `c_udp_s_rx` | `C_UDP_S` labels every datagram with its peer, so `C_GSS_UDP_S` joins the interleaved pieces of two peers apart; the yuno's ip lists drop a denied peer, and with `only_allowed_ips` one that is not allowed, with one warning per cause (not per datagram) and the drops counted in `rxRefusedMsgs`; the caps of what a peer holds in `C_GSS_UDP_S` (peers, frame size, pending bytes); a host answers the peer of a frame by its label or its address |
 | `c_udp_s_echo` | An answer written in the gbuffer of an `EV_RX_DATA` (the kw sent back as `EV_TX_DATA`) reaches its sender whole while other sends wait or are in flight and more datagrams arrive: the next read takes a new gbuffer when the host kept the old one |
 | `c_subscriptions` | subscribe/publish semantics of the GObj core; a repeated hard subscription is one (`test3`) |
 | `kw` | `kw_*` helpers from `gobj-c/kwid.c`; `kw_set_dict_value()` overwrites and answers `-1` when it writes nothing |
@@ -78,7 +79,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `c_treedb_system_schema` | `__system__`, the meta-treedb of `C_TREEDB`: projection, save, apply, delete |
 | `c_treedb_literal_wins` | `C_TREEDB`: a schema from C newer than the schema file in use wins whole, `__system__` is projected from it whole, the operator work it discards is reported once, and an unfinished or killed projection completes at the next open; `save-schema` of a node of two parents, of two topics of one name, and of a draft that shifts its siblings' places; a failed open keeps the saved schema |
 | `treedb_schema_fidelity` | Every real schema of the tree through `__system__` and back |
-| `c_mqtt` | Embedded MQTT broker + client round-trip; the ACL, `list-queues` / `clean-queues` of a store that cannot be listed, malformed packets, incoming QoS 2 messages queued at a session reload; an MQTT client with persistent queues (a QoS 2 dup, an expired queued message) |
+| `c_mqtt` | Embedded MQTT broker + client round-trip; the ACL, `list-queues` / `clean-queues` of a store that cannot be listed, malformed packets, incoming QoS 2 messages queued at a session reload; the out window (the client's Receive Maximum), `list-queues qos=`, an ack of the wrong type; an MQTT client with persistent queues (a QoS 2 dup, an expired queued message) |
 | `c_auth_bff` | BFF HTTP auth flow (mock Keycloak + signed JWTs) |
 | `c_task_authenticate` | `C_TASK_AUTHENTICATE`, the OIDC password-grant task |
 | `c_llhttp_parser` | The vendored llhttp and `ghttp_parser` |
@@ -98,7 +99,7 @@ binaries carry a prefix: `c_mqtt/acl` runs `test_mqtt_acl`, `c_tcp/test5` runs
 
 | Directory | Names |
 |---|---|
-| `yev_loop/yev_events` | `test_yevent_listen1` - `4`, `test_yevent_connect1`, `2`, `test_yevent_traffic1` - `6`, `test_yevent_udp_traffic1`, `test_yevent_udp_zerocopy`, `test_yevent_udp_ipv6`, `test_yevent_stop_in_flight`, `test_yevent_loop_end_drain`, `test_yevent_connect_src_url`, `test_yevent_timer_once1`, `2`, `test_yevent_timer_periodic1`, `test_yevent_sq_full`, `test_yevent_sq_retry`, `test_yevent_sq_nomem`, `test_yevent_stop_nomem`, `test_yevent_kept_after_post`, `test_yevent_close_fd_kept` (ctest names `yev_events/...`) |
+| `yev_loop/yev_events` | `test_yevent_listen1` - `4`, `test_yevent_connect1`, `2`, `test_yevent_traffic1` - `6`, `test_yevent_udp_traffic1`, `test_yevent_udp_zerocopy`, `test_yevent_udp_ipv6`, `test_yevent_stop_in_flight`, `test_yevent_loop_end_drain`, `test_yevent_connect_src_url`, `test_yevent_timer_once1`, `2`, `test_yevent_timer_periodic1`, `test_yevent_sq_full`, `test_yevent_sq_retry`, `test_yevent_sq_nomem`, `test_yevent_stop_nomem`, `test_yevent_kept_after_post`, `test_yevent_close_fd_kept`, `test_yevent_stop_stale_sqe` (ctest names `yev_events/...`) |
 | `yev_loop/yev_events_tls` | `test_yevent_traffic_secure1`, `test_yevent_reload_live`, `test_yevent_reload_stress` |
 | `yev_loop/static_resolv` | `test_static_resolv_spoof` (ctest name `static_resolv/...`) |
 | `ytls` | `test_cert_reload`, `test_cert_info`, `test_cert_reload_mem`, `test_handshake_reject_openssl`, `test_handshake_reject_mbedtls`, `test_tls_floor_openssl`, `test_tls_verify_openssl` |
@@ -111,7 +112,7 @@ binaries carry a prefix: `c_mqtt/acl` runs `test_mqtt_acl`, `c_tcp/test5` runs
 | `kw` | `test_kw1`, `test_json_flat`, `test_kw_set_dict_value` |
 | `helpers` | `test_helpers`, `test_rotatory`, `test_audit_record`, `test_dir_array_nomem`, `test_dir_listing`, `test_dir_read_error` |
 | `gbuffer` | `test_gbuffer_guards`, `test_gbmem_realloc_refused` |
-| `c_mqtt` | `test1`, `acl`, `malformed`, `queued_in`, `client_queues` |
+| `c_mqtt` | `test1`, `acl`, `malformed`, `queued_in`, `client_queues`, `out_flight` |
 | `c_auth_bff` | `test1_login`, `test2_kc_401`, `test3_callback`, `test4_refresh`, `test5_logout`, `test6_invalid_body`, `test7_slow_login`, `test8_queue_full`, `test9_browser_cancel`, `test10_kc_silence`, `test11_cancel_retry`, `test12_stale_reply`, `test13_refresh_expired`, `test14_method_not_allowed`, `test15_missing_body`, `test16_unknown_endpoint`, `test18_discovery_failure`, `test19_logout_no_cookie` |
 | `c_task_authenticate` | `test1_discovery`, `test2_explicit_endpoints`, `test4_discovery_failure` |
 | `msg_interchange` | `test_mqtt_qos0`, `test_tcp_connect`, `test_tcp_reconnect` |
@@ -125,16 +126,16 @@ The single-binary directories that also register under `<directory>/`:
 
 | Directory | New binaries |
 |---|---|
-| `c_agent_find_new_yunos`, `c_ievent_srv_peer_subs`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_rx`, `c_udp_s_echo`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
+| `c_agent_find_new_yunos`, `c_ievent_srv_peer_subs`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_self_stop`, `c_udp_s_rx`, `c_udp_s_echo`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
 | `gbuffer` | `test_gbmem_realloc_refused` |
 | `c_subscriptions` | `test_subs_test3` |
 | `kw` | `test_kw_set_dict_value` |
 | `c_tcp` | `test_tcp_test5`, `test_tcp_test6` |
-| `c_mqtt` | `test_mqtt_queued_in`, `test_mqtt_client_queues` |
+| `c_mqtt` | `test_mqtt_queued_in`, `test_mqtt_client_queues`, `test_mqtt_out_flight` |
 | `helpers` | `test_audit_record`, `test_rotatory`, `test_dir_array_nomem`, `test_dir_listing`, `test_dir_read_error` |
 | `timeranger2` | `test_tm_order`, `test_lost_lock`, `test_topic_var_replace`, `test_key_reborn_pages`, `test_open_list_history`, `test_unreadable_at_open`, `test_mark_tm_order`, `test_uncommitted_append`, `test_torn_md2_tail`, `test_md2_read_error`, `test_md2_short_write`, `test_nul_escape_record`, `test_torn_tail_check_fails`, `test_cmp_file_ids`, `test_unlistable_dirs`, `test_unlisted_relist_once` |
 | `tr_msg2db` | `test_msg2db_load_failed` |
 | `tr_queue` | `test_tr_queue_load_failed`, `test_tr_queue_backup_failed`, `test_tr2q_queued` |
-| `yev_loop/yev_events` | `test_yevent_sq_full`, `test_yevent_sq_nomem`, `test_yevent_sq_retry`, `test_yevent_stop_in_flight`, `test_yevent_udp_ipv6`, `test_yevent_udp_zerocopy`, `test_yevent_loop_end_drain`, `test_yevent_connect_src_url`, `test_yevent_stop_nomem`, `test_yevent_kept_after_post`, `test_yevent_close_fd_kept` |
+| `yev_loop/yev_events` | `test_yevent_sq_full`, `test_yevent_sq_nomem`, `test_yevent_sq_retry`, `test_yevent_stop_in_flight`, `test_yevent_udp_ipv6`, `test_yevent_udp_zerocopy`, `test_yevent_loop_end_drain`, `test_yevent_connect_src_url`, `test_yevent_stop_nomem`, `test_yevent_kept_after_post`, `test_yevent_close_fd_kept`, `test_yevent_stop_stale_sqe` |
 
 Tests that compare against expected `INFO`-level log output rely on the backend being **silent in `set_trace()`** — see `kernel/c/ytls/README.md`.

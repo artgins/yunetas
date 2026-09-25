@@ -27,6 +27,11 @@
 
             Input Events:
             - EV_SEND_MESSAGE
+                A gbuffer to a peer: to its ADDRESS (gbuffer_setaddr()), or,
+                with no address, to the known peer its LABEL names ("ip:port",
+                the label of the frames of that peer). A published frame
+                carries both, so a host answers a peer by sending with the
+                label (or the address) of its frame. Neither: refused.
 
             Output Events:
             - EV_ON_OPEN
@@ -63,6 +68,8 @@ typedef struct _UDP_CHANNEL {
     const char *name;
     time_t t_inactivity;
     gbuffer_t *gbuf;
+    struct sockaddr_storage addr;   // the peer, as its datagrams came
+    socklen_t addrlen;
 } UDP_CHANNEL;
 
 /***************************************************************************
@@ -299,6 +306,17 @@ PRIVATE void publish_frame(hgobj gobj, UDP_CHANNEL *ch)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->pending_bytes -= (json_int_t)gbuffer_totalbytes(ch->gbuf);
+
+    /*
+     *  The peer of the frame, as C_UDP_S gives it with each datagram: what
+     *  a host needs to answer it (EV_SEND_MESSAGE). Up to 7.25.4 a frame
+     *  carried neither.
+     */
+    gbuffer_setlabel(ch->gbuf, ch->name);
+    if(ch->addrlen > 0) {
+        gbuffer_setaddr(ch->gbuf, (struct sockaddr *)&ch->addr, ch->addrlen);
+    }
+
     json_t *kw_ev = json_pack("{s:I}",
         "gbuffer", (json_int_t)(uintptr_t)ch->gbuf
     );
@@ -377,6 +395,11 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             // Error already logged
             KW_DECREF(kw);
             return 0;
+        }
+        socklen_t addrlen = gbuffer_getaddrlen(gbuf);
+        if(addrlen > 0 && addrlen <= sizeof(ch->addr)) {
+            memcpy(&ch->addr, gbuffer_getaddr(gbuf), addrlen);
+            ch->addrlen = addrlen;
         }
 
         gobj_publish_event(gobj, EV_ON_OPEN, 0);
@@ -500,19 +523,36 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
-    const char *udp_channel = gbuffer_getlabel(gbuf);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
+    if(!gbuf) {
+        // Error already logged
+        KW_DECREF(kw);
+        return -1;
+    }
 
-    UDP_CHANNEL *ch = find_udp_channel(gobj, udp_channel);
-    if(ch) {
-    } else {
-        gobj_log_error(gobj, 0,
-            "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_PARAMETER,
-            "msg",                  "%s", "UDP channel NOT FOUND",
-            "udp_channel",          "%s", udp_channel?udp_channel:"",
-            NULL
-        );
+    /*
+     *  C_UDP_S sends to the address of the gbuffer. Without one, the label
+     *  names the peer: a known channel, whose address is taken. Up to 7.25.4
+     *  the channel was looked up and not used: a send by address logged
+     *  "UDP channel NOT FOUND", and a send by label had no address, so
+     *  C_UDP_S refused it.
+     */
+    if(gbuffer_getaddrlen(gbuf) == 0) {
+        const char *udp_channel = gbuffer_getlabel(gbuf);
+        UDP_CHANNEL *ch = find_udp_channel(gobj, udp_channel);
+        if(!ch || ch->addrlen == 0) {
+            gobj_log_error(gobj, 0,
+                "function",             "%s", __FUNCTION__,
+                "msgset",               "%s", MSGSET_PARAMETER,
+                "msg",                  "%s", "EV_SEND_MESSAGE without a peer: no address, and its label names no known peer; dropped",
+                "udp_channel",          "%s", udp_channel?udp_channel:"",
+                "len",                  "%d", (int)gbuffer_leftbytes(gbuf),
+                NULL
+            );
+            KW_DECREF(kw);
+            return -1;
+        }
+        gbuffer_setaddr(gbuf, (struct sockaddr *)&ch->addr, ch->addrlen);
     }
     return gobj_send_event(priv->gobj_udp_s, EV_TX_DATA, kw, gobj);
 }

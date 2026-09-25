@@ -47,6 +47,18 @@
  *              7.25.5 reserved on the first byte of each source port (up to
  *              then every peer shared one channel).
  *
+ *          5.  A host answers the peers of the frames with EV_SEND_MESSAGE
+ *              of the first C_GSS_UDP_S: "to-a" with the LABEL of A's frame
+ *              (no address), "to-b" with the ADDRESS of B's frame (no
+ *              label), and "to-nobody" with neither. A and B must get their
+ *              answer, and the third is refused with an ERROR ("...: no
+ *              address, and its label names no known peer"). Up to 7.25.4 a
+ *              frame carried neither its peer's label nor its address, so
+ *              no host could answer it; the channel was looked up by the
+ *              label and an ERROR "UDP channel NOT FOUND" logged for every
+ *              send by address, and a send with neither went down to
+ *              C_UDP_S, which refused it too.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -123,6 +135,9 @@ typedef struct _PRIVATE_DATA {
     int caps_opened;
     char caps_frames[256];
     size_t caps_mem0;
+    char label_a[64];                   // the label of A's frame
+    struct sockaddr_storage addr_b;     // the address of B's frame
+    socklen_t addrlen_b;
 } PRIVATE_DATA;
 
 
@@ -446,6 +461,54 @@ PRIVATE void send_to_caps(hgobj gobj)
 
 
 
+/***************************************************************************
+ *  5. A host answers the peers of the frames
+ ***************************************************************************/
+PRIVATE void answer_peers(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = gbuffer_create(16, 16);
+    gbuffer_append_string(gbuf, "to-a");
+    gbuffer_setlabel(gbuf, priv->label_a);
+    gobj_send_event(priv->gobj_gss, EV_SEND_MESSAGE,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),  // the kw owns it
+        gobj
+    );
+
+    gbuf = gbuffer_create(16, 16);
+    gbuffer_append_string(gbuf, "to-b");
+    if(priv->addrlen_b > 0) {
+        gbuffer_setaddr(gbuf, (struct sockaddr *)&priv->addr_b, priv->addrlen_b);
+    }
+    gobj_send_event(priv->gobj_gss, EV_SEND_MESSAGE,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+        gobj
+    );
+
+    gbuf = gbuffer_create(16, 16);
+    gbuffer_append_string(gbuf, "to-nobody");
+    gobj_send_event(priv->gobj_gss, EV_SEND_MESSAGE,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+        gobj
+    );
+}
+
+/***************************************************************************
+ *  What a peer socket received, "" if nothing
+ ***************************************************************************/
+PRIVATE void peer_received(int fd, char *bf, size_t bfsize)
+{
+    bf[0] = 0;
+    ssize_t n = recv(fd, bf, bfsize - 1, 0);
+    if(n > 0) {
+        bf[n] = 0;
+    }
+}
+
+
+
+
                     /***************************
                      *      Actions
                      ***************************/
@@ -459,6 +522,42 @@ PRIVATE void send_to_caps(hgobj gobj)
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->step == 2) {
+        char got_a[32];
+        char got_b[32];
+        peer_received(priv->peer_fd[0], got_a, sizeof(got_a));
+        peer_received(priv->peer_fd[1], got_b, sizeof(got_b));
+        if(strcmp(got_a, "to-a") != 0 || strcmp(got_b, "to-b") != 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: a host cannot answer the peers of the frames",
+                "a_received",   "%s", got_a,
+                "a_expected",   "%s", "to-a",
+                "b_received",   "%s", got_b,
+                "b_expected",   "%s", "to-b",
+                "label_a",      "%s", priv->label_a,
+                "addrlen_b",    "%d", (int)priv->addrlen_b,
+                NULL
+            );
+        } else {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "TEST: a host answers the peers of the frames",
+                "label_a",      "%s", priv->label_a,
+                NULL
+            );
+        }
+        gobj_stop(priv->gobj_gss);
+        gobj_stop(priv->gobj_allow);
+        gobj_stop(priv->gobj_caps);
+        set_yuno_must_die();
+
+        KW_DECREF(kw)
+        return 0;
+    }
 
     if(priv->step++ > 0) {
         long mem_grown = (long)get_cur_system_memory() - (long)priv->caps_mem0;
@@ -486,10 +585,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 NULL
             );
         }
-        gobj_stop(priv->gobj_gss);
-        gobj_stop(priv->gobj_allow);
-        gobj_stop(priv->gobj_caps);
-        set_yuno_must_die();
+
+        /*
+         *  5. The answers
+         */
+        answer_peers(gobj);
+        set_timeout(priv->timer, 200);
 
         KW_DECREF(kw)
         return 0;
@@ -563,6 +664,19 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(src == priv->gobj_caps) {
         append_text(priv->caps_frames, sizeof(priv->caps_frames), gbuf);
     } else {
+        /*
+         *  What a host needs to answer the peer of a frame
+         */
+        if(gbuf && gbuffer_leftbytes(gbuf) > 0 && *(char *)gbuffer_cur_rd_pointer(gbuf) == 'a') {
+            const char *label = gbuffer_getlabel(gbuf);
+            snprintf(priv->label_a, sizeof(priv->label_a), "%s", label? label: "");
+        }
+        if(gbuf && gbuffer_leftbytes(gbuf) > 0 && *(char *)gbuffer_cur_rd_pointer(gbuf) == 'b') {
+            priv->addrlen_b = gbuffer_getaddrlen(gbuf);
+            if(priv->addrlen_b > 0) {
+                memcpy(&priv->addr_b, gbuffer_getaddr(gbuf), priv->addrlen_b);
+            }
+        }
         append_text(priv->frames, sizeof(priv->frames), gbuf);
     }
 

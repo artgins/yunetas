@@ -83,7 +83,7 @@ SDATA (DTP_STRING,      "lPort",            SDF_RD,  0, "Listening port, got int
 SDATA (DTP_DICT,        "crypto",           SDF_WR|SDF_PERSIST, "{}", "Crypto config"),
 SDATA (DTP_BOOLEAN,     "only_allowed_ips", SDF_WR|SDF_PERSIST, 0, "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",        SDF_WR|SDF_PERSIST, 0, "Trace TLS"),
-SDATA (DTP_BOOLEAN,     "use_ssl",          SDF_RD,  "FALSE", "True if schema is secure. Set internally"),
+SDATA (DTP_BOOLEAN,     "use_ssl",          SDF_RD,  "FALSE", "Always FALSE: a secure url (udps://) is refused at the start, there is no DTLS"),
 SDATA (DTP_BOOLEAN,     "exitOnError",      SDF_RD,  "1", "Exit if Listen failed"),
 SDATA (DTP_BOOLEAN,     "set_broadcast",    SDF_WR|SDF_PERSIST, 0, "Set udp broadcast"),
 SDATA (DTP_BOOLEAN,     "shared",           SDF_WR|SDF_PERSIST, 0, "Share the port"),
@@ -339,27 +339,26 @@ PRIVATE int mt_start(hgobj gobj)
         }
     }
 
+    /*
+     *  A secure url is refused: TLS over datagrams is DTLS, which ytls
+     *  does not implement, and C_UDP_S has no TLS session to decrypt with.
+     *  Up to 7.25.4 udps:// was accepted, the server listened with no
+     *  session, and the first datagram crashed the yuno
+     *  (ytls_decrypt_data() with a NULL session).
+     */
     if(yev_get_flag(priv->yev_server_udp) & YEV_FLAG_USE_TLS) {
-        priv->use_ssl = TRUE;
-        gobj_write_bool_attr(gobj, "use_ssl", TRUE);
-
-        json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-        uint32_t trace_level = gobj_trace_level(gobj);
-        if(json_object_set_new(
-            jn_crypto,
-            "trace_tls",
-            json_boolean(priv->trace_tls || (trace_level & TRACE_TLS))
-        )<0) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "Cannot set 'trace_tls', 'crypto' is not a dict",
-                NULL
-            );
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "A secure url (udps://) is not supported by C_UDP_S: there is no DTLS",
+            "url",          "%s", priv->url,
+            NULL
+        );
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_server_udp)
+        if(priv->exitOnError) {
+            exit(0); //WARNING exit with 0 to stop daemon watcher!
         }
-
-        EXEC_AND_RESET(ytls_cleanup, priv->ytls)
-        priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
+        return -1;
     }
 
     udp_set_broadcast(
@@ -974,7 +973,24 @@ PRIVATE void rearm_read(hgobj gobj, yev_event_h yev_event)
     } else {
         gbuffer_clear(gbuf);
     }
-    yev_start_event(yev_event); // a failure is logged by yev_start_event()
+
+    /*
+     *  A read that does not start leaves the server deaf: said, and the
+     *  server stops (EV_STOPPED), as when the read fails. Up to 7.25.4 the
+     *  failure was ignored: the server stayed in ST_IDLE, "running", and
+     *  read nothing more.
+     */
+    if(yev_start_event(yev_event) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "UDP: the read cannot be started again, the server stops listening",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "rx_buffer_size", "%ld", (long)gobj_read_integer_attr(gobj, "rx_buffer_size"),
+            NULL
+        );
+        try_to_stop_yevents(gobj);
+    }
 }
 
 /***************************************************************************
@@ -1228,6 +1244,18 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     try_more_writes(gobj);
                 }
                 yev_destroy_event(yev_event);
+
+                /*
+                 *  A stop the server made by itself (its read failed or
+                 *  could not start again) while the gobj still runs waits
+                 *  for this send too. Up to 7.25.4 it was ended only on
+                 *  the path of a stopped gobj: the server stayed in
+                 *  ST_WAIT_STOPPED, EV_STOPPED was never published, and
+                 *  every EV_TX_DATA answered "Event NOT DEFINED in state".
+                 */
+                if(gobj_in_this_state(gobj, ST_WAIT_STOPPED)) {
+                    try_to_stop_yevents(gobj);
+                }
             }
             break;
 

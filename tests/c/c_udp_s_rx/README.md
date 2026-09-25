@@ -35,6 +35,15 @@ A driver gclass (`C_TEST_UDP_RX`) creates two children:
    the memory grows by far less than the 1 MB per source port that 7.25.5
    reserved on the first byte (up to 7.25.4 every peer shared one channel).
 
+5. A host answers the peers of the frames of the first `C_GSS_UDP_S` with
+   `EV_SEND_MESSAGE`: `to-a` with the LABEL of A's frame and no address,
+   `to-b` with the ADDRESS of B's frame and no label, and `to-nobody` with
+   neither. A and B must get their answer; the third is refused
+   (*"EV_SEND_MESSAGE without a peer: no address, and its label names no known
+   peer; dropped"*). Up to 7.25.4 a frame carried neither its peer's label nor
+   its address, a send by address logged *"UDP channel NOT FOUND"*, and a send
+   by label had no address, so `C_UDP_S` refused it.
+
 The loopback is `127.0.0.0/8` on Linux, so the peers need no interface of
 their own.
 
