@@ -325,8 +325,11 @@ export YUNETA_DIR=/yuneta
 export PATH="/yuneta/bin:/usr/sbin:/sbin:/home/yuneta/.local/bin:$PATH"
 
 ulimit -c unlimited 2>/dev/null || true
-ulimit -n unlimited 2>/dev/null || true
-ulimit -Hn unlimited 2>/dev/null || true
+# Open files: raise the soft limit to the hard one, which pam_limits sets to
+# fs.nr_open (4000000). A shell cannot raise its hard limit, and Linux refuses
+# "unlimited" for open files. systemd starts a desktop terminal with a soft
+# limit of 1024, whatever the hard is.
+ulimit -Sn "$(ulimit -Hn)" 2>/dev/null || true
 # Needed by any yuno started from a shell, ycommand included: its yev_loop
 # pins io_uring ring memory against RLIMIT_MEMLOCK.
 ulimit -l unlimited 2>/dev/null || true
@@ -744,13 +747,14 @@ _set_limits() {
     # /etc/security/limits.d/99-yuneta-core.conf). pam_limits does not reach
     # every boot path that starts this script, so raise it here as well.
     ulimit -l unlimited 2>/dev/null || true
-    TARGET=200000
-    HARD="$(ulimit -Hn 2>/dev/null || echo 0)"
-    case "$HARD" in
-        unlimited) : ;;
-        *) ulimit -Hn "$TARGET" 2>/dev/null || true ;;
-    esac
-    ulimit -n "$TARGET" 2>/dev/null || ulimit -n 65535 2>/dev/null || true
+    # Open files: up to fs.nr_open (4000000, /etc/sysctl.d/99-yuneta-core.conf),
+    # the value pam_limits gives to "nofile unlimited". Linux refuses unlimited
+    # for RLIMIT_NOFILE; the agents and their yunos inherit what is set here.
+    TARGET="$(cat /proc/sys/fs/nr_open 2>/dev/null || echo 1048576)"
+    ulimit -Hn "$TARGET" 2>/dev/null || true
+    if ! ulimit -Sn "$TARGET" 2>/dev/null; then
+        logger -t yuneta_agent_init "cannot raise open files to $TARGET: soft $(ulimit -Sn), hard $(ulimit -Hn)"
+    fi
 }
 
 _run_as_yuneta() {

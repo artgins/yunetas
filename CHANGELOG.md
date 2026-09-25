@@ -12,6 +12,15 @@
   `EAI_ADDRFAMILY` at once now, as glibc does, and `AI_NUMERICHOST` with a name
   answers `EAI_NONAME` with no lookup. Test: `test_static_resolv_numeric`.
 
+### Packages (deb, rpm)
+
+- The init script started the agents with 200000 open files, while pam_limits
+  gives a login `fs.nr_open` (4000000): it raises them to `fs.nr_open` now, and
+  logs with `logger` when it cannot. `/etc/profile.d/yuneta.sh` asked for
+  `ulimit -n unlimited`, which Linux refuses for open files (a no-op); it raises
+  the soft limit to the hard one now, which also lifts the 1024 that systemd
+  gives a desktop terminal. Takes effect at the next boot or login.
+
 ### Tests
 
 - New `raise_open_files_limit()` (`testing.h`): raises the soft limit of open

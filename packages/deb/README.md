@@ -407,6 +407,12 @@ Each agent has a corresponding `.json` configuration file generated on first ins
 | `yuneta` | soft/hard | nofile | unlimited |
 | `yuneta` | soft/hard | memlock | unlimited |
 
+`nofile unlimited` is not infinite: Linux refuses that for open files, and
+pam_limits gives `fs.nr_open` instead (4000000, see the sysctl table above).
+Do not set a number of your own in a shell startup file: `ulimit -n N` sets the
+HARD limit too, and a user process can never raise it again, so that shell and
+every agent or yuno started from it stays at N.
+
 `memlock` is not optional. io_uring rings are pinned memory charged against
 `RLIMIT_MEMLOCK`, and the budget is **per user**, shared by every yuno running
 as `yuneta`. A yuno with `io_uring_entries=32768` pins ~3.1 MB (SQEs
@@ -538,9 +544,13 @@ restorecon -R /yuneta/bin/nginx/logs
 ### Shell Environment (`/etc/profile.d/yuneta.sh`)
 
 - Adds `/yuneta/bin` and `/yuneta/agent` to `PATH`
-- Sets `ulimit -c unlimited`, `ulimit -n unlimited` and `ulimit -l unlimited`
-  (the last one so a yuno launched straight from a shell — `ycommand` included —
-  gets the same pinned-memory budget as the ones started by the agent)
+- Sets `ulimit -c unlimited` and `ulimit -l unlimited` (the second one so a yuno
+  launched straight from a shell — `ycommand` included — gets the same
+  pinned-memory budget as the ones started by the agent)
+- Raises the soft limit of open files to the hard one (`ulimit -Sn "$(ulimit -Hn)"`).
+  pam_limits sets the hard limit to `fs.nr_open` (4000000); a shell cannot raise
+  it, and Linux refuses `unlimited` for open files. systemd starts a desktop
+  terminal with a soft limit of 1024.
 - Defines aliases: `y` (cd to yunetas), `salidas` / `outputs` (cd to outputs), `logs` (cd to logs)
 
 ### Sudoers (`/etc/sudoers.d/90-yuneta`)
@@ -555,7 +565,8 @@ Grants the `yuneta` user passwordless sudo for all commands.
 
 - Starts `yuneta_agent` and `yuneta_agent22` on boot (runlevels 2 3 4 5)
 - Controls the selected web server (nginx or openresty, per `/etc/yuneta/webserver`)
-- Raises resource limits (`ulimit`) before launching agents
+- Raises resource limits (`ulimit`) before launching agents: open files to
+  `fs.nr_open` (4000000), the same value pam_limits gives a login
 - Supports standard `start`, `stop`, `restart`, `force-reload`, `status` operations
 - Runs agents as user `yuneta` via `su -s /bin/sh`
 
