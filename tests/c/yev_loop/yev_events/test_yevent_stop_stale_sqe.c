@@ -11,11 +11,11 @@
  *          (take_back_submissions_on_fd), which scans the queue from its
  *          head to its tail. io_uring_get_sqe() moves the tail first, and
  *          io_uring_initialize_sqe() does not clear the fd or the
- *          user_data of the entry. Up to this fix the scan ran BETWEEN the
- *          two, so it read the entry of the cancel with the fd and the
- *          event of the operation that used that slot the last time. A
- *          wrapped ring (every long-running yuno wraps it) and a reused fd
- *          number were enough: the old event was "taken back", and got a
+ *          user_data of the entry. A scan run BETWEEN the two would read
+ *          the entry of the cancel with the fd and the event of the
+ *          operation that used that slot the last time. A wrapped ring
+ *          (every long-running yuno wraps it) and a reused fd number are
+ *          enough: the old event would be "taken back", and get a
  *          completion it never asked for -- an extra STOPPED callback, a
  *          wrong in_flight, and, with the old event destroyed, a completion
  *          on freed memory.

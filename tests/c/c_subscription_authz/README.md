@@ -42,8 +42,9 @@ authentication parser. It checks:
   every publish before a later subscriber, and went to the next user);
 - every channel is disabled and enabled again (`disable-channel`,
   `enable-channel`): the channel, its `C_IEVENT_SRV` and its `C_WEBSOCKET`
-  run again and a client opens a session (in the tree before the 7.25.5 fix
-  the protocol gobj stayed stopped and no client was ever read);
+  run again and a client opens a session (the stop stops the protocol gobj,
+  so the enable must start it again, or every client is accepted and never
+  read);
 - the gate is an autostart service, stopped by the yuno with a plain
   `gobj_stop()`: every protocol gobj of its channels stops with it (up to
   7.25.4: *"Destroying a RUNNING gobj"* for each `C_WEBSOCKET`).

@@ -159,9 +159,10 @@ at info level (msgset `Connect Disconnect`) as `TCP_S: Ip denied` or
 refusal of a cause, then at most one each 60 seconds per cause, with
 `refused` (the connections of that cause refused since the previous log,
 this one included), the total `refusedConnxs` and the `peername` of the one
-that is said. The minute is timed on the monotonic clock. Up to 7.25.4 each
-refusal wrote its line, and a denied host that reconnects in a loop was a
-flood of the log (the deny-list is asked here since 7.25.5).
+that is said. The minute is timed on the monotonic clock. Up to 7.25.4 there
+was no stat, each refusal (only `TCP_S: Ip not allowed` then: the deny-list is
+asked here since 7.25.5) wrote its line, and a refused host that reconnects in
+a loop was a flood of the log.
 
 ```text
 INFO  note_refused_connection: TCP_S: Ip denied  peername=203.0.113.7:51544 refused=1 refusedConnxs=1 next_log_in_ms=60000
@@ -412,7 +413,7 @@ and `tests/c/c_udp_s_rx` for the receive side.
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `url` | `string` | Listening URL: `udp://0.0.0.0:5000`, or an IPv6 literal in brackets, `udp://[::1]:5000` (since 7.25.5: an IPv6 peer is kept with its real length and answered; up to 7.25.4 its address was cut to 16 bytes and the reply refused, `-EINVAL`). A secure url (`udps://`) is REFUSED at the start: TLS over datagrams is DTLS, which ytls does not implement. An ERROR, *"A secure url (udps://) is not supported by C_UDP_S: there is no DTLS"*, and the start fails (with `exitOnError`, the default, the yuno exits). Up to 7.25.4 it was accepted, the server listened with no TLS session, and the first datagram crashed the yuno. |
-| `use_ssl` | `bool` | Always `false` (see `url`). The commands `reload-certs` and `view-cert` answer that there is no TLS. |
+| `use_ssl` | `bool` | Always `false` (see `url`). The commands `reload-certs` and `view-cert` answer -1, *"Listener is not TLS-enabled or not running"*. |
 | `shared` | `bool` | Enable port sharing. |
 | `set_broadcast` | `bool` | Enable broadcast. |
 | `only_allowed_ips` | `bool` | Hear only the peers in the yuno's `allowed_ips` (see *Receive*; `denied_ips` applies with or without it); writable, it takes effect at the next datagram. |

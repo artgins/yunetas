@@ -14,10 +14,10 @@
  *          Beyond a cap the datagram is dropped: logged on the transition
  *          (peers), or once per PEER_LOG_INTERVAL_MS with the count (pending
  *          bytes, frames cut), since a sender can fill and drain it at will.
- *          Up to 7.25.4 every peer shared one channel; the per-peer label of
- *          7.25.5 reserved 1 MB on the first byte of each source port, so a
- *          sender of one-byte datagrams from many ports took the yuno to its
- *          memory ceiling.
+ *          Up to 7.25.4 every peer shared one channel. A frame buffer starts
+ *          at 4 KB and grows up to max_frame_size, so a sender of one-byte
+ *          datagrams from many ports cannot take the yuno to its memory
+ *          ceiling.
  *
     TODO review, dl_list is not a good choice for performance (bounded by
     max_channels)
@@ -534,8 +534,8 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
      *  C_UDP_S sends to the address of the gbuffer. Without one, the label
      *  names the peer: a known channel, whose address is taken. Up to 7.25.4
      *  the channel was looked up and not used: a send by address logged
-     *  "UDP channel NOT FOUND", and a send by label had no address, so
-     *  C_UDP_S refused it.
+     *  "UDP channel NOT FOUND", and a send by label had no address: the
+     *  kernel refused it (EINVAL) and C_UDP_S stopped.
      */
     if(gbuffer_getaddrlen(gbuf) == 0) {
         const char *udp_channel = gbuffer_getlabel(gbuf);

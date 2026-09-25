@@ -80,10 +80,10 @@
  *              8. every channel of the gate is disabled and enabled again
  *                 (C_IOGATE disable-channel, enable-channel): C_CHANNEL,
  *                 C_IEVENT_SRV and C_WEBSOCKET run again, and `nobody`
- *                 opens a session. In the tree before the fix of 7.25.5 the
- *                 channel came back with its protocol gobj stopped, every
- *                 client was accepted and never read, and the disable logged
- *                 "GObj NOT RUNNING".
+ *                 opens a session. The stop stops the protocol gobj, so
+ *                 the enable must start it again: a channel that comes back
+ *                 with it stopped accepts every client and never reads it,
+ *                 and the disable logs "GObj NOT RUNNING".
  *
  *          The gate `__input_side__` is an autostart service: the yuno
  *          starts its tree and stops it with a plain gobj_stop(), and every

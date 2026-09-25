@@ -383,8 +383,8 @@ PRIVATE BOOL record_holds(json_t *jn_record, const char *text)
 
 /***************************************************************************
  *  The routing of a peer (the user, the hops, the console purpose, the
- *  console name) is data of the peer: redacted, and capped. A first
- *  version (7.25.5 before its release) wrote it as sent.
+ *  console name) is data of the peer: redacted, and capped. Up to 7.25.4
+ *  the whole kw was written as it came, its routing included.
  ***************************************************************************/
 PRIVATE void test_peer_fields_redacted(void)
 {
@@ -921,10 +921,10 @@ PRIVATE void test_tty_bursts(void)
 /***************************************************************************
  *  (m) A text made to be hard to scan: time linear in its size, no crash.
  *
- *  Up to 7.25.5 the scan went one level of recursion deeper for each '='
- *  in a run without blanks: "list-yunos x" + 100 000 '=' took 1.7 s, and
- *  150 000 crashed the agent (the audit runs before the parser and the
- *  authz, on any command of any peer).
+ *  A scan that goes one level of recursion deeper for each '=' in a run
+ *  without blanks takes 1.7 s for "list-yunos x" + 100 000 '=', and
+ *  crashes the agent with 150 000 (the audit runs before the parser and
+ *  the authz, on any command of any peer).
  ***************************************************************************/
 PRIVATE double seconds_to_build(const char *text, json_t *kw)
 {

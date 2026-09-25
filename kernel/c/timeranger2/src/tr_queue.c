@@ -244,8 +244,7 @@ PRIVATE int what_blocks_queue_topic(tr_queue_t *trq)
  *    logs its causes again.
  *  - a file or keys/ could not be opened or listed (permissions, EMFILE,
  *    EIO, a key whose type cannot be asked): once both can. Their cause
- *    goes away with the file untouched (up to this fix the queue waited
- *    for topic_desc.json to change, and never took its topic again).
+ *    goes away with the file untouched.
  *  - nothing the queue could see: once topic_desc.json or keys/ changes.
  ***************************************************************************/
 PRIVATE BOOL queue_topic_worth_opening(tr_queue_t *trq)
@@ -282,9 +281,9 @@ PRIVATE BOOL queue_topic_worth_opening(tr_queue_t *trq)
  *  tranger already has open is taken as it is (an append opens it by name).
  *  NULL while it cannot, said once, and once more when it is taken again.
  *  In between the open is tried again only when what stopped it may be gone
- *  (queue_topic_worth_opening), asked quietly: every call used to go through
- *  tranger2_topic(), and a topic that could not be opened logged the errors
- *  of the open on every call -- the broker asks every second per session.
+ *  (queue_topic_worth_opening), asked quietly: through tranger2_topic() at
+ *  every call, a topic that cannot be opened would log the errors of the
+ *  open on every call -- the broker asks every second per session.
  *  What the files were is kept BEFORE each open, so a change during the
  *  open is not missed.
  ***************************************************************************/

@@ -1058,11 +1058,10 @@ children, is a write of the child that the caller asked for: the instance that
 wrote the newest record of each key they touch before the delete writes it
 again, last, so the next reload takes the same primary as it would without the
 delete. A delete that is refused puts them back, and keeps the newest record of
-each key where it was too. Until this was fixed, the last instance saved was
-the primary of the next reload: the child unlinked last (up to 7.25.4 too), or
-an instance that no hook holds, over a new instance, or over the instance
-moved to another parent, which lost its links. Up to 7.25.4 the delete did not see them: it
-went without `force`, and they named a node that is gone (*"Node not found"*
+each key where it was too. In 7.25.4 the child the delete unlinked last was
+the primary of the next reload, over a new instance created after it; and
+the delete did not see the instances that no hook holds: it went without
+`force`, and they named a node that is gone (*"Node not found"*
 at the next open, once one of them was the newest record of its key); and a
 forced delete saved a child it unlinked through one hook with its ref of
 another hook still there.

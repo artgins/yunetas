@@ -583,7 +583,8 @@ nearest first:
   {"role":"gui_agent","yuno":"gui_agent_yuno","service":"agent_link","user":"<redacted>","host":"…"}
   ```
 
-  In the first cut of 7.25.5 these fields were written as sent.
+  Up to 7.25.4 the record was the whole kw as it came, `__md_iev__`
+  included, and nothing in it was redacted.
 - **A `content64` is never written.** Everywhere (in the command text, where
   `ycommand` puts it, with or without blanks around the `=`, and in any kw key
   named `content64`), the value is replaced by `<N bytes sha256:HEX>`: the size

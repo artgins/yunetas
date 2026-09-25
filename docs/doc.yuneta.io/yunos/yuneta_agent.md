@@ -46,7 +46,9 @@ The agent writes every command that it runs to a daily audit file in
   with the shape of a JWT, wherever they are: also in the `user`, the hops of
   `source`, the console purpose and the console name, which come from a peer
   (a field of those longer than 1024 bytes is written as its size and
-  sha256 only).
+  sha256 only). For example a hop whose user is a JWT and whose host has
+  4095 bytes is written `"user":"<redacted>"`,
+  `"host":"<4095 bytes, not scanned, sha256:HEX>"`.
 - The command word is taken as the command parser takes it (any case,
   quotes, aliases): `WRITE-TTY` and `EV_WRITE_TTY` are `write-tty`.
 - The scan of a command is one pass in linear time, and one record scans at

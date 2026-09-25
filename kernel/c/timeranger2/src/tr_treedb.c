@@ -8998,9 +8998,9 @@ PRIVATE json_t *newest_instance_of_key(json_t *tranger, json_t *node)
  *  delete unlinks, the saves that take them back -- leaves the newest
  *  record of that key on the instance that wrote it before. A reload takes
  *  the newest record for the primary: an instance saved last by such a
- *  write became the primary at the next open, and the primary lost its
- *  links (after 7.25.4, when the delete began to save the instances that
- *  no hook holds; the children of a forced delete, since before).
+ *  write would be the primary at the next open, and the primary would lose
+ *  its links (7.25.4 saved the children of a forced delete in hook order,
+ *  so a new instance lost to the child unlinked last).
  *
  *  remember_newest() notes, once per key and before the first save of
  *  the write, which instance that is; save_newest_again() writes its

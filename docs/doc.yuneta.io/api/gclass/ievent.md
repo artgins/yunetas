@@ -195,11 +195,10 @@ of this peer, with the gate's stamps), reversed. Nothing else of the frame's
 routing is measured against `max_subscription_size` too, after it is built:
 a bigger one (a record with long strings) refuses the subscription,
 *"SUBSCRIBING refused, its routing is bigger than max_subscription_size"*,
-at most once per 10 s. Before, the frame's whole `__md_iev__` was copied,
-and not measured (the cap measured the `__global__` before it was added): a
-peer could store as much as a frame holds in each subscription (200 KB with
-a cap of 512 bytes), up to `max_subscriptions` of them, and got it back with
-every event.
+at most once per 10 s. Up to 7.25.4 the frame's whole `__md_iev__` was
+copied, keys of the peer's own included, and nothing of a subscription was
+measured: a peer could store as much as a frame holds in each subscription,
+with no cap on their number, and got it back with every event.
 
 Up to 7.25.4 only `__config__` was filtered, and the publish shared ONE kw
 with every subscriber, so a peer's subscription changed the event of every
@@ -280,8 +279,8 @@ again until the peer is under the cap.
 
 A subscription that repeats one the peer holds takes no room:
 
-- the SAME subscription (the same `__filter__`, `__global__` and
-  `__config__`) is left as it is. It is not made again: no
+- the SAME subscription (the same `__filter__`, `__global__`, `__local__`
+  and `__config__`) is left as it is. It is not made again: no
   `mt_subscription_deleted()` / `mt_subscription_added()`, and no second
   `__first_shot__`.
 - one that overrides a subscription it holds (a match of
@@ -336,6 +335,22 @@ stack, whose top record says where the frame comes from (`src_yuno`,
 `src_role`, `src_service`, strings) and, if it says, where it goes
 (`dst_yuno`, `dst_role`, `dst_service`, strings). `C_IEVENT_CLI` (C and JS)
 pushes it on every request, and an answer copies the one of its request.
+A well-formed routing (`__msg_type__` is optional, a string when present):
+
+```json
+"__md_iev__": {
+    "ievent_gate_stack": [
+        {
+            "src_yuno": "", "src_role": "ycommand", "src_service": "ycommand",
+            "dst_yuno": "", "dst_role": "yuneta_agent", "dst_service": "agent"
+        }
+    ],
+    "__msg_type__": "__command__"
+}
+```
+
+The same frame with `"src_role": 7`, with an empty `ievent_gate_stack`, or
+with no `__md_iev__` at all, has no routing, and its channel is closed.
 The gate reads what the peer sent with plain json calls, never with a
 `kw_get_*()` reader that logs a wrong type with a stack. What it refuses,
 and how:

@@ -84,10 +84,10 @@
  *            backslash, decoded), at most MAX_ESCAPE_LEVELS deep, each
  *            level scanned in one pass and charged to the budget. The audit
  *            runs before the parser and the authz, on the text that any
- *            peer sends: a first version went one level of recursion
- *            deeper for each '=' in a run without blanks (O(n^2) time,
- *            O(n) stack), and 150 000 '=' in one command crashed the
- *            agent. And the work of one record has a cap
+ *            peer sends: a scan that went one level of recursion deeper
+ *            for each '=' in a run without blanks (O(n^2) time, O(n)
+ *            stack) would crash the agent with 150 000 '=' in one
+ *            command. And the work of one record has a cap
  *            (AUDIT_SCAN_BUDGET bytes scanned): a string beyond it is not
  *            scanned and not written, only its size and its sha256:
  *            `<N bytes, not scanned, sha256:HEX>`, and for the command
@@ -1908,8 +1908,8 @@ PRIVATE const char *scan_jwt(redact_scan_t *sc, scan_state_t *st, const char *p)
  *  quote of the last one included: a run is the text between two quotes
  *  in a row, so a json string is one whatever quotes came before it (a
  *  stray quote, the closing quote of a "..." parameter). Pairing them
- *  two by two, as a first version did, let one quote earlier shift the
- *  pairs, and the escaped json was never decoded. A run between two json
+ *  two by two would let one quote earlier shift the pairs, and the
+ *  escaped json would never be decoded. A run between two json
  *  strings is decoded too: harmless, it only ever redacts more. Each
  *  run is looked at once (st->run_end), and runs share only their
  *  quotes: linear time at each level.
@@ -2295,9 +2295,8 @@ PRIVATE const char *hop_str(json_t *jn_hop, const char *key, const char **bad)
  *  A string of the routing of a peer as the record writes it: redacted
  *  (redact_text(), with a budget of its own: a big command does not leave
  *  the user unscanned), and beyond AUDIT_PEER_FIELD_MAX its size and sha256
- *  only. A first version wrote `user`, the hops and `console_purpose` as
- *  sent: a JWT or a `password=...` there was in the file, which says a
- *  token is never written, wherever it is.
+ *  only. Written as sent, a JWT or a `password=...` there would be in the
+ *  file, which says a token is never written, wherever it is.
  ***************************************************************************/
 PRIVATE json_t *peer_field(const char *text)
 {

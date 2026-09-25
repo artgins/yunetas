@@ -3,7 +3,7 @@
 Tests a timeranger2 topic opened on a filesystem that gives `readdir()` no
 `d_type` (XFS with `ftype=0`, NFS, FUSE, overlay).
 
-`find_keys_in_disk()` then asks the inode with `lstat()` (`stat()` up to this fix). It joined the entry
+`find_keys_in_disk()` then asks the inode with `lstat()` (`stat()` up to 7.25.4). Up to 7.20 it joined the entry
 to the TOPIC's directory instead of its `keys/`: `<topic>/<key>` did not
 exist, no key counted as a directory, and the topic opened with an **empty
 cache** over files that were all there. Reads answered 0 rows, and the first
@@ -34,17 +34,17 @@ The test checks:
 3. Reopened with `d_type` hidden and the `lstat()` of key `B` failing with
    `EIO` (the test's `__wrap_lstat()`), the topic does **not** open:
    *"Cannot list the keys of the topic, stat() FAILED"* and *"Cannot open
-   topic: its keys cannot be listed"*. Up to this fix the key was taken as
+   topic: its keys cannot be listed"*. Up to 7.25.4 the key was taken as
    "not a directory" and left out of the cache with no log, so the topic
    opened without it. Only `ENOENT` (the key went away between the
    `readdir()` and the `lstat()`) leaves a key out, as
    `find_files_with_suffix_array()` does with a file.
 4. A symbolic link `keys/L -> A` is not a key, with `d_type` (it is
-   `DT_LNK`) and without it: 2 keys, 5 records. Up to this fix the path
+   `DT_LNK`) and without it: 2 keys, 5 records. Up to 7.25.4 the path
    without `d_type` asked `stat()`, which follows the link: a third key, with
    the records of `A`.
 5. A key directory of mode `r--` (read, not searched: every `lstat()` and
    `open()` in it answers `EACCES`) is flagged `unreadable` the same way
-   without `d_type` as with it. Up to this fix
+   without `d_type` as with it. Up to 7.25.4
    `find_files_with_suffix_array()` skipped each file with no log without
    `d_type`, and the key loaded EMPTY and unflagged. SKIPPED as root.

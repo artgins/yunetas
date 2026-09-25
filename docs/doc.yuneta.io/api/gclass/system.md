@@ -221,7 +221,8 @@ Up to 7.25.4 a frame carried neither its peer's label nor its address, so no
 host could answer the peer of a frame; and `EV_SEND_MESSAGE` looked the
 channel up by the label and did not use it: a send by address (the documented
 way) logged *"UDP channel NOT FOUND"* for every datagram, and a send by label
-had no address, so `C_UDP_S` refused it (*"Cannot send datagram: dropped"*).
+had no address: the kernel refused the datagram (`EINVAL`), and `C_UDP_S` took
+that for a disconnection and stopped, reading too.
 The label contract is the original one (the pre-v7 `C_UDP_S` sent to the
 `"ip:port"` of the label); the address is how `C_UDP_S` sends since v7.
 `tests/c/c_udp_s_rx`, case 5.

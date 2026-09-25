@@ -37,21 +37,18 @@ and the backup took it as the queue's new topic.
 And a backup that fails and cannot open the topic again
 either (its `topic_desc.json` of mode 0 for a moment; SKIPPED as root): the
 queue has no topic, a read and an ack fail and say it once (*"Queue without
-topic, it cannot be opened"*; the next calls log nothing, where up to this fix
-each one logged the three errors of the open again), and once the file can be
-read the queue takes
+topic, it cannot be opened"*; the next calls log nothing), and once the file
+can be read the queue takes
 its topic again by name (*"Queue topic taken again"*) and the next check backs
-it up; for `tr_queue` and for `tr2q`. Before this fix the topic stayed `NULL`
+it up; for `tr_queue` and for `tr2q`. In 7.25.4 the topic stayed `NULL`
 for good. And a `topic_desc.json` that CAN be read but does not load (broken
 json; cases `trq_broken`, `tr2q_broken`): said once, the next calls log
 nothing, a changed content is tried once (the open logs its causes, the queue
-nothing), and the good content takes the topic again. Up to this fix a
-readable file was opened again at every call, three errors each time.
+nothing), and the good content takes the topic again.
 And a topic that cannot be opened for a cause OUTSIDE `topic_desc.json`: its
 `keys/` of mode 0 (cases `trq_keys`, `tr2q_keys`; SKIPPED as root). Said once;
 once `keys/` can be listed the queue takes its topic again, also the topic the
-tranger already has open. Up to this fix the queue waited for
-`topic_desc.json` to change, and stayed without topic until a restart. And a tranger opened with `on_critical_error` `LOG_OPT_EXIT_ZERO`
+tranger already has open. And a tranger opened with `on_critical_error` `LOG_OPT_EXIT_ZERO`
 (the MQTT broker's queues): a backup whose new topic cannot be created does
 not exit (an `atexit()` handler turns such an exit into a failure), moves the
 backup back, and the queue keeps its message. And a plain create with `LOG_OPT_EXIT_ZERO` whose `keys/` cannot be made,

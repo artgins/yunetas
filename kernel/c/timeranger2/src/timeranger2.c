@@ -7486,8 +7486,8 @@ PRIVATE int find_keys_in_disk(
                  *  keys/ can be read and not searched: no entry can be asked
                  *  its type. It is taken as a key, as DT_DIR takes one there,
                  *  and the listing of the key says the EACCES and flags it
-                 *  (flag_key_unlisted). Up to this fix the whole topic did
-                 *  not open, and only without d_type.
+                 *  (flag_key_unlisted). Up to 7.25.4 it was taken as "not
+                 *  a directory" and left out with no log, only without d_type.
                  */
                 is_dir = 1;
             } else if(errno != ENOENT) {

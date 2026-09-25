@@ -2338,9 +2338,8 @@ PRIVATE int do_test(void)
      *      sent it, with the `__username__` the agent stamped: the channel
      *      names nobody, the user does. Another user is refused, and so is
      *      a relayed command of no user; the same user is not (through the
-     *      agent two sessions of one user are one owner). (The first
-     *      version of the refusal trusted every relayed command: bob closed
-     *      alice's iterator with result 0.)
+     *      agent two sessions of one user are one owner). (In 7.25.4 bob
+     *      closed alice's iterator with result 0.)
      *-------------------------------------------------*/
     set_expected_results("a handle of another user through the agent is refused", NULL, NULL, NULL, 1);
     gobj_log_add_handler("count_not_owner", "not_owner", LOG_OPT_UP_WARNING, 0);

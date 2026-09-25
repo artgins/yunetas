@@ -8406,8 +8406,8 @@ PRIVATE json_t * _create_subscription(
  *  stored `__config__`, and a renamed event adds `__original_event_name__`
  *  to the stored `__global__`: with `kw` as it came, the same kw matched no
  *  subscription, a repeat of it was made twice (the subscriber got each
- *  event twice) and its withdrawal found nothing. Up to 7.25.4 only
- *  __hard_subscription__ was taken out. Return a new reference.
+ *  event twice) and its withdrawal found nothing. Up to 7.25.4 the kw was
+ *  compared as it came. Return a new reference.
  ***************************************************************************/
 PRIVATE json_t *_subscription_match_kw(
     gobj_t *publisher,

@@ -1706,9 +1706,8 @@ PRIVATE int answer_bad_request(
  *  which mt_inject_event() writes again anyway.
  *
  *  Up to 7.25.4 the frame's whole `__md_iev__` was copied, keys chosen by
- *  the peer included, AFTER `max_subscription_size` was measured: a peer
- *  stored as much as a frame holds in each subscription (200 KB with a cap
- *  of 512), and got it back with every event.
+ *  the peer included, and nothing was measured: a peer stored as much as a
+ *  frame holds in each subscription, and got it back with every event.
  *
  *  Return the back-metadata ({__md_iev__, __md_yuno__}), yours, or NULL
  *  when its `__md_iev__` is bigger than `max_subscription_size` (logged,

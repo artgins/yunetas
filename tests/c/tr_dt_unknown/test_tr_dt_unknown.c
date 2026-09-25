@@ -166,9 +166,8 @@ PRIVATE int open_and_count(
 /***************************************************************************
  *  4. A symbolic link in keys/ is not a key, with d_type or without it.
  *  With d_type it is DT_LNK and skipped; without it the key was asked with
- *  stat(), which follows the link: a key directory whose name nobody
- *  wrote, with the records of another key (and a link that answered ELOOP
- *  or EACCES failed the whole open, only there). Now lstat(), as the entry
+ *  stat() up to 7.25.4, which follows the link: a key directory whose name
+ *  nobody wrote, with the records of another key. Now lstat(), as the entry
  *  type says.
  ***************************************************************************/
 PRIVATE int test_symlink_key(const char *path_root, const char *path_database)

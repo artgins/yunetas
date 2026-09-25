@@ -144,9 +144,7 @@ ERROR take_queue_topic: Queue without topic, it cannot be opened      (once)
 
 Each CHANGE of the file is tried once: a new content that still does not load
 logs the three errors of the open again (the new cause), but not the queue's
-line; the good content takes the topic again with the INFO. Up to the fix of
-this case (7.25.5) a readable broken file was opened, and logged, at every
-call.
+line; the good content takes the topic again with the INFO.
 
 A `keys/` that cannot be listed (here of mode `0`) is said the same way, and
 the topic is taken again once `keys/` can be listed, although
@@ -161,10 +159,9 @@ ERROR take_queue_topic: Queue without topic, it cannot be opened      (once)
 INFO  take_queue_topic: Queue topic taken again                       (keys/ listed again)
 ```
 
-Up to that fix (7.25.5) the queue waited for `topic_desc.json` to change, so a
-cause outside it (`keys/`, a lack of descriptors) left the queue without topic
-until a restart: every ack and read failed, and the acked messages were sent
-again after the restart.
+Up to 7.25.4 the queue never took its topic again, whatever the cause: it
+stayed without topic until a restart, every ack and read failed, and the acked
+messages were sent again after the restart.
 
 The mqtt queues (`tr2q_check_backup()`, `tr2q_msg_json()`,
 `tr2q_save_hard_mark()`) do the same.

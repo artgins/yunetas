@@ -14,8 +14,8 @@
  *
  *          The comment sends to the log for the cause ("see the log"): it
  *          does not read gobj_log_last_message(), a process-global buffer
- *          that only an ERROR writes (7.25.5 before this fix read it, and a
- *          failure logged below ERROR answered an older, unrelated error).
+ *          that only an ERROR writes (read, a failure logged below ERROR
+ *          would answer an older, unrelated error).
  *
  *          Cases:
  *          1. a tree that can be listed: 0, its entries sorted;

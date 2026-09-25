@@ -26,8 +26,8 @@
  *              A refusal is logged on the transition, the first one of a
  *              cause and then one a minute at most, with the count of the
  *              ones in between; refusedConnxs counts all 8. Up to 7.25.4
- *              each refusal wrote its line: a denied host in a loop was a
- *              flood of the log.
+ *              each refusal wrote its line (only the allow-list refused
+ *              here then): a refused host in a loop was a flood of the log.
  *
  *          And the key a peername is looked up by: the ip without its port,
  *          for ipv4, ipv6 ("[2001:db8::1]:443") and an ipv4 seen by a

@@ -678,10 +678,9 @@ PRIVATE void stamp_owner_user(hgobj gobj, json_t *jn_entry, json_t *kw)
  *    The user does: the agent's own entry stamped `__username__`, and the
  *    agent forwards it. Another user is refused; two sessions of the SAME
  *    user through the agent are one owner, they cannot be told apart here.
- *  A gobj of this yuno is trusted. Up to this fix any session closed or
- *  read any handle by its id, and the ids are shown to every `read` user by
- *  print-tranger; and the first version of the refusal (never released)
- *  trusted every relayed command, so it did not hold for command-yuno.
+ *  A gobj of this yuno is trusted. In 7.25.4 any session closed or read
+ *  any handle by its id, and the ids are shown to every `read` user by
+ *  print-tranger.
  *
  *  NULL when `src` may use it; else the refusal (the answer, kw owned).
  ***************************************************************************/
@@ -4234,9 +4233,9 @@ PRIVATE void reap_handles_of(hgobj gobj, hgobj owner, BOOL with_iterators)
  *
  *  Once per session. gobj_subscribe_event() is NOT idempotent: given the
  *  same (event, filter, subscriber) again it logs "subscription(s)
- *  REPEATED" with a stack trace, deletes the one there and creates it
- *  anew -- so every handle after the first of a session was a warning in
- *  the log. Ask first.
+ *  REPEATED" (a warning), deletes the one there and creates it anew -- so
+ *  every handle after the first of a session was a warning in the log.
+ *  Ask first.
  ***************************************************************************/
 PRIVATE void watch_owner(hgobj gobj, hgobj src)
 {

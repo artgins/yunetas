@@ -2494,7 +2494,8 @@ PRIVATE int test_unrefs_are_taken_back(void)
  *  1. a/v1 hangs from P, a/v2 inherits the ref, and a/v1 is moved to Q:
  *     a/v1 wrote the newest record of a. The forced delete of P saved
  *     a/v2 (it named P, no hook held it), the newest record: after the
- *     reopen a/v2 was the primary, and Q held nothing (after 7.25.4).
+ *     reopen a/v2 was the primary, and Q held nothing (never released:
+ *     7.25.4 did not save a/v2).
  *  2. a/v1 hangs from P, and a/v2 is created after it: a/v2 wrote the
  *     newest record, the primary of the next open. The forced delete saved
  *     a/v2, then unlinked a/v1 and saved it: after the reopen a/v1 was the
@@ -2581,7 +2582,7 @@ PRIVATE int test_forced_delete_keeps_the_newest_record(void)
  *  wrote the newest record of a. The forced delete of P saves a/v2 naming
  *  P no more, then cannot delete P's key (read-only): a/v2 names P again,
  *  saved. That save was the newest record of a: after the reopen a/v2 was
- *  the primary, and Q held nothing (after 7.25.4).
+ *  the primary, and Q held nothing (never released: 7.25.4 did not save a/v2).
  ***************************************************************************/
 PRIVATE int test_taken_back_delete_keeps_the_newest_record(void)
 {

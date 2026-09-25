@@ -611,8 +611,8 @@ PRIVATE BOOL is_loopback_peer(const char *peername)
  *  said on the transition. The first one of a cause is logged, then at
  *  most one each REFUSAL_LOG_MSEC, with the connections of that cause
  *  refused since the last one (`refused`, this one included). Up to
- *  7.25.4 each refusal wrote its line, and the deny-list was new: a denied
- *  host that reconnects in a loop was a flood of the log.
+ *  7.25.4 each refusal wrote its line (only the allow-list was asked
+ *  here): a refused host that reconnects in a loop was a flood of the log.
  ***************************************************************************/
 PRIVATE void note_refused_connection(
     hgobj gobj,

@@ -1044,7 +1044,15 @@ handed out by the `rowid` flag. `shoot-snap` stamps that number on the md2
   because its blobs are shared by every treedb of the tranger;
 - a record an earlier snap already tagged cannot take a second tag
   (`user_flag` is one `uint16_t`), so that one is **cloned**: the clone is
-  appended with the new tag and becomes the newest record of the key.
+  appended with the new tag and becomes the newest record of the node. When
+  another instance of the key wrote a newer record (a new instance, the
+  primary of the next reload), that record is written again after the clone,
+  untagged, so a shot does not choose the primary of the next reload (in
+  7.25.4 the clone was the newest record of the key, and the new instance
+  lost to the photo). For example, with `a/v1` tagged by `s1` and `a/v2`
+  created after it, `shoot-snap name=s2` appends a clone of `a/v1` tagged
+  `s2`, then the record of `a/v2` again: after a reload `a/v2` is the
+  primary, and with `s2` activated `a/v1` is.
 
 **Only `shoot-snap` tags a record, and a record is tagged once.** A save
 never gives a tag, active snap or not. Two earlier rules broke this and are
@@ -1329,11 +1337,9 @@ rules (after 7.25.4):
   so a delete of a parent whose children have none walks nothing more. Up to 7.25.4 the delete went without `force`
   and they named a node that is gone (*"Node not found"* at the reopen), and a
   forced delete saved a child it unlinked through one hook with its ref of
-  another hook still there. And the last instance a forced delete saved was
-  the primary of the next reload -- the child it unlinked last (up to 7.25.4
-  too), or an instance that no hook holds -- over the one that wrote the
-  newest record: a new instance lost to an old one, or the instance moved to
-  another parent lost its links.
+  another hook still there. And the child a forced delete unlinked last was
+  the primary of the next reload, over the one that wrote the newest record:
+  a new instance lost to an old one.
 - **A sibling instance is not a lost child.** The unlink of an instance that
   the parent's hook does not hold -- the hook holds another instance of the
   child, or nothing, for an instance that is not the primary -- is not an
@@ -1672,11 +1678,10 @@ and its node says `2` afterwards, so `saved-schema` answers `draft_changed:
 {}` right after the save, and again after the apply. A node is found by its
 NAME, as the diff finds it, and written under its own id: a column the
 operator moved from `departments` to `users` keeps the id
-`treedb_x.departments.name`, and that node gets its place in `users`. (Before
-the fix, the place went to the id composed from the names,
-`treedb_x.users.name`, which is no node: `users` read as unsaved after every
-save, and every later save published it again. The same held for a topic of
-another treedb linked here.)
+`treedb_x.departments.name`, and that node gets its place in `users`. (The
+id composed from the names, `treedb_x.users.name`, is no node: a place written
+there would leave `users` unsaved after every save. The same holds for a topic
+of another treedb linked here.)
 
 **A save publishes what its places imply.** A node placed in front of its
 siblings SHIFTS them: the operator writes `order` 5 on `treedb_x.users`, the
@@ -1685,10 +1690,7 @@ draft is `departments, users`, and the save writes `departments` 0 and
 file's (1) any more, so that same save publishes it too: `"topic_versions":
 {"users": 2, "departments": 2}`, with an `order` row for it in `changes`
 (`"stored": 0, "from_c": 1`). A save again publishes the same, and after the
-apply a save has nothing to save. (Before the fix the first save published
-`users` alone, because the diff ran before the places were written, and the
-second save published `departments` too: two saves of one draft published
-different topics.) A dry run answers the same and writes nothing, and
+apply a save has nothing to save. A dry run answers the same and writes nothing, and
 `saved-schema` says it before the save: its `draft_changed` names the topics
 whose places the draft shifts too, `{"users": true, "departments": true}`,
 so the editor's marks agree with what the save publishes.
@@ -1705,12 +1707,13 @@ declares it, then last, and the comparison of drafts does not look at its
 ["treedb_x.departments.name"]`, and the comment says *"1 node(s) hang from
 more than one parent and get no place of their own (one `order` cannot say a
 place in each)"*. Written from each parent's save, the place in one parent
-read as a move in the other: every save flipped between saved and unsaved,
-and published topics nobody edited. And a node that STOPS being shared goes
+would read as a move in the other: every save would flip between saved and
+unsaved, and publish topics nobody edited. And a node that STOPS being shared goes
 where the file of the parent that remains put it: link `treedb_y.extra` into
 `treedb_x`, save and apply `treedb_x`, unlink it from `treedb_y`, and
-`treedb_x` reads no draft. Kept, the `order` was its place in `treedb_y`, and
-`treedb_x`, edited by nobody, read `extra` and `departments` as moved. (A newer literal still takes the
+`treedb_x` reads no draft. Kept, the `order` would be its place in
+`treedb_y`, and `treedb_x`, edited by nobody, would read `extra` and
+`departments` as moved. (A newer literal still takes the
 second parent back at the open, see *"What the operator LINKED
 differently"* below.)
 

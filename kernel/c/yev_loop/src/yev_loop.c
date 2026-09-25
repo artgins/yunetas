@@ -3082,8 +3082,8 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
             /*
              *  The cancel is prepared BEFORE release_on_stop(): its scan of
              *  the queue (take_back_submissions_on_fd) reaches this entry.
-             *  Up to this fix it was prepared after, and the scan read the
-             *  fd and the event of the last operation of the slot.
+             *  Prepared after, the scan would read the fd and the event of
+             *  the last operation of the slot.
              */
             track_submit(yev_event, sqe);
             io_uring_prep_cancel(sqe, yev_event, 0);

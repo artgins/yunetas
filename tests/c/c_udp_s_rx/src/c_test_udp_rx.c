@@ -29,8 +29,8 @@
  *              (the source of a datagram can be forged): the refused peers
  *              send three datagrams each, and there is ONE warning per
  *              cause (denied, not allowed); the six drops are counted in
- *              the stat `rxRefusedMsgs`. Before this fix each datagram was a
- *              warning, and nothing counted them.
+ *              the stat `rxRefusedMsgs`. Up to 7.25.4 no datagram was
+ *              refused (see 2), and nothing counted them.
  *
  *          4.  What a peer holds in a C_GSS_UDP_S is capped. A second one,
  *              with max_channels 3, max_frame_size 32 and max_pending_bytes
@@ -43,9 +43,9 @@
  *                                     peers: P1's frame and the rest of the
  *                                     datagram dropped (warning)
  *                  P1 "B\0", P2 "\0", P0 "\0" -> "B", "x", 9 "a"
- *              and its memory grows by far less than the 1 MB per peer that
- *              7.25.5 reserved on the first byte of each source port (up to
- *              then every peer shared one channel).
+ *              and its memory grows by far less than 1 MB per source port
+ *              (a frame buffer starts at 4 KB; up to 7.25.4 every peer
+ *              shared one channel with a fixed 1 MB buffer).
  *
  *          5.  A host answers the peers of the frames with EV_SEND_MESSAGE
  *              of the first C_GSS_UDP_S: "to-a" with the LABEL of A's frame
@@ -56,8 +56,9 @@
  *              frame carried neither its peer's label nor its address, so
  *              no host could answer it; the channel was looked up by the
  *              label and an ERROR "UDP channel NOT FOUND" logged for every
- *              send by address, and a send with neither went down to
- *              C_UDP_S, which refused it too.
+ *              send by address; a send by label or with neither went down
+ *              to C_UDP_S with no address, the kernel refused it (EINVAL)
+ *              and C_UDP_S stopped.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

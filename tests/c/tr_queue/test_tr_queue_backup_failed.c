@@ -54,19 +54,17 @@
  *  changed errno, and it said "Success".
  *
  *  And while the queue's topic cannot be opened, only the FIRST call says
- *  so: the next ones ask the disk quietly (up to this fix each one logged
- *  the three errors of the open again).
+ *  so: the next ones ask the disk quietly (through tranger2_topic() each
+ *  one would log the three errors of the open again).
  *
  *  And the same when topic_desc.json CAN be read but does not load (broken
  *  json): "readable" is not "changed", so the queue keeps what the file was
- *  when the open failed and tries again only when it changes. Up to this
- *  fix every call opened it again and logged three errors.
+ *  when the open failed and tries again only when it changes.
  *
  *  And a topic that cannot be opened again for a cause OUTSIDE its
  *  topic_desc.json: keys/ cannot be listed (mode 0). Said once; once keys/
  *  can be listed the queue takes its topic again, and it takes the topic the
- *  tranger already has open. Up to this fix it waited for topic_desc.json to
- *  change, and stayed without topic until a restart.
+ *  tranger already has open.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -497,9 +495,9 @@ PRIVATE json_t *expected_topic_lost(void)
 /*
  *  The first call that finds no topic says it, with the causes the open
  *  logs. The next ones say NOTHING while the topic still cannot be opened:
- *  they ask the disk quietly first. (Up to this fix every call logged the
- *  three errors of the open again; the broker calls tr2q_check_backup()
- *  every second per session.)
+ *  they ask the disk quietly first. (Through tranger2_topic() every call
+ *  would log the three errors of the open again; the broker calls
+ *  tr2q_check_backup() every second per session.)
  */
 PRIVATE json_t *expected_topic_not_opened(BOOL first)
 {
@@ -666,9 +664,9 @@ PRIVATE int test_tr2q_topic_taken_again(void)
 
 /***************************************************************************
  *  A topic_desc.json that CAN be read but does not load (broken json).
- *  Asking the disk "is it readable?" says yes, so up to this fix every call
- *  went through tranger2_topic() again and logged the causes of the failed
- *  open: once per second per session in the broker. Now the queue keeps
+ *  Asking the disk "is it readable?" says yes, so a queue that asked only
+ *  that would go through tranger2_topic() at every call and log the causes
+ *  of the failed open: once per second per session in the broker. The queue keeps
  *  what the file was (inode, size, mtime, ctime) when the open failed, and
  *  tries again only when it changes: a new broken content is tried once
  *  (the open says its causes again, the queue does not), the good one

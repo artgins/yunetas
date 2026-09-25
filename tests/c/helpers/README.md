@@ -119,8 +119,8 @@ file dropped); a tree of 1100 levels fails the walk (*"Tree too deep"*).
 And with `--wrap=lstat`: an entry whose `lstat()` fails with `EIO` fails the
 walk and `find_files_with_suffix_array()` without `d_type`, `-1`, logged;
 one whose `lstat()` fails with `EACCES` is LISTED by
-`find_files_with_suffix_array()` without `d_type`, as with it (up to this
-fix it was skipped with no log); a
+`find_files_with_suffix_array()` without `d_type`, as with it (up to
+7.25.4 it was skipped with no log); a
 subdirectory whose `opendir()` fails with `ENOTDIR` or `ELOOP` is skipped with
 a warning, as with `EACCES`. And `rmrcontentdir()` / `rmrdir()` of a directory
 whose `readdir()` fails answer `-1` and log *"readdir() FAILED"*, with what

@@ -82,8 +82,9 @@ record) is the job of `treedb_delete_node()`.
      instances a forced delete of P saves (one no hook holds, the child it
      unlinks) leave the newest record of their key on the instance that wrote
      it before: a/v1 moved to Q stays the primary, in Q, and a new instance
-     a/v2 stays the primary of the next reload. The delete made the last
-     instance it saved the primary after the reopen.
+     a/v2 stays the primary of the next reload. 7.25.4 saved the child it
+     unlinked last, and after the reopen a/v1 was the primary: the new
+     instance a/v2 lost.
    - `a delete taken back keeps the newest record of each key`: the same with
      P's key read-only; the refused delete saves a/v2 back, and a/v1 writes
      the newest record again.
