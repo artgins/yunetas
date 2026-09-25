@@ -1061,8 +1061,25 @@ Activating a snap is a **filtered load**, and it filters ONE index:
 | Index | With no snap | With snap S activated |
 |---|---|---|
 | primary (`id`) | the newest record of each key | the newest record of each key **tagged S** |
-| secondary (`pkey2`) | the newest record of each `(id, pkey2 value)` | unchanged: the newest record of each `(id, pkey2 value)`, whatever its tag |
+| secondary (`pkey2`) | the newest record of each `(id, pkey2 value)` | the slot of the primary's own value: the primary, the record **tagged S**; every other value: its newest record, whatever its tag |
 | `__graphs__` | the newest layout of each topic | the layout of each topic **tagged S** |
+
+The slot of the primary's own value is the one exception to "not filtered"
+(since 7.25.5): it holds the SAME node as the primary index (the invariant of
+§3.2, one instance, one node), so with S active a lookup of that value answers
+the photo too. Up to 7.25.4 that slot held a second object, built from the
+newest record of the value.
+
+```C
+/*  a/v1 created with note "A"; shoot-snap s1; a/v1 updated to note "B" (saved);
+ *  a/v2 created after the shot. Then activate-snap s1 and reload.  */
+treedb_get_node(tranger, "treedb_links", "kids", "a");
+    // a/v1, note "A": the record s1 tagged
+treedb_get_instance(tranger, "treedb_links", "kids", "version", "a", "v1");
+    // the SAME node: note "A", not the "B" written after the shot
+treedb_get_instance(tranger, "treedb_links", "kids", "version", "a", "v2");
+    // a/v2: its newest record, untagged
+```
 
 That difference is not a leak, it is **the feature**. Keeping different
 versions of a thing and going back and forward between them needs both
@@ -1139,8 +1156,9 @@ no record of it carries the tag. And [`treedb_create_node()`](#treedb_create_nod
 tests existence against that same FILTERED primary index, so a create of that
 id is accepted: it appends a record on top of the one already there. It reads
 like a create and behaves like an overwrite. (With `pkey2s` the secondary
-index is not filtered and still holds the node, which is why the create is
-refused only when BOTH indexes already have that id.)
+index still holds the node -- it has no primary, so every slot of it holds its
+newest record -- which is why the create is refused only when BOTH indexes
+already have that id.)
 
 **A delete DOES destroy, and it is the only operation that does.** The two
 guards of §3.9 refuse to take a record a snap holds, but a node born after the
@@ -1294,25 +1312,40 @@ rules (after 7.25.4):
   clears the ref in every other instance of the child and saves each one,
   before the child (the primary of the key last among them): a save makes its
   record the newest of the key, the one a reload takes for the primary. A save
-  that fails puts all of them back. Not for a `file` column: an asset is what
-  each instance holds, its own. Up to 7.25.4 the other instances kept the ref,
-  and the reload hung the child from that parent again once one of them was
-  the newest record.
+  that fails puts all of them back, and the newest record of the key back on
+  the instance that wrote it before the unlink. Not for a `file` column: an
+  asset is what each instance holds, its own. Up to 7.25.4 the other instances
+  kept the ref, and the reload hung the child from that parent again once one
+  of them was the newest record.
 - **A delete of the parent sees them.** Without `force` an instance of a child
   that names the key refuses the delete, held by a hook or not (*"Cannot
   delete node: has down links"*, with `unheld_instances`); with `force` it
-  stops naming the key, saved. They are looked for in the secondary indexes of
-  the child topics that have pkey2s, so a delete of a parent whose children
-  have none walks nothing more. Up to 7.25.4 the delete went without `force`
+  stops naming the key, saved. Those saves, and the saves of the children the
+  delete unlinks, are not writes of the child the caller asked for: the
+  newest record of each key they touch is written again, last, by the
+  instance that wrote it before, so the next reload takes the same primary as
+  without the delete. A delete that is refused keeps it there too. They are
+  looked for in the secondary indexes of the child topics that have pkey2s,
+  so a delete of a parent whose children have none walks nothing more. Up to 7.25.4 the delete went without `force`
   and they named a node that is gone (*"Node not found"* at the reopen), and a
   forced delete saved a child it unlinked through one hook with its ref of
-  another hook still there.
+  another hook still there. And the last instance a forced delete saved was
+  the primary of the next reload -- the child it unlinked last (up to 7.25.4
+  too), or an instance that no hook holds -- over the one that wrote the
+  newest record: a new instance lost to an old one, or the instance moved to
+  another parent lost its links.
 - **A sibling instance is not a lost child.** The unlink of an instance that
   the parent's hook does not hold -- the hook holds another instance of the
-  child, which names the parent itself and stays, or nothing, for an instance
-  that is not the primary -- is not an error. A relink of such an instance
-  logged *"Child data not found in dict parent hook"* (of a LIST hook) though
-  it went, and a dict hook dropped the other instance with it (up to 7.25.4).
+  child, or nothing, for an instance that is not the primary -- is not an
+  error. What happens to the instance the hook holds depends on the call. A
+  **relink** (a `treedb_link_nodes()` that moves the instance it is given to
+  another parent, through a single-valued fkey) moves that instance alone: the
+  one the hook holds stays, naming the parent. A **direct unlink**
+  (`treedb_unlink_nodes()`) undoes the link of the key (the first rule): the
+  one the hook holds leaves it too, and stops naming the parent. A relink of
+  such an instance logged *"Child data not found in dict parent hook"* (of a
+  LIST hook) though it went, and a dict hook dropped the other instance with
+  it (up to 7.25.4): a dict hook is emptied by pointer now.
   The create of an instance of a child held through a list hook no longer
   warns *"Duplicate fkey on load, deduping parent hook"*: the hook keeps the
   instance it has, as a dict hook does.
@@ -1323,7 +1356,13 @@ treedb_unlink_nodes(tranger, "kids", P, a1);                   // 0: a/v1 and a/
 
 /*  a/v1 moved to Q (a relink moves the instance it is given); a/v2 names P  */
 treedb_delete_node(tranger, P, json_object());                 // -1: has down links
-treedb_delete_node(tranger, P, json_pack("{s:b}", "force", 1)); // 0: a/v2 names nobody
+treedb_delete_node(tranger, P, json_pack("{s:b}", "force", 1)); // 0: a/v2 names nobody,
+    // and a/v1 -- which wrote the newest record of a -- is the primary after a reopen, in Q
+
+/*  b/v1 hangs from P, b/v2 inherited the ref; P's hook holds b/v1  */
+treedb_link_nodes(tranger, "kids", Q, b2);     // 0: b/v2 in Q; b/v1 stays in P, naming P
+/*  or, instead of that relink:  */
+treedb_unlink_nodes(tranger, "kids", P, b2);   // 0: P holds nothing, b/v1 and b/v2 name nobody
 ```
 
 ```C

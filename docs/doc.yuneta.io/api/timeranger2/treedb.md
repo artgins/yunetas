@@ -1053,8 +1053,15 @@ topic without pkey2s has one node per key, which the hook holds when it names
 the node: nothing more is looked at). Without `force` they refuse the delete
 (*"Cannot delete node: has down links"*, with `children` and
 `unheld_instances`). With `force` each one stops naming the node and is saved,
-before the children are unlinked (the primaries of their keys last). A delete
-that is refused puts them back. Up to 7.25.4 the delete did not see them: it
+before the children are unlinked. None of those saves, nor the saves of the
+children, is a write of the child that the caller asked for: the instance that
+wrote the newest record of each key they touch before the delete writes it
+again, last, so the next reload takes the same primary as it would without the
+delete. A delete that is refused puts them back, and keeps the newest record of
+each key where it was too. Until this was fixed, the last instance saved was
+the primary of the next reload: the child unlinked last (up to 7.25.4 too), or
+an instance that no hook holds, over a new instance, or over the instance
+moved to another parent, which lost its links. Up to 7.25.4 the delete did not see them: it
 went without `force`, and they named a node that is gone (*"Node not found"*
 at the next open, once one of them was the newest record of its key); and a
 forced delete saved a child it unlinked through one hook with its ref of
@@ -1065,6 +1072,7 @@ another hook still there.
  *  a/v2 still names P, and P's hooks hold nothing  */
 treedb_delete_node(tranger, P, json_object());                     // -1: has down links
 treedb_delete_node(tranger, P, json_pack("{s:b}", "force", 1));   // 0: a/v2["parent"] is ""
+    // after a reopen a/v1 -- it wrote the newest record of a -- is the primary, in Q
 ```
 
 **A key that only the secondary indexes hold** is deleted whole, quietly. With a
@@ -2864,7 +2872,14 @@ Because the tag rides on the existing record, the snap captures *exactly* the pr
 
 When the next shoot finds a primary record that *already* carries a tag from an earlier snap (that is, `__md_treedb__.tag != 0 && != snap_id`), the function appends a **clone** of that record via `tranger2_append_record()` with the new snap's id, rather than overwriting the prior tag in place. The cloned record sits at a higher `rowid` and carries only the new snap's tag. The original record keeps its earlier tag intact. This makes multiple snaps over an unchanged set of primaries co-exist: `activate-snap` of either snap can find its own tagged records on reload. Untagged primaries still take the cheaper in-place path — no clone cost when the record is snapped for the first time.
 
-The clone is the newest record of its key, so a reload makes it the primary. The node in memory moves to the clone at once (`g_rowid`, `i_rowid`, `t`, `tm` and `tag` in `__md_treedb__`), and an immutable node keeps its immutable bit on the clone. The clone does not publish `EV_TREEDB_NODE_UPDATED`.
+The clone is the newest record of the node. When another instance of its key wrote a newer record (a new instance, created after the load: the primary of the next reload), that record is written again after the clone, untagged, so a shot does not choose the primary of the next reload: up to 7.25.4 the clone was the newest record, and the new instance lost to the photo. The node in memory moves to the clone at once (`g_rowid`, `i_rowid`, `t`, `tm` and `tag` in `__md_treedb__`), and an immutable node keeps its immutable bit on the clone. The clone does not publish `EV_TREEDB_NODE_UPDATED`.
+
+```C
+/*  a/v1 is tagged by s1; a/v2 is created after it (the primary of the next reload)  */
+treedb_shoot_snap(tranger, "treedb_links", "s2", "second");
+    // 0: a clone of a/v1 tagged s2, then the record of a/v2 again, untagged
+/*  reopen: a/v2 is the primary; activate s2 and reopen: a/v1 is  */
+```
 
 **The layout travels with the photo.** `__graphs__` holds how the treedb was arranged — one record per topic, written by the graph view — and a snap tags it like any other topic, so an activation reads back the arrangement of the shot and not the one in use. `treedb_open_db()` opens `__graphs__` filtered by the activated tag for exactly that. A snap shot before anything was arranged holds no layout, so activating it leaves `__graphs__` empty and the graph falls back to its automatic layout. The other two meta-topics stay out: `__snaps__` cannot tag itself, and `__assets__` is held another way — `assets_held_by_snaps()` walks the links of the records the snap froze, because its blobs are shared by every treedb of the tranger.
 
@@ -3186,7 +3201,8 @@ ref in each of them and saves each one, before the child (the primary of the
 key last among them, the child after all: a save makes its record the newest
 of its key, the one a reload takes for the primary). When one of those saves
 fails, or the child's does, all of them are put back as they were, saved again,
-and the unlink answers `-1`. Not for a `file` column (a parent in
+the instance that wrote the newest record of the key before the unlink writes
+it again, last, and the unlink answers `-1`. Not for a `file` column (a parent in
 `__assets__`): an asset is what each instance holds, its own. Up to 7.25.4 the
 other instances kept naming the parent: a delete of it without `force` went,
 and they named a node that is gone (*"Node not found"* at the next open, once
@@ -3200,15 +3216,32 @@ treedb_unlink_nodes(tranger, "kids", P, a1);   // 0: a/v1 AND a/v2 have parent "
 ```
 
 An instance of the child that the parent's hook does not hold is no error of
-the unlink either: the hook holds another instance of the child (which names
-the parent itself and stays), or, for an instance that is not the primary,
-nothing (it inherited the ref and no hook took it). A relink of such an
-instance to another parent logged *"Child data not found in dict parent
-hook"*, of a list hook, though the relink went (up to 7.25.4). A dict hook is
-emptied by pointer only: the slot that holds another instance of the child
-stays. A primary that names the parent and that no hook holds is a hook that
-lost its child: *"Child data not found in list parent hook"* (or *"... in dict
-parent hook"*).
+the unlink either: the hook holds another instance of the child, or, for an
+instance that is not the primary, nothing (it inherited the ref and no hook
+took it). What happens to the instance the hook holds depends on the call:
+
+- a **relink** -- a [`treedb_link_nodes()`](#treedb_link_nodes) that moves the
+  instance it is given to another parent, through a single-valued fkey --
+  moves that instance alone. The one the hook holds stays there, naming the
+  parent. A dict hook is emptied by pointer only: its slot holds the other
+  instance, and keeps it.
+- a **direct unlink** (`treedb_unlink_nodes()`) undoes the link of the KEY, as
+  above: the instance the hook holds leaves it too, and stops naming the
+  parent, like every other instance.
+
+A relink of such an instance to another parent logged *"Child data not found
+in dict parent hook"*, of a list hook, though the relink went, and a dict hook
+dropped the other instance with it (up to 7.25.4). A primary that names the
+parent and that no hook holds is a hook that lost its child: *"Child data not
+found in list parent hook"* (or *"... in dict parent hook"*).
+
+```C
+/*  b/v1 hangs from P through `kids`; b/v2 was created after, and inherited
+ *  b["parent"] = "parents^P^kids". P's hook holds b/v1.  */
+treedb_link_nodes(tranger, "kids", Q, b2);     // 0: b/v2 in Q; b/v1 stays in P, naming P
+/*  or, instead of that relink:  */
+treedb_unlink_nodes(tranger, "kids", P, b2);   // 0: P holds nothing; b/v1 and b/v2 have parent ""
+```
 
 ---
 
