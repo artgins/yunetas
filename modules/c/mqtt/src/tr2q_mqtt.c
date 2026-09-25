@@ -658,17 +658,35 @@ PUBLIC q2_msg_t *tr2q_append(
 PUBLIC int tr2q_move_from_queued_to_inflight(q2_msg_t *msg)
 {
     tr2_queue_t *trq = msg->trq;
+
+    /*
+     *  Its content is loaded BEFORE it goes in flight: a message in flight
+     *  must have it. Up to 7.25.4 it was moved first, and a failed read
+     *  left it in flight with no content (an incoming QoS 2 message then
+     *  never got its PUBREC, nor completed).
+     */
+    if(!tr2q_msg_json(msg)) {
+        hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "Cannot load the content of a queued message: it stays queued",
+            "topic_name",   "%s", trq->topic_name,
+            "rowid",        "%lu", (unsigned long)msg->rowid,
+            NULL
+        );
+        return -1;
+    }
+
     int ret = dl_delete(&trq->dl_queued, msg, NULL);
     if(ret<0) {
         // Error already logged
         return ret;
     }
-
     dl_add(&trq->dl_inflight, msg);
-    json_t *kw_mqtt_msg = tr2q_msg_json(msg); // Load the message
     msg->inflight = TRUE;
 
-    return kw_mqtt_msg?0:-1;
+    return 0;
 }
 
 /***************************************************************************
@@ -823,6 +841,16 @@ PUBLIC int tr2q_save_hard_mark(q2_msg_t *msg, uint16_t value)
 PUBLIC int tr2q_check_backup(tr2_queue_t *trq)
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));
+
+    /*
+     *  Not idle while messages are QUEUED, even with nothing in flight
+     *  (the caller asks only then): a backup re-creates the topic empty,
+     *  and the queued messages, which keep only the rowid of their record,
+     *  would read nothing there (lost). Not an error: the backup waits.
+     */
+    if(tr2q_queued_size(trq) > 0) {
+        return 0;
+    }
     json_t *topic_ = take_queue_topic(trq);
     if(!topic_) {
         return -1;  // Error already logged

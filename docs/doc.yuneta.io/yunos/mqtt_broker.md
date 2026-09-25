@@ -101,6 +101,49 @@ NEW packet id and sent the PUBREC with it: the PUBREL of the client for its own
 id found nothing (*"Message not found"*), and the message was never released
 to its subscribers. `tests/c/c_mqtt` (`test_mqtt_queued_in`).
 
+The queues of `C_PROT_MQTT2` (`tr2q_mqtt`) are the same on both sides, the
+broker's and a client's (a client with `tranger_queues`). The messages above
+`max_inflight_messages` are QUEUED: on disk, without their content in memory.
+
+- **A message that expires before it is sent gives its slot to the next
+  one.** An outgoing message with `expiry_interval` is checked when it goes in
+  flight: expired, it is discarded, and the queued messages go in flight while
+  there is room and are sent. Up to 7.25.4 nothing moved after an expiry: the
+  queued messages waited for more traffic that might never come.
+- **No backup while messages are queued.** `tr2q_check_backup()` is called
+  every second when nothing is in flight; with messages still queued it does
+  nothing and answers `0`. A backup re-creates the topic empty, and a queued
+  message keeps only the rowid of its record: after a backup its content could
+  not be read any more (*"No message content in queue entry"*, the message
+  lost). Up to 7.25.4 the backup was made.
+- **A queued message goes in flight with its content.**
+  `tr2q_move_from_queued_to_inflight()` reads the content FIRST; when it
+  cannot, the message stays queued, with an ERROR *"Cannot load the content of
+  a queued message: it stays queued"*, and `-1`. Up to 7.25.4 it was moved in
+  flight first: an incoming QoS 2 message then stayed in flight with no content
+  and no PUBREC, and nobody completed it.
+- **A QoS 2 message received again with DUP=1** (its PUBREC was lost) replaces
+  the copy that waits for its PUBREL, found by its PACKET ID in flight or
+  queued, with a WARNING *"QoS 2 message received again (dup): it replaces the
+  copy waiting for its PUBREL"*: it is delivered once. Up to 7.25.4 a client
+  searched the copy by the rowid of its queue record: the old copy stayed for
+  ever, and the PUBREL of the next message with that packet id delivered the
+  stale copy again (an unrelated message whose rowid equalled the id was
+  removed instead). A client also logged *"QoS mismatch"* at every QoS 2
+  PUBREL (the flag bits of the message were compared with the qos level).
+
+```text
+raw broker -> client                      client -> raw broker
+PUBLISH 5 'a' (QoS 2)                     PUBREC 5
+PUBLISH 5 'a' (QoS 2, DUP)                PUBREC 5      the copy is replaced
+PUBREL 5                                  PUBCOMP 5     'a' delivered once
+PUBLISH 5 'b' (QoS 2)                     PUBREC 5
+PUBREL 5                                  PUBCOMP 5     'b' delivered (7.25.4: 'a' again)
+```
+
+`tests/c/c_mqtt` (`test_mqtt_client_queues`: a client against a raw broker)
+and `tests/c/tr_queue` (`test_tr2q_queued`).
+
 (mqtt-acl)=
 ## Authorization (publish/subscribe ACL)
 

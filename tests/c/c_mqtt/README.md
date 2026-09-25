@@ -17,6 +17,20 @@ packet id, as in mosquitto. Up to 7.25.4 the quota test was inverted and the
 moved message got a NEW packet id: the broker answered `PUBREC 1`, `PUBREC 2`,
 and the PUBREL of 3 and 4 logged *"Message not found"* (never released).
 
+`test_mqtt_client_queues` (`main_client_queues.c` + `c_client_queues.c`) is the
+other side: a C_PROT_MQTT2 CLIENT with persistent queues (`tranger_queues`)
+against a RAW broker (a `C_PROT_RAW` channel of the driver that writes the MQTT
+3.1.1 packets by hand). A. `PUBLISH 5 'a'` (QoS 2), again with DUP=1 (its
+PUBREC 'lost'), `PUBREL 5`, then `PUBLISH 5 'b'` and `PUBREL 5`: the user must
+get `a` once and then `b`, with no error. Up to 7.25.4 the duplicate was
+searched by the rowid of its queue record: the old copy stayed, and the second
+PUBREL delivered `a` again (red: *"a,a,"*); and every QoS 2 PUBREL logged
+*"QoS mismatch"* (the flag bits compared with the qos level). B. 22 QoS 1
+messages of the user with 20 in flight, `m21` with `expiry_interval` 1: after
+2.5 s, `PUBACK 1` frees a slot, `m21` goes in flight expired and is discarded,
+and `m22` must be sent. Up to 7.25.4 nothing moved after the expiry (red: `m22`
+never sent).
+
 ## Run
 
 ```bash

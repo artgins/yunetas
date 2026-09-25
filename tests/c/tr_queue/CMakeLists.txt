@@ -54,6 +54,7 @@ set(SRCS
     test_tr_queue1
     test_tr_queue_load_failed
     test_tr_queue_backup_failed
+    test_tr2q_queued
 )
 
 ##############################################

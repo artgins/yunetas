@@ -55,6 +55,7 @@ SET(SRCS
     acl
     malformed
     queued_in
+    client_queues
 )
 
 ##############################################

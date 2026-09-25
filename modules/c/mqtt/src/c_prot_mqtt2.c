@@ -141,6 +141,7 @@ PRIVATE void send_drop(hgobj gobj, int reason);
 PRIVATE void ws_close(hgobj gobj, int reason);
 PRIVATE uint16_t mqtt_mid_generate(hgobj gobj);
 PRIVATE int db__message_write_queued_in(hgobj gobj);
+PRIVATE void db__message_write_queued_out(hgobj gobj);
 
 /***************************************************************************
  *  The peer this connection speaks for, for a LOG.
@@ -852,163 +853,191 @@ PRIVATE int message__out_update(
 }
 
 /***************************************************************************
+ *  Send the output messages in flight that were not sent (and, with
+ *  `redeliver`, send again the unacknowledged ones). Return how many were
+ *  discarded because they expired before they were sent.
+ ***************************************************************************/
+PRIVATE int send_out_inflight(hgobj gobj, BOOL redeliver)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    tr2_queue_t *trq = priv->trq_out_msgs;
+    int expired = 0;
+
+    q2_msg_t *qmsg, *next;
+    Q2MSG_FOREACH_FORWARD_INFLIGHT_SAFE(trq, qmsg, next) {
+        int qos = msg_flag_get_qos_level(qmsg);
+        mqtt_msg_state_t state = msg_flag_get_state(qmsg);
+
+        if(qos > 0 && state == mosq_ms_invalid) {
+            /*
+             *  Assign mid and update state
+             */
+            uint16_t mid = mqtt_mid_generate(gobj);
+            qmsg->mid = mid;
+
+            /*
+             *  Get message content and send PUBLISH
+             */
+            json_t *kw_msg = tr2q_msg_json(qmsg);
+            if(!kw_msg) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "No message content in queue entry",
+                    "mid",          "%d", (int)mid,
+                    NULL
+                );
+                continue;
+            }
+            const char *topic = kw_get_str(gobj, kw_msg, "topic", "", 0);
+            gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+                gobj, kw_msg, "gbuffer", 0, 0
+            );
+            BOOL retain = kw_get_bool(gobj, kw_msg, "retain", 0, 0);
+            BOOL dup = msg_flag_get_dup(qmsg);
+            json_t *properties = kw_get_dict(gobj, kw_msg, "properties", 0, 0);
+            uint32_t expiry_interval = (uint32_t)kw_get_int(
+                gobj, kw_msg, "expiry_interval", 0, 0
+            );
+
+            /*
+             *  [MQTT-3.3.2-18] Check message expiry and adjust interval.
+             *  The Server MUST delete the message if the expiry has passed.
+             *  The Server MUST set the Message Expiry Interval to the received
+             *  value minus the time that the message has been waiting in the Server.
+             */
+            if(expiry_interval > 0) {
+                time_t msg_time = (time_t)kw_get_int(gobj, kw_msg, "tm", 0, 0);
+                time_t now = mosquitto_time();
+                time_t elapsed = now - msg_time;
+                if(elapsed >= (time_t)expiry_interval) {
+                    // Message has expired, discard it
+                    tr2q_unload_msg(qmsg, 0);
+                    expired++;
+                    continue;
+                }
+                expiry_interval = expiry_interval - (uint32_t)elapsed;
+            }
+
+            /*
+             *  What is first? send the message or save his state in disk
+             */
+            if(send__publish(
+                gobj,
+                mid,
+                topic,
+                gbuf,       // notowned
+                (uint8_t)qos,
+                retain,
+                dup,
+                properties, // not owned
+                expiry_interval
+            ) == 0) {
+                // Message sent, save state
+                mqtt_msg_state_t new_state;
+                if(qos == 1) {
+                    new_state = mosq_ms_wait_for_puback;
+                } else {
+                    new_state = mosq_ms_wait_for_pubrec;
+                }
+                msg_flag_set_state(qmsg, new_state);
+                tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
+            }
+
+        } else if(redeliver && (state == mosq_ms_wait_for_puback || state == mosq_ms_wait_for_pubrec)) {
+            /*
+             *  [MQTT-4.4.0-1] Redeliver unacknowledged PUBLISH on reconnect
+             *  Assign new mid (original was not persisted) and resend with DUP=1
+             */
+            uint16_t mid = mqtt_mid_generate(gobj);
+            qmsg->mid = mid;
+
+            json_t *kw_msg = tr2q_msg_json(qmsg);
+            if(!kw_msg) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "No message content for redelivery",
+                    "mid",          "%d", (int)mid,
+                    NULL
+                );
+                continue;
+            }
+            const char *topic = kw_get_str(gobj, kw_msg, "topic", "", 0);
+            gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+                gobj, kw_msg, "gbuffer", 0, 0
+            );
+            BOOL retain = kw_get_bool(gobj, kw_msg, "retain", 0, 0);
+            json_t *properties = kw_get_dict(gobj, kw_msg, "properties", 0, 0);
+            uint32_t expiry_interval = (uint32_t)kw_get_int(
+                gobj, kw_msg, "expiry_interval", 0, 0
+            );
+
+            /*
+             *  Check message expiry and adjust interval for redelivery
+             */
+            if(expiry_interval > 0) {
+                time_t msg_time = (time_t)kw_get_int(gobj, kw_msg, "tm", 0, 0);
+                time_t now = mosquitto_time();
+                time_t elapsed = now - msg_time;
+                if(elapsed >= (time_t)expiry_interval) {
+                    // Message has expired, discard it
+                    tr2q_unload_msg(qmsg, 0);
+                    expired++;
+                    continue;
+                }
+                expiry_interval = expiry_interval - (uint32_t)elapsed;
+            }
+
+            send__publish(
+                gobj,
+                mid,
+                topic,
+                gbuf,       // notowned
+                (uint8_t)qos,
+                retain,
+                TRUE,       // DUP=1 for redelivery
+                properties, // not owned
+                expiry_interval
+            );
+            tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
+
+        } else if(redeliver && state == mosq_ms_wait_for_pubcomp) {
+            /*
+             *  [MQTT-4.4.0-1] Redeliver PUBREL on reconnect
+             */
+            if(qmsg->mid == 0) {
+                qmsg->mid = mqtt_mid_generate(gobj);
+            }
+            send__pubrel(gobj, qmsg->mid, NULL);
+            tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
+        }
+    }
+
+    return expired;
+}
+
+/***************************************************************************
+ *  Release output messages to the in-flight list and send them.
  *
+ *  A message that expired before it was sent is discarded, and its slot
+ *  goes to the next queued one: the queued messages go in flight while
+ *  there is room, and are sent in the next pass (only the first pass
+ *  redelivers). Up to 7.25.4 nothing was moved from the queued list after
+ *  an expiry: the queued messages waited for more traffic, and with
+ *  nothing in flight the periodic backup re-created the topic under them.
  ***************************************************************************/
 PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir, BOOL redeliver)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(dir == mosq_md_out) {
-        tr2_queue_t *trq = priv->trq_out_msgs;
-
-        q2_msg_t *qmsg, *next;
-        Q2MSG_FOREACH_FORWARD_INFLIGHT_SAFE(trq, qmsg, next) {
-            int qos = msg_flag_get_qos_level(qmsg);
-            mqtt_msg_state_t state = msg_flag_get_state(qmsg);
-
-            if(qos > 0 && state == mosq_ms_invalid) {
-                /*
-                 *  Assign mid and update state
-                 */
-                uint16_t mid = mqtt_mid_generate(gobj);
-                qmsg->mid = mid;
-
-                /*
-                 *  Get message content and send PUBLISH
-                 */
-                json_t *kw_msg = tr2q_msg_json(qmsg);
-                if(!kw_msg) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL,
-                        "msg",          "%s", "No message content in queue entry",
-                        "mid",          "%d", (int)mid,
-                        NULL
-                    );
-                    continue;
-                }
-                const char *topic = kw_get_str(gobj, kw_msg, "topic", "", 0);
-                gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
-                    gobj, kw_msg, "gbuffer", 0, 0
-                );
-                BOOL retain = kw_get_bool(gobj, kw_msg, "retain", 0, 0);
-                BOOL dup = msg_flag_get_dup(qmsg);
-                json_t *properties = kw_get_dict(gobj, kw_msg, "properties", 0, 0);
-                uint32_t expiry_interval = (uint32_t)kw_get_int(
-                    gobj, kw_msg, "expiry_interval", 0, 0
-                );
-
-                /*
-                 *  [MQTT-3.3.2-18] Check message expiry and adjust interval.
-                 *  The Server MUST delete the message if the expiry has passed.
-                 *  The Server MUST set the Message Expiry Interval to the received
-                 *  value minus the time that the message has been waiting in the Server.
-                 */
-                if(expiry_interval > 0) {
-                    time_t msg_time = (time_t)kw_get_int(gobj, kw_msg, "tm", 0, 0);
-                    time_t now = mosquitto_time();
-                    time_t elapsed = now - msg_time;
-                    if(elapsed >= (time_t)expiry_interval) {
-                        // Message has expired, discard it
-                        tr2q_unload_msg(qmsg, 0);
-                        continue;
-                    }
-                    expiry_interval = expiry_interval - (uint32_t)elapsed;
-                }
-
-                /*
-                 *  What is first? send the message or save his state in disk
-                 */
-                if(send__publish(
-                    gobj,
-                    mid,
-                    topic,
-                    gbuf,       // notowned
-                    (uint8_t)qos,
-                    retain,
-                    dup,
-                    properties, // not owned
-                    expiry_interval
-                ) == 0) {
-                    // Message sent, save state
-                    mqtt_msg_state_t new_state;
-                    if(qos == 1) {
-                        new_state = mosq_ms_wait_for_puback;
-                    } else {
-                        new_state = mosq_ms_wait_for_pubrec;
-                    }
-                    msg_flag_set_state(qmsg, new_state);
-                    tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
-                }
-
-            } else if(redeliver && (state == mosq_ms_wait_for_puback || state == mosq_ms_wait_for_pubrec)) {
-                /*
-                 *  [MQTT-4.4.0-1] Redeliver unacknowledged PUBLISH on reconnect
-                 *  Assign new mid (original was not persisted) and resend with DUP=1
-                 */
-                uint16_t mid = mqtt_mid_generate(gobj);
-                qmsg->mid = mid;
-
-                json_t *kw_msg = tr2q_msg_json(qmsg);
-                if(!kw_msg) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL,
-                        "msg",          "%s", "No message content for redelivery",
-                        "mid",          "%d", (int)mid,
-                        NULL
-                    );
-                    continue;
-                }
-                const char *topic = kw_get_str(gobj, kw_msg, "topic", "", 0);
-                gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
-                    gobj, kw_msg, "gbuffer", 0, 0
-                );
-                BOOL retain = kw_get_bool(gobj, kw_msg, "retain", 0, 0);
-                json_t *properties = kw_get_dict(gobj, kw_msg, "properties", 0, 0);
-                uint32_t expiry_interval = (uint32_t)kw_get_int(
-                    gobj, kw_msg, "expiry_interval", 0, 0
-                );
-
-                /*
-                 *  Check message expiry and adjust interval for redelivery
-                 */
-                if(expiry_interval > 0) {
-                    time_t msg_time = (time_t)kw_get_int(gobj, kw_msg, "tm", 0, 0);
-                    time_t now = mosquitto_time();
-                    time_t elapsed = now - msg_time;
-                    if(elapsed >= (time_t)expiry_interval) {
-                        // Message has expired, discard it
-                        tr2q_unload_msg(qmsg, 0);
-                        continue;
-                    }
-                    expiry_interval = expiry_interval - (uint32_t)elapsed;
-                }
-
-                send__publish(
-                    gobj,
-                    mid,
-                    topic,
-                    gbuf,       // notowned
-                    (uint8_t)qos,
-                    retain,
-                    TRUE,       // DUP=1 for redelivery
-                    properties, // not owned
-                    expiry_interval
-                );
-                tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
-
-            } else if(redeliver && state == mosq_ms_wait_for_pubcomp) {
-                /*
-                 *  [MQTT-4.4.0-1] Redeliver PUBREL on reconnect
-                 */
-                if(qmsg->mid == 0) {
-                    qmsg->mid = mqtt_mid_generate(gobj);
-                }
-                send__pubrel(gobj, qmsg->mid, NULL);
-                tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
-            }
-        }
+        int expired;
+        do {
+            db__message_write_queued_out(gobj);
+            expired = send_out_inflight(gobj, redeliver);
+            redeliver = FALSE;
+        } while(expired > 0 && tr2q_queued_size(priv->trq_out_msgs) > 0);
     }
 
     return 0;
@@ -1071,7 +1100,12 @@ PRIVATE int message__remove(
     }
 
     if(msg) {
-        mqtt_msg_qos_t msg_qos = msg_flag_get_qos(msg);
+        /*
+         *  The qos LEVEL of the message, as the caller's: up to 7.25.4 its
+         *  flag bits were compared (mosq_m_qos2 is 32), and every QoS 2
+         *  PUBREL of a client logged "QoS mismatch"
+         */
+        int msg_qos = msg_flag_get_qos_level(msg);
         if(msg_qos != qos) {
             // Like mosquitto, check the qos
             gobj_log_error(gobj, 0,
@@ -1172,18 +1206,23 @@ PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int q
 }
 
 /***************************************************************************
- *
+ *  Move output messages from the queued list to the in-flight one while
+ *  there is room, in their order (mosquitto's db__message_write_queued_out)
  ***************************************************************************/
-PRIVATE int db__message_dequeue_first(
-    hgobj gobj,
-    tr2_queue_t *trq
-) {
-    q2_msg_t *msg = tr2q_first_queued_msg(trq);
-    if(!msg) {
-        // Silence please
-        return -1;
+PRIVATE void db__message_write_queued_out(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    tr2_queue_t *trq = priv->trq_out_msgs;
+
+    q2_msg_t *qmsg, *next;
+    Q2MSG_FOREACH_FORWARD_QUEUED_SAFE(trq, qmsg, next) {
+        if(!db__ready_for_flight(gobj, mosq_md_out, msg_flag_get_qos_level(qmsg))) {
+            break;
+        }
+        if(tr2q_move_from_queued_to_inflight(qmsg) < 0) {
+            break;  // Error already logged: it stays queued
+        }
     }
-    return tr2q_move_from_queued_to_inflight(msg);
 }
 
 /***************************************************************************
@@ -1288,19 +1327,8 @@ PRIVATE int db__message_delete_outgoing(
     }
 
     /*
-     *  Move queued messages to inflight while ready for flight
-     */
-    q2_msg_t *tail, *tmp;
-    Q2MSG_FOREACH_FORWARD_QUEUED_SAFE(trq, tail, tmp) {
-        int tail_qos = msg_flag_get_qos_level(tail);
-        if(!db__ready_for_flight(gobj, mosq_md_out, tail_qos)) {
-            break;
-        }
-        db__message_dequeue_first(gobj, trq);
-    }
-
-    /*
-     *  Send inflight messages
+     *  Move queued messages to inflight while ready for flight, and send
+     *  them
      */
     message__release_to_inflight(gobj, mosq_md_out, FALSE);
 
@@ -1394,36 +1422,40 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 }
 
 /***************************************************************************
- *  Using in handle__publish_s()
- *  Check if a mid already exists in inflight queue and remove it
+ *  Using in handle__publish_c()
+ *  An incoming QoS 2 PUBLISH sent again with DUP=1 (its PUBREC was lost):
+ *  the copy waiting for its PUBREL, found by its PACKET ID in flight or
+ *  queued, is removed, and the new one takes its place. Up to 7.25.4 it
+ *  was searched by the rowid of the queue record, which is not a packet
+ *  id: the old copy stayed for ever (its PUBREL released only the first
+ *  match), the next message with that packet id delivered the stale copy
+ *  again, and an unrelated message whose rowid equalled the id was lost.
  ***************************************************************************/
 PRIVATE int db__message_remove_incoming_dup(hgobj gobj, uint16_t mid)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    q2_msg_t *qmsg, *tmp;
-
-    DL_FOREACH_SAFE(&priv->trq_in_msgs->dl_inflight, qmsg, tmp) {
-        if(qmsg->rowid == (uint64_t)mid) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "removing an inflight qos2 dup message",
-                "client_id",    "%s", SAFE_PRINT(priv->client_id),
-                "mid",          "%d", (int)mid,
-                NULL
-            );
-            db__message_remove_from_inflight(
-                gobj,
-                priv->trq_in_msgs,
-                qmsg
-            );
-            return MOSQ_ERR_SUCCESS;
-        }
+    q2_msg_t *qmsg = tr2q_get_by_mid(priv->trq_in_msgs, mid);
+    if(!qmsg) {
+        // Silence please
+        return MOSQ_ERR_NOT_FOUND;
     }
 
-    // Silence please
-    return MOSQ_ERR_NOT_FOUND;
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_MQTT,
+        "msg",          "%s", "QoS 2 message received again (dup): it replaces the copy waiting for its PUBREL",
+        "client_id",    "%s", SAFE_PRINT(priv->client_id),
+        "mid",          "%d", (int)mid,
+        "inflight",     "%d", qmsg->inflight? 1: 0,
+        NULL
+    );
+    db__message_remove_from_inflight(
+        gobj,
+        priv->trq_in_msgs,
+        qmsg
+    );
+    return MOSQ_ERR_SUCCESS;
 }
 
 /***************************************************************************
