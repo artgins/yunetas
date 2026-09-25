@@ -65,13 +65,21 @@
  *                 PATH_MAX is ENAMETOOLONG. Up to this fix the log changed
  *                 errno, and a caller that logged strerror(errno) said
  *                 "Success".
+ *             18. find_files_with_suffix_array() without d_type, and the
+ *                 lstat() of a file fails with EACCES (a directory that can
+ *                 be read and not searched): the file is listed, as with
+ *                 d_type, and the open that follows says the EACCES. Up to
+ *                 this fix it was skipped with no log, and timeranger2 read
+ *                 its key EMPTY with no flag, where with d_type the key is
+ *                 flagged.
  *
  *          The failure of readdir() is made by __wrap_readdir() below, for
  *          the directory named by `failing_dir` (seen at its opendir()).
  *          The failure of opendir() by __wrap_opendir(), for the directory
  *          named by `failing_open_dir`. __wrap_readdir() also hides the
  *          d_type of every entry when `hide_d_type` is set. The failure of
- *          lstat() by __wrap_lstat(), for the path `failing_lstat`.
+ *          lstat() by __wrap_lstat(), for the path `failing_lstat`, with
+ *          `failing_lstat_errno` (EIO unless a case says otherwise).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -142,14 +150,15 @@ struct dirent *__wrap_readdir(DIR *dirp)
 int __real_lstat(const char *path, struct stat *st);
 int __wrap_lstat(const char *path, struct stat *st);
 
-PRIVATE const char *failing_lstat = NULL;  // the path whose lstat() fails (EIO)
+PRIVATE const char *failing_lstat = NULL;  // the path whose lstat() fails
+PRIVATE int failing_lstat_errno = EIO;
 PRIVATE int lstat_failures = 0;
 
 int __wrap_lstat(const char *path, struct stat *st)
 {
     if(failing_lstat && strcmp(path, failing_lstat) == 0) {
         lstat_failures++;
-        errno = EIO;
+        errno = failing_lstat_errno;
         return -1;
     }
     return __real_lstat(path, st);
@@ -428,6 +437,30 @@ PRIVATE void test_stat_errors(void)
     }
     failing_open_dir = NULL;
     failing_open_errno = 0;
+
+    /*
+     *  18. lstat() EACCES in find_files_with_suffix_array() without d_type
+     *  (a directory that can be read and not searched): the file is
+     *  listed, as the entry type lists it, and whoever opens it meets the
+     *  EACCES and says it
+     */
+    ret = find_files_with_suffix_array(0, BASE, ".md2", &da);
+    int with_d_type = (ret == 0)? (int)da.count: -1;
+    dir_array_free(&da);
+    hide_d_type = TRUE;
+    failing_lstat = BASE "/b.md2";
+    failing_lstat_errno = EACCES;
+    lstat_failures = 0;
+    logs_before = s_logs;
+    ret = find_files_with_suffix_array(0, BASE, ".md2", &da);
+    hide_d_type = FALSE;
+    ok_or_fail(lstat_failures == 1, "18. the lstat() of the file failed (EACCES)");
+    ok_or_fail(ret == 0 && (int)da.count == with_d_type && with_d_type == 3,
+        "18. find_files_with_suffix_array() without d_type lists it, as with d_type");
+    ok_or_fail(s_logs == logs_before, "18. nothing logged by the listing");
+    dir_array_free(&da);
+    failing_lstat = NULL;
+    failing_lstat_errno = EIO;
 }
 
 /***************************************************************************

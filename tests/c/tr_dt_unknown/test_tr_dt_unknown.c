@@ -17,12 +17,19 @@
  *
  *      1. write a topic with two keys and five records, and close it
  *      2. reopen it with d_type hidden: both keys and all five records
- *      3. reopen it with d_type hidden and the stat() of one key failing
- *         (EIO, by __wrap_stat() below): the topic does not open, logged.
+ *      3. reopen it with d_type hidden and the lstat() of one key failing
+ *         (EIO, by __wrap_lstat() below): the topic does not open, logged.
  *         Up to this fix the key was taken as "not a directory" and left
  *         out of the cache with no log -- the topic opened without it, and
  *         a treedb accepted a create of its id. Only ENOENT (the key went
- *         away between the readdir() and the stat()) leaves a key out.
+ *         away between the readdir() and the lstat()) leaves a key out.
+ *      4. a symbolic link in keys/ is not a key without d_type either (it
+ *         was asked with stat(), which follows it: a third key, with the
+ *         records of the key it points to)
+ *      5. a key directory of mode r-- (read, not searched) is flagged the
+ *         same without d_type as with it (it loaded EMPTY and unflagged:
+ *         the lstat() of each md2 file failed with EACCES, and the file
+ *         was skipped with no log)
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -32,6 +39,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -64,22 +72,22 @@ struct dirent *__wrap_readdir(DIR *dirp)
 }
 
 /***************************************************************
- *              A stat() that fails (EIO) for one path
+ *              An lstat() that fails (EIO) for one path
  ***************************************************************/
-int __real_stat(const char *path, struct stat *st);
-int __wrap_stat(const char *path, struct stat *st);
+int __real_lstat(const char *path, struct stat *st);
+int __wrap_lstat(const char *path, struct stat *st);
 
 PRIVATE char failing_stat[PATH_MAX] = "";
 PRIVATE int stat_failures = 0;
 
-int __wrap_stat(const char *path, struct stat *st)
+int __wrap_lstat(const char *path, struct stat *st)
 {
     if(failing_stat[0] && strcmp(path, failing_stat) == 0) {
         stat_failures++;
         errno = EIO;
         return -1;
     }
-    return __real_stat(path, st);
+    return __real_lstat(path, st);
 }
 
 /***************************************************************
@@ -123,6 +131,121 @@ PRIVATE int expect_int(const char *what, long long got, long long expected)
 }
 
 /***************************************************************************
+ *  Open the topic, with d_type shown or hidden: its keys, records and the
+ *  md2 files of key A flagged unreadable (-1 when it does not open)
+ ***************************************************************************/
+PRIVATE int open_and_count(
+    const char *path_root,
+    BOOL hidden,
+    int *keys_found,
+    int *records_found,
+    int *unreadable_a
+)
+{
+    *keys_found = -1;
+    *records_found = -1;
+    *unreadable_a = -1;
+    hide_d_type = hidden;
+    json_t *tranger = startup_tranger(path_root);
+    json_t *topic = tranger? tranger2_open_topic(tranger, TOPIC_NAME, FALSE): NULL;
+    hide_d_type = FALSE;
+    if(topic) {
+        json_t *keys = tranger2_list_keys(tranger, TOPIC_NAME);
+        *keys_found = (int)json_array_size(keys);
+        JSON_DECREF(keys)
+        *records_found = (int)tranger2_topic_size(tranger, TOPIC_NAME);
+        json_t *key_cache = json_object_get(json_object_get(topic, "cache"), "A");
+        *unreadable_a = (int)json_array_size(json_object_get(key_cache, "unreadable"));
+    }
+    if(tranger) {
+        tranger2_shutdown(tranger);
+    }
+    return topic? 0: -1;
+}
+
+/***************************************************************************
+ *  4. A symbolic link in keys/ is not a key, with d_type or without it.
+ *  With d_type it is DT_LNK and skipped; without it the key was asked with
+ *  stat(), which follows the link: a key directory whose name nobody
+ *  wrote, with the records of another key (and a link that answered ELOOP
+ *  or EACCES failed the whole open, only there). Now lstat(), as the entry
+ *  type says.
+ ***************************************************************************/
+PRIVATE int test_symlink_key(const char *path_root, const char *path_database)
+{
+    int result = 0;
+    char link_path[PATH_MAX];
+    build_path(link_path, sizeof(link_path), path_database, TOPIC_NAME, "keys", "L", NULL);
+    unlink(link_path);
+    if(symlink("A", link_path) < 0) {
+        printf("%sERROR%s --> cannot make the link %s\n", On_Red BWhite, Color_Off, link_path);
+        return -1;
+    }
+
+    int keys_found, records_found, unreadable_a;
+    set_expected_results("a link in keys/ is not a key, with d_type", NULL, NULL, NULL, 1);
+    result += open_and_count(path_root, FALSE, &keys_found, &records_found, &unreadable_a);
+    result += expect_int("keys with d_type, a link in keys/", keys_found, 2);
+    result += expect_int("records with d_type, a link in keys/", records_found, 5);
+    result += test_json(NULL);
+
+    set_expected_results("a link in keys/ is not a key, without d_type", NULL, NULL, NULL, 1);
+    entries_without_type = 0;
+    result += open_and_count(path_root, TRUE, &keys_found, &records_found, &unreadable_a);
+    if(entries_without_type == 0) {
+        printf("%sERROR%s --> no entry without d_type: the test proves nothing\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += expect_int("keys without d_type, a link in keys/", keys_found, 2);
+    result += expect_int("records without d_type, a link in keys/", records_found, 5);
+    result += test_json(NULL);
+
+    unlink(link_path);
+    return result;
+}
+
+/***************************************************************************
+ *  5. A key directory that can be read and not searched (r-- : its
+ *  entries are named, none can be asked or opened). With d_type its md2
+ *  files are listed, their open fails, and the key is flagged unreadable:
+ *  every load of it says load_failed. Without d_type the lstat() of each
+ *  entry failed with EACCES and the entry was skipped with no log, so the
+ *  key loaded EMPTY and unflagged. Now the entry is listed, as the entry
+ *  type lists it, and both paths flag the key the same way.
+ *  Skipped as root (the mode does not stop it).
+ ***************************************************************************/
+PRIVATE int test_unsearchable_key(const char *path_root, const char *path_database)
+{
+    if(geteuid() == 0) {
+        printf("skip unsearchable key: as root a directory of mode r-- can be searched\n");
+        return 0;
+    }
+    int result = 0;
+    char key_dir[PATH_MAX];
+    build_path(key_dir, sizeof(key_dir), path_database, TOPIC_NAME, "keys", "A", NULL);
+    chmod(key_dir, 0440);   // read, not searched
+
+    int keys_d, records_d, unreadable_d;
+    set_expected_results("a key of mode r--, with d_type", NULL, NULL, NULL, 0);
+    result += open_and_count(path_root, FALSE, &keys_d, &records_d, &unreadable_d);
+    test_json(NULL);    // what the open logs is checked below, against the other path
+    result += expect_int("with d_type, the key of mode r-- is flagged", unreadable_d > 0, 1);
+
+    int keys_u, records_u, unreadable_u;
+    set_expected_results("a key of mode r--, without d_type", NULL, NULL, NULL, 0);
+    result += open_and_count(path_root, TRUE, &keys_u, &records_u, &unreadable_u);
+    test_json(NULL);
+    result += expect_int("without d_type, the keys are the same", keys_u, keys_d);
+    result += expect_int("without d_type, the records are the same", records_u, records_d);
+    result += expect_int("without d_type, the key of mode r-- is flagged the same",
+        unreadable_u, unreadable_d);
+
+    chmod(key_dir, 02770);
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -135,6 +258,9 @@ PRIVATE int do_test(void)
     build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
     mkrdir(path_root, 02770);
     build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
+    char key_a[PATH_MAX];
+    build_path(key_a, sizeof(key_a), path_database, TOPIC_NAME, "keys", "A", NULL);
+    chmod(key_a, 02770);    // a run that died left it r--
     rmrdir(path_database);
 
     /*-------------------------------------*
@@ -235,6 +361,9 @@ PRIVATE int do_test(void)
         tranger2_shutdown(tranger);
     }
     result += test_json(NULL);
+
+    result += test_symlink_key(path_root, path_database);
+    result += test_unsearchable_key(path_root, path_database);
 
     return result;
 }

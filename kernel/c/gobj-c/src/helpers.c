@@ -3752,7 +3752,17 @@ PUBLIC int find_files_with_suffix_array(
                 if(S_ISREG(st.st_mode)) {
                     is_file = 1;
                 }
-            } else if(!(errno == ENOENT || errno == EACCES)) {
+            } else if(errno == EACCES) {
+                /*
+                 *  A directory that can be read and not searched: no entry
+                 *  can be asked its type. It is listed, as the entry type
+                 *  lists a file there, and whoever opens it meets the EACCES
+                 *  and says it. Up to this fix it was skipped with no log:
+                 *  timeranger2 read the key EMPTY and unflagged, where the
+                 *  entry type flags it.
+                 */
+                is_file = 1;
+            } else if(errno != ENOENT) {
                 /*
                  *  An entry lost, not an entry gone: the listing fails
                  */

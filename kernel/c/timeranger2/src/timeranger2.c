@@ -7462,6 +7462,8 @@ PRIVATE int find_keys_in_disk(
          *  The entry lives in keys/, so that is the directory to join, not
          *  the topic's: stat'ing <topic>/<key> found nothing, and the topic
          *  opened with an empty cache over files that were all there.
+         *  lstat(), not stat(): a symbolic link is not a key, as DT_LNK is
+         *  not one (stat() followed it, and made a key of another key).
          */
         #ifdef DT_DIR
         BOOL ask_stat = (entry->d_type == DT_UNKNOWN)? TRUE: FALSE;
@@ -7475,17 +7477,27 @@ PRIVATE int find_keys_in_disk(
             struct stat st;
             char path[PATH_MAX];
             build_path(path, sizeof(path), full_path, entry->d_name, NULL);
-            if(stat(path, &st) == 0) {
+            if(lstat(path, &st) == 0) {
                 if(S_ISDIR(st.st_mode)) {
                     is_dir = 1;
                 }
+            } else if(errno == EACCES) {
+                /*
+                 *  keys/ can be read and not searched: no entry can be asked
+                 *  its type. It is taken as a key, as DT_DIR takes one there,
+                 *  and the listing of the key says the EACCES and flags it
+                 *  (flag_key_unlisted). Up to this fix the whole topic did
+                 *  not open, and only without d_type.
+                 */
+                is_dir = 1;
             } else if(errno != ENOENT) {
                 /*
                  *  A key lost, not a key gone (ENOENT: removed between the
-                 *  readdir() and the stat()): the listing fails, as
-                 *  find_files_with_suffix_array() fails for a file. Up to
-                 *  this fix the key was taken as "not a directory" and left
-                 *  out with no log, and the topic opened without it.
+                 *  readdir() and the lstat()): the listing fails, as
+                 *  find_files_with_suffix_array() fails for a file (EIO,
+                 *  ELOOP...; EACCES lists the entry in both). Up to this fix
+                 *  the key was taken as "not a directory" and left out with
+                 *  no log, and the topic opened without it.
                  */
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,

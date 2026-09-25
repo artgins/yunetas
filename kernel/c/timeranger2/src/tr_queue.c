@@ -180,7 +180,7 @@ PRIVATE int queue_topic_desc_loads(tr_queue_t *trq)
  *  Can the queue's keys/ be listed? Asked quietly, the way the open lists
  *  it (find_keys_in_disk): a keys/ that is not there is nothing missing;
  *  one that cannot be opened or read, or holds an entry whose type cannot
- *  be asked, fails the open.
+ *  be asked (EIO; an EACCES is listed), fails the open.
  ***************************************************************************/
 PRIVATE BOOL queue_topic_keys_listable(tr_queue_t *trq)
 {
@@ -208,7 +208,7 @@ PRIVATE BOOL queue_topic_keys_listable(tr_queue_t *trq)
         char path[PATH_MAX];
         struct stat st;
         if(!build_path(path, sizeof(path), keys, entry->d_name, NULL) ||
-                (lstat(path, &st) < 0 && errno != ENOENT)) {
+                (lstat(path, &st) < 0 && errno != ENOENT && errno != EACCES)) {
             listable = FALSE;
             break;
         }
