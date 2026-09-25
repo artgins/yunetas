@@ -8758,13 +8758,63 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     /*------------------------------*
      *  Find repeated subscription
      *------------------------------*/
+    /*
+     *  __hard_subscription__ is taken out of the __config__ that the
+     *  subscription stores (it becomes its subs_flag): with it the same kw
+     *  matched no subscription, and a repeated hard subscription was made
+     *  twice, the subscriber getting each event twice.
+     */
+    json_t *kw_match = kw;
+    json_t *__config__ = kw_get_dict(publisher, kw, "__config__", 0, 0);
+    if(__config__ && kw_has_key(__config__, "__hard_subscription__")) {
+        kw_match = json_deep_copy(kw);
+        json_object_del(
+            kw_get_dict(publisher, kw_match, "__config__", 0, 0),
+            "__hard_subscription__"
+        );
+    } else {
+        json_incref(kw_match);
+    }
     json_t *dl_subs = _find_subscriptions(
         publisher->dl_subscriptions,
         publisher,
         event,
-        json_incref(kw),
+        kw_match, // owned
         subscriber
     );
+
+    /*
+     *  A HARD subscription that matches stays, and it is the answer: only
+     *  gobj_unsubscribe_list() with force removes it, so it cannot be
+     *  overridden. Up to 7.25.4 the override below left it in place
+     *  silently and made a second one.
+     */
+    size_t idx_hard; json_t *subs_hard = 0;
+    json_array_foreach(dl_subs, idx_hard, subs_hard) {
+        subs_flag_t subs_flag_ = (subs_flag_t)kw_get_int(
+            publisher, subs_hard, "subs_flag", 0, KW_REQUIRED
+        );
+        if(subs_flag_ & __hard_subscription__) {
+            break;
+        }
+        subs_hard = 0;
+    }
+    if(subs_hard) {
+        gobj_log_warning(publisher, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Hard subscription REPEATED, the one there is kept and returned",
+            "event",        "%s", event,
+            "kw",           "%j", kw,
+            "publisher",    "%s", gobj_full_name(publisher),
+            "subscriber",   "%s", gobj_full_name(subscriber),
+            NULL
+        );
+        JSON_DECREF(dl_subs)    // subs_hard stays in publisher->dl_subscriptions
+        JSON_DECREF(kw)
+        return subs_hard;
+    }
+
     if(json_array_size(dl_subs) > 0) {
         gobj_log_warning(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,

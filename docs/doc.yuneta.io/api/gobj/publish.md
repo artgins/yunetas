@@ -168,9 +168,17 @@ Returns a JSON object representing the subscription if successful, or `NULL` on 
 **Notes**
 
 The `event` must be in the publisher's output event list unless the `gcflag_no_check_output_events` flag is set.
-If a subscription with the same parameters already exists, it will be overridden.
+If a subscription with the same parameters already exists, it will be overridden: the function logs a warning (*"subscription(s) REPEATED, will be deleted and override"*), removes it with [`gobj_unsubscribe_list()`](#gobj_unsubscribe_list) without `force`, and adds the new one.
 The `__config__` field in `kw` can include options such as `__hard_subscription__` (permanent subscription) and `__own_event__` (prevents further propagation if the subscriber handles the event).
-The function calls [`gobj_unsubscribe_event()`](#gobj_unsubscribe_event) to remove duplicate subscriptions before adding a new one.
+A HARD subscription is not overridden, because only `gobj_unsubscribe_list()` with `force` removes it. When one matches, no new subscription is made: the function logs a warning (*"Hard subscription REPEATED, the one there is kept and returned"*) and returns the hard subscription that is there. `__hard_subscription__` itself is not compared: subscribing hard twice with the same `kw` gives one subscription. Up to 7.25.4 a repeated hard subscription was made a second time with no log, and the subscriber got each event twice.
+
+```C
+json_t *subs1 = gobj_subscribe_event(publisher, EV_ON_MESSAGE,
+    json_pack("{s:{s:b}}", "__config__", "__hard_subscription__", 1), subscriber);
+json_t *subs2 = gobj_subscribe_event(publisher, EV_ON_MESSAGE,
+    json_pack("{s:{s:b}}", "__config__", "__hard_subscription__", 1), subscriber);  // a WARNING
+// subs2 == subs1: one subscription, each event arrives once
+```
 
 ---
 

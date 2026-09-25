@@ -1494,6 +1494,8 @@ HACK Only these keys are let, remain of keywords will be ignored!
                 True for permanent subscription.
                 This subscription cannot be remove,
                 (Well, with force you can)
+                A subscription that matches a hard one is not made: the
+                hard one is returned, with a warning.
 
             - "__own_event__": bool
                 If __own_event__ defined and gobj_send_event inside of gobj_publish_event
