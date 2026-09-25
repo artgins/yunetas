@@ -1666,6 +1666,12 @@ PRIVATE void test_review19_shapes(void)
         NULL, "S3CRu5", "(u) write-attr json one json text down, the name escaped twice");
     check_no_secret("update-node pass\\u0077ord=S3CRu6", NULL, "S3CRu6",
         "(u) a parameter key with a \\u escape");
+    check_command_written("command-yuno id=x command=\"write-attr attribute=api\\u005fkey value=S3CRq1\" n=1",
+        "command-yuno id=x command=\"write-attr attribute=api_key value=<redacted>\" n=1",
+        "(u) a secret value at the end of a \"...\" value: its closing quote and n=1 stay");
+    check_command_written("command-yuno id=x command=\"update-node x=\\\"1\\\" password=S3CRq2\"",
+        "command-yuno id=x command=\"update-node x=\\\"1\\\" password=<redacted>\"",
+        "(u) a secret value at the end of a \"...\" value with escapes: its closing quote stays");
     check_no_secret("x \" \\ password='a'\" S3CR4\" n2=1", NULL, "S3CR4",
         "(u) a stray quote, a backslash, then password='a'\" S\": the word goes on after the run");
     check_command_written("update-node x=\"\\\\ password='S3CR5'\" n2=1",

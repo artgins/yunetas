@@ -2019,7 +2019,7 @@ PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const 
      *  taken here, from its closing quote
      */
     if(e >= st->end && sc->ctx->escape_level > 0 &&
-            (cut == CUT_PARAM_WORD || cut == CUT_JSON_EMPTY)) {
+            (cut == CUT_PARAM_WORD || cut == CUT_PARAM_TAIL || cut == CUT_JSON_EMPTY)) {
         /*
          *  A run never closed: its end is the end of this text too, the
          *  level above goes on
@@ -2045,6 +2045,15 @@ PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const 
             }
             /* Falls through */
         case CUT_PARAM_TAIL:
+            if(cut == CUT_PARAM_TAIL && value_run && !word_goes_on(e, st->end)) {
+                /*
+                 *  The value reached the end of a "..." value: its quote
+                 *  ends it (command="write-attr ... value=S" n=1), and it
+                 *  stays. Up to review 19 the quote, and all after it up
+                 *  to the next '"', was redacted too.
+                 */
+                break;
+            }
             {
                 const char *last_quote;
                 const char *t = word_end(e, st->end, &last_quote);
