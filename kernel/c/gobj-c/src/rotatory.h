@@ -59,6 +59,14 @@ PUBLIC void rotatory_end(void); // close all
 // fixed name (no date letter: "logcenter.log"), or a handle that keeps all
 // old files (rotatory_keep_all_old_files(), called right after the open),
 // never empties a file.
+// exit_on_fail is for THIS open only: TRUE exits the process (exit(-1))
+// when the directory or the file cannot be created or opened now; FALSE
+// prints one line and returns NULL. Once the handle is open, a file that
+// cannot be opened again (a new day, a size rotation, a removed file, a
+// failed write, a truncate) never exits: one line is printed, the record
+// is not written, the next record tries again, and one line is printed
+// when the file is open again. Up to 7.25.4 those failures exited a
+// handle opened with TRUE (the agent audit, every yuno file log).
 PUBLIC hrotatory_h rotatory_open(
     const char* path,
     size_t bf_size,                     // 0 = default 64K
@@ -66,7 +74,7 @@ PUBLIC hrotatory_h rotatory_open(
     size_t min_free_disk_percentage,    // 0 = default 10 %
     int xpermission,
     int rpermission,
-    BOOL exit_on_fail
+    BOOL exit_on_fail                   // this open only, see above
 );
 PUBLIC void rotatory_close(hrotatory_h hr);
 

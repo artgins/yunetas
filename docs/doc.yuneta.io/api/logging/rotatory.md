@@ -35,6 +35,24 @@ A new file (a new day, or the size limit) calls the callback of [`rotatory_subsc
 (rotatory-newfile-pending)=
 **A new file that cannot be opened.** When the open of a new file fails (no file descriptors, a quota of inodes, a directory that refuses writes for a moment), the callback is kept pending, and it runs once, at the next open that works, with the `old_filename` of before the failure. The name and the day have already moved when the open fails, so the next record opens the same name again, which is not a new file: the pending callback is what keeps it from being lost. In 7.25.4 a failed open of a new name stopped the file for the rest of the day, and the callback of that day (the retention of the agent audit, the summary email of the logcenter) never ran. On a full disk the open is tried again every 100 records (with the free space check), because only the callback can free the space.
 
+(rotatory-exit-on-fail)=
+**`exit_on_fail` is for the open.** The last parameter of [`rotatory_open()`](#rotatory_open) applies to that open only. The agent opens its audit with `TRUE`, and every yuno opens its file log with `TRUE`: the process does not start if the file cannot be opened. After the open, a file that cannot be opened again never exits the process. This applies to a new day, a size rotation, a file removed from the directory, the open after a failed write, and a truncate. The rotatory prints one line (stdout and syslog). That record is not written. The next record tries the open again, with no line while it fails. When the open works, one more line is printed, the pending callback runs (see [a new file that cannot be opened](#rotatory-newfile-pending)), and the record is written. Up to 7.25.4 the first of these failures exited a handle opened with `TRUE`: the agent stopped at the first command after midnight if it had no free file descriptor, and the retention of the audit never ran. For example, the audit of a new day, when the process has no free descriptor:
+
+```C
+hrotatory_h hr = rotatory_open("/yuneta/realms/agent/agent/audit/ZZZ-DD_MM_CCYY.log",
+    0, 500, 20, 02775, 0660, TRUE);     // exits here if the audit cannot be opened now
+// ... after midnight, no free file descriptor
+rotatory_write(hr, LOG_AUDIT, record, len);   // cannot create the file: one line, 0
+rotatory_write(hr, LOG_AUDIT, record, len);   // tried again, no line
+// ... a descriptor is free again
+rotatory_write(hr, LOG_AUDIT, record, len);   // open: one line, the callback, the record
+```
+
+```
+_rotatory(): Cannot create '/yuneta/realms/agent/agent/audit/269-26_09_2026.log' file, Too many open files
+_rotatory(): '/yuneta/realms/agent/agent/audit/269-26_09_2026.log' is open again
+```
+
 (rotatory-rename-fails)=
 **A size rotation whose rename fails** (a directory with `chattr +a`, a read-only bind, a MAC denial). Without keep_all the file is emptied, so its size stays bounded. With [`rotatory_keep_all_old_files()`](#rotatory_keep_all_old_files) nothing may be removed: the file is kept and grows over the limit, one line is printed, and the rename is tried again after 60 seconds of the monotonic clock ([`start_msectimer()`](#start_msectimer): a wall clock set back or forward does not move the retry), or at the next name (the next day), not at every record. One line is printed when a rename works again:
 
@@ -244,7 +262,7 @@ hrotatory_h rotatory_open(
 | `min_free_disk_percentage` | `size_t` | The minimum free disk space percentage. Below it this handle drops its records, and it writes again when the space is back (see [a full disk](#rotatory-disk-full)). `0` defaults to `10%`. |
 | `xpermission` | `int` | The permission mode for directories and executable files. |
 | `rpermission` | `int` | The permission mode for regular log files. |
-| `exit_on_fail` | `BOOL` | If `TRUE`, the process exits on failure. Otherwise, logs an error. |
+| `exit_on_fail` | `BOOL` | For this open only. If `TRUE`, the process exits (`exit(-1)`) when the directory or the file cannot be created or opened now. If `FALSE`, one line is printed and the function returns `NULL`. A later failure never exits (see [exit_on_fail is for the open](#rotatory-exit-on-fail)). |
 
 **Returns**
 
@@ -253,6 +271,7 @@ Returns a handle to the rotatory log (`hrotatory_h`) on success, or `NULL` on fa
 **Notes**
 
 If the specified log directory does not exist, `rotatory_open()` attempts to create it.
+`exit_on_fail` applies to this open only: a file that cannot be opened later is printed and tried again at the next record, and never exits the process (see [exit_on_fail is for the open](#rotatory-exit-on-fail)).
 If the log file does not exist, `rotatory_open()` creates a new one with the specified permissions.
 If it exists, it is opened to append. It is emptied at the first record only if it is old: a name that is used again (a day letter or the month, no year) whose file was last written before the period of the name (see [File names and rotation](#rotatory-clock-set-back)). The decision waits for the first record, so [`rotatory_keep_all_old_files()`](#rotatory_keep_all_old_files) called right after the open applies to it. A fixed name (`logcenter.log`) is never emptied by a date.
 
@@ -566,7 +585,7 @@ This function does not return a value.
 
 **Notes**
 
-The function flushes the file before truncating. The file is reopened in write mode (`"w"`), which discards all previous content. If the file cannot be reopened, an error is printed to stderr.
+The function flushes the file before truncating. The file is reopened in write mode (`"w"`), which discards all previous content. If the file cannot be reopened, one line is printed (stdout and syslog), and the next record opens the file again (appended to). The process is never exited, also for a handle opened with `exit_on_fail` (see [exit_on_fail is for the open](#rotatory-exit-on-fail)).
 
 ---
 

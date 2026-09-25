@@ -767,6 +767,25 @@ removes the audit files older than that number of days:
   of a day cannot be opened (no descriptors, a quota, a directory that refuses
   writes for a moment), the retention runs at the next open that works, once.
 
+The agent opens its audit with `exit_on_fail` (the last parameter of
+[`rotatory_open()`](#rotatory_open)), and each yuno opens its file log the
+same way: the process does not start if that file cannot be opened. This
+applies to that first open only. A failure after the start never stops the
+agent or the yuno. This applies to a new day, a file removed from the
+directory, the open after a failed write, and a truncate. The agent prints
+one line (stdout and syslog), and the command runs without its audit record.
+The next command tries the open again, with no line while it fails. It
+prints one line when the open works again, and the retention runs then (see
+[`exit_on_fail` is for the open](#rotatory-exit-on-fail)):
+
+```
+_rotatory(): Cannot create '/yuneta/realms/agent/agent/audit/269-26_09_2026.log' file, Too many open files
+_rotatory(): '/yuneta/realms/agent/agent/audit/269-26_09_2026.log' is open again
+```
+
+Up to 7.25.4 the first failure after the start exited the agent, and the
+retention of that day did not run.
+
 The second sweep runs inside the write of the first record of the new file,
 before that record is written: so it is on the write path of that one command,
 once a day (or once for each size rotation). The same file opened again (after

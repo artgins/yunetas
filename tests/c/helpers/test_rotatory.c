@@ -14,6 +14,8 @@
  *          the same file opened again), a failed rename of a keep_all
  *          handle is not tried at every record, and a fixed name (or a
  *          "MM" name within its month) is not emptied at the open.
+ *          And exit_on_fail is for rotatory_open() only: a handle opened
+ *          with it is not exited by a file that cannot be opened later.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -28,6 +30,7 @@
 #include <sys/statvfs.h>
 #include <sys/resource.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include <yunetas.h>
 
 #define APP "test_rotatory"
@@ -1586,6 +1589,260 @@ PRIVATE void test_disk_full_new_day(void)
 }
 
 /***************************************************************************
+ *  exit_on_fail is for rotatory_open() only. Once the handle is open, a
+ *  file that cannot be opened again (a new day, a removed file, a failed
+ *  write, a truncate) is printed once and tried again at the next record,
+ *  and the newfile callback of a new day runs at the next open that
+ *  works. Up to 7.25.4 a handle opened with exit_on_fail TRUE -- the agent
+ *  audit, the file log of every yuno -- EXITED the process at the first
+ *  of those failures (review 18).
+ *
+ *  Each case runs in a child process: an exit is seen in its status. The
+ *  failure: a directory where the file is (fopen() fails with EISDIR, as
+ *  root too).
+ ***************************************************************************/
+#define EXIT_DIR BASE "/exit"
+
+PRIVATE void run_in_child(void (*fn)(void), BOOL exit_expected, const char *name)
+{
+    fflush(stdout);
+    pid_t pid = fork();
+    if(pid < 0) {
+        printf("FAIL fork(): %s\n", strerror(errno));
+        global_result += -1;
+        return;
+    }
+    if(pid == 0) {
+        global_result = 0;
+        fn();
+        fflush(stdout);
+        _exit(global_result < 0? 1: 0);
+    }
+    int status = 0;
+    if(waitpid(pid, &status, 0) < 0) {
+        printf("FAIL waitpid(): %s\n", strerror(errno));
+        global_result += -1;
+        return;
+    }
+    BOOL ok;
+    if(exit_expected) {
+        ok = (WIFEXITED(status) && WEXITSTATUS(status) == 255)? TRUE: FALSE;  // exit(-1)
+    } else {
+        ok = (WIFEXITED(status) && WEXITSTATUS(status) == 0)? TRUE: FALSE;
+    }
+    check(ok, name);
+    if(!ok) {
+        if(WIFEXITED(status)) {
+            printf("     the child exited with %d%s\n", WEXITSTATUS(status),
+                WEXITSTATUS(status) == 255? " (the rotatory exited the process)": "");
+        } else if(WIFSIGNALED(status)) {
+            printf("     the child was killed by signal %d\n", WTERMSIG(status));
+        }
+    }
+}
+
+/*
+ *  A handle as the agent opens its audit: exit_on_fail TRUE, keep_all
+ */
+PRIVATE hrotatory_h open_exit_on_fail_handle(char *path, size_t path_size)
+{
+    rmrdir(BASE);
+    mkrdir(EXIT_DIR, 02775);
+    hrotatory_h hr = rotatory_open(EXIT_DIR "/" MASK, 0, 500, 1, 02775, 0660, TRUE);
+    if(!hr) {
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        return NULL;
+    }
+    rotatory_keep_all_old_files(hr, TRUE);
+    rotatory_subscribe2newfile(hr, count_newfile_cb, NULL);
+    s_count_newfile = 0;
+    s_count_newfile_same = 0;
+    snprintf(path, path_size, "%s", rotatory_path(hr));
+    return hr;
+}
+
+PRIVATE void child_new_day(void)
+{
+    time_t real_now = __real_time(NULL);
+    struct tm tm;
+    localtime_r(&real_now, &tm);
+    tm.tm_hour = 23;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    tm.tm_isdst = -1;
+    time_t day1 = mktime(&tm);
+    s_fake_now = day1;
+
+    char path_day1[PATH_MAX];
+    hrotatory_h hr = open_exit_on_fail_handle(path_day1, sizeof(path_day1));
+    if(!hr) {
+        return;
+    }
+    rotatory_write(hr, LOG_AUDIT, "day 1", strlen("day 1"));
+
+    char path_day2[PATH_MAX];
+    file_of(day1 + 2*3600, EXIT_DIR, MASK, path_day2, sizeof(path_day2));
+    mkdir(path_day2, 0775);
+    step_clocks(2*3600, 2*3600);                // the next day, 01:00
+
+    capture_stdout_begin();
+    rotatory_write(hr, LOG_AUDIT, "day 2 a", strlen("day 2 a"));   // the open fails
+    rotatory_write(hr, LOG_AUDIT, "day 2 b", strlen("day 2 b"));   // and again
+    int calls_failed = s_count_newfile;
+    rmdir(path_day2);
+    rotatory_write(hr, LOG_AUDIT, "day 2 c", strlen("day 2 c"));
+    rotatory_flush(hr);
+    char *printed = capture_stdout_end();
+
+    check(calls_failed == 0 && count_of(printed, "Cannot open") == 1,
+        "exit_on_fail, the open of a new day fails: printed once, the process goes on");
+    check(s_count_newfile == 1 && strcmp(s_newfile_old, path_day1) == 0 &&
+        strcmp(s_newfile_new, path_day2) == 0,
+        "exit_on_fail, the open of a new day fails: the newfile callback runs once, at the next open");
+    check(file_holds(path_day2, "day 2 c") && count_of(printed, "is open again") == 1,
+        "exit_on_fail, the open of a new day fails: the next record is written, one line says so");
+    GBMEM_FREE(printed);
+    rotatory_close(hr);
+    s_fake_now = 0;
+}
+
+PRIVATE void child_removed_file(void)
+{
+    char path[PATH_MAX];
+    hrotatory_h hr = open_exit_on_fail_handle(path, sizeof(path));
+    if(!hr) {
+        return;
+    }
+    rotatory_write(hr, LOG_AUDIT, "r1", 2);
+    rotatory_flush(hr);
+    unlink(path);
+    mkdir(path, 0775);                          // it cannot be created again
+
+    capture_stdout_begin();
+    rotatory_write(hr, LOG_AUDIT, "r2", 2);     // the open fails
+    rotatory_write(hr, LOG_AUDIT, "r3", 2);
+    rmdir(path);
+    rotatory_write(hr, LOG_AUDIT, "r4", 2);
+    rotatory_flush(hr);
+    char *printed = capture_stdout_end();
+
+    check(count_of(printed, "Cannot open") == 1 && file_holds(path, "r4") && s_count_newfile == 0,
+        "exit_on_fail, a removed file that cannot be created again: printed once, written later, no callback");
+    GBMEM_FREE(printed);
+    rotatory_close(hr);
+}
+
+PRIVATE void child_failed_write(void)
+{
+    char path[PATH_MAX];
+    hrotatory_h hr = open_exit_on_fail_handle(path, sizeof(path));
+    if(!hr) {
+        return;
+    }
+    char line[1001];
+    memset(line, 'f', sizeof(line)-1);
+    line[sizeof(line)-1] = 0;
+
+    struct sigaction sa_old;
+    struct sigaction sa_ign;
+    memset(&sa_ign, 0, sizeof(sa_ign));
+    sa_ign.sa_handler = SIG_IGN;
+    sigaction(SIGXFSZ, &sa_ign, &sa_old);
+    struct rlimit rl_old;
+    getrlimit(RLIMIT_FSIZE, &rl_old);
+    struct rlimit rl = {20000, rl_old.rlim_max};
+    setrlimit(RLIMIT_FSIZE, &rl);
+    for(int i=0; i<100; i++) {
+        rotatory_write(hr, LOG_AUDIT, line, strlen(line));  // fails at 20 000 bytes: the file is closed
+    }
+    setrlimit(RLIMIT_FSIZE, &rl_old);
+    sigaction(SIGXFSZ, &sa_old, NULL);
+
+    unlink(path);
+    mkdir(path, 0775);
+    capture_stdout_begin();
+    rotatory_write(hr, LOG_AUDIT, "w2", 2);     // the open again fails
+    rmdir(path);
+    rotatory_write(hr, LOG_AUDIT, "w3", 2);
+    rotatory_flush(hr);
+    char *printed = capture_stdout_end();
+
+    check(count_of(printed, "Cannot open") == 1 && file_holds(path, "w3") && s_count_newfile == 0,
+        "exit_on_fail, a failed write whose open again fails: printed, written later, no callback");
+    GBMEM_FREE(printed);
+    rotatory_close(hr);
+}
+
+PRIVATE void child_truncate(void)
+{
+    char path[PATH_MAX];
+    hrotatory_h hr = open_exit_on_fail_handle(path, sizeof(path));
+    if(!hr) {
+        return;
+    }
+    rotatory_write(hr, LOG_AUDIT, "t1", 2);
+    rotatory_flush(hr);
+    unlink(path);
+    mkdir(path, 0775);
+
+    capture_stdout_begin();
+    rotatory_truncate(hr);                      // its open fails
+    rotatory_write(hr, LOG_AUDIT, "t2", 2);     // and the open of the next record
+    rmdir(path);
+    rotatory_write(hr, LOG_AUDIT, "t3", 2);
+    rotatory_flush(hr);
+    char *printed = capture_stdout_end();
+
+    check(count_of(printed, "Cannot open") == 1 && file_holds(path, "t3") && s_count_newfile == 0,
+        "exit_on_fail, a truncate whose open fails: printed once, the next records are written");
+    GBMEM_FREE(printed);
+    rotatory_close(hr);
+}
+
+PRIVATE void child_open_fails(void)
+{
+    rmrdir(BASE);
+    mkrdir(EXIT_DIR, 02775);
+    char path[PATH_MAX];
+    file_of(time(NULL), EXIT_DIR, MASK, path, sizeof(path));
+    mkdir(path, 0775);
+    set_show_backtrace_fn(0);
+    rotatory_open(EXIT_DIR "/" MASK, 0, 500, 1, 02775, 0660, TRUE);    // exits
+}
+
+PRIVATE void test_exit_on_fail_after_open(void)
+{
+    run_in_child(child_new_day, FALSE,
+        "exit_on_fail: the open of a new day fails, the process is not exited");
+    run_in_child(child_removed_file, FALSE,
+        "exit_on_fail: a removed file cannot be created again, the process is not exited");
+    run_in_child(child_failed_write, FALSE,
+        "exit_on_fail: the open after a failed write fails, the process is not exited");
+    run_in_child(child_truncate, FALSE,
+        "exit_on_fail: the open of a truncate fails, the process is not exited");
+    run_in_child(child_open_fails, TRUE,
+        "exit_on_fail: rotatory_open() itself fails, the process is exited");
+
+    /*
+     *  The same open without exit_on_fail: NULL
+     */
+    rmrdir(BASE);
+    mkrdir(EXIT_DIR, 02775);
+    char path[PATH_MAX];
+    file_of(time(NULL), EXIT_DIR, MASK, path, sizeof(path));
+    mkdir(path, 0775);
+    capture_stdout_begin();
+    hrotatory_h hr = rotatory_open(EXIT_DIR "/" MASK, 0, 500, 1, 02775, 0660, FALSE);
+    char *printed = capture_stdout_end();
+    check(!hr && count_of(printed, "Cannot open") == 1,
+        "without exit_on_fail, rotatory_open() that fails: NULL and one line");
+    GBMEM_FREE(printed);
+    rotatory_close(hr);
+    rmrdir(BASE);
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -1641,6 +1898,7 @@ int main(int argc, char *argv[])
     test_keep_all_rename_fails();
     test_new_name_no_size_rotation();
     test_newfile_after_failed_open();
+    test_exit_on_fail_after_open();
     test_write_after_end();     // LAST: it ends the rotatory
 
     rotatory_end();

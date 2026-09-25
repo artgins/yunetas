@@ -49,7 +49,6 @@ typedef struct rotatory_log_s {
     size_t min_free_disk_percentage;
     int xpermission;            // permission for directories and executable files.
     int rpermission;            // permission for regular files.
-    pe_flag_t pe_flag;          // Exit if cannot create rotatory file
 
     uint16_t counter_statvfs;
     BOOL keep_all_old;          // size rotation to .OLD.<n>, see rotatory_keep_all_old_files()
@@ -58,6 +57,7 @@ typedef struct rotatory_log_s {
     BOOL name_recurs;           // a name is used again (W, DD, ZZZ, MM), see mask_name_recurs()
     BOOL old_file_pending;      // the file of the open: must_be_emptied() at the first record
     BOOL write_failed;          // the last piece could not be written: see _rotatory_fwrite()
+    BOOL open_failed;           // the last open (or truncate) failed: see open_failure()
     BOOL rename_failed;         // the rename of a size rotation failed: see _rotatory_prepare()
     uint64_t rename_retry;      // keep_all: start_msectimer() of the next try of that rename
     BOOL newfile_pending;       // the open of a new file failed: its callback runs at the next open
@@ -111,6 +111,13 @@ PRIVATE BOOL disk_is_full(rotatory_log_t *hr);
 PRIVATE BOOL must_be_emptied(rotatory_log_t *hr, const char *path);
 PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it, BOOL new_file);
 PRIVATE void keep_newfile_pending(rotatory_log_t *hr, BOOL new_file, const char *lastpath);
+PRIVATE void open_failure(
+    rotatory_log_t *hr,
+    const char *fn,
+    const char *verb,
+    const char *path,
+    const char *what
+);
 PRIVATE BOOL mask_name_recurs(const char *mask);
 PRIVATE time_t start_of_the_name(rotatory_log_t *hr);
 PRIVATE void empty_the_old_file_of_the_open(rotatory_log_t *hr);
@@ -224,7 +231,17 @@ PUBLIC hrotatory_h rotatory_open(
     hr->min_free_disk_percentage = min_free_disk_percentage;
     hr->xpermission = xpermission;
     hr->rpermission = rpermission;
-    hr->pe_flag = exit_on_fail?PEF_EXIT:PEF_SYSLOG;
+
+    /*
+     *  exit_on_fail applies to THIS open only. Once the handle is open, a
+     *  file that cannot be opened again (a new day with no descriptors, a
+     *  quota, a directory that refuses writes for a moment, a removed
+     *  file, a failed write, a truncate) is printed and tried again at the
+     *  next record: see open_failure(). Up to 7.25.4 it exited the process
+     *  (the agent, and every yuno with a file log), and the pending
+     *  newfile callback never ran.
+     */
+    pe_flag_t pe_flag = exit_on_fail? PEF_EXIT: PEF_SYSLOG;
 
     hr->buffer = calloc(1, hr->buffer_size);
     if(!hr->buffer) {
@@ -264,7 +281,7 @@ PUBLIC hrotatory_h rotatory_open(
     if(access(hr->log_directory, 0)!=0) {
         if(mkrdir(hr->log_directory, hr->xpermission)<0) {
             print_error(
-                hr->pe_flag,
+                pe_flag,
                 "rotatory_open(): Cannot create '%s' directory, %s",
                 hr->log_directory,
                 strerror(errno)
@@ -284,7 +301,7 @@ PUBLIC hrotatory_h rotatory_open(
         int fd = newfile(hr->path, hr->rpermission, FALSE);
         if(fd < 0) {
             print_error(
-                hr->pe_flag,
+                pe_flag,
                 "rotatory_open(): Cannot create '%s' file, %s",
                 hr->path,
                 strerror(errno)
@@ -307,7 +324,7 @@ PUBLIC hrotatory_h rotatory_open(
     hr->flog = fopen(hr->path, "a");
     if(!hr->flog) {
         print_error(
-            hr->pe_flag,
+            pe_flag,
             "rotatory_open(): Cannot open '%s' file, %s",
             hr->path,
             strerror(errno)
@@ -532,17 +549,22 @@ PRIVATE void _rotatory_truncate(rotatory_log_t *hr)
         fclose(hr->flog);
         hr->flog = fopen(hr->path, "w");
         if(!hr->flog) {
-            print_error(
-                hr->pe_flag,
-                "_rotatory_truncate(): Cannot open '%s' file, %s",
-                hr->path,
-                strerror(errno)
-            );
+            // the next record opens it again (appended to), see _rotatory_prepare()
+            open_failure(hr, "_rotatory_truncate", "open", hr->path, "file");
             return;
         }
 
         int fd = fileno(hr->flog);
         set_cloexec(fd);
+
+        if(hr->open_failed) {
+            hr->open_failed = FALSE;
+            print_error(
+                PEF_SYSLOG,
+                "_rotatory(): '%s' is open again",
+                hr->path
+            );
+        }
     }
 }
 
@@ -893,6 +915,36 @@ PRIVATE void empty_the_old_file_of_the_open(rotatory_log_t *hr)
 }
 
 /*****************************************************************
+ *  An open of the handle's file that failed after rotatory_open() (a new
+ *  name, a size rotation, the same file again, a truncate): printed
+ *  (stdout and syslog), never an exit, whatever exit_on_fail was (it is
+ *  for rotatory_open() only). The next record tries again. One line when
+ *  the opens fail, one when one works again: not one for every record.
+ *****************************************************************/
+PRIVATE void open_failure(
+    rotatory_log_t *hr,
+    const char *fn,
+    const char *verb,
+    const char *path,
+    const char *what
+)
+{
+    int err = errno;
+    if(!hr->open_failed) {
+        print_error(
+            PEF_SYSLOG,
+            "%s(): Cannot %s '%s' %s, %s",
+            fn,
+            verb,
+            path,
+            what,
+            strerror(err)
+        );
+    }
+    hr->open_failed = TRUE;
+}
+
+/*****************************************************************
  *  Close the file open now (if any) and open the one of the current
  *  name, then call the callback if it is a new file (`new_file`: a new
  *  name or a size rotation, never the same file opened again). Return
@@ -928,12 +980,7 @@ PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it, BOOL new_file
     if(access(hr->log_directory, 0)!=0) {
         // Creat the directory
         if(mkrdir(hr->log_directory, hr->xpermission)<0) {
-            print_error(
-                hr->pe_flag,
-                "_rotatory(): Cannot create '%s' directory, %s",
-                hr->log_directory,
-                strerror(errno)
-            );
+            open_failure(hr, "_rotatory", "create", hr->log_directory, "directory");
             keep_newfile_pending(hr, new_file, lastpath);
             return -1;
         }
@@ -944,12 +991,7 @@ PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it, BOOL new_file
     if(access(hr->path, 0)!=0) {
         int fd = newfile(hr->path, hr->rpermission, FALSE);
         if(fd < 0) {
-            print_error(
-                hr->pe_flag,
-                "_rotatory(): Cannot create '%s' file, %s",
-                hr->path,
-                strerror(errno)
-            );
+            open_failure(hr, "_rotatory", "create", hr->path, "file");
             keep_newfile_pending(hr, new_file, lastpath);
             return -1;
         }
@@ -957,18 +999,22 @@ PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it, BOOL new_file
     }
     hr->flog = fopen(hr->path, empty_it? "w": "a");
     if(!hr->flog) {
-        print_error(
-            hr->pe_flag,
-            "_rotatory(): Cannot open '%s' file, %s",
-            hr->path,
-            strerror(errno)
-        );
+        open_failure(hr, "_rotatory", "open", hr->path, "file");
         keep_newfile_pending(hr, new_file, lastpath);
         return -1;
     }
 
     int fd = fileno(hr->flog);
     set_cloexec(fd);
+
+    if(hr->open_failed) {
+        hr->open_failed = FALSE;
+        print_error(
+            PEF_SYSLOG,
+            "_rotatory(): '%s' is open again",
+            hr->path
+        );
+    }
 
     if(hr->newfile_pending) {
         /*
