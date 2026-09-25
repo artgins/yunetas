@@ -14,6 +14,15 @@
  *      - get-page       -> {total_rows, pages, data} page of records
  *      - close-iterator -> close + deregister
  *      - delete-key     -> delete a whole key, guarded by force
+ *      - add-record     -> append a record: `write`, master only, validated
+ *                          (it was a stub that answered "Pending to review")
+ *      - the pushes of a live list carry its id as `rt_id`, the id a
+ *        subscriber filters on (they carried none)
+ *      - a handle of one session is refused to another session: close-rt,
+ *        close-iterator, close-list, get-page and get-list-data answer -403
+ *        (any session could close or read another's by its id)
+ *      - mark-tm-order and add-record ask `write`, and answer -403 on a
+ *        refusal (a counting authz checker, installed at the start up)
  *
  *  The C_TRANGER gobj is created as a master yuno; its own tranger handle is
  *  borrowed to create a topic and append records, then the commands are
@@ -89,6 +98,33 @@ PRIVATE int count_not_a_topic(void *h, int priority, const char *bf, size_t len)
 {
     if(strstr(bf, "Directory of the store is not a topic") && strstr(bf, "saved_schemas")) {
         g_not_a_topic_said++;
+    }
+    return 0;
+}
+
+/*
+ *  The authz checker of the test: every permission is granted, except the
+ *  one named by g_deny_authz. It remembers the last permission asked.
+ */
+PRIVATE const char *g_deny_authz = NULL;
+PRIVATE char g_last_authz[64] = "";
+
+PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj src)
+{
+    snprintf(g_last_authz, sizeof(g_last_authz), "%s", authz? authz: "");
+    BOOL allow = (g_deny_authz && authz && strcmp(authz, g_deny_authz) == 0)? FALSE: TRUE;
+    KW_DECREF(kw)
+    return allow;
+}
+
+/*
+ *  A handle of one session asked by another is refused with a WARNING
+ */
+PRIVATE int g_not_owner_said = 0;
+PRIVATE int count_not_owner(void *h, int priority, const char *bf, size_t len)
+{
+    if(strstr(bf, "Handle of another session, refused")) {
+        g_not_owner_said++;
     }
     return 0;
 }
@@ -287,6 +323,7 @@ PRIVATE int g_rt_count = 0;
 PRIVATE int g_rt_keyed = 0;     /*  publishes carrying rt_id "rtKEYED"   */
 PRIVATE int g_rt_all = 0;       /*  publishes carrying rt_id "rtALL"     */
 PRIVATE int g_rt_watch_id = 0;  /*  publishes carrying rt_id "itW^__keys__"  */
+PRIVATE int g_rt_list = 0;      /*  publishes carrying rt_id "lstA" (a live list)  */
 
 /*  The probe is also the PARENT of the fake session below: a C_IEVENT_SRV
  *  subscribes its parent to everything it publishes (CHILD model), so the
@@ -314,6 +351,8 @@ PRIVATE int ac_rt_added(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         g_rt_all++;
     } else if(strcmp(rt_id, "itW^__keys__")==0) {
         g_rt_watch_id++;
+    } else if(strcmp(rt_id, "lstA")==0) {
+        g_rt_list++;
     }
 
     KW_DECREF(kw)
@@ -1080,8 +1119,10 @@ PRIVATE int do_test(void)
     /*  The REALTIME half, which is the whole point: an append on A reaches the
      *  list, and an append on a key the rkey excludes does NOT.  */
     g_rt_count = 0;
+    g_rt_list = 0;
     append_one(tranger, KEY_A, BASE_T + 2000);
     check_int("open-list rkey live publish on A", g_rt_count, 1);
+    check_int("the live list's push carries its id as rt_id", g_rt_list, 1);
 
     append_one(tranger, KEY_B, BASE_T + 2001);
     check_int("open-list rkey no live publish on B", g_rt_count, 1);
@@ -2204,6 +2245,91 @@ PRIVATE int do_test(void)
     gobj_log_del_handler("test_capture_warn");
 
     /*-------------------------------------------------*
+     *      A handle is its session's. Session B knows the ids of the
+     *      handles of session A (print-tranger shows them to any `read`
+     *      user), and closes or reads none of them: -403, and a warning.
+     *      Session A, and a gobj of this yuno, can. (Up to this fix any
+     *      session closed or read any handle by its id.)
+     *-------------------------------------------------*/
+    set_expected_results("a handle of another session is refused", NULL, NULL, NULL, 1);
+    gobj_log_register_handler("not_owner", 0, count_not_owner, 0);
+    gobj_log_add_handler("count_not_owner", "not_owner", LOG_OPT_UP_WARNING, 0);
+    hgobj sessA = gobj_create("sessA", C_IEVENT_SRV, 0, probe);
+    hgobj sessB = gobj_create("sessB", C_IEVENT_SRV, 0, probe);
+    if(!sessA || !sessB) {
+        printf("%s: FAIL (sessions create)\n", APP);
+        return -1;
+    }
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s, s:s, s:s}", "rt_id", "rtOwn", "topic_name", TOPIC_NAME, "key", KEY_A), sessA);
+    check_int("session A opens a feed", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}", "iterator_id", "itOwn", "topic_name", TOPIC_NAME, "key", KEY_A), sessA);
+    check_int("session A opens an iterator", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}", "iterator_id", "itOwnM", "topic_name", TOPIC_NAME, "rkey", "^[AB]$"), sessA);
+    check_int("session A opens a multi-key iterator", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-list",
+        json_pack("{s:s, s:s, s:s}", "list_id", "lstOwn", "topic_name", TOPIC_NAME, "key", KEY_A), sessA);
+    check_int("session A opens a list", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    g_not_owner_said = 0;
+    struct {
+        const char *command;
+        json_t *kw;
+    } foreign[] = {
+        {"close-rt",        json_pack("{s:s}", "rt_id", "rtOwn")},
+        {"close-iterator",  json_pack("{s:s}", "iterator_id", "itOwn")},
+        {"get-page",        json_pack("{s:s, s:i, s:i}", "iterator_id", "itOwn", "from_rowid", 1, "limit", 1)},
+        {"get-page",        json_pack("{s:s, s:i, s:i}", "iterator_id", "itOwnM", "from_rowid", 1, "limit", 1)},
+        {"close-iterator",  json_pack("{s:s}", "iterator_id", "itOwnM")},
+        {"get-list-data",   json_pack("{s:s}", "list_id", "lstOwn")},
+        {"close-list",      json_pack("{s:s}", "list_id", "lstOwn")},
+    };
+    for(size_t i = 0; i < ARRAY_SIZE(foreign); i++) {
+        r = gobj_command(yuno, foreign[i].command, foreign[i].kw, sessB);
+        char name[80];
+        snprintf(name, sizeof(name), "%s by another session", foreign[i].command);
+        check_int(name, kw_get_int(0, r, "result", -999, 0), -403);
+        JSON_DECREF(r)
+    }
+    check_int("each refusal is said", g_not_owner_said, (json_int_t)ARRAY_SIZE(foreign));
+    check_bool("the feed of session A is still open",
+        tranger2_get_rt_mem_by_id(tranger, TOPIC_NAME, "rtOwn", gobj_name(yuno)) != NULL, TRUE);
+
+    /*  Its owner reads and closes them; a gobj of this yuno too  */
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}", "iterator_id", "itOwn", "from_rowid", 1, "limit", 1), sessA);
+    check_int("get-page by its session", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "get-list-data", json_pack("{s:s}", "list_id", "lstOwn"), yuno);
+    check_int("get-list-data by a gobj of the yuno", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-rt", json_pack("{s:s}", "rt_id", "rtOwn"), sessA);
+    check_bool("close-rt by its session",
+        strncmp(kw_get_str(0, r, "comment", "", 0), "Realtime feed closed", 20) == 0, TRUE);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator", json_pack("{s:s}", "iterator_id", "itOwn"), sessA);
+    check_int("close-iterator by its session", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-iterator", json_pack("{s:s}", "iterator_id", "itOwnM"), yuno);
+    check_int("close-iterator by a gobj of the yuno", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-list", json_pack("{s:s}", "list_id", "lstOwn"), sessA);
+    check_int("close-list by its session", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    check_int("nothing more is refused", g_not_owner_said, (json_int_t)ARRAY_SIZE(foreign));
+    gobj_log_del_handler("count_not_owner");
+    gobj_publish_event(sessA, EV_ON_CLOSE, json_object());
+    gobj_destroy(sessA);
+    gobj_destroy(sessB);
+    global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
      *      TWO feeds over the SAME key: one opened on the key, one on the
      *      WHOLE topic (empty key). An append on that key belongs to both,
      *      and each of them must receive it EXACTLY ONCE.
@@ -2444,6 +2570,83 @@ PRIVATE int do_test(void)
     }
 
     /*-------------------------------------------------*
+     *      Permission `write`: mark-tm-order and add-record ask it, and a
+     *      refusal answers -403 before anything is done.
+     *-------------------------------------------------*/
+    set_expected_results("write is asked", NULL, NULL, NULL, 1);
+    g_deny_authz = "write";
+    g_last_authz[0] = 0;
+    r = gobj_command(yuno, "mark-tm-order", json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
+    check_int("mark-tm-order refused", kw_get_int(0, r, "result", -999, 0), -403);
+    check_str("mark-tm-order asks", g_last_authz, "write");
+    JSON_DECREF(r)
+    g_last_authz[0] = 0;
+    r = gobj_command(yuno, "add-record",
+        json_pack("{s:s, s:{s:s, s:I}}", "topic_name", TOPIC_NAME,
+            "record", "id", "K", "tm", (json_int_t)BASE_T), yuno);
+    check_int("add-record refused", kw_get_int(0, r, "result", -999, 0), -403);
+    check_str("add-record asks", g_last_authz, "write");
+    JSON_DECREF(r)
+    check_int("a refused add-record adds nothing",
+        (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME, "K"), 0);
+    g_deny_authz = NULL;
+    global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
+     *      add-record: a record appended to a topic. Up to this fix it
+     *      was a stub that answered -1 "Pending to review" and logged an
+     *      ERROR with a stack.
+     *-------------------------------------------------*/
+    set_expected_results("add-record", NULL, NULL, NULL, 1);
+    r = gobj_command(yuno, "add-record", json_pack("{s:{s:s}}", "record", "id", "K"), yuno);
+    check_int("add-record without topic_name", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "add-record",
+        json_pack("{s:s, s:{s:s}}", "topic_name", "nope", "record", "id", "K"), yuno);
+    check_int("add-record to a topic that is not there", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "add-record", json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
+    check_int("add-record without record", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "add-record",
+        json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME, "record", "[1,2]"), yuno);
+    check_int("add-record of a record that is not a dict", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "add-record",
+        json_pack("{s:s, s:I, s:{s:s, s:I, s:s}}", "topic_name", TOPIC_NAME,
+            "__t__", (json_int_t)(BASE_T + 5000),
+            "record", "id", "K", "tm", (json_int_t)(BASE_T + 5000), "content", "added"), yuno);
+    check_int("add-record", kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("add-record answers the rowid", kw_get_int(0, r, "data`rowid", -1, 0), 1);
+    check_int("add-record answers the t", kw_get_int(0, r, "data`t", -1, 0), BASE_T + 5000);
+    JSON_DECREF(r)
+    /*  As command-yuno forwards it: the record a string, the numbers too  */
+    r = gobj_command(yuno, "add-record",
+        json_pack("{s:s, s:s, s:s, s:s}", "topic_name", TOPIC_NAME,
+            "__t__", "946689801",
+            "user_flag", "3",
+            "record", "{\"id\":\"K\",\"tm\":946689801,\"content\":\"forwarded\"}"), yuno);
+    check_int("add-record forwarded", kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("add-record forwarded answers the rowid", kw_get_int(0, r, "data`rowid", -1, 0), 2);
+    JSON_DECREF(r)
+    check_int("add-record: the key holds both",
+        (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME, "K"), 2);
+    r = gobj_command(yuno, "open-list",
+        json_pack("{s:s, s:s, s:s, s:b}", "list_id", "lstK", "topic_name", TOPIC_NAME,
+            "key", "K", "return_data", 1), yuno);
+    {
+        json_t *rows = kw_get_list(0, r, "data", 0, 0);
+        json_t *second = json_array_get(rows, 1);
+        check_str("add-record: what was added is read",
+            kw_get_str(0, second, "content", "", 0), "forwarded");
+        check_int("add-record: with its user_flag",
+            kw_get_int(0, second, "__md_tranger__`user_flag", -1, 0), 3);
+    }
+    JSON_DECREF(r)
+    global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
      *      A master that LOST its lock (another process took the store
      *      while it was stopped) goes on as a replica: its tranger says
      *      `master` false. (7.25.4: the `master` attribute of C_TRANGER
@@ -2488,6 +2691,14 @@ PRIVATE int do_test(void)
     r = gobj_command(yuno, "close-rt",
         json_pack("{s:s}", "rt_id", "rtLOST"), yuno);
     JSON_DECREF(r)
+    /*  A replica does not append: master only, refused before the library  */
+    r = gobj_command(yuno, "add-record",
+        json_pack("{s:s, s:{s:s, s:I}}", "topic_name", TOPIC_NAME,
+            "record", "id", "K", "tm", (json_int_t)BASE_T), yuno);
+    check_int("add-record on a replica", kw_get_int(0, r, "result", -999, 0), -1);
+    check_bool("add-record on a replica says READ-ONLY",
+        strstr(kw_get_str(0, r, "comment", "", 0), "READ-ONLY") != NULL, TRUE);
+    JSON_DECREF(r)
     /*  A replica does not migrate: master only, refused before the library  */
     r = gobj_command(yuno, "mark-tm-order",
         json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
@@ -2522,7 +2733,7 @@ int main(int argc, char *argv[])
         NULL,               // persistent_attrs
         command_parser,     // global_command_parser (C_TRANGER has no mt_command_parser)
         NULL,               // global_stats_parser
-        NULL,               // global_authz_checker (NULL => gobj_user_has_authz TRUE)
+        test_authz_checker, // global_authz_checker: every permission, but g_deny_authz
         NULL                // global_authentication_parser
     );
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);

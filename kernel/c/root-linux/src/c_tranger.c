@@ -73,7 +73,15 @@ command-yuno id=1911 service=tranger command=close-rt rt_id=rt1
 The feed is EVF_AUTHZ_SUBSCRIBE: when the yuno sets enable_subscription_authz,
 a remote subscription to EV_TRANGER_RECORD_ADDED needs `read` (its alias is
 `__subscribe_event__`), the permission that open-rt asks. A subscriber takes
-only its own feed with a `__filter__` on its `rt_id`.
+only its own feed with a `__filter__` on its `rt_id`. The appends a live list
+(open-list without return_data) pushes carry the list_id as their `rt_id`.
+
+A handle (feed, iterator, list) is the session's that opened it: another
+session neither reads nor closes it (-403, and a warning). A gobj of this yuno
+is trusted.
+
+add-record appends a record (it carries the topic's pkey): permission `write`,
+master-only.
 
 
  *          Copyright (c) 2020 Niyamaka.
@@ -204,6 +212,14 @@ PRIVATE json_t *find_handle_by_identity(
 PRIVATE json_t *open_part(hgobj gobj, const char *iterator_id, json_t *entry, json_t *part);
 PRIVATE json_int_t topic_epoch(hgobj gobj, const char *topic_name);
 PRIVATE void watch_owner(hgobj gobj, hgobj src);
+PRIVATE json_t *refuse_foreign_handle(
+    hgobj gobj,
+    json_t *jn_entry,
+    const char *kind,
+    const char *id,
+    json_t *kw,
+    hgobj src
+);
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
@@ -284,9 +300,9 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_add_record[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
-SDATAPM (DTP_INTEGER,   "__t__",        0,              0,          "Time of record"),
+SDATAPM (DTP_INTEGER,   "__t__",        0,              0,          "Time of record (topic unit); 0 = now"),
 SDATAPM (DTP_INTEGER,   "user_flag",    0,              0,          "User flag of record"),
-SDATAPM (DTP_JSON,      "record",       0,              0,          "Record json"),
+SDATAPM (DTP_JSON,      "record",       0,              0,          "Record: a dict (or its json text) with the topic's pkey"),
 SDATA_END()
 };
 
@@ -407,8 +423,7 @@ SDATACM2 (DTP_SCHEMA,   "mark-tm-order",    SDF_AUTHZ_X,    0,      pm_mark_tm_o
 
 SDATACM2 (DTP_SCHEMA,   "open-list",        SDF_AUTHZ_X,    0,      pm_open_list,       cmd_open_list,      "Open list. With return_data=1 loads and returns the matching records, auto-closing (one-shot read); else the list stays open collecting appends until close-list"),
 SDATACM2 (DTP_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_list,      cmd_close_list,     "Close list"),
-// TODO add-record (write path) is not implemented
-SDATACM2 (DTP_SCHEMA,   "add-record",       SDF_AUTHZ_X,    0,      pm_add_record,      cmd_add_record,     "Add record"),
+SDATACM2 (DTP_SCHEMA,   "add-record",       SDF_AUTHZ_X,    0,      pm_add_record,      cmd_add_record,     "Append a record to a topic (it carries the topic's pkey). Master-only; permission 'write'"),
 SDATACM2 (DTP_SCHEMA,   "get-list-data",    SDF_AUTHZ_X,    0,      pm_get_list_data,   cmd_get_list_data,  "Get list data"),
 
 SDATACM2 (DTP_SCHEMA,   "list-keys",        SDF_AUTHZ_X,    0,      pm_list_keys,       cmd_list_keys,      "List the keys of a topic with their record counts and their time span (fr_t/to_t, fr_tm/to_tm)"),
@@ -620,6 +635,52 @@ PRIVATE json_t *live_handle(hgobj gobj, json_t *registry, const char *id)
     const char *kind = kw_get_str(gobj, entry, "kind", "", 0);
     return find_handle_by_identity(gobj, topic_name, kind, id,
         (json_t *)(uintptr_t)kw_get_int(gobj, entry, "ptr", 0, 0)
+    );
+}
+
+/***************************************************************************
+ *  A handle is its session's. An inbound session (C_IEVENT_SRV, the only
+ *  `src` that is somebody else, see watch_owner) that is not the one that
+ *  opened it neither reads nor closes it: the answer is -403, and the
+ *  refusal is logged. A gobj of this yuno is trusted. Up to this fix any
+ *  session closed or read any handle by its id, and the ids are shown to
+ *  every `read` user by print-tranger.
+ *
+ *  NULL when `src` may use it; else the refusal (the answer, kw owned).
+ ***************************************************************************/
+PRIVATE json_t *refuse_foreign_handle(
+    hgobj gobj,
+    json_t *jn_entry,
+    const char *kind,
+    const char *id,
+    json_t *kw,
+    hgobj src
+)
+{
+    if(!src || strcmp(gobj_gclass_name(src), C_IEVENT_SRV) != 0) {
+        return NULL;
+    }
+    hgobj owner = (hgobj)(uintptr_t)kw_get_int(gobj, jn_entry, "src_gobj", 0, 0);
+    if(owner == src) {
+        return NULL;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH,
+        "msg",          "%s", "Handle of another session, refused",
+        "kind",         "%s", kind,
+        "id",           "%s", id,
+        "src",          "%s", gobj_short_name(src),
+        NULL
+    );
+    return msg_iev_build_response(
+        gobj,
+        -403,
+        json_sprintf("%s: %s '%s' is not yours: another session opened it",
+            gobj_yuno_role_plus_name(), kind, id),
+        0,
+        0,
+        kw  // owned
     );
 }
 
@@ -2466,6 +2527,10 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             kw  // owned
         );
     }
+    json_t *refusal = refuse_foreign_handle(gobj, jn_ptr, "list", list_id, kw, src);
+    if(refusal) {
+        return refusal;
+    }
     json_t *list = live_handle(gobj, priv->lists, list_id);
     json_object_del(priv->lists, list_id);
     if(!list) {
@@ -2497,106 +2562,150 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
+ *  Append a record to a topic: tranger2_append_record(). Permission
+ *  `write`, MASTER-ONLY (asked before the library, as mark-tm-order does:
+ *  what the tranger IS). The record carries the topic's pkey (and its tkey,
+ *  when the topic has one); `__t__` 0 is now, `user_flag` 0 by default.
  *
+ *  Forwarded by command-yuno the parameters arrive as strings, with no
+ *  type coercion: the numbers are read with KW_WILD_NUMBER, and a record
+ *  that arrives as a string is parsed.
+ *
+ *  It was a stub of the v7 port, documented as working, that answered -1
+ *  "Pending to review" and logged an ERROR with a stack.
  ***************************************************************************/
 PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL,
-        "msg",          "%s", "TODO pending to review",
-        NULL
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "write";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: What topic_name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(!gobj_read_bool_attr(gobj, "master")) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: tranger '%s' is READ-ONLY, this yuno is not its master: "
+                "add-record runs on the master",
+                gobj_yuno_role_plus_name(), gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  A topic that is not there is the caller's mistake, answered and not
+     *  logged: asked of the disk first (tranger2_topic() logs a miss). One
+     *  that is there and cannot be opened is logged by the open.
+     */
+    char topic_dir[PATH_MAX];
+    if(tranger2_topic_path(topic_dir, sizeof(topic_dir), priv->tranger, topic_name) < 0 ||
+            !is_directory(topic_dir)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Topic not found: '%s'", gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(!tranger2_topic(priv->tranger, topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot open topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *jn_record = kw_get_dict_value(gobj, kw, "record", 0, 0);
+    json_t *record = NULL;  // yours
+    if(json_is_string(jn_record)) {
+        const char *s = json_string_value(jn_record);
+        record = anystring2json(s, strlen(s), FALSE);
+    } else if(jn_record) {
+        record = json_incref(jn_record);
+    }
+    if(!json_is_object(record)) {
+        JSON_DECREF(record)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: What record? It must be a dict with the pkey of topic '%s'",
+                gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    uint64_t __t__ = (uint64_t)kw_get_int(gobj, kw, "__t__", 0, KW_WILD_NUMBER);
+    uint16_t user_flag = (uint16_t)kw_get_int(gobj, kw, "user_flag", 0, KW_WILD_NUMBER);
+
+    md2_record_ex_t md_record = {0};
+    int ret = tranger2_append_record(
+        priv->tranger,
+        topic_name,
+        __t__,      // 0: now
+        user_flag,
+        &md_record,
+        record      // owned
     );
+    if(ret < 0) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot add the record to topic '%s' (see the log)",
+                gobj_yuno_role_plus_name(), topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     return msg_iev_build_response(
         gobj,
-        -1,
-        json_sprintf("Pending to review"),
         0,
+        json_sprintf("%s: record added to topic '%s', rowid %lu",
+            gobj_yuno_role_plus_name(), topic_name, (unsigned long)md_record.g_rowid),
         0,
+        json_pack("{s:s, s:I, s:I, s:I}",
+            "topic_name", topic_name,
+            "rowid", (json_int_t)md_record.g_rowid,   // the rowid of the key, as get-page counts
+            "t", (json_int_t)md_record.__t__,
+            "tm", (json_int_t)md_record.__tm__
+        ),
         kw  // owned
     );
-
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//    /*----------------------------------------*
-//     *  Check AUTHZS
-//     *----------------------------------------*/
-//    const char *permission = "write";
-//    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -403,
-//            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    int result = 0;
-//    json_t *jn_comment = 0;
-//
-//    do {
-//        /*
-//         *  Get parameters
-//         */
-//        const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-//        uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
-//        uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
-//        json_t *record = kw_get_dict(gobj, kw, "record", 0, 0);
-//
-//        /*
-//         *  Check parameters
-//         */
-//        if(empty_string(topic_name)) {
-//           jn_comment = json_sprintf("What topic_name?");
-//           result = -1;
-//           break;
-//        }
-//        json_t *topic = tranger2_topic(priv->tranger, topic_name);
-//        if(!topic) {
-//           jn_comment = json_sprintf("Topic not found: '%s'", topic_name);
-//           result = -1;
-//           break;
-//        }
-//        if(!record) {
-//           jn_comment = json_sprintf("What record?");
-//           result = -1;
-//           break;
-//        }
-//
-//        /*
-//         *  Append record to tranger topic
-//         */
-//        md2_record_t md_record;
-//        result = tranger2_append_record(
-//            priv->tranger,
-//            topic_name,
-//            __t__,                  // if 0 then the time will be set by TimeRanger with now time
-//            user_flag,
-//            &md_record,             // required
-//            json_incref(record)     // owned
-//        );
-//
-//        if(result<0) {
-//            jn_comment = json_string(gobj_log_last_message());
-//            break;
-//        } else {
-//           jn_comment = json_sprintf("Record added");
-//        }
-//    } while(0);
-//
-//    /*
-//     *  Response
-//     */
-//    return msg_iev_build_response(
-//        gobj,
-//        result,
-//        jn_comment,
-//        0,
-//        0,
-//        kw  // owned
-//    );
 }
 
 /***************************************************************************
@@ -2644,6 +2753,10 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
             0,
             kw  // owned
         );
+    }
+    json_t *refusal = refuse_foreign_handle(gobj, jn_ptr, "list", list_id, kw, src);
+    if(refusal) {
+        return refusal;
     }
     json_t *list = live_handle(gobj, priv->lists, list_id);
     if(!list) {
@@ -3381,6 +3494,10 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
+    json_t *refusal = refuse_foreign_handle(gobj, jn_ptr, "iterator", iterator_id, kw, src);
+    if(refusal) {
+        return refusal;
+    }
     if(!iterator_is_live(gobj, iterator_id)) {
         close_registered_iterator(gobj, iterator_id);   // the id is free again
         return msg_iev_build_response(
@@ -3509,6 +3626,10 @@ PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgob
             0,
             kw  // owned
         );
+    }
+    json_t *refusal = refuse_foreign_handle(gobj, jn_ptr, "iterator", iterator_id, kw, src);
+    if(refusal) {
+        return refusal;
     }
     if(!iterator_is_live(gobj, iterator_id)) {
         json_object_del(priv->iterators, iterator_id);
@@ -3691,6 +3812,11 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
     register_handle(priv->rts, rt_id, topic_name, rt);
+    json_object_set_new(
+        json_object_get(priv->rts, rt_id),
+        "src_gobj",
+        json_integer((json_int_t)(uintptr_t)src)
+    );
     watch_owner(gobj, src);
 
     return msg_iev_build_response(
@@ -3746,6 +3872,10 @@ PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             0,
             kw  // owned
         );
+    }
+    json_t *refusal = refuse_foreign_handle(gobj, jn_ptr, "realtime feed", rt_id, kw, src);
+    if(refusal) {
+        return refusal;
     }
     json_t *rt = live_handle(gobj, priv->rts, rt_id);
     json_object_del(priv->rts, rt_id);
@@ -3865,9 +3995,18 @@ PRIVATE int load_record_callback(
     json_array_append(list_data, jn_record);
 
     if(!(md_record_ex->system_flag & sf_loading_from_disk)) {
-        json_t *jn_data = json_pack("{s:s, s:s, s:I, s:O}",
+        /*
+         *  The id of the list is the `rt_id` of its pushes, as the id of a
+         *  feed is (see publish_rt_callback): a subscriber filters on it.
+         *  Up to this fix a live list pushed no rt_id, so a filtered
+         *  subscriber never got them and an unfiltered one got every
+         *  append once per live list of the topic.
+         */
+        const char *list_id = json_string_value(json_object_get(list, "id"));
+        json_t *jn_data = json_pack("{s:s, s:s, s:s, s:I, s:O}",
             "topic_name", tranger2_topic_name(topic),
             "key", key?key:"",
+            "rt_id", list_id?list_id:"",
             "rowid", rowid,
             "record", jn_record
         );
