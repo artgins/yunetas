@@ -8966,14 +8966,32 @@ PUBLIC int gobj_unsubscribe_event(
         subscriber
     );
     int deleted = 0;
+    int kept_hard = 0;
 
     size_t idx; json_t *subs;
     json_array_foreach(dl_subs, idx, subs) {
-        _delete_subscription(publisher, subs, FALSE, FALSE);
-        deleted++;
+        if(_delete_subscription(publisher, subs, FALSE, FALSE) == 0) {
+            deleted++;
+        } else {
+            kept_hard++;    // a hard subscription goes only with force
+        }
     }
 
-    if(!deleted) {
+    if(kept_hard) {
+        /*
+         *  Up to 7.25.4 it was counted as removed, and nothing said it was not
+         */
+        gobj_log_warning(publisher, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Hard subscription not removed, only gobj_unsubscribe_list() with force removes it",
+            "event",        "%s", event,
+            "hard",         "%d", kept_hard,
+            "publisher",    "%s", gobj_full_name(publisher),
+            "subscriber",   "%s", gobj_full_name(subscriber),
+            NULL
+        );
+    } else if(!deleted) {
         gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
@@ -9724,17 +9742,28 @@ PUBLIC BOOL gobj_user_has_authz(
         return FALSE;
     }
 
+    /*
+     *  The checker OWNS kw and frees it: the trace, which prints it after
+     *  the verdict, keeps its own reference. Up to 7.25.4 it printed the kw
+     *  the checker had already freed.
+     */
+    BOOL trace = __trace_gobj_authzs__(gobj)?TRUE:FALSE;
+
     /*----------------------------------------------------*
      *  The local mt_authz_checker has preference
      *----------------------------------------------------*/
     if(gobj->gclass->gmt->mt_authz_checker) {
+        if(trace) {
+            KW_INCREF(kw)
+        }
         BOOL has_permission = gobj->gclass->gmt->mt_authz_checker(gobj, authz, kw, src);
-        if(__trace_gobj_authzs__(gobj)) {
+        if(trace) {
             gobj_trace_json(gobj, kw,
                 "local authzs 🔑🔑 %s => %s",
                 gobj_short_name(gobj),
                 has_permission?"👍":"🚫"
             );
+            KW_DECREF(kw)
         }
         return has_permission;
     }
@@ -9743,13 +9772,17 @@ PUBLIC BOOL gobj_user_has_authz(
      *  Then use the global authz checker
      *-----------------------------------------------*/
     if(__global_authorization_checker_fn__) {
+        if(trace) {
+            KW_INCREF(kw)
+        }
         BOOL has_permission = __global_authorization_checker_fn__(gobj, authz, kw, src);
-        if(__trace_gobj_authzs__(gobj)) {
+        if(trace) {
             gobj_trace_json(gobj, kw,
                 "global authzs 🔑🔑 %s => %s",
                 gobj_short_name(gobj),
                 has_permission?"👍":"🚫"
             );
+            KW_DECREF(kw)
         }
         return has_permission;
     }

@@ -19,7 +19,10 @@ authentication parser. It checks:
   `EV_TREEDB_NODE_UPDATED` of the `C_NODE`, as up to 7.25.4;
 - gate on: `nobody` is refused both (logged, the channel stays open), an
   event without the flag is still subscribed, `reader` is accepted, and the
-  checker is asked `read`;
+  checker is asked `read`; the global `authzs` trace is on meanwhile, and
+  each of its lines carries the kw it checked (up to 7.25.4 it printed that
+  kw after the checker had freed it; `main()` makes glibc fill every freed
+  block, so the line came out without it);
 - the feeds reach only the accepted subscriptions (a node update of the
   treedb included);
 - withdrawing the refused subscriptions is not an error;

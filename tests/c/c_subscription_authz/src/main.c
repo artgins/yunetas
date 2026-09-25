@@ -9,6 +9,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <malloc.h>
 #include <yunetas.h>
 #include "c_test_subs_authz.h"
 
@@ -297,6 +298,28 @@ static BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj 
 }
 
 /***************************************************************************
+ *  Reads the `authzs` trace: each line of a check must carry the kw it
+ *  checked (its `__username__`). Up to 7.25.4 the trace printed the kw after
+ *  the checker had freed it, and the line came out without it.
+ ***************************************************************************/
+static int authzs_traces_with_kw = 0;
+static int authzs_traces_without_kw = 0;
+
+static int authzs_trace_write(void *v, int priority, const char *bf, size_t len)
+{
+    const char *mark = "authzs \xF0\x9F\x94\x91";   // "authzs 🔑"
+    if(memmem(bf, len, mark, strlen(mark))) {
+        const char *key = "\"__username__\"";
+        if(memmem(bf, len, key, strlen(key))) {
+            authzs_traces_with_kw++;
+        } else {
+            authzs_traces_without_kw++;
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  HACK This function is executed on yunetas environment (mem, log, paths)
  *  BEFORE creating the yuno
  ***************************************************************************/
@@ -345,6 +368,21 @@ static void cleaning(void)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
     result += test_json(NULL);
+
+    /*
+     *  Four checks with the trace on: two subscriptions of `nobody`, two of
+     *  `reader` (and those of the tranger feed)
+     */
+    if(authzs_traces_without_kw > 0 || authzs_traces_with_kw < 4) {
+        printf("%sERROR --> %s: with kw %d, without kw %d%s\n",
+            On_Red BWhite,
+            "the authzs trace lost the kw it checked",
+            authzs_traces_with_kw,
+            authzs_traces_without_kw,
+            Color_Off
+        );
+        result += -1;
+    }
 }
 
 /***************************************************************************
@@ -352,6 +390,12 @@ static void cleaning(void)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    /*
+     *  glibc fills every freed block: a use-after-free reads garbage and
+     *  crashes instead of passing unseen (the `authzs` trace up to 7.25.4)
+     */
+    mallopt(M_PERTURB, 0xa5);
+
     /*------------------------------*
      *  Captura salida logger
      *------------------------------*/
@@ -366,6 +410,14 @@ int main(int argc, char *argv[])
         0
     );
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
+
+    gobj_log_register_handler(
+        "authzs_trace",
+        0,
+        authzs_trace_write,
+        0
+    );
+    gobj_log_add_handler("authzs_trace", "authzs_trace", LOG_OPT_ALL, 0);
 
     /*------------------------------------------------*
      *      To check memory loss
