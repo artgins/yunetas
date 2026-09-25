@@ -189,8 +189,7 @@ code before it, except those listed under "No red test" in `TODO.md`.
   one owner. A handle opened through the agent is not closed when the
   operator's session ends: close it with `close-rt` / `close-iterator` /
   `close-list` as the same user.
-- **Use the `yunetas` CLI 0.19.4 once it is published.** It is not
-  published yet: today `pipx upgrade yunetas` gives 0.19.3.
+- **Use the `yunetas` CLI 0.19.4** (`pipx upgrade yunetas`).
   `find-new-yunos` now marks a row already registered at the new release,
   and `yunetas upgrade-yunos` 0.19.4 counts those rows apart (`N created, M
   already registered`); 0.19.3 works with this agent but counts them as

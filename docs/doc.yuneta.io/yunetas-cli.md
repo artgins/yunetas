@@ -162,7 +162,7 @@ an error (since CLI 0.11.1):
   prints `N created, M already registered` after `create=1`, and skips
   `create=1` when every row is already registered (0.19.3 counted every row
   of the preview as created). For example, `1 created, 1 already registered.`
-  CLI 0.19.4 is not yet published: `pipx upgrade yunetas` gives 0.19.3.
+  Get it with `pipx upgrade yunetas`.
 
 A genuine (non-idempotent) error still fails closed, and the agent's comments are
 printed so a mixed result stays visible. So the safe recovery from any

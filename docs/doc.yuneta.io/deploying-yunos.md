@@ -295,9 +295,8 @@ apart, and counts them apart after `create=1`:
 1 created, 1 already registered.
 ```
 
-CLI 0.19.3 and before counted every row of the preview as created. CLI 0.19.4
-is not yet published: `pipx upgrade yunetas` gives 0.19.3, which works with
-this agent and counts the marked rows as created.
+CLI 0.19.3 and before counted every row of the preview as created; they still
+work with this agent. Get 0.19.4 with `pipx upgrade yunetas`.
 
 The snap comes after the preview, and this order is intentional. A snap tags
 every current record, and it clones each record that another snap tagged
