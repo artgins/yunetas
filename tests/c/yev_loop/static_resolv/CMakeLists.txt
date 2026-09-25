@@ -53,4 +53,14 @@ if(CONFIG_FULLY_STATIC)
     target_compile_definitions(test_static_resolv_spoof PRIVATE YUNETA_DNS_PORT=15353)
 
     add_test("${current_directory_name}/test_static_resolv_spoof" test_static_resolv_spoof)
+
+    add_executable(test_static_resolv_numeric test_static_resolv_numeric.c)
+
+    target_include_directories(test_static_resolv_numeric PRIVATE
+        ${YUNETAS_BASE}/outputs/include
+        ${YUNETAS_BASE}/kernel/c/yev_loop/src
+    )
+    target_compile_definitions(test_static_resolv_numeric PRIVATE YUNETA_DNS_PORT=15354)
+
+    add_test("${current_directory_name}/test_static_resolv_numeric" test_static_resolv_numeric)
 endif()

@@ -363,7 +363,8 @@ int main(int argc, char *argv[])
 
     yev_loop_create(0, 2024, 10, NULL, &yev_loop);
 
-    int result = do_test();
+    int result = raise_open_files_limit();  // one file per key, and there are more than 1024
+    result += do_test();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

@@ -101,6 +101,7 @@ Low-level tests for the io_uring event loop, without the GObj layer.
 | **`test_yevent_close_fd_kept`** | The socket of a connect event is closed (a stop, then a destroy) while a write of another event on it is still untaken (in the submission queue, then kept): the write is taken back and its callback gets `STOPPED`, `-ECANCELED`; a new socketpair that takes the number reads nothing. |
 | **`test_yevent_stop_stale_sqe`** | A ring of 4 entries, wrapped: a timer armed 4 times and stopped `RUNNING` gets exactly one `STOPPED` callback (destroyed in it, no completion after); a connect stopped `RUNNING` on the fd number whose old slots name a READ event leaves that read untouched. No take-back is warned, memory is clean. The loop clears the fd and the event of every ring entry it hands out, and a stop prepares its cancel before it closes the fd. |
 | **`test_static_resolv_spoof`** | The static resolver (`yuneta_getaddrinfo()`) accepts a DNS answer only from the nameserver it asked: a forged answer from another source port is dropped by the kernel (the UDP socket is connected). |
+| **`test_static_resolv_numeric`** | The static resolver sends no numeric host to DNS: an address of the family asked for is answered directly, one of the other family (`"::1"` in `AF_INET`) answers `EAI_ADDRFAMILY`, and `AI_NUMERICHOST` with a name answers `EAI_NONAME`. Each case must also answer fast. |
 | **`test_gobj_post_event`** | [`gobj_post_event()`](#gobj_post_event): an event posted is not delivered at once, it arrives on the next cycle of the loop, in order, each with its own kw. |
 
 **Source:** `tests/c/yev_loop/yev_events/`, `tests/c/yev_loop/yev_events_tls/`,
@@ -410,6 +411,31 @@ and the install looked newer than the archive. `tools/cmake/project.cmake` now
 stamps an archive that changed with the time of its install, rounded up to
 the next whole second. An archive that did not change is not copied
 (*"Up-to-date"*) and relinks nothing.
+
+## A test that opens more than 1024 files
+
+systemd starts what it launches, a desktop terminal included, with a soft limit
+of 1024 open files, whatever the hard limit is. A test run from that terminal
+fails with *"TOO MANY OPEN FILES"*, `"current soft limit": 1024`, while the
+same test passes from another shell. A process can raise its own soft limit
+up to the hard one without privileges, so a test that opens many files (a
+topic with more than 1024 keys, many treedbs) calls
+[`raise_open_files_limit()`](#raise_open_files_limit) first:
+
+```C
+int result = raise_open_files_limit();
+result += do_test();
+```
+
+`test_iterator_index`, `test_c_treedb_literal_wins` and `perf_c_treedb` do.
+To give every program started from the desktop a higher soft limit, set it
+for the systemd user manager, then log in again:
+
+```bash
+sudo mkdir -p /etc/systemd/user.conf.d
+printf '[Manager]\nDefaultLimitNOFILE=1048576:4000000\n' | \
+    sudo tee /etc/systemd/user.conf.d/nofile.conf
+```
 
 ## Debugging a test that corrupts the heap
 

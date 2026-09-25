@@ -101,7 +101,7 @@ binaries carry a prefix: `c_mqtt/acl` runs `test_mqtt_acl`, `c_tcp/test5` runs
 |---|---|
 | `yev_loop/yev_events` | `test_yevent_listen1` - `4`, `test_yevent_connect1`, `2`, `test_yevent_traffic1` - `6`, `test_yevent_udp_traffic1`, `test_yevent_udp_zerocopy`, `test_yevent_udp_ipv6`, `test_yevent_stop_in_flight`, `test_yevent_loop_end_drain`, `test_yevent_connect_src_url`, `test_yevent_timer_once1`, `2`, `test_yevent_timer_periodic1`, `test_yevent_sq_full`, `test_yevent_sq_retry`, `test_yevent_sq_nomem`, `test_yevent_stop_nomem`, `test_yevent_kept_after_post`, `test_yevent_close_fd_kept`, `test_yevent_stop_stale_sqe` (ctest names `yev_events/...`) |
 | `yev_loop/yev_events_tls` | `test_yevent_traffic_secure1`, `test_yevent_reload_live`, `test_yevent_reload_stress` |
-| `yev_loop/static_resolv` | `test_static_resolv_spoof` (ctest name `static_resolv/...`) |
+| `yev_loop/static_resolv` | `test_static_resolv_spoof`, `test_static_resolv_numeric` (ctest name `static_resolv/...`) |
 | `ytls` | `test_cert_reload`, `test_cert_info`, `test_cert_reload_mem`, `test_handshake_reject_openssl`, `test_handshake_reject_mbedtls`, `test_tls_floor_openssl`, `test_tls_verify_openssl` |
 | `timeranger2` | 37 binaries, each one described in `tests/c/timeranger2/README.md` |
 | `tr_msg` | `test_tr_msg1`, `test_tr_msg2` |

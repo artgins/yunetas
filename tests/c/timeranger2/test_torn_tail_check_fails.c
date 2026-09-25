@@ -785,7 +785,12 @@ PRIVATE int open_in_child(
 PRIVATE int test_content_that_cannot_be_parsed(void)
 {
     int result = 0;
-    size_t max_block = 64*1024;
+    /*
+     *  The lexer's buffer for a string of 40 000 bytes grows to 64 KB. A
+     *  block of 64 KB refused it only with CONFIG_DEBUG_TRACK_MEMORY (its
+     *  header on top); without, the parse fit and 5a/5c failed.
+     */
+    size_t max_block = 48*1024;
 
     /*
      *  a. The shape 7.25.4 left, and row 5's content is one string of

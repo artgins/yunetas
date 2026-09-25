@@ -406,6 +406,17 @@ and `/etc/hosts` directly, bypassing glibc's NSS layer. When
 sites are redirected to these via macros, since glibc's resolver is not
 available in a fully static build.
 
+Like glibc, it sends no numeric host to DNS. An address of the family asked
+for is answered directly. An address of the other family answers
+`EAI_ADDRFAMILY` at once, and `AI_NUMERICHOST` with a name answers
+`EAI_NONAME`:
+
+```C
+struct addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_STREAM};
+struct addrinfo *res;
+int ret = getaddrinfo("::1", "0", &hints, &res);   // EAI_ADDRFAMILY, no DNS query
+```
+
 ## Benchmarks & tests
 
 - `performance/c/perf_yev_ping_pong`, `perf_yev_ping_pong2`

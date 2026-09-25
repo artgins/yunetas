@@ -9,6 +9,8 @@
  ****************************************************************************/
 #include <inttypes.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/resource.h>
 
 #include "kwid.h"
 #include "testing.h"
@@ -351,6 +353,29 @@ PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, of
         return -1;
     }
 
+    return 0;
+}
+
+/***************************************************************************
+ *  Raise the soft limit of open files to the hard one
+ ***************************************************************************/
+PUBLIC int raise_open_files_limit(void)
+{
+    struct rlimit rl;
+    if(getrlimit(RLIMIT_NOFILE, &rl) != 0) {
+        printf("%sERROR%s --> getrlimit(RLIMIT_NOFILE) FAILED: %s\n",
+            On_Red BWhite, Color_Off, strerror(errno));
+        return -1;
+    }
+    if(rl.rlim_cur == rl.rlim_max) {
+        return 0;
+    }
+    rl.rlim_cur = rl.rlim_max;
+    if(setrlimit(RLIMIT_NOFILE, &rl) != 0) {
+        printf("%sERROR%s --> setrlimit(RLIMIT_NOFILE, %llu) FAILED: %s\n",
+            On_Red BWhite, Color_Off, (unsigned long long)rl.rlim_max, strerror(errno));
+        return -1;
+    }
     return 0;
 }
 

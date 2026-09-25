@@ -1245,7 +1245,7 @@ it by hand, run the script.
 
 3. [**`build_stats_response`**](parsers/stats_parser.md#build_stats_response) — `PUBLIC json_t *build_stats_response( hgobj gobj, json_int_t result, json_t *jn_comment, json_t *jn_schema, json_t *jn_data )`
 
-### `testing.h` — 10 functions
+### `testing.h` — 11 functions
 
 **Source:** `kernel/c/gobj-c/src/testing.h`
 
@@ -1263,13 +1263,15 @@ it by hand, run the script.
 
 7. [**`test_file_permission_and_size`**](testing/testing.md#test_file_permission_and_size) — `PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, off_t size)`
 
-8. [**`test_list`**](testing/testing.md#test_list) — `PUBLIC int test_list(json_t *found, json_t *expected, const char *msg, ...) JANSSON_ATTRS((format(printf, 3, 4)))`
+8. [**`raise_open_files_limit`**](testing/testing.md#raise_open_files_limit) — `PUBLIC int raise_open_files_limit(void)`
 
-9. [**`set_measure_times`**](yev_loop/yev_loop.md#set_measure_times) — `PUBLIC void set_measure_times(int types)`
+9. [**`test_list`**](testing/testing.md#test_list) — `PUBLIC int test_list(json_t *found, json_t *expected, const char *msg, ...) JANSSON_ATTRS((format(printf, 3, 4)))`
 
-10. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
+10. [**`set_measure_times`**](yev_loop/yev_loop.md#set_measure_times) — `PUBLIC void set_measure_times(int types)`
 
-**Total: 601 functions**
+11. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
+
+**Total: 602 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2326,7 +2328,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1007 functions** sorted alphabetically with their source header.
+All **1008 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2997,6 +2999,7 @@ All **1007 functions** sorted alphabetically with their source header.
 | [**`print_socket_address`**](helpers/common_protocol.md#print_socket_address) | `helpers.h` | gobj-c (Core Framework) |
 | [**`print_track_mem`**](helpers/memory.md#print_track_mem) | `gbmem.h` | gobj-c (Core Framework) |
 | [**`pty_sync_spawn`**](runtime/run_command.md#pty_sync_spawn) | `run_command.h` | root-linux (Runtime GClasses) |
+| [**`raise_open_files_limit`**](testing/testing.md#raise_open_files_limit) | `testing.h` | gobj-c (Core Framework) |
 | [**`read_process_cmdline`**](helpers/file_system.md#read_process_cmdline) | `helpers.h` | gobj-c (Core Framework) |
 | [**`register_c_assets`**](runtime/registration.md#register_c_assets) | `c_assets.h` | root-linux (Runtime GClasses) |
 | [**`register_c_auth_bff`**](runtime/registration.md#register_c_auth_bff) | `c_auth_bff.h` | root-linux (Runtime GClasses) |

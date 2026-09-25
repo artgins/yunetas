@@ -674,6 +674,8 @@ static uint16_t dns_random_id(void)
  *   1. NULL / empty node  → INADDR_ANY or loopback
  *   2. Numeric IPv4       → direct
  *   3. Numeric IPv6       → direct
+ *      Numeric of the other family → EAI_ADDRFAMILY; AI_NUMERICHOST
+ *      and not numeric → EAI_NONAME (no lookup, as glibc)
  *   4. /etc/hosts lookup
  *   5. DNS query (UDP, /etc/resolv.conf nameservers)
  */
@@ -759,6 +761,26 @@ int yuneta_getaddrinfo(
             *res = ai;
             return 0;
         }
+    }
+
+    /*
+     *  A numeric address of the other family is not a name: glibc answers
+     *  EAI_ADDRFAMILY at once. Going on would send it to DNS, and a slow
+     *  nameserver then stalls the loop (bind_src_url() of "::1" in AF_INET).
+     */
+    {
+        struct in_addr a4;
+        struct in6_addr a6;
+        if(inet_pton(AF_INET, node, &a4) == 1 || inet_pton(AF_INET6, node, &a6) == 1) {
+#ifdef EAI_ADDRFAMILY
+            return EAI_ADDRFAMILY;
+#else
+            return EAI_NONAME;
+#endif
+        }
+    }
+    if(ai_flags & AI_NUMERICHOST) {
+        return EAI_NONAME;
     }
 
     /* ------ Step 4: /etc/hosts lookup ------ */

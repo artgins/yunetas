@@ -1138,6 +1138,8 @@ int main(int argc, char *argv[])
     unsigned long memory_check_list[] = {0, 0};
     set_memory_check_list(memory_check_list);
 
+    result += raise_open_files_limit();  // the treedbs of the test open more than 1024 files
+
     /*------------------------------------------------*
      *          Start yuneta
      *------------------------------------------------*/

@@ -271,7 +271,24 @@ PRIVATE int do_test(void)
     build_path(key_dir, sizeof(key_dir), path_database, TOPIC_NAME, "keys", "A", NULL);
     struct stat st;
     stat(key_dir, &st);
-    chmod(key_dir, st.st_mode & 07777);     // the same mode: only its ctime moves
+    /*
+     *  Before Linux 6.13 a ctime moves in ticks of the coarse clock (4 ms
+     *  at HZ=250): a chmod in the tick of the flag leaves the ctime as it
+     *  was. Change it again until it moves.
+     */
+    struct stat st2 = st;
+    uint64_t t_ctime = start_msectimer(1000);
+    while(st2.st_ctim.tv_sec == st.st_ctim.tv_sec && st2.st_ctim.tv_nsec == st.st_ctim.tv_nsec) {
+        if(test_msectimer(t_ctime)) {
+            printf("%sERROR%s --> 4. the ctime of the key directory does not move\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+            break;
+        }
+        usleep(1000);
+        chmod(key_dir, st.st_mode & 07777);     // the same mode: only its ctime moves
+        stat(key_dir, &st2);
+    }
     set_expected_results(
         "4. the directory changed: the load lists the key again",
         json_pack("[{s:s}]",

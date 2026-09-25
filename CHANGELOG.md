@@ -1,5 +1,32 @@
 # **Changelog**
 
+## Unreleased
+
+### Event loop (yev_loop)
+
+- The static resolver (`CONFIG_FULLY_STATIC`) sent a numeric address of the
+  other family to DNS: `getaddrinfo("::1")` asked for `AF_INET` (a `src_url` of
+  `[::1]` bound for the IPv4 address of a destination) fell through to an A
+  query, and a slow nameserver stalled the event loop (3.1 s on wattyzer,
+  WARNING *"getaddrinfo() BLOCKED the event loop"*). It answers
+  `EAI_ADDRFAMILY` at once now, as glibc does, and `AI_NUMERICHOST` with a name
+  answers `EAI_NONAME` with no lookup. Test: `test_static_resolv_numeric`.
+
+### Tests
+
+- New `raise_open_files_limit()` (`testing.h`): raises the soft limit of open
+  files to the hard one. `test_iterator_index`, `test_c_treedb_literal_wins`
+  and `perf_c_treedb` open more than 1024 files and failed with *"TOO MANY OPEN
+  FILES"* in a terminal that systemd started with its soft limit of 1024.
+- `test_torn_tail_check_fails` 5a/5c passed only with
+  `CONFIG_DEBUG_TRACK_MEMORY`: the lexer's 64 KB buffer fits a 64 KB block
+  when no tracking header is added. The block of case 5 is 48 KB.
+- `test_unlisted_relist_once` 4 failed on kernels before 6.13, where a ctime
+  moves in ticks of the coarse clock (4 ms): the `chmod` fell in the tick of
+  the flag. It repeats the `chmod` until the ctime moves.
+- `test_c_treedb_literal_wins`: a child that cannot take its own io_uring ring
+  prints why before it exits.
+
 ## v7.25.5 (2026-09-25)
 
 What changed after 7.25.4. Each behaviour change has a test that fails on the

@@ -86,6 +86,14 @@ PUBLIC int test_directory_permission(const char *path, mode_t permission);
 PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, off_t size);
 
 /*
+ *  Raise the soft limit of open files to the hard one. A test that opens
+ *  more than 1024 files calls it first: systemd starts what it launches
+ *  (a desktop terminal) with a soft limit of 1024, whatever the hard is.
+ *  Return 0 if the soft limit is the hard one, -1 if error (printed).
+ */
+PUBLIC int raise_open_files_limit(void);
+
+/*
  *  list and match must be two json arrays of objects
  *  sizes of both must match
  *  keys in 'expected' must match with keys in 'found'

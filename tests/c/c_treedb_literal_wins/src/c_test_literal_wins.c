@@ -3414,7 +3414,11 @@ PRIVATE void child_takes_its_own_ring(void)
     struct io_uring *ring = (struct io_uring *)yuno_event_loop();
     unsigned entries = ring->sq.ring_entries;
     io_uring_queue_exit(ring);
-    if(io_uring_queue_init(entries, ring, 0) < 0) {
+    int ret = io_uring_queue_init(entries, ring, 0);
+    if(ret < 0) {
+        printf("%sERROR%s --> child %d: io_uring_queue_init(%u) FAILED: %s\n",
+            On_Red BWhite, Color_Off, (int)getpid(), entries, strerror(-ret));
+        fflush(stdout);
         _exit(4);
     }
 }

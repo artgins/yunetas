@@ -52,6 +52,44 @@ WARNING: {..., "function": "yev_loop_create", "msg": "io_uring_queue_init_params
 
 ---
 
+(raise_open_files_limit)=
+## [`raise_open_files_limit()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/testing.c#L362)
+
+`raise_open_files_limit()` raises the soft limit of open files of the process to its hard limit.
+
+```C
+int raise_open_files_limit(void);
+```
+
+**Parameters**
+
+None.
+
+**Returns**
+
+Returns `0` if the soft limit is now the hard limit. Returns `-1` if `getrlimit()` or `setrlimit()` fails; the error is printed.
+
+**Notes**
+
+A test that opens more than 1024 files (a timeranger2 topic with more than
+1024 keys, many treedbs) calls it first, before it opens a store. systemd
+starts what it launches, a desktop terminal included, with a soft limit of
+1024 whatever the hard limit is, so the same test passes in one terminal and
+fails in another with *"TOO MANY OPEN FILES"*. A process can raise its own
+soft limit up to the hard one without privileges.
+
+```C
+int main(int argc, char *argv[])
+{
+    ...
+    int result = raise_open_files_limit();
+    result += do_test();
+    ...
+}
+```
+
+---
+
 (set_expected_results)=
 ## [`set_expected_results()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/testing.c#L224)
 
