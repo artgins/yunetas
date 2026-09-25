@@ -82,7 +82,7 @@ Per-connection limits live on `C_PROT_MQTT2` and apply to each client:
 |-----------|---------|---------|
 | `max_qos` | `2` | Max QoS allowed for connecting clients |
 | `retain_available` | `true` | Allow retained messages (else RETAIN clients are dropped) |
-| `max_inflight_messages` | `20` | Outgoing QoS 1/2 in flight (1 = strict in-order, 0 = unlimited) |
+| `max_inflight_messages` | `20` | Outgoing QoS 1/2 in flight (1 = strict in-order, 0 = no maximum of the broker's own: the client's Receive Maximum still applies) |
 | `max_inflight_bytes` | `0` | Byte cap on in-flight messages (0 = no limit) |
 | `max_queued_messages` | `1000` | Per-client queue depth above in-flight (0 = unlimited) |
 | `max_queued_bytes` | `0` | Per-client queue byte cap (0 = no limit) |
@@ -143,6 +143,45 @@ PUBREL 5                                  PUBCOMP 5     'b' delivered (7.25.4: '
 
 `tests/c/c_mqtt` (`test_mqtt_client_queues`: a client against a raw broker)
 and `tests/c/tr_queue` (`test_tr2q_queued`).
+
+**The out window is the lower of the two maximums.** A MQTT 5 client says in
+its CONNECT how many QoS 1/2 messages it takes unacknowledged (Receive
+Maximum). The broker sends at most the lower of that and its own
+`max_inflight_messages`; the others wait queued, and each ack sends the next.
+With `max_inflight_messages` 0 (no maximum of the broker's own) the client's
+Receive Maximum is the limit [MQTT-3.3.4-9]. Up to 7.25.4 the broker checked
+only its OWN maximum: with it at 0 it sent every queued message at once, over
+the client's Receive Maximum, and the client disconnected (0x93, *Receive
+Maximum exceeded*).
+
+```text
+max_inflight_messages 0, client Receive Maximum 2, four QoS 1 messages for it:
+broker -> PUBLISH 1, PUBLISH 2          (3 and 4 wait)
+client -> PUBACK 1, PUBACK 2
+broker -> PUBLISH 3, PUBLISH 4
+```
+
+**An ack of the wrong kind is a protocol error, not a delivery.** A PUBACK is
+the ack of QoS 1, PUBREC/PUBCOMP of QoS 2. An ack of the other QoS (a PUBCOMP
+of a QoS 1 message, a PUBACK of a QoS 2 one), or a PUBCOMP of a QoS 2 message
+still waiting for its PUBREC, is the PEER's error: a WARNING (`MSGSET_MQTT`,
+with `client_id`, `peername`, `mid`, `msg_qos`, `expected_qos`), *"QoS
+mismatch"* or *"Unexpected message state for QoS 2"*, the message STAYS in
+flight, and the broker answers a MQTT 5 client with DISCONNECT 0x82
+(*Protocol Error*) and closes -- as mosquitto (`MOSQ_ERR_PROTOCOL`). The
+message is sent again at the next session. An ack of an unknown packet id is a
+WARNING too, *"Message not found in trq_out_msgs"*, and nothing else. Up to
+7.25.4 the three were ERRORs, and the first two removed the message as
+delivered: its QoS 2 exchange was skipped.
+
+```text
+broker -> PUBLISH 4 (QoS 1)
+client -> PUBCOMP 4          WARNING "QoS mismatch", msg_qos 1, expected_qos 2
+broker -> DISCONNECT 0x82    message 4 still pending
+```
+
+`tests/c/c_mqtt` (`test_mqtt_out_flight`: a raw MQTT 5 client against the
+broker).
 
 (mqtt-acl)=
 ## Authorization (publish/subscribe ACL)
@@ -232,7 +271,7 @@ and the unknown-client deny.
 |---------|-------------|
 | `list-channels` | Input channels of connected devices |
 | `list-sessions` | Active/persistent sessions |
-| `list-queues` | Per-client message queues: the names, or with `queue=<name>` the messages of one (`level=0..3`, `pending=1`, `qos=`) |
+| `list-queues` | Per-client message queues: the names, or with `queue=<name>` the messages of one (`level=0..3`, `pending=1`, `qos=`; the conditions add up: `qos=1` lists the PENDING QoS 1 messages, `pending=0 qos=1` the delivered ones) |
 | `normal-subs` / `shared-subs` | List normal / shared (`$share`) subscribers |
 | `flatten-subs` | Flattened subscriber view |
 | `list-retains` / `remove-retains` | List / remove retained messages (note: `#` shown as `/`) |
@@ -253,7 +292,12 @@ store"* that the log carries. Up to 7.25.4 both answered an empty list with
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=mqtt_broker command=list-queues queue=client1 level=3'
+ycommand -c 'command-yuno id=<id> service=mqtt_broker command=list-queues queue=client1-OUT qos=1'             # the QoS 1 messages still to deliver
+ycommand -c 'command-yuno id=<id> service=mqtt_broker command=list-queues queue=client1-OUT pending=0 qos=1'   # the QoS 1 messages delivered
 ```
+
+Up to 7.25.4 `qos=` replaced the condition of `pending=1` (the default): it
+listed the delivered messages of that QoS too, a backlog that did not exist.
 
 ## Debugging
 

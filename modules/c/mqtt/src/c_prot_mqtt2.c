@@ -1107,16 +1107,23 @@ PRIVATE int message__remove(
          */
         int msg_qos = msg_flag_get_qos_level(msg);
         if(msg_qos != qos) {
-            // Like mosquitto, check the qos
-            gobj_log_error(gobj, 0,
+            /*
+             *  Like mosquitto: an ack of another QoS is a protocol error of
+             *  the peer, and the message is NOT delivered by it. Up to
+             *  7.25.4 it was an ERROR, and the message was removed.
+             */
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "QoS mismatch",
+                "client_id",    "%s", priv->client_id,
+                "peername",     "%s", peer_of(gobj),
                 "mid",          "%d", (int)mid,
                 "msg_qos",      "%d", msg_qos,
                 "expected_qos", "%d", qos,
                 NULL
             );
+            return MOSQ_ERR_PROTOCOL;
         }
         json_t *kw = tr2q_msg_json(msg);
         if(pmsg) {
@@ -1180,11 +1187,18 @@ PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int q
         trq = priv->trq_in_msgs;
     }
 
-    if(priv->max_inflight_messages == 0 && priv->max_inflight_bytes == 0) {
+    /*
+     *  The limit is the QUEUE's (mosquitto's msgs->inflight_maximum): in the
+     *  out direction the client's Receive Maximum when it is lower than
+     *  the broker's own. Up to 7.25.4 the broker's max_inflight_messages
+     *  was asked here, and with it at 0 ("no maximum") the client's
+     *  Receive Maximum was never honoured [MQTT-3.3.4-9].
+     */
+    if(trq->max_inflight_messages == 0 && priv->max_inflight_bytes == 0) {
         return TRUE;
     }
 
-    // WARNING no maximum of messages or bytes done by now
+    // WARNING no maximum of bytes done by now
 
     if(qos == 0) {
         return TRUE;
@@ -1284,43 +1298,60 @@ PRIVATE int db__message_delete_outgoing(
 
     q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
+        /*
+         *  Like mosquitto: an ack of another QoS, or of the wrong step of
+         *  a QoS 2 exchange, is a protocol error of the peer, and the
+         *  message is NOT delivered by it (it stays in flight). Up to
+         *  7.25.4 both were ERRORs, and the message was removed as
+         *  delivered: the returns had been commented out while the QoS
+         *  compared flag bits, and every QoS 2 ack mismatched.
+         */
         int msg_qos = msg_flag_get_qos_level(qmsg);
         if(msg_qos != qos) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "QoS mismatch",
+                "client_id",    "%s", priv->client_id,
+                "peername",     "%s", peer_of(gobj),
                 "mid",          "%d", (int)mid,
                 "msg_qos",      "%d", msg_qos,
                 "expected_qos", "%d", qos,
                 NULL
             );
-            //return MOSQ_ERR_PROTOCOL;
+            return MOSQ_ERR_PROTOCOL;
         }
         if(qos == 2) {
             mqtt_msg_state_t msg_state = msg_flag_get_state(qmsg);
             if(msg_state != expect_state) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Unexpected message state for QoS 2",
+                    "client_id",    "%s", priv->client_id,
+                    "peername",     "%s", peer_of(gobj),
                     "mid",          "%d", (int)mid,
                     "state",        "%s", msg_flag_state_to_str(msg_state),
                     "expected",     "%s", msg_flag_state_to_str(expect_state),
                     NULL
                 );
-                //return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_PROTOCOL;
             }
         }
 
         db__message_remove_from_inflight(gobj, trq, qmsg);
 
     } else {
-        gobj_log_error(gobj, 0,
+        /*
+         *  An ack of an unknown packet id: the peer's (mosquitto says it
+         *  and goes on)
+         */
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Message not found in trq_out_msgs",
             "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             "mid",          "%d", mid,
             NULL
         );
@@ -7508,8 +7539,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
          */
         JSON_DECREF(properties)
 
-        db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, qos);
-        return MOSQ_ERR_SUCCESS;
+        return db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, qos);
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -7877,7 +7907,12 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
         send__pubcomp(gobj, mid, NULL);
 
         json_t *kw_mqtt_msg;
-        message__remove(gobj, mid, mosq_md_in, 2, &kw_mqtt_msg);
+        rc = message__remove(gobj, mid, mosq_md_in, 2, &kw_mqtt_msg);
+        if(rc == MOSQ_ERR_PROTOCOL) {
+            // Warning already logged: the PUBREL of a message that is not QoS 2
+            JSON_DECREF(properties)
+            return rc;
+        }
         if(kw_mqtt_msg) {
             /* Only pass the message on if we have removed it from the queue - this
              * prevents multiple callbacks for the same message.

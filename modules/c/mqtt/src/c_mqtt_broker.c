@@ -788,18 +788,19 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_integer((json_int_t)(uintptr_t)list_queue_record_callback)
         );
 
-        json_object_set_new(
-            match_cond,
-            pending?"user_flag_mask_set":"user_flag_mask_notset",
-            json_integer(TR2Q_MSG_PENDING)
-        );
-
+        /*
+         *  Both conditions in one mask: up to 7.25.4 `qos=` replaced the
+         *  pending bit of `pending=1`, and listed the delivered messages too
+         */
+        json_int_t mask_set = pending? TR2Q_MSG_PENDING : 0;
         if(qos) {
-            json_object_set_new(
-                match_cond,
-                "user_flag_mask_set",
-                json_integer(qos==1?mosq_m_qos1:mosq_m_qos2)
-            );
+            mask_set |= (qos==1)? mosq_m_qos1 : mosq_m_qos2;
+        }
+        if(mask_set) {
+            json_object_set_new(match_cond, "user_flag_mask_set", json_integer(mask_set));
+        }
+        if(!pending) {
+            json_object_set_new(match_cond, "user_flag_mask_notset", json_integer(TR2Q_MSG_PENDING));
         }
 
         if(level < 3) {

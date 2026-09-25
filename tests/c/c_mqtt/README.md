@@ -31,6 +31,18 @@ messages of the user with 20 in flight, `m21` with `expiry_interval` 1: after
 and `m22` must be sent. Up to 7.25.4 nothing moved after the expiry (red: `m22`
 never sent).
 
+`test_mqtt_out_flight` (`main_out_flight.c` + `c_out_flight.c`) uses a RAW MQTT 5
+client against the broker, whose `max_inflight_messages` is 0 ("no maximum").
+The client connects with Receive Maximum 2 (no clean start), subscribes to
+`t/o` with QoS 1 and publishes four QoS 1 messages to it. A. The broker must
+send TWO of them, and the other two after the client's PUBACKs: up to 7.25.4
+it checked only its own maximum and sent all four. B. With three acked,
+`list-queues queue=oflight_cl-OUT qos=1` must list ONE message: up to 7.25.4
+`qos=` replaced the pending condition and listed the delivered ones too. C. The
+fourth is acked with a PUBCOMP (the ack of QoS 2): the broker must say *"QoS
+mismatch"* as a WARNING, answer DISCONNECT 0x82 and keep the message pending.
+Up to 7.25.4 it logged an ERROR and removed the message as delivered.
+
 ## Run
 
 ```bash

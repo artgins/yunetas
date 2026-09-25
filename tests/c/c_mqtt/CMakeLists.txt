@@ -56,6 +56,7 @@ SET(SRCS
     malformed
     queued_in
     client_queues
+    out_flight
 )
 
 ##############################################
