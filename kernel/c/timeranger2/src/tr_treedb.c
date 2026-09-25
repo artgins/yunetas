@@ -8954,6 +8954,131 @@ PRIVATE void free_child_unlinks(child_unlink_t *unlinked, size_t n_children)
 }
 
 /***************************************************************************
+ *  The instance of the key of `node` that wrote the newest record of the
+ *  key, of the ones memory holds: the highest g_rowid (the rowid of the
+ *  KEY, every instance counts in it). A reload takes that record for the
+ *  primary, and it is not always the primary in memory: a new instance of
+ *  a key becomes its primary at the next reload, not at its create.
+ *  Return NOT YOURS, or NULL when the topic has no pkey2s (one instance
+ *  per key, nothing to choose).
+ ***************************************************************************/
+PRIVATE json_t *newest_instance_of_key(json_t *tranger, json_t *node)
+{
+    const char *treedb_name = node_md_str(node, "treedb_name");
+    const char *topic_name = node_md_str(node, "topic_name");
+    const char *id = json_string_value(json_object_get(node, "id"));
+    if(!treedb_name || !topic_name || !id) {
+        return NULL;    // not a pure node: its save refuses it, logged
+    }
+    json_t *topic_desc = json_object_get(json_object_get(tranger, "topics"), topic_name);
+    if(json_array_size(json_object_get(topic_desc, "pkey2s")) == 0) {
+        return NULL;
+    }
+
+    json_t *newest = NULL;
+    json_int_t newest_rowid = -1;
+    json_t *instances = key_instances(tranger, treedb_name, topic_name, id, node);
+    int idx; json_t *instance;
+    json_array_foreach(instances, idx, instance) {
+        json_int_t g_rowid = json_integer_value(
+            json_object_get(json_object_get(instance, "__md_treedb__"), "g_rowid")
+        );
+        if(g_rowid > newest_rowid) {
+            newest_rowid = g_rowid;
+            newest = instance;
+        }
+    }
+    JSON_DECREF(instances)
+    return newest;  // the indexes hold it
+}
+
+/***************************************************************************
+ *  NEWEST: a write that saves instances of a key it was not asked to write
+ *  -- the unrefs of an unlink or of a forced delete, the children a forced
+ *  delete unlinks, the saves that take them back -- leaves the newest
+ *  record of that key on the instance that wrote it before. A reload takes
+ *  the newest record for the primary: an instance saved last by such a
+ *  write became the primary at the next open, and the primary lost its
+ *  links (after 7.25.4, when the delete began to save the instances that
+ *  no hook holds; the children of a forced delete, since before).
+ *
+ *  remember_newest() notes, once per key and before the first save of
+ *  the write, which instance that is; save_newest_again() writes its
+ *  record again, last, when another instance of its key wrote a newer
+ *  one since. `newest` is {topic_name: {id: instance}}.
+ *
+ *  With a snap active the newest record of a key may be one memory does
+ *  not hold (written after the shot): the instance kept is then the
+ *  newest of the ones loaded, as any write from inside a snap descends
+ *  from the photo.
+ ***************************************************************************/
+PRIVATE void remember_newest(json_t *tranger, json_t *newest, json_t *instance)
+{
+    const char *topic_name = node_md_str(instance, "topic_name");
+    const char *id = json_string_value(json_object_get(instance, "id"));
+    if(!topic_name || !id) {
+        return;     // not a pure node: its save refuses it, logged
+    }
+    json_t *ids = json_object_get(newest, topic_name);
+    if(json_object_get(ids, id)) {
+        return;     // noted by the first save of the key
+    }
+    json_t *n = newest_instance_of_key(tranger, instance);
+    if(!n) {
+        return;     // one instance per key: its save leaves it the newest
+    }
+    if(!ids) {
+        ids = json_object();
+        json_object_set_new(newest, topic_name, ids);
+    }
+    json_object_set(ids, id, n);
+}
+
+/***************************************************************************
+ *  Write again the record of each instance remember_newest() noted, when
+ *  another instance of its key wrote a newer one since. The record is the
+ *  same, untagged, and no event is told: nothing of the node changes, only
+ *  which record of its key is the newest. Return -1 when one of them
+ *  cannot be written (logged), 0 otherwise.
+ ***************************************************************************/
+PRIVATE int save_newest_again(hgobj gobj, json_t *tranger, json_t *newest)
+{
+    int ret = 0;
+    const char *topic_name; json_t *ids;
+    json_object_foreach(newest, topic_name, ids) {
+        const char *id; json_t *instance;
+        json_object_foreach(ids, id, instance) {
+            if(newest_instance_of_key(tranger, instance) == instance) {
+                continue;
+            }
+            /*
+             *  An instance no index holds went with its key, or on its own
+             *  (a forced delete of a parent that its own key hangs from):
+             *  there is no newest record of it to keep
+             */
+            if(node_is_being_deleted(instance) ||
+                    !node_is_indexed(
+                        tranger, node_md_str(instance, "treedb_name"), topic_name, id, instance
+                    )) {
+                continue;
+            }
+            if(append_node_record(gobj, tranger, topic_name, instance, 0)<0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "Cannot write again the newest record of a key: at the next open another instance of it is the primary",
+                    "topic_name",   "%s", topic_name,
+                    "id",           "%s", id,
+                    NULL
+                );
+                ret = -1;
+            }
+        }
+    }
+    return ret;
+}
+
+/***************************************************************************
  *  UNREF: an instance of a child whose fkey column stops naming a parent
  *  that no longer holds it -- its sibling was unlinked from that parent
  *  (treedb_unlink_nodes()), or the parent is deleted (delete_node()).
@@ -9037,9 +9162,30 @@ PRIVATE void unref_instance(
 }
 
 /***************************************************************************
+ *  Is the instance of `unrefs[i]` unref'd again by a later unref (another
+ *  hook, or another column, of the same parent)? Its save is that one's.
+ ***************************************************************************/
+PRIVATE BOOL unref_instance_later(json_t *unrefs, size_t i)
+{
+    json_t *instance = json_array_get(json_array_get(unrefs, i), 0);
+    size_t size = json_array_size(unrefs);
+    for(size_t j = i + 1; j < size; j++) {
+        if(json_array_get(json_array_get(unrefs, j), 0) == instance) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  Put back in memory what unref_instance() changed, the last unref first,
- *  and save again the ones save_unrefs() had saved. Return how many could
- *  not be put back (each one logged). `unrefs` is left empty.
+ *  then save again the instances save_unrefs() had saved, in the order it
+ *  saved them, each one once: saved in the reverse order, the first
+ *  instance unref'd wrote the newest record of its key. The caller puts
+ *  that record back on the instance that held it before the write
+ *  (save_newest_again()).
+ *  Return how many could not be put back (each one logged). `unrefs` is
+ *  left empty.
  ***************************************************************************/
 PRIVATE int take_back_unrefs(hgobj gobj, json_t *tranger, json_t *unrefs)
 {
@@ -9050,7 +9196,6 @@ PRIVATE int take_back_unrefs(hgobj gobj, json_t *tranger, json_t *unrefs)
         const char *col_name = json_string_value(json_array_get(unref, 1));
         json_t *before = json_array_get(unref, 2);
         json_t *holders = json_array_get(unref, 3);
-        BOOL saved = json_is_true(json_array_get(unref, 4));
         const char *ref = json_string_value(json_array_get(unref, 5));
         const char *hook_name = json_string_value(json_array_get(unref, 6));
 
@@ -9061,14 +9206,23 @@ PRIVATE int take_back_unrefs(hgobj gobj, json_t *tranger, json_t *unrefs)
             kept.other_holders = holders;   // borrowed, not released
             failed += put_child_back_in_other_instances(gobj, &kept, ref, hook_name, instance);
         }
-        if(saved && treedb_save_node(tranger, instance)<0) {
+    }
+
+    size_t size = json_array_size(unrefs);
+    for(size_t i = 0; i < size; i++) {
+        json_t *unref = json_array_get(unrefs, i);
+        json_t *instance = json_array_get(unref, 0);
+        if(!json_is_true(json_array_get(unref, 4)) || unref_instance_later(unrefs, i)) {
+            continue;
+        }
+        if(treedb_save_node(tranger, instance)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "A write taken back cannot save again an instance that stopped naming a parent: on disk it names it no more",
                 "topic_name",   "%s", node_md_str(instance, "topic_name"),
                 "id",           "%s", kw_get_str(gobj, instance, "id", "", 0),
-                "ref",          "%s", ref,
+                "ref",          "%s", json_string_value(json_array_get(unref, 5)),
                 NULL
             );
             failed++;
@@ -9079,19 +9233,29 @@ PRIVATE int take_back_unrefs(hgobj gobj, json_t *tranger, json_t *unrefs)
 }
 
 /***************************************************************************
- *  Save every instance unref_instance() changed. When a save fails, all of
+ *  Save every instance unref_instance() changed, in the order of the
+ *  unrefs, each one once (at its last unref). When a save fails, all of
  *  them are put back (take_back_unrefs()), and -1 is returned (logged).
  ***************************************************************************/
 PRIVATE int save_unrefs(hgobj gobj, json_t *tranger, json_t *unrefs)
 {
-    int idx; json_t *unref;
-    json_array_foreach(unrefs, idx, unref) {
-        if(treedb_save_node(tranger, json_array_get(unref, 0))<0) {
+    size_t size = json_array_size(unrefs);
+    for(size_t i = 0; i < size; i++) {
+        if(unref_instance_later(unrefs, i)) {
+            continue;
+        }
+        json_t *instance = json_array_get(json_array_get(unrefs, i), 0);
+        if(treedb_save_node(tranger, instance)<0) {
             // Error already logged
             take_back_unrefs(gobj, tranger, unrefs);    // Errors already logged
             return -1;
         }
-        json_array_set_new(unref, 4, json_true());
+        for(size_t j = 0; j <= i; j++) {
+            json_t *unref = json_array_get(unrefs, j);
+            if(json_array_get(unref, 0) == instance) {
+                json_array_set_new(unref, 4, json_true());
+            }
+        }
     }
     return 0;
 }
@@ -9556,6 +9720,7 @@ PRIVATE int delete_node(
     BOOL node_write_open = FALSE;
     json_t *instances = key_instances(tranger, treedb_name, topic_name, id, node);
     json_t *unhooked = NULL;            // the other instances taken out of the hooks of their parents
+    json_t *newest = json_object();     // the newest instance of each key the delete saves
 
     /*-------------------------------*
      *      Childs
@@ -9564,7 +9729,10 @@ PRIVATE int delete_node(
      *  name the key and that no hook holds (key_named_by_unheld_instances(),
      *  only in child topics with pkey2s): both are down links. Forced,
      *  those instances stop naming it first, each one saved (unrefs),
-     *  then the children are unlinked.
+     *  then the children are unlinked. None of those saves is a write the
+     *  caller asked of the child: the newest record of each key they
+     *  touch stays on the instance that wrote it before (see
+     *  remember_newest()).
      *-------------------------------*/
     size_t n_down = count_key_children(gobj, tranger, instances);
     json_t *named = key_named_by_unheld_instances(
@@ -9574,20 +9742,18 @@ PRIVATE int delete_node(
     if(n_down > 0 || json_array_size(named) > 0) {
         if(force && json_array_size(named) > 0) {
             /*
-             *  The primaries of their keys last: a save makes its record the
-             *  newest of the key, the one a reload takes for the primary
+             *  The instance that wrote the newest record of its key last: a
+             *  reload takes that record for the primary, and saved last it
+             *  stays the newest with no second write (save_newest_again()
+             *  writes it again when it is not among them)
              */
             unrefs = json_array();
             for(int pass = 0; pass < 2; pass++) {
                 int idx0; json_t *jn_named;
                 json_array_foreach(named, idx0, jn_named) {
                     json_t *instance = json_array_get(jn_named, 0);
-                    BOOL is_primary = treedb_get_node(
-                        tranger, treedb_name,
-                        node_md_str(instance, "topic_name"),
-                        json_string_value(json_object_get(instance, "id"))
-                    ) == instance;
-                    if(is_primary != (pass == 1)) {
+                    BOOL is_newest = newest_instance_of_key(tranger, instance) == instance;
+                    if(is_newest != (pass == 1)) {
                         continue;
                     }
                     unref_instance(
@@ -9599,6 +9765,10 @@ PRIVATE int delete_node(
                         unrefs
                     );
                 }
+            }
+            int idx4; json_t *unref;
+            json_array_foreach(unrefs, idx4, unref) {
+                remember_newest(tranger, newest, json_array_get(unref, 0));
             }
             if(save_unrefs(gobj, tranger, unrefs)<0) {
                 to_delete = FALSE;  // Error already logged, the unrefs taken back
@@ -9693,6 +9863,9 @@ PRIVATE int delete_node(
             if(hold.owner && hold.treedb) {
                 events_muted_treedb = hold.treedb;
                 muted = TRUE;
+            }
+            for(size_t i = 0; i < n_children; i++) {
+                remember_newest(tranger, newest, unlinked[i].child);
             }
             for(size_t i = 0; i < n_children; i++) {
                 json_t *child = unlinked[i].child;
@@ -9793,6 +9966,15 @@ PRIVATE int delete_node(
     }
     JSON_DECREF(up_refs)
 
+    /*-------------------------------*
+     *  The children saved, and the
+     *  unrefs: the newest record of
+     *  each of their keys where it was
+     *-------------------------------*/
+    if(to_delete && save_newest_again(gobj, tranger, newest)<0) {
+        to_delete = FALSE;  // Error already logged
+    }
+
     /*-------------------------------------------------*
      *  Delete the record
      *  HACK this action is no-reversible
@@ -9820,7 +10002,9 @@ PRIVATE int delete_node(
         }
         json_t *stay = put_back_children(gobj, tranger, node, unlinked, n_unlinked);
         take_back_unrefs(gobj, tranger, unrefs);    // Errors already logged
+        save_newest_again(gobj, tranger, newest);   // Errors already logged
         JSON_DECREF(unrefs)
+        JSON_DECREF(newest)
         release_treedb_events(tranger, &hold, FALSE);
         tell_taken_events(gobj, tranger, treedb_name, stay);
         for(size_t i = 0; muted && i < n_unlinked; i++) {
@@ -9839,6 +10023,7 @@ PRIVATE int delete_node(
     }
     JSON_DECREF(unhooked)
     JSON_DECREF(unrefs)
+    JSON_DECREF(newest)
 
     /*-------------------------------*
      *  Deleted: the unlinks stay held, told below
@@ -11293,7 +11478,10 @@ PRIVATE int _link_nodes(
  *  key, so the unlink of an instance of the child finds, in the hook of
  *  the parent's instance that holds the child:
  *    - ANOTHER instance of the child: it names the parent itself (a link
- *      made through it, or inherited at its create), and it stays;
+ *      made through it, or inherited at its create). A relink (the move
+ *      of the instance given, unlink_child_from_parent_ref()) leaves it
+ *      there; a direct unlink (treedb_unlink_nodes()) takes it out next,
+ *      with every other instance of the key (unref_other_child_instances());
  *    - nothing of the child, when the instance unlinked is not the primary
  *      of its key: an instance inherits the fkeys of the primary at its
  *      create, and no hook takes it while the primary is there.
@@ -12952,11 +13140,18 @@ PUBLIC int treedb_unlink_nodes(
     /*----------------------------*
      *  The link undone is the KEY's: the other instances of the child
      *  that name the parent stop naming it too, each one saved, before
-     *  the child -- whose record stays the newest of its key.
+     *  the child -- whose record stays the newest of its key. An unlink
+     *  that does not go puts them back, and the newest record of the key
+     *  where it was before (remember_newest()).
      *----------------------------*/
     json_t *unrefs = NULL;
+    json_t *newest = NULL;
     if(ret == 0) {
         unrefs = unref_other_child_instances(gobj, tranger, hook_name, parent_node, child_node);
+        if(json_array_size(unrefs) > 0) {
+            newest = json_object();
+            remember_newest(tranger, newest, child_node);
+        }
         if(unrefs && save_unrefs(gobj, tranger, unrefs)<0) {
             ret = -1;   // Error already logged, the unrefs taken back
         }
@@ -12975,9 +13170,13 @@ PUBLIC int treedb_unlink_nodes(
     if(ret < 0) {
         restore_node(gobj, tranger, child_node, &write);
         take_back_unrefs(gobj, tranger, unrefs);    // Errors already logged
+        if(newest) {
+            save_newest_again(gobj, tranger, newest);   // Errors already logged
+        }
     }
     close_node_write(gobj, tranger, &write, ret == 0);
     JSON_DECREF(unrefs)
+    JSON_DECREF(newest)
     return ret;
 }
 
@@ -18198,10 +18397,10 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
          *    the new snap would overwrite the older snap's tag and
          *    activate-snap(older) would lose those records.
          *
-         *  Either way the node's metadata ends on the record a
-         *  reload would pick: the clone is the newest record, so
-         *  it IS the primary after a reload, and what memory says
-         *  of g_rowid, i_rowid and the immutable bit must be it.
+         *  Either way the node's metadata ends on the record of
+         *  the node a reload would pick: the clone is its newest
+         *  record, and what memory says of g_rowid, i_rowid and
+         *  the immutable bit must be it.
          *  The tag stamped here marks the record this snap froze;
          *  a later save does not inherit it (see treedb_save_node).
          *------------------------------------------------------*/
@@ -18227,7 +18426,16 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
                  *  Already tagged by another snap → clone via append.
                  *  The cloned record carries the new snap's tag; the
                  *  original record keeps its previous snap tag.
+                 *
+                 *  When another instance of the key wrote a newer record
+                 *  than the primary (a new instance: it becomes the
+                 *  primary at the next reload), that record is written
+                 *  again after the clone, untagged: a shot does not
+                 *  choose the primary of the next reload. The clone was
+                 *  the newest record, and the new instance lost to the
+                 *  photo (up to 7.25.4).
                  *------------------------------------------------------*/
+                json_t *newer = newest_instance_of_key(tranger, node);
                 if(append_node_record(gobj, tranger, topic_name, node, (uint16_t)user_flag)<0) {
                     ret += -1;
                     gobj_log_critical(gobj, 0,
@@ -18238,6 +18446,18 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
                         "key",          "%s", key,
                         "snap",         "%s", snap_name,
                         "existing_tag", "%d", (int)existing_tag,
+                        NULL
+                    );
+                } else if(newer && newer != node &&
+                        append_node_record(gobj, tranger, topic_name, newer, 0)<0) {
+                    ret += -1;
+                    gobj_log_critical(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_TREEDB,
+                        "msg",          "%s", "Cannot write again the newest record of a key after its clone: at the next reload the photo is its primary",
+                        "topic_name",   "%s", topic_name,
+                        "key",          "%s", key,
+                        "snap",         "%s", snap_name,
                         NULL
                     );
                 }

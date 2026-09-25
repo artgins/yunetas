@@ -38,8 +38,9 @@ record) is the job of `treedb_delete_node()`.
    the newest row. (7.25.4 answered `0`, and the instance came back older.)
 
 5. `delete_instance` / `delete_node` with LINKS (schema `schema_links.c`:
-   `parents` and `kids`, both with a pkey2, linked by a LIST hook and a DICT
-   hook). Each one has its own database and reopens it at the end:
+   `parents` and `kids`, both with a pkey2, linked by a LIST hook, a DICT
+   hook over a list fkey and a DICT hook over a string fkey). Each one has its
+   own database and reopens it at the end:
    - `a delete of a parent sees the children of every instance`: a child of
      the NON-primary instance P/v2 refuses a delete of P without force; with
      force it is unlinked and saved. 7.25.4 deleted P and left the child
@@ -77,6 +78,22 @@ record) is the job of `treedb_delete_node()`.
      `defaulted` has a pkey2 with a default (v0); a create without it is the
      instance d/v0 in memory, is updated and saved, and is d/v0 after the
      reopen. 7.25.4 filled the slot of the kw's value, "".
+   - `a forced delete keeps the newest record of each key it saves`: the
+     instances a forced delete of P saves (one no hook holds, the child it
+     unlinks) leave the newest record of their key on the instance that wrote
+     it before: a/v1 moved to Q stays the primary, in Q, and a new instance
+     a/v2 stays the primary of the next reload. The delete made the last
+     instance it saved the primary after the reopen.
+   - `a delete taken back keeps the newest record of each key`: the same with
+     P's key read-only; the refused delete saves a/v2 back, and a/v1 writes
+     the newest record again.
+   - `a relink through a dict hook keeps the sibling instance`: b/v2 moved
+     from P to Q through `pets` (a dict hook over a string fkey) leaves b/v1 in
+     P's dict hook, naming P. 7.25.4 dropped the slot by id.
+   - `a shot keeps the newest record of each key`: a shot that clones the
+     record of a/v1 (tagged by an earlier snap) writes the record of the new
+     instance a/v2 again after the clone: a/v2 is the primary after the
+     reopen, a/v1 with the snap active. 7.25.4 left the clone the newest.
 
 ## Run
 

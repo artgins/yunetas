@@ -973,6 +973,10 @@ PRIVATE size_t l_up_refs(json_t *node)
         n++;
     }
     n += json_array_size(json_object_get(node, "tags"));
+    const char *owner = json_string_value(json_object_get(node, "owner"));
+    if(!empty_string(owner)) {
+        n++;
+    }
     return n;
 }
 
@@ -1846,12 +1850,17 @@ PRIVATE int test_create_indexes_default_pkey2(void)
 }
 
 /***************************************************************************
- *  The fkeys an instance of the child names, as a string: "parent|tags"
+ *  Does an fkey of the instance of the child (parent, tags, owner) name
+ *  the parent ref `ref`?
  ***************************************************************************/
 PRIVATE BOOL l_names(json_t *node, const char *ref)
 {
     const char *parent = json_string_value(json_object_get(node, "parent"));
     if(parent && strcmp(parent, ref)==0) {
+        return TRUE;
+    }
+    const char *owner = json_string_value(json_object_get(node, "owner"));
+    if(owner && strcmp(owner, ref)==0) {
         return TRUE;
     }
     size_t idx; json_t *v;
@@ -2034,17 +2043,19 @@ PRIVATE int test_forced_delete_leaves_no_ref_in_any_instance(void)
     result += test_json(NULL);
 
     /*
-     *  Reopen: no record of a names P, and a/v1 -- saved last -- is the
-     *  primary
+     *  Reopen: no record of a names P, and a/v2 -- which wrote the newest
+     *  record of a before the delete -- is the primary, as it is without
+     *  the delete (the child unlinked last, a/v1, was, until its fix after
+     *  7.25.4: see test_forced_delete_keeps_the_newest_record())
      */
     set_expected_results(test, NULL, NULL, NULL, 1);
     tranger = open_links_db(path_root, DB);
     json_t *a = l_node(tranger, L_KIDS, "a");
-    result += l_check(a && strcmp(kw_get_str(0, a, "version", "", 0), "v1") == 0,
-        "a/v1 is not the primary after the reopen");
-    result += l_check(l_up_refs(a) == 0, "after the reopen a/v1 names the deleted P");
-    result += l_check(l_up_refs(l_instance(tranger, L_KIDS, "a", "v2")) == 0,
-        "after the reopen a/v2 names the deleted P");
+    result += l_check(a && strcmp(kw_get_str(0, a, "version", "", 0), "v2") == 0,
+        "a/v2 is not the primary after the reopen");
+    result += l_check(l_up_refs(a) == 0, "after the reopen a/v2 names the deleted P");
+    result += l_check(l_up_refs(l_instance(tranger, L_KIDS, "a", "v1")) == 0,
+        "after the reopen a/v1 names the deleted P");
     close_links_db(tranger);
     result += test_json(NULL);
 
@@ -2476,6 +2487,255 @@ PRIVATE int test_unrefs_are_taken_back(void)
 }
 
 /***************************************************************************
+ *  A forced delete of a parent leaves the newest record of each key it
+ *  saves on the instance that wrote it before: a reload takes the newest
+ *  record for the primary.
+ *
+ *  1. a/v1 hangs from P, a/v2 inherits the ref, and a/v1 is moved to Q:
+ *     a/v1 wrote the newest record of a. The forced delete of P saved
+ *     a/v2 (it named P, no hook held it), the newest record: after the
+ *     reopen a/v2 was the primary, and Q held nothing (after 7.25.4).
+ *  2. a/v1 hangs from P, and a/v2 is created after it: a/v2 wrote the
+ *     newest record, the primary of the next open. The forced delete saved
+ *     a/v2, then unlinked a/v1 and saved it: after the reopen a/v1 was the
+ *     primary, the new instance lost (up to 7.25.4 too).
+ ***************************************************************************/
+PRIVATE int test_forced_delete_keeps_the_newest_record(void)
+{
+    int result = 0;
+    const char *test = "a forced delete keeps the newest record of each key it saves";
+
+    /*
+     *  1. An instance P does not hold
+     */
+    const char *DB = "tr_delete_instance_links_r20a";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    json_t *P = l_create(tranger, L_PARENTS, "P", "v1");
+    json_t *Q = l_create(tranger, L_PARENTS, "Q", "v1");
+    l_create(tranger, L_KIDS, "a", "v1");
+    json_t *a1 = l_node(tranger, L_KIDS, "a");
+    result += l_check(treedb_link_nodes(tranger, "kids", P, a1) == 0, "cannot link P <- a/v1");
+    l_create(tranger, L_KIDS, "a", "v2");
+    result += l_check(treedb_link_nodes(tranger, "kids", Q, a1) == 0, "cannot move a/v1 to Q");
+    result += l_check(
+        l_names(l_instance(tranger, L_KIDS, "a", "v2"), "parents^P^kids"),
+        "a/v2 does not name P"
+    );
+    result += l_check(treedb_delete_node(tranger, P, json_pack("{s:b}", "force", 1)) == 0,
+        "the forced delete was refused");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    json_t *a = l_node(tranger, L_KIDS, "a");
+    Q = l_node(tranger, L_PARENTS, "Q");
+    result += l_check(a && strcmp(kw_get_str(0, a, "version", "", 0), "v1") == 0,
+        "after the reopen a/v1 is not the primary");
+    result += l_check(l_names(a, "parents^Q^kids") && l_hook_holds(Q, "kids", a),
+        "after the reopen a does not hang from Q");
+    result += l_check(l_up_refs(l_instance(tranger, L_KIDS, "a", "v2")) == 0,
+        "after the reopen a/v2 names the deleted P");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    /*
+     *  2. A child P holds, and a new instance of it
+     */
+    DB = "tr_delete_instance_links_r20b";
+    tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    P = l_create(tranger, L_PARENTS, "P", "v1");
+    l_create(tranger, L_KIDS, "a", "v1");
+    a1 = l_node(tranger, L_KIDS, "a");
+    result += l_check(treedb_link_nodes(tranger, "kids", P, a1) == 0, "cannot link P <- a/v1");
+    l_create(tranger, L_KIDS, "a", "v2");
+    result += l_check(treedb_delete_node(tranger, P, json_pack("{s:b}", "force", 1)) == 0,
+        "the forced delete was refused");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    a = l_node(tranger, L_KIDS, "a");
+    result += l_check(a && strcmp(kw_get_str(0, a, "version", "", 0), "v2") == 0,
+        "after the reopen the new instance a/v2 is not the primary");
+    result += l_check(l_up_refs(a) == 0, "after the reopen a/v2 names the deleted P");
+    result += l_check(l_up_refs(l_instance(tranger, L_KIDS, "a", "v1")) == 0,
+        "after the reopen a/v1 names the deleted P");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  A forced delete that is refused, and taken back, leaves the newest
+ *  record of each key where it was.
+ *
+ *  a/v1 hangs from P, a/v2 inherits the ref, and a/v1 is moved to Q: a/v1
+ *  wrote the newest record of a. The forced delete of P saves a/v2 naming
+ *  P no more, then cannot delete P's key (read-only): a/v2 names P again,
+ *  saved. That save was the newest record of a: after the reopen a/v2 was
+ *  the primary, and Q held nothing (after 7.25.4).
+ ***************************************************************************/
+PRIVATE int test_taken_back_delete_keeps_the_newest_record(void)
+{
+    int result = 0;
+    const char *test = "a delete taken back keeps the newest record of each key";
+    const char *DB = "tr_delete_instance_links_r20c";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test,
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "remove() FAILED",
+            "msg", "Cannot delete subdir key. rmrdir() FAILED",
+            "msg", "Cannot delete node"),
+        NULL, NULL, 1);
+    json_t *P = l_create(tranger, L_PARENTS, "P", "v1");
+    json_t *Q = l_create(tranger, L_PARENTS, "Q", "v1");
+    l_create(tranger, L_KIDS, "a", "v1");
+    json_t *a1 = l_node(tranger, L_KIDS, "a");
+    result += l_check(treedb_link_nodes(tranger, "kids", P, a1) == 0, "cannot link P <- a/v1");
+    l_create(tranger, L_KIDS, "a", "v2");
+    json_t *a2 = l_instance(tranger, L_KIDS, "a", "v2");
+    result += l_check(treedb_link_nodes(tranger, "kids", Q, a1) == 0, "cannot move a/v1 to Q");
+
+    mode_t mode = 0;
+    result += chmod_links_key_dir(DB, L_PARENTS, "P", 0550, &mode);
+    result += l_check(treedb_delete_node(tranger, P, json_pack("{s:b}", "force", 1)) < 0,
+        "the forced delete of P went, with a key that cannot be deleted");
+    result += chmod_links_key_dir(DB, L_PARENTS, "P", mode, NULL);
+    result += l_check(l_names(a2, "parents^P^kids"), "a/v2 does not name P again");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    json_t *a = l_node(tranger, L_KIDS, "a");
+    Q = l_node(tranger, L_PARENTS, "Q");
+    result += l_check(a && strcmp(kw_get_str(0, a, "version", "", 0), "v1") == 0,
+        "after the reopen a/v1 is not the primary");
+    result += l_check(l_names(a, "parents^Q^kids") && l_hook_holds(Q, "kids", a),
+        "after the reopen a does not hang from Q");
+    result += l_check(l_names(l_instance(tranger, L_KIDS, "a", "v2"), "parents^P^kids"),
+        "after the reopen a/v2 does not name P");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  A relink through a DICT hook over a STRING fkey of an instance whose
+ *  parent holds ANOTHER instance of it.
+ *
+ *  b/v1 hangs from P through `pets` (a dict hook, one slot per child id);
+ *  b/v2 inherits the ref, and P's slot holds b/v1. Moving b/v2 to Q takes
+ *  out of P's dict hook the instance it is given, by pointer: b/v1 stays
+ *  in P, naming it. The dict hook dropped the slot by id -- b/v1 with it
+ *  -- and logged "Child data not found in dict parent hook" (up to 7.25.4).
+ ***************************************************************************/
+PRIVATE int test_relink_through_a_dict_hook_keeps_the_sibling(void)
+{
+    int result = 0;
+    const char *test = "a relink through a dict hook keeps the sibling instance";
+    const char *DB = "tr_delete_instance_links_r20d";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    json_t *P = l_create(tranger, L_PARENTS, "P", "v1");
+    json_t *Q = l_create(tranger, L_PARENTS, "Q", "v1");
+    l_create(tranger, L_KIDS, "b", "v1");
+    json_t *b1 = l_node(tranger, L_KIDS, "b");
+    result += l_check(treedb_link_nodes(tranger, "pets", P, b1) == 0, "cannot link P <- b/v1 (pets)");
+    l_create(tranger, L_KIDS, "b", "v2");
+    json_t *b2 = l_instance(tranger, L_KIDS, "b", "v2");
+    result += l_check(l_names(b2, "parents^P^pets"), "b/v2 did not inherit the ref of b/v1");
+    result += l_check(l_hook_holds(P, "pets", b1) && !l_hook_holds(P, "pets", b2),
+        "P's dict hook does not hold b/v1 alone");
+
+    result += l_check(treedb_link_nodes(tranger, "pets", Q, b2) == 0, "cannot move b/v2 to Q");
+    result += l_check(l_names(b2, "parents^Q^pets") && l_hook_holds(Q, "pets", b2),
+        "b/v2 did not move to Q");
+    result += l_check(l_names(b1, "parents^P^pets") && l_hook_holds(P, "pets", b1),
+        "the move of b/v2 took b/v1 from P's dict hook");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    /*
+     *  Reopen: b/v2, moved last, is the primary, in Q
+     */
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    json_t *b = l_node(tranger, L_KIDS, "b");
+    result += l_check(b && strcmp(kw_get_str(0, b, "version", "", 0), "v2") == 0,
+        "after the reopen b/v2 is not the primary");
+    result += l_check(l_hook_holds(l_node(tranger, L_PARENTS, "Q"), "pets", b),
+        "after the reopen Q does not hold b");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  A shot of a snap does not choose the primary of the next reload.
+ *
+ *  a/v1 is tagged by s1; a/v2 is created after it, the newest record of
+ *  a, the primary of the next reload. The shot of s2 clones the record of
+ *  a/v1, tagged by s1, with the tag of s2: the clone was the newest
+ *  record, and after the reopen a/v1 was the primary again (up to 7.25.4).
+ *  The record of a/v2 is written again after the clone now. Activating s2
+ *  still gives the photo: a/v1.
+ ***************************************************************************/
+PRIVATE int test_shot_keeps_the_newest_record(void)
+{
+    int result = 0;
+    const char *test = "a shot keeps the newest record of each key";
+    const char *DB = "tr_delete_instance_links_r20e";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    l_create(tranger, L_KIDS, "a", "v1");
+    result += l_check(treedb_shoot_snap(tranger, L_TREEDB, "s1", "first") == 0, "cannot shoot s1");
+    l_create(tranger, L_KIDS, "a", "v2");
+    result += l_check(treedb_shoot_snap(tranger, L_TREEDB, "s2", "second") == 0, "cannot shoot s2");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    json_t *a = l_node(tranger, L_KIDS, "a");
+    result += l_check(a && strcmp(kw_get_str(0, a, "version", "", 0), "v2") == 0,
+        "after the reopen the new instance a/v2 is not the primary");
+    result += l_check(treedb_activate_snap(tranger, L_TREEDB, "s2") >= 0, "cannot activate s2");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(test,
+        json_pack("[{s:s}]", "msg", "loading snap_tag 2"),
+        NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    a = l_node(tranger, L_KIDS, "a");
+    result += l_check(a && strcmp(kw_get_str(0, a, "version", "", 0), "v1") == 0,
+        "with s2 active a/v1 is not the primary");
+    result += l_check(treedb_activate_snap(tranger, L_TREEDB, "__clear__") >= 0,
+        "cannot deactivate s2");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *              do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -2651,6 +2911,10 @@ int main(int argc, char *argv[])
     result += test_save_keeps_the_primary_in_its_slot();
     result += test_gc_holds_the_asset_of_an_instance();
     result += test_unrefs_are_taken_back();
+    result += test_forced_delete_keeps_the_newest_record();
+    result += test_taken_back_delete_keeps_the_newest_record();
+    result += test_relink_through_a_dict_hook_keeps_the_sibling();
+    result += test_shot_keeps_the_newest_record();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

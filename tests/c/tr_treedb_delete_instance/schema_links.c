@@ -2,7 +2,9 @@
 
 /*
  *  Two topics with a pkey2 ("version"), linked by a LIST hook
- *  (parents.kids <- kids.parent) and a DICT hook (parents.tags <- kids.tags).
+ *  (parents.kids <- kids.parent), a DICT hook over a list fkey
+ *  (parents.tags <- kids.tags) and a DICT hook over a string fkey
+ *  (parents.pets <- kids.owner).
  *  Used to exercise treedb_delete_instance() and treedb_delete_node() on
  *  nodes whose instances hang from, or hold, other nodes.
  *
@@ -43,6 +45,14 @@ static char schema_links[]= "\
                     'hook': {                                       \n\
                         'kids': 'tags'                              \n\
                     }                                               \n\
+                },                                                  \n\
+                'pets': {                                           \n\
+                    'header': 'Pets',                               \n\
+                    'type': 'object',                               \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'kids': 'owner'                             \n\
+                    }                                               \n\
                 }                                                   \n\
             }                                                       \n\
         },                                                          \n\
@@ -70,6 +80,11 @@ static char schema_links[]= "\
                 'tags': {                                           \n\
                     'header': 'Tags',                               \n\
                     'type': 'array',                                \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'owner': {                                          \n\
+                    'header': 'Owner',                              \n\
+                    'type': 'string',                               \n\
                     'flag': ['fkey']                                \n\
                 },                                                  \n\
                 'note': {                                           \n\
