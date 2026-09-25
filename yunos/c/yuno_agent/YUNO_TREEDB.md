@@ -557,7 +557,15 @@ Six things to notice:
    holds it -- the record would be a new instance on disk, and changed onto
    the value of the primary, the save re-pointed the primary's slot to it.
    And a create indexes the value its record holds (a column's `default`),
-   not the raw value of its kw.
+   not the raw value of its kw. **Two more cases keep it after 7.25.4**:
+   with more than one pkey2, a save of an instance no longer takes a slot
+   the primary holds (the values they share); and a create that makes the
+   primary of a key that had instances and no primary -- what a snap active
+   shows of a key created after it: the id index holds what the snap tagged,
+   the secondary indexes are not filtered -- takes the slot of its value,
+   where the slot kept the loaded object, a second one of the same instance
+   (C_NODE's delete of it then tombstoned the rows through that object before
+   the delete of the key was refused).
 3. **`schema_version`** and **`topic_version`** — these are different.
    Schema is the overall layout. Topic is per-topic. **Raise
    `topic_version` every time you change `cols`** — §3.5.
@@ -1173,7 +1181,11 @@ from inside the snap, that newest record is the one that descends from the
 photo — which is the point of having worked there. And the versions installed
 in between are still addressable, because the secondary indexes never
 filtered: that is how the agent moves forward again, re-appending the highest
-release with `promote_highest_release_yunos()`.
+release with `promote_highest_release_yunos()`. So a key CREATED after the
+snap has instances and no primary while the snap is active: its delete takes
+the key whole, quietly (it logged *"delete_primary_node() FAILED"* up to
+7.25.4), and a create of one of its instances makes the primary and takes the
+slot of that value (see the invariant in §3.2).
 
 #### What a snap protects
 
@@ -1215,6 +1227,11 @@ bytes of an asset a shot record names.
   cannot tell which assets a snapshot links"*, and `gc-assets` answers -1), the
   delete answers -1 (*"cannot delete asset, cannot tell whether a snapshot
   links it"*). Until 7.25.4 the gc took the blob a snapshot needed.
+- The gc holds what a LIVE instance names, not only what the hooks show. After
+  a reopen only the primaries are linked, so it also reads the `file` columns
+  of every node the secondary indexes hold. Up to 7.25.4 it took the asset of
+  an instance that is not the primary, and the reload said *"Node not found"*
+  once that instance was the newest record of its key.
 - The gc also refuses while a snap is ACTIVE in any treedb of the tranger:
   the nodes in memory are the snap's photo, and the asset of a node written
   after the snap read as linked by nobody (*"gc refused: a snap is active,
@@ -1264,6 +1281,50 @@ old release and of the new one. Three rules keep that consistent (the first two 
   children, and the parents, of every instance of the key, not only of the
   one it is given. And `treedb_save_node()` refuses a node that no index
   holds, whatever path kept a pointer to it.
+
+#### A parent named by several instances of its child
+
+The other way round has the same root. A child's fkey names the parent's KEY,
+and a new instance of the child inherits the fkeys of the primary at its
+create (`inherit_links()`), while a hook holds ONE object per child id: so the
+other instances of a child name the parent too, and no hook holds them. Three
+rules (after 7.25.4):
+
+- **An unlink undoes the link of the child's key.** `treedb_unlink_nodes()`
+  clears the ref in every other instance of the child and saves each one,
+  before the child (the primary of the key last among them): a save makes its
+  record the newest of the key, the one a reload takes for the primary. A save
+  that fails puts all of them back. Not for a `file` column: an asset is what
+  each instance holds, its own. Up to 7.25.4 the other instances kept the ref,
+  and the reload hung the child from that parent again once one of them was
+  the newest record.
+- **A delete of the parent sees them.** Without `force` an instance of a child
+  that names the key refuses the delete, held by a hook or not (*"Cannot
+  delete node: has down links"*, with `unheld_instances`); with `force` it
+  stops naming the key, saved. They are looked for in the secondary indexes of
+  the child topics that have pkey2s, so a delete of a parent whose children
+  have none walks nothing more. Up to 7.25.4 the delete went without `force`
+  and they named a node that is gone (*"Node not found"* at the reopen), and a
+  forced delete saved a child it unlinked through one hook with its ref of
+  another hook still there.
+- **A sibling instance is not a lost child.** The unlink of an instance that
+  the parent's hook does not hold -- the hook holds another instance of the
+  child, which names the parent itself and stays, or nothing, for an instance
+  that is not the primary -- is not an error. A relink of such an instance
+  logged *"Child data not found in dict parent hook"* (of a LIST hook) though
+  it went, and a dict hook dropped the other instance with it (up to 7.25.4).
+  The create of an instance of a child held through a list hook no longer
+  warns *"Duplicate fkey on load, deduping parent hook"*: the hook keeps the
+  instance it has, as a dict hook does.
+
+```C
+/*  a/v1 hangs from P; a/v2 is created after it, and inherits the ref  */
+treedb_unlink_nodes(tranger, "kids", P, a1);                   // 0: a/v1 and a/v2 name nobody
+
+/*  a/v1 moved to Q (a relink moves the instance it is given); a/v2 names P  */
+treedb_delete_node(tranger, P, json_object());                 // -1: has down links
+treedb_delete_node(tranger, P, json_pack("{s:b}", "force", 1)); // 0: a/v2 names nobody
+```
 
 ```C
 /*  the agent's shape (treedb_schema_yuneta_agent.c): a dict hook over
@@ -3299,7 +3360,10 @@ removes them with a warning (*"Parent ref names a hook that no longer
 exists"*, then *"Removing wrong fkey ref"*). Link those children again through
 the new hook if they are to keep their parent. Until after 7.24.1 that unlink
 failed on the missing hook, and the child could be neither relinked, cleaned
-nor deleted, even with `force`.
+nor deleted, even with `force`. In a STRING fkey column (`yunos.realm_id` is
+one) the warning said the ref was removed and it was not until after 7.25.4:
+`kw_set_dict_value()` did not write over a key that exists, so the clean and
+the forced delete still failed, for ever (*"Cannot clean the links"*).
 
 **Re-pointing a hook** to ANOTHER column of the child (the hook keeps its name,
 its map names a new fkey column) leaves the same kind of residue: the refs in

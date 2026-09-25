@@ -677,8 +677,20 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
 }
 
 /***************************************************************************
- *  Like json_object_set but with a path
- *  (doesn't create arrays, only objects)
+ *  Like json_object_set but with a path: the value is written at the
+ *  path, REPLACING what is there. The intermediate dicts the path needs are
+ *  created; lists are walked (a segment is an index) but never created.
+ *
+ *  It used to write only a key that did not exist, and to drop the value in
+ *  silence when the key was there, against this very comment and against
+ *  its gobj-js twin: every caller meant to overwrite. Among them the
+ *  `__username__` that C_IEVENT_SRV sets in what a peer sends -- a peer that
+ *  put its own `__username__` in the kw kept it -- and the stale fkey ref
+ *  that the treedb clears from a string column, which stayed for ever.
+ *
+ *  Return 0, or -1 (logged) when nothing could be written: `kw` is not a
+ *  dict, the path is empty, a segment is a scalar, or an index is not in
+ *  its list. The value is owned in every case.
  ***************************************************************************/
 PUBLIC int kw_set_dict_value(
     hgobj gobj,
@@ -707,85 +719,102 @@ PUBLIC int kw_set_dict_value(
             NULL
         );
         JSON_DECREF(value)
-        return 0;
+        return -1;
     }
 
     int list_size = 0;
-    const char **segments = split2(path, delimiter, &list_size);
+    const char **segments = split2(path?path:"", delimiter, &list_size);
+    if(list_size <= 0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "path empty",
+            "path",         "%s", path?path:"",
+            NULL
+        );
+        split_free2(segments);
+        JSON_DECREF(value)
+        return -1;
+    }
 
+    int ret = -1;
     json_t *v = kw;
-    BOOL fin = FALSE;
-    int i;
-    const char *segment = 0;
-    json_t *next = 0;
-    for(i=0; i<list_size && !fin; i++) {
-        segment = *(segments +i);
-        if(!v) {
+    for(int i=0; i<list_size; i++) {
+        const char *segment = *(segments +i);
+        BOOL last = (i == list_size-1)? TRUE : FALSE;
+
+        if(json_is_object(v)) {
+            if(last) {
+                if(json_object_set(v, segment, value)<0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "json_object_set() FAILED",
+                        "path",         "%s", path,
+                        "segment",      "%s", segment,
+                        NULL
+                    );
+                } else {
+                    ret = 0;
+                }
+                break;
+            }
+            json_t *next = json_object_get(v, segment);
+            if(!next) {
+                next = json_object();
+                json_object_set_new(v, segment, next);
+            }
+            v = next;
+
+        } else if(json_is_array(v)) {
+            int idx = atoi(segment);
+            json_t *next = json_array_get(v, (size_t)idx);
+            if(!next) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "path not found",
+                    "path",         "%s", path,
+                    "segment",      "%s", segment,
+                    "idx",          "%d", idx,
+                    NULL
+                );
+                gobj_trace_json(gobj, v, "path not found");
+                break;
+            }
+            if(last) {
+                if(json_array_set(v, (size_t)idx, value)<0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "json_array_set() FAILED",
+                        "path",         "%s", path,
+                        "segment",      "%s", segment,
+                        NULL
+                    );
+                } else {
+                    ret = 0;
+                }
+                break;
+            }
+            v = next;
+
+        } else {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "short path",
+                "msg",          "%s", "long path",
                 "path",         "%s", path,
                 "segment",      "%s", segment,
                 NULL
             );
             break;
         }
-
-        switch(json_typeof(v)) {
-        case JSON_OBJECT:
-            next = json_object_get(v, segment);
-            if(!next) {
-                if(i < list_size-1) {
-                    next = json_object();
-                    json_object_set_new(v, segment, next);
-                } else {
-                    json_object_set(v, segment, value);
-                }
-            }
-            v = next;
-            break;
-
-        case JSON_ARRAY:
-            {
-                int idx = atoi(segment);
-                next = json_array_get(v, (size_t)idx);
-                if(!next) {
-                    fin = TRUE;
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER,
-                        "msg",          "%s", "path not found",
-                        "path",         "%s", path,
-                        "segment",      "%s", segment,
-                        "idx",          "%d", idx,
-                        NULL
-                    );
-                    gobj_trace_json(gobj, v, "path not found");
-                }
-                v = next;
-            }
-            break;
-        default:
-            fin = TRUE;
-            break;
-        }
     }
 
-    if(i<list_size) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "long path",
-            "path",         "%s", path,
-            "segment",      "%s", segment,
-            NULL
-        );
-    }
     JSON_DECREF(value)
     split_free2(segments);
-
-    return 0;
+    return ret;
 }
 
 /***************************************************************************

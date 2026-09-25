@@ -1372,8 +1372,10 @@ PRIVATE int mt_delete_node(
      *  lookup of the PRIMARY's own value answers the primary node itself.
      *  The index keeps one node per (id, key2) and the slot of the
      *  primary's value names the primary: a create does not make a new
-     *  instance the primary, a save re-points the slot of its value (and
-     *  refuses a value changed in place), a load puts the primary in it.
+     *  instance the primary (and the create that makes the primary takes
+     *  the slot of its value), a save re-points the slot of its value but
+     *  never a slot the primary holds (and refuses a value changed in
+     *  place), a load puts the primary in it.
      *  So `node != main_node` is never the primary's instance, and a
      *  delete that names the primary's value reaches treedb_delete_node()
      *  alone, which takes every instance of the key -- or none, when it is

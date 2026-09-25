@@ -456,23 +456,36 @@ snap with a device holding photo C, shoot another, move the device to photo A
 — nothing live links C, the gc takes it — and then somebody activates the
 first snap, which loads the device as it was, holding C, and the link
 dangles. So "nothing links it" means *no live node, of any treedb of the
-tranger, and no instance an activation would load*, which turns the sweep from
-a walk over the in-memory hooks into a walk that also reads the record
-instances on disk. The derived hooks still say which columns to look at; what
-changes is how many versions of a node are asked.
+tranger, no instance of one in memory, and no instance an activation would
+load*, which turns the sweep from a walk over the in-memory hooks into a walk
+that also reads the record instances on disk. The derived hooks still say
+which columns to look at; what changes is how many versions of a node are
+asked.
+
+**A live instance is not in the hooks.** In a topic with pkey2s every
+instance of a key is a node of its own in memory, with its own `file`
+columns, and after a reopen only the primaries are linked: the hooks of
+`__assets__` show what the primaries name, not what the other instances do.
+So the gc also reads the `file` columns of every node the secondary indexes
+hold (`assets_named_by_instances()`). Up to 7.25.4 it did not, and took the
+asset of an instance that is not the primary -- the row and the bytes -- and
+once that instance was the newest record of its key, the reload said *"Node
+not found"*.
 
 **And "an instance an activation would load" is exact, not "any tagged
-instance".** Two facts of the snapshot subsystem decide it: `treedb_save_node()`
-INHERITS the node's tag, so after a snap every later instance of a node
-carries that tag too; and an activation loads, per key, the NEWEST instance
-carrying the snap's tag (`load_id_callback`: *"using backward, the first record
-is the last record"*). So the holding set is, for every snap that still exists,
-the newest instance per key under its tag — and only that one. A node that
-moves on under the same tag releases what its older instances named; what a
-snap freezes is the state a LATER snap cloned away from (`treedb_shoot_snap()`
-clones a node already tagged by another snap under the new tag, and the
-original keeps the old one). Held on every tagged instance instead, the gc
-would have kept for ever whatever a node ever named after its first snap.
+instance".** Two facts of the snapshot subsystem decide it: a record takes a
+snap's tag once, from `treedb_shoot_snap()` (in place, or on a clone when an
+earlier snap already tagged it), and never from a save -- `treedb_save_node()`
+writes every record untagged since 7.24.0 (inheriting the node's tag wrote
+each later save INTO the last snap, which then froze nothing); and an
+activation loads, per key, the NEWEST instance carrying the snap's tag
+(`load_id_callback`: *"using backward, the first record is the last record"*).
+So the holding set is, for every snap that still exists, the newest instance
+per key under its tag — and only that one: the record that snap froze, or the
+clone a later snap made of it (`treedb_shoot_snap()` clones a node already
+tagged by another snap under the new tag, and the original keeps the old
+one). Held on every tagged instance instead, the gc would have kept for ever
+whatever a node ever named under any snap.
 
 Two things follow from that:
 
@@ -485,7 +498,8 @@ Two things follow from that:
   here (above), so this walk is the whole of it. And a treedb with no snapshot
   does not walk at all.
 - **The gc takes exactly what nothing can reach**: no live copy in any treedb
-  of the tranger, and no instance any existing snap would load.
+  of the tranger, no instance of one in memory, and no instance any existing
+  snap would load.
 - **And it takes the bytes with NO row.** The blob goes down before the index
   node on purpose, so an interrupted write leaves bytes nothing names — and a
   `.tmp` that never reached its rename is the same thing. Every other reader

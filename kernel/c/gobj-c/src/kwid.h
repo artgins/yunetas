@@ -151,12 +151,14 @@ PUBLIC char kw_set_path_delimiter(char delimiter);
 PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose);
 
 /**rst**
-    Like json_object_set but with a path (doesn't create arrays, only objects)
+    Like json_object_set but with a path: the value REPLACES what the path
+    holds. Creates the dicts the path needs, never a list (a segment of a
+    list is an index). Return 0, or -1 (logged) when nothing was written.
 **rst**/
 PUBLIC int kw_set_dict_value(
     hgobj gobj,
     json_t *kw,
-    const char *path,   // The last word after delimiter (.) is the key
+    const char *path,   // The last word after delimiter (`) is the key
     json_t *value // owned
 );
 

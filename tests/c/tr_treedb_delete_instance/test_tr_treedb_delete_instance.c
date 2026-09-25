@@ -1846,6 +1846,636 @@ PRIVATE int test_create_indexes_default_pkey2(void)
 }
 
 /***************************************************************************
+ *  The fkeys an instance of the child names, as a string: "parent|tags"
+ ***************************************************************************/
+PRIVATE BOOL l_names(json_t *node, const char *ref)
+{
+    const char *parent = json_string_value(json_object_get(node, "parent"));
+    if(parent && strcmp(parent, ref)==0) {
+        return TRUE;
+    }
+    size_t idx; json_t *v;
+    json_array_foreach(json_object_get(node, "tags"), idx, v) {
+        if(json_is_string(v) && strcmp(json_string_value(v), ref)==0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  An unlink undoes the link of the child's KEY: the other instances of
+ *  the child, which name the parent (inherited at their create) and which
+ *  no hook holds, stop naming it too, each one saved.
+ *
+ *  a/v1 hangs from P through both hooks; a/v2 is created and inherits both
+ *  refs. The unlinks of a/v1 left a/v2 naming P (up to 7.25.4): a delete
+ *  of P without force went, a/v2 named a node that is gone, and once a/v2
+ *  was the newest record of a, a new P adopted a at the reopen.
+ ***************************************************************************/
+PRIVATE int test_unlink_clears_every_instance_of_the_child(void)
+{
+    int result = 0;
+    const char *test = "an unlink clears the ref in every instance of the child";
+    const char *DB = "tr_delete_instance_links_r19a";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    json_t *P = l_create(tranger, L_PARENTS, "P", "v1");
+    l_create(tranger, L_KIDS, "a", "v1");
+    json_t *a1 = l_node(tranger, L_KIDS, "a");
+    result += l_check(treedb_link_nodes(tranger, "kids", P, a1) == 0, "cannot link P <- a/v1 (kids)");
+    result += l_check(treedb_link_nodes(tranger, "tags", P, a1) == 0, "cannot link P <- a/v1 (tags)");
+    l_create(tranger, L_KIDS, "a", "v2");
+    json_t *a2 = l_instance(tranger, L_KIDS, "a", "v2");
+    result += l_check(a2 && a2 != a1, "a/v2 is not an instance of its own");
+    result += l_check(l_names(a2, "parents^P^kids") && l_names(a2, "parents^P^tags"),
+        "a/v2 did not inherit the refs of a/v1");
+
+    result += l_check(treedb_unlink_nodes(tranger, "kids", P, a1) == 0, "cannot unlink P <- a/v1 (kids)");
+    result += l_check(treedb_unlink_nodes(tranger, "tags", P, a1) == 0, "cannot unlink P <- a/v1 (tags)");
+    result += l_check(l_up_refs(a1) == 0, "a/v1 still names P");
+    result += l_check(l_up_refs(a2) == 0, "the unlink of a/v1 left a/v2 naming P");
+    result += l_check(l_hook_size(P, "kids") == 0 && l_hook_size(P, "tags") == 0,
+        "P still holds a child");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    /*
+     *  Reopen: a/v1 wrote the newest record of a, it stays the primary, and
+     *  no record of a names P
+     */
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    a1 = l_node(tranger, L_KIDS, "a");
+    result += l_check(a1 && strcmp(kw_get_str(0, a1, "version", "", 0), "v1") == 0,
+        "a/v1 is not the primary after the reopen");
+    result += l_check(l_up_refs(l_instance(tranger, L_KIDS, "a", "v2")) == 0,
+        "after the reopen a/v2 names P");
+    result += l_check(
+        treedb_update_node(tranger, l_instance(tranger, L_KIDS, "a", "v2"),
+            json_pack("{s:s}", "note", "x"), TRUE) != NULL,
+        "cannot update a/v2"
+    );
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    /*
+     *  a/v2 is the newest record now: still nothing hangs from P
+     */
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    P = l_node(tranger, L_PARENTS, "P");
+    result += l_check(l_hook_size(P, "kids") == 0 && l_hook_size(P, "tags") == 0,
+        "after the reopen P holds the child it was unlinked from");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  A delete of a parent sees the instances of a child that NAME it and
+ *  that no hook holds.
+ *
+ *  a/v1 hangs from P, a/v2 inherits the ref, and a/v1 is moved to Q (a
+ *  relink of a single-valued fkey moves the instance it is given): P holds
+ *  nothing and a/v2 names it. The delete without force went (up to
+ *  7.25.4), and a/v2 named a node that is gone: "Node not found" at the
+ *  reopen once a/v2 is the newest record. Refused now; forced, a/v2 stops
+ *  naming P, saved.
+ ***************************************************************************/
+PRIVATE int test_delete_sees_unheld_instances_naming_it(void)
+{
+    int result = 0;
+    const char *test = "a delete of a parent sees the unheld instances that name it";
+    const char *DB = "tr_delete_instance_links_r19b";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test,
+        json_pack("[{s:s}]",
+            "msg", "Cannot delete node: has down links"),
+        NULL, NULL, 1);
+    json_t *P = l_create(tranger, L_PARENTS, "P", "v1");
+    json_t *Q = l_create(tranger, L_PARENTS, "Q", "v1");
+    l_create(tranger, L_KIDS, "a", "v1");
+    json_t *a1 = l_node(tranger, L_KIDS, "a");
+    result += l_check(treedb_link_nodes(tranger, "kids", P, a1) == 0, "cannot link P <- a/v1");
+    l_create(tranger, L_KIDS, "a", "v2");
+    json_t *a2 = l_instance(tranger, L_KIDS, "a", "v2");
+    result += l_check(treedb_link_nodes(tranger, "kids", Q, a1) == 0, "cannot move a/v1 to Q");
+    result += l_check(l_hook_size(P, "kids") == 0, "P still holds a");
+    result += l_check(l_names(a2, "parents^P^kids"), "a/v2 does not name P");
+
+    result += l_check(treedb_delete_node(tranger, P, json_object()) < 0,
+        "a delete WITHOUT force of a parent an instance names went");
+    P = l_node(tranger, L_PARENTS, "P");
+    result += l_check(P != NULL, "the refused delete took P");
+
+    result += l_check(P && treedb_delete_node(tranger, P, json_pack("{s:b}", "force", 1)) == 0,
+        "the forced delete was refused");
+    result += l_check(l_node(tranger, L_PARENTS, "P") == NULL, "P is still in memory");
+    result += l_check(!l_names(a2, "parents^P^kids"), "a/v2 still names the deleted P");
+    result += l_check(l_names(a1, "parents^Q^kids") && l_hook_holds(Q, "kids", a1),
+        "the forced delete of P moved a/v1");
+    result += l_check(
+        treedb_update_node(tranger, a2, json_pack("{s:s}", "note", "x"), TRUE) != NULL,
+        "cannot update a/v2"
+    );
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    /*
+     *  Reopen: a/v2 is the newest record of a, and names nothing gone
+     */
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    result += l_check(l_node(tranger, L_PARENTS, "P") == NULL, "P is back after the reopen");
+    result += l_check(l_up_refs(l_node(tranger, L_KIDS, "a")) == 0,
+        "after the reopen the primary of a names something");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  A FORCED delete of a parent does not write the ref it is removing.
+ *
+ *  a/v1 hangs from P through `tags`, a/v2 (which inherited that ref)
+ *  through `kids`. The forced delete unlinked a/v2 from `kids` and saved
+ *  it with its `tags` still naming P (up to 7.25.4): the delete's own
+ *  record carried the dangling ref.
+ ***************************************************************************/
+PRIVATE int test_forced_delete_leaves_no_ref_in_any_instance(void)
+{
+    int result = 0;
+    const char *test = "a forced delete leaves no ref in any instance of a child";
+    const char *DB = "tr_delete_instance_links_r19c";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    json_t *P = l_create(tranger, L_PARENTS, "P", "v1");
+    l_create(tranger, L_KIDS, "a", "v1");
+    json_t *a1 = l_node(tranger, L_KIDS, "a");
+    result += l_check(treedb_link_nodes(tranger, "tags", P, a1) == 0, "cannot link P <- a/v1 (tags)");
+    l_create(tranger, L_KIDS, "a", "v2");
+    json_t *a2 = l_instance(tranger, L_KIDS, "a", "v2");
+    result += l_check(treedb_link_nodes(tranger, "kids", P, a2) == 0, "cannot link P <- a/v2 (kids)");
+
+    result += l_check(treedb_delete_node(tranger, P, json_pack("{s:b}", "force", 1)) == 0,
+        "the forced delete was refused");
+    result += l_check(l_up_refs(a1) == 0, "a/v1 still names the deleted P");
+    result += l_check(l_up_refs(a2) == 0, "a/v2 still names the deleted P");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    /*
+     *  Reopen: no record of a names P, and a/v1 -- saved last -- is the
+     *  primary
+     */
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    json_t *a = l_node(tranger, L_KIDS, "a");
+    result += l_check(a && strcmp(kw_get_str(0, a, "version", "", 0), "v1") == 0,
+        "a/v1 is not the primary after the reopen");
+    result += l_check(l_up_refs(a) == 0, "after the reopen a/v1 names the deleted P");
+    result += l_check(l_up_refs(l_instance(tranger, L_KIDS, "a", "v2")) == 0,
+        "after the reopen a/v2 names the deleted P");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  A relink of an instance whose parent holds ANOTHER instance of it is
+ *  not an error.
+ *
+ *  b/v1 hangs from P through `kids`; b/v2 inherits the ref, and P's hook
+ *  holds b/v1 (one object per child id). Moving b/v2 to Q unlinked it from
+ *  P and logged "Child data not found in dict parent hook" -- of a list
+ *  hook -- though the move went and P kept b/v1, which names it (up to
+ *  7.25.4).
+ ***************************************************************************/
+PRIVATE int test_relink_of_a_sibling_instance_is_quiet(void)
+{
+    int result = 0;
+    const char *test = "a relink of an instance its parent does not hold is quiet";
+    const char *DB = "tr_delete_instance_links_r19d";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    json_t *P = l_create(tranger, L_PARENTS, "P", "v1");
+    json_t *Q = l_create(tranger, L_PARENTS, "Q", "v1");
+    l_create(tranger, L_KIDS, "b", "v1");
+    json_t *b1 = l_node(tranger, L_KIDS, "b");
+    result += l_check(treedb_link_nodes(tranger, "kids", P, b1) == 0, "cannot link P <- b/v1");
+    l_create(tranger, L_KIDS, "b", "v2");
+    json_t *b2 = l_instance(tranger, L_KIDS, "b", "v2");
+    result += l_check(l_hook_holds(P, "kids", b1) && !l_hook_holds(P, "kids", b2),
+        "P does not hold b/v1 alone");
+
+    result += l_check(treedb_link_nodes(tranger, "kids", Q, b2) == 0, "cannot move b/v2 to Q");
+    result += l_check(l_names(b2, "parents^Q^kids") && l_hook_holds(Q, "kids", b2),
+        "b/v2 did not move to Q");
+    result += l_check(l_names(b1, "parents^P^kids") && l_hook_holds(P, "kids", b1),
+        "the move of b/v2 took b/v1 from P");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  With a snap active, a key created after the snap has instances and no
+ *  primary: the id index is loaded from the records the snap tagged, the
+ *  secondary indexes are not filtered.
+ *
+ *  1. A create of such an instance made a SECOND object of it (up to
+ *     7.25.4): the primary, while the slot kept the loaded one. A kid linked
+ *     to the primary, and C_NODE's delete-node {P, v2} then tombstoned
+ *     every v2 row through the slot's object before the delete of the key
+ *     was refused: P was gone after the reopen, and the kid named a node
+ *     that is not. The create takes the slot now.
+ *  2. A delete of such an instance (the key goes whole) logged
+ *     "delete_primary_node() FAILED", with a stack, on a delete that went.
+ ***************************************************************************/
+PRIVATE int test_snap_key_with_instances_and_no_primary(void)
+{
+    int result = 0;
+    const char *test = "with a snap active a key created after it has no primary";
+    const char *DB = "tr_delete_instance_links_r19e";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    l_create(tranger, L_PARENTS, "Q", "v1");
+    result += l_check(treedb_shoot_snap(tranger, L_TREEDB, "s1", "d") == 0, "cannot shoot s1");
+    l_create(tranger, L_PARENTS, "P", "v2");
+    l_create(tranger, L_PARENTS, "R", "v1");
+    result += l_check(treedb_activate_snap(tranger, L_TREEDB, "s1") > 0, "cannot activate s1");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(test,
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "loading snap_tag 1",
+            "msg", "Cannot delete node: has down links"),
+        NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    result += l_check(l_node(tranger, L_PARENTS, "P") == NULL, "P is in the snap's photo");
+    json_t *loaded = l_instance(tranger, L_PARENTS, "P", "v2");
+    result += l_check(loaded != NULL, "the instance P/v2 was not loaded");
+
+    /*
+     *  2. R goes whole, quietly
+     */
+    json_t *r = l_instance(tranger, L_PARENTS, "R", "v1");
+    result += l_check(r && l_node(tranger, L_PARENTS, "R") == NULL, "R/v1 is not an instance with no primary");
+    result += l_check(r && treedb_delete_node(tranger, r, json_object()) == 0, "the delete of R/v1 was refused");
+    result += l_check(l_instance(tranger, L_PARENTS, "R", "v1") == NULL, "R/v1 is still in memory");
+
+    /*
+     *  1. The create of P/v2 takes the slot
+     */
+    json_t *P = l_create(tranger, L_PARENTS, "P", "v2");
+    result += l_check(P && l_node(tranger, L_PARENTS, "P") == P, "P/v2 was not created");
+    result += l_check(l_instance(tranger, L_PARENTS, "P", "v2") == P,
+        "the slot of the primary's value is not the primary");
+    json_t *k = l_create(tranger, L_KIDS, "k", "v1");
+    result += l_check(P && treedb_link_nodes(tranger, "kids", P, k) == 0, "cannot link P <- k");
+
+    /*
+     *  What C_NODE's delete-node {P, v2} does without force: the instance
+     *  of the primary's value is the primary, so the delete of the key
+     *  alone -- refused, and nothing is gone
+     */
+    json_t *inst = l_instance(tranger, L_PARENTS, "P", "v2");
+    if(inst && inst != P) {
+        treedb_delete_instance(tranger, inst, "version", 0);
+    }
+    result += l_check(P && treedb_delete_node(tranger, P, json_object()) < 0,
+        "the delete of a parent with a child went");
+    result += l_check(treedb_activate_snap(tranger, L_TREEDB, "__clear__") == 0,
+        "cannot deactivate the snap");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    P = l_node(tranger, L_PARENTS, "P");
+    result += l_check(P != NULL, "P is gone after the reopen");
+    result += l_check(l_hook_holds(P, "kids", l_node(tranger, L_KIDS, "k")),
+        "after the reopen P does not hold k");
+    result += l_check(l_node(tranger, L_PARENTS, "R") == NULL, "R is back after the reopen");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  With more than one pkey2, the primary's slot stays the primary.
+ *
+ *  P (a=1, b=1) is the primary of x, Q (a=1, b=2) an instance: they share
+ *  the slot a=1, which holds P. A save of Q moved it to Q (up to 7.25.4):
+ *  C_NODE's delete-node {x, a: 1} then took Q for an instance of its own,
+ *  tombstoned every row with a=1 -- the primary's too -- and answered 0:
+ *  after the reopen x was gone.
+ ***************************************************************************/
+static char schema_multi[]= "\
+{                                                                   \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'topic_name': 'multi',                                  \n\
+            'pkey': 'id',                                           \n\
+            'pkey2s': ['a', 'b'],                                   \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {'header': 'Id', 'type': 'string', 'flag': ['persistent','required']}, \n\
+                'a': {'header': 'A', 'type': 'string', 'flag': ['persistent','required']}, \n\
+                'b': {'header': 'B', 'type': 'string', 'flag': ['persistent','required']}, \n\
+                'note': {'header': 'Note', 'type': 'string', 'flag': ['persistent']} \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
+PRIVATE json_t *open_multi_db(const char *path_root, const char *db)
+{
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root, "database", db, "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK
+    );
+    json_t *tranger = tranger2_startup(0, jn_tranger, 0);
+    treedb_open_db(tranger, "treedb_multi", legalstring2json(schema_multi, TRUE), 0);
+    return tranger;
+}
+
+PRIVATE int test_save_keeps_the_primary_in_its_slot(void)
+{
+    int result = 0;
+    const char *test = "with two pkey2s a save keeps the primary in its slot";
+    const char *DB = "tr_delete_instance_multi";
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    build_path(path_database, sizeof(path_database), path_root, DB, NULL);
+    rmrdir(path_database);
+    helper_quote2doublequote(schema_multi);
+
+    set_expected_results(test,
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic"),
+        NULL, NULL, 1);
+    json_t *tranger = open_multi_db(path_root, DB);
+    json_t *P = treedb_create_node(tranger, "treedb_multi", "multi",
+        json_pack("{s:s, s:s, s:s}", "id", "x", "a", "1", "b", "1"));
+    json_t *Q = treedb_create_node(tranger, "treedb_multi", "multi",
+        json_pack("{s:s, s:s, s:s}", "id", "x", "a", "1", "b", "2"));
+    result += l_check(P && Q && P != Q, "x/b=2 is not an instance of its own");
+    result += l_check(treedb_update_node(tranger, Q, json_pack("{s:s}", "note", "q"), TRUE) != NULL,
+        "cannot update x/b=2");
+    result += l_check(
+        treedb_get_instance(tranger, "treedb_multi", "multi", "a", "x", "1") == P,
+        "the save of an instance moved the slot of the primary"
+    );
+    result += l_check(
+        treedb_get_instance(tranger, "treedb_multi", "multi", "b", "x", "2") == Q,
+        "the save of an instance did not keep its own slot"
+    );
+
+    /*
+     *  What C_NODE's delete-node {x, a: 1} does: the instance of a=1 is the
+     *  primary, so nothing is tombstoned through it
+     */
+    json_t *inst = treedb_get_instance(tranger, "treedb_multi", "multi", "a", "x", "1");
+    if(inst && inst != treedb_get_node(tranger, "treedb_multi", "multi", "x")) {
+        treedb_delete_instance(tranger, inst, "a", 0);
+    }
+    treedb_close_db(tranger, "treedb_multi");
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_multi_db(path_root, DB);
+    result += l_check(treedb_get_node(tranger, "treedb_multi", "multi", "x") != NULL,
+        "x is gone after the reopen");
+    treedb_close_db(tranger, "treedb_multi");
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  The gc holds the asset an instance that is not the primary names.
+ *
+ *  d/v1 holds photo A, d/v2 photo B. After a reopen only the primary
+ *  (d/v2, the newest record) is linked, and the gc took A -- the row and
+ *  the bytes -- while d/v1 still named it (up to 7.25.4).
+ ***************************************************************************/
+static char schema_docs[]= "\
+{                                                                   \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'topic_name': 'docs',                                   \n\
+            'pkey': 'id',                                           \n\
+            'pkey2s': 'version',                                    \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {'header': 'Id', 'type': 'string', 'flag': ['persistent','required']}, \n\
+                'version': {'header': 'Version', 'type': 'string', 'flag': ['persistent','required']}, \n\
+                'foto': {'header': 'Photo', 'type': 'string', 'flag': ['fkey','file','writable']} \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+#define FIXTURE_A "\x89PNG\r\n\x1a\n" "IHDR fixture A of the gc test"
+#define FIXTURE_B "\x89PNG\r\n\x1a\n" "IHDR fixture B of the gc test"
+
+PRIVATE json_t *open_docs_db(const char *path_root, const char *db)
+{
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root, "database", db, "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK
+    );
+    json_t *tranger = tranger2_startup(0, jn_tranger, 0);
+    treedb_open_db(tranger, "treedb_docs", legalstring2json(schema_docs, TRUE), 0);
+    return tranger;
+}
+
+PRIVATE json_t *create_doc(json_t *tranger, const char *version, const char *data, size_t len)
+{
+    gbuffer_t *gbuf = gbuffer_binary_to_base64(data, len);
+    json_t *content64 = json_string(gbuffer_cur_rd_pointer(gbuf));
+    GBUFFER_DECREF(gbuf)
+    return treedb_create_node(tranger, "treedb_docs", "docs",
+        json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
+            "id", "d", "version", version, "foto", "",
+            "__files__", "foto",
+                "content64", content64,
+                "original_name", "photo.png",
+                "content_type", "image/png"
+        )
+    );
+}
+
+/*
+ *  Is the asset the instance names still there?
+ */
+PRIVATE BOOL doc_asset_exists(json_t *tranger, json_t *instance)
+{
+    const char *ref = json_string_value(json_object_get(instance, "foto"));
+    char topic[NAME_MAX];
+    char id[NAME_MAX];
+    char hook[NAME_MAX];
+    if(!ref || !decode_parent_ref(ref, topic, sizeof(topic), id, sizeof(id), hook, sizeof(hook))) {
+        return FALSE;
+    }
+    return treedb_get_node(tranger, "treedb_docs", TREEDB_ASSETS_TOPIC, id)? TRUE : FALSE;
+}
+
+PRIVATE int test_gc_holds_the_asset_of_an_instance(void)
+{
+    int result = 0;
+    const char *test = "the gc holds the asset an instance names";
+    const char *DB = "tr_delete_instance_docs";
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
+    build_path(path_database, sizeof(path_database), path_root, DB, NULL);
+    rmrdir(path_database);
+    helper_quote2doublequote(schema_docs);
+
+    set_expected_results(test,
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic"),
+        NULL, NULL, 1);
+    json_t *tranger = open_docs_db(path_root, DB);
+    result += l_check(create_doc(tranger, "v1", FIXTURE_A, sizeof(FIXTURE_A)-1) != NULL,
+        "cannot create d/v1 with its photo");
+    result += l_check(create_doc(tranger, "v2", FIXTURE_B, sizeof(FIXTURE_B)-1) != NULL,
+        "cannot create d/v2 with its photo");
+    treedb_close_db(tranger, "treedb_docs");
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_docs_db(path_root, DB);
+    json_t *taken = treedb_gc_files(tranger, "treedb_docs", FALSE);
+    result += l_check(taken && json_array_size(taken) == 0, "the gc took an asset");
+    JSON_DECREF(taken)
+    json_t *d1 = treedb_get_instance(tranger, "treedb_docs", "docs", "version", "d", "v1");
+    json_t *d2 = treedb_get_instance(tranger, "treedb_docs", "docs", "version", "d", "v2");
+    result += l_check(d1 && doc_asset_exists(tranger, d1), "the asset d/v1 names is gone");
+    result += l_check(d2 && doc_asset_exists(tranger, d2), "the asset d/v2 names is gone");
+    treedb_close_db(tranger, "treedb_docs");
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
+ *  What an unlink or a forced delete took from the other instances of a
+ *  child is put back when the write does not go.
+ *
+ *  1. The unlink of a/v1 cannot save (the key of a is read-only): a/v2,
+ *     which the unlink had made stop naming P, names it again, and a/v1
+ *     is back in P's hooks.
+ *  2. The forced delete of P cannot delete its key (P's key read-only),
+ *     after a/v2 -- which P does not hold -- was saved naming P no more:
+ *     a/v2 names P again, in memory and on disk.
+ ***************************************************************************/
+PRIVATE int test_unrefs_are_taken_back(void)
+{
+    int result = 0;
+    const char *test = "the unrefs of a write that does not go are taken back";
+    const char *DB = "tr_delete_instance_links_r19f";
+    char path_root[PATH_MAX];
+    json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    json_t *P = l_create(tranger, L_PARENTS, "P", "v1");
+    json_t *Q = l_create(tranger, L_PARENTS, "Q", "v1");
+    l_create(tranger, L_KIDS, "a", "v1");
+    json_t *a1 = l_node(tranger, L_KIDS, "a");
+    result += l_check(treedb_link_nodes(tranger, "kids", P, a1) == 0, "cannot link P <- a/v1");
+    result += l_check(treedb_link_nodes(tranger, "tags", P, a1) == 0, "cannot link P <- a/v1 (tags)");
+    l_create(tranger, L_KIDS, "a", "v2");
+    json_t *a2 = l_instance(tranger, L_KIDS, "a", "v2");
+    result += test_json(NULL);
+
+    /*
+     *  1. The unlink
+     */
+    set_expected_results(test,
+        json_pack("[{s:s}]",
+            "msg", "Cannot save record metadata, write FAILED"),
+        NULL, NULL, 1);
+    build_path(fail_writes_key, sizeof(fail_writes_key),
+        path_root, DB, L_KIDS, "keys", "a", "", NULL);
+    snprintf(fail_writes_key + strlen(fail_writes_key),
+        sizeof(fail_writes_key) - strlen(fail_writes_key), "/");
+    fail_writes_after = 0;
+    result += l_check(treedb_unlink_nodes(tranger, "tags", P, a1) < 0,
+        "the unlink went, with a key that cannot be written");
+    fail_writes_key[0] = 0;
+    result += l_check(l_names(a1, "parents^P^tags") && l_hook_holds(P, "tags", a1),
+        "a/v1 is not back in P's dict hook");
+    result += l_check(l_names(a2, "parents^P^tags"), "a/v2 does not name P again");
+    result += test_json(NULL);
+
+    /*
+     *  2. The forced delete: a/v1 moves to Q, a/v2 still names P
+     */
+    set_expected_results(test,
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "remove() FAILED",
+            "msg", "Cannot delete subdir key. rmrdir() FAILED",
+            "msg", "Cannot delete node"),
+        NULL, NULL, 1);
+    result += l_check(treedb_unlink_nodes(tranger, "tags", P, a1) == 0, "cannot unlink P <- a/v1 (tags)");
+    result += l_check(treedb_link_nodes(tranger, "kids", Q, a1) == 0, "cannot move a/v1 to Q");
+    result += l_check(l_names(a2, "parents^P^kids") && !l_names(a2, "parents^P^tags"),
+        "a/v2 does not name P through kids alone");
+    mode_t mode = 0;
+    result += chmod_links_key_dir(DB, L_PARENTS, "P", 0550, &mode);
+    result += l_check(treedb_delete_node(tranger, P, json_pack("{s:b}", "force", 1)) < 0,
+        "the forced delete of P went, with a key that cannot be deleted");
+    result += chmod_links_key_dir(DB, L_PARENTS, "P", mode, NULL);
+    result += l_check(l_node(tranger, L_PARENTS, "P") == P, "the refused delete took P");
+    result += l_check(l_names(a2, "parents^P^kids"), "a/v2 does not name P again");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger = open_links_db(path_root, DB);
+    result += l_check(l_names(l_instance(tranger, L_KIDS, "a", "v2"), "parents^P^kids"),
+        "after the reopen a/v2 does not name P");
+    close_links_db(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *              do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -2013,6 +2643,14 @@ int main(int argc, char *argv[])
     result += test_instance_of_primary_is_primary_after_reopen();
     result += test_save_of_moved_pkey2_refused();
     result += test_create_indexes_default_pkey2();
+    result += test_unlink_clears_every_instance_of_the_child();
+    result += test_delete_sees_unheld_instances_naming_it();
+    result += test_forced_delete_leaves_no_ref_in_any_instance();
+    result += test_relink_of_a_sibling_instance_is_quiet();
+    result += test_snap_key_with_instances_and_no_primary();
+    result += test_save_keeps_the_primary_in_its_slot();
+    result += test_gc_holds_the_asset_of_an_instance();
+    result += test_unrefs_are_taken_back();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

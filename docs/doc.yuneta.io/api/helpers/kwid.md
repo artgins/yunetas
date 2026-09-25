@@ -1071,13 +1071,13 @@ This function iterates over predefined binary fields and applies their correspon
 (kw_set_dict_value)=
 ## [`kw_set_dict_value()`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/kwid.c#L683)
 
-The function `kw_set_dict_value()` sets a value in a JSON dictionary at the specified path. If intermediate objects do not exist, they are created as dictionaries. Arrays are not created automatically.
+The function `kw_set_dict_value()` writes a value at the specified path of a JSON dictionary, and the value **replaces** what the path holds there, like `json_object_set()`. The dictionaries the path needs are created; a list is walked (a segment is an index) but never created.
 
 ```C
 int kw_set_dict_value(
     hgobj      gobj,
     json_t    *kw,
-    const char *path,   // The last word after delimiter (.) is the key
+    const char *path,   // The last word after delimiter (`) is the key
     json_t    *value    // owned
 );
 ```
@@ -1086,6 +1086,30 @@ int kw_set_dict_value(
 
 | Key | Type | Description |
 |---|---|---|
+| `gobj` | `hgobj` | A handle to the GObj context, used for logging and error handling. |
+| `kw` | `json_t *` | A JSON dictionary where the value will be set. Must be a valid JSON object. |
+| `path` | `const char *` | A path delimited by `` ` `` (see [`kw_set_path_delimiter()`](<#kw_set_path_delimiter>)). The last segment is the key. |
+| `value` | `json_t *` | The JSON value to set at the specified path. Owned: the reference is spent in every case, written or not. |
+
+**Returns**
+
+Returns `0` when the value is written, or `-1` (logged) when nothing is: `kw` is not a dictionary, the path is empty, a segment in the middle of the path is a scalar or a `null`, or an index is not in its list. The `kw` is then left as it was.
+
+**Example**
+
+```C
+json_t *kw = json_pack("{s:s, s:{s:i}}", "parent", "topic^x^hook", "a", "b", 1);
+kw_set_dict_value(gobj, kw, "parent", json_string(""));   // 0: {"parent": "", ...}
+kw_set_dict_value(gobj, kw, "a`b", json_integer(5));      // 0: {"a": {"b": 5}}
+kw_set_dict_value(gobj, kw, "x`y`z", json_true());        // 0: {"x": {"y": {"z": true}}}
+kw_set_dict_value(gobj, kw, "parent`k", json_true());     // -1: "parent" is a string
+```
+
+**Notes**
+
+Until 7.25.4 it wrote only a key that did not exist: over a key that was there it dropped the value and answered `0`, against its own header and against its gobj-js twin, which always overwrote. Every caller meant to overwrite. Two of them paid for it: a stale ref the treedb clears from a STRING fkey column stayed (the node could never be cleaned or force-deleted), and the `__username__` that `C_IEVENT_SRV` sets in the kw a peer sends did not replace one the peer had put there. It also answered `0` when it wrote nothing.
+
+---|---|---|
 | `gobj` | `hgobj` | A handle to the GObj context, used for logging and error handling. |
 | `kw` | `json_t *` | A JSON dictionary where the value will be set. Must be a valid JSON object. |
 | `path` | `const char *` | A dot-delimited path specifying where to set the value. The last segment is the key. |

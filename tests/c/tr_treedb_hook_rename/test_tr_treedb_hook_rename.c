@@ -23,7 +23,10 @@
  *      3. the files the rename writes carry no mark
  *      4. a ref that names the OLD hook is removed, with a warning,
  *         when the node is cleaned or force-deleted -- up to 7.24.1 it
- *         failed both
+ *         failed both. And in a STRING fkey column too: there the warning
+ *         said the ref was removed and it was not (kw_set_dict_value() did
+ *         not write over a key that exists), so the clean and the forced
+ *         delete failed for ever (up to 7.25.4)
  *      5. the hook KEEPS its name but fills
  *         ANOTHER column of the child. The ref left in the old column
  *         names a hook that exists and hooks this topic, so it did not look
@@ -73,6 +76,12 @@ static char schema_v1[]= "\
                     'type': 'dict',                                 \n\
                     'flag': ['hook'],                               \n\
                     'hook': {'users': 'departments'}                \n\
+                },                                                  \n\
+                'head': {                                           \n\
+                    'header': 'Head',                               \n\
+                    'type': 'dict',                                 \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {'users': 'manager'}                    \n\
                 }                                                   \n\
             }                                                       \n\
         },                                                          \n\
@@ -90,6 +99,11 @@ static char schema_v1[]= "\
                 'departments': {                                    \n\
                     'header': 'Departments',                        \n\
                     'type': 'array',                                \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'manager': {                                        \n\
+                    'header': 'Manager',                            \n\
+                    'type': 'string',                               \n\
                     'flag': ['fkey']                                \n\
                 }                                                   \n\
             }                                                       \n\
@@ -119,6 +133,12 @@ static char schema_v2[]= "\
                     'type': 'dict',                                 \n\
                     'flag': ['hook'],                               \n\
                     'hook': {'users': 'departments'}                \n\
+                },                                                  \n\
+                'chief': {                                          \n\
+                    'header': 'Chief',                              \n\
+                    'type': 'dict',                                 \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {'users': 'manager'}                    \n\
                 }                                                   \n\
             }                                                       \n\
         },                                                          \n\
@@ -136,6 +156,11 @@ static char schema_v2[]= "\
                 'departments': {                                    \n\
                     'header': 'Departments',                        \n\
                     'type': 'array',                                \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'manager': {                                        \n\
+                    'header': 'Manager',                            \n\
+                    'type': 'string',                               \n\
                     'flag': ['fkey']                                \n\
                 }                                                   \n\
             }                                                       \n\
@@ -169,6 +194,12 @@ static char schema_v3[]= "\
                     'type': 'dict',                                 \n\
                     'flag': ['hook'],                               \n\
                     'hook': {'users': 'sections'}                   \n\
+                },                                                  \n\
+                'chief': {                                          \n\
+                    'header': 'Chief',                              \n\
+                    'type': 'dict',                                 \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {'users': 'manager'}                    \n\
                 }                                                   \n\
             }                                                       \n\
         },                                                          \n\
@@ -191,6 +222,11 @@ static char schema_v3[]= "\
                 'sections': {                                       \n\
                     'header': 'Sections',                           \n\
                     'type': 'array',                                \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'manager': {                                        \n\
+                    'header': 'Manager',                            \n\
+                    'type': 'string',                               \n\
                     'flag': ['fkey']                                \n\
                 }                                                   \n\
             }                                                       \n\
@@ -333,6 +369,16 @@ PRIVATE int do_test(void)
             result += -1;
         }
     }
+    /*  u4 and u5 hang from d1 through `head`, a hook filling a STRING fkey  */
+    const char *headed[] = {"u4", "u5", NULL};
+    for(int i = 0; headed[i]; i++) {
+        json_t *u = treedb_create_node(tranger, TREEDB_NAME, "users", json_pack("{s:s}", "id", headed[i]));
+        if(treedb_link_nodes(tranger, "head", d1_v1, u) < 0) {
+            printf("%sERROR%s --> cannot link %s through the first string hook\n",
+                On_Red BWhite, Color_Off, headed[i]);
+            result += -1;
+        }
+    }
     treedb_close_db(tranger, TREEDB_NAME);
     tranger2_shutdown(tranger);
     result += test_json(NULL);
@@ -440,6 +486,35 @@ PRIVATE int do_test(void)
     json_t *u3 = treedb_get_node(tranger, TREEDB_NAME, "users", "u3");
     if(!u3 || treedb_delete_node(tranger, u3, json_pack("{s:b}", "force", 1)) < 0) {
         printf("%sERROR%s --> a node with a ref to a vanished hook could not be deleted\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  The same in a STRING fkey column: u4 and u5 name departments^d1^head
+     */
+    set_expected_results(
+        "a ref to a hook that no longer exists, in a string fkey",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+            "msg", "Parent ref names a hook that no longer exists",
+            "msg", "Removing wrong fkey ref",
+            "msg", "Parent ref names a hook that no longer exists",
+            "msg", "Removing wrong fkey ref"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *u4 = treedb_get_node(tranger, TREEDB_NAME, "users", "u4");
+    if(!u4 || treedb_clean_node(tranger, u4, TRUE) < 0 ||
+            strcmp(kw_get_str(0, u4, "manager", "?", 0), "")!=0) {
+        printf("%sERROR%s --> a ref to a vanished hook could not be cleaned from a string fkey\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *u5 = treedb_get_node(tranger, TREEDB_NAME, "users", "u5");
+    if(!u5 || treedb_delete_node(tranger, u5, json_pack("{s:b}", "force", 1)) < 0 ||
+            treedb_get_node(tranger, TREEDB_NAME, "users", "u5")) {
+        printf("%sERROR%s --> a node with a ref to a vanished hook in a string fkey could not be deleted\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
