@@ -29,11 +29,12 @@
  ***************************************************************************/
 /*
  *  A refused datagram is said with a WARNING on the transition: the first
- *  one of a cause, then at most one each REFUSAL_WARN_SECONDS, with the
- *  count of the ones dropped in between. The source of a datagram can be
- *  forged: a warning per datagram was a flood of the log.
+ *  one of a cause, then at most one each REFUSAL_WARN_MSEC, with the count
+ *  of the ones dropped in between. The source of a datagram can be forged:
+ *  a warning per datagram was a flood of the log. Timed on the monotonic
+ *  clock (msectimer): a clock set back must not silence the warnings.
  */
-#define REFUSAL_WARN_SECONDS    60
+#define REFUSAL_WARN_MSEC       60000
 
 typedef enum {
     REFUSAL_DENIED = 0,     // the peer is in denied_ips
@@ -136,7 +137,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t rxBytes;
     json_int_t rxRefusedMsgs;
 
-    time_t t_refusal_warn[REFUSAL_CAUSES];          // next warning of a cause
+    uint64_t t_refusal_warn[REFUSAL_CAUSES];        // next warning of a cause (msectimer)
     json_int_t refused_since_warn[REFUSAL_CAUSES];  // dropped since the last warning
 
     dl_list_t dl_tx;
@@ -899,7 +900,7 @@ PRIVATE BOOL peer_is_refused(hgobj gobj, const char *peername, refusal_cause_t *
 /***************************************************************************
  *  A refused datagram: counted always (rxRefusedMsgs), said on the
  *  transition. The first one of a cause is a WARNING, then at most one each
- *  REFUSAL_WARN_SECONDS, with the datagrams of that cause dropped since the
+ *  REFUSAL_WARN_MSEC, with the datagrams of that cause dropped since the
  *  last one (`dropped`, this one included). Before this fix every datagram
  *  was a WARNING: a flood of a forged source was a flood of the log.
  ***************************************************************************/
@@ -915,7 +916,7 @@ PRIVATE void note_refused_datagram(
     priv->rxRefusedMsgs++;
     priv->refused_since_warn[cause]++;
 
-    if(priv->t_refusal_warn[cause] != 0 && !test_sectimer(priv->t_refusal_warn[cause])) {
+    if(priv->t_refusal_warn[cause] != 0 && !test_msectimer(priv->t_refusal_warn[cause])) {
         return; // counted, said at the next warning of this cause
     }
 
@@ -932,11 +933,11 @@ PRIVATE void note_refused_datagram(
         "len",          "%d", (int)len,
         "dropped",      "%ld", (long)priv->refused_since_warn[cause],
         "rxRefusedMsgs", "%ld", (long)priv->rxRefusedMsgs,
-        "next_warning_in", "%d", REFUSAL_WARN_SECONDS,
+        "next_warning_in_ms", "%d", REFUSAL_WARN_MSEC,
         NULL
     );
     priv->refused_since_warn[cause] = 0;
-    priv->t_refusal_warn[cause] = start_sectimer(REFUSAL_WARN_SECONDS);
+    priv->t_refusal_warn[cause] = start_msectimer(REFUSAL_WARN_MSEC);
 }
 
 /***************************************************************************
