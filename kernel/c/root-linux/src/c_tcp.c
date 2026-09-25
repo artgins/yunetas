@@ -59,6 +59,14 @@
                                 ┌───────────────────────────┐
                                 │       IDLE                │
                                 └───────────────────────────┘
+
+    The stop contract: every stop of a running C_TCP ends in ST_STOPPED and
+    publishes EV_STOPPED ONCE, to its parent or subscriber -- synchronously,
+    inside gobj_stop(), when nothing was in flight, or later, from
+    ST_WAIT_STOPPED, when the last operation completes. A host waits for it
+    to destroy a volatile transport (if(gobj_is_volatil(src)) gobj_destroy).
+    This holds for a client already disconnected (waiting for its reconnect
+    timer) too: up to 7.25.4 that stop published nothing.
  */
 
 /***************************************************************
@@ -1219,9 +1227,18 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
              *  Only finalize to ST_STOPPED when the gobj is actually being
              *  stopped (mt_stop clears the running flag before we get here);
              *  otherwise stay ST_DISCONNECTED so the armed reconnect fires.
+             *
+             *  The stop of a client that was ALREADY disconnected ends as
+             *  every other stop does (set_disconnected): its connect event
+             *  freed (mt_start creates a new one) and EV_STOPPED published,
+             *  once -- the event a host waits for to destroy a volatile
+             *  transport. Up to 7.25.4 this stop published nothing and kept
+             *  the connect event, which the next start overwrote (a leak).
              */
             if(!gobj_is_running(gobj)) {
                 gobj_change_state(gobj, ST_STOPPED);
+                EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
+                gobj_publish_event(gobj, EV_STOPPED, 0);
             }
         } else {
             gobj_change_state(gobj, ST_STOPPED);

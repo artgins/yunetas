@@ -100,7 +100,7 @@ with one binary registers it as `test_<directory>`.
 | `tr_msg` | `test_tr_msg1`, `test_tr_msg2` |
 | `tr_msg2db` | `test_pkey2_empty`, `test_msg2db_load_failed` |
 | `tr_queue` | `test_tr_queue1`, `test_tr_queue_load_failed`, `test_tr_queue_backup_failed`, `test_tr2q_queued` |
-| `c_tcp`, `c_tcps`, `c_tcp2`, `c_tcps2`, `c_tcp_inactivity` | `test1` - `test4` each; `c_tcp` also `test5` |
+| `c_tcp`, `c_tcps`, `c_tcp2`, `c_tcps2`, `c_tcp_inactivity` | `test1` - `test4` each; `c_tcp` also `test5`, `test6` |
 | `c_subscriptions` | `test1`, `test2` |
 | `kw` | `test_kw1`, `test_json_flat` |
 | `helpers` | `test_helpers`, `test_rotatory`, `test_audit_record`, `test_dir_array_nomem`, `test_dir_listing`, `test_dir_read_error` |
@@ -121,7 +121,7 @@ The single-binary directories that also register under `<directory>/`:
 |---|---|
 | `c_agent_find_new_yunos`, `c_ievent_srv_peer_subs`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_rx`, `c_udp_s_echo`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
 | `gbuffer` | `test_gbmem_realloc_refused` |
-| `c_tcp` | `test_tcp_test5` |
+| `c_tcp` | `test_tcp_test5`, `test_tcp_test6` |
 | `c_mqtt` | `test_mqtt_queued_in`, `test_mqtt_client_queues` |
 | `helpers` | `test_audit_record`, `test_rotatory`, `test_dir_array_nomem`, `test_dir_listing`, `test_dir_read_error` |
 | `timeranger2` | `test_tm_order`, `test_lost_lock`, `test_topic_var_replace`, `test_key_reborn_pages`, `test_open_list_history`, `test_unreadable_at_open`, `test_mark_tm_order`, `test_uncommitted_append`, `test_torn_md2_tail`, `test_md2_read_error`, `test_md2_short_write`, `test_nul_escape_record`, `test_torn_tail_check_fails`, `test_cmp_file_ids`, `test_unlistable_dirs`, `test_unlisted_relist_once` |

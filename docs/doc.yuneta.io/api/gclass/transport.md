@@ -17,7 +17,7 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 |----------|-------|
 | **States** | `ST_STOPPED`, `ST_DISCONNECTED`, `ST_WAIT_STOPPED`, `ST_WAIT_CONNECTED`, `ST_WAIT_HANDSHAKE`, `ST_CONNECTED` |
 | **Input events** | `EV_CONNECT`, `EV_TX_DATA`, `EV_DROP`, `EV_TIMEOUT` |
-| **Output events** | `EV_CONNECTED`, `EV_DISCONNECTED`, `EV_RX_DATA`, `EV_TX_READY` |
+| **Output events** | `EV_CONNECTED`, `EV_DISCONNECTED`, `EV_RX_DATA`, `EV_TX_READY`, `EV_STOPPED` (the stop is done) |
 
 ### Key attributes
 
@@ -40,6 +40,41 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 
 Typically used as the bottom gobj of a protocol GClass (C_PROT_TCP4H,
 C_WEBSOCKET and more.) or directly inside a C_CHANNEL.
+
+### The stop
+
+Every stop of a running `C_TCP` ends in `ST_STOPPED` and publishes
+`EV_STOPPED` **once**, to its parent (or its `subscriber`):
+
+- at once, inside `gobj_stop()`, when nothing was in flight -- a client
+  already DISCONNECTED, waiting for its reconnect timer;
+- later, from `ST_WAIT_STOPPED`, when the last read, write or connect is
+  canceled or completes.
+
+A host that stops its transport waits for `EV_STOPPED`, and destroys a
+volatile one there. Because it can come INSIDE `gobj_stop()`, a host sets
+whatever the action reads before it calls the stop:
+
+```C
+priv->stopping = TRUE;                  // before: EV_STOPPED may come at once
+gobj_stop(priv->gobj_tcp);
+
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(gobj_is_volatil(src)) {
+        gobj_destroy(src);              // the usual host: C_CHANNEL, C_PROT_*, ...
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+```
+
+A stopped client starts again with `gobj_start()`: a new connect event, a new
+socket. Up to 7.25.4 the stop of a client already disconnected published
+nothing and kept its connect event: the host waited for an `EV_STOPPED` that
+never came, and the next `gobj_start()` failed (*"yev_connect ALREADY
+exists"*), so the client never connected again. `tests/c/c_tcp`
+(`test_tcp_test6`).
 
 ### A write that does not start
 
