@@ -823,6 +823,22 @@ PRIVATE void submit_pending(yev_loop_t *yev_loop)
 }
 
 /***************************************************************************
+ *  An entry of the ring handed out is not yet prepared, and it is already
+ *  between the head and the tail of the queue, where the scans of the
+ *  untaken submissions (untaken_owner_of_fd, queue_entries_of) look.
+ *  io_uring_get_sqe() does not clear its fd nor its user_data: they would
+ *  name the file and the event of the last operation of the slot, and a
+ *  scan made before the entry is prepared would take that old event back.
+ *  A kept entry is cleared whole (get_sqe).
+ ***************************************************************************/
+static inline struct io_uring_sqe *clear_sqe_owner(struct io_uring_sqe *sqe)
+{
+    sqe->fd = -1;
+    sqe->user_data = 0;
+    return sqe;
+}
+
+/***************************************************************************
  *  A free submission queue entry. NULL only without memory (logged).
  *
  *  Every entry is submitted right after it is prepared, so a full queue
@@ -847,7 +863,7 @@ PRIVATE struct io_uring_sqe *get_sqe(yev_loop_t *yev_loop)
     if(yev_loop->kept_sqes_size == 0) {
         sqe = io_uring_get_sqe(&yev_loop->ring);
         if(sqe) {
-            return sqe;
+            return clear_sqe_owner(sqe);
         }
         ret = io_uring_submit(&yev_loop->ring);
     } else {
@@ -856,7 +872,7 @@ PRIVATE struct io_uring_sqe *get_sqe(yev_loop_t *yev_loop)
     if(yev_loop->kept_sqes_size == 0) {
         sqe = io_uring_get_sqe(&yev_loop->ring);
         if(sqe) {
-            return sqe;
+            return clear_sqe_owner(sqe);
         }
         /*
          *  Said once, when the loop starts keeping: not per submission
@@ -3063,9 +3079,15 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
                 );
                 return -1;
             }
-            release_on_stop(yev_event, gobj, trace_level);
+            /*
+             *  The cancel is prepared BEFORE release_on_stop(): its scan of
+             *  the queue (take_back_submissions_on_fd) reaches this entry.
+             *  Up to this fix it was prepared after, and the scan read the
+             *  fd and the event of the last operation of the slot.
+             */
             track_submit(yev_event, sqe);
             io_uring_prep_cancel(sqe, yev_event, 0);
+            release_on_stop(yev_event, gobj, trace_level);
             io_uring_submit(&yev_loop->ring);
             yev_set_state(yev_event, YEV_ST_CANCELING);
             break;

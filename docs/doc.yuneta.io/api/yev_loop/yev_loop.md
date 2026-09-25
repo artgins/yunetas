@@ -87,6 +87,29 @@ were sent. (7.25.4 kept no submission; an entry that a failed submit left in
 the queue went to the kernel at the next submit that worked, on whatever
 file had the number by then.)
 
+The owner of a submission is read from the entry itself: its `fd` and its
+event (`user_data`). An entry of the ring that the loop has handed out but
+not yet prepared already sits between the head and the tail of the queue,
+and the kernel does not clear a slot it has read: it would still name the
+file and the event of the LAST operation of that slot. So every entry the
+loop hands out is cleared of both (`fd` -1, no event) before it is
+prepared, and the stop of a `RUNNING` timer or connect prepares its cancel
+before it closes the fd. A scan made in between would otherwise "take back"
+an old event that has nothing untaken -- an extra `STOPPED` callback, a
+wrong count of its completions, and, if that event was already freed, a
+completion on freed memory. Every yuno wraps its ring (2400 entries) and
+reuses fd numbers, so the case is ordinary, not rare.
+
+```C
+/*
+ *  A timer RUNNING in a ring that has wrapped: every slot once held the
+ *  fd and the pointer of this timer
+ */
+yev_start_timer_event(timer, 10000, FALSE);
+yev_stop_event(timer);          // 0: one cancel, nothing taken back
+yev_loop_run(yev_loop, 1);      // callback: timer STOPPED, once
+```
+
 ```C
 /*
  *  A write of a connection whose socket is closed before the kernel
