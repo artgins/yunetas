@@ -255,8 +255,9 @@ The gate (`enable_command_authz`) is **default-off** (design in YUNO_AUTH.md
 
 The subscription gate (`enable_subscription_authz`, YUNO_AUTH.md §4.6) is
 **default-off** too. Enabling it on a yuno needs the same role model, and
-every user of a treedb GUI needs `read` on the C_NODE services it watches
-(C_NODE's `EV_TREEDB_NODE_*` are `EVF_AUTHZ_SUBSCRIBE`); a refused GUI keeps
+every user of a treedb GUI needs `read` on the C_NODE and C_TRANGER services
+it watches (C_NODE's `EV_TREEDB_NODE_*` and C_TRANGER's
+`EV_TRANGER_RECORD_ADDED` are `EVF_AUTHZ_SUBSCRIBE`); a refused GUI keeps
 its session and gets no live updates. `EVF_AUTHZ_INJECT` is still **declared
 but not enforced** — no gate exists for `gobj_send_event`.
 

@@ -224,6 +224,20 @@ same compile flags, 8 alternated rounds (ms, mean +- standard deviation):
 Noise. The whole-or-nothing create (commit 5eae26c6d) came after that run: it
 changes only the failure paths of a create.
 
+The directory walks that fail on a path longer than PATH_MAX or on a
+transient error, and the queue that takes its topic again after a failed
+backup (commits 3573b4cd3 and 05812cbe4), 8 alternated rounds, the binaries
+linked against a copy of the libraries taken before the change (ms, mean +-
+standard deviation):
+
+| Case | before | after | Change |
+|------|--------|-------|--------|
+| `open_master` | 81.17 +- 2.99 | 81.90 +- 5.05 | +0.9% |
+| `open_replica` | 106.47 +- 2.04 | 106.36 +- 0.95 | -0.1% |
+
+Noise: an open walks the key directories as before, with one test of the
+length of each path.
+
 `perf_tr_treedb` (CPU us per operation, N = 100 000; 14 rounds x 4 link
 layouts, paired alternated runs, `taskset -c 6`):
 
@@ -287,9 +301,30 @@ standard deviation):
 | Case | before | after | Change |
 |------|--------|-------|--------|
 | reopen (ms) | 353.5 +- 16.8 | 327.2 +- 8.7 | -7.4% |
-| update (us) | 29.4 +- 1.5 | 28.6 +- 1.3 | -2.9% |
+| update (us) | 29.4 +- 1.5 | 28.6 +- 1.3 | -2.7% |
 
 The reopen no longer builds the copies.
+
+The save guard that refuses a node whose pkey2 value was changed in place,
+and the create that indexes the value its record holds (commit 2d98df267),
+as an A/B of that change alone (only `tr_treedb.o` differs; 20 alternated
+rounds, CPU us per operation, median (mean +- standard deviation)):
+
+| Case | before | after | Change of the median |
+|------|--------|-------|--------|
+| `update_memory` (no save) | 2.914 (2.922 +- 0.063) | 3.069 (3.072 +- 0.105) | +5.3% |
+| `update_saved` | 10.805 (10.869 +- 0.367) | 10.836 (11.019 +- 0.583) | +0.3% |
+| `link_unlink` | 11.062 (11.186 +- 0.432) | 11.015 (11.231 +- 0.529) | -0.4% |
+| `create_link_half` | 72.209 (73.499 +- 3.716) | 71.727 (72.567 +- 2.514) | -0.7% |
+| `reopen` | 403.6 (408.2 +- 16.7) | 408.0 (407.3 +- 12.9) | +1.1% |
+| `delete_force` | 69.95 (70.10 +- 2.47) | 69.17 (72.76 +- 11.68) | -1.1% |
+| `delete_parent` | 3003.7 (3079.3 +- 181.0) | 3041.8 (3064.6 +- 138.6) | +1.3% |
+
+The topics of `perf_tr_treedb` have no pkey2, so the guard itself does not
+run; the save fetches the pkey2 list once and reuses it. `update_memory`
+never reaches the changed code: it moved about +-5% between builds, and a
+build with the new functions present and never called showed the same
+swing, so that is code layout, not the change.
 
 `timeranger2/test_topic_pkey_integer` (appends/s, 180 000 appends; 20
 rounds, the order swapped at each round):
@@ -406,6 +441,32 @@ alternated rounds, mean +- standard deviation):
 Only a record whose kw holds an escaped JSON text pays: +0.22 us, one decode
 and scan of the escaped run.
 
+The scan that finds an escaped JSON text whatever quotes come before it, and
+reads a key by its shape when no quoted run holds it whole (commit
+7aabcab4b), the record built and serialized (us a record, 6 alternated
+runs, mean; another day, so the absolute figures differ from the ones
+above):
+
+| Record | before | after | Change |
+|------|--------|-------|--------|
+| `list-yunos` | 1.60 | 1.54 | -3.8% |
+| `run-yuno` | 6.83 | 6.83 | 0.0% |
+| `update-node`, a kw with a JSON text | 8.11 | 8.18 | +0.9% |
+| `update-node`, a JSON text holding an escaped JSON text | 8.28 | 8.41 | +1.6% |
+
+`exit_on_fail` for `rotatory_open()` only, a later open that fails printed
+and tried again (commit 93d347d09), 8 alternated rounds, only `rotatory.c`
+swapped (ns a record, mean):
+
+| Case | before | after | Change |
+|------|--------|-------|--------|
+| `audit_record` | 553 | 547 | -1.1% |
+| `audit_record_retention` | 547 | 545 | -0.4% |
+| `audit_record_flush` | 1 280 | 1 265 | -1.2% |
+| `log_record` | 386 | 387 | +0.3% |
+
+Only the failure paths of an open changed.
+
 `perf_c_treedb` (seconds for 40 opens). The 7.25.4 columns are the
 `c_treedb.c` of 7.25.4 compiled with the headers of 7.25.5 and linked before
 the libraries of 7.25.5. With the JSON load of 7.25.4 (`json_loadfd()`, one
@@ -487,7 +548,12 @@ newer-literal paths do nothing new.
 
 yev_loop, the `src_url` of another family (commit bbd2c9ad7), 6 rounds:
 `perf_yev_ping_pong` 148.7 +- 1.9 -> 148.4 +- 1.9 K msg/s (-0.2%), noise.
-C_UDP_S has no benchmark.
+C_UDP_S has no benchmark in the tree. The read that takes a new gbuffer when
+the host keeps the received one (commit 62fa7dbc4) was measured with a
+scratch copy of the echo server of `tests/c/c_udp_s_echo` driven by a Python
+client: 64-byte datagrams, 20 000 round trips a round, 8 alternated rounds,
+11.88 +- 0.77 -> 11.59 +- 0.35 us a round trip (-2.4%), noise. When nobody
+keeps the gbuffer, the common path pays one refcount test.
 
 ctest timing trend (`build/*.txt`, 30 runs of `yunetas test` from 2026-09-23
 to 2026-09-25): of the tests whose code did not change after 7.25.4, only
