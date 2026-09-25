@@ -23,11 +23,11 @@ Up to 7.25.4 the handlers of a log (a `write()`, the json dump) could change `er
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/gobj.c)
 
 (glog_end)=
-## [`glog_end()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L208)
+## [`glog_end()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L208)
 
 The `glog_end()` function deinitializes the logging system, freeing allocated resources and unregistering log handlers.
 
@@ -52,7 +52,7 @@ This function must generally not be called, as the logging system consumes minim
 ---
 
 (glog_init)=
-## [`glog_init()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L172)
+## [`glog_init()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L172)
 
 `glog_init()` initializes the global logging system, setting up default log handlers and registering built-in log handler types.
 
@@ -77,7 +77,7 @@ This function makes sure that the logging system is initialized only once. It re
 ---
 
 (gobj_get_log_data)=
-## [`gobj_get_log_data()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L583)
+## [`gobj_get_log_data()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L583)
 
 Retrieves a JSON object containing log statistics, including counts of different log levels such as debug, info, warning, error, critical, and alert.
 
@@ -102,7 +102,7 @@ The returned JSON object must be managed by the caller. This makes sure of prope
 ---
 
 (gobj_get_log_priority_name)=
-## [`gobj_get_log_priority_name()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L572)
+## [`gobj_get_log_priority_name()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L572)
 
 Retrieves the string representation of a log priority level based on its integer value.
 
@@ -158,7 +158,7 @@ The log message is formatted using `vsnprintf()` and logged with priority `LOG_I
 ---
 
 (gobj_log_add_handler)=
-## [`gobj_log_add_handler()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L281)
+## [`gobj_log_add_handler()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L281)
 
 Registers a new log handler with the specified name, type, options, and handler object. The function makes sure that the handler name is unique and associates it with a registered handler type.
 
@@ -191,7 +191,7 @@ The function checks if the handler name is already registered and makes sure tha
 ---
 
 (gobj_log_alert)=
-## [`gobj_log_alert()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L482)
+## [`gobj_log_alert()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L482)
 
 Logs an alert message with priority `LOG_ALERT`. The message is formatted using a variable argument list and processed by the logging system.
 
@@ -222,7 +222,7 @@ The function increments the global alert log counter and processes the message t
 ---
 
 (gobj_log_clear_counters)=
-## [`gobj_log_clear_counters()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L598)
+## [`gobj_log_clear_counters()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L598)
 
 Resets all internal log counters, including debug, info, warning, error, critical, and alert counts.
 
@@ -247,7 +247,7 @@ This function is useful for resetting log statistics before starting a new monit
 ---
 
 (gobj_log_critical)=
-## [`gobj_log_critical()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L497)
+## [`gobj_log_critical()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L497)
 
 Logs a critical message with the specified format and arguments. The message is processed by registered log handlers.
 
@@ -278,7 +278,7 @@ Critical logs indicate severe conditions that require immediate attention. The f
 ---
 
 (gobj_log_debug)=
-## [`gobj_log_debug()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L557)
+## [`gobj_log_debug()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L557)
 
 Logs a debug message with a specified priority and options. `gobj_log_debug()` formats the message using variadic arguments and sends it to registered log handlers.
 
@@ -309,7 +309,7 @@ The function internally calls `_log_jnbf()` to process and dispatch the log mess
 ---
 
 (gobj_log_del_handler)=
-## [`gobj_log_del_handler()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L344)
+## [`gobj_log_del_handler()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L344)
 
 Removes a registered log handler by its name. If the handler name is empty, all handlers are removed.
 
@@ -336,7 +336,7 @@ If a handler is removed, its associated resources are freed, and if it has a clo
 ---
 
 (gobj_log_error)=
-## [`gobj_log_error()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L512)
+## [`gobj_log_error()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L512)
 
 The function `gobj_log_error()` logs an error message with a specified priority level and optional formatting arguments.
 
@@ -367,7 +367,7 @@ The function increments the global error count and formats the log message befor
 ---
 
 (gobj_log_exist_handler)=
-## [`gobj_log_exist_handler()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L256)
+## [`gobj_log_exist_handler()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L256)
 
 Checks if a log handler with the specified name exists in the system.
 
@@ -395,7 +395,7 @@ This function makes sure that the logging system is initialized before performin
 ---
 
 (gobj_log_info)=
-## [`gobj_log_info()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L542)
+## [`gobj_log_info()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L542)
 
 Logs an informational message with optional formatting and arguments. The message is processed and sent to registered log handlers.
 
@@ -426,7 +426,7 @@ The function formats the message and sends it to all registered log handlers tha
 ---
 
 (gobj_log_last_message)=
-## [`gobj_log_last_message()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L629)
+## [`gobj_log_last_message()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L629)
 
 Retrieves the last logged message recorded by the logging system.
 
@@ -453,7 +453,7 @@ The buffer is **reset to `""` at the entry of `command_parser()`**, so inside a 
 ---
 
 (gobj_log_list_handlers)=
-## [`gobj_log_list_handlers()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L386)
+## [`gobj_log_list_handlers()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L386)
 
 Retrieves a list of registered log handlers, returning a JSON array with details about each handler.
 
@@ -478,7 +478,7 @@ The returned JSON array must be managed by the caller to avoid memory leaks.
 ---
 
 (gobj_log_register_handler)=
-## [`gobj_log_register_handler()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L231)
+## [`gobj_log_register_handler()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L231)
 
 Registers a new log handler by specifying its type and associated functions for logging and formatting messages.
 
@@ -511,7 +511,7 @@ This function allows the registration of custom log handlers, which can be later
 ---
 
 (gobj_log_set_global_handler_option)=
-## [`gobj_log_set_global_handler_option()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L415)
+## [`gobj_log_set_global_handler_option()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L415)
 
 Sets or clears a global log handler option in the logging system.
 
@@ -571,7 +571,7 @@ Use this to surface an info-level failure cause to a caller that builds its resp
 ---
 
 (gobj_log_warning)=
-## [`gobj_log_warning()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L527)
+## [`gobj_log_warning()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L527)
 
 Logs a warning message with the specified format and arguments. The function increments the internal warning counter and processes the log message through registered handlers.
 
@@ -701,7 +701,7 @@ Internally, [`trace_vjson()`](#trace_vjson) is used to format and log the messag
 ---
 
 (print_backtrace)=
-## [`print_backtrace()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L751)
+## [`print_backtrace()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L751)
 
 The `print_backtrace()` function prints a backtrace of the current execution stack using the configured backtrace function.
 
@@ -757,7 +757,7 @@ If `quit` is set to `PEF_ABORT`, the function will call `abort()`. If `quit` is 
 ---
 
 (set_show_backtrace_fn)=
-## [`set_show_backtrace_fn()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L723)
+## [`set_show_backtrace_fn()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L723)
 
 Sets the function pointer for handling backtrace display. The provided function will be used to print backtrace information when logging errors or critical messages.
 
@@ -784,7 +784,7 @@ If `show_backtrace_fn` is set to `NULL`, backtrace logging will be disabled.
 ---
 
 (stdout_fwrite)=
-## [`stdout_fwrite()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L690)
+## [`stdout_fwrite()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L690)
 
 `stdout_fwrite()` writes a formatted message to the standard output stream using a specified priority level.
 
@@ -817,7 +817,7 @@ This function formats the message using `vsnprintf()` and writes it to `stdout`.
 ---
 
 (stdout_write)=
-## [`stdout_write()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L648)
+## [`stdout_write()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L648)
 
 `stdout_write()` writes a log message to the standard output with a priority label.
 
@@ -879,7 +879,7 @@ This function formats the message using `vsnprintf()` and logs it with a debug p
 ---
 
 (trace_vjson)=
-## [`trace_vjson()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L1114)
+## [`trace_vjson()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L1114)
 
 Logs a JSON-formatted message with optional structured data, using a specified priority level.
 
@@ -916,7 +916,7 @@ The function formats the log message as JSON, including metadata such as timesta
 ---
 
 (_log_bf)=
-## [`_log_bf()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L945)
+## [`_log_bf()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L945)
 
 Dispatches a pre-formatted log buffer to all registered log handlers. This is a low-level function used internally by the logging system.
 
@@ -949,7 +949,7 @@ If no log handlers are registered, the message is printed to stderr. Each regist
 ---
 
 (gobj_log_clear_log_file)=
-## [`gobj_log_clear_log_file()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L611)
+## [`gobj_log_clear_log_file()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L611)
 
 Truncates all file-based log handlers, clearing their log file contents.
 
@@ -972,7 +972,7 @@ The function iterates over all registered log handlers and truncates those whose
 ---
 
 (set_trace_with_full_name)=
-## [`set_trace_with_full_name()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L741)
+## [`set_trace_with_full_name()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L741)
 
 Sets whether trace log messages include the full name of the GObj instance. Returns the previous setting.
 
@@ -999,7 +999,7 @@ The default value is TRUE. This setting controls whether the `gobj_full_name` fi
 ---
 
 (set_trace_with_short_name)=
-## [`set_trace_with_short_name()`](https://github.com/artgins/yunetas/blob/7.25.5/kernel/c/gobj-c/src/glogger.c#L731)
+## [`set_trace_with_short_name()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/glogger.c#L731)
 
 Sets whether trace log messages include the short name of the GObj instance. Returns the previous setting.
 

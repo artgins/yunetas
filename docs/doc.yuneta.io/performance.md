@@ -24,12 +24,12 @@ decision.
 
 | Release | Against | Report | Rendered | Raw figures |
 |---------|---------|--------|----------|-------------|
-| 7.25.5 | 7.25.4 | [7.25.5.html](https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/7.25.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/7.25.5.html) | [7.25.5.json](https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/7.25.5.json) |
+| 7.25.5 | 7.25.4 | [7.25.5.html](https://github.com/artgins/yunetas/blob/7.25.6/performance/reports/7.25.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/7.25.5.html) | [7.25.5.json](https://github.com/artgins/yunetas/blob/7.25.6/performance/reports/7.25.5.json) |
 
 The report is one self-contained page (no script, no external file). GitHub
 shows it as source code; the "view" link renders it. How a report is made, and
 the schema of its `.json`, are in
-[`performance/reports/README.md`](https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/README.md).
+[`performance/reports/README.md`](https://github.com/artgins/yunetas/blob/7.25.6/performance/reports/README.md).
 
 ## The trend
 
@@ -100,7 +100,7 @@ The prices of 7.25.5, and what each one buys:
 | The agent audit record, built | +2-3% | Names are judged with their JSON escapes decoded, and a write-attr is looked for in every string: no secret reaches the audit file. |
 
 Every A/B of 7.25.5, change by change, with its rounds and spread, is in
-[`performance/c/README.md`](https://github.com/artgins/yunetas/blob/7.25.5/performance/c/README.md)
+[`performance/c/README.md`](https://github.com/artgins/yunetas/blob/7.25.6/performance/c/README.md)
 and in the [CHANGELOG](CHANGELOG.md) ("Performance, against 7.25.4").
 
 ## What one machine does with 7.25.5

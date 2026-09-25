@@ -208,7 +208,7 @@ for an app with no map — 1.5 MB).
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.25.5`, package **`7.25.8`** on npm since 2026-09-25)
+versioned to track `YUNETA_VERSION` (SDK `7.25.6`, package **`7.25.8`** on npm since 2026-09-25)
 and **published to npm**. It had drifted to 7.13.x while the SDK was at 7.16.2
 — a number that told a consumer nothing about which SDK it was built against —
 and jumped to `7.16.0` on 2026-08-28 to say it again; 7.14 and 7.15 were skipped
@@ -1836,8 +1836,8 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   Surface gaps as a punch list before committing/tagging.
 - **Performance variations are studied, not assumed** (rule of 2026-09-23).
   Every round of changes that touches a hot path (timeranger2 append/read/open,
-  tr_treedb writes, c_treedb, the event loop, protocols) and every release
-  compares speed against the last tag. `yunetas test` keeps each ctest run in
+  tr_treedb writes, c_treedb, the event loop, protocols) compares speed
+  against the last tag, and so does a release that carries such a round. `yunetas test` keeps each ctest run in
   `build/<timestamp>.txt`: read the trend of the tests that time something
   (`grep "timeranger2/test_topic_pkey_integer \.\.\.\.\." build/*.txt`) and list
   every test whose time moved more than ~10%. A single run varies ±3-4%, so a
@@ -1848,8 +1848,10 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   the tag. Why: the correctness fixes of 7.25.5 were made in many passes and
   nobody measured speed; `test_topic_pkey_integer` had drifted from 1.94 s to
   2.03-2.25 s on the fastest node before anybody looked.
-- **Every release ships a performance report: an `.html` with charts that
-  SELLS the release** (rule of 2026-09-23). When a version is generated,
+- **A release with a large change in the `.c` files ships a performance
+  report: an `.html` with charts that SELLS the release** (rule of 2026-09-23,
+  narrowed 2026-09-25: a release of small fixes, tests and packaging -- 7.25.6
+  -- ships none, and adds no row to the performance page). When such a version is generated,
   collect the performance figures (the A/B against the last tag above, the
   timing tests of `build/*.txt`, the benchmarks under `performance/c/` —
   appends/s, TLS round-trips, message rates, binary sizes) and build a
@@ -1920,7 +1922,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | File | Purpose |
 |------|---------|
-| `YUNETA_VERSION` | Current version (7.25.5) — used to generate `yuneta_version.h` |
+| `YUNETA_VERSION` | Current version (7.25.6) — used to generate `yuneta_version.h` |
 | `Kconfig` | Root Kconfig definition |
 | `TODO.md` | API renames/removals/additions between versions |
 | `CHANGELOG.md` | Release history |
