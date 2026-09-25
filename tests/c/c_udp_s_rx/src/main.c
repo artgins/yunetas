@@ -103,14 +103,19 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
             "msg", "Starting yuno",
+            "msg", "UDP listening ...",
             "msg", "UDP listening ...",
             "msg", "UDP listening ...",
             "msg", "Playing yuno",
             "msg", "UDP_S: Ip not allowed, datagram dropped",
             "msg", "UDP_S: Ip denied, datagram dropped",
             "msg", "TEST: every peer has its channel, and a peer not allowed is not heard",
+            "msg", "Too many peers, datagrams of new peers dropped",
+            "msg", "Frame without end within max_frame_size, delivered cut",
+            "msg", "Too many bytes in unfinished frames, datagram dropped with the unfinished frame of its peer",
+            "msg", "TEST: what a peer holds is capped",
             "msg", "Exit to die",
             "msg", "Pausing yuno",
             "msg", "Yuno stopped, gobj end"

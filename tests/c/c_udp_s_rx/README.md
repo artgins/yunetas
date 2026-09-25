@@ -25,6 +25,17 @@ A driver gclass (`C_TEST_UDP_RX`) creates two children:
    `rxRefusedMsgs` counts the six drops. Before this fix every datagram was a
    warning, and no stat counted them.
 
+4. What a peer holds in a `C_GSS_UDP_S` is capped. A second one, with
+   `max_channels` 3, `max_frame_size` 32 and `max_pending_bytes` 40, gets
+   one-byte datagrams from five source ports (the fourth and fifth are
+   dropped, *"Too many peers, ..."* once), 40 bytes with no NUL from the
+   first (delivered cut at 32, *"Frame without end within max_frame_size,
+   ..."*), and 40 from the second, which passes the 40 pending bytes of all
+   the peers (its frame is dropped, *"Too many bytes in unfinished frames,
+   ..."*). The frames that come out are `x`+31 `a`, `B`, `x` and 9 `a`, and
+   the memory grows by far less than the 1 MB per source port that 7.25.5
+   reserved on the first byte (up to 7.25.4 every peer shared one channel).
+
 The loopback is `127.0.0.0/8` on Linux, so the peers need no interface of
 their own.
 

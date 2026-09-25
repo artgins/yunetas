@@ -32,6 +32,21 @@
  *              the stat `rxRefusedMsgs`. Before this fix each datagram was a
  *              warning, and nothing counted them.
  *
+ *          4.  What a peer holds in a C_GSS_UDP_S is capped. A second one,
+ *              with max_channels 3, max_frame_size 32 and max_pending_bytes
+ *              40, gets (none of them with a NUL until the end):
+ *                  P0, P1, P2 "x"  -> three channels
+ *                  P3, P4 "y"      -> dropped: a fourth peer, ONE warning
+ *                  P0 40 x "a"     -> "x" and 31 "a" delivered cut at 32
+ *                                     (warning), 9 "a" left
+ *                  P1 40 x "b"     -> over the 40 pending bytes of all the
+ *                                     peers: P1's frame and the rest of the
+ *                                     datagram dropped (warning)
+ *                  P1 "B\0", P2 "\0", P0 "\0" -> "B", "x", 9 "a"
+ *              and its memory grows by far less than the 1 MB per peer that
+ *              7.25.5 reserved on the first byte of each source port (up to
+ *              then every peer shared one channel).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -54,6 +69,11 @@
 #define IP_DENIED       "127.0.1.5"
 #define IP_ALLOWED      "127.0.1.6"
 #define IP_BOTH         "127.0.1.8"     // allowed and denied: denied wins
+
+#define CAPS_PORT       34288
+#define CAPS_URL        "udp://127.0.0.1:34288"
+#define CAPS_PEERS      5
+#define CAPS_FRAMES     "xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa B x aaaaaaaaa"
 
 /***************************************************************************
  *              Structures
@@ -93,10 +113,16 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj gobj_gss;
     hgobj gobj_allow;
+    hgobj gobj_caps;
     int peer_fd[MAX_PEERS];
+    int caps_fd[CAPS_PEERS];
     int opened;
     char frames[256];
     char heard[256];
+    int step;
+    int caps_opened;
+    char caps_frames[256];
+    size_t caps_mem0;
 } PRIVATE_DATA;
 
 
@@ -119,6 +145,9 @@ PRIVATE void mt_create(hgobj gobj)
     for(int i = 0; i < MAX_PEERS; i++) {
         priv->peer_fd[i] = -1;
     }
+    for(int i = 0; i < CAPS_PEERS; i++) {
+        priv->caps_fd[i] = -1;
+    }
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->gobj_gss = gobj_create(
         "gss",
@@ -138,6 +167,17 @@ PRIVATE void mt_create(hgobj gobj)
         ),
         gobj
     );
+    priv->gobj_caps = gobj_create(
+        "caps",
+        C_GSS_UDP_S,
+        json_pack("{s:s, s:i, s:i, s:i}",
+            "url", CAPS_URL,
+            "max_channels", 3,
+            "max_frame_size", 32,
+            "max_pending_bytes", 40
+        ),
+        gobj
+    );
 }
 
 /***************************************************************************
@@ -153,6 +193,12 @@ PRIVATE void mt_destroy(hgobj gobj)
             priv->peer_fd[i] = -1;
         }
     }
+    for(int i = 0; i < CAPS_PEERS; i++) {
+        if(priv->caps_fd[i] >= 0) {
+            close(priv->caps_fd[i]);
+            priv->caps_fd[i] = -1;
+        }
+    }
 }
 
 /***************************************************************************
@@ -165,6 +211,7 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_start(priv->timer);
     gobj_start(priv->gobj_gss);
     gobj_start(priv->gobj_allow);
+    gobj_start(priv->gobj_caps);
 
     return 0;
 }
@@ -183,6 +230,9 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     if(gobj_is_running(priv->gobj_allow)) {
         gobj_stop(priv->gobj_allow);
+    }
+    if(gobj_is_running(priv->gobj_caps)) {
+        gobj_stop(priv->gobj_caps);
     }
 
     return 0;
@@ -217,6 +267,22 @@ PRIVATE int mt_play(hgobj gobj)
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "TEST: cannot bind a peer socket",
                 "ip",           "%s", peer_ips[i],
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            set_yuno_must_die();
+            return -1;
+        }
+    }
+
+    for(int i = 0; i < CAPS_PEERS; i++) {
+        priv->caps_fd[i] = socket(AF_INET, SOCK_DGRAM|SOCK_NONBLOCK, 0);
+        if(priv->caps_fd[i] < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "TEST: cannot open a peer socket",
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
                 NULL
@@ -337,6 +403,49 @@ PRIVATE void append_text(char *bf, size_t bfsize, gbuffer_t *gbuf)
 
 
 
+/***************************************************************************
+ *  4. What a peer holds, capped
+ ***************************************************************************/
+PRIVATE void send_to_caps(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    struct sockaddr_in caps_addr;
+    memset(&caps_addr, 0, sizeof(caps_addr));
+    caps_addr.sin_family = AF_INET;
+    caps_addr.sin_port = htons(CAPS_PORT);
+    caps_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+    char a40[40];
+    char b40[40];
+    memset(a40, 'a', sizeof(a40));
+    memset(b40, 'b', sizeof(b40));
+
+    struct {
+        int peer;
+        const char *data;
+        size_t len;
+    } datagrams[] = {
+        {0, "x",    1},
+        {1, "x",    1},
+        {2, "x",    1},
+        {3, "y",    1},     // a fourth peer: dropped
+        {4, "y",    1},     // a fifth: dropped, not said again
+        {0, a40,    40},    // cut at max_frame_size
+        {1, b40,    40},    // over max_pending_bytes: dropped
+        {1, "B",    2},
+        {2, "",     1},
+        {0, "",     1},
+    };
+    for(size_t i = 0; i < ARRAY_SIZE(datagrams); i++) {
+        sendto(priv->caps_fd[datagrams[i].peer], datagrams[i].data, datagrams[i].len, 0,
+            (struct sockaddr *)&caps_addr, sizeof(caps_addr));
+    }
+}
+
+
+
+
                     /***************************
                      *      Actions
                      ***************************/
@@ -350,6 +459,41 @@ PRIVATE void append_text(char *bf, size_t bfsize, gbuffer_t *gbuf)
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->step++ > 0) {
+        long mem_grown = (long)get_cur_system_memory() - (long)priv->caps_mem0;
+        if(strcmp(priv->caps_frames, CAPS_FRAMES) != 0 ||
+                priv->caps_opened != 3 ||
+                mem_grown > 256*1024) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: what a peer holds is not capped",
+                "frames",       "%s", priv->caps_frames,
+                "frames_expected", "%s", CAPS_FRAMES,
+                "channels",     "%d", priv->caps_opened,
+                "channels_expected", "%d", 3,
+                "mem_grown",    "%ld", mem_grown,
+                NULL
+            );
+        } else {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "TEST: what a peer holds is capped",
+                "frames",       "%s", priv->caps_frames,
+                "mem_grown",    "%ld", mem_grown,
+                NULL
+            );
+        }
+        gobj_stop(priv->gobj_gss);
+        gobj_stop(priv->gobj_allow);
+        gobj_stop(priv->gobj_caps);
+        set_yuno_must_die();
+
+        KW_DECREF(kw)
+        return 0;
+    }
 
     json_int_t refused = gobj_read_integer_attr(priv->gobj_allow, "rxRefusedMsgs");
     if(strcmp(priv->frames, "a1a2 b1b2") != 0 ||
@@ -380,9 +524,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    gobj_stop(priv->gobj_gss);
-    gobj_stop(priv->gobj_allow);
-    set_yuno_must_die();
+    /*
+     *  4. The caps, alone: their warnings do not mix with the ones above
+     */
+    priv->caps_mem0 = get_cur_system_memory();
+    send_to_caps(gobj);
+    set_timeout(priv->timer, 300);
 
     KW_DECREF(kw)
     return 0;
@@ -395,7 +542,11 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->opened++;
+    if(src == priv->gobj_caps) {
+        priv->caps_opened++;
+    } else {
+        priv->opened++;
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -409,7 +560,11 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-    append_text(priv->frames, sizeof(priv->frames), gbuf);
+    if(src == priv->gobj_caps) {
+        append_text(priv->caps_frames, sizeof(priv->caps_frames), gbuf);
+    } else {
+        append_text(priv->frames, sizeof(priv->frames), gbuf);
+    }
 
     KW_DECREF(kw)
     return 0;

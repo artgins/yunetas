@@ -193,3 +193,38 @@ hgobj gss = gobj_create("logs", C_GSS_UDP_S, kw_gss, gobj);    // gobj hears EV_
 | `timeout_base` | `integer` | Period of the inactivity check, in milliseconds (default `5000`). |
 | `seconds_inactivity` | `integer` | Seconds without a datagram before a channel is closed (default `300`). |
 | `disable_end_of_frame` | `bool` | Publish every datagram as it comes (`EV_ON_MESSAGE` with the `EV_RX_DATA` kw), without joining until a NUL. |
+| `max_channels` | `integer` | Peers held at once (default `1024`, `0` no limit). A datagram of a new peer beyond it is dropped. |
+| `max_frame_size` | `integer` | Bytes of one frame (default `1048576`). A frame with no NUL within it is delivered cut at this size. |
+| `max_pending_bytes` | `integer` | Bytes of all the unfinished frames together (default `8388608`, `0` no limit). Beyond it the datagram is dropped, with the unfinished frame of its peer. |
+
+### What a peer can hold
+
+A frame costs this yuno memory before it is a frame, and the peer decides how
+much: every source port of a host is a peer, and each keeps its unfinished
+frame for `seconds_inactivity`. So three caps bound it:
+
+| Cap | When it is reached | Logged |
+|-----|--------------------|--------|
+| `max_channels` | the datagrams of a NEW peer are dropped; the peers held go on | once, *"Too many peers, datagrams of new peers dropped"*, and again only after a peer has gone |
+| `max_frame_size` | what came is delivered cut, and a new frame begins | *"Frame without end within max_frame_size, delivered cut"*, at most once per 10 s, with the count |
+| `max_pending_bytes` | the datagram is dropped, with the unfinished frame of its peer | *"Too many bytes in unfinished frames, ..."*, at most once per 10 s, with the count |
+
+The buffer of a frame starts at 4 KB and doubles as bytes come, up to
+`max_frame_size`. In 7.25.5, before these caps, it was 1 MB from the first
+byte of each peer, and a sender of one-byte datagrams from many source ports
+took logcenter to its memory ceiling (up to 7.25.4 every peer shared one
+channel, and the corrupt joins above were the price). `tests/c/c_udp_s_rx`,
+case 4.
+
+The defaults fit logcenter, which creates its `C_GSS_UDP_S` with only the
+`url`: one peer per yuno of the node. A host that expects more peers, or
+longer frames, passes the caps when it creates it:
+
+```C
+json_t *kw_gss = json_pack("{s:s, s:i, s:i}",
+    "url", "udp://127.0.0.1:1992",
+    "max_channels", 4096,
+    "max_pending_bytes", 32*1024*1024
+);
+hgobj gss = gobj_create("logs", C_GSS_UDP_S, kw_gss, gobj);
+```
