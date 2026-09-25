@@ -37,9 +37,30 @@ PRIVATE const char *peer_subscription_config_keys[] = {
     0
 };
 
+/*
+ *  Of what a peer can repeat frame after frame (keys it may not set, a
+ *  subscription over the size cap, the withdrawal of one it does not hold),
+ *  one log of each kind per channel and interval; the next one written says
+ *  how many were not.
+ */
+#define PEER_LOG_INTERVAL_MS    (10*1000)
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
+typedef enum {
+    PEER_LOG_CONFIG_KEYS = 0,
+    PEER_LOG_SUBSCRIPTION_KEYS,
+    PEER_LOG_OVERSIZE,
+    PEER_LOG_NO_MATCH,
+    PEER_LOG_REFUSED_WITHDRAWN,
+    PEER_LOG_KINDS
+} peer_log_kind_t;
+
+typedef struct {
+    uint64_t t_next;        // msectimer: no log of this kind before it
+    json_int_t suppressed;  // logs of this kind not written since the last one
+} peer_log_t;
 
 /***************************************************************************
  *              Prototypes
@@ -66,7 +87,38 @@ PRIVATE BOOL is_subscription_authorized(
     hgobj gobj,
     hgobj gobj_service,
     gobj_event_t event,
-    json_t *iev_kw  // not owned
+    json_t *kw_subs,    // not owned
+    BOOL log_refusal
+);
+PRIVATE BOOL peer_log_allowed(
+    hgobj gobj,
+    peer_log_kind_t kind,
+    json_int_t *suppressed
+);
+PRIVATE size_t peer_json_dump(json_t *jn, char *bf, size_t bfsize);
+PRIVATE json_int_t count_refused_subscription(
+    hgobj gobj,
+    hgobj gobj_service,
+    gobj_event_t event,
+    int add
+);
+PRIVATE json_t *peer_subscription_kw(
+    hgobj gobj,
+    json_t *iev_kw,     // not owned
+    gobj_event_t event,
+    BOOL warn
+);
+PRIVATE BOOL peer_has_subscription_room(
+    hgobj gobj,
+    hgobj gobj_service,
+    gobj_event_t event,
+    json_t *kw_subs     // not owned
+);
+PRIVATE json_t *find_peer_subscriptions(
+    hgobj gobj,
+    hgobj gobj_service,
+    gobj_event_t event,
+    json_t *kw_subs     // not owned
 );
 PRIVATE int reject_unrouted_iev(
     hgobj gobj,
@@ -121,6 +173,12 @@ SDATA (DTP_BOOLEAN,     "is_superuser",         SDF_VOLATIL, 0, "Channel user ho
 
 SDATA (DTP_INTEGER,     "timeout_idgot",        SDF_RD, "5000", "timeout waiting Identity Card"),
 
+// What one peer may hold. Every subscription costs a scan of the publisher's
+// subscriptions, when it is made and on every publish, and a peer could make
+// them without end (review 19: 20000 of them blocked the loop for 80 s).
+SDATA (DTP_INTEGER,     "max_subscriptions",    SDF_RD, "5000", "Maximum subscriptions a peer may hold on this channel, 0 no limit. Above it a subscription is refused, logged once until the peer is under it again"),
+SDATA (DTP_INTEGER,     "max_subscription_size",SDF_RD, "16384", "Maximum size, in bytes of compact json, of the __filter__ and of the __global__ of a peer's subscription, 0 no limit. A bigger one is refused"),
+
 SDATA (DTP_POINTER,     "user_data",            0, 0, "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0, 0, "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0, 0, "subscriber of output-events. Not a child gobj."),
@@ -159,7 +217,9 @@ typedef struct _PRIVATE_DATA {
 
     hgobj timer;
 
-    json_t *refused_subscriptions;  // "service`event" -> subscriptions refused by the authz (not a kw path)
+    json_t *refused_subscriptions;  // "service`event" -> subscriptions refused (authz, size, cap) (not a kw path)
+    BOOL subscriptions_capped;      // max_subscriptions was logged, until the peer is under it again
+    peer_log_t peer_log[PEER_LOG_KINDS];
 } PRIVATE_DATA;
 
 
@@ -412,6 +472,23 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     }
     if(!kw) {
         kw = json_object();
+    } else if(kw->refcount > 1) {
+        /*
+         *  Below, the kw is changed (the ievent stack, the message type, and
+         *  the binary fields serialized by send_static_iev()): change a kw
+         *  of our own. A kw somebody else holds too is, above all, a
+         *  published one, which gobj_publish_event() hands the SAME to
+         *  every subscriber that does not rewrite it: up to 7.25.4 what
+         *  this gobj wrote in it reached every subscriber after it, and
+         *  the publisher.
+         */
+        json_t *kw_own = kw_duplicate(gobj, kw);
+        KW_DECREF(kw)
+        if(!kw_own) {
+            // Error already logged
+            return -1;
+        }
+        kw = kw_own;
     }
 
     /*
@@ -673,6 +750,8 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     gobj_unsubscribe_list(gobj, dl_s, TRUE);
     json_object_clear(priv->refused_subscriptions);
+    priv->subscriptions_capped = FALSE;
+    memset(priv->peer_log, 0, sizeof(priv->peer_log));
 
     /*
      *  Route (channel) close.
@@ -1134,7 +1213,9 @@ PRIVATE const char *subscription_permission(hgobj gobj_service)
  *  entry gate, so every subscription arriving here is external and carries
  *  the authenticated `__username__` (set by C_AUTHZ, never by the peer);
  *  an internal gobj_subscribe_event() never comes through here and is never
- *  gated. A refusal is logged here (MSGSET_AUTH).
+ *  gated. A refusal is logged here (MSGSET_AUTH) when `log_refusal`: the
+ *  caller asks it for the first refusal of the service and event on this
+ *  channel, not for a peer that repeats it frame after frame.
  *
  *  Up to 7.25.4 the check was commented out (here since v6, and in
  *  gobj_subscribe_event()), so the EV_TREEDB_NODE_* feed of a treedb was
@@ -1144,7 +1225,8 @@ PRIVATE BOOL is_subscription_authorized(
     hgobj gobj,
     hgobj gobj_service,
     gobj_event_t event,
-    json_t *iev_kw  // not owned
+    json_t *kw_subs,    // not owned
+    BOOL log_refusal
 )
 {
     hgobj yuno = gobj_yuno();
@@ -1163,22 +1245,24 @@ PRIVATE BOOL is_subscription_authorized(
     json_t *kw_authz = json_pack("{s:s, s:s, s:O}",
         "event", event,
         "__username__", username?username:"",
-        "kw", iev_kw
+        "kw", kw_subs
     );
     if(gobj_user_has_authz(gobj_service, permission, kw_authz, gobj)) {
         return TRUE;
     }
 
-    gobj_log_error(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_AUTH,
-        "msg",          "%s", "No permission to subscribe event",
-        "service",      "%s", gobj_short_name(gobj_service),
-        "event",        "%s", event,
-        "permission",   "%s", permission,
-        "username",     "%s", username?username:"",
-        NULL
-    );
+    if(log_refusal) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "No permission to subscribe event",
+            "service",      "%s", gobj_short_name(gobj_service),
+            "event",        "%s", event,
+            "permission",   "%s", permission,
+            "username",     "%s", username?username:"",
+            NULL
+        );
+    }
     return FALSE;
 }
 
@@ -1248,14 +1332,19 @@ PRIVATE void filter_peer_subscription_config(
         }
     }
 
-    if(warn && json_array_size(jn_dropped) > 0) {
+    json_int_t suppressed = 0;
+    if(warn && json_array_size(jn_dropped) > 0 &&
+            peer_log_allowed(gobj, PEER_LOG_CONFIG_KEYS, &suppressed)) {
+        char dump[MAX_LOG_DUMP_SIZE];
+        peer_json_dump(jn_dropped, dump, sizeof(dump));
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "SUBSCRIBING __config__ keys a peer may not set, ignored",
             "event",        "%s", event,
             "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
-            "keys",         "%j", jn_dropped,
+            "keys",         "%s", dump,
+            "suppressed",   "%ld", (long)suppressed,
             NULL
         );
     }
@@ -1267,6 +1356,315 @@ PRIVATE void filter_peer_subscription_config(
         JSON_DECREF(jn_config)
         json_object_del(iev_kw, "__config__");
     }
+}
+
+/***************************************************************************
+ *  May a log caused by the peer be written now? One of each kind per
+ *  PEER_LOG_INTERVAL_MS: a peer that repeats a frame must not write a log
+ *  line per frame. `suppressed` returns how many of this kind were not
+ *  written since the last one.
+ ***************************************************************************/
+PRIVATE BOOL peer_log_allowed(
+    hgobj gobj,
+    peer_log_kind_t kind,
+    json_int_t *suppressed
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    peer_log_t *pl = &priv->peer_log[kind];
+
+    if(pl->t_next && !test_msectimer(pl->t_next)) {
+        pl->suppressed++;
+        return FALSE;
+    }
+    pl->t_next = start_msectimer(PEER_LOG_INTERVAL_MS);
+    *suppressed = pl->suppressed;
+    pl->suppressed = 0;
+    return TRUE;
+}
+
+/***************************************************************************
+ *  A json of the peer as a log field: compact, capped to `bfsize`-1 bytes.
+ *  Return its whole size.
+ ***************************************************************************/
+PRIVATE size_t peer_json_dump(json_t *jn, char *bf, size_t bfsize)
+{
+    /*
+     *  json_dumpb() copies the chunks that fit and skips the rest, leaving
+     *  what it skipped as it was: the zeros end the string there.
+     */
+    memset(bf, 0, bfsize);
+    return json_dumpb(jn, bf, bfsize-1, JSON_COMPACT|JSON_ENCODE_ANY);
+}
+
+/***************************************************************************
+ *  The subscriptions of this channel to `event` of `gobj_service` that were
+ *  refused (authz, size, cap): the peer still holds them, and its
+ *  withdrawal of one is not an error. `add` is +1 or -1; return the count
+ *  before it.
+ ***************************************************************************/
+PRIVATE json_int_t count_refused_subscription(
+    hgobj gobj,
+    hgobj gobj_service,
+    gobj_event_t event,
+    int add
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char key[NAME_MAX];
+    snprintf(key, sizeof(key), "%s`%s", gobj_name(gobj_service), event);
+    json_int_t refused = json_integer_value(
+        json_object_get(priv->refused_subscriptions, key)
+    );
+    if(refused + add > 0) {
+        json_object_set_new(
+            priv->refused_subscriptions, key, json_integer(refused + add)
+        );
+    } else {
+        json_object_del(priv->refused_subscriptions, key);
+    }
+    return refused;
+}
+
+/***************************************************************************
+ *  The kw of a subscription, built from the (un)subscription a peer sent:
+ *  its `__filter__`, and of its `__config__` and `__global__` only the keys
+ *  a peer may set. The rest is dropped:
+ *    - `__local__`: the keys removed from each event before it is sent.
+ *      The one `__local__` of a remote subscription is the reference to
+ *      this channel, set by the caller.
+ *    - of `__global__`, the keys of the framework (a leading `_`: the
+ *      routing `__md_iev__`, the `__md_yuno__` and `__service__` read when
+ *      the event is sent back...) and `gbuffer`, the binary field of every
+ *      kw (gobj_start_up()): an integer this gate would take for a pointer
+ *      when it serializes the event. A key of the peer's own comes back to
+ *      the peer in every event of the subscription, and to nobody else
+ *      (gobj_publish_event() gives such a subscription a kw of its own).
+ *    - any other key of the frame (`__md_iev__` is the routing of the
+ *      frame, read by the caller).
+ *  Up to 7.25.4 only `__config__` was filtered, and the publish shared ONE
+ *  kw with every subscriber: a peer's `__global__` forged, and its
+ *  `__local__` stripped, the event of every subscriber after it.
+ *
+ *  `warn`: the subscription logs what it drops (rate-limited); the
+ *  unsubscription repeats the same frame, and is filtered the same way,
+ *  quietly.
+ *
+ *  Return NULL when the `__filter__` or the `__global__` is bigger than
+ *  `max_subscription_size` (logged when `warn`, rate-limited).
+ ***************************************************************************/
+PRIVATE json_t *peer_subscription_kw(
+    hgobj gobj,
+    json_t *iev_kw,     // not owned
+    gobj_event_t event,
+    BOOL warn
+)
+{
+    filter_peer_subscription_config(gobj, iev_kw, event, warn);
+
+    json_t *kw_subs = json_object();
+    json_t *jn_dropped = json_array();
+
+    const char *key; json_t *jn_value;
+    json_object_foreach(iev_kw, key, jn_value) {
+        if(strcmp(key, "__config__")==0 || strcmp(key, "__filter__")==0) {
+            json_object_set(kw_subs, key, jn_value);
+
+        } else if(strcmp(key, "__global__")==0) {
+            if(!json_is_object(jn_value)) {
+                if(!json_is_null(jn_value)) {
+                    json_array_append_new(jn_dropped, json_string(key));
+                }
+                continue;
+            }
+            json_t *jn_global = json_object();
+            const char *gkey; json_t *jn_gvalue;
+            json_object_foreach(jn_value, gkey, jn_gvalue) {
+                if(gkey[0] == '_' || strcmp(gkey, "gbuffer")==0) {
+                    json_array_append_new(
+                        jn_dropped, json_sprintf("__global__`%s", gkey)
+                    );
+                } else {
+                    json_object_set(jn_global, gkey, jn_gvalue);
+                }
+            }
+            if(json_object_size(jn_global) > 0) {
+                json_object_set_new(kw_subs, "__global__", jn_global);
+            } else {
+                JSON_DECREF(jn_global)
+            }
+
+        } else if(strcmp(key, "__md_iev__")==0) {
+            // The routing of the frame, the caller reads it
+
+        } else {
+            json_array_append_new(jn_dropped, json_string(key));
+        }
+    }
+
+    json_int_t suppressed = 0;
+    if(warn && json_array_size(jn_dropped) > 0 &&
+            peer_log_allowed(gobj, PEER_LOG_SUBSCRIPTION_KEYS, &suppressed)) {
+        char dump[MAX_LOG_DUMP_SIZE];
+        peer_json_dump(jn_dropped, dump, sizeof(dump));
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "SUBSCRIBING keys a peer may not set, ignored",
+            "event",        "%s", event,
+            "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+            "keys",         "%s", dump,
+            "suppressed",   "%ld", (long)suppressed,
+            NULL
+        );
+    }
+    JSON_DECREF(jn_dropped)
+
+    json_int_t max_size = gobj_read_integer_attr(gobj, "max_subscription_size");
+    if(max_size > 0) {
+        const char *fields[] = {"__filter__", "__global__", 0};
+        for(int i=0; fields[i]; i++) {
+            json_t *jn_field = json_object_get(kw_subs, fields[i]);
+            if(!jn_field) {
+                continue;
+            }
+            size_t size = json_dumpb(jn_field, NULL, 0, JSON_COMPACT|JSON_ENCODE_ANY);
+            if(size <= (size_t)max_size) {
+                continue;
+            }
+            if(warn && peer_log_allowed(gobj, PEER_LOG_OVERSIZE, &suppressed)) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PROTOCOL,
+                    "msg",          "%s", "SUBSCRIBING refused, bigger than max_subscription_size",
+                    "event",        "%s", event,
+                    "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+                    "field",        "%s", fields[i],
+                    "size",         "%lu", (unsigned long)size,
+                    "max_subscription_size", "%ld", (long)max_size,
+                    "suppressed",   "%ld", (long)suppressed,
+                    NULL
+                );
+            }
+            KW_DECREF(kw_subs)
+            return NULL;
+        }
+    }
+
+    return kw_subs;
+}
+
+/***************************************************************************
+ *  Has the peer room on this channel for one more subscription
+ *  (`max_subscriptions`)? A subscription that repeats one it holds replaces
+ *  it, and takes no room. The refusal is logged on the transition: the
+ *  first one, and not again until the peer is under the cap again.
+ ***************************************************************************/
+PRIVATE BOOL peer_has_subscription_room(
+    hgobj gobj,
+    hgobj gobj_service,
+    gobj_event_t event,
+    json_t *kw_subs     // not owned
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t max_subscriptions = gobj_read_integer_attr(gobj, "max_subscriptions");
+    if(max_subscriptions <= 0) {
+        return TRUE;
+    }
+
+    json_t *kw2match = json_object();
+    kw_set_subdict_value(
+        gobj,
+        kw2match,
+        "__local__", "__subscription_reference__",
+        json_integer((json_int_t)(uintptr_t)gobj)
+    );
+    json_t *dl_s = gobj_find_subscribings(gobj, 0, kw2match, 0);
+    json_int_t held = (json_int_t)json_array_size(dl_s);
+    JSON_DECREF(dl_s)
+    if(held < max_subscriptions) {
+        priv->subscriptions_capped = FALSE;
+        return TRUE;
+    }
+
+    json_t *dl_same = gobj_find_subscriptions(gobj_service, event, kw_incref(kw_subs), gobj);
+    size_t same = json_array_size(dl_same);
+    JSON_DECREF(dl_same)
+    if(same > 0) {
+        return TRUE;
+    }
+
+    if(!priv->subscriptions_capped) {
+        priv->subscriptions_capped = TRUE;
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "SUBSCRIBING refused, the peer holds max_subscriptions",
+            "event",        "%s", event,
+            "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+            "max_subscriptions", "%ld", (long)max_subscriptions,
+            NULL
+        );
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  The subscriptions of this channel that an unsubscription of the peer
+ *  withdraws: `event` of `gobj_service` with its `__config__` and
+ *  `__filter__`, and the `__global__` the PEER sent. The stored
+ *  `__global__` carries the back-metadata this gate adds to it
+ *  (`__md_iev__`, `__md_yuno__`, keys a peer may not set), which the peer
+ *  never repeats: up to 7.25.4 it was compared whole, and a subscription
+ *  with a `__global__` could not be withdrawn until the channel closed.
+ ***************************************************************************/
+PRIVATE json_t *find_peer_subscriptions(
+    hgobj gobj,
+    hgobj gobj_service,
+    gobj_event_t event,
+    json_t *kw_subs     // not owned
+)
+{
+    json_t *kw_find = json_object();
+    json_t *jn_config = json_object_get(kw_subs, "__config__");
+    if(jn_config) {
+        json_object_set(kw_find, "__config__", jn_config);
+    }
+    json_t *jn_filter = json_object_get(kw_subs, "__filter__");
+    if(jn_filter) {
+        json_object_set(kw_find, "__filter__", jn_filter);
+    }
+    json_t *dl_subs = gobj_find_subscriptions(gobj_service, event, kw_find, gobj);
+
+    json_t *peer_global = json_object_get(kw_subs, "__global__");
+    json_t *jn_empty = json_object();
+    if(!peer_global) {
+        peer_global = jn_empty;
+    }
+
+    json_t *dl_matched = json_array();
+    size_t idx; json_t *subs;
+    json_array_foreach(dl_subs, idx, subs) {
+        json_t *stored_global = kw_get_dict(gobj, subs, "__global__", 0, 0);
+        json_t *stored_peer_global = json_object();
+        const char *key; json_t *jn_value;
+        json_object_foreach(stored_global, key, jn_value) {
+            if(key[0] != '_') {
+                json_object_set(stored_peer_global, key, jn_value);
+            }
+        }
+        if(json_equal(stored_peer_global, peer_global)) {
+            json_array_append(dl_matched, subs);
+        }
+        JSON_DECREF(stored_peer_global)
+    }
+
+    JSON_DECREF(jn_empty)
+    JSON_DECREF(dl_subs)
+    return dl_matched;
 }
 
 /***************************************************************************
@@ -1618,21 +2016,29 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
 
         /*-------------------------------------------------*
+         *  What a peer may ask
+         *-------------------------------------------------*/
+        json_t *kw_subs = peer_subscription_kw(gobj, iev_kw, iev_event, TRUE);
+        if(!kw_subs) {
+            // Error already logged
+            count_refused_subscription(gobj, gobj_service, iev_event, +1);
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
+            return 0;   // the channel stays open: only this subscription is refused
+        }
+
+        /*-------------------------------------------------*
          *  Check AUTHZ
          *-------------------------------------------------*/
-        filter_peer_subscription_config(gobj, iev_kw, iev_event, TRUE);
-
-        if(!is_subscription_authorized(gobj, gobj_service, iev_event, iev_kw)) {
-            // Error already logged
-            char key[NAME_MAX];
-            snprintf(key, sizeof(key), "%s`%s", gobj_name(gobj_service), iev_event);
-            json_object_set_new(
-                priv->refused_subscriptions,
-                key,
-                json_integer(
-                    json_integer_value(json_object_get(priv->refused_subscriptions, key)) + 1
-                )
-            );
+        char key[NAME_MAX];
+        snprintf(key, sizeof(key), "%s`%s", gobj_name(gobj_service), iev_event);
+        BOOL first_refusal = json_integer_value(
+            json_object_get(priv->refused_subscriptions, key)
+        ) == 0;
+        if(!is_subscription_authorized(gobj, gobj_service, iev_event, kw_subs, first_refusal)) {
+            // Error already logged (the first refusal of this event)
+            count_refused_subscription(gobj, gobj_service, iev_event, +1);
+            KW_DECREF(kw_subs)
             KW_DECREF(iev_kw)
             KW_DECREF(kw)
             return 0;   // the channel stays open: only this subscription is refused
@@ -1641,7 +2047,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         // Set locals to remove on publishing
         kw_set_subdict_value(
             gobj,
-            iev_kw,
+            kw_subs,
             "__local__", "__subscription_reference__",
             json_integer((json_int_t)(uintptr_t)gobj)
         );
@@ -1649,24 +2055,34 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         // Prepare the return of response
         json_t *__md_iev__ = kw_get_dict(gobj, iev_kw, "__md_iev__", 0, 0);
         if(__md_iev__) {
-            KW_INCREF(iev_kw)
             json_t *kw3 = msg_iev_set_back_metadata(
                 gobj,
-                iev_kw,
+                kw_incref(iev_kw),
                 0,
                 TRUE
             );
-
-            json_object_del(iev_kw, "__md_iev__");
-            json_t *__global__ = kw_get_dict(gobj, iev_kw, "__global__", 0, 0);
+            json_t *__global__ = kw_get_dict(gobj, kw_subs, "__global__", 0, 0);
             if(__global__) {
                 json_object_update_new(__global__, kw3);
             } else {
-                json_object_set_new(iev_kw, "__global__", kw3);
+                json_object_set_new(kw_subs, "__global__", kw3);
             }
         }
 
-        gobj_subscribe_event(gobj_service, iev_event, iev_kw, gobj);
+        /*-------------------------------------------------*
+         *  Room for it
+         *-------------------------------------------------*/
+        if(!peer_has_subscription_room(gobj, gobj_service, iev_event, kw_subs)) {
+            // Error already logged (on the transition)
+            count_refused_subscription(gobj, gobj_service, iev_event, +1);
+            KW_DECREF(kw_subs)
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
+            return 0;   // the channel stays open: only this subscription is refused
+        }
+
+        gobj_subscribe_event(gobj_service, iev_event, kw_subs, gobj);
+        KW_DECREF(iev_kw)
 
     } else if(strcasecmp(msg_type, "__unsubscribing__")==0) {
 
@@ -1695,66 +2111,68 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             KW_DECREF(kw)
             return -1;
         }
-        kw_delete(gobj, iev_kw, "__md_iev__");
-
         /*
-         *  The same filter as the subscription, so the __config__ the peer
-         *  repeats matches the one that was stored.
+         *  Filtered the same way as the subscription, so what the peer
+         *  repeats is compared with what was stored.
          */
-        filter_peer_subscription_config(gobj, iev_kw, iev_event, FALSE);
+        json_t *kw_subs = peer_subscription_kw(gobj, iev_kw, iev_event, FALSE);
+        json_t *dl_subs = kw_subs?
+            find_peer_subscriptions(gobj, gobj_service, iev_event, kw_subs) :
+            json_array();   // refused at the subscription, over the size cap
+        KW_DECREF(kw_subs)
 
-        json_t *dl_subs = gobj_find_subscriptions(
-            gobj_service, iev_event, kw_incref(iev_kw), gobj
-        );
-        size_t n_subs = json_array_size(dl_subs);
-        JSON_DECREF(dl_subs)
-        if(n_subs == 0) {
+        if(json_array_size(dl_subs) == 0) {
+            JSON_DECREF(dl_subs)
             /*
-             *  Nothing to remove. A subscription the authz refused was never
-             *  made, but the peer still holds it and withdraws it: not an
-             *  error, the refusal was logged when it was asked. Anything
-             *  else is a withdrawal of something this channel never had.
+             *  Nothing to remove. A subscription that was refused (authz,
+             *  size, cap) was never made, but the peer still holds it and
+             *  withdraws it: not an error, the refusal was logged when it
+             *  was asked. Anything else is a withdrawal of something this
+             *  channel never had. Both are the peer's to repeat: logged at
+             *  most once per PEER_LOG_INTERVAL_MS, and the kw capped.
              */
-            char key[NAME_MAX];
-            snprintf(key, sizeof(key), "%s`%s", gobj_name(gobj_service), iev_event);
-            json_int_t refused = json_integer_value(
-                json_object_get(priv->refused_subscriptions, key)
+            json_int_t suppressed = 0;
+            json_int_t refused = count_refused_subscription(
+                gobj, gobj_service, iev_event, -1
             );
             if(refused > 0) {
-                if(refused > 1) {
-                    json_object_set_new(
-                        priv->refused_subscriptions, key, json_integer(refused - 1)
+                if(peer_log_allowed(gobj, PEER_LOG_REFUSED_WITHDRAWN, &suppressed)) {
+                    gobj_log_info(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_AUTH,
+                        "msg",          "%s", "UNSUBSCRIBING event never subscribed, its subscription was refused",
+                        "service",      "%s", iev_dst_service,
+                        "event",        "%s", iev_event,
+                        "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+                        "suppressed",   "%ld", (long)suppressed,
+                        NULL
                     );
-                } else {
-                    json_object_del(priv->refused_subscriptions, key);
                 }
-                gobj_log_info(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", "UNSUBSCRIBING event never subscribed, its subscription was refused",
-                    "service",      "%s", iev_dst_service,
-                    "event",        "%s", iev_event,
-                    "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
-                    NULL
-                );
             } else {
-                gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PROTOCOL,
-                    "msg",          "%s", "UNSUBSCRIBING event matches no subscription of this channel",
-                    "service",      "%s", iev_dst_service,
-                    "event",        "%s", iev_event,
-                    "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
-                    "kw",           "%j", iev_kw,
-                    NULL
-                );
+                if(peer_log_allowed(gobj, PEER_LOG_NO_MATCH, &suppressed)) {
+                    char dump[MAX_LOG_DUMP_SIZE];
+                    size_t size = peer_json_dump(iev_kw, dump, sizeof(dump));
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PROTOCOL,
+                        "msg",          "%s", "UNSUBSCRIBING event matches no subscription of this channel",
+                        "service",      "%s", iev_dst_service,
+                        "event",        "%s", iev_event,
+                        "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+                        "kw",           "%s", dump,
+                        "kw_size",      "%lu", (unsigned long)size,
+                        "suppressed",   "%ld", (long)suppressed,
+                        NULL
+                    );
+                }
             }
             KW_DECREF(iev_kw)
             KW_DECREF(kw)
             return 0;
         }
 
-        gobj_unsubscribe_event(gobj_service, iev_event, iev_kw, gobj);
+        gobj_unsubscribe_list(gobj_service, dl_subs, FALSE);
+        KW_DECREF(iev_kw)
 
     } else {
         /*----------------------*

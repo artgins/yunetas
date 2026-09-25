@@ -205,8 +205,14 @@ the action.
 
 Entry at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.c). Loops over `publisher->dl_subscriptions` and calls
 `gobj_send_event(subscriber, event, kw2publish, publisher)` for each, after
-applying per-subscription filters (`__filter__`, `__local__`, `__global__`,
-see §3.5).
+applying the subscription's `__filter__`, `__local__` and `__global__` (§3.4).
+`kw2publish` is the publisher's kw itself, shared by every subscriber
+(`kw_incref`), unless the subscription has a `__local__` or a `__global__`:
+then it is a twin of its own (`kw_duplicate`), so the keys one subscription
+removes or adds reach no other subscriber, nor the publisher. Up to 7.25.4 it
+was shared always, and a remote peer's `__global__` forged the event of every
+subscriber after it (§4.6). A receiver that changes the kw it got works on its
+own copy when somebody else holds it (`C_IEVENT_SRV`'s `mt_inject_event`).
 
 If there are no subscribers, [`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.c) logs
 *"Publish event WITHOUT subscribers"* at `LOG_WARNING` — unless the
@@ -240,8 +246,8 @@ configuration dict that accepts these keys:
 | Key                       | Effect                                                            |
 |---------------------------|-------------------------------------------------------------------|
 | `__config__`              | Sub-keys: `__hard_subscription__`, `__own_event__`, `__rename_event_name__`, `__first_shot__`. A remote peer may set only `__first_shot__` (§4.6) |
-| `__global__`              | Base kw merged into every published kw before delivery            |
-| `__local__`               | Keys to delete from the published kw before delivery              |
+| `__global__`              | Keys added to the kw THIS subscriber gets (its own twin, §3.3)    |
+| `__local__`               | Keys removed from the kw THIS subscriber gets (its own twin, §3.3) |
 | `__filter__`              | Publish only if the published kw matches this selector            |
 
 Unknown keys at the top level produce a warning ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.25.4/kernel/c/gobj-c/src/gobj.c)).
@@ -536,9 +542,13 @@ The remote side does **not** need to keep the connection idle while it
 waits. Events can fire when the publisher decides. From the point of view of
 the subscriber, remote events look the same as local ones.
 
-The peer chooses its `__filter__` and `__global__`, but not how the framework
-treats its subscription. Of `__config__`, `C_IEVENT_SRV` keeps only
-`__first_shot__`, which the publisher reads. `__hard_subscription__`,
+The peer chooses its `__filter__` and the keys of its own in `__global__`
+(none that starts with `_`, and not `gbuffer`), and they change only what the
+peer itself gets; its `__local__` and any other key are dropped (since
+7.25.5; up to 7.25.4 they went through, and with the shared kw of §3.3 they
+forged or stripped the event of every later subscriber). The peer does not
+choose how the framework treats its subscription. Of `__config__`,
+`C_IEVENT_SRV` keeps only `__first_shot__`, which the publisher reads. `__hard_subscription__`,
 `__own_event__` and `__rename_event_name__` are removed, with a warning
 (since 7.25.5). The subscriptions belong to the session: when the channel
 closes, `C_IEVENT_SRV` removes all of them with force. The channel is static,
@@ -555,8 +565,13 @@ gobj_subscribe_event(gobj_remote, EV_REALTIME_TRACK, json_pack("{s:{s:b}, s:{s:s
 ), gobj);
 ```
 
+A channel holds at most `max_subscriptions` of its peer (default 5000), and
+a `__filter__` or `__global__` bigger than `max_subscription_size` (default
+16 KB) is refused: each subscription costs a scan of the publisher's list on
+every publish.
+
 Details and the list of keys: [`ievent.md`](../../../docs/doc.yuneta.io/api/gclass/ievent.md),
-*What a peer may put in a subscription*.
+*What a peer may put in a subscription* and *What a peer may hold*.
 
 ### 4.7 Two identities travel on a channel — do not confuse them
 

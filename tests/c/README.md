@@ -61,6 +61,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `gbuffer` | NULL guards of the gbuffer accessors; a refused `gbmem_realloc()` leaves the old block valid and tracked |
 | `glogger_utf8` | The logger never writes a record that is not valid UTF-8 JSON |
 | `command_authz` | The per-command authorization gate (`SDF_AUTHZ_X`) |
+| `c_ievent_srv_peer_subs` | What a remote peer may put in a subscription through `C_IEVENT_SRV` (`__global__` keys of its own only, no `__local__`, no stray keys) and hold (`max_subscriptions`, `max_subscription_size`); a subscription's `__local__`/`__global__` change only its own copy of the event; each peer-repeated log written once; a client withdraws a subscription with a `__global__` |
 | `c_subscription_authz` | The subscription authorization gate (`enable_subscription_authz`): `C_IEVENT_CLI` peers over websocket subscribe to `C_NODE`'s `EV_TREEDB_NODE_*` feed and to `C_TRANGER`'s `EV_TRANGER_RECORD_ADDED`; with the gate on, a peer without `read` is refused and the feed reaches only the accepted subscriptions; a peer's `__config__` keeps only `__first_shot__`; a channel disabled and enabled again serves a new session; the six `C_IOGATE` channel commands with a `channel_name` that matches nothing; the `authzs` trace prints the kw it checked; an orderly teardown of the gate |
 | `command_delete_user` | `delete-user` of C_AUTHZ: immutability is the only boundary |
 | `command_shutdown` | `shutdown` answers first and stops after |
@@ -118,7 +119,7 @@ The single-binary directories that also register under `<directory>/`:
 
 | Directory | New binaries |
 |---|---|
-| `c_agent_find_new_yunos`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_rx`, `c_udp_s_echo`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
+| `c_agent_find_new_yunos`, `c_ievent_srv_peer_subs`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_rx`, `c_udp_s_echo`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
 | `gbuffer` | `test_gbmem_realloc_refused` |
 | `c_mqtt` | `test_mqtt_queued_in` |
 | `helpers` | `test_audit_record`, `test_rotatory`, `test_dir_array_nomem`, `test_dir_listing`, `test_dir_read_error` |

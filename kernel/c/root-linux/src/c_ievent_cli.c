@@ -359,6 +359,23 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     }
     if(!kw) {
         kw = json_object();
+    } else if(kw->refcount > 1) {
+        /*
+         *  Below, the kw is changed (the ievent stack, the message type, and
+         *  the binary fields serialized by send_static_iev()): change a kw
+         *  of our own. A kw somebody else holds too is, above all, a
+         *  published one, which gobj_publish_event() hands the SAME to
+         *  every subscriber that does not rewrite it: up to 7.25.4 what
+         *  this gobj wrote in it reached every subscriber after it, and
+         *  the publisher.
+         */
+        json_t *kw_own = kw_duplicate(gobj, kw);
+        KW_DECREF(kw)
+        if(!kw_own) {
+            // Error already logged
+            return -1;
+        }
+        kw = kw_own;
     }
 
     /*

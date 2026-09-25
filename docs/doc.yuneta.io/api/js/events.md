@@ -372,8 +372,22 @@ keys that change the delivery. Every other key is a filter on the payload.
 | `__config__` | The options of the subscription. Put the two booleans below inside this object. |
 | `__config__.__hard_subscription__` | Keeps the subscription when a stop deletes the others. |
 | `__config__.__own_event__` | Stops the publication when the action of this subscriber returns a negative value, and gives that value to the publisher. The subscriber owns the event. |
-| `__global__` | A JSON object that the framework adds to the payload of every event of this subscription. |
-| `__local__` | A list of key names that the framework removes from the payload before the delivery. |
+| `__global__` | A JSON object that the framework adds to the payload delivered to this subscriber. |
+| `__local__` | A list of key names that the framework removes from the payload delivered to this subscriber. |
+
+In gobj-js the payload of a publish is ONE object, given to every subscriber
+in turn, and `__global__` and `__local__` change that object: the keys one
+subscription adds or removes are seen by every subscriber after it, and by the
+publisher. The C runtime gives such a subscription a copy of its own since
+SDK 7.25.5 ([`gobj_publish_event()`](#gobj_publish_event)). Until gobj-js does
+the same, keep `__global__` and `__local__` to a publisher with one
+subscriber, or give each subscriber keys no other one reads.
+
+```javascript
+// Tags the events of this subscription; with a second subscriber after it,
+// that one sees `tag` too (gobj-js)
+gobj_subscribe_event(publisher, "EV_X", {__global__: {tag: "a"}}, subscriber_a);
+```
 | `__filter__` | A JSON object that the payload must match. The framework does not deliver the event when the payload does not match. |
 
 ---

@@ -72,6 +72,8 @@ services, and handles WebSocket upgrade.
 | `client_yuno_name` | `string` | Name of the connected client yuno. |
 | `this_service` | `string` | Local service name this gate serves. |
 | `authenticated` | `bool` | Whether the connection is authenticated. |
+| `max_subscriptions` | `integer` | Subscriptions a peer may hold on the channel (default `5000`, `0` no limit). See *What a peer may hold*. |
+| `max_subscription_size` | `integer` | Bytes, as compact json, of the `__filter__` and of the `__global__` of a peer's subscription (default `16384`, `0` no limit). |
 
 ### Lifecycle of a channel
 
@@ -140,10 +142,15 @@ permission aliased `__subscribe_event__` — `read` for the `EV_TREEDB_NODE_*`
 feed of a treedb and for the `EV_TRANGER_RECORD_ADDED` feed of a
 `C_TRANGER` — or the global `__subscribe_event__`. A refused subscription is
 logged (*"No permission to subscribe event"*) and not made; the channel stays
-open. When the peer withdraws a refused subscription later, that is logged at
-info level (*"its subscription was refused"*). A withdrawal that matches no
-subscription of the channel, and was not refused, is a warning (*"UNSUBSCRIBING
-event matches no subscription of this channel"*).
+open. The refusal is logged once per service and event on a channel: a peer
+that repeats it does not write a log line per frame. When the peer withdraws a
+refused subscription later, that is logged at info level (*"its subscription
+was refused"*). A withdrawal that matches no subscription of the channel, and
+was not refused, is a warning (*"UNSUBSCRIBING event matches no subscription
+of this channel"*), with the frame cut to 256 bytes. Both are the peer's to
+repeat, so each is written at most once per 10 s per channel, with the count
+of the ones not written (`suppressed`). Up to 7.25.4 each frame wrote its
+line, and the no-match warning the whole frame, as big as the peer made it.
 
 Example: a yuno that enforces the treedb feed permission, in its config:
 
@@ -161,9 +168,37 @@ Details, and how a gclass declares a guarded event:
 ### What a peer may put in a subscription
 
 The kw of a `__subscribing__` message can carry `__config__`, `__global__`
-and `__filter__`, as a local `gobj_subscribe_event()` does. Of `__config__`,
-`C_IEVENT_SRV` keeps only the keys a peer may set, and since 7.25.5 that
-list has one key:
+and `__filter__`, as a local `gobj_subscribe_event()` does. `C_IEVENT_SRV`
+builds the subscription from those three, and keeps of them only what a peer
+may set (since 7.25.5):
+
+| Key | What is kept |
+|-----|--------------|
+| `__filter__` | All of it. It decides only the peer's own deliveries. |
+| `__config__` | The keys in the list below. |
+| `__global__` | The keys of the peer's own: not one that starts with `_` (the framework's: `__md_iev__`, `__md_yuno__`, `__service__`, ...), and not `gbuffer`, the binary field of every kw. They come back to the peer in every event of this subscription, and to nobody else. |
+| `__local__` | Nothing. The one `__local__` of a remote subscription is the reference to the channel, set by `C_IEVENT_SRV`. |
+| any other key | Nothing. |
+
+What is dropped is logged as a warning, *"SUBSCRIBING keys a peer may not
+set, ignored"*, at most once per 10 s per channel. A `__filter__` or a
+`__global__` bigger than `max_subscription_size` refuses the subscription
+(*"SUBSCRIBING refused, bigger than max_subscription_size"*, same pace).
+
+Up to 7.25.4 only `__config__` was filtered, and the publish shared ONE kw
+with every subscriber, so a peer's subscription changed the event of every
+subscriber after it: its `__global__` forged keys of the event (a
+`topic_name`, a `node`), its `__local__` removed them, the filters of the
+later subscribers were evaluated on the forged kw, and the back-metadata of
+the gate (`__md_iev__`, with the peer's user name and channel) reached a
+local subscriber. A `gbuffer` in the peer's `__global__` was taken for a
+pointer when the event was serialized back to it, and crashed the yuno. Now
+`gobj_publish_event()` gives a subscription with a `__local__` or a
+`__global__` a twin of the kw of its own
+([`gobj_publish_event()`](#gobj_publish_event)), and `C_IEVENT_SRV` changes a
+kw that somebody else holds only on a copy.
+
+Of `__config__` the list of keys a peer may set has one key:
 
 | Key | Meaning |
 |-----|---------|
@@ -198,3 +233,48 @@ gobj_subscribe_event(gobj_remote, "EV_REALTIME_TRACK", {
 
 A key that a publisher reads from a peer is added to the list in
 `c_ievent_srv.c` (`peer_subscription_config_keys`), and documented here.
+
+A peer withdraws a subscription with an `__unsubscribing__` message that
+repeats what it subscribed. The kw is filtered the same way, and compared
+with what the peer SENT: the `__global__` that `C_IEVENT_SRV` stores carries
+its own back-metadata too, which the peer never repeats. Up to 7.25.4 it was
+compared whole, and a subscription with a `__global__` could not be withdrawn
+until the channel closed.
+
+Example: a C client tags the events of its subscription, and withdraws it:
+
+```C
+json_t *kw = json_pack("{s:{s:s}, s:{s:s}}",
+    "__filter__", "topic_name", "devices",
+    "__global__", "tag", "devices_view"     // comes back in each event
+);
+gobj_subscribe_event(gobj_remote, EV_REALTIME_TRACK, json_incref(kw), gobj);
+gobj_unsubscribe_event(gobj_remote, EV_REALTIME_TRACK, kw, gobj);   // the same kw
+```
+
+### What a peer may hold
+
+Every subscription costs a scan of the publisher's subscriptions when it is
+made, and one more on every publish of its event. A peer could make them
+without end: in review 19, 20000 subscriptions of one peer blocked the event
+loop for 80 s, and every later publish took 13 ms. So a channel holds at most
+`max_subscriptions` of its peer. Beyond it a subscription is refused, logged
+once (*"SUBSCRIBING refused, the peer holds max_subscriptions"*), and not
+again until the peer is under the cap. A subscription that repeats one the
+peer holds replaces it, and takes no room.
+
+A gate whose peers subscribe per device (two subscriptions per device, in the
+SPAs of hidraulia) raises the cap in the `kw` of the `C_IEVENT_SRV` of its
+channel tree:
+
+```json
+{
+    "name": "input-(^^__range__^^)",
+    "gclass": "C_IEVENT_SRV",
+    "kw": {
+        "max_subscriptions": 20000
+    }
+}
+```
+
+`tests/c/c_ievent_srv_peer_subs`.

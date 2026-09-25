@@ -133,8 +133,28 @@ Returns the sum of the return values from [`gobj_send_event()`](<#gobj_send_even
 If the publisher has a `mt_publish_event` method, it is called first. If it returns <= 0, the function returns immediately.
 Each subscriber's `mt_publication_pre_filter` method is called before dispatching the event. This allows for filtering or modification of the event data.
 If a subscriber has a `mt_publication_filter` method, it is used to determine whether the event must be sent to that subscriber.
-Local and global keyword modifications are applied before sending the event.
 If the event is a system event, it is only sent to subscribers that support system events.
+
+**One kw, or a twin.** Every subscriber gets the SAME kw (`kw_incref()`), which
+costs nothing however many subscribers there are, unless its subscription
+rewrites it: a subscription with a `__local__` (keys removed) or a
+`__global__` (keys added) gets a twin of its own (`kw_duplicate()`, which
+increfs the binary fields), and only the twin is changed. The `__filter__` of
+each subscription is evaluated on the publisher's kw as it came. So what one
+subscription changes reaches no other subscriber, and the publisher gets its
+kw back as it gave it. A receiver that changes the kw it got (as
+`C_IEVENT_SRV` does to send it on) must change a copy of its own when anybody
+else holds it. Up to 7.25.4 the kw was shared always, and the `__local__` and
+`__global__` of one subscription changed the event of every subscriber after
+it -- including those of a remote peer, see
+[What a peer may put in a subscription](#gclass-c-ievent-srv).
+
+```C
+/*  Two subscribers: `a` gets {"x":1,"tag":"a"}, `b` gets {"x":1}  */
+gobj_subscribe_event(publisher, EV_X, json_pack("{s:{s:s}}", "__global__", "tag", "a"), a);
+gobj_subscribe_event(publisher, EV_X, 0, b);
+gobj_publish_event(publisher, EV_X, json_pack("{s:i}", "x", 1));
+```
 
 ---
 
