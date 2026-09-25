@@ -8399,6 +8399,61 @@ PRIVATE json_t * _create_subscription(
 }
 
 /***************************************************************************
+ *  The kw to find the subscriptions a (un)subscription `kw` names: `kw` as
+ *  _create_subscription() stores it. The three `__config__` keys the
+ *  framework reads (__hard_subscription__, __own_event__,
+ *  __rename_event_name__) become the subs_flag and are taken out of the
+ *  stored `__config__`, and a renamed event adds `__original_event_name__`
+ *  to the stored `__global__`: with `kw` as it came, the same kw matched no
+ *  subscription, a repeat of it was made twice (the subscriber got each
+ *  event twice) and its withdrawal found nothing. Up to 7.25.4 only
+ *  __hard_subscription__ was taken out. Return a new reference.
+ ***************************************************************************/
+PRIVATE json_t *_subscription_match_kw(
+    gobj_t *publisher,
+    gobj_event_t event,
+    json_t *kw  // not owned
+)
+{
+    const char *framework_keys[] = {
+        "__hard_subscription__", "__own_event__", "__rename_event_name__", 0
+    };
+
+    json_t *__config__ = json_object_get(kw, "__config__");
+    BOOL has_framework_key = FALSE;
+    for(int i=0; framework_keys[i] && json_is_object(__config__); i++) {
+        if(json_object_get(__config__, framework_keys[i])) {
+            has_framework_key = TRUE;
+            break;
+        }
+    }
+    if(!has_framework_key) {
+        return json_incref(kw);
+    }
+
+    json_t *kw_match = json_deep_copy(kw);
+    json_t *config_match = json_object_get(kw_match, "__config__");
+
+    /*
+     *  A renamed event that no gclass knows stays in the stored __config__
+     */
+    const char *renamed_event = json_string_value(
+        json_object_get(config_match, "__rename_event_name__")
+    );
+    if(!empty_string(renamed_event) && gobj_find_event_type(renamed_event, 0, FALSE)) {
+        json_object_del(config_match, "__rename_event_name__");
+        json_t *global_match = json_object_get(kw_match, "__global__");
+        if(event && json_size(global_match) > 0) {
+            json_object_set_new(global_match, "__original_event_name__", json_string(event));
+        }
+    }
+
+    json_object_del(config_match, "__hard_subscription__");
+    json_object_del(config_match, "__own_event__");
+    return kw_match;
+}
+
+/***************************************************************************
  *  Match subscription
  ***************************************************************************/
 PRIVATE BOOL _match_subscription(
@@ -8758,28 +8813,11 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     /*------------------------------*
      *  Find repeated subscription
      *------------------------------*/
-    /*
-     *  __hard_subscription__ is taken out of the __config__ that the
-     *  subscription stores (it becomes its subs_flag): with it the same kw
-     *  matched no subscription, and a repeated hard subscription was made
-     *  twice, the subscriber getting each event twice.
-     */
-    json_t *kw_match = kw;
-    json_t *__config__ = kw_get_dict(publisher, kw, "__config__", 0, 0);
-    if(__config__ && kw_has_key(__config__, "__hard_subscription__")) {
-        kw_match = json_deep_copy(kw);
-        json_object_del(
-            kw_get_dict(publisher, kw_match, "__config__", 0, 0),
-            "__hard_subscription__"
-        );
-    } else {
-        json_incref(kw_match);
-    }
     json_t *dl_subs = _find_subscriptions(
         publisher->dl_subscriptions,
         publisher,
         event,
-        kw_match, // owned
+        _subscription_match_kw(publisher, event, kw), // owned
         subscriber
     );
 
@@ -8799,13 +8837,24 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
         }
         subs_hard = 0;
     }
+    /*
+     *  A repeat is the caller's (a documented override), not a broken
+     *  invariant: no stack, and the kw capped. Up to 7.25.4 it carried the
+     *  stack and the whole kw, for a subscription of a peer as big as its
+     *  frame.
+     */
+    char kw_dump[256];
+    if(subs_hard || json_array_size(dl_subs) > 0) {
+        memset(kw_dump, 0, sizeof(kw_dump));
+        json_dumpb(kw, kw_dump, sizeof(kw_dump)-1, JSON_COMPACT);
+    }
     if(subs_hard) {
-        gobj_log_warning(publisher, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(publisher, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Hard subscription REPEATED, the one there is kept and returned",
             "event",        "%s", event,
-            "kw",           "%j", kw,
+            "kw",           "%s", kw_dump,
             "publisher",    "%s", gobj_full_name(publisher),
             "subscriber",   "%s", gobj_full_name(subscriber),
             NULL
@@ -8816,12 +8865,12 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     }
 
     if(json_array_size(dl_subs) > 0) {
-        gobj_log_warning(publisher, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(publisher, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "subscription(s) REPEATED, will be deleted and override",
             "event",        "%s", event,
-            "kw",           "%j", kw,
+            "kw",           "%s", kw_dump,
             "publisher",    "%s", gobj_full_name(publisher),
             "subscriber",   "%s", gobj_full_name(subscriber),
             NULL
@@ -9012,7 +9061,7 @@ PUBLIC int gobj_unsubscribe_event(
         publisher->dl_subscriptions,
         publisher,
         event,
-        json_incref(kw),
+        _subscription_match_kw(publisher, event, kw), // owned
         subscriber
     );
     int deleted = 0;

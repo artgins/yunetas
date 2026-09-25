@@ -12,6 +12,11 @@ Tests subscribe / unsubscribe / publish semantics of the GObj framework. Verifie
   `gobj_unsubscribe_event()` leaves a hard subscription and logs a warning;
   `gobj_unsubscribe_list()` with `force` removes it. A plain subscription
   repeated is still overridden, and a hard one over a plain one replaces it.
+  A repeated `__own_event__` subscription, and a repeated
+  `__rename_event_name__` one with a `__global__`, are overridden too (one
+  subscription, each event once), and `gobj_unsubscribe_event()` with the
+  same kw removes them (up to 7.25.4 each repeat was a second subscription,
+  and the withdrawal found nothing).
 
 ## Run
 

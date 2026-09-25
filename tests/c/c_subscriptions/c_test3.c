@@ -24,6 +24,16 @@
  *         warning, one subscription), and a hard one made over a plain one
  *         replaces it.
  *
+ *      4) The same for the other two keys of __config__ the framework
+ *         takes out of the stored one: a repeated `__own_event__`
+ *         subscription, and a repeated `__rename_event_name__` one with a
+ *         `__global__` (the stored one also gets __original_event_name__),
+ *         are overridden (one subscription, each event once), and
+ *         gobj_unsubscribe_event() with the same kw removes them. Up to
+ *         7.25.4 only __hard_subscription__ was taken out of the kw that
+ *         is matched: each repeat was a second subscription, each event
+ *         arrived twice, and the withdrawal found nothing.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -78,6 +88,7 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     int received;                   // EV_ON_MESSAGE received
+    int renamed;                    // EV_TEST_RENAMED received, from EV_ON_MESSAGE
 } PRIVATE_DATA;
 
 
@@ -283,6 +294,40 @@ PRIVATE int ac_test_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         NULL
     );
 
+    /*
+     *  4) __own_event__ and __rename_event_name__ repeated: overridden,
+     *     and withdrawn with the same kw
+     */
+    json_t *kw_own = json_pack("{s:{s:b}}", "__config__", "__own_event__", 1);
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_own), gobj);
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_own), gobj);
+    check(gobj, count_subscriptions(gobj) == 1, "a repeated __own_event__ subscription is one");
+    priv->received = 0;
+    gobj_publish_event(gobj, EV_ON_MESSAGE, json_object());
+    check(gobj, priv->received == 1, "each event arrives once (__own_event__)");
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, kw_own, gobj);
+    check(gobj, count_subscriptions(gobj) == 0, "the same kw withdraws it (__own_event__)");
+
+    json_t *kw_rename = json_pack("{s:{s:s}, s:{s:s}}",
+        "__config__", "__rename_event_name__", EV_TEST_RENAMED,
+        "__global__", "tag", "renamed"
+    );
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_rename), gobj);
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_rename), gobj);
+    check(gobj, count_subscriptions(gobj) == 1, "a repeated __rename_event_name__ subscription is one");
+    priv->renamed = 0;
+    gobj_publish_event(gobj, EV_ON_MESSAGE, json_object());
+    check(gobj, priv->renamed == 1, "each event arrives once, renamed");
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, kw_rename, gobj);
+    check(gobj, count_subscriptions(gobj) == 0, "the same kw withdraws it (__rename_event_name__)");
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "own event and renamed event override ok",
+        NULL
+    );
+
     set_yuno_must_die();
 
     KW_DECREF(kw)
@@ -297,6 +342,24 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->received++;
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  EV_ON_MESSAGE of a subscription that renames it
+ ***************************************************************************/
+PRIVATE int ac_renamed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    check(gobj,
+        strcmp(kw_get_str(gobj, kw, "__original_event_name__", "", 0), EV_ON_MESSAGE)==0 &&
+        strcmp(kw_get_str(gobj, kw, "tag", "", 0), "renamed")==0,
+        "the renamed event carries its original name and the __global__"
+    );
+    priv->renamed++;
 
     KW_DECREF(kw)
     return 0;
@@ -330,6 +393,7 @@ GOBJ_DEFINE_GCLASS(C_TEST3);
  *      Events
  *------------------------*/
 GOBJ_DEFINE_EVENT(EV_TEST_RUN);
+GOBJ_DEFINE_EVENT(EV_TEST_RENAMED);
 
 /***************************************************************************
  *          Create the GClass
@@ -354,6 +418,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_idle[] = {
         {EV_TEST_RUN,               ac_test_run,            0},
         {EV_ON_MESSAGE,             ac_on_message,          0},
+        {EV_TEST_RENAMED,           ac_renamed,             0},
         {0,0,0}
     };
 
@@ -367,6 +432,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     event_type_t event_types[] = {
         {EV_TEST_RUN,               0},
+        {EV_TEST_RENAMED,           0},
         {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT},
         {NULL, 0}
     };

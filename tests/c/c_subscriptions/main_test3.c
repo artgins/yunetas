@@ -127,7 +127,7 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Hard subscription REPEATED, the one there is kept and returned",
@@ -139,6 +139,9 @@ static int register_yuno_and_more(void)
         "msg", "subscription(s) REPEATED, will be deleted and override",
         "msg", "Hard subscription not removed, only gobj_unsubscribe_list() with force removes it",
         "msg", "plain subscription override ok",
+        "msg", "subscription(s) REPEATED, will be deleted and override",
+        "msg", "subscription(s) REPEATED, will be deleted and override",
+        "msg", "own event and renamed event override ok",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"
