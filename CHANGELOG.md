@@ -677,9 +677,15 @@ code before it, except those listed under "No red test" in `TODO.md`.
   `create-yuno` of a new release warned for its configuration (and for its
   binary, when the binary was installed after the old release linked it). The
   link fills the hook of the new instance and nothing else. The warning stays
-  for a real duplicate: the same pair linked twice. Test
+  for a real duplicate: the same pair linked twice. When no other instance of
+  the parent key explains the ref (none holds the child, and this one is not
+  a new instance with an empty hook), the hook LOST a child its fkey names:
+  the link repairs it and warns *"Parent hook had lost a child its fkey
+  names: repaired"* (with the topic, parent id, hook and child id); 7.25.4
+  repaired it under the duplicate warning. Tests
   `test_c_agent_find_new_yunos` (its fixture now links binaries and
-  configurations as `create-yuno` does).
+  configurations as `create-yuno` does) and `test_tr_treedb_hook_hygiene` (a
+  hook emptied by hand on a parent with one instance warns once).
 - **Lost lock.** A master that lost its lock while stopped (another process
   took the store) writes nothing: every write path, including the three md2
   flag rewriters (`tranger2_write_user_flag`, `tranger2_set_user_flag`,

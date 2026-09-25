@@ -12,6 +12,10 @@
  *               fkey). Link is now idempotent and warns on the skipped dup.
  *               (commit "fix(treedb): version-aware reverse-hook unlink +
  *               idempotent link dedup").
+ *               And a parent hook that LOST a child its fkey still names
+ *               (one instance of its key, emptied by hand) is repaired by the
+ *               link, with the WARNING "Parent hook had lost a child its fkey
+ *               names: repaired" -- never silently.
  *
  *            2. Unlink targeted only the primary parent version. A child's
  *               fkey ref carries the parent id but not the version, so cleaning
@@ -156,6 +160,48 @@ PRIVATE int test_idempotent_link_dedup(
         }
         if(array_field_size(yuno, CONFIG_FKEY) != 1) {
             printf("%s  FAIL: child fkey duplicated (size %d, want 1)%s\n",
+                On_Red BWhite, array_field_size(yuno, CONFIG_FKEY), Color_Off);
+            result += -1;
+        }
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+        result += test_json(NULL);
+    }
+
+    /*------------------------------------*
+     *  The hook of cfg-A (ONE instance of
+     *  its key) loses the yuno in memory,
+     *  while the yuno's fkey still names
+     *  it: a broken invariant. The link
+     *  repairs the hook and says so, once.
+     *  (No other instance explains it, as
+     *  a new release of a yuno would.)
+     *------------------------------------*/
+    {
+        const char *test = "dedup: a hook that lost its child is repaired, and said";
+        set_expected_results(test,
+            json_pack("[{s:s}]",
+                "msg", "Parent hook had lost a child its fkey names: repaired"
+            ),
+            NULL, NULL, 0);
+        MT_START_TIME(time_measure)
+
+        json_t *cfg = treedb_get_node(tranger, treedb_name, "configs", "cfg-A");
+        json_t *yuno = treedb_get_node(tranger, treedb_name, "yunos", "y-A");
+        json_array_clear(json_object_get(cfg, HOOK_NAME));
+
+        if(treedb_link_nodes(tranger, HOOK_NAME, cfg, yuno) != 0) {
+            printf("%s  FAIL: repairing link returned non-zero%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(array_field_size(cfg, HOOK_NAME) != 1) {
+            printf("%s  FAIL: parent hook not repaired (size %d, want 1)%s\n",
+                On_Red BWhite, array_field_size(cfg, HOOK_NAME), Color_Off);
+            result += -1;
+        }
+        if(array_field_size(yuno, CONFIG_FKEY) != 1) {
+            printf("%s  FAIL: child fkey changed (size %d, want 1)%s\n",
                 On_Red BWhite, array_field_size(yuno, CONFIG_FKEY), Color_Off);
             result += -1;
         }

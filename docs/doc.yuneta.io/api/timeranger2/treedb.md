@@ -1656,8 +1656,11 @@ writes nothing: that is the ordinary case of a second instance of a node,
 which inherits the fkey of the instance before it (the ref names the
 parent's **id**, shared by both instances) while the hook of the new parent
 is empty. Such a link logs nothing either (up to 7.25.4 it warned *"Parent
-ref already in child fkey"*, once per `create-yuno` of a new release). A link
-asked twice, with nothing to move on either side, writes
+ref already in child fkey"*, once per `create-yuno` of a new release). When no
+other instance of the parent's key explains the ref -- none holds the child,
+and the parent is not a new instance with an empty hook -- the hook LOST a
+child its fkey names: the link puts it back and warns *"Parent hook had lost a
+child its fkey names: repaired"*. A link asked twice, with nothing to move on either side, writes
 nothing and publishes nothing, and it warns (*"Parent ref already in child
 fkey, skipping duplicate"*). The link EVENT follows either side: filling a
 hook is a new relationship in memory even when nothing is written.

@@ -5048,6 +5048,73 @@ PRIVATE json_t *find_parent_version_holding_child( // Return is NOT YOURS
 }
 
 /***************************************************************************
+ *  A link found the parent's ref already in the child's fkey, and the
+ *  parent's hook without the child. Is that a state of the treedb? The ref
+ *  names the parent's KEY, shared by all its instances, so yes when
+ *  ANOTHER instance of the parent key holds the child (a new release of a
+ *  yuno takes the configuration the old one holds), or when this instance
+ *  is one of several and its hook was empty (a new instance, whose hooks
+ *  nothing filled yet). Otherwise the hook LOST a child its fkey names:
+ *  a broken invariant, which the link repairs and the caller logs.
+ ***************************************************************************/
+PRIVATE BOOL fkey_ref_explained_by_instances(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *parent_topic_name,
+    const char *parent_id,
+    const char *hook_name,
+    json_t *parent_node,    // NOT owned, the instance being linked
+    json_t *child_node,     // NOT owned
+    const char *child_id,
+    BOOL hook_was_empty
+)
+{
+    BOOL other_instance = FALSE;
+    json_t *primary = treedb_get_node(tranger, treedb_name, parent_topic_name, parent_id);
+    if(primary && primary != parent_node) {
+        other_instance = TRUE;
+        if(parent_hook_holds_child(gobj, primary, hook_name, child_node, child_id)) {
+            return TRUE;
+        }
+    }
+
+    BOOL explained = FALSE;
+    json_t *iter_pkey2s = treedb_topic_pkey2s(tranger, parent_topic_name);
+    int idx; json_t *jn_pkey2_name;
+    json_array_foreach(iter_pkey2s, idx, jn_pkey2_name) {
+        const char *pkey2_name = json_string_value(jn_pkey2_name);
+        if(empty_string(pkey2_name)) {
+            continue;
+        }
+        json_t *indexy = treedb_get_pkey2_index(
+            tranger, treedb_name, parent_topic_name, pkey2_name
+        );
+        json_t *instances = indexy? json_object_get(indexy, parent_id) : NULL;
+        const char *key2; json_t *instance;
+        json_object_foreach(instances, key2, instance) {
+            if(instance == parent_node) {
+                continue;
+            }
+            other_instance = TRUE;
+            if(parent_hook_holds_child(gobj, instance, hook_name, child_node, child_id)) {
+                explained = TRUE;
+                break;
+            }
+        }
+        if(explained) {
+            break;
+        }
+    }
+    json_decref(iter_pkey2s);
+
+    if(explained) {
+        return TRUE;
+    }
+    return (other_instance && hook_was_empty)? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  May a DICT hook take `child_node` under `child_id`? Yes when the slot
  *  is free or already its own, and when the newcomer is the child's
  *  PRIMARY instance; otherwise the entry it has stays, as an array hook
@@ -10938,6 +11005,9 @@ PRIVATE int _link_nodes(
     BOOL changed = FALSE;
     BOOL child_changed = FALSE;
     BOOL hook_took_child = FALSE;   // this parent's hook did not hold the child
+    BOOL ref_was_present = FALSE;   // the child's fkey already named this parent
+    BOOL hook_was_empty = (json_is_array(parent_hook_data) && json_array_size(parent_hook_data)==0) ||
+        (json_is_object(parent_hook_data) && json_object_size(parent_hook_data)==0);
 
     /*--------------------------------------------------*
      *  A single-valued fkey does not add, it REPLACES:
@@ -11063,6 +11133,8 @@ PRIVATE int _link_nodes(
             if(strcmp(kw_get_str(gobj, child_node, child_field, "", 0), pref)!=0) {
                 changed = TRUE;
                 child_changed = TRUE;
+            } else {
+                ref_was_present = TRUE;
             }
             json_object_set_new(
                 child_node,
@@ -11089,20 +11161,16 @@ PRIVATE int _link_nodes(
                 );
                 changed = TRUE;
                 child_changed = TRUE;
-            } else if(!hook_took_child) {
+            } else if(hook_took_child) {
+                ref_was_present = TRUE;
+            } else {
                 /*
                  *  fkey ref already present AND the hook already held the
                  *  child: the same pair linked twice. Warn, don't duplicate
                  *  the parent reference on the child.
                  *
-                 *  Not when this link filled the hook: the ref names the
-                 *  parent's KEY, which every instance of it shares, so it is
-                 *  already there when a new instance of the parent takes a
-                 *  child an older instance holds (the configuration a new
-                 *  release of a yuno keeps), or a new instance of the child
-                 *  inherited it (inherit_links()). The link only fills this
-                 *  instance's hook; it warned on every `create-yuno` of a new
-                 *  release (up to 7.25.4).
+                 *  When this link filled the hook, see below: the ref names
+                 *  the parent's KEY, shared by all its instances.
                  */
                 gobj_log_warning(gobj, 0,
                     "function",             "%s", __FUNCTION__,
@@ -11123,6 +11191,8 @@ PRIVATE int _link_nodes(
             if(!json_object_get(child_data, pref)) {
                 changed = TRUE;
                 child_changed = TRUE;
+            } else {
+                ref_was_present = TRUE;
             }
             json_object_set_new(
                 child_data,
@@ -11133,6 +11203,34 @@ PRIVATE int _link_nodes(
         break;
     default:
         break;
+    }
+
+    /*--------------------------------------------------*
+     *  The fkey already named the parent and its hook did not hold the
+     *  child. Legitimate when another instance of the parent key explains
+     *  it: a new instance of the parent takes a child an older one holds
+     *  (the configuration a new release of a yuno keeps), or a new instance
+     *  of the child inherited the ref (inherit_links()) -- the link only
+     *  fills this instance's hook (it warned "Parent ref already in child
+     *  fkey" on every `create-yuno` of a new release, up to 7.25.4).
+     *  Otherwise the hook LOST a child its fkey names: repaired, and said.
+     *--------------------------------------------------*/
+    if(ref_was_present && hook_took_child && !is_child_hook) {
+        if(!fkey_ref_explained_by_instances(
+                gobj, tranger, treedb_name, parent_topic_name, parent_id, hook_name,
+                parent_node, child_node, child_id, hook_was_empty)) {
+            gobj_log_warning(gobj, 0,
+                "function",             "%s", __FUNCTION__,
+                "msgset",               "%s", MSGSET_TREEDB,
+                "msg",                  "%s", "Parent hook had lost a child its fkey names: repaired",
+                "parent_topic_name",    "%s", parent_topic_name,
+                "parent_id",            "%s", parent_id,
+                "hook_name",            "%s", hook_name,
+                "child_topic_name",     "%s", child_topic_name,
+                "child_id",             "%s", child_id,
+                NULL
+            );
+        }
     }
 
     /*--------------------------------------------------*
