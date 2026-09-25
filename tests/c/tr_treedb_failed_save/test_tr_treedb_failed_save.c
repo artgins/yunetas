@@ -1591,15 +1591,20 @@ PRIVATE int test_take_back_into_every_instance(void)
     build_path(path_database_v, sizeof(path_database_v), path_root, DATABASE_V, NULL);
     rmrdir(path_database_v);
 
-    set_expected_results(test, json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    /*
+     *  x linked to the tags of P/v2 after P/v1: its fkey already names P
+     *  (the ref names the parent's id), and the link only fills the hook of
+     *  P/v2. It logs nothing (up to 7.25.4: "Parent ref already in child
+     *  fkey, skipping duplicate").
+     */
+    set_expected_results(test, json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Creating __timeranger2__.json",
         "msg", "Creating TreeDB schema file",
         "msg", "Creating topic",
         "msg", "Creating topic",
         "msg", "Creating topic",
         "msg", "Creating topic",
-        "msg", "Creating topic",
-        "msg", "Parent ref already in child fkey, skipping duplicate"   // x in the tags of P/v2
+        "msg", "Creating topic"
     ), NULL, NULL, 1);
     json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
         "path", path_root,
