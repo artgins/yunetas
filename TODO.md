@@ -222,6 +222,32 @@ blast radius of the `central.yunovatios.es` outage — a black-holed first
 Neither is urgent while nodes have a working `resolv.conf`; both are what turns
 a misconfigured node from an outage into a log line.
 
+## Inter-yuno subscriptions: a refused subscription is silent, and the cost of many
+
+Decided 2026-09-25, no C SDK code touched yet.
+
+- **A negative ack for a refused subscription.** `__subscribing__` is one-way:
+  the client (`C_IEVENT_CLI`, C and gobj-js: `send_static_iev()`) waits for no
+  answer and `C_IEVENT_SRV` sends none. When a subscription is refused
+  (`max_subscriptions`, `max_subscription_size`, authz), the only trace is one
+  WARNING in the server's log, on the transition (*"SUBSCRIBING refused, the
+  peer holds max_subscriptions"*). The peer never knows: in a SPA the
+  devices beyond the cap just stop updating, with nothing in the console, and
+  after a reconnect (`resend_subscriptions()`) a different set can go silent
+  if the order changes. Implement a negative ack that names the event and the
+  cause, in C and gobj-js alike, and have the client log it (and publish it,
+  so a view can say which data will not update). Note that an ack changes the
+  wire protocol: an older client must ignore it.
+- **What a large number of subscriptions costs.** hidraulia raises
+  `max_subscriptions` to 20000 per channel (its SPA subscribes twice per
+  device). Measure what that costs, in memory (each subscription is a json
+  kept per channel, plus the refused-subscriptions count) and in speed
+  (`peer_has_subscription_room()` runs `gobj_find_subscribings()` on every
+  `__subscribing__`, so a SPA that subscribes N times does O(N^2) work at
+  connect and at every reconnect; and a publish walks the subscription list
+  of its event). Decide from the figures whether the default of 5000 stands,
+  and whether the count needs to be kept instead of searched.
+
 ## Auth: OIDC migration follow-ups
 
 - **Real-IdP smoke tests beyond Keycloak.** Auth0 / Cognito / Authentik are not
