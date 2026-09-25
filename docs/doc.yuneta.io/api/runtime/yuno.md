@@ -135,7 +135,7 @@ attributes (`SDF_PERSIST`) and the `add-allowed-ip`, `remove-allowed-ip`,
 `add-denied-ip`, `remove-denied-ip` commands.
 :::
 
-(yuno_ip_list_entries)=
+(yuno-ip-list-entries)=
 ### The form of an entry
 
 A peer is looked up by the text that the kernel gives for its address, so an
@@ -163,8 +163,17 @@ that arrives on interface 3. `denied_ips` accepts it without the interface,
 and then denies the address on every interface. A deny broader than asked is
 the safe side.
 
-`remove-` takes any form of the same ip. It answers an error when the ip is
-not in the list.
+The answers say what was done. An `add-` that converted the text names both
+forms; text that is not an ip answers -1 with the cause; a `remove-` takes any
+form of the same ip, and answers -1 when the ip is not in the list (up to
+7.25.4 it answered success):
+
+```text
+add-denied-ip ip=2001:DB8::1 denied=1    ->  0: yuneta_agent^agent: '2001:DB8::1' stored as '2001:db8::1'
+add-denied-ip ip=203.0.113.7:443 denied=1 -> -1: yuneta_agent^agent: ip '203.0.113.7:443' is not a numeric ipv4 or ipv6 address (no host name, port or brackets)
+add-allowed-ip ip=fe80::10 allowed=1      -> -1: yuneta_agent^agent: ip 'fe80::10' is link-local: name its interface, like fe80::10%eth0 or fe80::10%2
+remove-denied-ip ip=2001:db8::9           -> -1: yuneta_agent^agent: ip '2001:db8::9' is not in denied_ips
+```
 
 Up to 7.25.4 the commands stored the text as typed and answered success,
 so an entry like `2001:DB8::1` was shown by `list-denied-ips` and never
@@ -188,7 +197,7 @@ The lists are saved once, rewritten.
 Checks whether an IP address is in the denied-IPs list, with the same
 lookup key as [`is_ip_allowed()`](#is_ip_allowed). A link-local peer
 (`fe80::1%2`) is also denied by the entry without its interface (`fe80::1`),
-see [The form of an entry](#yuno_ip_list_entries).
+see [The form of an entry](#yuno-ip-list-entries).
 Denied IPs take precedence over allowed IPs.
 
 ```C

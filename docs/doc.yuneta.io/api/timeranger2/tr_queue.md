@@ -112,9 +112,7 @@ ERROR take_queue_topic: Queue without topic, it cannot be opened      (once)
 INFO  take_queue_topic: Queue topic taken again                       (the file is back)
 ```
 
-Before this fix the topic stayed `NULL` for good: every read answered `NULL`,
-every ack `-1`, and the check answered `0` and never backed up again, until a
-restart. The mqtt queues (`tr2q_check_backup()`, `tr2q_msg_json()`,
+The mqtt queues (`tr2q_check_backup()`, `tr2q_msg_json()`,
 `tr2q_save_hard_mark()`) do the same.
 `tests/c/tr_queue/test_tr_queue_backup_failed`.
 

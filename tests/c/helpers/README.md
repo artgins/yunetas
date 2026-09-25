@@ -105,7 +105,7 @@ the cause (*"see the log"*): it does not read the process-global
 directory, and a SHORT listing answered `0`. It also checks `re` / `pattern`
 `NULL` (every entry; up to 7.25.4 a crash in `regcomp()`), and that
 `walk_dir_tree()` of a root of mode 0 logs its `-1` (SKIPPED as root).
-It also checks the walks of review 18 (`--wrap=opendir` fails the `opendir()`
+It also checks the rules of the walks (`--wrap=opendir` fails the `opendir()`
 of one directory, and the `readdir()` wrap can hide `d_type`): a SUBdirectory
 that cannot be opened for a transient cause (`EMFILE`) fails the walk, `-1`,
 empty (up to 7.25.4 it was skipped and the listing answered `0`, short); one

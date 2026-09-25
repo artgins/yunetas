@@ -24,7 +24,7 @@ And a create that fails only at the `mkdir` of its `keys/`:
 memory, the next create makes it whole, and a queue backup that meets it keeps
 the queue's topic. In 7.25.4 the create answered a topic with no `keys/`,
 and the backup took it as the queue's new topic.
-And (review 18) a backup that fails and cannot open the topic again
+And a backup that fails and cannot open the topic again
 either (its `topic_desc.json` of mode 0 for a moment; SKIPPED as root): the
 queue has no topic, a read and an ack fail and say it once (*"Queue without
 topic, it cannot be opened"*), and once the file can be read the queue takes

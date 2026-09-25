@@ -614,7 +614,20 @@ nearest first:
   depth, to `name=value` in any string (quoted or not, with blanks around the
   `=`), to the command carried by `command-yuno`, and to `"name": value` in a
   JSON given as text. The name of a JSON key is read with its escapes:
-  `"pass\u0077ord"` is `password`. A JSON text given inside a JSON text (a
+  `"pass\u0077ord"` is `password`. The word `Basic` alone, or followed by
+  base64 that is not `user:password`, is not a secret and stays:
+
+  ```text
+  update-node topic_name=x data='Authorization: Basic dXNlcjpwYXNz'   # dXNlcjpwYXNz: base64 of user:pass
+  ```
+
+  is recorded as
+
+  ```text
+  update-node topic_name=x data='Authorization: Basic <redacted>'
+  ```
+
+  A JSON text given inside a JSON text (a
   treedb column that holds JSON text, for example) has its quotes escaped, and
   it is redacted too, at any depth up to 8 levels: a quoted run that holds a
   backslash is scanned again with its escapes decoded. The redacted run is

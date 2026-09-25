@@ -703,7 +703,7 @@ typedef BOOL (*walkdir_cb)(
     wd_option opt           // option parameter
 );
 /*
- *  Walk directory tree calling callback witch each file found.
+ *  Walk directory tree calling callback with each file found.
  *  If the callback returns FALSE, the WHOLE walk stops, every level of it
  *  (0 is returned). `pattern` NULL matches every name.
  *  Return standard unix: 0 success, -1 fail (logged): the root cannot be

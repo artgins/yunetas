@@ -29,7 +29,7 @@
  *  answered a topic with no keys/ -- and a backup took that half topic as
  *  the queue's new one.
  *
- *  And (review 18) a backup that fails and cannot open the topic again
+ *  And a backup that fails and cannot open the topic again
  *  either (its topic_desc.json unreadable for a moment, mode 0): the queue
  *  has no topic. Once the file can be read again, the queue takes its topic
  *  again by name, at the next trq_check_backup() / tr2q_check_backup() or

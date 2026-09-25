@@ -24,7 +24,7 @@
  *                 opened (mode 0) answers -1 AND logs it: its callers say
  *                 "Error already logged". Up to 7.25.4 nothing was logged.
  *
- *          And the walks of review 18:
+ *          And the rules of the walks:
  *
  *              7. a SUBdirectory whose opendir() fails with EMFILE (a
  *                 transient cause) fails the walk: -1, empty, logged. Up

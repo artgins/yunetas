@@ -1453,7 +1453,7 @@ PRIVATE void test_json_text_in_json_text(void)
  *  were paired by alternation, so ONE quote earlier (the closing quote of
  *  a double-quoted parameter, a stray quote in a value) shifted the pairs
  *  and the escaped json was never decoded: its secret was written in
- *  clear (review 18). And an escaped json that the parser's quotes cut
+ *  clear. And an escaped json that the parser's quotes cut
  *  (x="{\"password\":...}", '{\"password\":...}'): the audit sees the
  *  secret as text, it redacts it whatever the parser does with it.
  ***************************************************************************/

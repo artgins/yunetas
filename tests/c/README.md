@@ -49,19 +49,19 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `c_tcp`, `c_tcp2` | `C_TCP` client GClass (connect, I/O, timeouts) |
 | `c_tcps`, `c_tcps2` | `C_TCP_S` TLS client (handshake, OpenSSL + mbedTLS) |
 | `c_tcp_inactivity` | `C_TCP` `timeout_inactivity` |
-| `c_tcp_s_ip_lists` | `C_TCP_S` at accept: a peer in `denied_ips` is refused (the deny wins over `allowed_ips`), with `only_allowed_ips` one not in `allowed_ips` is refused, loopback is exempt; the list key of each peername form (IPv4, bracketed IPv6, IPv4 on a dual-stack socket) |
+| `c_tcp_s_ip_lists` | `C_TCP_S` at accept: a peer in `denied_ips` is refused (the deny wins over `allowed_ips`), with `only_allowed_ips` one not in `allowed_ips` is refused, loopback is exempt; the list key of each peername form (IPv4, bracketed IPv6, IPv4 on a dual-stack socket); the `add-`/`remove-` ip commands store the form a peer is looked up by, refuse what is not an ip, and a `remove-` of an ip not in the list answers `-1`; entries stored as typed are renamed or dropped at load |
 | `c_udp_s_tx` | `C_UDP_S` sends every datagram of its queue, and drops one it cannot send (no peer address: an error; refused by the kernel: a warning) and goes on listening |
 | `c_udp_s_restart` | `C_UDP_S` reads and sends again after a stop and a start (a file on the old socket number; a stop and a start in the same turn), and publishes `EV_STOPPED` |
 | `c_udp_s_rx` | `C_UDP_S` labels every datagram with its peer, so `C_GSS_UDP_S` joins the interleaved pieces of two peers apart; the yuno's ip lists drop a denied peer, and with `only_allowed_ips` one that is not allowed, with one warning per cause (not per datagram) and the drops counted in `rxRefusedMsgs` |
 | `c_udp_s_echo` | An answer written in the gbuffer of an `EV_RX_DATA` (the kw sent back as `EV_TX_DATA`) reaches its sender whole while other sends wait or are in flight and more datagrams arrive: the next read takes a new gbuffer when the host kept the old one |
 | `c_subscriptions` | subscribe/publish semantics of the GObj core |
 | `kw` | `kw_*` helpers from `gobj-c/kwid.c` |
-| `helpers` | `helpers.c` string helpers, the agent's audit record builder, the rotatory (log files) |
+| `helpers` | `helpers.c` string helpers, the directory walks and listings, the agent's audit record builder, the rotatory (log files, `exit_on_fail` only at the open) |
 | `build_path` | `build_path()` and its clamped `..` |
 | `gbuffer` | NULL guards of the gbuffer accessors; a refused `gbmem_realloc()` leaves the old block valid and tracked |
 | `glogger_utf8` | The logger never writes a record that is not valid UTF-8 JSON |
 | `command_authz` | The per-command authorization gate (`SDF_AUTHZ_X`) |
-| `c_subscription_authz` | The subscription authorization gate (`enable_subscription_authz`): `C_IEVENT_CLI` peers over websocket subscribe to `C_NODE`'s `EV_TREEDB_NODE_*` feed; with the gate on, a peer without `read` is refused and the feed reaches only the accepted subscriptions; an orderly teardown of the gate |
+| `c_subscription_authz` | The subscription authorization gate (`enable_subscription_authz`): `C_IEVENT_CLI` peers over websocket subscribe to `C_NODE`'s `EV_TREEDB_NODE_*` feed and to `C_TRANGER`'s `EV_TRANGER_RECORD_ADDED`; with the gate on, a peer without `read` is refused and the feed reaches only the accepted subscriptions; a peer's `__config__` keeps only `__first_shot__`; a channel disabled and enabled again serves a new session; the six `C_IOGATE` channel commands with a `channel_name` that matches nothing; the `authzs` trace prints the kw it checked; an orderly teardown of the gate |
 | `command_delete_user` | `delete-user` of C_AUTHZ: immutability is the only boundary |
 | `command_shutdown` | `shutdown` answers first and stops after |
 | `command_binary_kw` | A command, and `build_stats()`, whose kw carries a `gbuffer`: the handler's kw holds a reference of its own, and the caller's references are intact after the command |
@@ -77,7 +77,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `c_treedb_system_schema` | `__system__`, the meta-treedb of `C_TREEDB`: projection, save, apply, delete |
 | `c_treedb_literal_wins` | `C_TREEDB`: a schema from C newer than the schema file in use wins whole, `__system__` is projected from it whole, the operator work it discards is reported once, and an unfinished or killed projection completes at the next open |
 | `treedb_schema_fidelity` | Every real schema of the tree through `__system__` and back |
-| `c_mqtt` | Embedded MQTT broker + client round-trip |
+| `c_mqtt` | Embedded MQTT broker + client round-trip; the ACL, `list-queues` / `clean-queues` of a store that cannot be listed, malformed packets, incoming QoS 2 messages queued at a session reload |
 | `c_auth_bff` | BFF HTTP auth flow (mock Keycloak + signed JWTs) |
 | `c_task_authenticate` | `C_TASK_AUTHENTICATE`, the OIDC password-grant task |
 | `c_llhttp_parser` | The vendored llhttp and `ghttp_parser` |

@@ -1595,7 +1595,7 @@ PRIVATE void test_disk_full_new_day(void)
  *  and the newfile callback of a new day runs at the next open that
  *  works. Up to 7.25.4 a handle opened with exit_on_fail TRUE -- the agent
  *  audit, the file log of every yuno -- EXITED the process at the first
- *  of those failures (review 18).
+ *  of those failures.
  *
  *  Each case runs in a child process: an exit is seen in its status. The
  *  failure: a directory where the file is (fopen() fails with EISDIR, as

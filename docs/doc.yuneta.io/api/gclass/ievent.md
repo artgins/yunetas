@@ -102,7 +102,9 @@ ycommand -c 'command-yuno id=<id> service=__input_side__ command=enable-channel 
 `channel_name` is a regular expression. One that matches no channel selects
 nothing, and the command answers with the header of the view only. (Up to
 7.25.4 each of the six channel commands looped for ever on it and blocked
-the yuno.)
+the yuno.) A text that is not a valid regular expression is refused with -1,
+for example `channel_name=input-[` answers *"<role^name>: channel_name is not
+a valid regular expression: 'input-['"* (up to 7.25.4: *"regcomp() failed"*).
 
 Start and stop the gate as a pair. Either declare it `"autostart": true` in
 the config and let the yuno start and stop it, or do both in the owner:

@@ -199,14 +199,24 @@ int gobj_unsubscribe_event(
 
 **Returns**
 
-Returns 0 on success, or -1 if the subscription was not found or an error occurred.
+Returns -1 when `publisher` or `subscriber` is NULL (logged); otherwise 0, also when nothing was removed (the log says why).
 
 **Notes**
 
-If the `event` is not found in the publisher's output event list, the function will return an error unless the publisher has the `gcflag_no_check_output_events` flag set.
+If the `event` is not found in the publisher's output event list, an error is logged and nothing is removed, unless the publisher has the `gcflag_no_check_output_events` flag set.
 If multiple subscriptions match the given parameters, all of them will be removed.
-If no matching subscription is found, an error is logged.
+If no matching subscription is found, an error is logged (*"No subscription found"*).
+A HARD subscription (`__hard_subscription__` in its `__config__`) is never removed here: only [`gobj_unsubscribe_list()`](#gobj_unsubscribe_list) with `force` removes it. Since 7.25.5 a hard subscription that matches is logged as a warning (*"Hard subscription not removed, only gobj_unsubscribe_list() with force removes it"*, with the count in `hard`); up to 7.25.4 it was counted as removed, and nothing was logged.
 The function decrements the reference count of `kw` before returning.
+
+```C
+gobj_subscribe_event(publisher, EV_ON_MESSAGE,
+    json_pack("{s:{s:b}}", "__config__", "__hard_subscription__", 1), subscriber);
+gobj_unsubscribe_event(publisher, EV_ON_MESSAGE, 0, subscriber);   // kept, a WARNING
+
+json_t *dl_subs = gobj_find_subscriptions(publisher, EV_ON_MESSAGE, 0, subscriber);
+gobj_unsubscribe_list(publisher, dl_subs, TRUE);                   // removed
+```
 
 ---
 

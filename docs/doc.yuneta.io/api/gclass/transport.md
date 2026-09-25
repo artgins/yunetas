@@ -84,7 +84,7 @@ peer:
    [`is_ip_denied()`](#is_ip_denied)). Since 7.25.5 the `add-` commands
    store what you type in that form (`2001:DB8::1` as `2001:db8::1`), refuse
    what is not an ip, and take a link-local address with its interface
-   (`fe80::1%eth0`). See [The form of an entry](#yuno_ip_list_entries).
+   (`fe80::1%eth0`). See [The form of an entry](#yuno-ip-list-entries).
 2. A peer in `denied_ips` is refused. This applies on every listener, with or
    without `only_allowed_ips`, and it wins over `allowed_ips`.
 3. With `only_allowed_ips`, a peer that is not in `allowed_ips` is refused.
@@ -197,9 +197,9 @@ drop of a cause is a WARNING, then at most one each 60 seconds per cause, with
 `dropped` (the datagrams of that cause dropped since the previous warning, this
 one included), the total `rxRefusedMsgs`, the `peername` of the datagram that
 is said and its length. The minute is timed on the monotonic clock: a clock set
-back does not silence the warnings. Before this fix each datagram was a WARNING, and nothing
-counted them. Up to 7.25.4 `only_allowed_ips` was documented and never read,
-and the deny-list was not asked: every peer was heard.
+back does not silence the warnings. Up to 7.25.4 `only_allowed_ips` was
+documented and never read, and the deny-list was not asked: every peer was
+heard.
 
 ```text
 WARN  note_refused_datagram: UDP_S: Ip denied, datagram dropped  peername=203.0.113.7:5000 len=64 dropped=1 rxRefusedMsgs=1 next_warning_in_ms=60000
@@ -224,7 +224,10 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=add-denied-ip ip=203.
 
 A read that FAILS while the server runs (not a read canceled by a stop) stops
 the server: logged as an ERROR, *"UDP: read FAILED, the server stops
-listening"*. It is the only failure that stops it.
+listening"*. The only other stop is a read that has no memory for its NEW
+gbuffer (see *Transmit*: the host kept the previous one): an ERROR, *"UDP: no
+memory for the next read, the server stops listening"*, with the
+`rx_buffer_size` it asked for.
 
 ### Transmit
 
