@@ -119,6 +119,27 @@ open:
 - **Apply is off on every in-tree yuno:** each one forces `impose_c_schema`,
   so gui_agent's Apply is off on all of them until one stops forcing it.
 
+## TLS: `bad record mac` on a loaded server when the host is short of memory
+
+Found 2026-09-26 in yunovatios' stress test, on the DEV machine only. A
+`gate_central` (C_TCP_S, TLS, openssl) fed by 30 TLS clients of
+`sim_controllers` (C_QIOGATE -> C_PROT_TCP4H -> C_TCP), ~3000 frames/s plus
+backlogs of up to 10000 unacknowledged messages per link, logged `SSL_read()
+FAILED` in `flush_clear_data` with error `167772441` = `0x0A000119`,
+`SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC`, about 1.5 per second, steady; each
+one drops the link, which then resends its whole window. The SAME traffic in
+plain `tcp://` to the same gate: no protocol warning at all and no disconnect,
+~8800 frames/s accepted. The same test on the central node (TLS, 3000/s): 0.
+
+What differs is the host: 31 GB with ~300 MB free and the swap FULL. A MAC
+failure is a corrupted TLS stream, and pressure is what makes short writes and
+short reads likely, so the suspicion is a partial io_uring write (or read)
+resumed from the wrong place in the TLS path of `C_TCP` / `ytls` -- on either
+side, since the server is the one that reports it. Not reproduced under control
+yet: next step is a test that forces short writes on a TLS client and checks the
+peer decrypts. Repro as found: `yunovatios/yunos/sim_controllers` against its
+stress realm on a host under memory pressure.
+
 ## timeranger2: a NEGATIVE `from_t` matches no record, silently
 
 Found 2026-09-26 in yunovatios' stress test. `get_segments()` adjusts a
