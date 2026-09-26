@@ -164,6 +164,26 @@ Decide the contract and apply it in BOTH places: either a negative `from_t` /
 or it is refused with a log. What it must not do is what it does: be accepted and
 match nothing.
 
+## C_NODE: every link collapses the WHOLE parent, O(children) per link
+
+Found 2026-09-26 in yunovatios' stress test (`db_history_ce`, 20000 new devices
+filed under three `device_types`). Without `with_link_events`, which is the
+default, `_link_nodes()` publishes the backward-compatible
+`EV_TREEDB_NODE_UPDATED` of the PARENT, and `C_NODE`'s `treedb_callback()`
+answers it with `node_collapsed_view()` of that parent -- every hook list, the
+ids of every child included. A parent with thousands of children costs that
+much PER LINK: filing a device took ~70 ms of cpu, the history fell from
+3000 to ~13 new devices/s, and a fleet of N new devices costs O(N^2). Profiled
+with gdb: 10 of 15 samples in `apply_child_list_options()` under
+`release_treedb_events()` of `treedb_link_nodes()`.
+
+It only bites the FIRST link of each child (steady state does not link), but
+that is exactly the moment a whole installation comes on line. Options, not
+decided: publish the parent without its child lists (the subscriber that needs
+the children asks for them), collapse only when the event has subscribers, or
+make `with_link_events` the default once no v1 SPA depends on the parent's
+update (estadodelaire and hidraulia still do -- see its memory note).
+
 ## TreeDB / timeranger2: what 7.25.5 leaves open
 
 What the changes after 7.25.4 (`CHANGELOG.md`, Unreleased) leave open:
