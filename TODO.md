@@ -184,6 +184,22 @@ the children asks for them), collapse only when the event has subscribers, or
 make `with_link_events` the default once no v1 SPA depends on the parent's
 update (estadodelaire and hidraulia still do -- see its memory note).
 
+## Agent: a yuno that lost its channel is launched AGAIN while it still lives
+
+Found 2026-09-26 on the dev node (yunovatios' `sim_controllers`). The yuno was
+alive but stuck loading 13.7 M queued messages, and when the agent restarted it
+could not keep the channel: `ac_on_close` logged *"yuno down"* and, as the yuno
+is `must_play`, `run_yuno` launched a SECOND process at once. The first still
+held its persistent queues' exclusive lock, so the second opened them *"as not
+master"*, its first `trq_append()` failed and `C_QIOGATE` aborted (*"Message NOT
+SAVED in the queue"*, `LOG_OPT_ABORT`: a core of 2.6 GB). Seconds later the old
+one reconnected and the agent killed it (*"yuno ALREADY living, killing new
+yuno"*, which kills the one reconnecting, here the OLD one).
+
+A dropped channel is not a dead process: before relaunching, the agent should
+check that the pid it knows (or `yuno.pid`) is gone, and give a live one time to
+come back instead of starting a twin that fights it for its stores.
+
 ## TreeDB / timeranger2: what 7.25.5 leaves open
 
 What the changes after 7.25.4 (`CHANGELOG.md`, Unreleased) leave open:
