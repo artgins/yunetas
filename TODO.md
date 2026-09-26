@@ -525,6 +525,25 @@ under real use (found 2026-07-12 on e.com, where the node sat at 128/128
   accumulating for ever. Repro: `yunovatios/yunos/sim_controllers` at 3000/s
   against the stress realm, then `kill-yuno` of its `db_history_ce`.
 
+- **#3 — A reader's rt_disk feed OVERFLOWS inotify at ~3000 records/s, and
+  the yuno then lives in a crash loop.** Seen 2026-09-26 on yunovatios-central
+  (Rocky 9, `max_queued_events = 65536`): the stress `db_history_ce` reads the
+  `raw_tracks` of a `db_tracks_ce` over ~60000 keys. Every record is a hard link
+  into the feed's per-key directory, so an inotify event, and when the master
+  sustained ~3000 records/s or burst above it (the catch-up after a ramp, the
+  drain after an outage of the gate) the kernel queue overflowed and
+  `handle_inotify_event()` aborted on `IN_Q_OVERFLOW`, as designed ("reload
+  clean"). FIVE times in two hours (16:48, 18:04, 18:19, 18:26, 18:37 UTC): each
+  relaunch spends 2-3 minutes catching up 190000-325000 frames, plays, and falls
+  again while the burst lasts, so under a burst the reader does LESS work than
+  it would without the abort. The abort also re-opens the feed while the master
+  still links into the old one (#2: `rmdir ENOTEMPTY`, `mkdir EEXIST`).
+  Options: raise `max_queued_events` (only moves the threshold); resync in place
+  on overflow -- rescan each key from the last rowid the reader has (a
+  reader that already knows where each key stands, like yunovatios'
+  per-key catch-up, has what it needs) -- instead of aborting; or make the feed
+  coarser than one event per record (an event per key file, or per batch).
+
 Node-side mitigation (already provisioned, independent of the above): the deb/rpm
 packagers ship `99-yuneta-core.conf` raising the default
 `fs.inotify.max_user_instances` of 128 — too low for a node running ~12 yunos
