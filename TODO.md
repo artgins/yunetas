@@ -119,6 +119,30 @@ open:
 - **Apply is off on every in-tree yuno:** each one forces `impose_c_schema`,
   so gui_agent's Apply is off on all of them until one stops forcing it.
 
+## timeranger2: a NEGATIVE `from_t` matches no record, silently
+
+Found 2026-09-26 in yunovatios' stress test. `get_segments()` adjusts a
+`from_t` below the key's first `t` to "from the start", but the per-record check
+of `tranger2_match_metadata()` (`if(md_record_ex->__t__ < from_t)`, since
+`0547bf2eb`, 2024-11-24) compares the `uint64_t` `__t__` with the RAW `json_int_t`
+of the match_cond: a negative `from_t` becomes a huge unsigned number and every
+record is left out. `tr2list <topic> --key=K --from-t=-86400` answers 0 records
+where `--from-t=0` answers 997.
+
+It is not academic: FOUR `db_history` yunos open their realtime list with
+`"from_t", -3600*24` and the comment *"recupera desde el último día"* --
+yunovatios (`db_history_ce`/`_co`), hidraulia, estadodelaire and wattyzer. The
+value looks like the relative semantics of the pre-v7 timeranger; under
+timeranger2 their start-up load hands the callback NOTHING, so whatever arrived
+while the yuno was stopped (or behind) is never processed: in `raw_tracks`, never
+in the history nor in its alarms. yunovatios fixes its own caller; the other
+three projects are untouched and still carry it.
+
+Decide the contract and apply it in BOTH places: either a negative `from_t` /
+`from_tm` is relative (to now? to the key's last `t`?) as the callers believed,
+or it is refused with a log. What it must not do is what it does: be accepted and
+match nothing.
+
 ## TreeDB / timeranger2: what 7.25.5 leaves open
 
 What the changes after 7.25.4 (`CHANGELOG.md`, Unreleased) leave open:
