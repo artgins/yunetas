@@ -119,7 +119,7 @@ open:
 - **Apply is off on every in-tree yuno:** each one forces `impose_c_schema`,
   so gui_agent's Apply is off on all of them until one stops forcing it.
 
-## TLS: `bad record mac` on a loaded server when the host is short of memory
+## TLS: `bad record mac` on a loaded server (clients resending in bursts)
 
 Found 2026-09-26 in yunovatios' stress test, on the DEV machine only. A
 `gate_central` (C_TCP_S, TLS, openssl) fed by 30 TLS clients of
@@ -139,6 +139,21 @@ side, since the server is the one that reports it. Not reproduced under control
 yet: next step is a test that forces short writes on a TLS client and checks the
 peer decrypts. Repro as found: `yunovatios/yunos/sim_controllers` against its
 stress realm on a host under memory pressure.
+
+**Reproduced on the central node, 2026-09-26 evening, WITHOUT memory
+pressure** (3.4 GB available). The stress `gate_central` (2120) was stopped
+for 4 minutes under 2500 frames/s from 500 TLS clients (300 from the
+controller node, 200 from the dev machine) and restarted: ~625000 frames were
+queued in the clients, every link came back resending its window at once, and
+the gate logged the same `SSL_read() FAILED` / `0x0A000119` **13606 times** in
+25 minutes, from BOTH client hosts (8940 from the dev machine, 3453 from the
+controller). The host was disk-bound (iowait ~50%, 15-77 MB/s written, the
+gate's own queue at 8.8 GB). The earlier "central: 0" was steady load; what
+the two reproductions share is clients resending large windows in bursts on a
+loaded host, which points again at a short write/read resumed from the wrong
+place. Each failure drops the link and the client resends its whole window, so
+the drain after an outage barely converges (~660 frames/s delivered, against a
+gate ceiling of ~3300).
 
 ## timeranger2: a NEGATIVE `from_t` matches no record, silently
 
