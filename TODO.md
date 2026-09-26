@@ -119,6 +119,47 @@ open:
 - **Apply is off on every in-tree yuno:** each one forces `impose_c_schema`,
   so gui_agent's Apply is off on all of them until one stops forcing it.
 
+## LEAK: every `return` inside a `SWITCHS` block loses a compiled regex (URGENT)
+
+Found 2026-09-26 in yunovatios' stress test, and it is in production: a
+`gate_central` grew **~1.1 KB per frame, linearly, without bound** (45 -> 752 MB
+in 6.5 min at 1500 frames/s on the central node; plain tcp and tls alike), while
+`gbmem`'s live count stayed flat at ~18 MB and the orderly-stop audit was CLEAN.
+`/proc/<pid>/smaps`: the growth is the `[heap]`. A gdb breakpoint on `malloc`
+(gbmem allocates with `calloc`, so `malloc` catches only what bypasses it): 80%
+of the hits are `regcomp()` called from `ac_send_message` of `C_MQIOGATE`.
+
+The cause is the macro, `helpers.h`:
+
+```c
+#define SWITCHS(x)  { ... regex_t __regex; regcomp(&__regex, ".*", 0); do {
+...
+#define SWITCHS_END } while ( 0 ); regfree(&__regex); }
+```
+
+`SWITCHS` compiles a regex UNCONDITIONALLY on entry and only `SWITCHS_END`
+frees it, so a `return` inside a `CASES` body leaks glibc's compiled automaton
+(outside gbmem: invisible to the audit and to `cur_system_memory`).
+`C_MQIOGATE`'s `ac_send_message` returns from `CASES("broadcast")`: one leak per
+message through every `__output_side__`.
+
+**29 of the 63 `SWITCHS` blocks** of the SDK and the projects have a `return`
+inside, several of them per message: `c_mqiogate.c` (root-linux and
+root-esp32), `c_prot_modbus_m.c`, `tr_treedb.c` (x6), `tr_msg2db.c` (x2),
+`yev_loop.c` (x2), `c_postgres.c`, `c_dba_postgres.c`, and in the projects the
+decoders of hidraulia (`gate_mqtts`, `gate_enchufe`, `gate_caudal`),
+estadodelaire (`gate_mqtts`, `gate_enchufe`, `gps_jt808`), yunovatios
+(`gate_energia`, `gate_central`) and every `db_history`. hidraulia's and
+estadodelaire's production gates are leaking at this rate while they run.
+
+Fix it IN THE MACRO, not in the 29 callers: `SWITCHS` must not compile
+anything; `CASES_RE` compiles, matches and frees on the spot (a helper that does
+`regcomp` + `regexec` + `regfree` and returns the match), so `SWITCHS_END` has
+nothing to free and a `return` anywhere is safe. Then a test that runs a
+`SWITCHS` with an early `return` N times and checks the heap does not grow (the
+gbmem audit cannot see it: measure `mallinfo2()` or RSS). Every yuno that uses
+`SWITCHS` needs rebuilding.
+
 ## TLS: `bad record mac` on a loaded server when the host is short of memory
 
 Found 2026-09-26 in yunovatios' stress test, on the DEV machine only. A
