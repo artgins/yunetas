@@ -1,6 +1,13 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.8 (2026-09-26)
+
+A TLS fix in `C_TCP`: under a burst, a connection could have two writes in
+flight, and a short one then sent its rest out of order -- the peer answered
+"bad record mac" and dropped the link. Found by yunovatios' stress test of its
+central, where the drain after a gate outage barely converged because of it.
+Every yuno that speaks TLS must be rebuilt against this SDK (the gclass is
+linked into each binary).
 
 ### TCP (C_TCP): TLS "bad record mac" under a burst -- one write in flight
 
