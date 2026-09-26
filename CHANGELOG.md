@@ -1,5 +1,36 @@
 # **Changelog**
 
+## Unreleased
+
+### TCP (C_TCP): TLS "bad record mac" under a burst -- one write in flight
+
+- **A TLS connection could have two writes in flight, and a short one then
+  sent its rest after the other**: the byte stream went out of order and the
+  peer failed the record MAC (*"SSL_read() FAILED"*, `error:0A000119`,
+  *"decryption failed or bad record mac"*), dropping the link. `ytls` hands its
+  encrypted output over from several places (the message being written, the
+  handshake, the records after it) and `ac_send_encrypted_data` started a
+  write for each at once; and the completion of any write took the next
+  message while another was still in flight. It shows under a burst on a full
+  socket -- clients resending their windows when a gate comes back -- and how
+  often depends on the kernel: yunovatios' stress test of its central (Rocky 9,
+  kernel 5.14) dropped links 13606 times in 25 minutes, and the drain after a
+  4-minute outage barely converged.
+- Now a connection has ONE write in flight, TLS included: encrypted output
+  waits in a queue while a write is in flight, it goes before the next clear
+  message, and the queue is discarded with the TLS session it belongs to.
+  The plain path already kept the rule.
+- New stat `max_tx_in_progress` of `C_TCP`: the most writes ever in flight at
+  once, `1` by the rule.
+- Test: `c_tcps/test5` (10 bursts of 400 x 64 KB over TLS to an echo server,
+  every echo checked in order, and `max_tx_in_progress == 1` asserted: with
+  the old code it is `2` on every run, while the echoes alone came back intact
+  in most runs). Documented in `api/gclass/transport.md` (*One write in
+  flight*).
+- `ac_send_encrypted_data` answers 0 when its write cannot start (logged, the
+  connection dropped): the mbedTLS backend frees the gbuffer again on a
+  negative answer, which the kw had already released.
+
 ## v7.25.7 (2026-09-26)
 
 A leak fix and nothing else in C: every `return` from inside a `SWITCHS` case

@@ -33,6 +33,7 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 | `timeout_between_connections_max` | `integer` | If `> timeout_between_connections`, the reconnect delay backs off exponentially from the base up to this cap (ms), resetting to base once a connection is established (for a TLS client, only on a successful handshake). `0` (default) = disabled, legacy fixed interval. A peer that keeps failing no longer hammers at the base cadence. |
 | `txBytes` | `integer` | Total bytes transmitted (stat). |
 | `rxBytes` | `integer` | Total bytes received (stat). |
+| `max_tx_in_progress` | `integer` | Most writes ever in flight at once on the connection (stat, since 7.25.8). `1` is the rule, see *One write in flight*; `0` before the first write. |
 | `peername` | `string` | Remote peer address (read-only). |
 | `sockname` | `string` | Local socket address (read-only). |
 
@@ -102,6 +103,45 @@ Up to 7.25.4 the `-1` of the start was ignored: the write was counted in
 progress for ever, the event and its gbuffer leaked, the connection stayed
 up with every later write stuck behind it, and a stop waited in
 `ST_WAIT_STOPPED` for ever. `tests/c/c_tcp` (`test_tcp_test5`).
+
+### One write in flight
+
+A connection never has more than one write in flight, TLS included. io_uring
+may complete a write SHORT when the socket's send buffer is full, and
+`C_TCP` then sends the rest with the same write: that rest must reach the
+socket before anything written later, and it only does if nothing else was
+submitted in between.
+
+The plain path always kept the rule (the next gbuffer is written when the
+current one completes). The TLS path did not, up to 7.25.7: `ytls` hands its
+encrypted output over from several places -- the message being written, the
+handshake, the records after it -- and each one started its own write at
+once, and the completion of any of them took the next message while another
+was still being written. With two in flight, a short one sent its rest AFTER
+the other and the peer failed the record MAC: *"SSL_read() FAILED"*,
+`error:0A000119` *"decryption failed or bad record mac"*, and the connection
+dropped. It shows under a burst on a full socket -- a client resending its
+window when a gate comes back -- and how often depends on the kernel: in
+yunovatios' stress test on a Rocky 9 central (kernel 5.14) it dropped links
+13606 times in 25 minutes. Now the encrypted output waits while a write is in
+flight, and the next clear message is taken only when nothing is waiting.
+
+The stat `max_tx_in_progress` says whether the rule held on a connection:
+
+```C
+hgobj gobj_tcp = gobj_bottom_gobj(gobj_prot);   // the transport of a C_PROT_*
+json_int_t n = gobj_read_integer_attr(gobj_tcp, "max_tx_in_progress");
+// 1: at most one write at a time; 2 or more: a reordering could happen
+```
+
+```bash
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-attrs gobj=<full name of the C_TCP> attribute=max_tx_in_progress'
+```
+
+`tests/c/c_tcps` (`test_tcps_test5`: 10 bursts of 400 messages of 64 KB over
+TLS against an echo server, every echo checked in order, and
+`max_tx_in_progress == 1` asserted -- it fails with `2` on the code before the
+fix, on every run, while the echoes alone come back intact on most kernels).
 
 ---
 

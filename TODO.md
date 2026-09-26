@@ -119,41 +119,17 @@ open:
 - **Apply is off on every in-tree yuno:** each one forces `impose_c_schema`,
   so gui_agent's Apply is off on all of them until one stops forcing it.
 
-## TLS: `bad record mac` on a loaded server (clients resending in bursts)
+## ytls (mbedTLS): a failed encrypted-output callback frees the gbuffer twice
 
-Found 2026-09-26 in yunovatios' stress test, on the DEV machine only. A
-`gate_central` (C_TCP_S, TLS, openssl) fed by 30 TLS clients of
-`sim_controllers` (C_QIOGATE -> C_PROT_TCP4H -> C_TCP), ~3000 frames/s plus
-backlogs of up to 10000 unacknowledged messages per link, logged `SSL_read()
-FAILED` in `flush_clear_data` with error `167772441` = `0x0A000119`,
-`SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC`, about 1.5 per second, steady; each
-one drops the link, which then resends its whole window. The SAME traffic in
-plain `tcp://` to the same gate: no protocol warning at all and no disconnect,
-~8800 frames/s accepted. The same test on the central node (TLS, 3000/s): 0.
-
-What differs is the host: 31 GB with ~300 MB free and the swap FULL. A MAC
-failure is a corrupted TLS stream, and pressure is what makes short writes and
-short reads likely, so the suspicion is a partial io_uring write (or read)
-resumed from the wrong place in the TLS path of `C_TCP` / `ytls` -- on either
-side, since the server is the one that reports it. Not reproduced under control
-yet: next step is a test that forces short writes on a TLS client and checks the
-peer decrypts. Repro as found: `yunovatios/yunos/sim_controllers` against its
-stress realm on a host under memory pressure.
-
-**Reproduced on the central node, 2026-09-26 evening, WITHOUT memory
-pressure** (3.4 GB available). The stress `gate_central` (2120) was stopped
-for 4 minutes under 2500 frames/s from 500 TLS clients (300 from the
-controller node, 200 from the dev machine) and restarted: ~625000 frames were
-queued in the clients, every link came back resending its window at once, and
-the gate logged the same `SSL_read() FAILED` / `0x0A000119` **13606 times** in
-25 minutes, from BOTH client hosts (8940 from the dev machine, 3453 from the
-controller). The host was disk-bound (iowait ~50%, 15-77 MB/s written, the
-gate's own queue at 8.8 GB). The earlier "central: 0" was steady load; what
-the two reproductions share is clients resending large windows in bursts on a
-loaded host, which points again at a short write/read resumed from the wrong
-place. Each failure drops the link and the client resends its whole window, so
-the drain after an outage barely converges (~660 frames/s delivered, against a
-gate ceiling of ~3300).
+Seen 2026-09-26 while fixing the TLS writes of `C_TCP`. `flush_encrypted_data()`
+of `mbedtls.c` does `gbuffer_decref(to_send)` when `on_encrypted_data_cb()`
+answers < 0, but `C_TCP`'s callback hands the gbuffer to the kw of
+`EV_SEND_ENCRYPTED_DATA`, which releases it whatever happens. `C_TCP` no longer
+answers < 0 from its action, but `gobj_send_event()` still does when the event
+is not in the current state (a TLS record produced while the connection is
+already in `ST_WAIT_STOPPED`, say): that path is a double decref. The OpenSSL
+backend ignores the answer. Decide who owns the gbuffer after the callback and
+make both backends agree.
 
 ## timeranger2: a NEGATIVE `from_t` matches no record, silently
 

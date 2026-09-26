@@ -24,6 +24,19 @@
 
 
 /*
+    ONE write in flight per connection, TLS included.
+
+    A write that io_uring completes short is re-armed with its rest, and
+    that rest must reach the socket before anything written later. The
+    plain path writes the next gbuffer only when the current one completed
+    (gbuf_txing). The TLS path could not rely on that: ytls hands over its
+    encrypted output from several places (the message being written, the
+    handshake, post-handshake records), and each one used to start its own
+    write at once. With two in flight, a short one sent its rest AFTER the
+    other and the peer failed the record MAC ("bad record mac"). Encrypted
+    output now waits in dl_tx_encrypted while a write is in flight, and the
+    next clear message is taken only when that queue is empty.
+
     This gclass works with two type of TCP clients:
             - cli (pure client)
             - clisrv (client of server)
@@ -126,6 +139,7 @@ SDATA (DTP_INTEGER, "txBytes",          SDF_RSTATS,     "0", "Messages transmitt
 SDATA (DTP_INTEGER, "rxBytes",          SDF_RSTATS,     "0", "Messages received"),
 SDATA (DTP_INTEGER, "txMsgs",           SDF_RSTATS,     "0", "Messages transmitted"),
 SDATA (DTP_INTEGER, "rxMsgs",           SDF_RSTATS,     "0", "Messages received"),
+SDATA (DTP_INTEGER, "max_tx_in_progress",SDF_RSTATS,    "0", "Most writes ever in flight at once: 1 is the rule, more would let a short write's rest go out of order"),
 SDATA (DTP_STRING,  "peername",         SDF_VOLATIL|SDF_STATS, "",  "Peername"),
 SDATA (DTP_STRING,  "sockname",         SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. Default if null is parent."),
@@ -181,9 +195,11 @@ typedef struct _PRIVATE_DATA {
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
     json_int_t max_tx_queue;
+    dl_list_t dl_tx_encrypted;      // TLS output waiting for the write in flight
 
     BOOL no_tx_ready_event;
     int tx_in_progress;
+    json_int_t max_tx_in_progress;
 } PRIVATE_DATA;
 
 
@@ -206,6 +222,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     dl_init(&priv->dl_tx, gobj);
+    dl_init(&priv->dl_tx_encrypted, gobj);
 
     if(IS_CLI) {
         priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
@@ -421,6 +438,7 @@ PRIVATE int mt_stop(hgobj gobj)
 
     GBUFFER_DECREF(priv->gbuf_txing)
     dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+    dl_flush(&priv->dl_tx_encrypted, (fnfree)gbuffer_decref);
 
     gobj_reset_volatil_attrs(gobj);
 
@@ -466,6 +484,9 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     } else if(strcmp(name, "cur_tx_queue")==0) {
         v.found = 1;
         v.v.i = (json_int_t)dl_size(&priv->dl_tx);
+    } else if(strcmp(name, "max_tx_in_progress")==0) {
+        v.found = 1;
+        v.v.i = priv->max_tx_in_progress;
     }
 
     return v;
@@ -823,8 +844,12 @@ PRIVATE void set_disconnected(hgobj gobj)
      *  handshake), those bytes were never put on the wire, so in the
      *  reconnect-on-tx model (timeout_inactivity) we KEEP them and a running
      *  client flushes them via start_pending_writes() once the retry connects.
+     *
+     *  The encrypted output waiting to be written (dl_tx_encrypted) is
+     *  always discarded: it belongs to the TLS session that just died.
      */
     GBUFFER_DECREF(priv->gbuf_txing)
+    dl_flush(&priv->dl_tx_encrypted, (fnfree)gbuffer_decref);
     BOOL keep_pending_tx =
         priv->timeout_inactivity > 0 &&
         !priv->inform_disconnection &&
@@ -960,6 +985,9 @@ PRIVATE int start_write_event(hgobj gobj, yev_event_h yev_write_event)
         return -1;
     }
     priv->tx_in_progress++;
+    if(priv->tx_in_progress > priv->max_tx_in_progress) {
+        priv->max_tx_in_progress = priv->tx_in_progress;
+    }
     return 0;
 }
 
@@ -1033,6 +1061,36 @@ PRIVATE int write_data(hgobj gobj)
         }
     }
     return 0;
+}
+
+/***************************************************************************
+ *  Write a gbuffer of TLS output, the only write in flight (see the header)
+ ***************************************************************************/
+PRIVATE int write_encrypted_data(hgobj gobj, gbuffer_t *gbuf /* owned */)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int fd = priv->__clisrv__? priv->fd_clisrv:yev_get_fd(priv->yev_connect);
+    yev_event_h yev_write_event = yev_create_write_event(
+        yuno_event_loop(),
+        yev_callback,
+        gobj,
+        fd,
+        gbuf
+    );
+    if(!yev_write_event) {
+        GBUFFER_DECREF(gbuf)    // the reference given to the event
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot create a write: the connection is dropped",
+            NULL
+        );
+        try_to_stop_yevents(gobj);
+        return -1;
+    }
+
+    return start_write_event(gobj, yev_write_event);    // on failure: logged, connection dropped
 }
 
 /***************************************************************************
@@ -1496,7 +1554,17 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         }
 
                         yev_destroy_event(yev_event);
-                        if(gobj_in_this_state(gobj, ST_CONNECTED)) {
+
+                        gbuffer_t *gbuf_encrypted = dl_first(&priv->dl_tx_encrypted);
+                        if(gbuf_encrypted && (gobj_in_this_state(gobj, ST_CONNECTED) ||
+                                gobj_in_this_state(gobj, ST_WAIT_HANDSHAKE))) {
+                            /*
+                             *  TLS output waiting: it goes before the next
+                             *  clear message, which would add more behind it
+                             */
+                            dl_delete(&priv->dl_tx_encrypted, gbuf_encrypted, 0);
+                            write_encrypted_data(gobj, gbuf_encrypted); // on failure: logged, dropped
+                        } else if(gobj_in_this_state(gobj, ST_CONNECTED)) {
                             // Avoid while doing handshaking
                             try_more_writes(gobj);
                         } else if(gobj_in_this_state(gobj, ST_WAIT_STOPPED)) {
@@ -1807,31 +1875,18 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
-    /*
-     *  Transmit
-     */
-    int fd = priv->__clisrv__? priv->fd_clisrv:yev_get_fd(priv->yev_connect);
-    yev_event_h yev_write_event = yev_create_write_event(
-        yuno_event_loop(),
-        yev_callback,
-        gobj,
-        fd,
-        gbuffer_incref(gbuf)
-    );
-    if(!yev_write_event) {
-        GBUFFER_DECREF(gbuf)    // the reference given to the event
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot create a write: the connection is dropped",
-            NULL
-        );
-        try_to_stop_yevents(gobj);
+    if(priv->tx_in_progress > 0 || dl_size(&priv->dl_tx_encrypted) > 0) {
+        dl_add(&priv->dl_tx_encrypted, gbuffer_incref(gbuf));
         KW_DECREF(kw)
-        return -1;
+        return 0;
     }
 
-    start_write_event(gobj, yev_write_event);   // on failure: logged, connection dropped
+    /*
+     *  0 even when the write cannot start: that is logged and the connection
+     *  dropped already, and the gbuffer went with the kw. The mbedTLS backend
+     *  frees the gbuffer again on a negative answer.
+     */
+    write_encrypted_data(gobj, gbuffer_incref(gbuf));
 
     KW_DECREF(kw)
     return 0;
