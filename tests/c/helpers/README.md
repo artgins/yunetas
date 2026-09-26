@@ -128,3 +128,13 @@ was not read left in place (up to this fix `rmrcontentdir()` answered `0` with
 nothing removed and nothing logged, and `rmrdir()` blamed the `rmdir()`).
 And a failed `mkrdir()` leaves the cause in `errno` after its own log
 (`ENOTDIR` under a file, `ENAMETOOLONG`): up to this fix the log changed it.
+
+`test_switchs` covers the string switch of `helpers.h` (`SWITCHS` / `CASES` /
+`ICASES` / `CASES_RE` / `DEFAULTS` / `SWITCHS_END`) and `str_match_regex()`:
+what it matches (exact, ignoring case, a regex with and without `REG_ICASE`, a
+case that falls through, `break`, `DEFAULTS`), and that leaving the switch with
+`return` from inside a case costs nothing. Up to 7.25.6 `SWITCHS` compiled a
+regex on entry that only `SWITCHS_END` freed, so each such `return` lost it:
+the leak is outside gbmem, so the test measures the libc heap (`mallinfo2()`)
+over 100000 x 3 returns (+1.06 GB with the old macro, +1 KB with the new one).
+A pattern that does not compile answers `FALSE` and is logged.

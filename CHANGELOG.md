@@ -1,6 +1,12 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.7 (2026-09-26)
+
+A leak fix and nothing else in C: every `return` from inside a `SWITCHS` case
+lost a compiled regex, and every gate with an output queue returned from one per
+message. Found by yunovatios' stress test of its central. The JS submodules move
+to maplibre-gl 6.11.2 and vite 8.3.1. Every yuno must be rebuilt against this
+SDK to lose the leak.
 
 ### Helpers: a `return` inside a `SWITCHS` case leaked a compiled regex
 
