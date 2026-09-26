@@ -808,6 +808,82 @@ The function iterates through the list and compares each entry with `str` using 
 
 ---
 
+(str_match_regex)=
+## [`str_match_regex()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/helpers.c#L1740)
+
+`str_match_regex()` says whether a string matches a regular expression. It compiles, matches and frees on each call: nothing is kept, so it can be called from anywhere, as often as needed.
+
+```C
+BOOL str_match_regex(
+    const char *str,
+    const char *pattern,
+    int         cflags
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `str` | `const char *` | The string to test. |
+| `pattern` | `const char *` | The regular expression, in the syntax `cflags` selects. |
+| `cflags` | `int` | `regcomp(3)` flags: `0` for a basic expression, `REG_EXTENDED`, `REG_ICASE`, ... (`REG_NOSUB` is always added). |
+
+**Returns**
+
+`TRUE` if `str` matches `pattern`. `FALSE` if it does not, if either argument is `NULL`, or if the pattern does not compile -- those two last cases are logged with `gobj_log_error()`.
+
+**Example**
+
+```C
+if(str_match_regex(filename, "^tracks-[0-9]{4}-[0-9]{2}-[0-9]{2}\\.json$", REG_EXTENDED)) {
+    /* a daily tracks file */
+}
+```
+
+**Notes**
+
+It is what `CASES_RE` of the string switch below uses.
+
+---
+
+(string-switch)=
+## [`SWITCHS` / `CASES` / `ICASES` / `CASES_RE` / `DEFAULTS` / `SWITCHS_END`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/helpers.h#L96)
+
+A `switch` on strings. `CASES` compares exactly, `ICASES` ignoring case, `CASES_RE` with a regular expression (through `str_match_regex()`), and `DEFAULTS` takes what nothing matched. As in a C `switch`, a case without `break` falls through to the next one, and `break` leaves the switch.
+
+**Example**
+
+```C
+PRIVATE int kind_of(const char *s)
+{
+    SWITCHS(s) {
+        CASES("measure")
+        CASES("alarm")
+            return 1;           // two cases, one body
+
+        ICASES("status")
+            return 2;           // "STATUS", "Status", ...
+
+        CASES_RE("^diag-[0-9]+$", REG_EXTENDED)
+            return 3;
+
+        DEFAULTS
+            return 0;
+    } SWITCHS_END
+
+    return -1;
+}
+```
+
+**Notes**
+
+**Leaving the switch from inside a case is safe**: `return`, `break` or `goto`. `SWITCHS` allocates nothing, and `CASES_RE` frees its regex before the body of the case runs.
+
+Up to 7.25.6 it was not: `SWITCHS` compiled a regex on entry and only `SWITCHS_END` freed it, so every `return` from a case lost glibc's compiled automaton, a few KB, outside gbmem -- invisible to its audit and to `cur_system_memory`. `C_MQIOGATE`'s send path returned from a case, so every gate with a queue lost ~1 KB per message: in yunovatios' stress test a `gate_central` grew to 1 GB in 25 minutes. Any yuno built before the fix keeps the leak until it is rebuilt: the macros are expanded where they are used.
+
+---
+
 (strntolower)=
 ## [`strntolower()`](https://github.com/artgins/yunetas/blob/7.25.6/kernel/c/gobj-c/src/helpers.c#L1187)
 

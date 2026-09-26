@@ -79,10 +79,22 @@ int main(int argc, char **argv) {
 }
  ***********************************************************************/
 
+/*
+ *  NOTHING IS ALLOCATED BY A SWITCHS, so leaving it from inside a case --
+ *  a `return`, a `goto` -- is safe.
+ *
+ *  Up to 7.25.6 SWITCHS compiled a regex (".*") on ENTRY and only SWITCHS_END
+ *  freed it, so every `return` inside a case lost glibc's compiled automaton,
+ *  ~1 KB, outside gbmem (invisible to its audit and to cur_system_memory).
+ *  29 of the 63 SWITCHS of the tree return from a case, several per message:
+ *  C_MQIOGATE's send path lost ~1.1 KB per message and a gate_central grew to
+ *  1 GB in 25 minutes. Now only CASES_RE touches a regex, and it frees it
+ *  before the case body runs.
+ */
+
 /** Begin a switch for the string x */
 #define SWITCHS(x) \
-    { regmatch_t pmatch[1]; (void)pmatch; const char *__sw = (x); BOOL __done = FALSE; BOOL __cont = FALSE; \
-        regex_t __regex; regcomp(&__regex, ".*", 0); do {
+    { const char *__sw = (x); BOOL __done = FALSE; BOOL __cont = FALSE; do {
 
 /** Check if the string matches the cases argument (case sensitive) */
 #define CASES(x)    } if ( __cont || !strcmp ( __sw, x ) ) \
@@ -92,17 +104,15 @@ int main(int argc, char **argv) {
 #define ICASES(x)    } if ( __cont || !strcasecmp ( __sw, x ) ) { \
     __done = TRUE; __cont = TRUE;
 
-/** Check if the string matches the specified regular expression using regcomp(3) */
-#define CASES_RE(x,flags) } regfree ( &__regex ); if ( __cont || ( \
-  0 == regcomp ( &__regex, x, flags ) && \
-  0 == regexec ( &__regex, __sw, ARRAY_SIZE(pmatch), pmatch, 0 ) ) ) { \
+/** Check if the string matches the regular expression x (regcomp(3) flags) */
+#define CASES_RE(x,flags) } if ( __cont || str_match_regex ( __sw, x, flags ) ) { \
     __done = TRUE; __cont = TRUE;
 
 /** Default behaviour */
 #define DEFAULTS } if ( !__done || __cont ) {
 
 /** Close the switchs */
-#define SWITCHS_END } while ( 0 ); regfree(&__regex); }
+#define SWITCHS_END } while ( 0 ); }
 
 /*****************************************************************
  *     Structures
@@ -302,6 +312,12 @@ PUBLIC int idx_in_list(const char **list, const char *str, BOOL ignore_case);
     Return TRUE if str is in string list.
 **rst**/
 PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case);
+/*
+ *  Does `str` match the regular expression `pattern` (regcomp(3) `cflags`)?
+ *  Compiles, matches and frees on each call: nothing is kept. A pattern that
+ *  does not compile is logged and answers FALSE. It is what CASES_RE uses.
+ */
+PUBLIC BOOL str_match_regex(const char *str, const char *pattern, int cflags);
 
 /*------------------------------------*
  *  json_config

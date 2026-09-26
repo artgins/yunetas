@@ -1733,6 +1733,43 @@ PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case)
     return FALSE;
 }
 
+/***************************************************************************
+ *  Does str match the regular expression pattern?
+ *  Compiles, matches and frees on each call: nothing is kept.
+ ***************************************************************************/
+PUBLIC BOOL str_match_regex(const char *str, const char *pattern, int cflags)
+{
+    if(!str || !pattern) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "str_match_regex() without string or pattern",
+            NULL
+        );
+        return FALSE;
+    }
+
+    regex_t r;
+    int ret = regcomp(&r, pattern, cflags | REG_NOSUB);
+    if(ret != 0) {
+        char err[256];
+        regerror(ret, &r, err, sizeof(err));
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "regcomp() FAILED, the pattern matches nothing",
+            "pattern",      "%s", pattern,
+            "error",        "%s", err,
+            NULL
+        );
+        return FALSE;
+    }
+
+    BOOL matched = (regexec(&r, str, 0, NULL, 0) == 0)? TRUE: FALSE;
+    regfree(&r);
+    return matched;
+}
+
 
 
 

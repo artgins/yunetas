@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### Helpers: a `return` inside a `SWITCHS` case leaked a compiled regex
+
+- **`SWITCHS` compiled a regex (`".*"`) on entry and only `SWITCHS_END` freed
+  it**, so every `return` (or `goto`) out of a `CASES` body lost glibc's
+  compiled automaton, a few KB per switch, allocated by `regcomp(3)` OUTSIDE
+  gbmem: invisible to the gbmem audit and to `cur_system_memory`. 29 of the 63
+  `SWITCHS` of the tree return from a case, several once per message:
+  `C_MQIOGATE`'s `ac_send_message` (every gate with an output queue lost
+  ~1.1 KB per message; a `gate_central` of yunovatios' stress test reached
+  1 GB in 25 minutes), `c_prot_modbus_m`, `tr_treedb`, `tr_msg2db`, `yev_loop`
+  and the frame decoders of the projects. Found by a gdb breakpoint on `malloc`
+  (gbmem allocates with `calloc`, so `malloc` catches only what bypasses it).
+- Now `SWITCHS` allocates nothing and `CASES_RE` matches through the new
+  `str_match_regex()`, which compiles, matches and frees on the spot: leaving a
+  switch from anywhere is safe, and no caller changed. The usage is the same.
+- **Every yuno that uses `SWITCHS` must be rebuilt** to lose the leak: the
+  macros are expanded where they are used, so an old binary keeps it.
+- Test: `helpers/test_switchs` (100000 x 3 returns from inside cases: +1.06 GB
+  of libc heap with the old macro, +1 KB with the new one; matching unchanged).
+  Documented in `api/helpers/string_helper.md` (`str_match_regex()` and the
+  switch).
+
 ### JS: gobj-ui 7.25.23, gui_agent 0.22.99, gui_treedb 0.17.72
 
 - **maplibre-gl 6.11.2 and vite 8.3.1.** gobj-ui 7.25.23 raises its peer floor

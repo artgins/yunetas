@@ -57,6 +57,7 @@ set(SRCS
     test_dir_array_nomem
     test_dir_listing
     test_dir_read_error
+    test_switchs
 )
 
 ##############################################
