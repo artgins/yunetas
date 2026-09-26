@@ -416,6 +416,19 @@ under real use (found 2026-07-12 on e.com, where the node sat at 128/128
   counts inotify instances (`info-inotify`). Worth doing — the node sat at
   128/128 — but not in passing.
 
+- **#2 — Closing a reader's rt_disk feed races the master that feeds it.**
+  Seen 2026-09-26 in yunovatios' stress test (a `db_history_ce` reading the
+  `raw_tracks` of a `db_tracks_ce` that appends 3000 records/s over 30000
+  keys): every orderly stop of the reader under load logs `remove_tree_walk`
+  `rmdir() FAILED` *"Directory not empty"* (errno 39) on
+  `<topic>/disks/<rt_id>/`. The master keeps hard-linking new md2 files into
+  the per-key subdirectories of that feed while the reader removes the tree,
+  so the directory is left behind with fresh links in it. Never seen without
+  load (the same reader on an idle central: 0). Unknown yet whether the master
+  goes on linking into a feed nobody reads after that, which would be links
+  accumulating for ever. Repro: `yunovatios/yunos/sim_controllers` at 3000/s
+  against the stress realm, then `kill-yuno` of its `db_history_ce`.
+
 Node-side mitigation (already provisioned, independent of the above): the deb/rpm
 packagers ship `99-yuneta-core.conf` raising the default
 `fs.inotify.max_user_instances` of 128 — too low for a node running ~12 yunos
