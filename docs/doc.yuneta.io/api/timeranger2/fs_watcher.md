@@ -130,6 +130,14 @@ call. A timeranger2 follower of 50000 keys on the busy disk of a central took
 56 s, then 243 s -- the yuno deaf to its agent, its commands and its timers all
 that time. The slices keep it answering; the pass costs the same.
 
+What the pass costs is mostly the owner's: the watcher's own part is a
+`readdir()` per directory and a lookup in an index of the watched paths, built
+once per pass. 7.25.10 rebuilt that index in every slice -- 50000 paths every
+20 ms -- so its own cost grew with the tree (254 us per directory at 69632,
+73 us since 7.25.11), and on the central a pass over 50501 directories took
+7 minutes. `tests/c/timeranger2/test_fs_watcher_overflow` measures it (the
+pass less the owner's time, per directory) and fails above 200 us.
+
 Every owner handles both -- in its callback, before anything that reads the
 type as bits:
 

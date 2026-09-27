@@ -2,10 +2,12 @@
 
 ## v7.25.11 (2026-09-27)
 
-Three *"Event NOT DEFINED in state"* that a connection going down produced,
-found by the third gate-outage test of yunovatios' central, all of them in
-the window between a transport deciding to close and the layers above
-learning it. Rebuild the yunos with websocket or TCP clients, and the agent.
+Found by the third gate-outage test of yunovatios' central: three *"Event
+NOT DEFINED in state"* that a connection going down produced, all in the
+window between a transport deciding to close and the layers above learning
+it; and a pass after an inotify overflow whose own cost grew with the tree.
+Rebuild every yuno (TCP and websocket clients, rt_disk followers) and the
+agent.
 
 ### root-linux: data that arrives or leaves while a connection closes
 
@@ -26,6 +28,18 @@ learning it. Rebuild the yunos with websocket or TCP clients, and the agent.
   `c_tcp/test7`.
 - Documented in `api/gclass/protocol.md` (C_WEBSOCKET: the states corrected,
   `timeout_close`, a *Closing* section) and `api/gclass/transport.md`.
+
+### timeranger2 (fs_watcher): the pass after an overflow, at a cost that does not grow with the tree
+
+- 7.25.10's sliced pass rebuilt, in EVERY slice of 20 ms, the index of the
+  watched paths by path (the watch table is indexed by `wd`): 50000 entries
+  per slice. The watcher's own cost per directory grew with the tree -- 254 us
+  at 69632 directories -- and on yunovatios' central a pass over 50501 key
+  directories took 7 minutes, and the next one more than 20. The index is now
+  built once per pass (and grows with the watches the pass adds): 73 us per
+  directory, a pass of 16 s instead of 29 in the test.
+- `test_fs_watcher_overflow` now measures that cost (the pass less the
+  owner's time) and fails above 200 us per directory.
 
 ### yuno_agent, controlcenter: an answer for a client that left
 

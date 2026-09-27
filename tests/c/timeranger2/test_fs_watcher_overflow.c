@@ -20,6 +20,9 @@
  *      - every directory is told to the owner, heard or rescanned;
  *      - the loop is never deaf for more than MAX_DEAF_MS, while the pass
  *        takes seconds (in one piece it would be deaf for all of them);
+ *      - the watcher's own cost per directory (the pass less the owner's
+ *        time) stays under MAX_OWN_US: a cost that grows with the tree, as
+ *        an index rebuilt per slice did, makes a pass of minutes;
  *      - a directory born in the overflow is watched after it: a file
  *        created in it is heard.
  *
@@ -33,6 +36,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -47,6 +51,7 @@
 #define OWNER_US    100         // what the owner spends on each directory of the pass
 #define PROBE_MS    50
 #define MAX_DEAF_MS 1000
+#define MAX_OWN_US  200         // the watcher's own cost per directory of the pass
 
 /***************************************************************
  *              Data
@@ -60,12 +65,21 @@ PRIVATE int overflows = 0;
 PRIVATE int rescan_dirs = 0;
 PRIVATE int files_created = 0;
 
+PRIVATE uint64_t owner_us = 0;     // time spent by the owner in the pass
+
 PRIVATE uint64_t probe_last = 0;
 PRIVATE uint64_t probe_max_gap = 0;
 
 /***************************************************************
  *              Callbacks
  ***************************************************************/
+PRIVATE uint64_t now_us(void)   // a measure, not a timeout: the helpers count ms
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000 + (uint64_t)ts.tv_nsec / 1000;
+}
+
 PRIVATE void tell(const char *directory, const char *filename)
 {
     /*
@@ -98,9 +112,13 @@ PRIVATE int fs_callback(fs_event_t *fs_event)
             overflows++;
             break;
         case FS_RESCAN_DIR_TYPE:
-            rescan_dirs++;
-            tell(directory, "");
-            usleep(OWNER_US);   // a slow owner: it reads what the directory holds
+            {
+                uint64_t t = now_us();
+                rescan_dirs++;
+                tell(directory, "");
+                usleep(OWNER_US);   // a slow owner: it reads what the directory holds
+                owner_us += now_us() - t;
+            }
             break;
         case FS_FILE_CREATED_TYPE:
             files_created++;
@@ -232,8 +250,11 @@ PRIVATE int do_test(void)
     yev_destroy_event(yev_probe);
 
     int n_told = count_told();
-    printf("     %d directories: %d told, %d overflow(s), %d rescanned, %lu ms, the loop deaf at most %lu ms\n",
-        n_dirs, n_told, overflows, rescan_dirs, (unsigned long)(t1 - t0), (unsigned long)probe_max_gap);
+    uint64_t pass_us = (t1 - t0) * 1000;
+    uint64_t own_us = pass_us > owner_us? (pass_us - owner_us) / (rescan_dirs? rescan_dirs: 1): 0;
+    printf("     %d directories: %d told, %d overflow(s), %d rescanned, %lu ms (%lu in the owner, %lu us per directory in the watcher), the loop deaf at most %lu ms\n",
+        n_dirs, n_told, overflows, rescan_dirs, (unsigned long)(t1 - t0),
+        (unsigned long)(owner_us/1000), (unsigned long)own_us, (unsigned long)probe_max_gap);
     if(overflows < 1) {
         printf("%sERROR%s --> no overflow: the test did not test\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -241,6 +262,15 @@ PRIVATE int do_test(void)
     if(n_told != n_dirs) {
         printf("%sERROR%s --> %d of %d directories told to the owner\n",
             On_Red BWhite, Color_Off, n_told, n_dirs);
+        result += -1;
+    }
+    if(own_us > MAX_OWN_US) {
+        /*
+         *  7.25.10 indexed the watched paths once per SLICE: 254 us per
+         *  directory at 69632 (and growing with the tree), 73 once per pass
+         */
+        printf("%sERROR%s --> the watcher spent %lu us per directory (at most %d)\n",
+            On_Red BWhite, Color_Off, (unsigned long)own_us, MAX_OWN_US);
         result += -1;
     }
     if(probe_max_gap > MAX_DEAF_MS) {

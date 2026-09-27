@@ -75,6 +75,7 @@ struct fs_event_s {
     BOOL stop_requested;        // Internal: stopped from inside its own callback
     yev_event_h yev_rescan;     // Internal: timer that runs the pass after an overflow, a slice per turn
     json_t *rescan_dirs;        // Internal: directories the pass has still to visit
+    json_t *rescan_watched;     // Internal: paths watched, indexed by path, for the pass
     BOOL rescan_again;          // Internal: an overflow came during the pass: another pass after it
     uint64_t rescan_t0;         // Internal: start of the pass, ms monotonic
     json_int_t rescan_visited;  // Internal: directories visited by the pass

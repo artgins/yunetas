@@ -870,6 +870,19 @@ PRIVATE void start_rescan_pass(fs_event_t *fs_event)
     JSON_DECREF(fs_event->rescan_dirs)
     fs_event->rescan_dirs = json_array();
     json_array_append_new(fs_event->rescan_dirs, json_string(fs_event->path));
+
+    /*
+     *  The watch table is indexed by wd; the pass asks by path. Built once
+     *  per pass: per slice it cost more than the slice (50000 paths)
+     */
+    JSON_DECREF(fs_event->rescan_watched)
+    if(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS) {
+        fs_event->rescan_watched = json_object();
+        const char *s_wd; json_t *jn_path;
+        json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_path) {
+            json_object_set_new(fs_event->rescan_watched, json_string_value(jn_path), json_true());
+        }
+    }
     fs_event->rescan_again = FALSE;
     fs_event->rescan_visited = 0;
     fs_event->rescan_t0 = time_in_milliseconds_monotonic();
@@ -883,6 +896,7 @@ PRIVATE void stop_rescan_pass(fs_event_t *fs_event)
         yev_stop_event(fs_event->yev_rescan);
     }
     JSON_DECREF(fs_event->rescan_dirs)
+    JSON_DECREF(fs_event->rescan_watched)
     fs_event->rescan_again = FALSE;
 }
 
@@ -922,7 +936,9 @@ PRIVATE void push_subdirectories(fs_event_t *fs_event, const char *path, json_t 
             continue;
         }
         if(!json_object_get(watched, child)) {
-            add_watch(fs_event, child, TRUE);
+            if(add_watch(fs_event, child, TRUE) >= 0) {
+                json_object_set_new(watched, child, json_true());
+            }
         }
         json_array_append_new(fs_event->rescan_dirs, json_string(child));
     }
@@ -936,14 +952,7 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
         return 0;   // the stop of the timer, or a pass already dropped
     }
 
-    json_t *watched = NULL;
-    if(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS) {
-        watched = json_object();
-        const char *s_wd; json_t *jn_path;
-        json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_path) {
-            json_object_set_new(watched, json_string_value(jn_path), json_true());
-        }
-    }
+    json_t *watched = fs_event->rescan_watched;   // NULL if not recursive
 
     uint64_t t0 = time_in_milliseconds_monotonic();
     fs_event->in_callback = TRUE;
@@ -971,7 +980,6 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
         }
     }
     fs_event->in_callback = FALSE;
-    JSON_DECREF(watched)
 
     if(fs_event->stop_requested) {
         /*
@@ -1004,6 +1012,7 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
         start_rescan_pass(fs_event);
     } else {
         JSON_DECREF(fs_event->rescan_dirs)
+        JSON_DECREF(fs_event->rescan_watched)
     }
     return 0;
 }
