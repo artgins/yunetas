@@ -165,6 +165,34 @@ Decide the contract and apply it in BOTH places: either a negative `from_t` /
 or it is refused with a log. What it must not do is what it does: be accepted and
 match nothing.
 
+## timeranger2: a follower re-reads the first row of the md2 on every notification
+
+Found 2026-09-27 profiling yunovatios' `db_history_ce` (1720) with gdb while it
+digested a gate outage on the central: **10.9 %** of its work was
+`load_cache_cell_from_disk()` -> `load_first_and_last_record_md()`, blocked in
+`pread` (`read_md2_row`). `update_new_records_from_disk()` calls it for EVERY
+hard link the master leaves in `disks/<rt_id>/<key>/`, i.e. for every append:
+open the md2, `lseek` its size, read the FIRST row and the LAST row, close; and
+then two `file_exists()` for the `.unordered` / `.tm_unordered` markers.
+
+When the file's cell is already in the cache (`cur_cache_cell`, found just
+before by `find_cache_cell()`), its first row is known and cannot change: md2
+files are append-only, and a torn tail is cut from the END. Only the size (the
+new row count) and the last row are news, and `publish_new_rt_disk_records()`
+reads the new rows right after anyway -- the last one among them.
+
+What to do: for a known cell, take the row count from the size (an `fstat`,
+or the `lseek` already there), skip the first row, and take the last row's
+range from what the publish reads, keeping the cell's `fr_t` / `fr_tm`. Keep
+the whole path for a new cell (a file the follower has not seen) and for a
+marked file (`.unordered`, which is read whole on purpose). Mind the torn-tail
+check, which lives in the same function and must still run.
+
+Expected: most of the 10.9 % (one `open`/`close`, two `pread`s and two
+`fstatat` per append, on a follower of ~3000 appends/s). Hot path of every rt_disk follower:
+the change needs a test of the follower (`test_rt_disk*`) and an A/B against
+the last tag, per the release checklist.
+
 ## C_NODE: every link collapses the WHOLE parent, O(children) per link
 
 Found 2026-09-26 in yunovatios' stress test (`db_history_ce`, 20000 new devices
