@@ -12,9 +12,6 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 yet fixed. Each is a defect, not a design choice: fix it with a test that fails
 first.
 
-- **C_WEBSOCKET after `drop()`**: a TCP read still pending delivers `EV_RX_DATA`
-  to a C_WEBSOCKET already in `ST_DISCONNECTED` ("Event NOT DEFINED in state").
-  Seen when a peer sends more frames after one C_IEVENT_SRV closes the channel on.
 - **`ac_identity_card` (C_IEVENT_SRV, before authentication)** logs errors with
   the whole kw dumped, once per connection: a peer-caused condition, so a capped
   warning (decoder severity rule).

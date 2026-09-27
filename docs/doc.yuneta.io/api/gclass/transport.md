@@ -77,6 +77,30 @@ never came, and the next `gobj_start()` failed (*"yev_connect ALREADY
 exists"*), so the client never connected again. `tests/c/c_tcp`
 (`test_tcp_test6`).
 
+### Data sent while closing
+
+A drop, or a disconnection, takes `C_TCP` to `ST_WAIT_STOPPED` until its last
+read, write or connect is canceled or completes; only then does it publish
+`EV_DISCONNECTED`. Until then the layers above do not know, and they send.
+That `EV_TX_DATA` goes where the pending queue of a dead connection goes
+(`set_disconnected()` flushes it): away, with no error -- the `connections`
+trace level logs it (*"tcp tx data while closing, dropped"*). A protocol that
+must not lose data resends it on its own acknowledgements, as `C_QIOGATE`
+does:
+
+```C
+gobj_send_event(tcp, EV_DROP, 0, gobj);     // ST_WAIT_STOPPED: the read is being canceled
+gobj_send_event(tcp, EV_TX_DATA,            // dropped quietly; EV_DISCONNECTED follows
+    json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+    gobj
+);
+```
+
+Up to 7.25.10 `ST_WAIT_STOPPED` did not declare `EV_TX_DATA`: *"Event NOT
+DEFINED in state"*, one ERROR per message -- ten thousand in an hour on a sim
+of 300 controllers whose central went away. `tests/c/c_tcp`
+(`test_tcp_test7`).
+
 ### A write that does not start
 
 `EV_TX_DATA` sends one gbuffer at a time; the next ones wait in a queue.

@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(test_c_tcp C)
+project(test_c_websocket C)
 get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
 #-----------------------------------------------------#
@@ -53,19 +53,13 @@ endif()
 ##############################################
 SET(SRCS
     test1
-    test2
-    test3
-    test4
-    test5
-    test6
-    test7
 )
 
 ##############################################
 #   Tests
 ##############################################
 foreach(test ${SRCS})
-    set(binary "test_tcp_${test}")
+    set(binary "test_websocket_${test}")
     add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c")
 
     if(CONFIG_FULLY_STATIC)

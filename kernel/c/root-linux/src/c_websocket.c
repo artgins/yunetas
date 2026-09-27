@@ -1814,6 +1814,31 @@ PRIVATE int ac_timeout_wait_handshake(hgobj gobj, gobj_event_t event, json_t *kw
 }
 
 /***************************************************************************
+ *  Data while closing. ws_close() moved us to ST_DISCONNECTED and sent our
+ *  Close frame; a client keeps the connection until the server drops it or
+ *  timeout_close runs out, and RFC 6455 lets an endpoint that sent a Close
+ *  go on receiving (5.5.1). What arrives meanwhile -- the rest of a frame
+ *  we gave up on, the peer's own Close -- belongs to a session that is
+ *  over: nothing is decoded, nothing is published.
+ ***************************************************************************/
+PRIVATE int ac_rx_data_while_closing(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(gobj_trace_level(gobj) & TRACE_DEBUG) {
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "websocket rx data while closing, discarded",
+            "bytes",        "%lu", (unsigned long)(gbuf?gbuffer_leftbytes(gbuf):0),
+            NULL
+        );
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Too much time waiting disconnected
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -2132,6 +2157,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
         {EV_CONNECTED,          ac_connected,                       ST_WAIT_HANDSHAKE},
+        {EV_RX_DATA,            ac_rx_data_while_closing,           0},
         {EV_DISCONNECTED,       ac_disconnected,                    0},
         {EV_TIMEOUT,            ac_timeout_wait_disconnected,       0},
         {EV_STOPPED,            ac_stopped,                         0},

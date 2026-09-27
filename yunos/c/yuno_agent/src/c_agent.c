@@ -9684,6 +9684,34 @@ PRIVATE int cert_sync_arm_timer(hgobj gobj)
     return 0;
 }
 
+/***************************************************************************
+ *  Is the requester still there to take its answer? A client that left
+ *  before it (a ycommand that timed out, a closed tab) leaves its channel
+ *  of __input_side__ CLOSED, and a controlcenter link that dropped leaves
+ *  its C_IEVENT_CLI out of session: neither takes EV_SEND_IEV. The answer
+ *  has nowhere to go, and that is the client's leaving, not an error here.
+ ***************************************************************************/
+PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event)
+{
+    BOOL listening;
+    if(gobj_has_attr(requester, "opened")) {
+        listening = gobj_read_bool_attr(requester, "opened");
+    } else {
+        listening = gobj_in_this_state(requester, ST_SESSION);
+    }
+    if(!listening) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "requester gone before its answer, answer dropped",
+            "requester",    "%s", gobj_short_name(requester),
+            "event",        "%s", event,
+            NULL
+        );
+    }
+    return listening;
+}
+
 
 
 
@@ -10911,6 +10939,10 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         return 0;
     }
     JSON_DECREF(jn_ievent_id);
+    if(!requester_is_listening(gobj, gobj_requester, event)) {
+        KW_DECREF(kw);
+        return 0;
+    }
 
     KW_INCREF(kw);
     json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
@@ -10975,6 +11007,10 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
         return 0;
     }
     JSON_DECREF(jn_ievent_id);
+    if(!requester_is_listening(gobj, gobj_requester, event)) {
+        KW_DECREF(kw);
+        return 0;
+    }
 
     KW_INCREF(kw);
     json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
@@ -11423,6 +11459,12 @@ PRIVATE int ac_final_count(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
             "chanel child", "%s", requester,
             NULL
         );
+        JSON_DECREF(iter_yunos);
+        KW_DECREF(kw_answer);
+        KW_DECREF(kw);
+        return 0;
+    }
+    if(!requester_is_listening(gobj, gobj_requester_channel, EV_MT_COMMAND_ANSWER)) {
         JSON_DECREF(iter_yunos);
         KW_DECREF(kw_answer);
         KW_DECREF(kw);

@@ -64,7 +64,7 @@ Works in both client and server modes.
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_DISCONNECTED`, `ST_WAIT_CONNECTED`, `ST_WAIT_HANDSHAKE`, `ST_CONNECTED` |
+| **States** | `ST_DISCONNECTED`, `ST_WAIT_HANDSHAKE`, `ST_WAIT_FRAME_HEADER`, `ST_WAIT_PAYLOAD` |
 | **Input events** | `EV_SEND_MESSAGE`, `EV_CONNECTED`, `EV_DISCONNECTED`, `EV_RX_DATA`, `EV_TX_READY`, `EV_DROP`, `EV_TIMEOUT` |
 | **Output events** | `EV_ON_MESSAGE`, `EV_ON_OPEN`, `EV_ON_CLOSE` |
 
@@ -76,7 +76,8 @@ Works in both client and server modes.
 | `iamServer` | `bool` | `TRUE` for server mode. |
 | `max_pkt_size` | `integer` | Maximum allowed packet size. |
 | `timeout_handshake` | `integer` | Handshake timeout in milliseconds (default `30000`). |
-| `timeout_payload` | `integer` | Payload reception timeout in milliseconds. |
+| `timeout_payload` | `integer` | Milliseconds to receive the rest of a frame whose header came (default `5000`); when it runs out the connection is closed. |
+| `timeout_close` | `integer` | Milliseconds a closing client waits for the server to drop the connection before it drops it itself (default `3000`). |
 | `cert_pem` | `string` | TLS certificate (PEM). |
 
 ---
@@ -109,7 +110,7 @@ with frame masking, ping/pong, and graceful close handshake.
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_DISCONNECTED`, `ST_WAIT_CONNECTED`, `ST_WAIT_HANDSHAKE`, `ST_CONNECTED` |
+| **States** | `ST_DISCONNECTED`, `ST_WAIT_HANDSHAKE`, `ST_WAIT_FRAME_HEADER`, `ST_WAIT_PAYLOAD` |
 | **Input events** | `EV_SEND_MESSAGE`, `EV_CONNECTED`, `EV_DISCONNECTED`, `EV_RX_DATA`, `EV_TX_READY`, `EV_DROP`, `EV_TIMEOUT` |
 | **Output events** | `EV_ON_MESSAGE`, `EV_ON_OPEN`, `EV_ON_CLOSE` |
 
@@ -121,5 +122,36 @@ with frame masking, ping/pong, and graceful close handshake.
 | `iamServer` | `bool` | `TRUE` for server mode. |
 | `cert_pem` | `string` | TLS certificate (PEM). |
 | `timeout_handshake` | `integer` | Handshake timeout in milliseconds (default `30000`). |
-| `timeout_payload` | `integer` | Payload reception timeout in milliseconds. |
+| `timeout_payload` | `integer` | Milliseconds to receive the rest of a frame whose header came (default `5000`); when it runs out the connection is closed. |
+| `timeout_close` | `integer` | Milliseconds a closing client waits for the server to drop the connection before it drops it itself (default `3000`). |
 | `pingT` | `integer` | Ping interval in milliseconds (`0` = disabled). |
+
+### Closing
+
+`ws_close()` -- a timeout, a protocol error, a received Close -- moves the
+gobj to `ST_DISCONNECTED` at once and sends its Close frame. A **server** drops
+the TCP connection there and then. A **client** keeps it, as RFC 6455 asks:
+the server closes the TCP connection (7.1.1), and an endpoint that sent a
+Close may go on receiving (5.5.1). The client drops it itself when
+`timeout_close` runs out (warning *"Timeout waiting websocket
+disconnected"*).
+
+What arrives in between -- the rest of the frame the client gave up on, the
+server's own Close -- belongs to a session that is over: it is discarded, and
+nothing is published (the `debug` trace level logs it). Up to 7.25.10
+`ST_DISCONNECTED` did not declare `EV_RX_DATA`, and each such read logged
+*"Event NOT DEFINED in state"*; a controller too busy to read a frame in time
+showed it. A client configured to give a slow peer more time:
+
+```C
+{
+    "name": "output",
+    "gclass": "C_WEBSOCKET",
+    "kw": {
+        "timeout_payload": 10000,
+        "timeout_close": 5000
+    }
+}
+```
+
+Test: `tests/c/c_websocket` (`test_websocket_test1`).

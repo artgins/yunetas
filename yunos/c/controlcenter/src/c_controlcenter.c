@@ -1166,6 +1166,37 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj s
 
 
 
+/***************************************************************************
+ *  Is the requester still there to take its answer? A client that left
+ *  before it (a ycommand that timed out, a closed tab) leaves its channel
+ *  of __top_side__ CLOSED, and a link that dropped leaves its C_IEVENT_CLI
+ *  out of session: neither takes EV_SEND_IEV. The answer has nowhere to go,
+ *  and that is the client's leaving, not an error here.
+ ***************************************************************************/
+PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event)
+{
+    BOOL listening;
+    if(gobj_has_attr(requester, "opened")) {
+        listening = gobj_read_bool_attr(requester, "opened");
+    } else {
+        listening = gobj_in_this_state(requester, ST_SESSION);
+    }
+    if(!listening) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "requester gone before its answer, answer dropped",
+            "requester",    "%s", gobj_short_name(requester),
+            "event",        "%s", event,
+            NULL
+        );
+    }
+    return listening;
+}
+
+
+
+
             /***************************
              *      Actions
              ***************************/
@@ -1266,6 +1297,10 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         return 0;
     }
     JSON_DECREF(jn_ievent_id);
+    if(!requester_is_listening(gobj, gobj_requester, event)) {
+        KW_DECREF(kw);
+        return 0;
+    }
 
     KW_INCREF(kw);
     json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE); // "__answer__"
@@ -1321,6 +1356,10 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
         return 0;
     }
     JSON_DECREF(jn_ievent_id);
+    if(!requester_is_listening(gobj, gobj_requester, event)) {
+        KW_DECREF(kw);
+        return 0;
+    }
 
     KW_INCREF(kw);
     json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
@@ -1380,6 +1419,10 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
     gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(dst_service));
 
     JSON_DECREF(jn_ievent_id);
+    if(!requester_is_listening(gobj, gobj_requester, event)) {
+        KW_DECREF(kw);
+        return 0;
+    }
 
     KW_INCREF(kw);
     json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
@@ -1439,6 +1482,10 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(""));
 
     JSON_DECREF(jn_ievent_id);
+    if(!requester_is_listening(gobj, gobj_requester, event)) {
+        KW_DECREF(kw);
+        return 0;
+    }
 
     KW_INCREF(kw);
     json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
@@ -1494,6 +1541,10 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
         return 0;
     }
     JSON_DECREF(jn_ievent_id);
+    if(!requester_is_listening(gobj, gobj_requester, event)) {
+        KW_DECREF(kw);
+        return 0;
+    }
 
     KW_INCREF(kw);
     json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);

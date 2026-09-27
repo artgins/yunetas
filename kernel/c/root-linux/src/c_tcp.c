@@ -1969,6 +1969,34 @@ PRIVATE int ac_tx_data_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, 
 }
 
 /***************************************************************************
+ *  Tx data while the connection is going down (ST_WAIT_STOPPED: a drop or
+ *  a disconnection is waiting for its last io_uring operation). The layers
+ *  above learn it only with EV_DISCONNECTED, so until then they send, and
+ *  cannot know better. The data goes where set_disconnected() puts the
+ *  pending queue of a dead connection: away. A protocol that must not lose
+ *  it resends on its own acks (c_qiogate does).
+ ***************************************************************************/
+PRIVATE int ac_tx_data_closing(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    uint32_t trace_level = gobj_trace_level(gobj);
+    if(trace_level & TRACE_CONNECT_DISCONNECT) {
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "tcp tx data while closing, dropped",
+            "bytes",        "%lu", (unsigned long)(gbuf?gbuffer_leftbytes(gbuf):0),
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+            NULL
+        );
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Tx data while a (re)connection is in progress (inactivity model).
  *  Queue it; start_pending_writes() flushes it once connected.
  ***************************************************************************/
@@ -2101,6 +2129,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     ev_action_t st_wait_stopped[] = {
+        {EV_TX_DATA,                ac_tx_data_closing,         0},
         {EV_DROP,                   ac_drop,                    0}, // someone insists
         {0,0,0}
     };

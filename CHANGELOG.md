@@ -1,5 +1,41 @@
 # **Changelog**
 
+## v7.25.11 (2026-09-27)
+
+Three *"Event NOT DEFINED in state"* that a connection going down produced,
+found by the third gate-outage test of yunovatios' central, all of them in
+the window between a transport deciding to close and the layers above
+learning it. Rebuild the yunos with websocket or TCP clients, and the agent.
+
+### root-linux: data that arrives or leaves while a connection closes
+
+- **C_WEBSOCKET, receiving while closing**: `ws_close()` moves the gobj to
+  `ST_DISCONNECTED` and sends its Close frame; a client keeps the connection
+  until the server drops it or `timeout_close` runs out, as RFC 6455 asks, and
+  a server's pending read still completes. What arrives then (the rest of a
+  frame given up on, the peer's Close) came as `EV_RX_DATA`, which the state
+  did not declare. It is now discarded, nothing published (`debug` trace
+  level). Seen on a sim of controllers too busy to read a frame within
+  `timeout_payload`. Test: `tests/c/c_websocket` (new).
+- **C_TCP, sending while closing**: a drop or a disconnection waits in
+  `ST_WAIT_STOPPED` for its last io_uring operation before it publishes
+  `EV_DISCONNECTED`, and until then the layers above send. That `EV_TX_DATA`
+  was undeclared there -- ten thousand ERRORs in an hour on a sim of 300
+  controllers whose central went away. It now goes where the pending queue of
+  a dead connection goes (away; `connections` trace level). Test:
+  `c_tcp/test7`.
+- Documented in `api/gclass/protocol.md` (C_WEBSOCKET: the states corrected,
+  `timeout_close`, a *Closing* section) and `api/gclass/transport.md`.
+
+### yuno_agent, controlcenter: an answer for a client that left
+
+- A command or stats answer, or a counted one (`kill-yuno`, `run-yuno`, ...),
+  for a client that left before it (a `ycommand` that timed out) was sent to
+  its channel, CLOSED by then: *"Event NOT DEFINED in state"* with a stack.
+  The agent and the controlcenter now check that the requester is still
+  listening (its channel `opened`, or a link in session) and drop the answer
+  with an INFO *"requester gone before its answer, answer dropped"*.
+
 ## v7.25.10 (2026-09-27)
 
 The recovery from an inotify overflow (7.25.9) now keeps the yuno answering:
