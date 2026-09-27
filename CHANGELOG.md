@@ -1,5 +1,15 @@
 # **Changelog**
 
+## Unreleased
+
+### timeranger2 (fs_watcher): a pass says where its time went
+
+- The INFO that closes a pass after an inotify overflow adds `slices`,
+  `ms_owner`, `ms_watcher`, `ms_loop` and `max_loop_ms`: the owner's
+  callbacks, the walk, and the loop's own work between slices. On
+  yunovatios' central some passes took 251 and 680 s while the yuno digested a
+  queue; this is what tells which of the three it was.
+
 ## v7.25.11 (2026-09-27)
 
 Found by the third gate-outage test of yunovatios' central: three *"Event

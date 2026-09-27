@@ -79,6 +79,11 @@ struct fs_event_s {
     BOOL rescan_again;          // Internal: an overflow came during the pass: another pass after it
     uint64_t rescan_t0;         // Internal: start of the pass, ms monotonic
     json_int_t rescan_visited;  // Internal: directories visited by the pass
+    json_int_t rescan_slices;   // Internal: slices of the pass
+    uint64_t rescan_us_owner;   // Internal: us spent in the owner's callback
+    uint64_t rescan_us_slices;  // Internal: us spent inside slices (the owner's included)
+    uint64_t rescan_us_slice_end; // Internal: end of the last slice, us monotonic
+    uint64_t rescan_us_max_gap; // Internal: the longest wait of the loop between two slices
 } ;
 
 

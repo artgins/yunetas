@@ -17,6 +17,7 @@
 #include <sys/inotify.h>
 #include <errno.h>
 #include <dirent.h>
+#include <time.h>
 
 #include <testing.h>
 #include <gobj.h>
@@ -46,6 +47,7 @@ PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path);
 PRIVATE void start_rescan_pass(fs_event_t *fs_event);
 PRIVATE void stop_rescan_pass(fs_event_t *fs_event);
 PRIVATE int rescan_slice_callback(yev_event_h yev_event);
+PRIVATE uint64_t monotonic_us(void);
 PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event);
 
 /***************************************************************************
@@ -886,6 +888,11 @@ PRIVATE void start_rescan_pass(fs_event_t *fs_event)
     fs_event->rescan_again = FALSE;
     fs_event->rescan_visited = 0;
     fs_event->rescan_t0 = time_in_milliseconds_monotonic();
+    fs_event->rescan_slices = 0;
+    fs_event->rescan_us_owner = 0;
+    fs_event->rescan_us_slices = 0;
+    fs_event->rescan_us_slice_end = monotonic_us();
+    fs_event->rescan_us_max_gap = 0;
 
     yev_start_timer_event(fs_event->yev_rescan, 1, FALSE);
 }
@@ -898,6 +905,17 @@ PRIVATE void stop_rescan_pass(fs_event_t *fs_event)
     JSON_DECREF(fs_event->rescan_dirs)
     JSON_DECREF(fs_event->rescan_watched)
     fs_event->rescan_again = FALSE;
+}
+
+/*
+ *  Where the time of a pass goes (said by its closing INFO): a measure, not
+ *  a timeout, and an owner's call is well under a millisecond
+ */
+PRIVATE uint64_t monotonic_us(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000 + (uint64_t)ts.tv_nsec / 1000;
 }
 
 /*
@@ -954,6 +972,13 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
 
     json_t *watched = fs_event->rescan_watched;   // NULL if not recursive
 
+    uint64_t us_start = monotonic_us();
+    uint64_t gap = us_start - fs_event->rescan_us_slice_end;
+    if(gap > fs_event->rescan_us_max_gap) {
+        fs_event->rescan_us_max_gap = gap;
+    }
+    fs_event->rescan_slices++;
+
     uint64_t t0 = time_in_milliseconds_monotonic();
     fs_event->in_callback = TRUE;
     while(json_array_size(fs_event->rescan_dirs) > 0 && !fs_event->stop_requested) {
@@ -973,13 +998,17 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
         fs_event->fs_type = FS_RESCAN_DIR_TYPE;
         fs_event->directory = dir;
         fs_event->filename = "";
+        uint64_t us_owner = monotonic_us();
         fs_event->callback(fs_event);
+        fs_event->rescan_us_owner += monotonic_us() - us_owner;
 
         if(time_in_milliseconds_monotonic() - t0 >= RESCAN_SLICE_MS) {
             break;
         }
     }
     fs_event->in_callback = FALSE;
+    fs_event->rescan_us_slice_end = monotonic_us();
+    fs_event->rescan_us_slices += fs_event->rescan_us_slice_end - us_start;
 
     if(fs_event->stop_requested) {
         /*
@@ -1006,6 +1035,11 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
         "path",         "%s", fs_event->path,
         "directories",  "%ld", (long)fs_event->rescan_visited,
         "ms",           "%ld", (long)(time_in_milliseconds_monotonic() - fs_event->rescan_t0),
+        "slices",       "%ld", (long)fs_event->rescan_slices,
+        "ms_owner",     "%ld", (long)(fs_event->rescan_us_owner/1000),
+        "ms_watcher",   "%ld", (long)((fs_event->rescan_us_slices - fs_event->rescan_us_owner)/1000),
+        "ms_loop",      "%ld", (long)((time_in_milliseconds_monotonic() - fs_event->rescan_t0) - fs_event->rescan_us_slices/1000),
+        "max_loop_ms",  "%ld", (long)(fs_event->rescan_us_max_gap/1000),
         NULL
     );
     if(fs_event->rescan_again) {

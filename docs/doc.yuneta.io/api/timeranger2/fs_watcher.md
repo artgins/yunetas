@@ -120,8 +120,10 @@ in place (since 7.25.9; in slices since 7.25.10):
    recursive watch a directory born while its `IN_CREATE` was dropped is
    watched before it is handed over;
 4. the pass runs **a slice of 20 ms per loop turn**, and an INFO closes it:
-   *"watched tree rescanned after lost inotify events"*, with `directories` and
-   `ms`. Another overflow during a pass schedules one more whole pass after it
+   *"watched tree rescanned after lost inotify events"*, with `directories`,
+   `ms`, and where that time went: `slices`, `ms_owner` (in the owner's
+   callbacks), `ms_watcher` (the walk itself), `ms_loop` (the loop's own work
+   between slices) and `max_loop_ms` (its longest turn). Another overflow during a pass schedules one more whole pass after it
    (starting again would starve the end of the tree under overflows that keep
    coming).
 
@@ -137,6 +139,18 @@ once per pass. 7.25.10 rebuilt that index in every slice -- 50000 paths every
 73 us since 7.25.11), and on the central a pass over 50501 directories took
 7 minutes. `tests/c/timeranger2/test_fs_watcher_overflow` measures it (the
 pass less the owner's time, per directory) and fails above 200 us.
+
+A pass closes with its own account (since 7.25.12), so a long one says why:
+
+```
+"msg": "watched tree rescanned after lost inotify events",
+"directories": 69633, "ms": 14374, "slices": 612,
+"ms_owner": 11169, "ms_watcher": 887, "ms_loop": 2318, "max_loop_ms": 17
+```
+
+Here the owner took most of it (a test's owner that sleeps 100 us per
+directory); a large `ms_loop` would say the slices were waiting for a busy
+loop instead.
 
 Every owner handles both -- in its callback, before anything that reads the
 type as bits:
