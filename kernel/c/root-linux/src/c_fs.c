@@ -257,6 +257,16 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event)
         "filename", fs_event->filename
     );
 
+    if(fs_event->fs_type == FS_OVERFLOW_TYPE) {
+        /*
+         *  Events were lost: something changed under the watched root, and
+         *  nobody knows what. Checked first: the tests below read the type
+         *  as bits, and its value would match several of them.
+         */
+        gobj_publish_event(fs_event->gobj, EV_FS_CHANGED, kw);
+        return 0;
+    }
+
     if (fs_event->fs_type & (FS_SUBDIR_CREATED_TYPE)) {
     }
     if (fs_event->fs_type & (FS_SUBDIR_DELETED_TYPE)) {

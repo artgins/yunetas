@@ -1,5 +1,35 @@
 # **Changelog**
 
+## Unreleased
+
+### timeranger2 (fs_watcher): an inotify overflow no longer aborts the yuno
+
+- **An `IN_Q_OVERFLOW` of a watcher aborted the yuno** to be relaunched and
+  reload clean. Under a sustained burst the reload met the next overflow: in
+  yunovatios' stress test of its central, a `db_history_ce` following a
+  `db_tracks_ce` at ~3000 records/s over ~60000 keys aborted five times in two
+  hours, and each relaunch spent 2-3 minutes catching up before falling again.
+- Now the watcher recovers in place: a WARNING, a watch set on every directory
+  of a recursive tree that was not watched, and the owner called once with the
+  new **`FS_OVERFLOW_TYPE`** to rebuild its view from the filesystem, where
+  what the lost events said still is.
+- A **follower's rt_disk feed** scans every key directory of its
+  `disks/<rt_id>/` (a link still there is a record not handed over yet) and
+  compares its cache with the topic's `keys/` (a key gone is heard deleted,
+  its `key_deleted` callback fires). Idempotent: nothing is handed over twice.
+  INFO *"rt_disk feed rescanned after lost inotify events"*.
+- The **master's watch of `disks/`** closes the feeds whose directory went and
+  opens one for each directory without it (`find_rt_disk()` skips an `rt_id`
+  already fed).
+- **`C_FS`** publishes `EV_FS_CHANGED` for the root; **`utils/c/fs_watcher`**
+  prints it, and no longer reads the event types as bits (a "file created"
+  printed as "directory created" and "directory deleted" too).
+- Test: `timeranger2/test_rt_disk_overflow` (a real overflow: 69632 new keys
+  with the loop stopped, one `IN_CREATE` each, and a key deleted while the queue
+  is full; every record once, the delete heard once, a key born in the overflow
+  watched after; with the old code it aborts). Documented in
+  `api/timeranger2/fs_watcher.md`.
+
 ## v7.25.8 (2026-09-26)
 
 A TLS fix in `C_TCP`: under a burst, a connection could have two writes in

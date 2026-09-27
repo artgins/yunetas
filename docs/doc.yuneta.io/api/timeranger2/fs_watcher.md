@@ -103,13 +103,71 @@ Once [`fs_stop_watcher_event()`](<#fs_stop_watcher_event>) is called, the `fs_ev
 ## Queue overflow (`IN_Q_OVERFLOW`)
 
 Each watcher owns one inotify instance with a bounded kernel event queue
-(`fs.inotify.max_queued_events`). Under a burst the kernel can drop events and
-signal a single `IN_Q_OVERFLOW`. From that point the watcher can no longer
-guarantee it saw every change.
+(`fs.inotify.max_queued_events`; the deb/rpm packagers set 65536). Under a
+burst the kernel drops the events that do not fit and signals a single
+`IN_Q_OVERFLOW`: from there the watcher cannot know every change it missed.
 
-`fs_watcher` treats this as unrecoverable in place: it logs `critical` with
-`LOG_OPT_ABORT`, so the yuno aborts and `ydaemon` relaunches it. The clean
-reload re-establishes every watch and feed from disk — the proven recovery
-path, chosen over a hard-to-test in-place resync. This is rare in practice
-because the deb/rpm packagers size `fs.inotify.max_queued_events` (65536) well
-above the kernel default. Raise it further if overflow-driven restarts recur.
+What the lost events said is still on the filesystem, so the watcher recovers
+in place (since 7.25.9):
+
+1. a WARNING, *"inotify IN_Q_OVERFLOW: events lost, rescanning the watched
+   tree"*, with the watched `path`;
+2. in a recursive watch, a watch is set on every directory the tree has now
+   and was not watched -- created while its `IN_CREATE` was dropped, so nothing
+   inside it would ever be heard;
+3. the owner's callback is called ONCE with **`FS_OVERFLOW_TYPE`**
+   (`directory` = the watched path, `filename` = `""`): rebuild your view from
+   the filesystem, the missed events will not come.
+
+Every owner handles it -- in its callback, before anything that reads the type
+as bits:
+
+```C
+PRIVATE int my_fs_callback(fs_event_t *fs_event)
+{
+    switch(fs_event->fs_type) {
+        case FS_OVERFLOW_TYPE:
+            // events were lost: list what is under fs_event->directory again
+            rescan_my_tree(fs_event->gobj, (const char *)fs_event->directory);
+            break;
+        case FS_FILE_CREATED_TYPE:
+            ...
+    }
+    return 0;
+}
+```
+
+What the owners of the tree do:
+
+- **timeranger2, a follower's rt_disk feed** (the heavy one: an event per new
+  md2 of every key). The master hard-links each new md2 into
+  `disks/<rt_id>/<key>/` and the follower consumes the link when it reads it,
+  so a link still there IS a record not handed over yet: every key directory is
+  scanned, as a newly created one is. A deleted key leaves no trace in
+  `disks/<rt_id>/` (its signal is a directory created and removed), so the
+  follower's cache is compared with the topic's `keys/`, and a key gone from
+  there is heard as deleted (its `key_deleted` callback fires). Both reads are
+  idempotent: nothing is handed over twice. An INFO closes it: *"rt_disk feed
+  rescanned after lost inotify events"*, with `keys`, `keys_deleted` and `ms`.
+- **timeranger2, the master's watch of `disks/`**: the feeds whose directory
+  went are closed, and a feed is opened for every directory without one.
+- **`C_FS`** publishes `EV_FS_CHANGED` for the watched root.
+- **`utils/c/fs_watcher`** prints *"Events LOST"*.
+
+Up to 7.25.8 an overflow aborted the yuno, to be relaunched and reload clean.
+Under a sustained burst the reload met the next overflow: in yunovatios' stress
+test of its central, a `db_history_ce` following a `db_tracks_ce` at ~3000
+records/s over ~60000 keys aborted five times in two hours, each relaunch
+spending 2-3 minutes catching up before falling again.
+
+A follower also hears its OWN consumption: each link it removes is an
+`IN_DELETE` in a watched key directory, which it ignores. Half of what fills
+its queue is that echo, which is why a single burst can overflow it twice.
+
+`tests/c/timeranger2` (`test_rt_disk_overflow`): with the loop stopped, the
+master appends to `max_queued_events` + 4096 new keys, one `IN_CREATE` each,
+and deletes a key while the queue is full. Every record reaches the feed exactly
+once, the deleted key is heard once, and a key born during the overflow is
+watched afterwards. With the code that aborted, the test aborts. It needs about
+four open files per key and raises its soft limit to the hard one, as a yuno
+does; below that it is skipped.

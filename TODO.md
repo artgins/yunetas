@@ -119,6 +119,19 @@ open:
 - **Apply is off on every in-tree yuno:** each one forces `impose_c_schema`,
   so gui_agent's Apply is off on all of them until one stops forcing it.
 
+## C_FS: the event types are read as bits, and a `kw` is leaked
+
+Seen 2026-09-27 while adding `FS_OVERFLOW_TYPE`. `fs_event_callback()` of
+`c_fs.c` tests `fs_type & (FS_SUBDIR_CREATED_TYPE)` and so on, but the types
+are consecutive VALUES (1..7), not bits: `FS_FILE_MODIFIED_TYPE` (5) matches a
+"directory created" (1), a "file created" (3) and a "file deleted" (4), so
+`EV_FS_CHANGED` is published for those too. And the `kw` it builds first is
+only consumed by that one publish: a "directory deleted" (2) matches nothing and
+leaks it. `FS_OVERFLOW_TYPE` is handled before the tests. Decide what `C_FS`
+means to publish for each type (it only publishes `EV_FS_CHANGED`) before
+touching it: `watchfs` depends on it. The `utils/c/fs_watcher` CLI had the same
+reading and was fixed (a diagnostic tool, no consumers).
+
 ## ytls (mbedTLS): a failed encrypted-output callback frees the gbuffer twice
 
 Seen 2026-09-26 while fixing the TLS writes of `C_TCP`. `flush_encrypted_data()`
@@ -501,24 +514,17 @@ under real use (found 2026-07-12 on e.com, where the node sat at 128/128
   accumulating for ever. Repro: `yunovatios/yunos/sim_controllers` at 3000/s
   against the stress realm, then `kill-yuno` of its `db_history_ce`.
 
-- **#3 — A reader's rt_disk feed OVERFLOWS inotify at ~3000 records/s, and
-  the yuno then lives in a crash loop.** Seen 2026-09-26 on yunovatios-central
-  (Rocky 9, `max_queued_events = 65536`): the stress `db_history_ce` reads the
-  `raw_tracks` of a `db_tracks_ce` over ~60000 keys. Every record is a hard link
-  into the feed's per-key directory, so an inotify event, and when the master
-  sustained ~3000 records/s or burst above it (the catch-up after a ramp, the
-  drain after an outage of the gate) the kernel queue overflowed and
-  `handle_inotify_event()` aborted on `IN_Q_OVERFLOW`, as designed ("reload
-  clean"). FIVE times in two hours (16:48, 18:04, 18:19, 18:26, 18:37 UTC): each
-  relaunch spends 2-3 minutes catching up 190000-325000 frames, plays, and falls
-  again while the burst lasts, so under a burst the reader does LESS work than
-  it would without the abort. The abort also re-opens the feed while the master
-  still links into the old one (#2: `rmdir ENOTEMPTY`, `mkdir EEXIST`).
-  Options: raise `max_queued_events` (only moves the threshold); resync in place
-  on overflow -- rescan each key from the last rowid the reader has (a
-  reader that already knows where each key stands, like yunovatios'
-  per-key catch-up, has what it needs) -- instead of aborting; or make the feed
-  coarser than one event per record (an event per key file, or per batch).
+- **#3 — A follower hears its OWN consumption: half its inotify queue is
+  echo.** Each hard link the follower consumes (`update_key_by_hard_link()`
+  unlinks it) is an `IN_DELETE` in a watched key directory, which it then
+  ignores (*"it's me"*). Half of what fills its queue under load is that echo,
+  which is why a follower overflowed at ~3000 records/s, and why one burst
+  overflows it twice (`test_rt_disk_overflow` sees two overflows). An overflow
+  no longer aborts the yuno (the feed is rescanned, see the fs_watcher page),
+  but it still costs a rescan of every key. Watching the key directories
+  without `IN_DELETE` (the root keeps it: a key directory's deletion is the
+  key-delete signal) would halve the queue; it needs a per-level mask in
+  `fs_watcher`, and `C_FS` still wants file deletes.
 
 Node-side mitigation (already provisioned, independent of the above): the deb/rpm
 packagers ship `99-yuneta-core.conf` raising the default

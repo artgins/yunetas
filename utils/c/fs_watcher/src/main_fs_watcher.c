@@ -80,20 +80,33 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event)
     char full_path[PATH_MAX];
     snprintf(full_path, PATH_MAX, "%s/%s", (char *)fs_event->directory, (char *)fs_event->filename);
 
-    if (fs_event->fs_type & (FS_SUBDIR_CREATED_TYPE)) {
-        printf("  %sDire created :%s %s\n", On_Green BWhite, Color_Off, full_path);
-    }
-    if (fs_event->fs_type & (FS_SUBDIR_DELETED_TYPE)) {
-        printf("  %sDire deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
-    }
-    if (fs_event->fs_type & (FS_FILE_CREATED_TYPE)) {
-        printf("  %sFile created :%s %s\n", On_Green BWhite, Color_Off, full_path);
-    }
-    if (fs_event->fs_type & (FS_FILE_DELETED_TYPE)) {
-        printf("  %sFile deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
-    }
-    if (fs_event->fs_type & (FS_FILE_MODIFIED_TYPE)) {
-        printf("  %sFile modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
+    /*
+     *  The types are values, not bits: tested with &, a "file created" (3)
+     *  also printed as "directory created" (1) and "directory deleted" (2)
+     */
+    switch(fs_event->fs_type) {
+        case FS_SUBDIR_CREATED_TYPE:
+            printf("  %sDire created :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            break;
+        case FS_SUBDIR_DELETED_TYPE:
+            printf("  %sDire deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            break;
+        case FS_FILE_CREATED_TYPE:
+            printf("  %sFile created :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            break;
+        case FS_FILE_DELETED_TYPE:
+            printf("  %sFile deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            break;
+        case FS_FILE_MODIFIED_TYPE:
+            printf("  %sFile modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            break;
+        case FS_FILE_RENAME_TYPE:
+            printf("  %sFile renamed :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            break;
+        case FS_OVERFLOW_TYPE:
+            printf("  %sEvents LOST  :%s %s (the kernel queue overflowed)\n",
+                On_Red BWhite, Color_Off, (char *)fs_event->directory);
+            break;
     }
 
     return 0;

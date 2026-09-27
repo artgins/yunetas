@@ -29,6 +29,11 @@ typedef enum  {
     FS_FILE_DELETED_TYPE,           // use directory / filename
     FS_FILE_MODIFIED_TYPE,          // use directory / filename, see WARNING
     FS_FILE_RENAME_TYPE,            // use directory / filename TODO to check,copied from libuv
+    FS_OVERFLOW_TYPE,               // directory: the watched path. The kernel's queue
+                                    // overflowed: an unknown set of events was LOST.
+                                    // The watches were set again on every directory the
+                                    // tree has now; the owner rebuilds its view from
+                                    // the filesystem (the events will not come).
 
     // There are more fs events available with io_uring, but this code only manages these events.
 } fs_type_t;

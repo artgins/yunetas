@@ -41,6 +41,7 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path, BOOL may_vanish);
 PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd);
 PRIVATE const char *get_path(fs_event_t *fs_event, int wd);
 PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path);
+PRIVATE void resync_watches(fs_event_t *fs_event);
 PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event);
 
 /***************************************************************************
@@ -484,21 +485,29 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 
     if(event->mask & (IN_Q_OVERFLOW)) {
         /*
-         *  The kernel dropped an unknown set of events (event->wd == -1): the
-         *  watcher can no longer guarantee completeness. Fail loud and let
-         *  ydaemon relaunch the yuno — a clean reload re-establishes every
-         *  feed correctly, which a hard-to-test in-place resync cannot
-         *  promise. Rare with a sized fs.inotify.max_queued_events; raise it
-         *  if this recurs.
+         *  The kernel dropped an unknown set of events (event->wd == -1).
+         *  What they said is still on the filesystem: the watches are set
+         *  again on every directory the tree has now, and the owner is told
+         *  to rebuild its view from it. Up to 7.25.8 this aborted the yuno
+         *  to reload clean: under a sustained burst the reload met the next
+         *  overflow, and a timeranger2 reader lived in a crash loop that did
+         *  less work than the lost events would have cost.
          */
-        gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "inotify IN_Q_OVERFLOW: events lost, aborting to reload clean",
+            "msg",          "%s", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
             "path",         "%s", fs_event->path,
             NULL
         );
-        return; // unreachable: abort() already fired
+        resync_watches(fs_event);
+
+        fs_event->fs_type = FS_OVERFLOW_TYPE;
+        fs_event->directory = (volatile char *)fs_event->path;
+        fs_event->filename = "";
+
+        fs_event->callback(fs_event);
+        return;
     }
 
     if(event->mask & (IN_DELETE_SELF)) {
@@ -799,4 +808,67 @@ PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path)
         search_by_paths_cb,
         fs_event
     );
+}
+
+/***************************************************************************
+ *  After an overflow: watch every directory the tree has now and was not
+ *  watched -- created while its IN_CREATE was being dropped, so nothing
+ *  inside it would ever be heard. Only in a recursive watch: a flat one
+ *  watches the root alone.
+ *
+ *  The watches of directories that went while the events were dropped are
+ *  left in the table: if their IN_DELETE_SELF / IN_IGNORED still come, they
+ *  are resolved as always; taken out now, those late events would name a wd
+ *  nobody knows. A stale entry costs a string.
+ ***************************************************************************/
+PRIVATE BOOL resync_watch_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,     // type found
+    char *fullpath,         // directory+filename found
+    const char *directory,  // directory of found filename
+    char *name,             // dname[255]
+    int level,              // level of tree where file found
+    wd_option opt           // option parameter
+)
+{
+    void **params = user_data;
+    fs_event_t *fs_event = params[0];
+    json_t *watched = params[1];
+
+    if(!json_object_get(watched, fullpath)) {
+        add_watch(fs_event, fullpath, TRUE);
+    }
+    return TRUE; // to continue
+}
+
+PRIVATE void resync_watches(fs_event_t *fs_event)
+{
+    if(!(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS)) {
+        return;
+    }
+    if(!is_directory(fs_event->path)) {
+        /*
+         *  The root went: its IN_DELETE_SELF, if it was not dropped too,
+         *  reports it; the owner's rescan finds it gone either way.
+         */
+        return;
+    }
+
+    json_t *watched = json_object();
+    const char *s_wd; json_t *jn_path;
+    json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_path) {
+        json_object_set_new(watched, json_string_value(jn_path), json_true());
+    }
+
+    void *params[2] = {fs_event, watched};
+    walk_dir_tree(
+        0,
+        fs_event->path,
+        0,
+        WD_RECURSIVE|WD_MATCH_DIRECTORY,
+        resync_watch_cb,
+        params
+    );
+    JSON_DECREF(watched)
 }
