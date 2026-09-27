@@ -1,6 +1,13 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.9 (2026-09-27)
+
+An inotify queue overflow no longer aborts the yuno: the watcher recovers in
+place and its owner rebuilds its view from the filesystem, where what the lost
+events said still is. Found by yunovatios' stress test of its central, where a
+`db_history_ce` following a busy `db_tracks_ce` lived in a crash loop under a
+burst. Every yuno that reads a timeranger2 topic of another yuno (an rt_disk
+feed) must be rebuilt against this SDK.
 
 ### timeranger2 (fs_watcher): an inotify overflow no longer aborts the yuno
 
