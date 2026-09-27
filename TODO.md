@@ -193,6 +193,34 @@ Expected: most of the 10.9 % (one `open`/`close`, two `pread`s and two
 the change needs a test of the follower (`test_rt_disk*`) and an A/B against
 the last tag, per the release checklist.
 
+## Queues and channels: two things a gate under load does not say, or says too often
+
+Found 2026-09-27 measuring the capacity of yunovatios' stress gate
+(`gate_central^2120`) on the development machine.
+
+**1. The size of a persistent link's queue cannot be read from outside.**
+`C_QIOGATE` reports `msgs_in_queue` and `pending_acks` only from its
+`mt_stats`. `C_MQIOGATE`'s `mt_stats` asks each `C_QIOGATE` child with
+`build_stats()` (`stats_parser.c`), which reads the `SDF_STATS` attributes of
+the gobj and of its bottom chain and never calls the child's `mt_stats` -- so
+the two figures are lost, and `stats-yuno id=<gate> service=__output_side__`
+shows only the bottom `C_TCP`'s counters. How far behind a link is had to be
+computed by difference (messages received by the gate minus messages received
+by the consumer). Either `C_MQIOGATE` asks its children with `gobj_stats()`
+(which honours `mt_stats`), or `C_QIOGATE` declares the two as `SDF_RSTATS`
+attributes backed by `mt_reading`. A test: a queue with N messages and the
+peer down, `stats` through the `C_MQIOGATE`, `msgs_in_queue == N`.
+
+**2. A full `C_TCP_S` logs an ERROR per refused connection.** When the
+`child_tree_filter` finds no free channel (the `__range__` of channels of a
+gate is full), `c_tcp_s.c` logs *"TCP_S: Connection not accepted: no free child
+tree found"* as an ERROR for every attempt, and the peers retry: 600 channels
+and 1000 simulated controllers made **38,156** of them in a few minutes, which
+drown the log. It is a capacity condition caused by the peers, not a broken
+invariant: warn on the transition (full / free again) with the count of
+refusals, and keep a counter stat (`refusedConnxs`) of it. The one line that
+matters now -- the channels are full -- is also the one that is hard to find.
+
 ## C_NODE: every link collapses the WHOLE parent, O(children) per link
 
 Found 2026-09-26 in yunovatios' stress test (`db_history_ce`, 20000 new devices
