@@ -8,7 +8,8 @@
   `ms_owner`, `ms_watcher`, `ms_loop` and `max_loop_ms`: the owner's
   callbacks, the walk, and the loop's own work between slices. On
   yunovatios' central some passes took 251 and 680 s while the yuno digested a
-  queue; this is what tells which of the three it was.
+  queue; measured with it, such passes are 65-78 % owner (handing over the
+  backlog of records), 22-35 % loop and 1.1-1.7 s walk: not the watcher.
 
 ## v7.25.11 (2026-09-27)
 

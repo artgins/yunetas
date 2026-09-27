@@ -152,6 +152,16 @@ Here the owner took most of it (a test's owner that sleeps 100 us per
 directory); a large `ms_loop` would say the slices were waiting for a busy
 loop instead.
 
+What it said on yunovatios' central, a timeranger2 follower of 50501 keys
+while its master wrote a backlog of ~9 GB (2026-09-27): passes of 142-335 s,
+**65-78 % in the owner**, 22-35 % in the loop, and **1.1-1.7 s in the
+watcher** -- whatever the length of the pass. The owner's time is the records
+it hands over: the same tree with nothing pending took 1 s, 0.35 s of it in
+the owner. So a long pass is a follower working through a backlog at its own
+pace (there, ~80 % of a core), not a slow walk; it ends about a minute after
+the master stops writing, and the loop never waited more than 239 ms for a
+slice.
+
 Every owner handles both -- in its callback, before anything that reads the
 type as bits:
 

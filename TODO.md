@@ -12,13 +12,6 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 yet fixed. Each is a defect, not a design choice: fix it with a test that fails
 first.
 
-- **fs_watcher pass under a loaded loop (observation, not a defect)**: on
-  yunovatios' central a pass over 50501 key directories took 34-60 s during a
-  storm but 251 s and 680 s while the yuno was digesting a queue at full disk
-  load (7.25.11; the yuno answered within 2.1 s throughout, and every record
-  was handed over). Measure how that time splits between the owner's reads
-  and turns of the loop without a slice; if slices are what is missing, a
-  slice that grows while the loop is idle would shorten it.
 - **`ac_identity_card` (C_IEVENT_SRV, before authentication)** logs errors with
   the whole kw dumped, once per connection: a peer-caused condition, so a capped
   warning (decoder severity rule).
