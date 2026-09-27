@@ -30,10 +30,14 @@ typedef enum  {
     FS_FILE_MODIFIED_TYPE,          // use directory / filename, see WARNING
     FS_FILE_RENAME_TYPE,            // use directory / filename TODO to check,copied from libuv
     FS_OVERFLOW_TYPE,               // directory: the watched path. The kernel's queue
-                                    // overflowed: an unknown set of events was LOST.
-                                    // The watches were set again on every directory the
-                                    // tree has now; the owner rebuilds its view from
-                                    // the filesystem (the events will not come).
+                                    // overflowed: an unknown set of events was LOST
+                                    // (they will not come). A pass over the tree starts:
+                                    // do here what is global and cheap.
+    FS_RESCAN_DIR_TYPE,             // directory: one directory of the watched tree (the
+                                    // root included), during the pass that follows an
+                                    // overflow: read it again, what it holds may never
+                                    // have been told. Delivered a slice per loop turn;
+                                    // a directory born in the overflow is watched first.
 
     // There are more fs events available with io_uring, but this code only manages these events.
 } fs_type_t;
@@ -69,6 +73,11 @@ struct fs_event_s {
     json_t *jn_tracked_paths;
     BOOL in_callback;           // Internal: yev_callback is walking the events
     BOOL stop_requested;        // Internal: stopped from inside its own callback
+    yev_event_h yev_rescan;     // Internal: timer that runs the pass after an overflow, a slice per turn
+    json_t *rescan_dirs;        // Internal: directories the pass has still to visit
+    BOOL rescan_again;          // Internal: an overflow came during the pass: another pass after it
+    uint64_t rescan_t0;         // Internal: start of the pass, ms monotonic
+    json_int_t rescan_visited;  // Internal: directories visited by the pass
 } ;
 
 

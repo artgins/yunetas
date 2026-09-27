@@ -16,6 +16,7 @@
 #include <limits.h>
 #include <sys/inotify.h>
 #include <errno.h>
+#include <dirent.h>
 
 #include <testing.h>
 #include <gobj.h>
@@ -26,6 +27,7 @@
  ***************************************************************************/
 
 #define DEFAULT_MASK (IN_DELETE_SELF|IN_MOVE_SELF|IN_CREATE|IN_DELETE | IN_DONT_FOLLOW|IN_EXCL_UNLINK)
+#define RESCAN_SLICE_MS 20      // the pass after an overflow gives the loop back after this
 
 /***************************************************************************
  *  Prototypes
@@ -41,7 +43,9 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path, BOOL may_vanish);
 PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd);
 PRIVATE const char *get_path(fs_event_t *fs_event, int wd);
 PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path);
-PRIVATE void resync_watches(fs_event_t *fs_event);
+PRIVATE void start_rescan_pass(fs_event_t *fs_event);
+PRIVATE void stop_rescan_pass(fs_event_t *fs_event);
+PRIVATE int rescan_slice_callback(yev_event_h yev_event);
 PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event);
 
 /***************************************************************************
@@ -235,6 +239,7 @@ PUBLIC int fs_stop_watcher_event(
     if(!fs_event) {
         return -1;
     }
+    stop_rescan_pass(fs_event);
     if(fs_event->in_callback) {
         /*
          *  Stopped by a consumer reacting to one of our own events (a feed
@@ -295,6 +300,8 @@ PRIVATE void fs_destroy_watcher_event(
     }
     yev_set_fd(fs_event->yev_event, -1);
     EXEC_AND_RESET(yev_destroy_event, fs_event->yev_event)
+    stop_rescan_pass(fs_event);
+    EXEC_AND_RESET(yev_destroy_event, fs_event->yev_rescan) // no callback after this, see yev_loop
     GBMEM_FREE(fs_event->path)
     JSON_DECREF(fs_event->jn_tracked_paths)
     GBMEM_FREE(fs_event)
@@ -500,13 +507,23 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             "path",         "%s", fs_event->path,
             NULL
         );
-        resync_watches(fs_event);
 
         fs_event->fs_type = FS_OVERFLOW_TYPE;
         fs_event->directory = (volatile char *)fs_event->path;
         fs_event->filename = "";
-
         fs_event->callback(fs_event);
+
+        if(fs_event->rescan_dirs) {
+            /*
+             *  A pass is running: the directories it visited already may
+             *  have lost events too. Another whole pass after this one --
+             *  starting again now would starve the end of the tree under
+             *  overflows that keep coming.
+             */
+            fs_event->rescan_again = TRUE;
+        } else {
+            start_rescan_pass(fs_event);
+        }
         return;
     }
 
@@ -811,64 +828,182 @@ PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path)
 }
 
 /***************************************************************************
- *  After an overflow: watch every directory the tree has now and was not
- *  watched -- created while its IN_CREATE was being dropped, so nothing
- *  inside it would ever be heard. Only in a recursive watch: a flat one
- *  watches the root alone.
+ *  The pass after an overflow: every directory of the tree, the root
+ *  first, is handed to the owner as FS_RESCAN_DIR_TYPE, and a directory
+ *  born while its IN_CREATE was dropped is watched before (or nothing
+ *  inside it would ever be heard). One walk does both.
+ *
+ *  It runs a slice of RESCAN_SLICE_MS per loop turn: an owner reads what
+ *  every directory holds (a timeranger2 follower, the pending records of
+ *  each key), and a tree of 50000 keys on a busy disk took minutes -- a
+ *  yuno deaf to its agent, its commands and its timers meanwhile. The next
+ *  slice comes from a timer: this is not a gobj, there is no event to post
+ *  to itself, and what has to happen between two slices is precisely that
+ *  the loop runs.
  *
  *  The watches of directories that went while the events were dropped are
  *  left in the table: if their IN_DELETE_SELF / IN_IGNORED still come, they
- *  are resolved as always; taken out now, those late events would name a wd
- *  nobody knows. A stale entry costs a string.
+ *  are resolved as always; taken out now, those late events would name a
+ *  wd nobody knows. A stale entry costs a string.
  ***************************************************************************/
-PRIVATE BOOL resync_watch_cb(
-    hgobj gobj,
-    void *user_data,
-    wd_found_type type,     // type found
-    char *fullpath,         // directory+filename found
-    const char *directory,  // directory of found filename
-    char *name,             // dname[255]
-    int level,              // level of tree where file found
-    wd_option opt           // option parameter
-)
+PRIVATE void start_rescan_pass(fs_event_t *fs_event)
 {
-    void **params = user_data;
-    fs_event_t *fs_event = params[0];
-    json_t *watched = params[1];
-
-    if(!json_object_get(watched, fullpath)) {
-        add_watch(fs_event, fullpath, TRUE);
+    if(!fs_event->yev_rescan) {
+        fs_event->yev_rescan = yev_create_timer_event(
+            fs_event->yev_loop,
+            rescan_slice_callback,
+            fs_event->gobj
+        );
+        if(!fs_event->yev_rescan) {
+            gobj_log_error(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Cannot create the timer of the rescan: the lost events stay lost",
+                "path",         "%s", fs_event->path,
+                NULL
+            );
+            return;
+        }
+        yev_set_user_data(fs_event->yev_rescan, fs_event);
     }
-    return TRUE; // to continue
+
+    JSON_DECREF(fs_event->rescan_dirs)
+    fs_event->rescan_dirs = json_array();
+    json_array_append_new(fs_event->rescan_dirs, json_string(fs_event->path));
+    fs_event->rescan_again = FALSE;
+    fs_event->rescan_visited = 0;
+    fs_event->rescan_t0 = time_in_milliseconds_monotonic();
+
+    yev_start_timer_event(fs_event->yev_rescan, 1, FALSE);
 }
 
-PRIVATE void resync_watches(fs_event_t *fs_event)
+PRIVATE void stop_rescan_pass(fs_event_t *fs_event)
 {
-    if(!(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS)) {
-        return;
+    if(fs_event->yev_rescan && yev_event_is_running(fs_event->yev_rescan)) {
+        yev_stop_event(fs_event->yev_rescan);
     }
-    if(!is_directory(fs_event->path)) {
-        /*
-         *  The root went: its IN_DELETE_SELF, if it was not dropped too,
-         *  reports it; the owner's rescan finds it gone either way.
-         */
-        return;
+    JSON_DECREF(fs_event->rescan_dirs)
+    fs_event->rescan_again = FALSE;
+}
+
+/*
+ *  Push the subdirectories of `path`, watching the ones not watched yet
+ */
+PRIVATE void push_subdirectories(fs_event_t *fs_event, const char *path, json_t *watched)
+{
+    DIR *dir = opendir(path);
+    if(!dir) {
+        if(errno != ENOENT) {
+            gobj_log_error(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "opendir() FAILED",
+                "path",         "%s", path,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
+        return; // ENOENT: gone meanwhile, nothing below it to visit
+    }
+    struct dirent *de;
+    while((de = readdir(dir)) != NULL) {
+        if(strcmp(de->d_name, ".")==0 || strcmp(de->d_name, "..")==0) {
+            continue;
+        }
+        char child[PATH_MAX];
+        if(!build_path(child, sizeof(child), path, de->d_name, NULL)) {
+            continue;   // Error already logged
+        }
+        BOOL is_dir = (de->d_type == DT_DIR)? TRUE: FALSE;
+        if(de->d_type == DT_UNKNOWN) {
+            is_dir = is_directory(child);
+        }
+        if(!is_dir) {
+            continue;
+        }
+        if(!json_object_get(watched, child)) {
+            add_watch(fs_event, child, TRUE);
+        }
+        json_array_append_new(fs_event->rescan_dirs, json_string(child));
+    }
+    closedir(dir);
+}
+
+PRIVATE int rescan_slice_callback(yev_event_h yev_event)
+{
+    fs_event_t *fs_event = yev_get_user_data(yev_event);
+    if(!fs_event || yev_get_state(yev_event) != YEV_ST_IDLE || !fs_event->rescan_dirs) {
+        return 0;   // the stop of the timer, or a pass already dropped
     }
 
-    json_t *watched = json_object();
-    const char *s_wd; json_t *jn_path;
-    json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_path) {
-        json_object_set_new(watched, json_string_value(jn_path), json_true());
+    json_t *watched = NULL;
+    if(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS) {
+        watched = json_object();
+        const char *s_wd; json_t *jn_path;
+        json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_path) {
+            json_object_set_new(watched, json_string_value(jn_path), json_true());
+        }
     }
 
-    void *params[2] = {fs_event, watched};
-    walk_dir_tree(
-        0,
-        fs_event->path,
-        0,
-        WD_RECURSIVE|WD_MATCH_DIRECTORY,
-        resync_watch_cb,
-        params
-    );
+    uint64_t t0 = time_in_milliseconds_monotonic();
+    fs_event->in_callback = TRUE;
+    while(json_array_size(fs_event->rescan_dirs) > 0 && !fs_event->stop_requested) {
+        size_t last = json_array_size(fs_event->rescan_dirs) - 1;
+        char dir[PATH_MAX];
+        snprintf(dir, sizeof(dir), "%s", json_string_value(json_array_get(fs_event->rescan_dirs, last)));
+        json_array_remove(fs_event->rescan_dirs, last);
+
+        if(!is_directory(dir)) {
+            continue;   // gone meanwhile: its delete is the owner's to find
+        }
+        if(watched) {
+            push_subdirectories(fs_event, dir, watched);
+        }
+
+        fs_event->rescan_visited++;
+        fs_event->fs_type = FS_RESCAN_DIR_TYPE;
+        fs_event->directory = dir;
+        fs_event->filename = "";
+        fs_event->callback(fs_event);
+
+        if(time_in_milliseconds_monotonic() - t0 >= RESCAN_SLICE_MS) {
+            break;
+        }
+    }
+    fs_event->in_callback = FALSE;
     JSON_DECREF(watched)
+
+    if(fs_event->stop_requested) {
+        /*
+         *  The owner stopped the watcher from its callback: stop it now
+         *  that nobody is walking with it
+         */
+        fs_event->stop_requested = FALSE;
+        fs_stop_watcher_event(fs_event);
+        return 0;
+    }
+    if(!fs_event->rescan_dirs) {
+        return 0;
+    }
+
+    if(json_array_size(fs_event->rescan_dirs) > 0) {
+        yev_start_timer_event(fs_event->yev_rescan, 1, FALSE);
+        return 0;
+    }
+
+    gobj_log_info(fs_event->gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_SYSTEM,
+        "msg",          "%s", "watched tree rescanned after lost inotify events",
+        "path",         "%s", fs_event->path,
+        "directories",  "%ld", (long)fs_event->rescan_visited,
+        "ms",           "%ld", (long)(time_in_milliseconds_monotonic() - fs_event->rescan_t0),
+        NULL
+    );
+    if(fs_event->rescan_again) {
+        start_rescan_pass(fs_event);
+    } else {
+        JSON_DECREF(fs_event->rescan_dirs)
+    }
+    return 0;
 }

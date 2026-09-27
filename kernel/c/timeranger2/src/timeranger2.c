@@ -520,7 +520,7 @@ PRIVATE void client_key_deleted(
     fs_event_t *fs_event,
     const char *deleted_key
 );
-PRIVATE void rescan_rt_disk_by_client(
+PRIVATE void forget_keys_deleted_unheard(
     hgobj gobj,
     json_t *tranger,
     json_t *watched_topic,
@@ -6409,6 +6409,8 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
         case FS_OVERFLOW_TYPE:
             rescan_rt_disks_by_master(gobj, tranger, fs_event);
             break;
+        case FS_RESCAN_DIR_TYPE:
+            break;  // disks/ is rescanned whole at FS_OVERFLOW_TYPE
         case FS_FILE_CREATED_TYPE:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -6750,10 +6752,25 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
 
         case FS_OVERFLOW_TYPE:
             /*
-             *  Events were lost: rebuild the feed from the filesystem
+             *  Events were lost. A deleted key leaves nothing behind in
+             *  disks/<rt_id>/: found here, once. The records are found by
+             *  the pass that follows (FS_RESCAN_DIR_TYPE).
              */
             if(watched_topic) {
-                rescan_rt_disk_by_client(gobj, tranger, watched_topic, fs_event);
+                forget_keys_deleted_unheard(gobj, tranger, watched_topic, fs_event);
+            }
+            break;
+
+        case FS_RESCAN_DIR_TYPE:
+            /*
+             *  A directory of disks/<rt_id>/ in the pass after lost events:
+             *  a key directory, whose links are records not handed over yet
+             *  (the root holds only the key directories)
+             */
+            if(strcmp((const char *)fs_event->directory, fs_event->path)!=0) {
+                char key_dir[PATH_MAX];
+                snprintf(key_dir, sizeof(key_dir), "%s", (const char *)fs_event->directory);
+                scan_disks_key_for_new_file(gobj, tranger, key_dir);
             }
             break;
 
@@ -6896,98 +6913,75 @@ PRIVATE void client_key_deleted(
 }
 
 /***************************************************************************
- *  CLIENT: the watcher lost events (inotify IN_Q_OVERFLOW). What they
- *  said is still on the filesystem, and it is read from there:
- *
- *    - a record: the master's hard link of its md2 stays in
- *      disks/<rt_id>/<key>/ until this reader consumes it, so every key
- *      directory is scanned, as a newly created one is;
- *    - a deleted key: the master's signal (the key directory created and
- *      removed in disks/<rt_id>/) leaves nothing behind, so the cache is
- *      compared with the topic's keys/.
- *
- *  Both are idempotent: a record already handed over is not handed again,
- *  and a key already forgotten is not in the cache.
+ *  CLIENT: the watcher lost events (inotify IN_Q_OVERFLOW). A key deleted
+ *  then was heard by nobody: the master's signal (the key directory created
+ *  and removed in disks/<rt_id>/) leaves nothing behind. So the cache is
+ *  compared with the topic's keys/, read once -- one directory, not a
+ *  stat() per key. The records lost with the events are found by the pass
+ *  of fs_watcher that follows (FS_RESCAN_DIR_TYPE): the master's hard link
+ *  of an md2 stays in disks/<rt_id>/<key>/ until this reader consumes it.
  ***************************************************************************/
-PRIVATE BOOL rescan_key_dir_cb(
-    hgobj gobj,
-    void *user_data,
-    wd_found_type type,     // type found
-    char *fullpath,         // directory+filename found
-    const char *directory,  // directory of found filename
-    char *name,             // dname[255]
-    int level,              // level of tree where file found
-    wd_option opt           // option parameter
-)
-{
-    void **params = user_data;
-    json_t *tranger = params[0];
-    fs_event_t *fs_event = params[1];
-    json_int_t *keys = params[2];
-
-    if(fs_event->stop_requested) {
-        return FALSE;   // a callback closed the feed
-    }
-    (*keys)++;
-    scan_disks_key_for_new_file(gobj, tranger, fullpath);
-    return TRUE; // to continue
-}
-
-PRIVATE void rescan_rt_disk_by_client(
+PRIVATE void forget_keys_deleted_unheard(
     hgobj gobj,
     json_t *tranger,
     json_t *watched_topic,
     fs_event_t *fs_event
 )
 {
-    uint64_t t0 = time_in_milliseconds_monotonic();
-    json_int_t keys = 0;
-
-    void *params[3] = {tranger, fs_event, &keys};
-    walk_dir_tree(
-        gobj,
-        fs_event->path,
-        0,
-        WD_MATCH_DIRECTORY,     // the key directories, one level
-        rescan_key_dir_cb,
-        params
-    );
-    if(fs_event->stop_requested) {
+    const char *topic_dir = json_string_value(json_object_get(watched_topic, "directory"));
+    char path_keys[PATH_MAX];
+    if(!build_path(path_keys, sizeof(path_keys), topic_dir, "keys", NULL)) {
+        return; // Error already logged
+    }
+    DIR *dir = opendir(path_keys);
+    if(!dir) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot list the keys: a key deleted while the events were lost is not heard",
+            "path",         "%s", path_keys,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
         return;
     }
+    json_t *on_disk = json_object();
+    struct dirent *de;
+    while((de = readdir(dir)) != NULL) {
+        if(strcmp(de->d_name, ".")==0 || strcmp(de->d_name, "..")==0) {
+            continue;
+        }
+        json_object_set_new(on_disk, de->d_name, json_true());
+    }
+    closedir(dir);
 
-    const char *topic_dir = json_string_value(json_object_get(watched_topic, "directory"));
     json_t *gone = json_array();
     const char *key; json_t *v;
     json_object_foreach(json_object_get(watched_topic, "cache"), key, v) {
-        char path_key[PATH_MAX];
-        if(!build_path(path_key, sizeof(path_key), topic_dir, "keys", key, NULL)) {
-            continue;   // Error already logged
-        }
-        struct stat st;
-        if(stat(path_key, &st) < 0 && errno == ENOENT) {
+        if(!json_object_get(on_disk, key)) {
             json_array_append_new(gone, json_string(key));
         }
     }
+    JSON_DECREF(on_disk)
+
     int idx; json_t *jn_key;
     json_array_foreach(gone, idx, jn_key) {
         if(fs_event->stop_requested) {
-            break;
+            break;  // a key_deleted callback closed the feed
         }
         client_key_deleted(gobj, tranger, watched_topic, fs_event, json_string_value(jn_key));
     }
-
-    gobj_log_info(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_TRANGER,
-        "msg",          "%s", "rt_disk feed rescanned after lost inotify events",
-        "topic_name",   "%s", tranger2_topic_name(watched_topic),
-        "path",         "%s", fs_event->path,
-        "keys",         "%ld", (long)keys,
-        "keys_deleted", "%d", (int)json_array_size(gone),
-        "ms",           "%ld", (long)(time_in_milliseconds_monotonic() - t0),
-        NULL
-    );
+    if(json_array_size(gone) > 0) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "keys deleted while the inotify events were lost",
+            "topic_name",   "%s", tranger2_topic_name(watched_topic),
+            "path",         "%s", fs_event->path,
+            "keys_deleted", "%d", (int)json_array_size(gone),
+            NULL
+        );
+    }
     JSON_DECREF(gone)
 }
 

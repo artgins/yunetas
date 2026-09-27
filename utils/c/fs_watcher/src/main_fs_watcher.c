@@ -107,6 +107,9 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event)
             printf("  %sEvents LOST  :%s %s (the kernel queue overflowed)\n",
                 On_Red BWhite, Color_Off, (char *)fs_event->directory);
             break;
+        case FS_RESCAN_DIR_TYPE:
+            printf("  %sRescan dir   :%s %s\n", On_Green BWhite, Color_Off, (char *)fs_event->directory);
+            break;
     }
 
     return 0;

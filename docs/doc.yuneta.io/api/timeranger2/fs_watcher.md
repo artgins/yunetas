@@ -108,27 +108,41 @@ burst the kernel drops the events that do not fit and signals a single
 `IN_Q_OVERFLOW`: from there the watcher cannot know every change it missed.
 
 What the lost events said is still on the filesystem, so the watcher recovers
-in place (since 7.25.9):
+in place (since 7.25.9; in slices since 7.25.10):
 
 1. a WARNING, *"inotify IN_Q_OVERFLOW: events lost, rescanning the watched
    tree"*, with the watched `path`;
-2. in a recursive watch, a watch is set on every directory the tree has now
-   and was not watched -- created while its `IN_CREATE` was dropped, so nothing
-   inside it would ever be heard;
-3. the owner's callback is called ONCE with **`FS_OVERFLOW_TYPE`**
-   (`directory` = the watched path, `filename` = `""`): rebuild your view from
-   the filesystem, the missed events will not come.
+2. the owner's callback is called ONCE with **`FS_OVERFLOW_TYPE`**
+   (`directory` = the watched path): do there what is global and cheap;
+3. a **pass** over the tree follows: every directory, the root included, is
+   handed to the owner as **`FS_RESCAN_DIR_TYPE`** (`directory` = that
+   directory) -- read it again, what it holds may never have been told. In a
+   recursive watch a directory born while its `IN_CREATE` was dropped is
+   watched before it is handed over;
+4. the pass runs **a slice of 20 ms per loop turn**, and an INFO closes it:
+   *"watched tree rescanned after lost inotify events"*, with `directories` and
+   `ms`. Another overflow during a pass schedules one more whole pass after it
+   (starting again would starve the end of the tree under overflows that keep
+   coming).
 
-Every owner handles it -- in its callback, before anything that reads the type
-as bits:
+In 7.25.9 the owner rescanned the whole tree inside the one `FS_OVERFLOW_TYPE`
+call. A timeranger2 follower of 50000 keys on the busy disk of a central took
+56 s, then 243 s -- the yuno deaf to its agent, its commands and its timers all
+that time. The slices keep it answering; the pass costs the same.
+
+Every owner handles both -- in its callback, before anything that reads the
+type as bits:
 
 ```C
 PRIVATE int my_fs_callback(fs_event_t *fs_event)
 {
     switch(fs_event->fs_type) {
         case FS_OVERFLOW_TYPE:
-            // events were lost: list what is under fs_event->directory again
-            rescan_my_tree(fs_event->gobj, (const char *)fs_event->directory);
+            // events were lost: what is global and cheap (a pass follows)
+            break;
+        case FS_RESCAN_DIR_TYPE:
+            // one directory of the tree: list it again
+            rescan_my_dir(fs_event->gobj, (const char *)fs_event->directory);
             break;
         case FS_FILE_CREATED_TYPE:
             ...
@@ -140,19 +154,20 @@ PRIVATE int my_fs_callback(fs_event_t *fs_event)
 What the owners of the tree do:
 
 - **timeranger2, a follower's rt_disk feed** (the heavy one: an event per new
-  md2 of every key). The master hard-links each new md2 into
-  `disks/<rt_id>/<key>/` and the follower consumes the link when it reads it,
-  so a link still there IS a record not handed over yet: every key directory is
-  scanned, as a newly created one is. A deleted key leaves no trace in
+  md2 of every key). At `FS_OVERFLOW_TYPE`: a deleted key leaves no trace in
   `disks/<rt_id>/` (its signal is a directory created and removed), so the
-  follower's cache is compared with the topic's `keys/`, and a key gone from
-  there is heard as deleted (its `key_deleted` callback fires). Both reads are
-  idempotent: nothing is handed over twice. An INFO closes it: *"rt_disk feed
-  rescanned after lost inotify events"*, with `keys`, `keys_deleted` and `ms`.
-- **timeranger2, the master's watch of `disks/`**: the feeds whose directory
-  went are closed, and a feed is opened for every directory without one.
-- **`C_FS`** publishes `EV_FS_CHANGED` for the watched root.
-- **`utils/c/fs_watcher`** prints *"Events LOST"*.
+  follower's cache is compared with the topic's `keys/`, read once, and a key
+  gone from there is heard as deleted (its `key_deleted` callback fires; INFO
+  *"keys deleted while the inotify events were lost"*). At each
+  `FS_RESCAN_DIR_TYPE`: the master hard-links each new md2 into
+  `disks/<rt_id>/<key>/` and the follower consumes the link when it reads it,
+  so a link still there IS a record not handed over yet, and the key directory
+  is read. Both are idempotent: nothing is handed over twice.
+- **timeranger2, the master's watch of `disks/`**: at `FS_OVERFLOW_TYPE`, the
+  feeds whose directory went are closed, and a feed is opened for every
+  directory without one (a handful of directories: no pass needed).
+- **`C_FS`** publishes `EV_FS_CHANGED` for the watched root, once.
+- **`utils/c/fs_watcher`** prints *"Events LOST"* and each *"Rescan dir"*.
 
 Up to 7.25.8 an overflow aborted the yuno, to be relaunched and reload clean.
 Under a sustained burst the reload met the next overflow: in yunovatios' stress
@@ -164,10 +179,19 @@ A follower also hears its OWN consumption: each link it removes is an
 `IN_DELETE` in a watched key directory, which it ignores. Half of what fills
 its queue is that echo, which is why a single burst can overflow it twice.
 
-`tests/c/timeranger2` (`test_rt_disk_overflow`): with the loop stopped, the
-master appends to `max_queued_events` + 4096 new keys, one `IN_CREATE` each,
-and deletes a key while the queue is full. Every record reaches the feed exactly
-once, the deleted key is heard once, and a key born during the overflow is
-watched afterwards. With the code that aborted, the test aborts. It needs about
-four open files per key and raises its soft limit to the hard one, as a yuno
-does; below that it is skipped.
+`tests/c/timeranger2`:
+
+- `test_rt_disk_overflow`: with the loop stopped, the master appends to
+  `max_queued_events` + 4096 new keys, one `IN_CREATE` each, and deletes a key
+  while the queue is full. Every record reaches the feed exactly once, the
+  deleted key is heard once, and a key born during the overflow is watched
+  afterwards. With the code that aborted, the test aborts. It needs about four
+  open files per key and raises its soft limit to the hard one, as a yuno does;
+  below that it is skipped.
+- `test_fs_watcher_overflow`: the watcher alone, with an owner slow on purpose
+  (100 us per directory) and a periodic timer probing the loop. `max_queued_events`
+  + 4096 directories are created with the loop stopped: every one is told to the
+  owner, the pass takes ~30 s and the loop is never deaf for more than 1 s (it is
+  50 ms, the probe's period). On a local disk the directories just created are
+  in the kernel's cache and a pass in one piece takes milliseconds -- which is
+  why only a slow owner shows what a busy disk does.

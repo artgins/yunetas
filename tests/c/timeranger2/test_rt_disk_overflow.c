@@ -150,6 +150,28 @@ PRIVATE int append_one(json_t *tranger, json_int_t id, uint64_t t)
  *  Run the loop until `expected` records arrived and the loop has been
  *  quiet for a while (a late duplicate would show in the quiet turns)
  */
+/*
+ *  A probe: a periodic timer of PROBE_MS. The longest gap between two of its
+ *  firings is the longest time the loop was deaf -- a callback that held it
+ *  (the rescan after an overflow ran in one piece, and took minutes on a
+ *  busy disk of a central).
+ */
+#define PROBE_MS    50
+PRIVATE uint64_t probe_last = 0;
+PRIVATE uint64_t probe_max_gap = 0;
+PRIVATE int probe_callback(yev_event_h yev_event)
+{
+    if(yev_get_state(yev_event) != YEV_ST_IDLE) {
+        return 0;   // its stop
+    }
+    uint64_t now = time_in_milliseconds_monotonic();
+    if(now - probe_last > probe_max_gap) {
+        probe_max_gap = now - probe_last;
+    }
+    probe_last = now;
+    return 0;
+}
+
 PRIVATE void drain(int expected)
 {
     int quiet = 0;
@@ -293,9 +315,10 @@ PRIVATE int do_test(void)
      */
     set_expected_results_unordered(
         "overflow: the queue overflows, the feed is rebuilt from the filesystem",
-        json_pack("[{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s}]",
             "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
-            "msg", "rt_disk feed rescanned after lost inotify events"
+            "msg", "keys deleted while the inotify events were lost",
+            "msg", "watched tree rescanned after lost inotify events"
         ),
         NULL, NULL, 1
     );
@@ -314,10 +337,19 @@ PRIVATE int do_test(void)
         result += -1;
     }
     uint64_t t1 = time_in_milliseconds_monotonic();
+    yev_event_h yev_probe = yev_create_timer_event(yev_loop, probe_callback, 0);
+    probe_last = time_in_milliseconds_monotonic();  // a loop deaf from the start counts
+    probe_max_gap = 0;
+    yev_start_timer_event(yev_probe, PROBE_MS, TRUE);
     drain(n_keys);
+    yev_stop_event(yev_probe);
+    for(int i = 0; i < 5; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    yev_destroy_event(yev_probe);
     uint64_t t2 = time_in_milliseconds_monotonic();
-    printf("     flood of %d appends: %lu ms; drain of the feed: %lu ms\n",
-        n_keys, (unsigned long)(t1 - t0), (unsigned long)(t2 - t1));
+    printf("     flood of %d appends: %lu ms; drain of the feed: %lu ms, the loop deaf at most %lu ms\n",
+        n_keys, (unsigned long)(t1 - t0), (unsigned long)(t2 - t1), (unsigned long)probe_max_gap);
 
     int missing = 0;
     int duplicated = 0;

@@ -1,5 +1,30 @@
 # **Changelog**
 
+## Unreleased
+
+### timeranger2 (fs_watcher): the pass after an overflow gives the loop back
+
+- **7.25.9 recovered from an inotify overflow in one piece**: the owner
+  rescanned the whole tree inside the single `FS_OVERFLOW_TYPE` call. A
+  timeranger2 follower of 50000 keys on the busy disk of yunovatios' central
+  took 56 s, then 243 s, and the yuno answered nothing meanwhile -- its agent,
+  its commands, its timers.
+- Now the watcher runs the pass itself, a slice of 20 ms per loop turn: every
+  directory of the tree goes to the owner as the new **`FS_RESCAN_DIR_TYPE`**,
+  and a directory born in the overflow is watched first (one walk does both:
+  the separate walk that re-set the watches is gone). `FS_OVERFLOW_TYPE` stays,
+  for what is global and cheap. Another overflow during a pass adds one more
+  whole pass after it. INFO *"watched tree rescanned after lost inotify
+  events"*.
+- A follower's rt_disk feed finds the keys deleted while the events were lost
+  by reading `keys/` once (it was a `stat()` per key), and reads one key
+  directory per `FS_RESCAN_DIR_TYPE`. The master and `C_FS` ignore the
+  directories; the `fs_watcher` CLI prints them.
+- Test: `timeranger2/test_fs_watcher_overflow` (a real overflow, an owner slow
+  on purpose and a timer probing the loop: every directory told, a pass of
+  ~30 s, the loop deaf at most 50 ms). `test_rt_disk_overflow` still covers the
+  follower. Documented in `api/timeranger2/fs_watcher.md`.
+
 ## v7.25.9 (2026-09-27)
 
 An inotify queue overflow no longer aborts the yuno: the watcher recovers in

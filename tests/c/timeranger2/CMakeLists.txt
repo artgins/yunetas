@@ -64,6 +64,7 @@ set(SRCS
     test_delete_key_propagation
     test_rt_disk_multi_feed
     test_rt_disk_overflow
+    test_fs_watcher_overflow
     test_out_of_order_append
     test_pkey_path_traversal
     test_topic_path_traversal

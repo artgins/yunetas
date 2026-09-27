@@ -266,6 +266,14 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event)
         gobj_publish_event(fs_event->gobj, EV_FS_CHANGED, kw);
         return 0;
     }
+    if(fs_event->fs_type == FS_RESCAN_DIR_TYPE) {
+        /*
+         *  The pass after an overflow, one directory at a time: the change
+         *  was published once, at FS_OVERFLOW_TYPE
+         */
+        JSON_DECREF(kw)
+        return 0;
+    }
 
     if (fs_event->fs_type & (FS_SUBDIR_CREATED_TYPE)) {
     }
