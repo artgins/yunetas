@@ -1,6 +1,12 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.10 (2026-09-27)
+
+The recovery from an inotify overflow (7.25.9) now keeps the yuno answering:
+the pass over the watched tree runs in slices of 20 ms per loop turn. Found by
+the second gate-outage test of yunovatios' central, where one pass held a
+`db_history_ce` deaf for four minutes. Every yuno that reads a timeranger2
+topic of another yuno must be rebuilt against this SDK.
 
 ### timeranger2 (fs_watcher): the pass after an overflow gives the loop back
 
