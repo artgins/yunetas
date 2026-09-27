@@ -41,6 +41,7 @@
 #include <helpers.h>
 #include <yev_loop.h>
 #include <testing.h>
+#include <fs_watcher.h>
 
 #define APP "test_rt_disk_overflow"
 
@@ -63,6 +64,7 @@ PRIVATE int received_total = 0;
 PRIVATE int received_bad_key = 0;   // a key outside 0..n_keys: BUG
 PRIVATE int deleted_seed = 0;       // key_deleted callbacks for the seed key
 PRIVATE int deleted_other = 0;      // key_deleted callbacks for any other key: BUG
+PRIVATE json_t *rt = NULL;          // the feed of the follower
 
 PRIVATE int my_record_callback(
     json_t *tranger,
@@ -172,13 +174,24 @@ PRIVATE int probe_callback(yev_event_h yev_event)
     return 0;
 }
 
+/*
+ *  Bounded by TIME, not by turns: the pass after an overflow runs a slice
+ *  per turn, and a slow disk needs more turns (a cap of 200000 turns cut
+ *  it short on one node, with the records still coming).
+ */
+#define DRAIN_MAX_MS    (10*60*1000)
 PRIVATE void drain(int expected)
 {
     int quiet = 0;
     int last = -1;
-    for(int i = 0; i < 200000 && quiet < 50; i++) {
+    uint64_t t0 = time_in_milliseconds_monotonic();
+    while(quiet < 50 && time_in_milliseconds_monotonic() - t0 < DRAIN_MAX_MS) {
         yev_loop_run_once(yev_loop);
-        if(received_total == last && received_total >= expected) {
+        fs_event_t *fs = rt? (fs_event_t *)(uintptr_t)json_integer_value(
+            json_object_get(rt, "fs_event_client")
+        ) : NULL;
+        BOOL pass_running = (fs && fs->rescan_dirs)? TRUE: FALSE;
+        if(received_total == last && received_total >= expected && !pass_running) {
             quiet++;
         } else {
             quiet = 0;
@@ -276,7 +289,7 @@ PRIVATE int do_test(void)
         tranger2_shutdown(tm);
         return -1;
     }
-    json_t *rt = tranger2_open_rt_disk(
+    rt = tranger2_open_rt_disk(
         tf, TOPIC_NAME, "", NULL, my_record_callback, "rtALL", "", NULL
     );
     if(!rt) {
@@ -398,6 +411,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     tranger2_close_rt_disk(tf, rt);
+    rt = NULL;
     for(int i = 0; i < 10; i++) {
         yev_loop_run_once(yev_loop);
     }

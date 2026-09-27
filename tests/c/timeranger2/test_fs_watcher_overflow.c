@@ -214,7 +214,7 @@ PRIVATE int do_test(void)
     uint64_t t0 = time_in_milliseconds_monotonic();
     int quiet = 0;
     int last = -1;
-    for(int i = 0; i < 1000000 && quiet < 50; i++) {
+    while(quiet < 50 && time_in_milliseconds_monotonic() - t0 < 10*60*1000) {  // by time: a slice per turn
         yev_loop_run_once(yev_loop);
         int n = count_told() + rescan_dirs;
         if(n == last && !fs_event->rescan_dirs) {
