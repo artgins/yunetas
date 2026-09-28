@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.12 (2026-09-28)
 
 ### timeranger2 (fs_watcher): a pass says where its time went
 
