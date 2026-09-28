@@ -11,6 +11,16 @@
   queue; measured with it, such passes are 65-78 % owner (handing over the
   backlog of records), 22-35 % loop and 1.1-1.7 s walk: not the watcher.
 
+### Packaging: `colas2.sh` works again when called without arguments
+
+- The `/yuneta/bin/colas2.sh` that the `.deb` and the `.rpm` install passed
+  its forwarded arguments as `"${FWD_ARGS[@]:-}"`, which, with none, is ONE
+  empty argument, not zero. `list_queue_msgs2` takes exactly one path, so every
+  queue answered *"Usage: list_queue_msgs2 [OPTION...] PATH"*: the script
+  failed in its plainest use, on every node, since the `.deb` version of
+  2025-09-04. It now expands `${FWD_ARGS[@]+"${FWD_ARGS[@]}"}`, which is
+  nothing when there is nothing and safe under `set -u`.
+
 ## v7.25.11 (2026-09-27)
 
 Found by the third gate-outage test of yunovatios' central: three *"Event

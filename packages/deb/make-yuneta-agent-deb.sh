@@ -1495,7 +1495,9 @@ for qdir in "$BASE"/*/; do
         q2dir="${q2dir%/}"
         echo "===> ${LIST_BIN} \"$q2dir\" ${FWD_ARGS[*]:-}"
         if [ -x "$LIST_BIN" ]; then
-            "$LIST_BIN" "$q2dir" "${FWD_ARGS[@]:-}"
+            # An empty FWD_ARGS must expand to nothing: "${FWD_ARGS[@]:-}" gave
+            # list_queue_msgs2 a second, empty argument and it answered Usage.
+            "$LIST_BIN" "$q2dir" ${FWD_ARGS[@]+"${FWD_ARGS[@]}"}
         else
             echo "ERROR: $LIST_BIN not found or not executable." >&2
             exit 2
