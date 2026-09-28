@@ -29,6 +29,7 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE int open_queues(hgobj gobj);
+PRIVATE int start_smtp(hgobj gobj);
 PRIVATE int close_queues(hgobj gobj);
 PRIVATE int process_smtp_response(
     hgobj gobj,
@@ -111,8 +112,8 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag--------------------default-----description---------- */
-SDATA (DTP_STRING,      "username",             SDF_PERSIST|SDF_REQUIRED,"",    "email username"),
-SDATA (DTP_STRING,      "password",             SDF_PERSIST|SDF_REQUIRED,"",    "email password"),
+SDATA (DTP_STRING,      "username",             SDF_PERSIST,            "",     "email username. Empty: the SMTP side does not start until set-email-user"),
+SDATA (DTP_STRING,      "password",             SDF_PERSIST,            "",     "email password. Empty: the SMTP side does not start until set-email-user"),
 SDATA (DTP_STRING,      "url",                  SDF_PERSIST|SDF_REQUIRED,"",    "smtp URL"),
 SDATA (DTP_STRING,      "from",                 SDF_PERSIST|SDF_REQUIRED,"",    "default from"),
 SDATA (DTP_STRING,      "from_beautiful",       SDF_PERSIST,            "",     "from with name"),
@@ -164,6 +165,7 @@ typedef struct _PRIVATE_DATA {
     q_msg_t *qmsg_cur_email;
     json_int_t cur_retries;     /* failed attempts for the current head message */
     BOOL smtp_ready;            /* TRUE between EV_ON_OPEN and EV_ON_CLOSE (child connected+authed) */
+    BOOL smtp_started;          /* the SMTP child runs: only with a username and a password */
 
     json_int_t send;
     json_int_t sent;
@@ -254,7 +256,11 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(max_retries,         gobj_read_integer_attr)
+    IF_EQ_SET_PRIV(username,            gobj_read_str_attr)
+    ELIF_EQ_SET_PRIV(password,          gobj_read_str_attr)
+    ELIF_EQ_SET_PRIV(url,               gobj_read_str_attr)
+    ELIF_EQ_SET_PRIV(from,              gobj_read_str_attr)
+    ELIF_EQ_SET_PRIV(max_retries,       gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -301,7 +307,7 @@ PRIVATE int mt_play(hgobj gobj)
     /*--------------------------------*
      *      Start smtp
      *--------------------------------*/
-    gobj_start(priv->smtp);
+    start_smtp(gobj);
 
     /*
      *  Start services
@@ -324,7 +330,10 @@ PRIVATE int mt_pause(hgobj gobj)
     /*--------------------------------*
      *      Stop smtp
      *--------------------------------*/
-    gobj_stop(priv->smtp);
+    if(priv->smtp_started) {
+        gobj_stop(priv->smtp);
+        priv->smtp_started = FALSE;
+    }
 
     /*--------------------------------*
      *      Close queues
@@ -390,6 +399,8 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*--------------------------*
      *      Get parameters
      *--------------------------*/
@@ -423,6 +434,17 @@ PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgob
     gobj_write_str_attr(gobj, "username", username);
     gobj_write_str_attr(gobj, "password", password);
     gobj_save_persistent_attrs(gobj, json_pack("[s,s]", "username", "password"));
+
+    /*
+     *  The SMTP child reads its credentials at each AUTH, so a session that
+     *  is already running takes them at its next login; one that could not
+     *  start without them starts now, and its EV_ON_OPEN sends the queue.
+     */
+    gobj_write_str_attr(priv->smtp, "username", username);
+    gobj_write_str_attr(priv->smtp, "password", password);
+    if(gobj_is_playing(gobj)) {
+        start_smtp(gobj);
+    }
 
     /*-----------------------------*
      *      Optional url/from
@@ -711,6 +733,36 @@ PRIVATE json_t *cmd_enable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw,
 
 
 /***************************************************************************
+ *  Start the SMTP child, but only with a username and a password. A blank
+ *  password is how a batch config is deployed: the password is set later
+ *  with set-email-user. Starting without it would skip the AUTH, and the
+ *  server would refuse every message into the dead-letter queue.
+ ***************************************************************************/
+PRIVATE int start_smtp(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->smtp_started) {
+        return 0;
+    }
+
+    if(empty_string(gobj_read_str_attr(gobj, "username")) ||
+            empty_string(gobj_read_str_attr(gobj, "password"))) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONFIGURATION,
+            "msg",          "%s", "SMTP username or password is empty: emails are queued, NOT sent. Set them with the set-email-user command",
+            NULL
+        );
+        return -1;
+    }
+
+    gobj_start(priv->smtp);
+    priv->smtp_started = TRUE;
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int open_queues(hgobj gobj)
@@ -951,6 +1003,11 @@ PRIVATE int tira_dela_cola(hgobj gobj)
      *  "are we operational" guard, not a defensive NULL check.
      */
     if(!gobj_is_playing(gobj)) {
+        return 0;
+    }
+
+    if(!priv->smtp_started) {
+        // Error already logged by start_smtp(): no credentials, the queue waits
         return 0;
     }
 

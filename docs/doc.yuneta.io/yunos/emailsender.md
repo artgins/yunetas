@@ -34,13 +34,24 @@ external JSON. Inspect it at runtime with
 | `url` | *(required)* | SMTP server, for example `smtps://ssl0.ovh.net:465` |
 | `from` | *(required)* | Default envelope/From address |
 | `from_beautiful` | `""` | Optional display name for the From header |
-| `username` / `password` | `""` | AUTH PLAIN credentials (empty → skip AUTH) |
+| `username` / `password` | `""` | AUTH PLAIN credentials. Blank → the SMTP side does not start; set them with `set-email-user` |
 
 `url`, `from`, `username` and `password` are persistent attributes: set them at
 runtime with the `set-email-user` / `set-url-from` commands (below) and they are
-saved to the yuno's persistent-attrs store and reloaded on restart. This is the
-canonical way to provision the SMTP credentials — they never have to appear in
-any committed config or batch file.
+saved to the yuno's persistent-attrs store and reloaded on restart, over the
+config values. This is the canonical way to provision the SMTP credentials: a
+batch config leaves `username` and `password` blank, and they are set once with
+`set-email-user`.
+
+While either one is blank the SMTP side does not start. The yuno runs, accepts
+and queues emails, and logs one ERROR (*"SMTP username or password is empty:
+emails are queued, NOT sent. Set them with the set-email-user command"*). The
+command applies at once, with no restart: the session starts and the queue is
+sent.
+
+```bash
+ycommand -c 'command-yuno id=<id> service=emailsender command=set-email-user username=no-reply@example.com password=<password>'
+```
 | `timeout_dequeue` | `10` | ms between queue polls |
 | `max_retries` | `4` | Max total send attempts before dead-lettering |
 | `disable_alarm_emails` | `false` | Drop "ALERT Queuing" alarm emails |

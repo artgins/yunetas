@@ -34,6 +34,22 @@
   carries `"__SECRET__"` is now pushed with it: put the value in the file
   first.
 
+### emailsender: a blank password leaves the SMTP side stopped until `set-email-user`
+
+- Batch configs leave `username` / `password` blank; the operator sets them
+  once with `set-email-user` (persistent attrs, loaded over the config at
+  every start). With either one blank the yuno now runs, queues emails and
+  logs one ERROR, but does not start the SMTP session. It used to fail
+  twice over: both attrs were `SDF_REQUIRED`, so the service refused to start
+  and `set-email-user` had nothing to talk to; and a session started with no
+  password skipped the AUTH, so the server refused every message into the
+  dead-letter queue.
+- `set-email-user` now applies at once: it hands the credentials to the SMTP
+  session and starts it, and the queue is sent, with no restart.
+- The cached `username` / `password` / `url` / `from` pointers are refreshed on
+  every write (`mt_writing`); `set-email-user ... url=...` left `url` pointing
+  at freed memory, which the send logs read.
+
 ### Packaging: `colas2.sh` works again when called without arguments
 
 - The `/yuneta/bin/colas2.sh` that the `.deb` and the `.rpm` install passed
