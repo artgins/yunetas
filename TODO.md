@@ -257,6 +257,25 @@ A dropped channel is not a dead process: before relaunching, the agent should
 check that the pid it knows (or `yuno.pid`) is gone, and give a live one time to
 come back instead of starting a twin that fights it for its stores.
 
+## CLI: two registered projects with a yuno of the same role overwrite each other in `outputs/yunos`
+
+Found 2026-09-28 on hidraulia, in production. Both registered projects,
+hidraulia and yunovatios, build a yuno whose role is `gate_caudal`, and both
+install it to `$YUNETAS_BASE/outputs/yunos/gate_caudal`. `yunetas build` builds
+them one after the other and the LAST one wins, without a word (yunovatios,
+06:29:36, over hidraulia, 06:29:30). The node's own reinstall script then ran
+`install-binary id=gate_caudal content64=$$(gate_caudal)`, which reads
+`outputs/yunos`, and hidraulia's gate ran yunovatios' binary for three hours:
+*"GClass NOT FOUND: C_DECODER_CAUDAL"*, no input channel, no listener.
+
+`$$(role)` is only a name, and with two projects on one node the name is no
+longer enough. Options, not decided: `yunetas build` refuses (or at least
+warns) when a project installs a role another registered project already
+installed; or each project installs to its own `outputs/yunos/<project>/` and
+`$$()` resolves against the project it is called from. Until then, a node with
+two projects must not share a role name between them, or its deploy scripts
+must name the binary by path.
+
 ## TreeDB / timeranger2: what 7.25.5 leaves open
 
 What the changes after 7.25.4 (`CHANGELOG.md`, Unreleased) leave open:
