@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### C_QIOGATE: ignore repeated messages (off by default)
+
+- A queue link delivers at least once, and a gate that forwards through a
+  `C_QIOGATE` queued a resent message twice: `tr2check` on a 36.3M-record
+  stress store found 6.1M messages stored twice after lost acks. New attrs:
+  `repeated_key` (e.g. `id`; empty, the default, keeps the current behaviour
+  exactly), `repeated_field` (default `seq`; a path with `` ` `` works),
+  `repeated_mode` (`not_newer` default, or `equal`) and `repeated_preload`
+  (latest queue records read at start to rebuild the last value of each key,
+  default 100000). A repeat is not queued and is counted in the new stats
+  `repeated_msgs`, `repeated_unchecked`, `repeated_keys`, which appear only
+  with the filter on. Cost, A/B of 8 alternated rounds of 150,000 messages
+  against the code before: filter off 283,750 -> 286,262 msgs/s enqueued
+  (noise), filter on 285,986 against 288,409 (-0.8 %, within the spread).
+  Test: `c_qiogate_repeated`. The repeat a gate sends ITSELF, when the ack of
+  its next hop is lost, is seen by that hop's receiver, not by this filter.
+
 ### tr2check: check a topic filled by a load test
 
 - New tool `utils/c/tr2check` (installed in `/yuneta/bin`, shipped in the

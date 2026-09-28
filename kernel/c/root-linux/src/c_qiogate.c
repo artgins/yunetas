@@ -4,6 +4,25 @@
  *
  *          IOGate with persistent queue
  *
+ *          Ignoring repeated messages (off by default)
+ *          -------------------------------------------
+ *          A queue link delivers at least once: when an ack is lost the
+ *          sender resends, and a gate that forwards what it receives
+ *          through a C_QIOGATE would queue the message a second time.
+ *          With `repeated_key` set, a message whose `repeated_field` is
+ *          not above (`repeated_mode` "not_newer") or equal to ("equal")
+ *          the last one passed for its key is NOT queued (the caller acks
+ *          it upstream as usual) and is counted in the stats
+ *          (`repeated_msgs`). The field must grow per key: a sequence
+ *          ('seq'), or a time in ms; a time in seconds would drop two
+ *          messages of the same second.
+ *          The last value of each key lives in memory and is rebuilt at
+ *          start from the latest `repeated_preload` records of the queue,
+ *          because a restart is exactly when upstream resends.
+ *          A message without the key or the field is queued, and counted
+ *          in `repeated_unchecked`.
+ *          With `repeated_key` empty (the default) none of this runs.
+ *
  *          Copyright (c) 2019 Niyamaka.
  *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
@@ -38,6 +57,7 @@
  ***************************************************************************/
 PRIVATE int open_queue(hgobj gobj);
 PRIVATE int close_queue(hgobj gobj);
+PRIVATE int preload_repeated(hgobj gobj);
 
 
 /***************************************************************************
@@ -94,6 +114,10 @@ SDATA (DTP_INTEGER,     "alert_queue_size", SDF_WR|SDF_PERSIST, "2000",     "Lim
 SDATA (DTP_INTEGER,     "timeout_ack",      SDF_WR|SDF_PERSIST, "60",       "Timeout ack in seconds"),
 
 SDATA (DTP_BOOLEAN,     "with_metadata",    SDF_RD,             0,          "Don't filter metadata"),
+SDATA (DTP_STRING,      "repeated_key",     SDF_RD,             "",         "Field with the key of a message (e.g. 'id') to ignore repeated messages. Empty: nothing is ignored (default)"),
+SDATA (DTP_STRING,      "repeated_field",   SDF_RD,             "seq",      "Field (or path) compared per key: a value that grows, a sequence or a time in ms"),
+SDATA (DTP_STRING,      "repeated_mode",    SDF_RD,             "not_newer","not_newer: ignore a value not above the last of its key; equal: ignore only the same value"),
+SDATA (DTP_INTEGER,     "repeated_preload", SDF_RD,             "100000",   "Latest records of the queue read at start to rebuild the last value of each key"),
 SDATA (DTP_BOOLEAN,     "disable_alert",    SDF_WR|SDF_PERSIST, 0,          "Disable alert"),
 SDATA (DTP_STRING,      "alert_from",       SDF_WR,             "",         "Alert from"),
 SDATA (DTP_STRING,      "alert_to",         SDF_WR|SDF_PERSIST, "",         "Alert destination"),
@@ -143,6 +167,14 @@ typedef struct _PRIVATE_DATA {
     uint32_t pending_acks;
     uint32_t max_pending_acks;
 
+    const char *repeated_key;       // NULL: repeated messages are not looked for
+    const char *repeated_field;
+    BOOL repeated_field_is_path;
+    BOOL repeated_equal;            // mode "equal", else "not_newer"
+    json_t *repeated_last;          // key -> last value passed
+    uint64_t repeated_msgs;
+    uint64_t repeated_unchecked;
+
 } PRIVATE_DATA;
 
 
@@ -187,6 +219,34 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(alert_queue_size,          gobj_read_integer_attr)
     SET_PRIV(max_pending_acks,          gobj_read_integer_attr)
     SET_PRIV(disable_alert,             gobj_read_bool_attr)
+
+    const char *repeated_key = gobj_read_str_attr(gobj, "repeated_key");
+    if(!empty_string(repeated_key)) {
+        const char *repeated_field = gobj_read_str_attr(gobj, "repeated_field");
+        const char *repeated_mode = gobj_read_str_attr(gobj, "repeated_mode");
+        if(empty_string(repeated_field)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "repeated_key without repeated_field: repeated messages are NOT ignored",
+                "repeated_key", "%s", repeated_key,
+                NULL
+            );
+        } else if(strcmp(repeated_mode, "not_newer") != 0 && strcmp(repeated_mode, "equal") != 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "repeated_mode must be 'not_newer' or 'equal': repeated messages are NOT ignored",
+                "repeated_mode","%s", repeated_mode,
+                NULL
+            );
+        } else {
+            priv->repeated_key = repeated_key;
+            priv->repeated_field = repeated_field;
+            priv->repeated_field_is_path = strchr(repeated_field, '`')? TRUE : FALSE;
+            priv->repeated_equal = (strcmp(repeated_mode, "equal") == 0)? TRUE : FALSE;
+        }
+    }
 }
 
 /***************************************************************************
@@ -210,6 +270,9 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    JSON_DECREF(priv->repeated_last)
 }
 
 /***************************************************************************
@@ -242,6 +305,12 @@ PRIVATE int mt_start(hgobj gobj)
     open_queue(gobj);
     trq_load(priv->trq_msgs);
 
+    if(priv->repeated_key) {
+        JSON_DECREF(priv->repeated_last)
+        priv->repeated_last = json_object();
+        preload_repeated(gobj);
+    }
+
     return 0;
 }
 
@@ -255,6 +324,8 @@ PRIVATE int mt_stop(hgobj gobj)
     clear_timeout(priv->timer);
 
     close_queue(gobj);
+
+    JSON_DECREF(priv->repeated_last)
 
     return 0;
 }
@@ -272,6 +343,11 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     json_object_set_new(jn_data, "msgs_in_queue", json_integer((json_int_t)trq_size(priv->trq_msgs)));
     json_object_set_new(jn_data, "pending_acks", json_integer((json_int_t)priv->pending_acks));
+    if(priv->repeated_key) {
+        json_object_set_new(jn_data, "repeated_msgs", json_integer((json_int_t)priv->repeated_msgs));
+        json_object_set_new(jn_data, "repeated_unchecked", json_integer((json_int_t)priv->repeated_unchecked));
+        json_object_set_new(jn_data, "repeated_keys", json_integer((json_int_t)json_object_size(priv->repeated_last)));
+    }
 
     KW_DECREF(kw)
     return jn_data;
@@ -690,6 +766,203 @@ PRIVATE q_msg_t *enqueue_message(
 }
 
 /***************************************************************************
+ *  Compare two values of the repeated field:
+ *  <0 older, 0 equal, >0 newer, and `comparable` FALSE when they are not
+ *  of the same kind (numbers, or strings)
+ ***************************************************************************/
+PRIVATE int compare_repeated_values(json_t *last, json_t *value, BOOL *comparable)
+{
+    *comparable = TRUE;
+    if(json_is_integer(last) && json_is_integer(value)) {
+        json_int_t a = json_integer_value(last);
+        json_int_t b = json_integer_value(value);
+        return (b > a) - (b < a);
+    }
+    if(json_is_number(last) && json_is_number(value)) {
+        double a = json_number_value(last);
+        double b = json_number_value(value);
+        return (b > a) - (b < a);
+    }
+    if(json_is_string(last) && json_is_string(value)) {
+        return strcmp(json_string_value(value), json_string_value(last));
+    }
+    *comparable = FALSE;
+    return 0;
+}
+
+/***************************************************************************
+ *  The key and the compared value of a message, or FALSE if it lacks them.
+ *  A string key is not copied: `*key` points into the message, and `bf`
+ *  only holds a numeric key written as a string.
+ ***************************************************************************/
+PRIVATE BOOL get_repeated_key_value(
+    hgobj gobj,
+    json_t *kw,
+    char *bf,
+    size_t bf_size,
+    const char **key,
+    json_t **value
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_key = json_object_get(kw, priv->repeated_key);
+    if(json_is_string(jn_key)) {
+        *key = json_string_value(jn_key);
+    } else if(json_is_integer(jn_key)) {
+        snprintf(bf, bf_size, "%"JSON_INTEGER_FORMAT, json_integer_value(jn_key));
+        *key = bf;
+    } else {
+        return FALSE;
+    }
+
+    json_t *v;
+    if(priv->repeated_field_is_path) {
+        v = kw_find_path(gobj, kw, priv->repeated_field, FALSE);
+    } else {
+        v = json_object_get(kw, priv->repeated_field);
+    }
+    if(!(json_is_number(v) || json_is_string(v))) {
+        return FALSE;
+    }
+    *value = v;
+    return TRUE;
+}
+
+/***************************************************************************
+ *  Keep the value as the last one of its key.
+ *  An integer updates the one kept in place: no allocation per message.
+ ***************************************************************************/
+PRIVATE void keep_repeated_value(hgobj gobj, const char *key, json_t *last, json_t *value)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(last && json_is_integer(last) && json_is_integer(value)) {
+        json_integer_set(last, json_integer_value(value));
+    } else {
+        json_object_set_new(priv->repeated_last, key, json_copy(value));
+    }
+}
+
+/***************************************************************************
+ *  Is the message a repeat of one already passed for its key?
+ *  If it is not, it becomes the last one of its key.
+ ***************************************************************************/
+PRIVATE BOOL is_repeated_message(hgobj gobj, json_t *kw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char bf[64];
+    const char *key = 0;
+    json_t *value = 0;
+    if(!get_repeated_key_value(gobj, kw, bf, sizeof(bf), &key, &value)) {
+        priv->repeated_unchecked++;
+        return FALSE;
+    }
+
+    json_t *last = json_object_get(priv->repeated_last, key);
+    if(last) {
+        BOOL comparable;
+        int cmp = compare_repeated_values(last, value, &comparable);
+        if(comparable) {
+            if(priv->repeated_equal? (cmp == 0) : (cmp <= 0)) {
+                return TRUE;
+            }
+        }
+    }
+    keep_repeated_value(gobj, key, last, value);
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Rebuild the last value of each key from the latest records of the queue
+ ***************************************************************************/
+PRIVATE int preload_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key_,
+    json_t *list,       // the list, don't own
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record      // must be owned
+)
+{
+    hgobj gobj = (hgobj)(uintptr_t)kw_get_int(0, list, "qiogate", 0, KW_REQUIRED);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char bf[64];
+    const char *key = 0;
+    json_t *value = 0;
+    if(get_repeated_key_value(gobj, record, bf, sizeof(bf), &key, &value)) {
+        json_t *last = json_object_get(priv->repeated_last, key);
+        BOOL comparable = FALSE;
+        int cmp = last? compare_repeated_values(last, value, &comparable) : 1;
+        if(priv->repeated_equal || !last || !comparable || cmp > 0) {
+            keep_repeated_value(gobj, key, last, value);
+        }
+    }
+
+    JSON_DECREF(record)
+    return 0;
+}
+
+PRIVATE int preload_repeated(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t preload = gobj_read_integer_attr(gobj, "repeated_preload");
+    if(preload <= 0 || !priv->trq_msgs) {
+        return 0;
+    }
+    const char *topic_name = gobj_read_str_attr(gobj, "topic_name");
+    uint64_t size = tranger2_topic_size(priv->tranger_queues, topic_name);
+    if(size == 0) {
+        return 0;
+    }
+    uint64_t from_rowid = (size > (uint64_t)preload)? size - (uint64_t)preload + 1 : 1;
+
+    json_t *match_cond = json_pack("{s:I, s:I, s:I}",
+        "from_rowid", (json_int_t)from_rowid,
+        "to_rowid", (json_int_t)size,
+        "load_record_callback", (json_int_t)(uintptr_t)preload_record_callback
+    );
+    json_t *list = tranger2_open_list(
+        priv->tranger_queues,
+        topic_name,
+        match_cond,     // owned
+        json_pack("{s:I}", "qiogate", (json_int_t)(uintptr_t)gobj),  // extra, owned
+        NULL,           // rt_id
+        FALSE,          // rt_by_disk
+        gobj_name(gobj) // creator
+    );
+    if(!list) {
+        // Error already logged
+        return -1;
+    }
+    if(json_is_true(json_object_get(list, "load_failed"))) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_QUEUE,
+            "msg",          "%s", "Cannot read the whole queue: the last value of some keys is not known, a repeat of them may pass once",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+    }
+    tranger2_close_list(priv->tranger_queues, list);
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_QUEUE,
+        "msg",          "%s", "Repeated messages: last value of each key rebuilt from the queue",
+        "topic_name",   "%s", topic_name,
+        "records",      "%ld", (long)(size - from_rowid + 1),
+        "keys",         "%ld", (long)json_object_size(priv->repeated_last),
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
  *  Resetea los timeout_ack y los TRQ_MSG_PENDING
  ***************************************************************************/
 PRIVATE int reset_soft_queue(hgobj gobj)
@@ -1070,6 +1343,17 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->repeated_last) {  // NULL unless repeated_key is set
+        if(is_repeated_message(gobj, kw)) {
+            priv->repeated_msgs++;
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_json(gobj, kw, "QIOGATE repeated, NOT queued %s", gobj_short_name(gobj));
+            }
+            KW_DECREF(kw);
+            return 0;
+        }
+    }
 
     q_msg_t *msg = enqueue_message(
         gobj,
