@@ -684,3 +684,43 @@ Decide in the cold. Nothing here is urgent while every node is ours and no one
 compiles on one — and less urgent since 7.8.6-3, which at least aims the one
 supported glibc at a distro that is actually deployed.
 
+
+## tr2check: verify a topic in one pass (asked by a client's acceptance test)
+
+A client's acceptance test (2026-09) checks a load test with SQL:
+count, min/max sequence, duplicates, gaps, out-of-range sequences, checksum
+mismatches, the real storage rate and the latency percentiles. The answer
+offers a command instead of SQL, and `tr2list` covers only the count. Add
+`utils/c/tr2check`:
+
+```bash
+tr2check <topic path> [--key=K|--rkey=RE] [--seq-field=seq] \
+    [--checksum-field=checksum] [--expected=N]
+```
+
+- Count and rate without reading records: `tranger2_topic_size()`, and the
+  `fr_t`/`to_t`/`rows` of `tranger2_topic_key_range()` per key.
+- One pass per key with `tranger2_open_iterator()` for the rest: a sequence
+  that does not pass the last one is a duplicate, one that jumps is a gap;
+  the checksum is recomputed from the record read (content without the
+  checksum field; the algorithm has to be the generator's); latency is
+  `__t__ - __tm__`, meaningful in ms when the topic sets `sf_t_ms`/`sf_tm_ms`.
+- A key with `load_failed` is reported (`unreadable_keys`), never counted as
+  empty.
+- Output: one JSON document (`devices`, `records`, `unique`, `duplicated`,
+  `missing`, `out_of_range`, `corrupted`, `unreadable_keys`, `first_t`,
+  `last_t`, `rate`, `latency_ms{mean,p50,p90,p95,p99,max}`), so it can be
+  filed as evidence as it is.
+
+## Packaging: the agent is a SysV script, and systemd does not see an agent started outside it
+
+`yuneta_agent` is installed as `/etc/init.d/yuneta_agent`, which systemd wraps
+through `systemd-sysv-generator`. When the agent is started outside systemd
+(by hand, or by an xscript), `systemctl status yuneta_agent` answers
+*inactive (dead)* while the agent runs: seen on the yunovatios central
+(Rocky 9.7) on 2026-09-28. An acceptance test that checks the service with
+`systemctl start/status/restart/stop` reads that as a failure. Ship a native
+unit, the way `yuneta-webserver.service` already is (`Type=forking` with the
+daemon's pid file, or the agent in the foreground), keep `yuneta_agent22`
+outside it as the escape hatch, and make the xscripts start it through
+`systemctl`.
