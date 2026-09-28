@@ -91,10 +91,27 @@ Outgoing messages are held in the persistent `emails_queue` and are never
 dropped while waiting:
 
 - A message is only dispatched while the SMTP session is connected and
-  authenticated. If the server is down, the URL is wrong, or credentials are
-  rejected, the message stays in the queue. [`C_TCP`](#gclass-c-tcp) keeps reconnecting on its
-  own and delivery resumes once the link is back — nothing is dead-lettered
-  just because the link is momentarily unavailable.
+  authenticated. If the server is down or the URL is wrong, the message stays
+  in the queue. [`C_TCP`](#gclass-c-tcp) keeps reconnecting on its own and delivery resumes
+  once the link is back — nothing is dead-lettered just because the link is
+  momentarily unavailable.
+- **Rejected credentials stop the yuno instead.** When the server refuses the
+  `AUTH PLAIN`, the emailsender logs one ERROR (*"SMTP credentials rejected:
+  exiting, NOT relaunched"*, with the reply `code`, `url` and `username`) and
+  exits with code 0, so neither the watcher nor the agent relaunches it. A retry
+  would only repeat the refusal, and a mail provider bans the address that keeps
+  failing its AUTH: OVH did, for its whole mail cluster. The in-flight message
+  stays at the head of `emails_queue`, without spending a retry. Fix the
+  credentials (`set-email-user`, or the config) and run the yuno again:
+
+  ```bash
+  ycommand -c 'command-yuno id=<id> service=emailsender command=set-email-user username=<user> password=<password>'
+  ycommand -c 'run-yuno id=<id>'
+  ```
+
+  The agent runs enabled yunos again when it restarts and on
+  `deactivate-snap`, so with the credentials still wrong each of those costs
+  exactly one more attempt, never a loop.
 - The body is persisted as part of the queued message (a string), so it
   survives both retries and a yuno restart.
 - A message stays at the head of the queue until it is either sent or its

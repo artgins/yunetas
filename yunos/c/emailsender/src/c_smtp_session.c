@@ -116,6 +116,7 @@ typedef struct _PRIVATE_DATA {
     json_t *jn_recipients;      /* flat json_array of unique RCPT TO addresses */
     int recipient_index;        /* next RCPT TO index to send */
     int reject_code;            /* SMTP reply code of a per-message rejection, forwarded on EV_ON_CLOSE; 0 = transient/link error */
+    int auth_reject_code;       /* SMTP reply code of a refused AUTH, forwarded on EV_ON_CLOSE as auth_rejected; 0 = none */
 } PRIVATE_DATA;
 
 
@@ -646,12 +647,23 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
          *  Forward the per-message rejection code (if any) so the owner can
          *  tell a permanent 5xx (dead-letter) from a transient link drop
          *  (retry). 0/absent = transient.
+         *
+         *  A refused AUTH travels apart, as auth_rejected: it says nothing
+         *  about the message (the server never saw it), it says the
+         *  credentials are wrong, and retrying them is what gets the node's
+         *  address banned by the mail provider.
          */
-        json_t *kw_close = priv->reject_code ?
-            json_pack("{s:i}", "code", priv->reject_code) : NULL;
+        json_t *kw_close = json_object();
+        if(priv->reject_code) {
+            json_object_set_new(kw_close, "code", json_integer(priv->reject_code));
+        }
+        if(priv->auth_reject_code) {
+            json_object_set_new(kw_close, "auth_rejected", json_integer(priv->auth_reject_code));
+        }
         gobj_publish_event(gobj, EV_ON_CLOSE, kw_close);
     }
     priv->reject_code = 0;
+    priv->auth_reject_code = 0;
 
     KW_DECREF(kw)
     return 0;
@@ -812,6 +824,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(st == ST_WAIT_AUTH_RESP) {
         if(code != SMTP_CODE_AUTH_OK) {
+            priv->auth_reject_code = code;
             return abort_session(gobj, "AUTH PLAIN rejected");
         }
         return enter_idle_after_handshake(gobj);

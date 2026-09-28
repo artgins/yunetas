@@ -53,6 +53,13 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   code is carried up from `C_SMTP_SESSION` (via `EV_ON_CLOSE` for mid-transaction
   drops, `EV_ON_MESSAGE` for the DATA ack); `code in [500,600)` ⇒ permanent.
 - **Bad content** (MIME build / recipient parse failures) → permanent, dead-letter.
+- **Rejected credentials** (any reply but `235` to `AUTH PLAIN`) → the yuno logs
+  one ERROR and **exits with code 0** (`LOG_OPT_EXIT_ZERO`), so neither the
+  watcher nor the agent relaunches it: retrying wrong credentials is what gets the
+  node's address banned by the mail provider. `C_SMTP_SESSION` reports it on
+  `EV_ON_CLOSE` as `auth_rejected` (the reply code), apart from `code`: the
+  message was never seen by the server, so it stays queued without spending a
+  retry.
 - **Binary bodies**: a non-UTF-8 body is persisted base64 under `body_base64`
   (a plain `json_string` would silently drop it) and decoded at send time.
 

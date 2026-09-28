@@ -11,6 +11,18 @@
   queue; measured with it, such passes are 65-78 % owner (handing over the
   backlog of records), 22-35 % loop and 1.1-1.7 s walk: not the watcher.
 
+### emailsender: rejected SMTP credentials stop the yuno, they are not retried
+
+- When the SMTP server refuses the `AUTH PLAIN`, the emailsender logs one ERROR
+  (*"SMTP credentials rejected: exiting, NOT relaunched"*, with the reply code,
+  the url and the username) and exits with code 0 (`LOG_OPT_EXIT_ZERO`), so
+  neither the watcher nor the agent relaunches it. It used to treat the refusal
+  as a link drop and retry every few seconds: 768 refused logins in 54 minutes
+  on hidraulia on 2026-09-28, the pattern that got an address banned from the
+  whole OVH mail cluster in July. The in-flight message stays at the head of
+  `emails_queue` without spending a retry. `C_SMTP_SESSION` reports the refusal
+  on `EV_ON_CLOSE` as `auth_rejected`, apart from the per-message `code`.
+
 ### Packaging: `colas2.sh` works again when called without arguments
 
 - The `/yuneta/bin/colas2.sh` that the `.deb` and the `.rpm` install passed

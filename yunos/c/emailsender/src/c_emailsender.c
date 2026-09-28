@@ -1354,13 +1354,38 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(src == priv->smtp) {
         priv->smtp_ready = FALSE;
+
+        int auth_rejected = (int)kw_get_int(gobj, kw, "auth_rejected", 0, 0);
+        if(auth_rejected) {
+            /*
+             *  The server refused our credentials. Every retry repeats the
+             *  refusal, and a provider bans the address that keeps failing its
+             *  AUTH (OVH did, for its whole mail cluster). Exit with 0: neither
+             *  the watcher nor the agent relaunches a yuno that exits with 0.
+             *  The in-flight message stays at the head of its queue, without
+             *  spending a retry, for when the credentials are fixed.
+             */
+            gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "SMTP credentials rejected: exiting, NOT relaunched. Fix the credentials and run the yuno again",
+                "code",         "%d", auth_rejected,
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "username",     "%s", gobj_read_str_attr(gobj, "username"),
+                NULL
+            );
+            KW_DECREF(kw);
+            return 0;
+        }
+
         if(priv->qmsg_cur_email) {
             /*
              *  Session dropped with a message in flight. A 5xx code means the
              *  server rejected THIS message in its own transaction
              *  (MAIL FROM / RCPT TO / DATA) → permanent, dead-letter it.
-             *  No code (handshake failure: bad credentials, EHLO/banner — the
-             *  server never saw the message) or a 4xx / plain drop → transient,
+             *  No code (handshake failure: EHLO/banner — the server never saw
+             *  the message; a refused AUTH exits above) or a 4xx / plain drop
+             *  → transient,
              *  keep it queued for a retry (until max_retries). The SMTP child
              *  owns reconnection; we only resolve the in-flight message here.
              */
