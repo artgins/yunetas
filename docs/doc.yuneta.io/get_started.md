@@ -1,6 +1,6 @@
 # Get Started
 
-**Current version: [7.25.11](https://github.com/artgins/yunetas/tree/7.25.11)** ·
+**Current version: [7.25.12](https://github.com/artgins/yunetas/tree/7.25.12)** ·
 *Documentation updated: 2026-09-28*
 
 ## What is Yuneta
@@ -16,7 +16,7 @@ Start here if this is your first contact with the framework.
 ## In this section
 
 - [Installation](installation.md) — system prerequisites, the apt dependency
-  list, and the one-time environment setup ([`menuconfig`](installation.md#configure-menuconfig), [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.25.11/yunetas-env.sh),
+  list, and the one-time environment setup ([`menuconfig`](installation.md#configure-menuconfig), [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.25.12/yunetas-env.sh),
   building the external libraries).
 - [Activating](activating.md) — initialize, build, and run the agent, then
   launch your first yuno.
