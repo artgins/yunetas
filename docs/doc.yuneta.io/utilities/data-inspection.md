@@ -6,6 +6,7 @@ Tools that read and search the on-disk timeranger2 / treedb / msg2db stores.
 
 - [`tr2list`](tr2list.md)
 - [`tr2keys`](tr2keys.md)
+- [`tr2check`](tr2check.md)
 - [`tr2search`](tr2search.md)
 - [`tr2migrate`](tr2migrate.md)
 - [`treedb_list`](treedb_list.md)

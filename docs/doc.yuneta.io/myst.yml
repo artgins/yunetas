@@ -357,6 +357,7 @@ project:
           children:
             - file: utilities/tr2list.md
             - file: utilities/tr2keys.md
+            - file: utilities/tr2check.md
             - file: utilities/tr2search.md
             - file: utilities/tr2migrate.md
             - file: utilities/treedb_list.md

@@ -206,6 +206,7 @@ Utility scripts and CLI tools for Yuneta.
     - `test-static`: Tests for static builds.
     - [`time2date`](#util-time2date): Converts timestamps to dates.
     - [`time2range`](#util-time2range): Converts timestamps to time ranges.
+    - [`tr2check`](#util-tr2check): Checks a topic filled by a load test.
     - [`tr2keys`](#util-tr2keys): Processes keys in Timeranger2.
     - [`tr2list`](#util-tr2list): Lists entries in Timeranger2.
     - [`tr2migrate`](#util-tr2migrate): Migrates data between Timeranger2 instances.

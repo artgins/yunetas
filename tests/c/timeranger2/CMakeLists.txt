@@ -91,6 +91,7 @@ set(SRCS
     test_cmp_file_ids
     test_unlistable_dirs
     test_unlisted_relist_once
+    test_tr2check
 )
 
 ##############################################
@@ -144,6 +145,17 @@ foreach(test ${SRCS})
     if(test STREQUAL "test_torn_tail_check_fails")
         # The test fails the open of a content file in its own __wrap_open()
         target_link_options(${binary} PRIVATE "-Wl,--wrap=open")
+    endif()
+
+    if(test STREQUAL "test_tr2check")
+        # The test runs the tr2check tool: the one built in this tree when
+        # there is one, else the installed one
+        if(TARGET tr2check)
+            add_dependencies(${binary} tr2check)
+            target_compile_definitions(${binary} PRIVATE TR2CHECK_BIN="$<TARGET_FILE:tr2check>")
+        else()
+            target_compile_definitions(${binary} PRIVATE TR2CHECK_BIN="/yuneta/bin/tr2check")
+        endif()
     endif()
 
     add_test("${current_directory_name}/${test}" ${binary})

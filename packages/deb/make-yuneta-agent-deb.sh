@@ -114,6 +114,7 @@ mkdir -p "${WORKDIR}/etc/fail2ban/jail.d"
 BINARIES=(
     keycloak_pkey_to_jwks
     list_queue_msgs2
+    tr2check
     tr2keys
     tr2list
     tr2migrate

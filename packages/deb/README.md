@@ -352,6 +352,7 @@ The `.deb` installs the following tree:
 | `ycli` | Interactive CLI |
 | `keycloak_pkey_to_jwks` | Convert Keycloak public keys to JWKS |
 | `list_queue_msgs2` | Inspect timeranger2 message queues |
+| `tr2check` | Check a timeranger2 topic filled by a load test |
 | `tr2keys` | List timeranger2 topic keys |
 | `tr2list` | List timeranger2 records |
 | `tr2migrate` | Migrate timeranger2 data |

@@ -32,6 +32,7 @@ Interactive, full-screen front-ends to a running yuno. (Both lived under
 
 - [`tr2list`](utilities/tr2list.md)
 - [`tr2keys`](utilities/tr2keys.md)
+- [`tr2check`](utilities/tr2check.md)
 - [`tr2search`](utilities/tr2search.md)
 - [`tr2migrate`](utilities/tr2migrate.md)
 - [`treedb_list`](utilities/treedb_list.md)

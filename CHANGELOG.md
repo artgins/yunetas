@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### tr2check: check a topic filled by a load test
+
+- New tool `utils/c/tr2check` (installed in `/yuneta/bin`, shipped in the
+  `.deb`/`.rpm`). In one pass per key it gives what an acceptance test asks in
+  SQL: record count, duplicates, gaps and missing records (`--expected`),
+  out-of-range sequences, checksum mismatches (`--checksum-field`, sha256 of
+  the record as compact json with sorted keys), the storage rate and the
+  latency percentiles (`__t__ - __tm__`, exact to the ms on a
+  `sf_t_ms|sf_tm_ms` topic). The sequence counts per key (`--seq-scope=key`,
+  the way a device numbers its frames) or for the whole topic; a record that
+  arrives out of order is not a duplicate. One json document on stdout; exit
+  code 0 pass, 1 a check failed, 2 the topic could not be checked. Test:
+  `timeranger2/test_tr2check`.
+
 ### CLI 0.20.2: `sync-binaries` uploads the file it compared
 
 - With `--yunos-dir`, the table was built from the staged binary but the upload
