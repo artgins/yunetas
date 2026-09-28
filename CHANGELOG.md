@@ -23,6 +23,17 @@
   `emails_queue` without spending a retry. `C_SMTP_SESSION` reports the refusal
   on `EV_ON_CLOSE` as `auth_rejected`, apart from the per-message `code`.
 
+### CLI 0.20.0: secret overlays removed (BREAKING)
+
+- `yunetas list-secrets` and `sync-configs --secrets-dir` are gone, and
+  `sync` / `sync-configs --node` no longer read `~/.yuneta/secrets/<node>/`. A
+  credential a yuno needs goes in its config file again and is pushed as
+  written. The `"__SECRET__"` placeholder was filled only by `sync-configs`;
+  a node reinstall script registered the placeholder itself, the emailsender
+  logged in with it and the mail provider banned the node. A config that still
+  carries `"__SECRET__"` is now pushed with it: put the value in the file
+  first.
+
 ### Packaging: `colas2.sh` works again when called without arguments
 
 - The `/yuneta/bin/colas2.sh` that the `.deb` and the `.rpm` install passed

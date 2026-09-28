@@ -39,7 +39,6 @@ source yunetas-env.sh
 | Projects | `register-project`, `unregister-project`, `list-projects` |
 | Deploy targets | `register-node`, `unregister-node`, `list-nodes` |
 | Deploy | `sync`, `sync-binaries`, `sync-configs`, `upgrade-yunos` |
-| Secrets | `list-secrets` |
 | Misc | `venv`, `version` |
 
 `yunetas --help` documents every command and option in full (since CLI 0.18.0).
@@ -176,7 +175,7 @@ The wrapped scripts are documented under [Tools](tools.md):
 [`sync_binaries.py`](tools/sync_binaries.md),
 [`sync_configs.py`](tools/sync_configs.md).
 
-## Deploy targets and secrets
+## Deploy targets
 
 A **node** is a registered deploy target, so a remote push is `--node <name>`
 instead of a url plus four OAuth2 flags:
@@ -194,20 +193,25 @@ The registry (`~/.yuneta/nodes.json`, mode 600) stores **where** a node is and
 time via `$YUNETA_OAUTH_PASSW`, `$YUNETA_OAUTH_CLIENT_SECRET` or
 `$YUNETA_OAUTH_JWT`.
 
-A config that needs a credential declares it in the committed file as
-`"__SECRET__"`. The value lives on the deploy machine in
-`~/.yuneta/secrets/<node>/<config-id>.json` and is merged in just before the
-push. A missing **or empty** value refuses the push rather than shipping a
-blank password. Rotating a credential means bumping `__version__` in the
-committed config, which is what makes the rotation visible in git while the
-value never touches it.
+A credential that a yuno needs, such as the SMTP password of an emailsender,
+goes in its config file like any other value, and `sync-configs` pushes the file
+as it is. (CLI 0.16.0-0.19.x kept such values out of the file, as
+`"__SECRET__"` placeholders filled from `~/.yuneta/secrets/<node>/`; 0.20.0
+removed that: a push from anything but `sync-configs` registered the
+placeholder itself.)
 
-```bash
-yunetas list-secrets          # which configs have an overlay, and which fields
+```json
+{
+    "__version__": "3",
+    "__description__": "v3: the SMTP password is back in the file",
+    "global": {
+        "Emailsender.url": "smtps://smtp.example.com:465",
+        "Emailsender.username": "no-reply@example.com",
+        "Emailsender.password": "the-password",
+        "Emailsender.from": "no-reply@example.com"
+    }
+}
 ```
-
-There is deliberately no `set-secret`, because an argument lands in your shell
-history and in the process table. Write the overlay with an editor, mode 600.
 
 ## Misc
 
