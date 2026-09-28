@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### CLI 0.20.2: `sync-binaries` uploads the file it compared
+
+- With `--yunos-dir`, the table was built from the staged binary but the upload
+  sent `$$(<role>)`, which `ycommand` resolves in `outputs/yunos`: on a node
+  where two projects build the same role (hidraulia's `gate_caudal`), the row
+  said `REBUILD 1.9.0.0` and the upload was the other project's 1.6.1.0. The
+  command now carries the file's path. The wait for a yuno to stop before a
+  same-version `update-binary` goes from 15 to 60 s.
+
 ### CLI 0.20.1: `yunetas init` keeps the ctest logs
 
 - `yunetas test` leaves one `build/<timestamp>.txt` per ctest run, the history
