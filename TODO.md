@@ -685,6 +685,39 @@ compiles on one — and less urgent since 7.8.6-3, which at least aims the one
 supported glibc at a distro that is actually deployed.
 
 
+## C_QIOGATE: ignore repeated messages, by `t`, `tm` or a use-case filter
+
+A queue link delivers **at least once**: when an ack is lost, the sender
+resends, and the receiver stores the message twice. First real measure,
+2026-09-28, `tr2check` on a stress store of 36.3M records (a store fed through
+gate outages and the TLS `bad record mac` fixed in 7.25.8): **6.1M
+duplicates**, and they are the SAME message stored twice (same key, same
+`seq`, same `tm`, stored 3.5 min apart), not a sequence restarting. An
+acceptance test that asks for 0 duplicates stored fails on that.
+
+Ignoring them belongs to the queue gate, not to each application: a
+configurable filter in `C_QIOGATE` that drops (and acks, and counts in its
+stats) a message it has already passed on, keyed by the message's key and
+compared by `t`, `tm`, a sequence field, or any filter a use case declares.
+
+Two places a duplicate is born, and the filter has to cover both:
+
+1. **Upstream resends to a gate** (the ack from the gate to its sender was
+   lost): the gate receives the message again and hands it to its
+   `C_QIOGATE` again. A filter at **enqueue** drops it there.
+2. **The `C_QIOGATE` itself resends** (the ack from its receiver was lost):
+   the message leaves the same queue row twice, so the **receiver** is the
+   one that sees it twice. Every message carries `__md_trq__` with the
+   sender's `__msg_rowid__` and `__msg_t__`, which identify it per sender;
+   the receiver side of the pair (today `trq_answer()` in the application)
+   needs the same filter.
+
+Open points: the state per key (last `t`/`tm`/seq, in memory, rebuilt at
+start from the queue topic), what counts as "repeated" for out-of-order
+senders, and whether the stored record keeps `__md_trq__` so that a
+duplicate can be traced to its hop (today it is stripped, so the 6.1M above
+cannot say which link resent them).
+
 ## Packaging: the agent is a SysV script, and systemd does not see an agent started outside it
 
 `yuneta_agent` is installed as `/etc/init.d/yuneta_agent`, which systemd wraps
