@@ -1,5 +1,14 @@
 # **Changelog**
 
+## Unreleased
+
+### CLI 0.20.1: `yunetas init` keeps the ctest logs
+
+- `yunetas test` leaves one `build/<timestamp>.txt` per ctest run, the history
+  a release compares timings against, and `init` recreated the root `build/`
+  with `rm -rf`: the clean rebuild of a version bump wiped it (7.25.12 lost it
+  on the dev machine and on wattyzer). `init` now carries those logs across.
+
 ## v7.25.12 (2026-09-28)
 
 ### timeranger2 (fs_watcher): a pass says where its time went
