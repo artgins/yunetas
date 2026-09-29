@@ -254,6 +254,46 @@ and returns ticks: a yuno started the day before answered `31007411` (3.6 days
 of the host). Either compute it from `start_time`, or rename/redescribe it; a
 monitor has to use `start_date` meanwhile.
 
+## Stats pushed to a subscriber (gui_agent's Monitor polls them today)
+
+The Monitor workspace (gui_agent 0.23.0-0.25.0) reads every yuno of a
+scenario by POLLING: per tick, one `list-yunos` per node and two `stats-yuno`
+per yuno, the Statistics exception to the no-polling rule extended to it on
+2026-09-29 "until the agent can publish stats to a subscriber". The design,
+built on what is already there, NOT started (C kernel: needs approval):
+
+1. **`C_YUNO` publishes `EV_YUNO_STATS`** (`EVF_OUTPUT_EVENT |
+   EVF_PUBLIC_EVENT | EVF_NO_WARN_SUBS`) from the timer that already runs
+   `load_stats()` every `timeout_stats`, and only while the event has a
+   subscriber. Payload: the `SDF_STATS` of the yuno (`cpu`, `start_date`,
+   disk) plus `gobj_stats()` of the services the subscription names in its
+   `__config__` (default: the service named as the role), at a period the
+   yuno bounds (`stats_publish_period`, default 2 s, never under
+   `timeout_stats`). One reader on a timer also settles item 2 of *Stats:
+   three things a live monitor cannot trust* for whoever subscribes: the
+   read-time rates of `C_IOGATE`/`C_CHANNEL` stop depending on how many
+   people look.
+2. **`C_AGENT` relays it per yuno.** A client subscribes to the agent's
+   `EV_YUNO_STATS` with a `__filter__` of yuno ids (remote subscription,
+   `C_IEVENT_SRV` `__subscribing__`, already bounded by
+   `max_subscription_size`). On the FIRST subscriber of a yuno the agent
+   subscribes to that yuno's event over its channel; on the last one it
+   unsubscribes (refcount in `mt_subscription_added/deleted`). The event is
+   re-published with `yuno_id`/`yuno_role`. It should carry the yuno's
+   running/playing changes too (`EV_YUNO_STATE`), which today are a
+   `list-yunos` per tick.
+3. **The controlcenter relays it per node**, like the PTY mirror
+   (`tty_mirror_dst_service` per channel, `c_controlcenter.c`): the browser
+   subscribes on the CC with `{agent_id, yuno_ids}`, the CC subscribes on
+   that node's agent and routes the events back to the subscriber's
+   `dst_service`. Inward-out, so it survives node sealing.
+4. **gui_agent** subscribes in `C_MONITOR_LINK` / through the CC link instead
+   of arming the C_TIMER, and drops the polling exception.
+
+Open questions for the decision: `EVF_AUTHZ_SUBSCRIBE` on the new events
+(what role may watch a yuno), and whether the Statistics cards move to the
+same event (they poll every counter of a service, not a chosen few).
+
 ## C_NODE: every link collapses the WHOLE parent, O(children) per link
 
 Found 2026-09-26 in yunovatios' stress test (`db_history_ce`, 20000 new devices

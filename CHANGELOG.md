@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-### JS: gui_agent 0.23.0 - 0.24.0, the Monitor workspace
+### JS: gui_agent 0.23.0 - 0.25.0, the Monitor workspace
 
 - **A test, live, from its agent.** gui_agent gains a fifth workspace,
   Monitor: a left-to-right graph of the yunos of one scenario (the agent url,
@@ -23,8 +23,15 @@
   scenario (no `test`) shows none. A service that keeps its counters in
   private fields behind `mt_reading` does not honour `__reset__` unless its
   `mt_stats` does it (the yunovatios yunos do not yet).
+- **Through the control center, several nodes (0.25.0)**: a scenario that
+  says `node` instead of `agent_url` sends every command as `command-agent
+  agent_id=<node>` on the console's own link — no token leaves the BFF and
+  the nodes need no browser-trusted certificate. *Propose links* reads the
+  yunos' `view-config` and proposes the links from what they listen on and
+  connect to.
 - The readings are polled (the Statistics exception, extended to this view)
-  until the agent can publish stats to a subscriber; `TODO.md` "Stats: three
+  until the agent can publish stats to a subscriber (design in `TODO.md`,
+  "Stats pushed to a subscriber"); `TODO.md` "Stats: three
   things a live monitor cannot trust" lists what a monitor finds in the SDK
   stats today.
 
