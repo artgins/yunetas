@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### JS: gui_agent 0.28.0, the Users workspace
+
+- **The users each yuno lets in, and their roles, from the console.** Every
+  yuno that authenticates keeps its own store (each node's agent, each
+  control center: 1996 and 1997 are two), so Users is a per-yuno workspace:
+  the nodes->yunos tree marks the yunos that keep users (a `C_AUTHZ` with its
+  `treedb_authzs`) and whether each is the master or a read-only replica, and
+  a tab lists the users of one store and creates, enables, disables, deletes
+  and gives or takes roles. Every write is a `C_AUTHZ` command over the agent;
+  a role is a `link-nodes` / `unlink-nodes` on `treedb_authzs`, because
+  `update-user role=` autolinks and REPLACES every role the user holds by that
+  one.
+- It makes the open per-command authz gate visible: `create-user` & co. run
+  for any operator the control center lets run `command-agent`, even with no
+  role in that yuno's store, while `link-nodes` checks `update` on its own
+  (`TODO.md`, "per-command authz gate").
+- First step of the control-center treedb plan (`TODO.md`, "Controlcenter:
+  scenarios in its treedb").
+
 ## v7.25.13 (2026-09-29)
 
 ### Agent: `watch-yuno-stats`, the stats of yunos pushed to whoever watches

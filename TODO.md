@@ -302,6 +302,48 @@ its own relay for it (`ac_tty_mirror_data`, `tty_mirror_dst_service`).
    drops the polling exception; `list-yunos` per tick becomes an
    `EV_YUNO_STATE` in the same stream.
 
+## Controlcenter: scenarios in its treedb (approved 2026-09-29)
+
+Decided with the user; phase 2 (gui_agent's Users workspace, the authz of
+each yuno, both control centers included) shipped in gui_agent 0.28.0. What
+is left, in order:
+
+1. **Clean the control center and give its treedb its one job.** Remove the
+   four topics of `treedb_schema_controlcenter.c` -- none is read or written
+   by the code or any GUI: `systems` and `nodes` (a declared inventory; the
+   live agents come from the sessions of `__input_side__`), `services`
+   (`viewer_engine`, `dst_role`: the launcher of the webix GUI) and `users`
+   (a shadow of `C_AUTHZ`'s, written at login, read by nobody; the authz
+   store already has users, roles, sessions and accesses). With them goes
+   the dead code: `ac_user_login` / `ac_user_new` / `ac_user_logout` and the
+   subscription to `authz`, `ac_treedb_node_*` (they act only on a
+   `treedb_purezadb` from another project), `enabled_new_users`,
+   `enabled_new_devices`, the `list-groups` / `list-tracks` /
+   `realtime-track` authz entries, and the `lists` / `viewer_engines` draft
+   in the header of `c_controlcenter.c`. Check on a.com that the old topics
+   are empty first, `shoot-snap` before. Fix the READMEs that name topics
+   that never existed. `schema_version` 3 with one topic:
+   `scenarios` (`id`, `description`, `group`, `yunos` {key: {node, id,
+   service, label, rate}}, `flows` [[from, to]], `actions` {start, pause,
+   resume, stop, report: [{yuno, service, command}]}, `view` {mode: graph |
+   cards, refresh, window}, `created_by`, `time`). A scenario is a document
+   saved whole: its yunos have no identity outside it.
+   Contract: control-center commands `scenarios`, `save-scenario`,
+   `delete-scenario`, with authz entries `read-scenarios`,
+   `write-scenarios`, `run-scenarios`. A lite release (agent / controlcenter
+   only).
+2. ~~Users view~~ -- done, gui_agent 0.28.0.
+3. **One Scenarios workspace in gui_agent** replacing Monitor AND
+   Statistics: the nodes->yunos tree plus the saved scenarios; ticking yunos
+   makes an unsaved scenario (Statistics today: cards, every counter);
+   saving puts it in the treedb, *Propose links* fills its flows, and its
+   actions are the test controls, each step to any yuno of it. Import of the
+   JSON kept in localStorage. It also brings the rail back to five items (a
+   phone shows five; with Users the sixth scrolls).
+4. **`scenario_runs` + `run-scenario id= action=`** in the control center:
+   who ran what and when, the answers and the peaks, and a test startable
+   from `ycommand`.
+
 ## Agent: a C_COUNTER still running when the agent stops
 
 Seen deploying 7.25.13 (2026-09-29), at the orderly `--stop` of the main agent
@@ -564,6 +606,15 @@ The gate (`enable_command_authz`) is **default-off** (design in YUNO_AUTH.md
   principal — infeasible on the yuneta-only local plano);
 - then set `enable_command_authz: true` per yuno (pilot the agent first),
   staging → production.
+
+**Seen live with gui_agent's Users workspace (0.28.0, 2026-09-29):** through
+the control center, `claudia@artgins.com` -- who has NO role in the local
+agent's store -- created, disabled, enabled and deleted a user there, because
+`create-user` & co. of `C_AUTHZ` are `SDF_AUTHZ_X` only. The role link of the
+same session was refused ("No permission to 'update' in service
+'treedb_authzs'"): `link-nodes` is a `C_NODE` command with its own check,
+always on. So today, user management on every node is open to whoever the
+control center lets run `command-agent`.
 
 The subscription gate (`enable_subscription_authz`, YUNO_AUTH.md §4.6) is
 **default-off** too. Enabling it on a yuno needs the same role model, and
