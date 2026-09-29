@@ -205,8 +205,9 @@ command-yuno id=<yuno> [service=<service>] command=<command>
 as the user who asked. A step goes only when the one before it answered; a
 step that fails, or does not answer in `run_step_timeout` (30000 ms), ends the
 run there. The run is written to `scenario_runs` -- action, user, start and
-end, the result and the answer of every step -- and the requester is answered
-with it (the command answers when the run is OVER). One run at a time.
+end, the result and the answer of every step, and for a `report` what each
+step answered (`data`) -- and the requester is answered with it (the command
+answers when the run is OVER). One run at a time.
 
 ```bash
 ycommand ... -c 'run-scenario scenario_id=t1 action=report'

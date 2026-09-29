@@ -24,8 +24,8 @@ center's binary changes, and only it is deployed.
   each as `command-yuno id=<yuno> [service=] command=<command>` to its node's
   agent, as the user who asked. A step that fails or does not answer in
   `run_step_timeout` (30000 ms) ends the run; the run is written to
-  `scenario_runs` (every step with its answer) and the command answers when
-  it is over. One run at a time.
+  `scenario_runs` (every step with its answer, and for a `report` what each
+  step answered) and the command answers when it is over. One run at a time.
 - **Removed, unused since the webix GUI**: the topics `systems`, `nodes`,
   `services` (declared inventory, viewer launcher) and `users` (a copy of each
   user at login, read by nobody: the users are the `authz` store's), the
@@ -39,6 +39,18 @@ center's binary changes, and only it is deployed.
   refusal went with the `users` topic, and so did the *"Treedb Controlcenter
   not ready"* warnings a restart logged while the agents reconnected
   (`YUNO_AUTH.md` §4.9).
+
+### JS: gui_agent 0.29.0, the Scenarios workspace, in place of Monitor and Statistics
+
+- The console's side of the control center's scenarios: **Scenarios** (the
+  list the control center keeps), **Yunos** (ticking yunos watches them as
+  cards of every counter -- what the Statistics workspace was) and **Live**
+  (the graph and charts, or the cards). Actions replace the old test block;
+  a saved scenario is run BY the control center (`run-scenario`) and its runs
+  are listed; any other one runs from the console. Against a control center
+  older than 7.25.14 it keeps the scenario in the browser, as before.
+- The Statistics workspace is gone (it is a scenario of cards now), and the
+  rail has five workspaces again.
 
 ### JS: gui_agent 0.28.0, the Users workspace
 

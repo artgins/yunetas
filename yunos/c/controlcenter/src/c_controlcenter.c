@@ -27,7 +27,8 @@
  *  before it answered, and a step that fails or does not answer in
  *  `run_step_timeout` ends the run there. Then the run is written in
  *  `scenario_runs` (linked to its scenario) and the requester answered
- *  with it. One run at a time.
+ *  with it -- the result and comment of every step, and for a `report`
+ *  what each step answered (`data`). One run at a time.
  *
  *  Users are NOT kept here: who may use this yuno is its C_AUTHZ's store.
  *
@@ -1899,6 +1900,15 @@ PRIVATE int run_step_answered(hgobj gobj, json_t *kw)
     json_t *step = json_array_get(steps, (size_t)step_idx);
     json_object_set_new(step, "result", json_integer(result));
     json_object_set_new(step, "comment", json_string(kw_get_str(gobj, kw, "comment", "", 0)));
+    /*
+     *  What a report asks for is what the steps answer: kept with them
+     */
+    if(strcmp(kw_get_str(gobj, priv->run, "action", "", 0), "report")==0) {
+        json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
+        if(jn_data) {
+            json_object_set(step, "data", jn_data);
+        }
+    }
     KW_DECREF(kw)
 
     if(result < 0) {

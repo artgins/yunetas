@@ -110,7 +110,8 @@ node, AS the user who asked, one at a time: a step goes only when the one
 before it answered, and a step that fails or does not answer in
 `run_step_timeout` (30000 ms) ends the run. The run is then written to
 `scenario_runs` -- action, user, start and end, the result and answer of
-every step -- and the requester is answered with it. One run at a time.
+every step, and for a `report` what each step answered (`data`) -- and the
+requester is answered with it. One run at a time.
 Permissions `read-scenarios`, `write-scenarios` and `run-scenarios` are
 checked by the commands themselves, always.
 

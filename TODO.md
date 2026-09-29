@@ -313,17 +313,19 @@ is left, in order:
    `save-scenario`, `delete-scenario`, `run-scenario`, `scenario-runs`; the
    four legacy topics and their dead code removed).
 2. ~~Users view~~ -- done, gui_agent 0.28.0.
-3. **One Scenarios workspace in gui_agent** replacing Monitor AND
-   Statistics: the nodes->yunos tree plus the saved scenarios; ticking yunos
-   makes an unsaved scenario (Statistics today: cards, every counter);
-   saving puts it in the treedb, *Propose links* fills its flows, and its
-   actions are the test controls, each step to any yuno of it. Import of the
-   JSON kept in localStorage. It also brings the rail back to five items (a
-   phone shows five; with Users the sixth scrolls).
+3. ~~One Scenarios workspace in gui_agent~~ -- done, gui_agent 0.29.0
+   (list, tree of yunos as cards, live view; Statistics removed).
 4. ~~`scenario_runs` + `run-scenario`~~ in the control center -- done,
    7.25.14 (who ran what and when, each step with its answer; startable from
    `ycommand`). Not recorded: the PEAKS of a run (rates are measured by the
    console, not by the control center).
+
+**Left:** deploy 7.25.14's control center on a.com (1996 and 1997) -- until
+then the console keeps scenarios in the browser; then verify a real
+`run-scenario` against an agent (the step round trip through the control
+center was not exercised locally: no local agent could be pointed at a test
+control center). On a phone the rail's fifth item is clipped at 360 px in
+Spanish (the bar scrolls).
 
 ## Agent: a C_COUNTER still running when the agent stops
 
