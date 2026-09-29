@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### JS: tabulator-tables ^6.6.0 in every SPA; gui_agent 0.29.2, gui_treedb 0.17.73
+
+- 6.6.0 is additive for these apps (an opt-in range fill handle, an
+  `initialValue` for editors, a Bootstrap 5 border fix). Every SPA of the
+  ecosystem raised its floor, was rebuilt, deployed and checked live; the
+  gobj-ui lockfile and its test-app follow (the library's `^6.5.3` range
+  already takes it, so no publish).
+
 ### JS: gui_agent 0.29.1
 
 - The scenarios list reads itself again whenever its tab is shown, so the runs
