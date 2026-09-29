@@ -168,6 +168,11 @@ PRIVATE int add_console_route(
     json_t *kw
 );
 PRIVATE int delete_console(hgobj gobj, const char *name);
+PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event);
+PRIVATE int watch_rearm_timer(hgobj gobj);
+PRIVATE int watch_tick(hgobj gobj);
+PRIVATE int watch_answer(hgobj gobj, json_t *jn_watch_md, json_t *kw);
+PRIVATE int delete_watch_of_channel(hgobj gobj, hgobj channel_gobj);
 PRIVATE int get_last_public_port(hgobj gobj);
 
 /***************************************************************************
@@ -289,6 +294,7 @@ PRIVATE json_t *cmd_set_multiple(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
 PRIVATE json_t *cmd_command_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_stats_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_watch_yuno_stats(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_authzs_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -538,6 +544,13 @@ SDATAPM (DTP_STRING,    "yuno_role",    0,              0,          "Yuno Role")
 SDATAPM (DTP_STRING,    "yuno_name",    0,              0,          "Yuno Name"),
 SDATAPM (DTP_STRING,    "yuno_release", 0,              0,          "Yuno Release"),
 SDATAPM (DTP_STRING,    "yuno_tag",     0,              0,          "Yuno Tag"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_watch_yuno_stats[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "ids",          0,              "",         "Yuno ids to watch, comma separated. `id:service` reads that service's counters instead of the one named as the role"),
+SDATAPM (DTP_INTEGER,   "period",       0,              "2000",     "Milliseconds between two readings (never under watch_min_period)"),
+SDATAPM (DTP_BOOLEAN,   "stop",         0,              "0",        "Stop the watch of this requester"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authzs_yuno[] = {
@@ -916,6 +929,7 @@ SDATACM2 (DTP_SCHEMA,   "trace-on-yuno",    SDF_WILD_CMD,       0,              
 SDATACM2 (DTP_SCHEMA,   "trace-off-yuno",   SDF_WILD_CMD,       0,                  pm_trace_off_yuno,cmd_trace_off_yuno,"Trace off yuno"),
 SDATACM2 (DTP_SCHEMA,   "command-yuno",     SDF_WILD_CMD,       0,                  pm_command_yuno,cmd_command_yuno,"Command to yuno. WARNING: parameter's keys are not checked"),
 SDATACM2 (DTP_SCHEMA,   "stats-yuno",       SDF_WILD_CMD,       0,                  pm_stats_yuno,  cmd_stats_yuno, "Get statistics of yuno"),
+SDATACM2 (DTP_SCHEMA,   "watch-yuno-stats", 0,                  0,                  pm_watch_yuno_stats, cmd_watch_yuno_stats, "Send the stats of yunos to the requester every period (EV_YUNO_STATS), until stop=1 or its channel closes"),
 SDATACM2 (DTP_SCHEMA,   "authzs-yuno",      SDF_WILD_CMD,       0,                  pm_authzs_yuno,  cmd_authzs_yuno, "Get permissions of yuno"),
 SDATACM2 (DTP_SCHEMA,   "ping",             0,                  0,                  0,   cmd_ping,       "Ping command"),
 SDATACM2 (DTP_SCHEMA,   "node-uuid",        0,                  a_uuid,             0,   cmd_uuid,       "Get uuid of node"),
@@ -942,6 +956,8 @@ SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",            
 SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]", "Range Ports. List of ports to be assigned to public services of yunos."),
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
 SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "30",           "Maximum consoles opened"),
+SDATA (DTP_INTEGER,     "max_watches",      SDF_WR,             "30",           "Maximum requesters with a watch-yuno-stats"),
+SDATA (DTP_INTEGER,     "watch_min_period", SDF_WR,             "1000",         "Minimum milliseconds between two readings of a watch-yuno-stats"),
 SDATA (DTP_INTEGER,     "timeout_expiration",SDF_WR,            "30000",        "Expiration timeout for commands"),
 
 SDATA (DTP_BOOLEAN,     "use_audit_command_file",SDF_WR,        "1",            "Use audit file commands"),
@@ -1007,6 +1023,10 @@ typedef struct _PRIVATE_DATA {
     char treedb_agentdb_name[80];
 
     json_t *list_consoles; // Dictionary of console names
+
+    json_t *watches;        // watch-yuno-stats, by route: {route, yunos: {id: service}, period}
+    hgobj watch_timer;
+    json_int_t watch_period; // period the watch timer runs at, 0 = stopped
 
     json_t *no_play_launches; // set of launch_id (string key) launched with run-yuno play=0
 
@@ -1101,6 +1121,13 @@ PRIVATE void mt_create(hgobj gobj)
      *---------------------------------------*/
     priv->cert_sync_timer = gobj_create_pure_child("cert_sync", C_TIMER, 0, gobj);
     priv->cert_sync_state = json_object();
+
+    /*---------------------------------------*
+     *      watch-yuno-stats timer (child),
+     *      told apart by `src` too.
+     *---------------------------------------*/
+    priv->watch_timer = gobj_create_pure_child("watch_stats", C_TIMER, 0, gobj);
+    priv->watches = json_object();
 
     /*---------------------------------------*
      *      Check if already running
@@ -1232,6 +1259,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(priv->list_consoles);
+    JSON_DECREF(priv->watches);
     JSON_DECREF(priv->no_play_launches);
     JSON_DECREF(priv->launching_yunos);
     JSON_DECREF(priv->cert_sync_state);
@@ -1307,6 +1335,8 @@ PRIVATE int mt_stop(hgobj gobj)
     if(priv->cert_sync_timer) {
         clear_timeout(priv->cert_sync_timer);
     }
+    json_object_clear(priv->watches);
+    watch_rearm_timer(gobj);
     gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
 
     return 0;
@@ -6152,6 +6182,148 @@ PRIVATE json_t *cmd_stats_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
+ *  Send the stats of some yunos to the requester every period, pushed as
+ *  EV_YUNO_STATS along the route the request came from -- the way the PTY
+ *  mirror sends EV_TTY_DATA -- instead of the requester asking stats-yuno
+ *  again and again. A subscription could not do it: they travel from a
+ *  client to a server only, and the agent is the SERVER of its yunos.
+ *
+ *  One watch per requester (its channel): a new call replaces it, stop=1
+ *  or the channel closing ends it. Each period, per watched yuno, the
+ *  requester gets a "state" event (running, playing, disabled, from the
+ *  agent's own record) and, while the yuno runs, a "cpu" one (the stats of
+ *  its __yuno__) and an "app" one (the stats of its service). The readings
+ *  are taken here, on loopback, ONCE per yuno and service however many
+ *  requesters watch it: the timer runs at the shortest period asked.
+ *
+ *      watch-yuno-stats ids=stress,2120,5120:db period=2000
+ *      watch-yuno-stats stop=1
+ ***************************************************************************/
+PRIVATE json_t *cmd_watch_yuno_stats(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *route_service = gobj_name(gobj_nearest_top_service(src));
+    const char *route_child = gobj_name(src);
+    char route_name[NAME_MAX];
+    snprintf(route_name, sizeof(route_name), "%s.%s", route_service, route_child);
+
+    if(kw_get_bool(gobj, kw, "stop", 0, KW_WILD_NUMBER)) {
+        BOOL had = kw_has_key(priv->watches, route_name);
+        json_object_del(priv->watches, route_name);
+        watch_rearm_timer(gobj);
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("%s: %s", gobj_yuno_role_plus_name(),
+                had? "watch stopped" : "no watch to stop"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *ids = kw_get_str(gobj, kw, "ids", "", 0);
+    if(empty_string(ids)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: what yunos? ids=<id>[:<service>],...", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(!kw_has_key(priv->watches, route_name) &&
+            kw_size(priv->watches) >= gobj_read_integer_attr(gobj, "max_watches")) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: too many watches: %d", gobj_yuno_role_plus_name(),
+                (int)kw_size(priv->watches)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_int_t period = kw_get_int(gobj, kw, "period", 2000, KW_WILD_NUMBER);
+    json_int_t min_period = gobj_read_integer_attr(gobj, "watch_min_period");
+    if(period < min_period) {
+        period = min_period;
+    }
+
+    json_t *jn_yunos = json_object();
+    int list_size = 0;
+    const char **list = split2(ids, ", ", &list_size);
+    for(int i=0; i<list_size; i++) {
+        char id[NAME_MAX];
+        snprintf(id, sizeof(id), "%s", list[i]);
+        const char *service = "";
+        char *colon = strchr(id, ':');
+        if(colon) {
+            *colon = 0;
+            service = colon + 1;
+        }
+        json_t *yuno = gobj_get_node(
+            priv->resource,
+            "yunos",
+            json_pack("{s:s}", "id", id),
+            json_pack("{s:b}", "only_id", 1),
+            src
+        );
+        if(!yuno) {
+            json_t *jn_comment = json_sprintf("%s: yuno not found: '%s'",
+                gobj_yuno_role_plus_name(), id);
+            split_free2(list);
+            JSON_DECREF(jn_yunos)
+            return msg_iev_build_response(gobj, -1, jn_comment, 0, 0, kw);
+        }
+        JSON_DECREF(yuno)
+        json_object_set_new(jn_yunos, id, json_string(service));
+    }
+    split_free2(list);
+
+    json_t *jn_watch = json_pack("{s:s, s:s, s:O, s:O, s:I}",
+        "route_service", route_service,
+        "route_child", route_child,
+        "__md_iev__", kw_get_dict(gobj, kw, "__md_iev__", 0, KW_REQUIRED),
+        "yunos", jn_yunos,
+        "period", period
+    );
+    if(!jn_watch) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "cannot create watch",
+            "route",        "%s", route_name,
+            NULL
+        );
+        JSON_DECREF(jn_yunos)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot create the watch", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_object_set_new(priv->watches, route_name, jn_watch);
+    watch_rearm_timer(gobj);
+
+    json_t *jn_data = json_pack("{s:O, s:I}", "yunos", jn_yunos, "period", period);
+    json_t *jn_comment = json_sprintf("%s: watching %d yunos every %d ms",
+        gobj_yuno_role_plus_name(), (int)json_object_size(jn_yunos), (int)period);
+    JSON_DECREF(jn_yunos)
+
+    /*  The first readings now, not one period later.  */
+    watch_tick(gobj);
+
+    return msg_iev_build_response(gobj, 0, jn_comment, 0, jn_data, kw);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_authzs_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -7197,6 +7369,237 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
         delete_console(gobj, name);
     }
 
+    return 0;
+}
+
+/***************************************************************************
+ *  Run the watch timer at the shortest period of the watches, or stop it.
+ ***************************************************************************/
+PRIVATE int watch_rearm_timer(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t period = 0;
+    const char *route_name; json_t *jn_watch;
+    json_object_foreach(priv->watches, route_name, jn_watch) {
+        json_int_t p = kw_get_int(gobj, jn_watch, "period", 0, KW_REQUIRED);
+        if(p > 0 && (period == 0 || p < period)) {
+            period = p;
+        }
+    }
+    if(period == priv->watch_period) {
+        return 0;
+    }
+    priv->watch_period = period;
+    if(period == 0) {
+        clear_timeout(priv->watch_timer);
+    } else {
+        set_timeout_periodic(priv->watch_timer, period);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Send one EV_YUNO_STATS to every requester watching `yuno_id` (and
+ *  `service`, when given). A requester that is gone takes its watch with it.
+ ***************************************************************************/
+PRIVATE int watch_send(
+    hgobj gobj,
+    const char *yuno_id,
+    const char *service,    // NULL: whatever service the requester reads
+    json_t *jn_data         // not owned
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Walk a copy: a send can close the requester's channel on the spot,
+     *  and its ac_on_close removes the watch from priv->watches.
+     */
+    json_t *jn_watches = json_copy(priv->watches);
+    json_t *jn_gone = json_array();
+    const char *route_name; json_t *jn_watch;
+    json_object_foreach(jn_watches, route_name, jn_watch) {
+        json_t *jn_yunos = kw_get_dict(gobj, jn_watch, "yunos", 0, KW_REQUIRED);
+        json_t *jn_service = json_object_get(jn_yunos, yuno_id);
+        if(!jn_service) {
+            continue;
+        }
+        if(service && strcmp(json_string_value(jn_service), service)!=0) {
+            continue;
+        }
+        const char *route_service = kw_get_str(gobj, jn_watch, "route_service", "", KW_REQUIRED);
+        const char *route_child = kw_get_str(gobj, jn_watch, "route_child", "", KW_REQUIRED);
+        hgobj gobj_route_service = gobj_find_service(route_service, FALSE);
+        hgobj gobj_input_gate = gobj_route_service?
+            gobj_child_by_name(gobj_route_service, route_child) : 0;
+        if(!gobj_input_gate || !requester_is_listening(gobj, gobj_input_gate, EV_YUNO_STATS)) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "watch-yuno-stats requester gone, watch dropped",
+                "route",        "%s", route_name,
+                NULL
+            );
+            json_array_append_new(jn_gone, json_string(route_name));
+            continue;
+        }
+        /*
+         *  As an iev, like the answers of ac_stats_yuno_answer(): the channel
+         *  (or the controlcenter's C_IEVENT_CLI) serializes it to the peer.
+         */
+        json_t *kw_ev = msg_iev_build_response(gobj,
+            0,  // result
+            0,  // comment
+            0,  // schema
+            json_incref(jn_data), // owned
+            json_incref(jn_watch)  // owned, used to get ONLY __md_iev__
+        );
+        gobj_send_event(
+            gobj_input_gate,
+            EV_SEND_IEV,
+            iev_create(gobj, EV_YUNO_STATS, kw_ev),
+            gobj
+        );
+    }
+
+    if(json_array_size(jn_gone) > 0) {
+        size_t idx; json_t *jn_route;
+        json_array_foreach(jn_gone, idx, jn_route) {
+            json_object_del(priv->watches, json_string_value(jn_route));
+        }
+        watch_rearm_timer(gobj);
+    }
+    JSON_DECREF(jn_gone)
+    JSON_DECREF(jn_watches)
+    return 0;
+}
+
+/***************************************************************************
+ *  One reading of every watched yuno: its state at once, and its cpu and
+ *  service stats asked on loopback (they come back through
+ *  ac_stats_yuno_answer, marked in __md_iev__`agent_watch).
+ ***************************************************************************/
+PRIVATE int watch_tick(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  The (yuno, service) pairs asked by anybody, each read once
+     */
+    json_t *jn_asked = json_object();
+    const char *route_name; json_t *jn_watch;
+    json_object_foreach(priv->watches, route_name, jn_watch) {
+        json_t *jn_yunos = kw_get_dict(gobj, jn_watch, "yunos", 0, KW_REQUIRED);
+        const char *yuno_id; json_t *jn_service;
+        json_object_foreach(jn_yunos, yuno_id, jn_service) {
+            json_t *jn_services = json_object_get(jn_asked, yuno_id);
+            if(!jn_services) {
+                jn_services = json_object();
+                json_object_set_new(jn_asked, yuno_id, jn_services);
+            }
+            json_object_set_new(jn_services, json_string_value(jn_service), json_true());
+        }
+    }
+
+    const char *yuno_id; json_t *jn_services;
+    json_object_foreach(jn_asked, yuno_id, jn_services) {
+        json_t *yuno = gobj_get_node(
+            priv->resource,
+            "yunos",
+            json_pack("{s:s}", "id", yuno_id),
+            json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+            gobj
+        );
+        BOOL running = yuno? kw_get_bool(gobj, yuno, "yuno_running", 0, 0) : FALSE;
+        hgobj channel_gobj = yuno?
+            (hgobj)(size_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, 0) : 0;
+
+        json_t *jn_state = json_pack("{s:s, s:s, s:b, s:b, s:b, s:b}",
+            "yuno_id", yuno_id,
+            "kind", "state",
+            "missing", yuno? 0 : 1,
+            "yuno_running", running,
+            "yuno_playing", yuno? kw_get_bool(gobj, yuno, "yuno_playing", 0, 0) : 0,
+            "yuno_disabled", yuno? kw_get_bool(gobj, yuno, "yuno_disabled", 0, 0) : 0
+        );
+        watch_send(gobj, yuno_id, NULL, jn_state);
+        JSON_DECREF(jn_state)
+
+        if(running && channel_gobj) {
+            json_t *kw_cpu = json_pack("{s:s}", "service", "__yuno__");
+            kw_set_subdict_value(gobj, kw_cpu, "__md_iev__", "agent_watch",
+                json_pack("{s:s, s:s, s:s}", "yuno_id", yuno_id, "kind", "cpu", "service", "")
+            );
+            stats_to_yuno(gobj, yuno, "", kw_cpu, gobj);
+
+            const char *service; json_t *jn_;
+            json_object_foreach(jn_services, service, jn_) {
+                json_t *kw_app = json_object();
+                if(!empty_string(service)) {
+                    json_object_set_new(kw_app, "service", json_string(service));
+                }
+                kw_set_subdict_value(gobj, kw_app, "__md_iev__", "agent_watch",
+                    json_pack("{s:s, s:s, s:s}", "yuno_id", yuno_id, "kind", "app", "service", service)
+                );
+                stats_to_yuno(gobj, yuno, "", kw_app, gobj);
+            }
+        }
+        JSON_DECREF(yuno)
+    }
+    JSON_DECREF(jn_asked)
+    return 0;
+}
+
+/***************************************************************************
+ *  A reading of a watch came back: send it to the requesters watching it.
+ ***************************************************************************/
+PRIVATE int watch_answer(hgobj gobj, json_t *jn_watch_md, json_t *kw)
+{
+    const char *yuno_id = kw_get_str(gobj, jn_watch_md, "yuno_id", "", KW_REQUIRED);
+    const char *kind = kw_get_str(gobj, jn_watch_md, "kind", "", KW_REQUIRED);
+    const char *service = kw_get_str(gobj, jn_watch_md, "service", "", 0);
+
+    json_t *jn_data = json_pack("{s:s, s:s, s:s, s:I, s:O?, s:O?}",
+        "yuno_id", yuno_id,
+        "kind", kind,
+        "service", service,
+        "result", (json_int_t)kw_get_int(gobj, kw, "result", 0, 0),
+        "comment", kw_get_dict_value(gobj, kw, "comment", 0, 0),
+        "data", kw_get_dict_value(gobj, kw, "data", 0, 0)
+    );
+    if(!jn_data) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "cannot build the watch reading",
+            "yuno_id",      "%s", yuno_id,
+            "kind",         "%s", kind,
+            NULL
+        );
+        return -1;
+    }
+    watch_send(gobj, yuno_id, strcmp(kind, "app")==0? service : NULL, jn_data);
+    JSON_DECREF(jn_data)
+    return 0;
+}
+
+/***************************************************************************
+ *  The channel of a requester closed: its watch goes.
+ ***************************************************************************/
+PRIVATE int delete_watch_of_channel(hgobj gobj, hgobj channel_gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char route_name[NAME_MAX];
+    snprintf(route_name, sizeof(route_name), "%s.%s",
+        gobj_name(gobj_nearest_top_service(channel_gobj)),
+        gobj_name(channel_gobj)
+    );
+    if(kw_has_key(priv->watches, route_name)) {
+        json_object_del(priv->watches, route_name);
+        watch_rearm_timer(gobj);
+    }
     return 0;
 }
 
@@ -10904,7 +11307,14 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
 
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
     if(strcmp(dst_service, gobj_name(gobj))==0) {
-        // Stats requested by the agent itself: nothing to forward
+        /*
+         *  Stats asked by the agent itself: a reading of a watch-yuno-stats
+         *  goes to its requesters, anything else has nowhere to go.
+         */
+        json_t *jn_watch_md = kw_get_dict(gobj, kw, "__md_iev__`agent_watch", 0, 0);
+        if(jn_watch_md) {
+            watch_answer(gobj, jn_watch_md, kw);
+        }
         JSON_DECREF(jn_ievent_id);
         KW_DECREF(kw);
         return 0;
@@ -11359,6 +11769,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!yuno) {
         // Must be yuneta_cli or a yuno refused!.
         delete_consoles_on_disconnection(gobj, kw, src);
+        delete_watch_of_channel(gobj, channel_gobj);
         KW_DECREF(kw);
         return 0;
     }
@@ -11796,7 +12207,21 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    cert_sync_tick(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->watch_timer) {
+        watch_tick(gobj);
+    } else if(src == priv->cert_sync_timer) {
+        cert_sync_tick(gobj);
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "periodic timeout of an unknown timer",
+            "src",          "%s", gobj_short_name(src),
+            NULL
+        );
+    }
 
     KW_DECREF(kw);
     return 0;

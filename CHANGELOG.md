@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Agent: `watch-yuno-stats`, the stats of yunos pushed to whoever watches
+
+- New agent command `watch-yuno-stats ids=<id>[:<service>],... period=<ms>`
+  (`stop=1` ends it): the agent keeps the requester's route -- the way
+  `open-console` does -- and SENDS it `EV_YUNO_STATS` every period, per yuno a
+  `state` (running, playing, disabled), a `cpu` (its `__yuno__` stats) and an
+  `app` (its service's stats). The readings are taken on loopback once per
+  yuno and service however many watch it, at the shortest period asked;
+  `watch_min_period` (1000 ms) and `max_watches` (30) bound it. The watch ends
+  with its requester's connection. A subscription could not do this: they go
+  from a client to a server only, and the agent is the server of its yunos.
+- New kernel event `EV_YUNO_STATS` (`g_ev_kernel`).
+- gui_agent's Monitor (0.26.0) uses it when it talks to an agent directly,
+  and falls back to polling an agent that does not know the command. The
+  control center does not relay `EV_YUNO_STATS` yet.
+- `ac_timeout_periodic` of `C_AGENT` now tells its periodic timers apart by
+  `src` (cert-sync and the watch), and logs a tick of an unknown one.
+
 ### JS: gui_agent 0.23.0 - 0.25.0, the Monitor workspace
 
 - **A test, live, from its agent.** gui_agent gains a fifth workspace,

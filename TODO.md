@@ -254,13 +254,14 @@ and returns ticks: a yuno started the day before answered `31007411` (3.6 days
 of the host). Either compute it from `start_time`, or rename/redescribe it; a
 monitor has to use `start_date` meanwhile.
 
-## Stats pushed to a subscriber (gui_agent's Monitor polls them today)
+## Stats pushed to a subscriber: what is left after `watch-yuno-stats`
 
-The Monitor workspace (gui_agent 0.23.0-0.25.0) reads every yuno of a
-scenario by POLLING: per tick, one `list-yunos` per node and two `stats-yuno`
-per yuno, the Statistics exception to the no-polling rule extended to it on
-2026-09-29 "until the agent can publish stats to a subscriber". NOT started
-(C kernel: needs approval).
+**Done (Unreleased, 2026-09-29):** the agent's `watch-yuno-stats` pushes
+`EV_YUNO_STATS` along the requester's route, the readings SAMPLED by the agent
+(option (a) below), and gui_agent's Monitor uses it on a direct link, falling
+back to polling an older agent. **Left:** (b) the yuno sending its own stats,
+and the control center relaying `EV_YUNO_STATS` (item 3) so the Monitor can
+stop polling through the control center too.
 
 **What the transport allows (checked 2026-09-29).** A subscription travels
 only from a CLIENT to a SERVER: `C_IEVENT_SRV` has no

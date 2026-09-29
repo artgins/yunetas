@@ -118,6 +118,54 @@ Up to 7.25.4 each of them answered an EMPTY list with result `0`, which reads
 as "the directory is empty". A SUBdirectory the agent cannot open is skipped,
 as before. (`tests/c/helpers/test_dir_listing`.)
 
+## Stats pushed to a watcher (`watch-yuno-stats`)
+
+Since 7.25.13 a client can ask the agent to SEND it the stats of some yunos
+every period, instead of asking `stats-yuno` again and again. It is what the
+Monitor workspace of gui_agent uses when it talks to an agent directly.
+
+```bash
+# every 2 s: the state, the cpu and the stats of each yuno's service
+watch-yuno-stats ids=stress,2120,5120 period=2000
+# `id:service` reads another service than the one named as the role
+watch-yuno-stats ids=5120:db_tracks_ce,2 period=5000
+# end it (closing the connection ends it too)
+watch-yuno-stats stop=1
+```
+
+The answer says what is watched:
+
+```text
+yuneta_agent^controlador: watching 3 yunos every 2000 ms
+```
+
+and from then on the agent sends `EV_YUNO_STATS` along the route the
+request came from -- the way the Terminal's PTY mirror sends `EV_TTY_DATA`
+-- three kinds per yuno and period, the event's `data` being:
+
+```json
+{"yuno_id": "2120", "kind": "state", "missing": false,
+ "yuno_running": true, "yuno_playing": true, "yuno_disabled": false}
+{"yuno_id": "2120", "kind": "cpu", "service": "", "result": 0, "comment": "",
+ "data": {"cpu": 15, "start_date": "...", "uptime": 31022741, "...": "..."}}
+{"yuno_id": "2120", "kind": "app", "service": "", "result": 0, "comment": "",
+ "data": {"txMsgs": 3966, "rxMsgs": 3966, "rxMsgsec": 500, "...": "..."}}
+```
+
+A yuno that does not run gets only its `state`. One watch per requester: a
+new call replaces the previous one. The readings are taken by the agent on
+loopback (`stats-yuno` to its own yunos), ONCE per yuno and service however
+many requesters watch it, at the shortest period asked; `period` is never
+under the attribute `watch_min_period` (1000 ms), and `max_watches` (30)
+bounds the requesters. It is not a subscription on purpose: a subscription
+travels only from a client to a server, and the agent is the server of its
+yunos.
+
+A client that asks for a watch must know `EV_YUNO_STATS`: a C client (an
+older `ycommand`) that receives an event it does not know drops the
+connection. Through the control center the events do not travel yet (the
+control center does not relay them); the Monitor polls there.
+
 ## Redundancy
 
 Every node also runs [`yuneta_agent22`](yuneta_agent22.md), a minimal second

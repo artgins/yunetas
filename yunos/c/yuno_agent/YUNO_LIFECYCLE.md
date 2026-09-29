@@ -205,6 +205,7 @@ Registered in the agent's command table. Yuno + binary + config commands only
 | `list-yunos`       | All `yunos` rows with current pid + state.                                |
 | `view-yuno-config` | The stored configs attached to a yuno (still not the effective merged one). |
 | `stats-yuno`       | Forward a stats request to the running yuno.                              |
+| `watch-yuno-stats` | Send the stats of some yunos to the requester every period (`EV_YUNO_STATS`), until `stop=1` or its connection closes. |
 
 Permission gating is per-command via `pm_<name>` schemas.
 
