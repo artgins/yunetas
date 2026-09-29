@@ -221,6 +221,39 @@ invariant: warn on the transition (full / free again) with the count of
 refusals, and keep a counter stat (`refusedConnxs`) of it. The one line that
 matters now -- the channels are full -- is also the one that is hard to find.
 
+## Stats: three things a live monitor cannot trust
+
+Found 2026-09-29 scoping a real-time monitor GUI (cpu % and msg/s per yuno,
+polled with `stats-yuno`) against yunovatios' stress yunos on the controller.
+
+**1. Asking a `C_IOGATE` or `C_QIOGATE` service for its stats answers `-1`
+with no comment.** `stats-yuno id=2120 service=__top_side__` (a `C_IOGATE`)
+and `service=output-qiogate-0` (a `C_QIOGATE`) both return *"ERROR -1"* and
+nothing else, while `service=__output_side__` (`C_MQIOGATE`) answers. The two
+`mt_stats` return the BARE data dict -- they were written for a parent that
+reads its children (`C_IOGATE` calls `gobj_stats(child)`) -- and
+`c_ievent_srv`'s `ac_mt_stats` sends that dict back as the stats response,
+where the caller expects the `build_command_response()` envelope
+(`result`/`comment`/`data`). A silent error, and the only way to read a
+`C_QIOGATE`'s `msgs_in_queue` directly. Related to item 1 of *Queues and
+channels* above: fixing either path makes a queue observable.
+
+**2. `C_IOGATE`'s and `C_CHANNEL`'s msg/s depend on who reads them, and
+when.** Their `txMsgsec`/`rxMsgsec` are computed INSIDE `mt_stats`: the
+counter delta since the previous read, divided by WHOLE seconds
+(`(ms - last_ms)/1000`, truncated), and `last_*` are reset by the read. A read
+1.9 s after the previous one divides by 1 (+90 %); two readers (the gui_agent
+Statistics tab and a monitor, or two operators) steal each other's window.
+yunovatios' application services do it right -- a 1 s timer, milliseconds
+(`c_gate_central.c` `ac_timeout`) -- and so does `C_YUNO`'s `cpu`. Compute the
+rate on a timer, not on the read.
+
+**3. `C_YUNO`'s `uptime` is the MACHINE's uptime, in jiffies.** The attr is
+described as *"Yuno living time"*, but `read_uptime()` reads `/proc/uptime`
+and returns ticks: a yuno started the day before answered `31007411` (3.6 days
+of the host). Either compute it from `start_time`, or rename/redescribe it; a
+monitor has to use `start_date` meanwhile.
+
 ## C_NODE: every link collapses the WHOLE parent, O(children) per link
 
 Found 2026-09-26 in yunovatios' stress test (`db_history_ce`, 20000 new devices
