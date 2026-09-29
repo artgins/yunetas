@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-### JS: gui_agent 0.23.0, the Monitor workspace
+### JS: gui_agent 0.23.0 - 0.24.0, the Monitor workspace
 
 - **A test, live, from its agent.** gui_agent gains a fifth workspace,
   Monitor: a left-to-right graph of the yunos of one scenario (the agent url,
@@ -16,6 +16,13 @@
   `expose_access_token` (`YUNO_AUTH.md` §2.2). The agent must serve a
   certificate a browser trusts; the self-signed `yuneta_agent.yuneta.io` does
   not.
+- **A test gets controls (0.24.0)**: a `test` block in the scenario declares
+  Start / Pause / Resume / Stop as lists of commands of the generator (sent as
+  `command-yuno`), and Restart is stop + `stats-yuno stats=__reset__` to every
+  yuno + start. Confirmed in a dialog that lists the commands; a production
+  scenario (no `test`) shows none. A service that keeps its counters in
+  private fields behind `mt_reading` does not honour `__reset__` unless its
+  `mt_stats` does it (the yunovatios yunos do not yet).
 - The readings are polled (the Statistics exception, extended to this view)
   until the agent can publish stats to a subscriber; `TODO.md` "Stats: three
   things a live monitor cannot trust" lists what a monitor finds in the SDK
