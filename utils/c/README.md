@@ -26,6 +26,7 @@ Command-line utilities written in C that ship with Yuneta. They fall in three br
 |---|---|
 | `tr2list` | List records in a timeranger2 topic |
 | `tr2keys` | List keys in a timeranger2 topic |
+| `tr2check` | Check a topic filled by a load test: duplicates, gaps, checksums, rate, latency |
 | `tr2search` | Search records by filter |
 | `tr2migrate` | Migrate from legacy timeranger (v1) to timeranger2 |
 | `treedb_list` | List nodes of a TreeDB graph db |

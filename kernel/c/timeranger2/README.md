@@ -515,6 +515,7 @@ Full account, including the defects found after the implementation (§16):
 
 - `utils/c/tr2list` — list records in a topic
 - `utils/c/tr2keys` — list keys in a topic
+- `utils/c/tr2check` — check a topic filled by a load test
 - `utils/c/tr2search` — search by filter
 - `utils/c/tr2migrate` — migrate from legacy timeranger v1
 - `utils/c/list_queue_msgs2` — list a msg2db queue

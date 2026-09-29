@@ -16,6 +16,7 @@ utils/
 │   ├── tr2list/            # List records in TimeRanger2 databases
 │   ├── tr2search/          # Search within record content in TimeRanger2 databases
 │   ├── tr2keys/            # List keys/primary keys in TimeRanger2 topics
+│   ├── tr2check/           # Check a topic filled by a load test (duplicates, gaps, rate, latency)
 │   ├── tr2migrate/         # Migrate data from TimeRanger v1 to TimeRanger2
 │   ├── treedb_list/        # List records in TreeDB hierarchical databases
 │   ├── list_queue_msgs2/   # List messages in TimeRanger2 queues
@@ -281,6 +282,24 @@ tr2keys [OPTIONS] PATH
 
   -r, --recursive            List recursively
   --list-databases           List available databases
+```
+
+#### tr2check
+
+Check a TimeRanger2 topic filled by a load test, in one pass per key: count,
+duplicates, gaps, out-of-range sequences, checksums, storage rate and latency
+percentiles. One JSON document on stdout; exit 0 pass, 1 fail, 2 error.
+
+```
+tr2check [OPTIONS] TOPIC_PATH
+
+  -k, --key=KEY              Check only this key
+  --rkey=REGEX               Check only the keys matching it
+  --seq-field=FIELD          Field with the sequence number (default: seq)
+  --seq-scope=key|topic      One sequence per key (default) or per topic
+  --expected=N               Distinct sequences sent
+  --checksum-field=FIELD     Field with the sha256 of the record
+  --per-key                  Add the figures of every key
 ```
 
 #### tr2migrate
