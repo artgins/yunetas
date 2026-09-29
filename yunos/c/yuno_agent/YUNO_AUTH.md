@@ -774,7 +774,7 @@ release that changed it.
 Consequences worth knowing before you write an action for this event:
 
 - **Returning a negative value from your action denies the login.** Every
-  in-tree subscriber (`c_controlcenter`, `c_agent`, `c_mqtt_broker`) returns 0.
+  in-tree subscriber (`c_agent`, `c_mqtt_broker`) returns 0.
   An out-of-tree gclass that returns negative for unrelated reasons will start
   locking users out.
 - **The checked value is the *sum* of the subscriber returns**, not "any
@@ -786,10 +786,14 @@ Consequences worth knowing before you write an action for this event:
   That is what makes "refuse until I can register the user" a valid answer
   and not an outage.
 
-The canonical refuser is `c_controlcenter`'s `ac_user_login()`: its
-`treedb_controlcenter` only opens in `mt_play()`, while the `authz` service is
-`autoplay: true` and authenticates from boot, so every login landing in that
-window is refused rather than let through unregistered.
+There is no in-tree refuser since 7.25.14. The one there was,
+`c_controlcenter`'s `ac_user_login()`, refused every login that arrived
+before its `treedb_controlcenter` opened in `mt_play()` (the `authz` service
+is `autoplay: true` and authenticates from boot), because it could not yet
+copy the user into a `users` topic of its own. Nothing ever read that topic --
+the users are the `authz` store's -- so the topic, the subscription and the
+refusal are gone, and so are the *"Treedb Controlcenter not ready"* warnings
+a control-center restart used to log while its agents reconnected.
 
 ---
 

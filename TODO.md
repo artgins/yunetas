@@ -308,30 +308,10 @@ Decided with the user; phase 2 (gui_agent's Users workspace, the authz of
 each yuno, both control centers included) shipped in gui_agent 0.28.0. What
 is left, in order:
 
-1. **Clean the control center and give its treedb its one job.** Remove the
-   four topics of `treedb_schema_controlcenter.c` -- none is read or written
-   by the code or any GUI: `systems` and `nodes` (a declared inventory; the
-   live agents come from the sessions of `__input_side__`), `services`
-   (`viewer_engine`, `dst_role`: the launcher of the webix GUI) and `users`
-   (a shadow of `C_AUTHZ`'s, written at login, read by nobody; the authz
-   store already has users, roles, sessions and accesses). With them goes
-   the dead code: `ac_user_login` / `ac_user_new` / `ac_user_logout` and the
-   subscription to `authz`, `ac_treedb_node_*` (they act only on a
-   `treedb_purezadb` from another project), `enabled_new_users`,
-   `enabled_new_devices`, the `list-groups` / `list-tracks` /
-   `realtime-track` authz entries, and the `lists` / `viewer_engines` draft
-   in the header of `c_controlcenter.c`. Check on a.com that the old topics
-   are empty first, `shoot-snap` before. Fix the READMEs that name topics
-   that never existed. `schema_version` 3 with one topic:
-   `scenarios` (`id`, `description`, `group`, `yunos` {key: {node, id,
-   service, label, rate}}, `flows` [[from, to]], `actions` {start, pause,
-   resume, stop, report: [{yuno, service, command}]}, `view` {mode: graph |
-   cards, refresh, window}, `created_by`, `time`). A scenario is a document
-   saved whole: its yunos have no identity outside it.
-   Contract: control-center commands `scenarios`, `save-scenario`,
-   `delete-scenario`, with authz entries `read-scenarios`,
-   `write-scenarios`, `run-scenarios`. A lite release (agent / controlcenter
-   only).
+1. ~~Clean the control center, scenarios in its treedb~~ -- done, 7.25.14
+   (`schema_version` 3: `scenarios` + `scenario_runs`; commands `scenarios`,
+   `save-scenario`, `delete-scenario`, `run-scenario`, `scenario-runs`; the
+   four legacy topics and their dead code removed).
 2. ~~Users view~~ -- done, gui_agent 0.28.0.
 3. **One Scenarios workspace in gui_agent** replacing Monitor AND
    Statistics: the nodes->yunos tree plus the saved scenarios; ticking yunos
@@ -340,9 +320,10 @@ is left, in order:
    actions are the test controls, each step to any yuno of it. Import of the
    JSON kept in localStorage. It also brings the rail back to five items (a
    phone shows five; with Users the sixth scrolls).
-4. **`scenario_runs` + `run-scenario id= action=`** in the control center:
-   who ran what and when, the answers and the peaks, and a test startable
-   from `ycommand`.
+4. ~~`scenario_runs` + `run-scenario`~~ in the control center -- done,
+   7.25.14 (who ran what and when, each step with its answer; startable from
+   `ycommand`). Not recorded: the PEAKS of a run (rates are measured by the
+   console, not by the control center).
 
 ## Agent: a C_COUNTER still running when the agent stops
 

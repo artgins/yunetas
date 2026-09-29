@@ -3,7 +3,7 @@
     This file holds this comment and the literal, nothing else: replace
     it whole with an export of the schema editor.
 
-    treedb_controlcenter  (schema_version 2)
+    treedb_controlcenter  (schema_version 3)
 
     {}  dict hook   (N unique children)
     []  list hook   (n not-unique children)
@@ -18,54 +18,36 @@
     =   field inherited
 
 
-                       systems
+                      scenarios
             ┌───────────────────────────┐
             │* id                       │
-            │                systems {} │ ◀─┐
-            │             system_id (↖) │ ──┘
             │  description              │
-            │  properties               │
-            │                  nodes {} │ ◀─────┐
-            │                  users {} │ ◀─┐   │
-            │  _geometry                │   │   │
-            └───────────────────────────┘   │   │
-                                            │   │
-                        users               │   │
-            ┌───────────────────────────┐   │   │
-            │* id                       │   │   │
-            │               systems [↖] │ ──┘   │
-            │  enabled                  │       │
-            │  persistent_attrs         │       │
-            │  properties               │       │
-            │  time                     │       │
-            │  __sessions               │       │
-            │  _geometry                │       │
-            └───────────────────────────┘       │
-                                                │
-                        nodes                   │
-            ┌───────────────────────────┐       │
-            │* id                       │       │
-            │               systems [↖] │ ──────┘
-            │  description              │
-            │  provider                 │
-            │  provider_url             │
-            │  properties               │
-            │* ip                       │
-            │               services {} │ ◀─┐
+            │  group                    │
+            │  node                     │
+            │  agent_url                │
+            │  yunos                    │
+            │  links                    │
+            │  actions                  │
+            │  view                     │
+            │                   runs {} │ ◀─┐
+            │  created_by               │   │
+            │  created_at               │   │
+            │  updated_by               │   │
+            │  updated_at               │   │
             │  _geometry                │   │
             └───────────────────────────┘   │
                                             │
-                      services              │
+                    scenario_runs           │
             ┌───────────────────────────┐   │
-            │  id                       │   │
-            │  value (2)                │   │
-            │                 nodes [↖] │ ──┘
-            │  description              │
-            │* url                      │
-            │* dst_role                 │
-            │* dst_service              │
-            │  dst_yuno                 │
-            │* viewer_engine            │
+            │* id                       │   │
+            │           scenario_id (↖) │ ──┘
+            │  action                   │
+            │  username                 │
+            │  started_at               │
+            │  ended_at                 │
+            │  result                   │
+            │  comment                  │
+            │  steps                    │
             │  _geometry                │
             └───────────────────────────┘
 */
@@ -73,16 +55,16 @@
 static char treedb_schema_controlcenter[]= "\
 {                                                                   \n\
     'id': 'treedb_controlcenter',                                   \n\
-    'schema_version': '2',                                          \n\
+    'schema_version': '3',                                          \n\
     'topics': [                                                     \n\
         {                                                           \n\
-            'id': 'systems',                                        \n\
+            'id': 'scenarios',                                      \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '2',                                   \n\
+            'topic_version': '1',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
-                    'header': 'System',                             \n\
+                    'header': 'Scenario',                           \n\
                     'type': 'string',                               \n\
                     'fillspace': 10,                                \n\
                     'flag': [                                       \n\
@@ -90,137 +72,123 @@ static char treedb_schema_controlcenter[]= "\
                         'required'                                  \n\
                     ]                                               \n\
                 },                                                  \n\
-                'systems': {                                        \n\
-                    'header': 'Systems',                            \n\
+                'description': {                                    \n\
+                    'header': 'Description',                        \n\
+                    'type': 'string',                               \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'group': {                                          \n\
+                    'header': 'Group',                              \n\
+                    'type': 'string',                               \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'node': {                                           \n\
+                    'header': 'Node',                               \n\
+                    'type': 'string',                               \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'agent_url': {                                      \n\
+                    'header': 'Agent Url',                          \n\
+                    'type': 'string',                               \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'yunos': {                                          \n\
+                    'header': 'Yunos',                              \n\
+                    'type': 'list',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'links': {                                          \n\
+                    'header': 'Links',                              \n\
+                    'type': 'list',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'actions': {                                        \n\
+                    'header': 'Actions',                            \n\
+                    'type': 'dict',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'view': {                                           \n\
+                    'header': 'View',                               \n\
+                    'type': 'dict',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'runs': {                                           \n\
+                    'header': 'Runs',                               \n\
                     'type': 'object',                               \n\
                     'fillspace': 10,                                \n\
                     'flag': [                                       \n\
                         'hook'                                      \n\
                     ],                                              \n\
                     'hook': {                                       \n\
-                        'systems': 'system_id'                      \n\
+                        'scenario_runs': 'scenario_id'              \n\
                     }                                               \n\
                 },                                                  \n\
-                'system_id': {                                      \n\
-                    'header': 'Top System',                         \n\
+                'created_by': {                                     \n\
+                    'header': 'Created By',                         \n\
                     'type': 'string',                               \n\
                     'fillspace': 10,                                \n\
                     'flag': [                                       \n\
-                        'fkey'                                      \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'description': {                                    \n\
-                    'header': 'Description',                        \n\
-                    'fillspace': 10,                                \n\
-                    'type': 'string',                               \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'properties': {                                     \n\
-                    'header': 'Properties',                         \n\
-                    'fillspace': 10,                                \n\
-                    'type': 'dict',                                 \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'nodes': {                                          \n\
-                    'header': 'Nodes',                              \n\
-                    'type': 'object',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': ['hook'],                               \n\
-                    'hook': {                                       \n\
-                        'nodes': 'systems'                          \n\
-                    }                                               \n\
-                },                                                  \n\
-                'users': {                                          \n\
-                    'header': 'Users',                              \n\
-                    'type': 'object',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': ['hook'],                               \n\
-                    'hook': {                                       \n\
-                        'users': 'systems'                          \n\
-                    }                                               \n\
-                },                                                  \n\
-                '_geometry': {                                      \n\
-                    'header': 'Geometry',                           \n\
-                    'type': 'blob',                                 \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                }                                                   \n\
-            }                                                       \n\
-        },                                                          \n\
-                                                                    \n\
-        {                                                           \n\
-            'id': 'users',                                          \n\
-            'pkey': 'id',                                           \n\
-            'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '2',                                   \n\
-            'cols': {                                               \n\
-                'id': {                                             \n\
-                    'header': 'User',                               \n\
-                    'fillspace': 10,                                \n\
-                    'type': 'string',                               \n\
-                    'flag': [                                       \n\
-                        'persistent',                               \n\
-                        'required'                                  \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'systems': {                                        \n\
-                    'header': 'System' ,                            \n\
-                    'fillspace': 10,                                \n\
-                    'type': 'array',                                \n\
-                    'flag': [                                       \n\
-                        'fkey'                                      \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'enabled': {                                        \n\
-                    'header': 'Enabled',                            \n\
-                    'fillspace': 4,                                 \n\
-                    'type': 'boolean',                              \n\
-                    'default': true,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'persistent_attrs': {                               \n\
-                    'header': 'Persistent Attrs',                   \n\
-                    'fillspace': 10,                                \n\
-                    'type': 'dict',                                 \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'properties': {                                     \n\
-                    'header': 'Properties',                         \n\
-                    'fillspace': 10,                                \n\
-                    'type': 'dict',                                 \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'time': {                                           \n\
-                    'header': 'Created Time',                       \n\
+                'created_at': {                                     \n\
+                    'header': 'Created At',                         \n\
                     'type': 'integer',                              \n\
-                    'fillspace': 15,                                \n\
+                    'fillspace': 10,                                \n\
                     'flag': [                                       \n\
                         'time',                                     \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                '__sessions': {                                     \n\
-                    'header': 'Sessions',                           \n\
+                'updated_by': {                                     \n\
+                    'header': 'Updated By',                         \n\
+                    'type': 'string',                               \n\
                     'fillspace': 10,                                \n\
-                    'type': 'dict',                                 \n\
                     'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'updated_at': {                                     \n\
+                    'header': 'Updated At',                         \n\
+                    'type': 'integer',                              \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'time',                                     \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
@@ -233,15 +201,14 @@ static char treedb_schema_controlcenter[]= "\
                 }                                                   \n\
             }                                                       \n\
         },                                                          \n\
-                                                                    \n\
         {                                                           \n\
-            'id': 'nodes',                                          \n\
+            'id': 'scenario_runs',                                  \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '2',                                   \n\
+            'topic_version': '1',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
-                    'header': 'Node',                               \n\
+                    'header': 'Run',                                \n\
                     'type': 'string',                               \n\
                     'fillspace': 10,                                \n\
                     'flag': [                                       \n\
@@ -249,169 +216,70 @@ static char treedb_schema_controlcenter[]= "\
                         'required'                                  \n\
                     ]                                               \n\
                 },                                                  \n\
-                'systems': {                                        \n\
-                    'header': 'Systems',                            \n\
-                    'type': 'array',                                \n\
+                'scenario_id': {                                    \n\
+                    'header': 'Scenario',                           \n\
+                    'type': 'string',                               \n\
                     'fillspace': 10,                                \n\
                     'flag': [                                       \n\
                         'fkey'                                      \n\
                     ]                                               \n\
                 },                                                  \n\
-                'description': {                                    \n\
-                    'header': 'Description',                        \n\
-                    'type': 'string',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'provider': {                                       \n\
-                    'header': 'Provider',                           \n\
-                    'type': 'string',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'provider_url': {                                   \n\
-                    'header': 'Provider Url',                       \n\
-                    'type': 'string',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'url',                                      \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'properties': {                                     \n\
-                    'header': 'Properties',                         \n\
-                    'fillspace': 10,                                \n\
-                    'type': 'blob',                                 \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'ip': {                                             \n\
-                    'header': 'Ip',                                 \n\
-                    'type': 'string',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent',                               \n\
-                        'required'                                  \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'services': {                                       \n\
-                    'header': 'Services',                           \n\
-                    'type': 'object',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': ['hook'],                               \n\
-                    'hook': {                                       \n\
-                        'services': 'nodes'                         \n\
-                    }                                               \n\
-                },                                                  \n\
-                '_geometry': {                                      \n\
-                    'header': 'Geometry',                           \n\
-                    'type': 'blob',                                 \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                }                                                   \n\
-            }                                                       \n\
-        },                                                          \n\
-                                                                    \n\
-        {                                                           \n\
-            'id': 'services',                                       \n\
-            'pkey': 'id',                                           \n\
-            'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '2',                                   \n\
-            'pkey2s': 'value',                                      \n\
-            'cols': {                                               \n\
-                'id': {                                             \n\
-                    'header': 'Rowid',                              \n\
-                    'fillspace': 4,                                 \n\
-                    'type': 'string',                               \n\
-                    'flag': [                                       \n\
-                        'persistent',                               \n\
-                        'rowid'                                     \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'value': {                                          \n\
-                    'header': 'Service',                            \n\
+                'action': {                                         \n\
+                    'header': 'Action',                             \n\
                     'type': 'string',                               \n\
                     'fillspace': 10,                                \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'nodes': {                                          \n\
-                    'header': 'Nodes',                              \n\
-                    'type': 'array',                                \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'fkey'                                      \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'description': {                                    \n\
-                    'header': 'Description',                        \n\
+                'username': {                                       \n\
+                    'header': 'User',                               \n\
                     'type': 'string',                               \n\
                     'fillspace': 10,                                \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'url': {                                            \n\
-                    'header': 'Url',                                \n\
-                    'type': 'string',                               \n\
+                'started_at': {                                     \n\
+                    'header': 'Started At',                         \n\
+                    'type': 'integer',                              \n\
                     'fillspace': 10,                                \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent',                               \n\
-                        'required'                                  \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'dst_role': {                                       \n\
-                    'header': 'Yuno Role',                          \n\
-                    'type': 'string',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent',                               \n\
-                        'required'                                  \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'dst_service': {                                    \n\
-                    'header': 'Yuno Service',                       \n\
-                    'type': 'string',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent',                               \n\
-                        'required'                                  \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'dst_yuno': {                                       \n\
-                    'header': 'Yuno Name',                          \n\
-                    'type': 'string',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
+                        'time',                                     \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'viewer_engine': {                                  \n\
-                    'header': 'Viewer Engine',                      \n\
+                'ended_at': {                                       \n\
+                    'header': 'Ended At',                           \n\
+                    'type': 'integer',                              \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'time',                                     \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'result': {                                         \n\
+                    'header': 'Result',                             \n\
+                    'type': 'integer',                              \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'comment': {                                        \n\
+                    'header': 'Comment',                            \n\
                     'type': 'string',                               \n\
                     'fillspace': 10,                                \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent',                               \n\
-                        'required'                                  \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'steps': {                                          \n\
+                    'header': 'Steps',                              \n\
+                    'type': 'list',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\

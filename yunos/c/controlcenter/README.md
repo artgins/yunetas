@@ -4,7 +4,9 @@ Central management point (yuno) for a fleet of distributed Yuneta nodes.
 `C_CONTROLCENTER` is a **server**: the nodes' agents dial in to it — the
 control center never dials out. Administrators then issue commands and query
 stats against any connected node *through* the control center, which also keeps
-a declared inventory of the fleet in its own treedb.
+the **scenarios** of the fleet in its own treedb: sets of yunos to watch and
+test together, with the commands of their actions, and the runs of those
+actions.
 
 ## How nodes connect
 
@@ -25,7 +27,7 @@ being upgraded (the two agents upgrade each other, never both at once).
 
 ## Commands
 
-Registered in `src/c_controlcenter.c:96-111`:
+Registered in the `command_table` of `src/c_controlcenter.c`:
 
 | Command          | Purpose                                                                       |
 |------------------|-------------------------------------------------------------------------------|
@@ -37,6 +39,11 @@ Registered in `src/c_controlcenter.c:96-111`:
 | `stats-agent`    | Get stats from a specific node.                                               |
 | `drop-agent`     | Drop the connection to a specific node.                                       |
 | `write-tty`      | Write bytes to a node's PTY console (the `yuno_agent22` backdoor).            |
+| `scenarios`      | List the scenarios, or one (`scenario_id=`).                                  |
+| `save-scenario`  | Create or replace a scenario, whole (`scenario={...}`), validated.            |
+| `delete-scenario`| Delete a scenario and its runs (`scenario_id=`).                              |
+| `run-scenario`   | Run the steps of an action of a scenario, in order (`scenario_id= action=`).   |
+| `scenario-runs`  | The runs of a scenario, newest first (`scenario_id=`).                        |
 
 Besides answers, the control center relays what a node's agent PUSHES along
 the route of a request: the PTY of `open-console` (`EV_TTY_OPEN/DATA/CLOSE`)
@@ -57,15 +64,61 @@ of its `__input_side__` gate in state `ST_SESSION`) and forwards the command;
 the node's agent then runs it (and can itself target a specific yuno via its own
 `command-yuno`).
 
-## Data model
+## Data model: scenarios and their runs
 
 `src/treedb_schema_controlcenter.c` declares the control center's own treedb
-`treedb_controlcenter`, with topics `systems`, `users`, `nodes`, `services`,
-`lists` and `viewer_engines`. The `nodes` topic is the *declared* inventory and
-is separate from the set of currently-connected agents (which the control
-center discovers live by scanning its `__input_side__` gate for sessions).
-Standard graph model — see
-[`YUNO_TREEDB.md`](../yuno_agent/YUNO_TREEDB.md).
+`treedb_controlcenter` (`schema_version` 3): two topics, `scenarios` and
+`scenario_runs`, a run linked to its scenario (`scenarios.runs` hook,
+`scenario_runs.scenario_id` fkey). The connected agents are NOT in it: they
+are discovered live, scanning the `__input_side__` gate for sessions. Nor are
+the users: who may use the control center is its `authz` store (`C_AUTHZ`).
+
+A scenario is a document saved whole:
+
+```json
+{
+    "id": "yunovatios-stress",
+    "description": "sim_controllers -> gate_central -> db_tracks_ce",
+    "group": "yunovatios",
+    "node": "yunovatios-controlador",
+    "yunos": [
+        {"key": "sim",    "id": "stress", "service": "sim_controllers", "rate": "tx"},
+        {"key": "gate",   "id": "2120",   "label": "gate_central"},
+        {"key": "tracks", "id": "5120",   "label": "db_tracks_ce"}
+    ],
+    "links": [["sim", "gate"], ["gate", "tracks"]],
+    "actions": {
+        "start":  [{"yuno": "sim", "command": "set-controllers controllers=10"},
+                   {"yuno": "sim", "command": "resume-generation"}],
+        "stop":   [{"yuno": "sim", "command": "set-controllers controllers=0"}],
+        "report": [{"yuno": "gate", "service": "__yuno__", "command": "view-config"}]
+    },
+    "view": {"mode": "graph"}
+}
+```
+
+`node` is the scenario's default; a yuno can carry its own. `agent_url`
+instead of `node` makes a DIRECT scenario, which the web console watches
+through its own link to that agent (and which `run-scenario` refuses). An
+action is `start`, `pause`, `resume`, `stop` or `report`, each a list of
+steps: a yuno of the scenario (its `key`, default its `id`), an optional
+service, and one command line with its `key=value` parameters.
+
+`run-scenario scenario_id=<id> action=<action>` sends each step as
+`command-yuno id=<yuno> [service=<svc>] command=<command>` to the yuno's
+node, AS the user who asked, one at a time: a step goes only when the one
+before it answered, and a step that fails or does not answer in
+`run_step_timeout` (30000 ms) ends the run. The run is then written to
+`scenario_runs` -- action, user, start and end, the result and answer of
+every step -- and the requester is answered with it. One run at a time.
+Permissions `read-scenarios`, `write-scenarios` and `run-scenarios` are
+checked by the commands themselves, always.
+
+```bash
+ycommand -c 'command-yuno id=<cc> service=controlcenter command=run-scenario scenario_id=yunovatios-stress action=start'
+```
+
+Standard graph model — see [`YUNO_TREEDB.md`](../yuno_agent/YUNO_TREEDB.md).
 
 ## Build & deploy
 

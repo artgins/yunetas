@@ -50,7 +50,7 @@
     <text x="485" y="172" text-anchor="middle" font-size="10" fill="#41504f">list-agents = live scan of __input_side__</text>
     <text x="485" y="188" text-anchor="middle" font-size="10" fill="#41504f">for C_IEVENT_SRV in ST_SESSION</text>
     <text x="485" y="212" text-anchor="middle" font-size="10" fill="#41504f">addressed by UUID or hostname</text>
-    <text x="485" y="236" text-anchor="middle" font-size="9.5" fill="#8aa0c8">treedb_controlcenter: nodes · users · services</text>
+    <text x="485" y="236" text-anchor="middle" font-size="9.5" fill="#8aa0c8">treedb_controlcenter: scenarios · scenario_runs</text>
   </g>
   <!-- input/top port dots -->
   <circle cx="360" cy="131" r="6" fill="#4a78c8" stroke="#fff" stroke-width="1.5"/>

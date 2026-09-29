@@ -2,13 +2,42 @@
  *          C_CONTROLCENTER.C
  *          Controlcenter GClass.
  *
- *          Control Center of cccc Systems
+ *          Control Center of Yuneta Systems
+ *
+ *  The agents of the nodes dial out to it (`__input_side__`), the web
+ *  consoles and `ycommand` connect to it (`__top_side__`), and it carries
+ *  one to the other: `command-agent` / `stats-agent` forward a command to
+ *  a node's agent and relay its answer, the PTY mirror and the pushed
+ *  `EV_YUNO_STATS` travel back to the client that asked.
+ *
+ *  Its treedb, `treedb_controlcenter` (treedb_schema_controlcenter.c),
+ *  keeps the SCENARIOS: a set of yunos on one or several nodes, how the
+ *  messages flow between them, and the commands of each action (start,
+ *  pause, resume, stop, report) -- a test to run and watch, or just a
+ *  group of yunos to watch. A scenario is a document saved whole: its
+ *  yunos have no identity outside it (their identity, node + id, lives in
+ *  each agent).
+ *      scenarios [scenario_id=]            list them, or one
+ *      save-scenario scenario={}           create or replace one (validated here)
+ *      delete-scenario scenario_id=        delete one and its runs
+ *      run-scenario scenario_id= action=   run the steps of an action, in order
+ *      scenario-runs scenario_id=          the runs of one, newest first
+ *  A RUN sends each step to the node's agent as `command-yuno`, as the
+ *  user who asked, one after the other: a step is sent only when the one
+ *  before it answered, and a step that fails or does not answer in
+ *  `run_step_timeout` ends the run there. Then the run is written in
+ *  `scenario_runs` (linked to its scenario) and the requester answered
+ *  with it. One run at a time.
+ *
+ *  Users are NOT kept here: who may use this yuno is its C_AUTHZ's store.
  *
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <grp.h>
+#include <ctype.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
@@ -16,307 +45,7 @@
 #include <pwd.h>
 
 #include "c_controlcenter.h"
-/*
-    TODO -- planned, NOT in the literal: the topics `lists` and
-    `viewer_engines`, whose draft columns are in the comment after the
-    #include below. The graph of the schema in use heads
-    treedb_schema_controlcenter.c.
-
-            │                  lists {} │ ◀─┐ N
-            │                           │   │
-            │                           │   │
-            │  _geometry                │   │
-            └───────────────────────────┘   │
-                                            │
-                                            │
-                        lists               │
-            ┌───────────────────────────┐   │
-            │* id                       │   │
-            │                           │   │
-            │               devices [↖] │ ──┘ n
-            │                           │
-            │  disabled                 │
-            │  key      []              │
-            │  notkey   []              │
-            │  from_tm                  │
-            │  to_tm                    │
-            │  from_rowid               │
-            │  to_rowid                 │
-            │  from_t                   │
-            │  to_t                     │
-            │  fields                   │
-            │  rkey                     │
-            │  return_data              │
-            │  backward                 │
-            │  only_md                  │
-            │  user_flag                │
-            │  not_user_flag            │
-            │  user_flag_mask_set       │
-            │  user_flag_mask_notset    │
-            │                           │
-            │          viewer_engine {} │ ◀─────────┐ N (1) TODO
-            │                           │           │
-            │  _geometry                │           │
-            └───────────────────────────┘           │
-                                                    │
-                                                    │
-                    viewer_engines                  │
-            ┌───────────────────────────┐           │
-            │* id                       │           │
-            │                           │           │
-            │                 lists [↖] │ ──────────┘ n
-            │                           │
-            │                           │
-            │  _geometry                │
-            └───────────────────────────┘
-*/
 #include "treedb_schema_controlcenter.c"
-/*
-        {                                                           \n\
-            'id': 'lists',                                  \n\
-            'pkey': 'id',                                           \n\
-            'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
-            'cols': {                                               \n\
-                'id': {                                             \n\
-                    'header': 'List',                               \n\
-                    'type': 'string',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'persistent',                               \n\
-                        'required'                                  \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'devices': {                                        \n\
-                    'header': 'Devices',                            \n\
-                    'type': 'array',                                \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'fkey'                                      \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'disabled': {                                       \n\
-                    'header': 'disabled',                           \n\
-                    'fillspace': 8,                                 \n\
-                    'type': 'boolean',                              \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'key': {                                            \n\
-                    'header': 'Key',                                \n\
-                    'type': 'list',                                 \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'notkey': {                                         \n\
-                    'header': 'Not Key',                            \n\
-                    'type': 'list',                                 \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'from_tm': {                                        \n\
-                    'header': 'From tm',                            \n\
-                    'type': 'integer',                              \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'time',                                     \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'to_tm': {                                          \n\
-                    'header': 'To tm',                              \n\
-                    'type': 'integer',                              \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'time',                                     \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'from_rowid': {                                     \n\
-                    'header': 'From rowid',                         \n\
-                    'type': 'integer',                              \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'to_rowid': {                                       \n\
-                    'header': 'To rowid',                           \n\
-                    'type': 'integer',                              \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'from_t': {                                         \n\
-                    'header': 'From t',                             \n\
-                    'type': 'integer',                              \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'time',                                     \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'to_t': {                                           \n\
-                    'header': 'To t',                               \n\
-                    'type': 'integer',                              \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'time',                                     \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'fields': {                                         \n\
-                    'header': 'Fields',                             \n\
-                    'type': 'blob',                                 \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'rkey': {                                           \n\
-                    'header': 'Regex Key',                          \n\
-                    'type': 'string',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'return_data': {                                    \n\
-                    'header': 'Return Data',                        \n\
-                    'fillspace': 8,                                 \n\
-                    'type': 'boolean',                              \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'backward': {                                       \n\
-                    'header': 'Backward',                           \n\
-                    'fillspace': 8,                                 \n\
-                    'type': 'boolean',                              \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'only_md': {                                        \n\
-                    'header': 'Only Metadata',                      \n\
-                    'fillspace': 8,                                 \n\
-                    'type': 'boolean',                              \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'user_flag': {                                      \n\
-                    'header': 'User Flag',                          \n\
-                    'type': 'integer',                              \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'not_user_flag': {                                  \n\
-                    'header': 'Not User Flag',                      \n\
-                    'type': 'integer',                              \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'user_flag_mask_set': {                             \n\
-                    'header': 'User Flag Mask Set',                 \n\
-                    'type': 'integer',                              \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'user_flag_mask_notset': {                          \n\
-                    'header': 'User Flag Mask Not Set',             \n\
-                    'type': 'integer',                              \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'viewer_engine': {                                  \n\
-                    'header': 'Viewer Engine',                      \n\
-                    'type': 'object',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'hook'                                      \n\
-                    ],                                              \n\
-                    'hook': {                                       \n\
-                        'viewer_engines': 'lists'                   \n\
-                    }                                               \n\
-                },                                                  \n\
-                '_geometry': {                                      \n\
-                    'header': 'Geometry',                           \n\
-                    'type': 'blob',                                 \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                }                                                   \n\
-            }                                                       \n\
-        },                                                          \n\
-                                                                    \n\
-        {                                                           \n\
-            'id': 'viewer_engines',                         \n\
-            'pkey': 'id',                                           \n\
-            'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
-            'cols': {                                               \n\
-                'id': {                                             \n\
-                    'header': 'Viewer Engine',                      \n\
-                    'type': 'string',                               \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'persistent',                               \n\
-                        'required'                                  \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'lists': {                                          \n\
-                    'header': 'Lists',                              \n\
-                    'type': 'array',                                \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'fkey'                                      \n\
-                    ]                                               \n\
-                },                                                  \n\
-                '_geometry': {                                      \n\
-                    'header': 'Geometry',                           \n\
-                    'type': 'blob',                                 \n\
-                    'fillspace': 10,                                \n\
-                    'flag': [                                       \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                }                                                   \n\
-            }                                                       \n\
-        }                                                           \n\
-*/
 
 /***************************************************************************
  *              Constants
@@ -340,6 +69,25 @@ PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_delete_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_scenario_runs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+
+PRIVATE json_t *refuse_scenario_command(hgobj gobj, const char *permission, json_t *kw, hgobj src);
+PRIVATE json_t *treedb_tranger(hgobj gobj);
+PRIVATE const char *scenario_id_of(hgobj gobj, json_t *kw);
+PRIVATE const char *username_of(hgobj gobj, json_t *kw, hgobj src);
+PRIVATE BOOL is_scenario_action(const char *action);
+PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz);
+PRIVATE json_t *build_run_steps(hgobj gobj, json_t *scenario, const char *action, char *err, size_t errsz);
+PRIVATE json_t *sort_runs_newest_first(json_t *runs);
+PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event);
+PRIVATE int run_send_step(hgobj gobj);
+PRIVATE int run_step_answered(hgobj gobj, json_t *kw);
+PRIVATE int run_step_timed_out(hgobj gobj);
+PRIVATE int run_end(hgobj gobj, int result, const char *comment);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -389,6 +137,27 @@ SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
 SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Disable user"),
 SDATA_END()
 };
+/*
+ *  `scenario_id` and never `id`: through the agent's `command-yuno` the
+ *  whole kw is the filter that picks the yuno, and there `id` IS the
+ *  yuno's (`command-yuno id=1996 service=controlcenter command=scenarios`).
+ */
+PRIVATE sdata_desc_t pm_scenario[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "scenario_id",  0,              0,          "Scenario id"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_save_scenario[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_JSON,      "scenario",     0,              0,          "The scenario, whole: {id, description, group, node, agent_url, yunos, links, actions, view}"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_run_scenario[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "scenario_id",  0,              0,          "Scenario id"),
+SDATAPM (DTP_STRING,    "action",       0,              0,          "Action to run: start, pause, resume, stop or report"),
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 PRIVATE const char *a_write_tty[] = {"EV_WRITE_TTY", 0};
@@ -408,6 +177,12 @@ SDATACM2 (DTP_SCHEMA,   "drop-agent",       SDF_WILD_CMD,       0,              
 
 SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,    pm_write_tty,   0,              "Write data to tty (internal use)"),
 
+SDATACM2 (DTP_SCHEMA,   "scenarios",        0,                  0,              pm_scenario,    cmd_scenarios,  "List the scenarios, or one"),
+SDATACM2 (DTP_SCHEMA,   "save-scenario",    0,                  0,              pm_save_scenario,cmd_save_scenario,"Create or replace a scenario"),
+SDATACM2 (DTP_SCHEMA,   "delete-scenario",  0,                  0,              pm_scenario,    cmd_delete_scenario,"Delete a scenario and its runs"),
+SDATACM2 (DTP_SCHEMA,   "run-scenario",     0,                  0,              pm_run_scenario,cmd_run_scenario,"Run the steps of an action of a scenario, in order"),
+SDATACM2 (DTP_SCHEMA,   "scenario-runs",    0,                  0,              pm_scenario,    cmd_scenario_runs,"The runs of a scenario, newest first"),
+
 SDATA_END()
 };
 
@@ -425,10 +200,7 @@ SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Mes
 SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Tx Messages by second"),
 SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Rx Messages by second"),
 
-SDATA (DTP_BOOLEAN,     "enabled_new_devices",SDF_PERSIST,      "1",          "Auto enable new devices"),
-SDATA (DTP_BOOLEAN,     "enabled_new_users",SDF_PERSIST,        "1",          "Auto enable new users"),
-
-// TODO a 0 cuando funcionen bien los out schemas
+SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
 
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
@@ -459,9 +231,9 @@ SDATAAUTHZ (DTP_SCHEMA, "drop-agent",       0,      0,      0,      "Permission 
 SDATAAUTHZ (DTP_SCHEMA, "logout-user",      0,      0,      0,      "Permission to logout users"),
 SDATAAUTHZ (DTP_SCHEMA, "write-tty",        0,      0,      0,      "Internal use. Feed remote consola from local keyboard"),
 
-SDATAAUTHZ (DTP_SCHEMA, "list-groups",      0,      0,      0,      "Permission to list groups"),
-SDATAAUTHZ (DTP_SCHEMA, "list-tracks",      0,      0,      0,      "Permission to list tracks"),
-SDATAAUTHZ (DTP_SCHEMA, "realtime-track",   0,      0,      0,      "Permission to realtime-tracks"),
+SDATAAUTHZ (DTP_SCHEMA, "read-scenarios",   0,      0,      0,      "Permission to read the scenarios and their runs"),
+SDATAAUTHZ (DTP_SCHEMA, "write-scenarios",  0,      0,      0,      "Permission to save and delete scenarios"),
+SDATAAUTHZ (DTP_SCHEMA, "run-scenarios",    0,      0,      0,      "Permission to run the actions of a scenario"),
 
 SDATA_END()
 };
@@ -487,6 +259,10 @@ typedef struct _PRIVATE_DATA {
 
     uint64_t stats_dropped;         // EV_YUNO_STATS for a web client that is gone
     uint64_t t_stats_dropped_log;   // msectimer: next time they may be said
+
+    hgobj run_timer;                // deadline of the step of the run in flight
+    json_t *run;                    // the run in flight, or NULL (one at a time)
+    json_t *run_kw_answer;          // the request of that run, to answer it
 } PRIVATE_DATA;
 
 
@@ -517,6 +293,7 @@ PRIVATE void mt_create(hgobj gobj)
     );
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->run_timer = gobj_create_pure_child("run_timer", C_TIMER, 0, gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -541,6 +318,10 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    JSON_DECREF(priv->run)
+    KW_DECREF(priv->run_kw_answer)
 }
 
 /***************************************************************************
@@ -552,11 +333,13 @@ PRIVATE int mt_start(hgobj gobj)
 
     /*-----------------------------*
      *      Get Authzs service
+     *  Only to drop the sessions of a user (logout-user): the users
+     *  are its business, nothing of them is kept here.
      *-----------------------------*/
     priv->gobj_authz =  gobj_find_service("authz", TRUE);
-    gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
 
     gobj_start(priv->timer);
+    gobj_start(priv->run_timer);
     return 0;
 }
 
@@ -567,9 +350,8 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
-
     gobj_stop(priv->timer);
+    gobj_stop(priv->run_timer);
     return 0;
 }
 
@@ -682,8 +464,11 @@ PRIVATE int mt_play(hgobj gobj)
     }
     json_decref(jn_resp);
 
+    /*
+     *  Not subscribed: every write of this treedb is made by this gobj's
+     *  own commands, which answer with what they wrote.
+     */
     priv->gobj_treedb_controlcenter = gobj_find_service("treedb_controlcenter", TRUE);
-    gobj_subscribe_event(priv->gobj_treedb_controlcenter, 0, 0, gobj);
 
     /*-------------------------*
      *      Start services
@@ -720,6 +505,14 @@ PRIVATE int mt_pause(hgobj gobj)
             gobj_pause(priv->gobj_input_side);
         }
         gobj_stop_tree(priv->gobj_input_side);
+    }
+
+    /*---------------------------------------*
+     *  A run in flight ends here, and is
+     *  written while the treedb is open.
+     *---------------------------------------*/
+    if(priv->run) {
+        run_end(gobj, -1, "the control center was paused in the middle of the run");
     }
 
     /*---------------------------------------*
@@ -1170,6 +963,429 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj s
     );
 }
 
+/***************************************************************************
+ *  The scenarios, or the one named.
+ ***************************************************************************/
+PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *refused = refuse_scenario_command(gobj, "read-scenarios", kw, src);
+    if(refused) {
+        return refused;
+    }
+
+    const char *scenario_id = scenario_id_of(gobj, kw);
+    json_t *jn_data;
+    if(!empty_string(scenario_id)) {
+        json_t *node = gobj_get_node(
+            priv->gobj_treedb_controlcenter,
+            "scenarios",
+            json_pack("{s:s}", "id", scenario_id),
+            json_pack("{s:b}", "hook_size", 1),
+            gobj
+        );
+        if(!node) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: scenario not found: '%s'", gobj_yuno_role_plus_name(), scenario_id),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        jn_data = json_array();
+        json_array_append_new(jn_data, node);
+    } else {
+        jn_data = gobj_list_nodes(
+            priv->gobj_treedb_controlcenter,
+            "scenarios",
+            0,
+            json_pack("{s:b}", "hook_size", 1),
+            gobj
+        );
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        tranger2_list_topic_desc_cols(treedb_tranger(gobj), "scenarios"),
+        jn_data,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Create a scenario, or replace it WHOLE: every column is written, so a
+ *  field the new document leaves out is emptied, not kept. Who created it
+ *  and when stays; who changed it and when is written each time.
+ ***************************************************************************/
+PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *refused = refuse_scenario_command(gobj, "write-scenarios", kw, src);
+    if(refused) {
+        return refused;
+    }
+
+    /*
+     *  A json from the command line arrives as a string
+     */
+    json_t *jn_parsed = 0;
+    json_t *jn_scenario = kw_get_dict_value(gobj, kw, "scenario", 0, 0);
+    if(json_is_string(jn_scenario)) {
+        const char *s = json_string_value(jn_scenario);
+        jn_parsed = anystring2json(s, strlen(s), FALSE);
+        jn_scenario = jn_parsed;
+    }
+
+    char err[256];
+    if(check_scenario(gobj, jn_scenario, err, sizeof(err)) < 0) {
+        JSON_DECREF(jn_parsed)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: scenario not valid: %s", gobj_yuno_role_plus_name(), err),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *scenario_id = json_string_value(json_object_get(jn_scenario, "id"));
+    const char *username = username_of(gobj, kw, src);
+    json_int_t now = (json_int_t)time_in_seconds();
+
+    json_t *record = json_object();
+    json_object_set_new(record, "id", json_string(scenario_id));
+    const char *text_cols[] = {"description", "group", "node", "agent_url", 0};
+    for(int i=0; text_cols[i]; i++) {
+        json_t *v = json_object_get(jn_scenario, text_cols[i]);
+        json_object_set_new(record, text_cols[i], json_string(json_is_string(v)? json_string_value(v) : ""));
+    }
+    const char *list_cols[] = {"yunos", "links", 0};
+    for(int i=0; list_cols[i]; i++) {
+        json_t *v = json_object_get(jn_scenario, list_cols[i]);
+        json_object_set_new(record, list_cols[i], json_is_array(v)? json_deep_copy(v) : json_array());
+    }
+    const char *dict_cols[] = {"actions", "view", 0};
+    for(int i=0; dict_cols[i]; i++) {
+        json_t *v = json_object_get(jn_scenario, dict_cols[i]);
+        json_object_set_new(record, dict_cols[i], json_is_object(v)? json_deep_copy(v) : json_object());
+    }
+    json_object_set_new(record, "updated_by", json_string(username));
+    json_object_set_new(record, "updated_at", json_integer(now));
+
+    json_t *existing = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        0,
+        gobj
+    );
+    BOOL is_new = existing? FALSE : TRUE;
+    JSON_DECREF(existing)
+    if(is_new) {
+        json_object_set_new(record, "created_by", json_string(username));
+        json_object_set_new(record, "created_at", json_integer(now));
+    }
+    JSON_DECREF(jn_parsed)
+
+    json_t *node = gobj_update_node(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        record, // owned
+        json_pack("{s:b, s:b}", "create", 1, "hook_size", 1),
+        gobj
+    );
+    if(!node) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            // Error already logged
+            json_sprintf("%s: cannot save the scenario '%s' (see the log)",
+                gobj_yuno_role_plus_name(), scenario_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *jn_data = json_array();
+    json_array_append_new(jn_data, node);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("%s: scenario %s: %s", gobj_yuno_role_plus_name(),
+            is_new? "created" : "saved", scenario_id),
+        tranger2_list_topic_desc_cols(treedb_tranger(gobj), "scenarios"),
+        jn_data,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Delete a scenario, and its runs with it: a run is the history of ONE
+ *  scenario, and says nothing without it.
+ ***************************************************************************/
+PRIVATE json_t *cmd_delete_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *refused = refuse_scenario_command(gobj, "write-scenarios", kw, src);
+    if(refused) {
+        return refused;
+    }
+
+    const char *scenario_id = scenario_id_of(gobj, kw);
+    if(empty_string(scenario_id)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: what scenario? scenario_id=<id>", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(priv->run && strcmp(kw_get_str(gobj, priv->run, "scenario_id", "", 0), scenario_id)==0) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: scenario '%s' is running: %s", gobj_yuno_role_plus_name(),
+                scenario_id, kw_get_str(gobj, priv->run, "id", "", 0)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *node = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        0,
+        gobj
+    );
+    if(!node) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: scenario not found: '%s'", gobj_yuno_role_plus_name(), scenario_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *runs = gobj_node_children(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        "runs",
+        0,
+        json_pack("{s:b}", "only_id", 1),
+        gobj
+    );
+    int deleted_runs = 0;
+    size_t idx; json_t *jn_run;
+    json_array_foreach(runs, idx, jn_run) {
+        const char *run_id = json_is_string(jn_run)?
+            json_string_value(jn_run) : kw_get_str(gobj, jn_run, "id", "", 0);
+        if(gobj_delete_node(
+                priv->gobj_treedb_controlcenter,
+                "scenario_runs",
+                json_pack("{s:s}", "id", run_id),
+                json_pack("{s:b}", "force", 1),
+                gobj
+            )==0) {
+            deleted_runs++;
+        }
+        // else Error already logged
+    }
+    JSON_DECREF(runs)
+
+    int ret = gobj_delete_node(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        node, // owned
+        json_pack("{s:b}", "force", 1),
+        gobj
+    );
+    if(ret < 0) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            // Error already logged
+            json_sprintf("%s: cannot delete the scenario '%s' (see the log)",
+                gobj_yuno_role_plus_name(), scenario_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("%s: scenario deleted: %s (and %d runs)",
+            gobj_yuno_role_plus_name(), scenario_id, deleted_runs),
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Run the steps of an action of a scenario, in order, each on its node's
+ *  agent as `command-yuno`. Answered when the run is over (run_end()).
+ ***************************************************************************/
+PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *refused = refuse_scenario_command(gobj, "run-scenarios", kw, src);
+    if(refused) {
+        return refused;
+    }
+
+    if(priv->run) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: a run is in flight, one at a time: %s",
+                gobj_yuno_role_plus_name(), kw_get_str(gobj, priv->run, "id", "", 0)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *scenario_id = scenario_id_of(gobj, kw);
+    const char *action = kw_get_str(gobj, kw, "action", "", 0);
+    if(!is_scenario_action(action)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: what action? start, pause, resume, stop or report",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *scenario = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        0,
+        gobj
+    );
+    if(!scenario) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: scenario not found: '%s'", gobj_yuno_role_plus_name(), scenario_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    char err[256];
+    json_t *steps = build_run_steps(gobj, scenario, action, err, sizeof(err));
+    JSON_DECREF(scenario)
+    if(!steps) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot run '%s' of '%s': %s", gobj_yuno_role_plus_name(),
+                action, scenario_id, err),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *requester = kw_get_str(
+        gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", "", 0
+    );
+    char run_id[NAME_MAX];
+    snprintf(run_id, sizeof(run_id), "%s.%llu",
+        scenario_id, (unsigned long long)time_in_milliseconds());
+
+    priv->run = json_pack("{s:s, s:s, s:s, s:s, s:s, s:I, s:o, s:i}",
+        "id", run_id,
+        "scenario_id", scenario_id,
+        "action", action,
+        "username", username_of(gobj, kw, src),
+        "requester", requester,
+        "started_at", (json_int_t)time_in_seconds(),
+        "steps", steps, // owned
+        "idx", 0
+    );
+    priv->run_kw_answer = kw;   // owned: answered by run_end()
+
+    run_send_step(gobj);
+    return 0;   /* Asynchronous response */
+}
+
+/***************************************************************************
+ *  The runs of a scenario, newest first.
+ ***************************************************************************/
+PRIVATE json_t *cmd_scenario_runs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *refused = refuse_scenario_command(gobj, "read-scenarios", kw, src);
+    if(refused) {
+        return refused;
+    }
+
+    const char *scenario_id = scenario_id_of(gobj, kw);
+    json_t *scenario = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        0,
+        gobj
+    );
+    if(!scenario) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: scenario not found: '%s'", gobj_yuno_role_plus_name(), scenario_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    JSON_DECREF(scenario)
+
+    json_t *runs = gobj_node_children(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        "runs",
+        0,
+        json_pack("{s:b}", "fkey_only_id", 1),
+        gobj
+    );
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        tranger2_list_topic_desc_cols(treedb_tranger(gobj), "scenario_runs"),
+        sort_runs_newest_first(runs), // owned
+        kw  // owned
+    );
+}
+
 
 
 
@@ -1206,6 +1422,652 @@ PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t ev
         );
     }
     return listening;
+}
+
+/***************************************************************************
+ *  The answer of a scenario command that cannot run: the user has not
+ *  the permission, or the treedb is not open. NULL when it can (kw
+ *  untouched).
+ ***************************************************************************/
+PRIVATE json_t *refuse_scenario_command(hgobj gobj, const char *permission, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: no permission to '%s'", gobj_yuno_role_plus_name(), permission),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(!priv->gobj_treedb_controlcenter) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SERVICE,
+            "msg",          "%s", "Treedb Controlcenter not open",
+            "permission",   "%s", permission,
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the scenarios are not open yet", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    return NULL;
+}
+
+PRIVATE json_t *treedb_tranger(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    return gobj_read_pointer_attr(priv->gobj_treedb_controlcenter, "tranger");
+}
+
+/***************************************************************************
+ *  The scenario a command names (`scenario_id`, see pm_scenario).
+ ***************************************************************************/
+PRIVATE const char *scenario_id_of(hgobj gobj, json_t *kw)
+{
+    return kw_get_str(gobj, kw, "scenario_id", "", 0);
+}
+
+/***************************************************************************
+ *  Who asks: the user C_IEVENT_SRV put in the kw, or the channel's.
+ ***************************************************************************/
+PRIVATE const char *username_of(hgobj gobj, json_t *kw, hgobj src)
+{
+    const char *username = kw_get_str(gobj, kw, "__username__", "", 0);
+    if(empty_string(username) && src && gobj_has_attr(src, "__username__")) {
+        username = gobj_read_str_attr(src, "__username__");
+    }
+    return username? username : "";
+}
+
+PRIVATE const char *scenario_actions[] = {"start", "pause", "resume", "stop", "report", 0};
+
+PRIVATE BOOL is_scenario_action(const char *action)
+{
+    if(empty_string(action)) {
+        return FALSE;
+    }
+    for(int i=0; scenario_actions[i]; i++) {
+        if(strcmp(scenario_actions[i], action)==0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  A name that can be a key and go inside a ref: not empty, no blank,
+ *  no `^` (the ref separator), no backtick (the path separator).
+ ***************************************************************************/
+PRIVATE BOOL is_valid_key(const char *s)
+{
+    if(empty_string(s) || strlen(s) >= NAME_MAX) {
+        return FALSE;
+    }
+    for(const char *p = s; *p; p++) {
+        if(isspace((unsigned char)*p) || *p == '^' || *p == '`') {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  A string member, "" when absent; NULL when present and not a string.
+ ***************************************************************************/
+PRIVATE const char *str_member(json_t *jn, const char *key)
+{
+    json_t *v = json_object_get(jn, key);
+    if(!v) {
+        return "";
+    }
+    return json_is_string(v)? json_string_value(v) : NULL;
+}
+
+/***************************************************************************
+ *  The key of a yuno of a scenario: its `key`, or its `id`.
+ ***************************************************************************/
+PRIVATE const char *yuno_key(json_t *yuno)
+{
+    const char *key = str_member(yuno, "key");
+    if(empty_string(key)) {
+        key = str_member(yuno, "id");
+    }
+    return key? key : "";
+}
+
+PRIVATE json_t *find_scenario_yuno(json_t *scenario, const char *key)
+{
+    size_t idx; json_t *yuno;
+    json_array_foreach(json_object_get(scenario, "yunos"), idx, yuno) {
+        if(strcmp(yuno_key(yuno), key)==0) {
+            return yuno;
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Is this a scenario? The same rules the console's editor applies
+ *  (monitor_helpers.js), checked here because any client can save one.
+ *  -1 with the reason in `err`.
+ ***************************************************************************/
+PRIVATE int scenario_error(char *err, size_t errsz, const char *fmt, ...) JANSSON_ATTRS((format(printf, 3, 4)));
+PRIVATE int scenario_error(char *err, size_t errsz, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(err, errsz, fmt, ap);
+    va_end(ap);
+    return -1;
+}
+
+PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz)
+{
+    if(!json_is_object(scenario)) {
+        return scenario_error(err, errsz, "it must be a dict");
+    }
+    const char *scenario_id = str_member(scenario, "id");
+    if(!scenario_id || !is_valid_key(scenario_id)) {
+        return scenario_error(err, errsz, "id: a name without blanks, ^ or `");
+    }
+    const char *text_cols[] = {"description", "group", "node", "agent_url", 0};
+    for(int i=0; text_cols[i]; i++) {
+        if(!str_member(scenario, text_cols[i])) {
+            return scenario_error(err, errsz, "%s: must be a string", text_cols[i]);
+        }
+    }
+
+    json_t *yunos = json_object_get(scenario, "yunos");
+    if(!json_is_array(yunos) || json_array_size(yunos)==0) {
+        return scenario_error(err, errsz, "yunos: a list of one yuno at least");
+    }
+    BOOL every_yuno_placed = TRUE;
+    json_t *keys = json_object();
+    size_t idx; json_t *yuno;
+    json_array_foreach(yunos, idx, yuno) {
+        if(!json_is_object(yuno)) {
+            JSON_DECREF(keys)
+            return scenario_error(err, errsz, "yunos[%d]: must be a dict", (int)idx);
+        }
+        const char *yuno_id = str_member(yuno, "id");
+        if(!yuno_id || !is_valid_key(yuno_id)) {
+            JSON_DECREF(keys)
+            return scenario_error(err, errsz, "yunos[%d]: id: the yuno id of its agent", (int)idx);
+        }
+        const char *key = str_member(yuno, "key");
+        if(!key || (!empty_string(key) && !is_valid_key(key))) {
+            JSON_DECREF(keys)
+            return scenario_error(err, errsz, "yunos[%d]: key: a name without blanks, ^ or `", (int)idx);
+        }
+        key = yuno_key(yuno);
+        if(json_object_get(keys, key)) {
+            JSON_DECREF(keys)
+            return scenario_error(err, errsz, "yunos[%d]: key '%s' repeated: give each a `key`",
+                (int)idx, key);
+        }
+        json_object_set_new(keys, key, json_true());
+        const char *yuno_cols[] = {"node", "service", "label", "rate", 0};
+        for(int i=0; yuno_cols[i]; i++) {
+            if(!str_member(yuno, yuno_cols[i])) {
+                JSON_DECREF(keys)
+                return scenario_error(err, errsz, "yunos[%d]: %s: must be a string",
+                    (int)idx, yuno_cols[i]);
+            }
+        }
+        const char *rate = str_member(yuno, "rate");
+        if(!empty_string(rate) && strcmp(rate, "rx")!=0 && strcmp(rate, "tx")!=0) {
+            JSON_DECREF(keys)
+            return scenario_error(err, errsz, "yunos[%d]: rate: rx or tx", (int)idx);
+        }
+        if(empty_string(str_member(yuno, "node"))) {
+            every_yuno_placed = FALSE;
+        }
+    }
+    if(empty_string(str_member(scenario, "node")) &&
+            empty_string(str_member(scenario, "agent_url")) &&
+            !every_yuno_placed) {
+        JSON_DECREF(keys)
+        return scenario_error(err, errsz,
+            "say where the yunos are: a node (through the control center) or an agent_url (direct)");
+    }
+
+    json_t *links = json_object_get(scenario, "links");
+    if(links && !json_is_array(links)) {
+        JSON_DECREF(keys)
+        return scenario_error(err, errsz, "links: a list of [from, to]");
+    }
+    json_t *link;
+    json_array_foreach(links, idx, link) {
+        if(!json_is_array(link) || json_array_size(link)!=2 ||
+                !json_is_string(json_array_get(link, 0)) ||
+                !json_is_string(json_array_get(link, 1)) ||
+                !json_object_get(keys, json_string_value(json_array_get(link, 0))) ||
+                !json_object_get(keys, json_string_value(json_array_get(link, 1)))) {
+            JSON_DECREF(keys)
+            return scenario_error(err, errsz, "links[%d]: [from, to], two keys of its yunos", (int)idx);
+        }
+    }
+
+    json_t *actions = json_object_get(scenario, "actions");
+    if(actions && !json_is_object(actions)) {
+        JSON_DECREF(keys)
+        return scenario_error(err, errsz, "actions: a dict of start, pause, resume, stop, report");
+    }
+    const char *action; json_t *steps;
+    json_object_foreach(actions, action, steps) {
+        if(!is_scenario_action(action)) {
+            JSON_DECREF(keys)
+            return scenario_error(err, errsz,
+                "actions: '%s' is not an action (start, pause, resume, stop, report)", action);
+        }
+        if(!json_is_array(steps)) {
+            JSON_DECREF(keys)
+            return scenario_error(err, errsz, "actions.%s: a list of steps", action);
+        }
+        json_t *step;
+        json_array_foreach(steps, idx, step) {
+            const char *step_yuno = str_member(step, "yuno");
+            const char *command = str_member(step, "command");
+            if(!json_is_object(step) || !step_yuno || !json_object_get(keys, step_yuno)) {
+                JSON_DECREF(keys)
+                return scenario_error(err, errsz, "actions.%s[%d]: yuno: a key of its yunos",
+                    action, (int)idx);
+            }
+            if(!command || empty_string(command) || strpbrk(command, "\r\n")) {
+                JSON_DECREF(keys)
+                return scenario_error(err, errsz, "actions.%s[%d]: command: one command line",
+                    action, (int)idx);
+            }
+            if(!str_member(step, "service")) {
+                JSON_DECREF(keys)
+                return scenario_error(err, errsz, "actions.%s[%d]: service: must be a string",
+                    action, (int)idx);
+            }
+        }
+    }
+    JSON_DECREF(keys)
+
+    json_t *view = json_object_get(scenario, "view");
+    if(view && !json_is_object(view)) {
+        return scenario_error(err, errsz, "view: a dict");
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The steps of an action, resolved: the node and the command line each
+ *  one goes to. NULL with the reason in `err`: a step whose yuno has no
+ *  node cannot be run from here (a direct scenario runs from the console).
+ ***************************************************************************/
+PRIVATE json_t *build_run_steps(hgobj gobj, json_t *scenario, const char *action, char *err, size_t errsz)
+{
+    json_t *actions = json_object_get(scenario, "actions");
+    json_t *defs = json_object_get(actions, action);
+    if(!json_is_array(defs) || json_array_size(defs)==0) {
+        scenario_error(err, errsz, "the scenario declares no step for '%s'", action);
+        return NULL;
+    }
+    const char *default_node = str_member(scenario, "node");
+
+    json_t *steps = json_array();
+    size_t idx; json_t *def;
+    json_array_foreach(defs, idx, def) {
+        const char *key = str_member(def, "yuno");
+        json_t *yuno = find_scenario_yuno(scenario, key? key : "");
+        if(!yuno) {
+            JSON_DECREF(steps)
+            scenario_error(err, errsz, "step %d: no yuno '%s' in the scenario", (int)idx, key? key : "");
+            return NULL;
+        }
+        const char *node = str_member(yuno, "node");
+        if(empty_string(node)) {
+            node = default_node;
+        }
+        if(empty_string(node)) {
+            JSON_DECREF(steps)
+            scenario_error(err, errsz, "step %d: yuno '%s' has no node: a direct scenario runs from the console",
+                (int)idx, key);
+            return NULL;
+        }
+        const char *service = str_member(def, "service");
+        if(empty_string(service)) {
+            service = str_member(yuno, "service");
+        }
+        const char *command = str_member(def, "command");
+        const char *yuno_id = str_member(yuno, "id");
+
+        json_t *line = empty_string(service)?
+            json_sprintf("command-yuno id=%s command=%s", yuno_id, command) :
+            json_sprintf("command-yuno id=%s service=%s command=%s", yuno_id, service, command);
+        json_array_append_new(steps, json_pack("{s:s, s:s, s:s, s:s, s:s, s:o}",
+            "yuno", key,
+            "node", node,
+            "yuno_id", yuno_id,
+            "service", service? service : "",
+            "command", command,
+            "line", line
+        ));
+    }
+    return steps;
+}
+
+/***************************************************************************
+ *  The runs, newest first (by `started_at`, then by id).
+ ***************************************************************************/
+PRIVATE int cmp_runs_newest_first(const void *a, const void *b)
+{
+    json_t *ra = *(json_t * const *)a;
+    json_t *rb = *(json_t * const *)b;
+    json_int_t ta = json_integer_value(json_object_get(ra, "started_at"));
+    json_int_t tb = json_integer_value(json_object_get(rb, "started_at"));
+    if(ta != tb) {
+        return (ta < tb)? 1 : -1;
+    }
+    const char *ia = json_string_value(json_object_get(ra, "id"));
+    const char *ib = json_string_value(json_object_get(rb, "id"));
+    return -strcmp(ia? ia : "", ib? ib : "");
+}
+
+PRIVATE json_t *sort_runs_newest_first(json_t *runs) // owned, returned
+{
+    size_t n = json_array_size(runs);
+    if(n < 2) {
+        return runs? runs : json_array();
+    }
+    json_t **items = gbmem_malloc(n * sizeof(json_t *));
+    if(!items) {
+        // Error already logged
+        return runs;
+    }
+    for(size_t i=0; i<n; i++) {
+        items[i] = json_incref(json_array_get(runs, i));
+    }
+    qsort(items, n, sizeof(json_t *), cmp_runs_newest_first);
+    json_t *sorted = json_array();
+    for(size_t i=0; i<n; i++) {
+        json_array_append_new(sorted, items[i]);
+    }
+    gbmem_free(items);
+    JSON_DECREF(runs)
+    return sorted;
+}
+
+/***************************************************************************
+ *  The channel of a connected agent, by its UUID or its hostname -- the
+ *  same match command-agent makes.
+ ***************************************************************************/
+PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_filter = json_pack("{s:s, s:s}",
+        "__gclass_name__", C_IEVENT_SRV,
+        "__state__", ST_SESSION
+    );
+    json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
+
+    hgobj found = 0;
+    int idx; json_t *jn_child;
+    json_array_foreach(dl_children, idx, jn_child) {
+        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
+        const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
+        const char *host_ = kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
+        if(strcmp(id_, agent_id)==0 || strcmp(host_, agent_id)==0) {
+            found = child;
+            break;
+        }
+    }
+    gobj_free_iter(dl_children);
+    return found;
+}
+
+/***************************************************************************
+ *  Send the step the run is at to its node's agent, marked in __md_iev__
+ *  with the run and the step: its answer comes back to this gobj
+ *  (ac_command_yuno_answer -> run_step_answered). As the user who asked.
+ ***************************************************************************/
+PRIVATE int run_send_step(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int idx = (int)kw_get_int(gobj, priv->run, "idx", 0, KW_REQUIRED);
+    json_t *step = json_array_get(kw_get_list(gobj, priv->run, "steps", 0, KW_REQUIRED), (size_t)idx);
+    const char *node = kw_get_str(gobj, step, "node", "", KW_REQUIRED);
+    const char *line = kw_get_str(gobj, step, "line", "", KW_REQUIRED);
+
+    hgobj channel = find_agent_channel(gobj, node);
+    if(!channel) {
+        json_object_set_new(step, "result", json_integer(-1));
+        json_object_set_new(step, "comment", json_sprintf("node '%s' is not connected", node));
+        return run_end(gobj, -1, "a node of the run is not connected");
+    }
+
+    json_t *kw_step = json_pack("{s:s}",
+        "__username__", kw_get_str(gobj, priv->run, "username", "", 0)
+    );
+    kw_set_subdict_value(gobj, kw_step, "__md_iev__", "cc_run",
+        json_string(kw_get_str(gobj, priv->run, "id", "", 0)));
+    kw_set_subdict_value(gobj, kw_step, "__md_iev__", "cc_step", json_integer(idx));
+
+    json_t *webix = gobj_command(channel, line, kw_step, gobj);
+    JSON_DECREF(webix)
+
+    set_timeout(priv->run_timer, gobj_read_integer_attr(gobj, "run_step_timeout"));
+    return 0;
+}
+
+/***************************************************************************
+ *  The answer of a step (kw owned): the next one, or the end.
+ ***************************************************************************/
+PRIVATE int run_step_answered(hgobj gobj, json_t *kw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *run_id = kw_get_str(gobj, kw, "__md_iev__`cc_run", "", 0);
+    int step_idx = (int)kw_get_int(gobj, kw, "__md_iev__`cc_step", -1, KW_WILD_NUMBER);
+    int result = (int)kw_get_int(gobj, kw, "result", -1, KW_WILD_NUMBER);
+
+    if(!priv->run ||
+            strcmp(run_id, kw_get_str(gobj, priv->run, "id", "", 0))!=0 ||
+            step_idx != (int)kw_get_int(gobj, priv->run, "idx", 0, 0)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "answer of a scenario run step that is over, dropped",
+            "run",          "%s", run_id,
+            "step",         "%d", step_idx,
+            "result",       "%d", result,
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+    clear_timeout(priv->run_timer);
+
+    json_t *steps = kw_get_list(gobj, priv->run, "steps", 0, KW_REQUIRED);
+    json_t *step = json_array_get(steps, (size_t)step_idx);
+    json_object_set_new(step, "result", json_integer(result));
+    json_object_set_new(step, "comment", json_string(kw_get_str(gobj, kw, "comment", "", 0)));
+    KW_DECREF(kw)
+
+    if(result < 0) {
+        return run_end(gobj, -1, "a step failed");
+    }
+    step_idx++;
+    json_object_set_new(priv->run, "idx", json_integer(step_idx));
+    if((size_t)step_idx >= json_array_size(steps)) {
+        return run_end(gobj, 0, "");
+    }
+    return run_send_step(gobj);
+}
+
+/***************************************************************************
+ *  The step in flight did not answer in time: the run ends there.
+ ***************************************************************************/
+PRIVATE int run_step_timed_out(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->run) {
+        return 0;
+    }
+    int idx = (int)kw_get_int(gobj, priv->run, "idx", 0, KW_REQUIRED);
+    json_t *step = json_array_get(kw_get_list(gobj, priv->run, "steps", 0, KW_REQUIRED), (size_t)idx);
+    json_object_set_new(step, "result", json_integer(-1));
+    json_object_set_new(step, "comment", json_sprintf("not answered in %d ms",
+        (int)gobj_read_integer_attr(gobj, "run_step_timeout")));
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_APP,
+        "msg",          "%s", "a step of a scenario run was not answered",
+        "run",          "%s", kw_get_str(gobj, priv->run, "id", "", 0),
+        "step",         "%d", idx,
+        "line",         "%s", kw_get_str(gobj, step, "line", "", 0),
+        NULL
+    );
+    return run_end(gobj, -1, "a step was not answered");
+}
+
+/***************************************************************************
+ *  The run is over: write it (linked to its scenario) and answer the
+ *  requester with it, if it is still there.
+ ***************************************************************************/
+PRIVATE int run_end(hgobj gobj, int result, const char *comment)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout(priv->run_timer);
+    json_t *run = priv->run;
+    json_t *kw_answer = priv->run_kw_answer;
+    priv->run = 0;
+    priv->run_kw_answer = 0;
+    if(!run) {
+        KW_DECREF(kw_answer)
+        return 0;
+    }
+
+    const char *scenario_id = kw_get_str(gobj, run, "scenario_id", "", 0);
+    json_t *steps = kw_get_list(gobj, run, "steps", 0, KW_REQUIRED);
+    int done = 0;
+    size_t idx; json_t *step;
+    json_array_foreach(steps, idx, step) {
+        if(kw_get_int(gobj, step, "result", -1, KW_WILD_NUMBER) >= 0 && kw_has_key(step, "result")) {
+            done++;
+        }
+    }
+    json_t *jn_text = result < 0?
+        json_sprintf("run %s: %s failed, %d of %d steps done: %s",
+            kw_get_str(gobj, run, "id", "", 0), kw_get_str(gobj, run, "action", "", 0),
+            done, (int)json_array_size(steps), comment) :
+        json_sprintf("run %s: %s done, %d steps",
+            kw_get_str(gobj, run, "id", "", 0), kw_get_str(gobj, run, "action", "", 0),
+            (int)json_array_size(steps));
+
+    char parent_ref[NAME_MAX*2];
+    snprintf(parent_ref, sizeof(parent_ref), "scenarios^%s^runs", scenario_id);
+    json_t *record = json_pack("{s:s, s:s, s:s, s:s, s:I, s:I, s:i, s:s, s:O}",
+        "id", kw_get_str(gobj, run, "id", "", 0),
+        "scenario_id", parent_ref,
+        "action", kw_get_str(gobj, run, "action", "", 0),
+        "username", kw_get_str(gobj, run, "username", "", 0),
+        "started_at", (json_int_t)kw_get_int(gobj, run, "started_at", 0, 0),
+        "ended_at", (json_int_t)time_in_seconds(),
+        "result", result,
+        "comment", json_string_value(jn_text),
+        "steps", steps
+    );
+    json_t *node = 0;
+    if(priv->gobj_treedb_controlcenter) {
+        node = gobj_update_node(
+            priv->gobj_treedb_controlcenter,
+            "scenario_runs",
+            record, // owned
+            json_pack("{s:b, s:b, s:b}", "create", 1, "autolink", 1, "fkey_only_id", 1),
+            gobj
+        );
+        if(!node) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "cannot write the scenario run",
+                "run",          "%s", kw_get_str(gobj, run, "id", "", 0),
+                NULL
+            );
+        }
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "the scenario run ends with the treedb closed, not written",
+            "run",          "%s", kw_get_str(gobj, run, "id", "", 0),
+            NULL
+        );
+        JSON_DECREF(record)
+    }
+
+    /*
+     *  Answer the requester, as ac_final_count() does in the agent
+     */
+    const char *requester = kw_get_str(gobj, run, "requester", "", 0);
+    hgobj gobj_requester = empty_string(requester)? 0 :
+        gobj_child_by_name(priv->gobj_top_side, requester);
+    if(!gobj_requester && !empty_string(requester)) {
+        gobj_requester = gobj_find_service(requester, FALSE);
+    }
+    if(!kw_answer) {
+        JSON_DECREF(jn_text)
+        JSON_DECREF(node)
+    } else if(!gobj_requester) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "requester of a scenario run not found, answer dropped",
+            "requester",    "%s", requester,
+            "run",          "%s", kw_get_str(gobj, run, "id", "", 0),
+            NULL
+        );
+        JSON_DECREF(jn_text)
+        JSON_DECREF(node)
+        KW_DECREF(kw_answer)
+    } else if(!requester_is_listening(gobj, gobj_requester, EV_MT_COMMAND_ANSWER)) {
+        JSON_DECREF(jn_text)
+        JSON_DECREF(node)
+        KW_DECREF(kw_answer)
+    } else {
+        json_t *jn_data = json_array();
+        if(node) {
+            json_array_append_new(jn_data, node);
+        }
+        json_t *webix = msg_iev_build_response(
+            gobj,
+            result,
+            json_sprintf("%s: %s", gobj_yuno_role_plus_name(), json_string_value(jn_text)),
+            0,
+            jn_data,
+            kw_answer   // owned
+        );
+        JSON_DECREF(jn_text)
+        gobj_send_event(
+            gobj_requester,
+            EV_SEND_IEV,
+            iev_create(gobj, EV_MT_COMMAND_ANSWER, webix),
+            gobj
+        );
+    }
+
+    JSON_DECREF(run)
+    return 0;
 }
 
 
@@ -1339,6 +2201,13 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
 PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  The answer of a step of a scenario run: this gobj asked it
+     */
+    if(kw_get_dict_value(gobj, kw, "__md_iev__`cc_run", 0, 0)) {
+        return run_step_answered(gobj, kw);
+    }
 
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
@@ -1746,288 +2615,14 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_treedb_node_create(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
-    json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
-
-    // TODO wtf purezadb?
-    if(strcmp(treedb_name, "treedb_purezadb")==0 &&
-        strcmp(topic_name, "users")==0) {
-        /*--------------------------------*
-         *  Get user
-         *  Create it if not exist
-         *  Han creado el user en la tabla users de treedb_purezadb
-         *  Puede que exista o no en la users de authzs
-         *--------------------------------*/
-        const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
-        json_t *webix = gobj_command(
-            priv->gobj_authz,
-            "user-roles",
-            json_pack("{s:s}",
-                "username", username
-            ),
-            gobj
-        );
-        if(json_array_size(kw_get_dict_value(gobj, webix, "data", 0, KW_REQUIRED))==0) {
-            gobj_send_event(
-                priv->gobj_authz,
-                EV_ADD_USER,
-                json_pack("{s:s, s:s}",
-                    "username", username,
-                    "role", "roles^user-purezadb^users"
-                ),
-                gobj
-            );
-        }
-        json_decref(webix);
-    }
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_treedb_node_updated(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
-    json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
-
-    if(strcmp(treedb_name, "treedb_purezadb")==0 &&
-        strcmp(topic_name, "users")==0) {
-        /*--------------------------------*
-         *  Get user
-         *  Create it if not exist
-         *  Han creado el user en la tabla users de treedb_purezadb
-         *  Puede que exista o no en la users de authzs
-         *--------------------------------*/
-        BOOL enabled = kw_get_bool(gobj, node_, "enabled", 0, KW_REQUIRED);
-        const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
-        json_t *webix = gobj_command(
-            priv->gobj_authz,
-            "user-roles",
-            json_pack("{s:s}",
-                "username", username
-            ),
-            gobj
-        );
-
-        if(json_array_size(kw_get_list(gobj, webix, "data", 0, KW_REQUIRED))==0) {
-            gobj_send_event(
-                priv->gobj_authz,
-                EV_ADD_USER,
-                json_pack("{s:s, s:s, s:b}",
-                    "username", username,
-                    "role", "roles^user-purezadb^users",
-                    "disabled", enabled?0:1
-                ),
-                gobj
-            );
-        } else {
-            gobj_send_event(
-                priv->gobj_authz,
-                EV_ADD_USER,
-                json_pack("{s:s, s:b}",
-                    "username", username,
-                    "disabled", enabled?0:1
-                ),
-                gobj
-            );
-        }
-        json_decref(webix);
-    }
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_treedb_node_deleted(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
-    json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
-
-    if(strcmp(treedb_name, "treedb_purezadb")==0 &&
-        strcmp(topic_name, "users")==0) {
-        /*--------------------------------*
-         *  Get user
-         *  Create it if not exist
-         *  Han creado el user en la tabla users de treedb_purezadb
-         *  Puede que exista o no en la users de authzs
-         *--------------------------------*/
-        const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
-        gobj_send_event(
-            priv->gobj_authz,
-            EV_REJECT_USER,
-            json_pack("{s:s, s:b}",
-                "username", username,
-                "disabled", 1
-            ),
-            gobj
-        );
-    }
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_user_login(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
-//     const char *dst_service = kw_get_str(gobj, kw, "dst_service", "", KW_REQUIRED);
-//     json_t *user_ = kw_get_dict(gobj, kw, "user", 0, KW_REQUIRED);
-//     json_t *session_ = kw_get_dict(gobj, kw, "session", 0, KW_REQUIRED);
-//     json_t *services_roles_ = kw_get_dict(gobj, kw, "services_roles", 0, KW_REQUIRED);
-
-    /*------------------------------------------------*
-     *  Auth service is autostart and autoplay
-     *  Users can be login before playing this gobj
-     *  and therefore with treedb not opened
-     *  Avoid error "hgobj NULL or DESTROYED"
-     *------------------------------------------------*/
-    if(!priv->gobj_treedb_controlcenter) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SERVICE,
-            "msg",          "%s", "Treedb Controlcenter not ready",
-            "username",     "%s", username,
-            NULL
-        );
-        KW_DECREF(kw);
-        return -1;
-    }
-
-    /*--------------------------------*
-     *  Get user
-     *  Create it if not exist
-     *--------------------------------*/
-    json_t *user = gobj_get_node(
-        priv->gobj_treedb_controlcenter,
-        "users",
-        json_pack("{s:s}",
-            "id", username
-        ),
-        0,
-        gobj
-    );
-    if(!user) {
-        time_t t;
-        time(&t);
-        BOOL enabled_new_users = gobj_read_bool_attr(gobj, "enabled_new_users");
-        json_t *jn_user = json_pack("{s:s, s:b, s:I}",
-            "id", username,
-            "enabled", enabled_new_users,
-            "time", (json_int_t)t
-        );
-
-        user = gobj_create_node(
-            priv->gobj_treedb_controlcenter,
-            "users",
-            jn_user,
-            0,
-            gobj
-        );
-    }
-    json_decref(user);
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_user_logout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
-//     json_t *user_ = kw_get_dict(gobj, kw, "user", 0, KW_REQUIRED);
-//     json_t *session_ = kw_get_dict(gobj, kw, "session", 0, KW_REQUIRED);
-
-    //print_json(kw);
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_user_new(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
-    const char *dst_service = kw_get_str(gobj, kw, "dst_service", "", KW_REQUIRED);
-
-    if(strcmp(dst_service, gobj_name(gobj))==0) {
-        time_t t;
-        time(&t);
-        BOOL enabled_new_users = gobj_read_bool_attr(gobj, "enabled_new_users");
-        if(enabled_new_users) {
-            /*------------------------------------------------*
-             *  Auth service is autostart and autoplay
-             *  Users can be login before playing this gobj
-             *  and therefore with treedb not opened
-             *  Avoid error "hgobj NULL or DESTROYED"
-             *------------------------------------------------*/
-            if(!priv->gobj_treedb_controlcenter) {
-                gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SERVICE,
-                    "msg",          "%s", "Treedb Controlcenter not ready",
-                    "username",     "%s", username,
-                    NULL
-                );
-                KW_DECREF(kw);
-                return -1;
-            }
-
-            json_t *jn_user = json_pack("{s:s, s:b, s:I}",
-                "id", username,
-                "enabled", enabled_new_users,
-                "time", (json_int_t)t
-            );
-
-            json_decref(gobj_create_node(
-                priv->gobj_treedb_controlcenter,
-                "users",
-                jn_user,
-                0,
-                gobj
-            ));
-        }
-    }
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->run_timer) {
+        KW_DECREF(kw);
+        return run_step_timed_out(gobj);
+    }
 
     uint64_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
     uint64_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
@@ -2100,14 +2695,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_YUNO_STATS,             ac_yuno_stats_relay,     0},
         {EV_WRITE_TTY,              ac_write_tty,            0},
 
-        {EV_TREEDB_NODE_CREATED,    ac_treedb_node_create,   0},
-        {EV_TREEDB_NODE_UPDATED,    ac_treedb_node_updated,  0},
-        {EV_TREEDB_NODE_DELETED,    ac_treedb_node_deleted,  0},
-
-        {EV_AUTHZ_USER_LOGIN,       ac_user_login,           0},
-        {EV_AUTHZ_USER_LOGOUT,      ac_user_logout,          0},
-        {EV_AUTHZ_USER_NEW,         ac_user_new,             0},
-
         {EV_ON_OPEN,                ac_on_open,              0},
         {EV_ON_CLOSE,               ac_on_close,             0},
         {EV_TTY_OPEN,               ac_tty_mirror_open,      0},
@@ -2135,13 +2722,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
         {EV_TTY_OPEN,               EVF_PUBLIC_EVENT},
         {EV_TTY_CLOSE,              EVF_PUBLIC_EVENT},
-        {EV_AUTHZ_USER_LOGIN,       0},
-        {EV_AUTHZ_USER_LOGOUT,      0},
-        {EV_AUTHZ_USER_NEW,         0},
-
-        {EV_TREEDB_NODE_CREATED,    0},
-        {EV_TREEDB_NODE_UPDATED,    0},
-        {EV_TREEDB_NODE_DELETED,    0},
 
         {EV_ON_OPEN,                0},
         {EV_ON_CLOSE,               0},

@@ -53,8 +53,9 @@ remote PTY consoles that the control center drives with `write-tty`.
 
 The control center exposes two gates (defined in its realm config, not in the
 binary): `__input_side__` where agents connect, and `__top_side__` where
-operators (web / [`ycommand`](#util-ycommand)) connect. In production it listens on port
-**1997**.
+operators (web / [`ycommand`](#util-ycommand)) connect. In production there
+are two control centers, one per agent plane: **1996** (the agents, fed on
+1994) and **1997** (`agent22`, fed on 1995).
 
 **1 — point `ycommand` at the control center** (role and service are both
 `controlcenter`):
@@ -117,14 +118,108 @@ counted, not logged per reading: one warning a minute at most,
 yuno stats for a web client that is gone, dropped (the agent's watch expires)  dropped=42
 ```
 
-## Inventory (TreeDB)
+## Scenarios (TreeDB)
 
-Beyond the live-connection scan, the control center keeps a declared inventory
-in `treedb_controlcenter` with topics: `systems`, `users`, `nodes`, `services`,
-`lists`, `viewer_engines`. The `nodes` topic (pkey `id`) records
-[`description`](https://github.com/artgins/yunetas/blob/7.25.13/utils/c/yuno-skeleton/make_skeleton.c#L199), `provider`, `provider_url`, `properties`, `ip` and links to
-`services` / `systems`. This inventory is separate from the set of currently
-connected agents.
+The control center's treedb, `treedb_controlcenter` (`schema_version` 3),
+keeps the **scenarios** of the fleet and the **runs** of their actions. It
+holds neither the connected nodes (discovered live, above) nor the users (who
+may use the control center is its `authz` store, [`C_AUTHZ`](#gclass-c-authz)).
+
+```
+                      scenarios
+            ┌───────────────────────────┐
+            │* id                       │
+            │  description, group       │
+            │  node, agent_url          │
+            │  yunos, links             │
+            │  actions, view            │
+            │                   runs {} │ ◀─┐
+            │  created_by/at            │   │
+            │  updated_by/at            │   │
+            └───────────────────────────┘   │
+                    scenario_runs           │
+            ┌───────────────────────────┐   │
+            │* id                       │   │
+            │           scenario_id (↖) │ ──┘
+            │  action, username         │
+            │  started_at, ended_at     │
+            │  result, comment, steps   │
+            └───────────────────────────┘
+```
+
+A **scenario** is a set of yunos on one or several nodes, how the messages
+flow between them, and the commands of each action -- a test to run and
+watch, or just a group of yunos to watch. It is a document saved whole:
+
+```json
+{
+    "id": "yunovatios-stress",
+    "description": "sim_controllers -> gate_central -> db_tracks_ce",
+    "group": "yunovatios",
+    "node": "yunovatios-controlador",
+    "yunos": [
+        {"key": "sim",    "id": "stress", "service": "sim_controllers", "rate": "tx"},
+        {"key": "gate",   "id": "2120",   "label": "gate_central"},
+        {"key": "tracks", "id": "5120",   "label": "db_tracks_ce"}
+    ],
+    "links": [["sim", "gate"], ["gate", "tracks"]],
+    "actions": {
+        "start":  [{"yuno": "sim", "command": "set-controllers controllers=10"},
+                   {"yuno": "sim", "command": "resume-generation"}],
+        "stop":   [{"yuno": "sim", "command": "set-controllers controllers=0"}],
+        "report": [{"yuno": "gate", "service": "__yuno__", "command": "view-config"}]
+    },
+    "view": {"mode": "graph"}
+}
+```
+
+| Key | Meaning |
+|-----|---------|
+| `id` | The scenario's name: no blanks, no `^`, no `` ` ``. |
+| `node` | The node (agent hostname or UUID) of every yuno that does not say its own. |
+| `agent_url` | Instead of `node`: a DIRECT scenario, watched by the web console through its own link to that agent. `run-scenario` refuses it. |
+| `yunos` | `id` (the agent's yuno id) and optionally `key` (how the rest of the scenario names it, needed when two nodes carry the same id), `node`, `service`, `label`, `rate` (`rx` or `tx`). |
+| `links` | `[from, to]` pairs of keys: how the messages flow. |
+| `actions` | `start`, `pause`, `resume`, `stop`, `report`: each a list of steps `{yuno, service?, command}`, one command line with its `key=value` parameters. |
+| `view` | How the console shows it (`mode`: `graph` or `cards`). |
+
+`save-scenario` validates it -- the same rules the console's editor applies --
+and writes every column: a key the new document leaves out is emptied, not
+kept.
+
+```bash
+ycommand --url=wss://<cc-host>:1996 --yuno-role=controlcenter --yuno-service=controlcenter \
+    -c 'save-scenario scenario={"id":"t1","node":"wattyzer","yunos":[{"id":"1620"}],"actions":{"report":[{"yuno":"1620","command":"help"}]}}'
+ycommand ... -c 'scenarios'
+ycommand ... -c 'scenarios scenario_id=t1'
+ycommand ... -c 'delete-scenario scenario_id=t1'      # and its runs
+```
+
+**Running an action.** `run-scenario scenario_id=<id> action=<action>` sends
+each step, in order, to the yuno's node as
+
+```
+command-yuno id=<yuno> [service=<service>] command=<command>
+```
+
+as the user who asked. A step goes only when the one before it answered; a
+step that fails, or does not answer in `run_step_timeout` (30000 ms), ends the
+run there. The run is written to `scenario_runs` -- action, user, start and
+end, the result and the answer of every step -- and the requester is answered
+with it (the command answers when the run is OVER). One run at a time.
+
+```bash
+ycommand ... -c 'run-scenario scenario_id=t1 action=report'
+ycommand ... -c 'scenario-runs scenario_id=t1'        # newest first
+```
+
+The parameter is `scenario_id`, never `id`: reached through an agent's
+`command-yuno`, the whole kw is the filter that picks the yuno, and there `id`
+is the yuno's.
+
+The permissions `read-scenarios`, `write-scenarios` and `run-scenarios` are
+checked by the commands themselves, always -- not only when the yuno turns
+`enable_command_authz` on.
 
 ## Configuration
 
@@ -133,8 +228,7 @@ default service). `Authz.max_sessions_per_user` defaults to 4. Key attributes:
 
 | Attribute | Purpose |
 |-----------|---------|
-| `enabled_new_devices` | Auto-accept unknown nodes/devices |
-| `enabled_new_users` | Auto-accept unknown users |
+| `run_step_timeout` | Milliseconds a step of a scenario run may take to answer (30000) |
 | `timeout` | Periodic tick |
 
 The listen URLs/ports live in the realm config (`__top_side__` /
@@ -150,6 +244,11 @@ The listen URLs/ports live in the realm config (`__top_side__` /
 | `drop-agent` | Drop a node's connection |
 | `write-tty` | Write to a node's PTY console (via `agent22`) |
 | `logout-user` | Log out a user session |
+| `scenarios` | List the scenarios, or one (`scenario_id`) |
+| `save-scenario` | Create or replace a scenario (`scenario`) |
+| `delete-scenario` | Delete a scenario and its runs (`scenario_id`) |
+| `run-scenario` | Run the steps of an action, in order (`scenario_id`, `action`) |
+| `scenario-runs` | The runs of a scenario, newest first (`scenario_id`) |
 | `authzs` | Authorization help |
 | `help` | Command help |
 
@@ -161,7 +260,8 @@ The listen URLs/ports live in the realm config (`__top_side__` /
 | `1993` | Agent secure control plane (`wss://0.0.0.0:1993`) |
 | `1994` | Primary agent → control center (default `__output_url__`) |
 | `1995` | `agent22` → control center |
-| `1997` | Control center listener (production realm config) |
+| `1996` | Control center listener, agents plane (production realm config) |
+| `1997` | Control center listener, `agent22` plane (production realm config) |
 | `1992` | UDP log sink |
 
 ## Debugging

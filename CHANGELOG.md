@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+## v7.25.14 (2026-09-29)
+
+A lite release (controlcenter only, rule of 2026-09-29): only the control
+center's binary changes, and only it is deployed.
+
+### Control center: the scenarios, in its treedb; its dead topics gone
+
+- **`treedb_controlcenter` keeps the scenarios** (`schema_version` 3,
+  `treedb_schema_controlcenter.c`): topic `scenarios` -- a set of yunos on one
+  or several nodes, how the messages flow between them (`links`) and the
+  commands of each action (`start`, `pause`, `resume`, `stop`, `report`), a
+  document saved whole -- and topic `scenario_runs`, each run linked to its
+  scenario. New commands `scenarios`, `save-scenario` (validated: the same
+  rules as the console's editor), `delete-scenario` (with its runs),
+  `run-scenario scenario_id= action=` and `scenario-runs`, with the
+  permissions `read-scenarios`, `write-scenarios` and `run-scenarios`,
+  checked by the commands always. The parameter is `scenario_id`, never `id`:
+  through an agent's `command-yuno` the `id` of the kw is the yuno's.
+- **`run-scenario` runs an action on the nodes**, one step after another,
+  each as `command-yuno id=<yuno> [service=] command=<command>` to its node's
+  agent, as the user who asked. A step that fails or does not answer in
+  `run_step_timeout` (30000 ms) ends the run; the run is written to
+  `scenario_runs` (every step with its answer) and the command answers when
+  it is over. One run at a time.
+- **Removed, unused since the webix GUI**: the topics `systems`, `nodes`,
+  `services` (declared inventory, viewer launcher) and `users` (a copy of each
+  user at login, read by nobody: the users are the `authz` store's), the
+  `lists` / `viewer_engines` draft, `ac_treedb_node_*` (they acted only on a
+  `treedb_purezadb` of another project), the attrs `enabled_new_users` and
+  `enabled_new_devices`, and the authz entries `list-groups`, `list-tracks`,
+  `realtime-track`. On a.com the three inventory topics were empty.
+- **A login is no longer refused while the control center boots.**
+  `ac_user_login()` answered `EV_AUTHZ_USER_LOGIN` -- a veto point -- with -1
+  until its treedb opened, only because it could not copy the user yet; that
+  refusal went with the `users` topic, and so did the *"Treedb Controlcenter
+  not ready"* warnings a restart logged while the agents reconnected
+  (`YUNO_AUTH.md` §4.9).
+
 ### JS: gui_agent 0.28.0, the Users workspace
 
 - **The users each yuno lets in, and their roles, from the console.** Every

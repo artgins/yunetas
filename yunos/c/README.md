@@ -189,9 +189,9 @@ A **third agent variant** (built from `main44.c`). Reuses the `C_AGENT22` GClass
 
 ### controlcenter
 
-**Central management** of distributed Yuneta agents. Agents connect in and the controlcenter dispatches commands across the fleet.
+**Central management** of distributed Yuneta agents. Agents connect in and the controlcenter dispatches commands across the fleet, and keeps the scenarios of the fleet (yunos watched and tested together) and the runs of their actions.
 
-**TreeDB schema:** `treedb_schema_controlcenter.c`
+**TreeDB schema:** `treedb_schema_controlcenter.c` (`scenarios`, `scenario_runs`)
 
 **Commands:**
 
@@ -205,6 +205,11 @@ A **third agent variant** (built from `main44.c`). Reuses the `C_AGENT22` GClass
 | `stats-agent` | Get agent statistics |
 | `drop-agent` | Drop agent connection |
 | `write-tty` | Write data to tty |
+| `scenarios` | List the scenarios, or one |
+| `save-scenario` | Create or replace a scenario |
+| `delete-scenario` | Delete a scenario and its runs |
+| `run-scenario` | Run the steps of an action of a scenario, in order |
+| `scenario-runs` | The runs of a scenario, newest first |
 
 ---
 
