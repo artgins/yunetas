@@ -320,12 +320,16 @@ is left, in order:
    `ycommand`). Not recorded: the PEAKS of a run (rates are measured by the
    console, not by the control center).
 
-**Left:** deploy 7.25.14's control center on a.com (1996 and 1997) -- until
-then the console keeps scenarios in the browser; then verify a real
-`run-scenario` against an agent (the step round trip through the control
-center was not exercised locally: no local agent could be pointed at a test
-control center). On a phone the rail's fifth item is clipped at 360 px in
-Spanish (the bar scrolls).
+**Deployed** 7.25.14 on a.com (1996, 1997) on 2026-09-29 and verified end to
+end: a scenario saved from the console, its `report` run by the control center
+through the dev node's agent (both steps answered, as the console user), its
+run listed, then deleted. Left, minor: the list tab's run count is stale until
+it is refreshed (it reloads when the scenario watched changes, not after a
+run); on a phone the rail's fifth item is clipped at 360 px in Spanish (the bar
+scrolls); a control center started with `run-yuno play=0` and played seconds
+later logs one *"Publish event WITHOUT subscribers"* (`EV_ON_OPEN` of
+`__input_side__`, autoplay) per agent that reconnects in between -- its
+subscription is made in `mt_play`.
 
 ## Agent: a C_COUNTER still running when the agent stops
 
