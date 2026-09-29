@@ -259,40 +259,47 @@ monitor has to use `start_date` meanwhile.
 The Monitor workspace (gui_agent 0.23.0-0.25.0) reads every yuno of a
 scenario by POLLING: per tick, one `list-yunos` per node and two `stats-yuno`
 per yuno, the Statistics exception to the no-polling rule extended to it on
-2026-09-29 "until the agent can publish stats to a subscriber". The design,
-built on what is already there, NOT started (C kernel: needs approval):
+2026-09-29 "until the agent can publish stats to a subscriber". NOT started
+(C kernel: needs approval).
 
-1. **`C_YUNO` publishes `EV_YUNO_STATS`** (`EVF_OUTPUT_EVENT |
-   EVF_PUBLIC_EVENT | EVF_NO_WARN_SUBS`) from the timer that already runs
-   `load_stats()` every `timeout_stats`, and only while the event has a
-   subscriber. Payload: the `SDF_STATS` of the yuno (`cpu`, `start_date`,
-   disk) plus `gobj_stats()` of the services the subscription names in its
-   `__config__` (default: the service named as the role), at a period the
-   yuno bounds (`stats_publish_period`, default 2 s, never under
-   `timeout_stats`). One reader on a timer also settles item 2 of *Stats:
-   three things a live monitor cannot trust* for whoever subscribes: the
-   read-time rates of `C_IOGATE`/`C_CHANNEL` stop depending on how many
-   people look.
-2. **`C_AGENT` relays it per yuno.** A client subscribes to the agent's
-   `EV_YUNO_STATS` with a `__filter__` of yuno ids (remote subscription,
-   `C_IEVENT_SRV` `__subscribing__`, already bounded by
-   `max_subscription_size`). On the FIRST subscriber of a yuno the agent
-   subscribes to that yuno's event over its channel; on the last one it
-   unsubscribes (refcount in `mt_subscription_added/deleted`). The event is
-   re-published with `yuno_id`/`yuno_role`. It should carry the yuno's
-   running/playing changes too (`EV_YUNO_STATE`), which today are a
-   `list-yunos` per tick.
-3. **The controlcenter relays it per node**, like the PTY mirror
-   (`tty_mirror_dst_service` per channel, `c_controlcenter.c`): the browser
-   subscribes on the CC with `{agent_id, yuno_ids}`, the CC subscribes on
-   that node's agent and routes the events back to the subscriber's
-   `dst_service`. Inward-out, so it survives node sealing.
-4. **gui_agent** subscribes in `C_MONITOR_LINK` / through the CC link instead
-   of arming the C_TIMER, and drops the polling exception.
+**What the transport allows (checked 2026-09-29).** A subscription travels
+only from a CLIENT to a SERVER: `C_IEVENT_SRV` has no
+`mt_subscription_added`, and a `__subscribing__` that reaches a
+`C_IEVENT_CLI` is refused ("subscription event ignored, I'm client") and the
+channel dropped. The agent is the SERVER of its yunos' channels and the
+control center the server of the agents', so neither can subscribe
+downstream. (A first version of this entry said they could; it was wrong.)
+What does go downstream-to-upstream is an inter-event SENT along a ROUTE the
+agent kept from a request: the PTY mirror (`add_console_route` at
+`open-console`, then `EV_TTY_DATA` built with `msg_iev_build_response(...,
+route)`), which crosses the control center because the control center has
+its own relay for it (`ac_tty_mirror_data`, `tty_mirror_dst_service`).
 
-Open questions for the decision: `EVF_AUTHZ_SUBSCRIBE` on the new events
-(what role may watch a yuno), and whether the Statistics cards move to the
-same event (they poll every counter of a service, not a chosen few).
+**The design that fits.**
+
+1. **`watch-yuno-stats` on the agent** (`id=<yuno>... period=<ms> on|off`):
+   the agent keeps the route of the requester, per yuno, and SENDS
+   `EV_YUNO_STATS {yuno_id, yuno_role, cpu, ..., <service stats>}` along it
+   every period; `off`, the requester's channel closing, or the yuno dying
+   remove it. Direct browsers reach it as they reach the terminal.
+2. **Where the figures come from** -- the open decision:
+   - (a) the AGENT samples: it asks its own yunos (`stats_to_yuno`, local
+     loopback) on the watch period and forwards each answer. Works with every
+     yuno already deployed; only the agent changes. The periodic query moves
+     from the browser into the node.
+   - (b) the YUNO sends: `C_YUNO` gets a `publish-stats` command and, while
+     on, sends `EV_YUNO_STATS` to its agent from the timer that already runs
+     `load_stats()`. Cleanest (the producer publishes), but a yuno publishes
+     only once REBUILT with the new kernel -- every project yuno of every
+     node -- so it needs (a) as the fallback during the transition anyway.
+   Either way one reader on a timer settles item 2 of *Stats: three things a
+   live monitor cannot trust*.
+3. **The control center relays `EV_YUNO_STATS`** like `EV_TTY_DATA`: a new
+   action and the per-channel destination, in `c_controlcenter.c` -- a
+   deploy of the control center on a.com.
+4. **gui_agent** sends `watch-yuno-stats` instead of arming its C_TIMER, and
+   drops the polling exception; `list-yunos` per tick becomes an
+   `EV_YUNO_STATE` in the same stream.
 
 ## C_NODE: every link collapses the WHOLE parent, O(children) per link
 
