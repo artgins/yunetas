@@ -302,6 +302,20 @@ its own relay for it (`ac_tty_mirror_data`, `tty_mirror_dst_service`).
    drops the polling exception; `list-yunos` per tick becomes an
    `EV_YUNO_STATE` in the same stream.
 
+## Agent: a C_COUNTER still running when the agent stops
+
+Seen deploying 7.25.13 (2026-09-29), at the orderly `--stop` of the main agent
+on yunovatios-central (the 7.25.12 package agent) and on the dev node (a
+pre-release build): per pending counter, one `gobj_destroy` *"Destroying a
+RUNNING gobj"* and one `gobj_unsubscribe_event` *"No subscription found"*
+(subscriber `C_AGENT^agent`C_COUNTER^N`C_TIMER^N`, event
+`EV_TIMEOUT_PERIODIC` of the yuno), 2 and 5 of them. The counters are the ones
+a multi-yuno command (`run-yuno`, `kill-yuno`) arms and waits on for
+`EV_FINAL_COUNT`; the likely source is a `run-yuno` of a yuno that never came
+up (on the dev node the yunos that cannot read their TLS key). A counter left
+waiting has to be stopped in the agent's `mt_stop` (or end by its own
+expiration) instead of being destroyed running at `gobj_end`.
+
 ## C_NODE: every link collapses the WHOLE parent, O(children) per link
 
 Found 2026-09-26 in yunovatios' stress test (`db_history_ce`, 20000 new devices
