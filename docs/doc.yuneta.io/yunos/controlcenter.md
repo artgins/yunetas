@@ -122,7 +122,7 @@ yuno stats for a web client that is gone, dropped (the agent's watch expires)  d
 Beyond the live-connection scan, the control center keeps a declared inventory
 in `treedb_controlcenter` with topics: `systems`, `users`, `nodes`, `services`,
 `lists`, `viewer_engines`. The `nodes` topic (pkey `id`) records
-[`description`](https://github.com/artgins/yunetas/blob/7.25.12/utils/c/yuno-skeleton/make_skeleton.c#L199), `provider`, `provider_url`, `properties`, `ip` and links to
+[`description`](https://github.com/artgins/yunetas/blob/7.25.13/utils/c/yuno-skeleton/make_skeleton.c#L199), `provider`, `provider_url`, `properties`, `ip` and links to
 `services` / `systems`. This inventory is separate from the set of currently
 connected agents.
 
