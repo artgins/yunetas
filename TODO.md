@@ -316,6 +316,18 @@ up (on the dev node the yunos that cannot read their TLS key). A counter left
 waiting has to be stopped in the agent's `mt_stop` (or end by its own
 expiration) instead of being destroyed running at `gobj_end`.
 
+Read of the code (2026-09-29, not changed): the agent creates each one with
+`gobj_create_volatil(..., C_COUNTER, ...)` as its own child (`run-yuno`,
+`kill-yuno`, `play-yuno`, `pause-yuno`, `c_agent.c` ~5180/5359/5547/5723),
+with `expiration_timeout` = `timeout_expiration` (30 s), and subscribes it to
+`__input_side__`'s `EV_ON_OPEN`/`EV_ON_CLOSE`. `C_COUNTER` only stops and
+destroys itself in `publish_finalcount()` (count reached or the timer
+expired), and its `mt_stop` already unsubscribes everything and clears its
+timer. So a counter younger than 30 s when the agent stops is still running:
+the fix is for the agent's `mt_stop` to stop (and, being volatile, destroy)
+its `C_COUNTER` children -- e.g. `gobj_match_children` by
+`__gclass_name__` -- before `gobj_end` walks the tree.
+
 ## C_NODE: every link collapses the WHOLE parent, O(children) per link
 
 Found 2026-09-26 in yunovatios' stress test (`db_history_ce`, 20000 new devices
