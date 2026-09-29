@@ -2,6 +2,72 @@
 
 ## Unreleased
 
+## v7.25.15 (2026-09-30)
+
+A lite release (control center and agent only, rule of 2026-09-29): only
+those two binaries change, and only they are deployed. It closes what a
+review of the scenarios and their live view found, after running the
+`yunovatios-stress` scenario end to end from the console.
+
+### Control center: a web client is its connection; runs end when their agent goes
+
+- **A stats reading for a closed tab could reach another user.** The relay
+  of `EV_YUNO_STATS` found the web client by the NAME of its channel in
+  `__top_side__`, and that name is taken by the next client once the first
+  closes -- while the agent's watch goes on pushing until it expires
+  (`watch_ttl`, 60 s). Each connection now gets a number when it opens,
+  `command-agent` stamps it on what it forwards (`cc_connection`, kept by the
+  agent with the watch), and a reading -- like the answer of a `run-scenario`
+  -- is delivered only while the channel holds the same connection.
+- **Use after free** in that relay: the name of the channel was read from the
+  popped stack frame after it was freed, in the warning for a gone client.
+- **A run whose node's agent disconnects ends at once**, not at the step's
+  deadline (`run_step_timeout`, 30 s, during which every other run waited).
+- **Pausing the control center in the middle of a run answers its
+  requester**: the run was ended after the web side had been stopped, so the
+  answer was always dropped.
+- **`save-scenario` refuses what `command-yuno` would misread.** A step
+  parameter named like one of `command-yuno`'s (`id`, `service`, `command`) or
+  like a column of the agent's `yunos` topic (`date`, `yuno_name`, ...) became
+  the filter that selects the yuno -- another yuno, or *"Yuno not found"*. A
+  service and a yuno id are letters, digits and `_ . ^ -`; a scenario id is
+  letters, digits and `_ . @ -`, not starting with a dot (timeranger2 refuses
+  it as a key), 200 at most (a run id that would not fit is refused, not
+  truncated).
+- Documented: the steps run on the control center's session, so
+  `write-scenarios` together with `run-scenarios` is as much as
+  `command-agent`.
+
+### Agent: `watch-yuno-stats` tells two tabs apart, and takes what it can
+
+- The requester of a watch is told by its first hop AND the channel it came in
+  by at the control center (`input_channel`): two tabs of one browser were one
+  requester, the second replacing the first watch at each renewal, and a hidden
+  tab stopping the other's.
+- One yuno can be watched through several services (`ids=5120,5120:db`); the
+  last one named used to replace the others.
+- An id that is not a yuno of the agent no longer refuses the whole watch: it
+  is watched, its `state` says `missing`, and the answer names it
+  (`data.missing`).
+
+### JS: gui_agent 0.29.3
+
+- The live view stops the agents' watches on Disconnect, when it is stopped
+  and when another scenario is shown (behind the control center a watch pushed
+  on until its ttl); readings asked for, or pushed by the watch of, the
+  scenario shown before are dropped (`monitor_gen`) instead of landing on a
+  card with the same key.
+- One control at a time, with its number on every request; a restart goes in
+  phases (stop, resets, start), each waiting for all the answers of the one
+  before; a control not answered in time or cut by a drop says so.
+- A watch the control center could not dispatch is asked again at the next
+  renewal instead of turning that node to polling for good.
+- Restart only when the scenario has a stop; the editor refuses the same step
+  parameters as the control center; units of the selectors translated; the
+  list opens a row while it re-reads and re-reads after a change that landed
+  during a read; the direct link tears itself down outside the publish that
+  refused it and lets go of the login's refreshes when stopped.
+
 ### JS: tabulator-tables ^6.6.0 in every SPA; gui_agent 0.29.2, gui_treedb 0.17.73
 
 - 6.6.0 is additive for these apps (an opt-in range fill handle, an

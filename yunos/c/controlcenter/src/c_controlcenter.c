@@ -22,13 +22,25 @@
  *      delete-scenario scenario_id=        delete one and its runs
  *      run-scenario scenario_id= action=   run the steps of an action, in order
  *      scenario-runs scenario_id=          the runs of one, newest first
- *  A RUN sends each step to the node's agent as `command-yuno`, as the
- *  user who asked, one after the other: a step is sent only when the one
- *  before it answered, and a step that fails or does not answer in
- *  `run_step_timeout` ends the run there. Then the run is written in
+ *  A RUN sends each step to the node's agent as `command-yuno`, carrying
+ *  the user who asked (`__username__`, what the agent's audit records),
+ *  one after the other: a step is sent only when the one before it
+ *  answered, and a step that fails, does not answer in `run_step_timeout`,
+ *  or whose agent disconnects meanwhile ends the run there. The agent
+ *  runs it on the control center's session, so `write-scenarios` together
+ *  with `run-scenarios` is as much as `command-agent`: grant them alike.
+ *  Then the run is written in
  *  `scenario_runs` (linked to its scenario) and the requester answered
  *  with it -- the result and comment of every step, and for a `report`
  *  what each step answered (`data`). One run at a time.
+ *
+ *  A web client is told apart by its CONNECTION, not by the name of its
+ *  channel in `__top_side__`: that name is taken by the next client once
+ *  it closes. Each connection gets a number when it opens
+ *  (`cc_connection`, in the channel's user data), stamped on what it sends
+ *  to an agent; what comes back later -- an EV_YUNO_STATS still pushed by
+ *  a watch that has not expired, the answer of a run -- reaches the channel
+ *  only if it is still that connection.
  *
  *  Users are NOT kept here: who may use this yuno is its C_AUTHZ's store.
  *
@@ -51,6 +63,8 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+/*  A run id is `<scenario id>.<ms>` and must fit in NAME_MAX.  */
+#define SCENARIO_ID_MAX 200
 
 /***************************************************************************
  *              Structures
@@ -89,6 +103,10 @@ PRIVATE int run_send_step(hgobj gobj);
 PRIVATE int run_step_answered(hgobj gobj, json_t *kw);
 PRIVATE int run_step_timed_out(hgobj gobj);
 PRIVATE int run_end(hgobj gobj, int result, const char *comment);
+PRIVATE int run_agent_disconnected(hgobj gobj);
+PRIVATE hgobj channel_of_side(hgobj side, hgobj g);
+PRIVATE json_int_t connection_number(hgobj channel);
+PRIVATE BOOL same_connection(hgobj gobj, json_t *kw, hgobj channel);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -264,6 +282,9 @@ typedef struct _PRIVATE_DATA {
     hgobj run_timer;                // deadline of the step of the run in flight
     json_t *run;                    // the run in flight, or NULL (one at a time)
     json_t *run_kw_answer;          // the request of that run, to answer it
+    hgobj run_agent_channel;        // channel (in __input_side__) of the step in flight
+
+    json_int_t connections;         // number given to the last web client connection
 } PRIVATE_DATA;
 
 
@@ -493,6 +514,15 @@ PRIVATE int mt_pause(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*---------------------------------------*
+     *  A run in flight ends here: written
+     *  while the treedb is open, answered
+     *  while its requester is connected.
+     *---------------------------------------*/
+    if(priv->run) {
+        run_end(gobj, -1, "the control center was paused in the middle of the run");
+    }
+
+    /*---------------------------------------*
      *      Stop services
      *---------------------------------------*/
     if(priv->gobj_top_side) {
@@ -506,14 +536,6 @@ PRIVATE int mt_pause(hgobj gobj)
             gobj_pause(priv->gobj_input_side);
         }
         gobj_stop_tree(priv->gobj_input_side);
-    }
-
-    /*---------------------------------------*
-     *  A run in flight ends here, and is
-     *  written while the treedb is open.
-     *---------------------------------------*/
-    if(priv->run) {
-        run_end(gobj, -1, "the control center was paused in the middle of the run");
     }
 
     /*---------------------------------------*
@@ -746,6 +768,21 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
      *  it -- and an older one does not write this key.
      */
     json_object_set_new(kw, "__relays__", json_pack("[s]", EV_YUNO_STATS));
+
+    /*
+     *  Which connection of a web client asks: what the agent pushes back
+     *  later reaches its channel only while it is still that connection.
+     */
+    hgobj client_channel = channel_of_side(priv->gobj_top_side, src);
+    if(client_channel) {
+        json_t *jn_client = json_array_get(
+            kw_get_list(gobj, kw, "__md_iev__`ievent_gate_stack", 0, 0), 0
+        );
+        if(json_is_object(jn_client)) {
+            json_object_set_new(jn_client, "cc_connection",
+                json_integer(connection_number(client_channel)));
+        }
+    }
 
     const char *agent_id = kw_get_str(gobj, kw, "agent_id", "", 0);
     const char *cmd2agent = kw_get_str(gobj, kw, "cmd2agent", "", 0);
@@ -1315,16 +1352,37 @@ PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     const char *requester = kw_get_str(
         gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", "", 0
     );
+    hgobj client_channel = channel_of_side(priv->gobj_top_side, src);
     char run_id[NAME_MAX];
-    snprintf(run_id, sizeof(run_id), "%s.%llu",
+    int len = snprintf(run_id, sizeof(run_id), "%s.%llu",
         scenario_id, (unsigned long long)time_in_milliseconds());
+    if(len < 0 || (size_t)len >= sizeof(run_id)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "scenario id too long for a run id",
+            "scenario_id",  "%s", scenario_id,
+            NULL
+        );
+        JSON_DECREF(steps)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: scenario id too long to run it: '%s'", gobj_yuno_role_plus_name(),
+                scenario_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
-    priv->run = json_pack("{s:s, s:s, s:s, s:s, s:s, s:I, s:o, s:i}",
+    priv->run = json_pack("{s:s, s:s, s:s, s:s, s:s, s:I, s:I, s:o, s:i}",
         "id", run_id,
         "scenario_id", scenario_id,
         "action", action,
         "username", username_of(gobj, kw, src),
         "requester", requester,
+        "requester_connection", client_channel? connection_number(client_channel) : (json_int_t)0,
         "started_at", (json_int_t)time_in_seconds(),
         "steps", steps, // owned
         "idx", 0
@@ -1506,20 +1564,116 @@ PRIVATE BOOL is_scenario_action(const char *action)
 }
 
 /***************************************************************************
- *  A name that can be a key and go inside a ref: not empty, no blank,
- *  no `^` (the ref separator), no backtick (the path separator).
+ *  A name that travels in a command line: [A-Za-z0-9_.^-]+, the console's
+ *  NAME_RE (monitor_helpers.js).
  ***************************************************************************/
-PRIVATE BOOL is_valid_key(const char *s)
+PRIVATE BOOL is_plain_name(const char *s)
 {
     if(empty_string(s) || strlen(s) >= NAME_MAX) {
         return FALSE;
     }
     for(const char *p = s; *p; p++) {
-        if(isspace((unsigned char)*p) || *p == '^' || *p == '`') {
+        if(!isalnum((unsigned char)*p) && !strchr("_.^-", *p)) {
             return FALSE;
         }
     }
     return TRUE;
+}
+
+/***************************************************************************
+ *  A scenario id is a key of the treedb and the start of a run id:
+ *  [A-Za-z0-9_.@-]+, not starting with a dot (timeranger2 refuses it as a
+ *  key), SCENARIO_ID_MAX at most. The console's SCENARIO_ID_RE.
+ ***************************************************************************/
+PRIVATE BOOL is_scenario_id(const char *s)
+{
+    if(empty_string(s) || *s == '.' || strlen(s) > SCENARIO_ID_MAX) {
+        return FALSE;
+    }
+    for(const char *p = s; *p; p++) {
+        if(!isalnum((unsigned char)*p) && !strchr("_.@-", *p)) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The parameters a step cannot carry: it travels as
+ *  `command-yuno id= service= command=<the step>`, and the agent takes the
+ *  whole kw of command-yuno as the filter that selects the yuno -- so a
+ *  parameter named like a column of its `yunos` topic, or like one of
+ *  command-yuno's own, would pick another yuno or none ("Yuno not found").
+ *  The console refuses the same list (monitor_helpers.js).
+ ***************************************************************************/
+PRIVATE const char *reserved_step_params[] = {
+    "id", "service", "command",
+    "realm_id", "yuno_role", "yuno_name", "yuno_release", "yuno_tag",
+    "yuno_running", "yuno_playing", "yuno_pid", "watcher_pid", "yuno_disabled",
+    "must_play", "start_priority", "sched_priority", "cpu_core",
+    "role_version", "name_version", "traced", "yuno_multiple", "global",
+    "date", "yuno_startdate", "_channel_gobj", "_requester",
+    "_requester_md_iev", "launch_id", "configurations", "binary", "_geometry",
+    0
+};
+
+/***************************************************************************
+ *  A step's command: `name key=value ...` on one line, values without
+ *  blanks, no reserved parameter. The console's TEST_COMMAND_RE.
+ *  -1 with the reason in `bad`.
+ ***************************************************************************/
+PRIVATE int check_step_command(const char *command, char *bad, size_t badsz)
+{
+    int n = 0;
+    const char **words = split2(command, " \t", &n);
+    if(!words || n == 0) {
+        split_free2(words);
+        snprintf(bad, badsz, "a command name and its key=value parameters");
+        return -1;
+    }
+    int ret = 0;
+    const char *name = words[0];
+    if(!islower((unsigned char)name[0])) {
+        snprintf(bad, badsz, "a command name first: '%.40s'", name);
+        ret = -1;
+    }
+    for(const char *p = name; ret == 0 && *p; p++) {
+        if(!isalnum((unsigned char)*p) && *p != '_' && *p != '-') {
+            snprintf(bad, badsz, "a command name first: '%.40s'", name);
+            ret = -1;
+        }
+    }
+    for(int i=1; ret == 0 && i<n; i++) {
+        const char *eq = strchr(words[i], '=');
+        size_t klen = eq? (size_t)(eq - words[i]) : 0;
+        if(!eq || klen == 0 || klen >= NAME_MAX) {
+            snprintf(bad, badsz, "key=value parameters, without blanks: '%.40s'", words[i]);
+            ret = -1;
+            break;
+        }
+        char key[NAME_MAX];
+        snprintf(key, sizeof(key), "%.*s", (int)klen, words[i]);
+        if(!is_plain_name(key)) {
+            snprintf(bad, badsz, "a parameter name of letters, digits and _ . ^ -: '%.40s'", key);
+            ret = -1;
+            break;
+        }
+        for(int j=0; reserved_step_params[j]; j++) {
+            if(strcmp(key, reserved_step_params[j])==0) {
+                snprintf(bad, badsz,
+                    "the parameter '%.40s' is command-yuno's or a yuno's field: it would select the yuno",
+                    key);
+                ret = -1;
+                break;
+            }
+        }
+    }
+    if(ret == 0 && (strchr(command, '\r') || strchr(command, '\n'))) {
+        snprintf(bad, badsz, "one command line");
+        ret = -1;
+    }
+    split_free2(words);
+    return ret;
 }
 
 /***************************************************************************
@@ -1578,8 +1732,9 @@ PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz
         return scenario_error(err, errsz, "it must be a dict");
     }
     const char *scenario_id = str_member(scenario, "id");
-    if(!scenario_id || !is_valid_key(scenario_id)) {
-        return scenario_error(err, errsz, "id: a name without blanks, ^ or `");
+    if(!scenario_id || !is_scenario_id(scenario_id)) {
+        return scenario_error(err, errsz,
+            "id: letters, digits and _ . @ -, not starting with a dot, %d at most", SCENARIO_ID_MAX);
     }
     const char *text_cols[] = {"description", "group", "node", "agent_url", 0};
     for(int i=0; text_cols[i]; i++) {
@@ -1601,14 +1756,14 @@ PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz
             return scenario_error(err, errsz, "yunos[%d]: must be a dict", (int)idx);
         }
         const char *yuno_id = str_member(yuno, "id");
-        if(!yuno_id || !is_valid_key(yuno_id)) {
+        if(!yuno_id || !is_plain_name(yuno_id)) {
             JSON_DECREF(keys)
             return scenario_error(err, errsz, "yunos[%d]: id: the yuno id of its agent", (int)idx);
         }
         const char *key = str_member(yuno, "key");
-        if(!key || (!empty_string(key) && !is_valid_key(key))) {
+        if(!key || (!empty_string(key) && !is_plain_name(key))) {
             JSON_DECREF(keys)
-            return scenario_error(err, errsz, "yunos[%d]: key: a name without blanks, ^ or `", (int)idx);
+            return scenario_error(err, errsz, "yunos[%d]: key: letters, digits and _ . ^ -", (int)idx);
         }
         key = yuno_key(yuno);
         if(json_object_get(keys, key)) {
@@ -1624,6 +1779,12 @@ PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz
                 return scenario_error(err, errsz, "yunos[%d]: %s: must be a string",
                     (int)idx, yuno_cols[i]);
             }
+        }
+        const char *yuno_service = str_member(yuno, "service");
+        if(!empty_string(yuno_service) && !is_plain_name(yuno_service)) {
+            JSON_DECREF(keys)
+            return scenario_error(err, errsz, "yunos[%d]: service: letters, digits and _ . ^ -",
+                (int)idx);
         }
         const char *rate = str_member(yuno, "rate");
         if(!empty_string(rate) && strcmp(rate, "rx")!=0 && strcmp(rate, "tx")!=0) {
@@ -1684,14 +1845,16 @@ PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz
                 return scenario_error(err, errsz, "actions.%s[%d]: yuno: a key of its yunos",
                     action, (int)idx);
             }
-            if(!command || empty_string(command) || strpbrk(command, "\r\n")) {
+            char bad[NAME_MAX];
+            if(!command || check_step_command(command, bad, sizeof(bad)) < 0) {
                 JSON_DECREF(keys)
-                return scenario_error(err, errsz, "actions.%s[%d]: command: one command line",
-                    action, (int)idx);
+                return scenario_error(err, errsz, "actions.%s[%d]: command: %s",
+                    action, (int)idx, command? bad : "must be a string");
             }
-            if(!str_member(step, "service")) {
+            const char *step_service = str_member(step, "service");
+            if(!step_service || (!empty_string(step_service) && !is_plain_name(step_service))) {
                 JSON_DECREF(keys)
-                return scenario_error(err, errsz, "actions.%s[%d]: service: must be a string",
+                return scenario_error(err, errsz, "actions.%s[%d]: service: letters, digits and _ . ^ -",
                     action, (int)idx);
             }
         }
@@ -1836,7 +1999,8 @@ PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id)
 /***************************************************************************
  *  Send the step the run is at to its node's agent, marked in __md_iev__
  *  with the run and the step: its answer comes back to this gobj
- *  (ac_command_yuno_answer -> run_step_answered). As the user who asked.
+ *  (ac_command_yuno_answer -> run_step_answered), carrying the user who
+ *  asked. If the agent's channel closes first, ac_on_close ends the run.
  ***************************************************************************/
 PRIVATE int run_send_step(hgobj gobj)
 {
@@ -1853,6 +2017,7 @@ PRIVATE int run_send_step(hgobj gobj)
         json_object_set_new(step, "comment", json_sprintf("node '%s' is not connected", node));
         return run_end(gobj, -1, "a node of the run is not connected");
     }
+    priv->run_agent_channel = channel_of_side(priv->gobj_input_side, channel);
 
     json_t *kw_step = json_pack("{s:s}",
         "__username__", kw_get_str(gobj, priv->run, "username", "", 0)
@@ -1950,6 +2115,74 @@ PRIVATE int run_step_timed_out(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The agent of the step in flight disconnected: its answer will not come,
+ *  the run ends now instead of at the step's deadline.
+ ***************************************************************************/
+PRIVATE int run_agent_disconnected(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->run) {
+        return 0;
+    }
+    int idx = (int)kw_get_int(gobj, priv->run, "idx", 0, KW_REQUIRED);
+    json_t *step = json_array_get(kw_get_list(gobj, priv->run, "steps", 0, KW_REQUIRED), (size_t)idx);
+    json_object_set_new(step, "result", json_integer(-1));
+    json_object_set_new(step, "comment", json_sprintf("the agent of '%s' disconnected",
+        kw_get_str(gobj, step, "node", "", 0)));
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_APP,
+        "msg",          "%s", "the agent of a step of a scenario run disconnected",
+        "run",          "%s", kw_get_str(gobj, priv->run, "id", "", 0),
+        "step",         "%d", idx,
+        "node",         "%s", kw_get_str(gobj, step, "node", "", 0),
+        NULL
+    );
+    return run_end(gobj, -1, "the agent of a node of the run disconnected");
+}
+
+/***************************************************************************
+ *  The channel of `side` (an iogate: its children are the channels) that
+ *  `g` hangs from, or 0 when `g` is not under it.
+ ***************************************************************************/
+PRIVATE hgobj channel_of_side(hgobj side, hgobj g)
+{
+    if(!side) {
+        return 0;
+    }
+    while(g && gobj_parent(g) != side) {
+        g = gobj_parent(g);
+    }
+    return g;
+}
+
+/***************************************************************************
+ *  The number of the web client connection a channel of __top_side__
+ *  holds now (given by ac_on_open), 0 if none.
+ ***************************************************************************/
+PRIVATE json_int_t connection_number(hgobj channel)
+{
+    return json_integer_value(gobj_read_user_data(channel, "cc_connection"));
+}
+
+/***************************************************************************
+ *  Is `channel` still the connection that asked what `kw` answers? The
+ *  first frame of its ievent stack (the client's, once this control
+ *  center's own is popped) carries the number stamped by command-agent.
+ *  Without the stamp (sent before 7.25.15) there is nothing to tell.
+ ***************************************************************************/
+PRIVATE BOOL same_connection(hgobj gobj, json_t *kw, hgobj channel)
+{
+    json_t *jn_client = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
+    if(!json_is_object(jn_client) || !kw_has_key(jn_client, "cc_connection")) {
+        return TRUE;
+    }
+    return kw_get_int(gobj, jn_client, "cc_connection", 0, KW_WILD_NUMBER) ==
+        connection_number(channel);
+}
+
+/***************************************************************************
  *  The run is over: write it (linked to its scenario) and answer the
  *  requester with it, if it is still there.
  ***************************************************************************/
@@ -1962,6 +2195,7 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
     json_t *kw_answer = priv->run_kw_answer;
     priv->run = 0;
     priv->run_kw_answer = 0;
+    priv->run_agent_channel = 0;
     if(!run) {
         KW_DECREF(kw_answer)
         return 0;
@@ -2032,7 +2266,11 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
     const char *requester = kw_get_str(gobj, run, "requester", "", 0);
     hgobj gobj_requester = empty_string(requester)? 0 :
         gobj_child_by_name(priv->gobj_top_side, requester);
-    if(!gobj_requester && !empty_string(requester)) {
+    json_int_t requester_connection = kw_get_int(gobj, run, "requester_connection", 0, 0);
+    if(gobj_requester && requester_connection &&
+            requester_connection != connection_number(gobj_requester)) {
+        gobj_requester = 0;     // its channel is another client's now
+    } else if(!gobj_requester && !empty_string(requester)) {
         gobj_requester = gobj_find_service(requester, FALSE);
     }
     if(!kw_answer) {
@@ -2108,6 +2346,13 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
+    if(src == priv->gobj_top_side) {
+        hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
+        if(channel_gobj) {
+            gobj_write_user_data(channel_gobj, "cc_connection", json_integer(++priv->connections));
+        }
+    }
+
     KW_DECREF(kw);
     return 0;
 }
@@ -2122,6 +2367,15 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
+
+    if(src == priv->gobj_input_side && priv->run && channel_gobj &&
+            channel_gobj == priv->run_agent_channel) {
+        run_agent_disconnected(gobj);
+    }
+    if(src == priv->gobj_top_side && channel_gobj) {
+        gobj_write_user_data(channel_gobj, "cc_connection", json_integer(0));
+    }
+
     const char *dst_service = json_string_value(
         gobj_read_user_data(channel_gobj, "tty_mirror_dst_service")
     );
@@ -2468,24 +2722,32 @@ PRIVATE int ac_yuno_stats_relay(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  The popped frame is freed here: its dst_service is copied first,
+     *  the warning below still names it.
+     */
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
-    const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
+    char dst_service[NAME_MAX];
+    snprintf(dst_service, sizeof(dst_service), "%s",
+        kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0));
+    JSON_DECREF(jn_ievent_id);
 
     hgobj gobj_requester = gobj_child_by_name(
         priv->gobj_top_side,
         dst_service
     );
-    JSON_DECREF(jn_ievent_id);
-
-    if(!gobj_requester) {
-        jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
-        JSON_INCREF(jn_ievent_id);
-        dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
+    BOOL reconnected = FALSE;
+    if(gobj_requester) {
+        reconnected = !same_connection(gobj, kw, gobj_requester);
+    } else {
+        json_t *jn_next = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
+        snprintf(dst_service, sizeof(dst_service), "%s",
+            kw_get_str(gobj, jn_next, "dst_service", "", 0));
         gobj_requester = gobj_find_service(dst_service, FALSE);
     }
 
     BOOL listening = FALSE;
-    if(gobj_requester) {
+    if(gobj_requester && !reconnected) {
         if(gobj_has_attr(gobj_requester, "opened")) {
             listening = gobj_read_bool_attr(gobj_requester, "opened");
         } else {
@@ -2500,17 +2762,16 @@ PRIVATE int ac_yuno_stats_relay(hgobj gobj, gobj_event_t event, json_t *kw, hgob
                 "msgset",       "%s", MSGSET_INFO,
                 "msg",          "%s", "yuno stats for a web client that is gone, dropped (the agent's watch expires)",
                 "service",      "%s", dst_service,
+                "reconnected",  "%s", reconnected? "its channel holds another connection now" : "",
                 "dropped",      "%lu", (unsigned long)priv->stats_dropped,
                 NULL
             );
             priv->stats_dropped = 0;
             priv->t_stats_dropped_log = start_msectimer(60*1000);
         }
-        JSON_DECREF(jn_ievent_id);
         KW_DECREF(kw);
         return 0;
     }
-    JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
     json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);

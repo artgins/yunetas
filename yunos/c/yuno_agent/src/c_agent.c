@@ -6194,7 +6194,13 @@ PRIVATE json_t *cmd_stats_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  *  control center's channel: a new call replaces it, stop=1 or the channel
  *  closing ends it, and so does `watch_ttl` passing without a new call
  *  (the requester renews it; behind a control center its leaving is never
- *  seen here). Through a control center the watch is refused unless that
+ *  seen here). The client is told by its first hop: yuno, service, host,
+ *  AND the channel it came in by at the control center (`input_channel`,
+ *  stamped there): two tabs of one browser share the rest, and until 7.25.15
+ *  they shared one watch, the second replacing the first at each renewal.
+ *  A yuno may be named more than once with different services; an id that
+ *  is not a yuno of this agent does not refuse the watch: it is watched,
+ *  and its "state" reading says `missing` (it is named in the answer too). Through a control center the watch is refused unless that
  *  control center says it relays EV_YUNO_STATS (`__relays__`): one that
  *  does not know an event drops the agent's connection when it gets one.
  *  Each period, per watched yuno, the
@@ -6222,13 +6228,32 @@ PRIVATE json_t *cmd_watch_yuno_stats(hgobj gobj, const char *cmd, json_t *kw, hg
     json_t *jn_stack = kw_get_list(gobj, kw, "__md_iev__`ievent_gate_stack", 0, 0);
     json_t *jn_origin = json_array_get(jn_stack, json_array_size(jn_stack) - 1);
     char route_name[PATH_MAX];
-    snprintf(route_name, sizeof(route_name), "%s.%s|%s^%s^%s",
+    int route_len = snprintf(route_name, sizeof(route_name), "%s.%s|%s^%s^%s^%s",
         route_service,
         route_child,
         kw_get_str(gobj, jn_origin, "src_yuno", "", 0),
         kw_get_str(gobj, jn_origin, "src_service", "", 0),
-        kw_get_str(gobj, jn_origin, "host", "", 0)
+        kw_get_str(gobj, jn_origin, "host", "", 0),
+        kw_get_str(gobj, jn_origin, "input_channel", "", 0)
     );
+    if(route_len < 0 || (size_t)route_len >= sizeof(route_name)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "watch-yuno-stats requester too long to be named",
+            "route_len",    "%d", route_len,
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the route of this request is too long to watch it",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     if(kw_get_bool(gobj, kw, "stop", 0, KW_WILD_NUMBER)) {
         BOOL had = kw_has_key(priv->watches, route_name);
@@ -6297,34 +6322,48 @@ PRIVATE json_t *cmd_watch_yuno_stats(hgobj gobj, const char *cmd, json_t *kw, hg
         period = min_period;
     }
 
+    /*
+     *  {id: [service, ...]}: one yuno may be read through several services
+     */
     json_t *jn_yunos = json_object();
+    json_t *jn_missing = json_array();
     int list_size = 0;
     const char **list = split2(ids, ", ", &list_size);
     for(int i=0; i<list_size; i++) {
         char id[NAME_MAX];
-        snprintf(id, sizeof(id), "%s", list[i]);
+        if(snprintf(id, sizeof(id), "%s", list[i]) >= (int)sizeof(id)) {
+            json_t *jn_comment = json_sprintf("%s: yuno id too long: '%.40s...'",
+                gobj_yuno_role_plus_name(), list[i]);
+            split_free2(list);
+            JSON_DECREF(jn_yunos)
+            JSON_DECREF(jn_missing)
+            return msg_iev_build_response(gobj, -1, jn_comment, 0, 0, kw);
+        }
         const char *service = "";
         char *colon = strchr(id, ':');
         if(colon) {
             *colon = 0;
             service = colon + 1;
         }
-        json_t *yuno = gobj_get_node(
-            priv->resource,
-            "yunos",
-            json_pack("{s:s}", "id", id),
-            json_pack("{s:b}", "only_id", 1),
-            src
-        );
-        if(!yuno) {
-            json_t *jn_comment = json_sprintf("%s: yuno not found: '%s'",
-                gobj_yuno_role_plus_name(), id);
-            split_free2(list);
-            JSON_DECREF(jn_yunos)
-            return msg_iev_build_response(gobj, -1, jn_comment, 0, 0, kw);
+        json_t *jn_services = json_object_get(jn_yunos, id);
+        if(!jn_services) {
+            jn_services = json_array();
+            json_object_set_new(jn_yunos, id, jn_services);
+            json_t *yuno = gobj_get_node(
+                priv->resource,
+                "yunos",
+                json_pack("{s:s}", "id", id),
+                json_pack("{s:b}", "only_id", 1),
+                src
+            );
+            if(!yuno) {
+                json_array_append_new(jn_missing, json_string(id));
+            }
+            JSON_DECREF(yuno)
         }
-        JSON_DECREF(yuno)
-        json_object_set_new(jn_yunos, id, json_string(service));
+        if(!json_str_in_list(gobj, jn_services, service, FALSE)) {
+            json_array_append_new(jn_services, json_string(service));
+        }
     }
     split_free2(list);
 
@@ -6346,6 +6385,7 @@ PRIVATE json_t *cmd_watch_yuno_stats(hgobj gobj, const char *cmd, json_t *kw, hg
             NULL
         );
         JSON_DECREF(jn_yunos)
+        JSON_DECREF(jn_missing)
         return msg_iev_build_response(
             gobj,
             -1,
@@ -6358,9 +6398,18 @@ PRIVATE json_t *cmd_watch_yuno_stats(hgobj gobj, const char *cmd, json_t *kw, hg
     json_object_set_new(priv->watches, route_name, jn_watch);
     watch_rearm_timer(gobj);
 
-    json_t *jn_data = json_pack("{s:O, s:I, s:I}", "yunos", jn_yunos, "period", period, "ttl", ttl);
-    json_t *jn_comment = json_sprintf("%s: watching %d yunos every %d ms",
-        gobj_yuno_role_plus_name(), (int)json_object_size(jn_yunos), (int)period);
+    json_t *jn_data = json_pack("{s:O, s:o, s:I, s:I}",
+        "yunos", jn_yunos,
+        "missing", jn_missing,   // owned
+        "period", period,
+        "ttl", ttl
+    );
+    json_t *jn_comment = json_array_size(jn_missing) > 0?
+        json_sprintf("%s: watching %d yunos every %d ms, %d of them not found here",
+            gobj_yuno_role_plus_name(), (int)json_object_size(jn_yunos), (int)period,
+            (int)json_array_size(jn_missing)) :
+        json_sprintf("%s: watching %d yunos every %d ms",
+            gobj_yuno_role_plus_name(), (int)json_object_size(jn_yunos), (int)period);
     JSON_DECREF(jn_yunos)
 
     /*  The first readings now, not one period later.  */
@@ -7467,11 +7516,11 @@ PRIVATE int watch_send(
     const char *route_name; json_t *jn_watch;
     json_object_foreach(jn_watches, route_name, jn_watch) {
         json_t *jn_yunos = kw_get_dict(gobj, jn_watch, "yunos", 0, KW_REQUIRED);
-        json_t *jn_service = json_object_get(jn_yunos, yuno_id);
-        if(!jn_service) {
+        json_t *jn_services = json_object_get(jn_yunos, yuno_id);
+        if(!jn_services) {
             continue;
         }
-        if(service && strcmp(json_string_value(jn_service), service)!=0) {
+        if(service && !json_str_in_list(gobj, jn_services, service, FALSE)) {
             continue;
         }
         const char *route_service = kw_get_str(gobj, jn_watch, "route_service", "", KW_REQUIRED);
@@ -7559,14 +7608,17 @@ PRIVATE int watch_tick(hgobj gobj)
     json_t *jn_asked = json_object();
     json_object_foreach(priv->watches, route_name, jn_watch) {
         json_t *jn_yunos = kw_get_dict(gobj, jn_watch, "yunos", 0, KW_REQUIRED);
-        const char *yuno_id; json_t *jn_service;
-        json_object_foreach(jn_yunos, yuno_id, jn_service) {
+        const char *yuno_id; json_t *jn_watched;
+        json_object_foreach(jn_yunos, yuno_id, jn_watched) {
             json_t *jn_services = json_object_get(jn_asked, yuno_id);
             if(!jn_services) {
                 jn_services = json_object();
                 json_object_set_new(jn_asked, yuno_id, jn_services);
             }
-            json_object_set_new(jn_services, json_string_value(jn_service), json_true());
+            size_t i; json_t *jn_service;
+            json_array_foreach(jn_watched, i, jn_service) {
+                json_object_set_new(jn_services, json_string_value(jn_service), json_true());
+            }
         }
     }
 

@@ -155,7 +155,14 @@ request came from -- the way the Terminal's PTY mirror sends `EV_TTY_DATA`
 A yuno that does not run gets only its `state`. One watch per requester --
 its connection AND the client at the far end of the route, because every web
 client of a control center shares that control center's connection: a new
-call replaces the previous one. A watch lives `watch_ttl` (60000 ms) unless it
+call replaces the previous one. The client is told by its hop: yuno, service,
+host and, since 7.25.15, the channel it came in by at the control center
+(`input_channel`) -- before, two tabs of one browser were one requester and
+shared a watch. One yuno may be named with several services
+(`ids=5120,5120:db_tracks_ce`), and an id that is not a yuno of this agent no
+longer refuses the whole watch: it is watched, its `state` says `missing`, and
+the answer names it (`data.missing`,
+*"watching 3 yunos every 2000 ms, 1 of them not found here"*). A watch lives `watch_ttl` (60000 ms) unless it
 is asked again: behind a control center the agent never sees a browser leave,
 so the requester renews it (the answer carries the `ttl`; gui_agent renews
 every third of it), and one not renewed goes with *"watch-yuno-stats not

@@ -118,6 +118,17 @@ counted, not logged per reading: one warning a minute at most,
 yuno stats for a web client that is gone, dropped (the agent's watch expires)  dropped=42
 ```
 
+**A web client is its CONNECTION, not its channel name** (since 7.25.15).
+The channel a browser holds in `__top_side__` (`top-12`) is taken by the next
+client once it closes, so a stream still pushed for the tab that left would
+reach whoever connected after it -- up to `watch_ttl` of another user's node
+data. Each connection gets a number when it opens, `command-agent` stamps it
+on the request (`cc_connection`, in the first frame of the ievent stack, which
+the agent keeps with the watch), and a relayed `EV_YUNO_STATS` -- like the
+answer of a `run-scenario` -- is delivered only while the channel still holds
+that connection. The rest is dropped and counted with the gone ones
+(`reconnected=its channel holds another connection now` in the warning).
+
 ## Scenarios (TreeDB)
 
 The control center's treedb, `treedb_controlcenter` (`schema_version` 3),
@@ -202,9 +213,10 @@ each step, in order, to the yuno's node as
 command-yuno id=<yuno> [service=<service>] command=<command>
 ```
 
-as the user who asked. A step goes only when the one before it answered; a
-step that fails, or does not answer in `run_step_timeout` (30000 ms), ends the
-run there. The run is written to `scenario_runs` -- action, user, start and
+carrying the user who asked (`__username__`, what the agent's audit records).
+A step goes only when the one before it answered; a step that fails, does not
+answer in `run_step_timeout` (30000 ms), or whose node's agent disconnects
+meanwhile, ends the run there -- the last at once, not at the deadline. The run is written to `scenario_runs` -- action, user, start and
 end, the result and the answer of every step, and for a `report` what each
 step answered (`data`) -- and the requester is answered with it (the command
 answers when the run is OVER). One run at a time.
@@ -220,7 +232,26 @@ is the yuno's.
 
 The permissions `read-scenarios`, `write-scenarios` and `run-scenarios` are
 checked by the commands themselves, always -- not only when the yuno turns
-`enable_command_authz` on.
+`enable_command_authz` on. The agent runs each step on the control center's
+own session, so **`write-scenarios` together with `run-scenarios` is as much
+as `command-agent`**: whoever may write a scenario and run it may send any
+command to any yuno of a connected node. Grant them as you grant
+`command-agent`.
+
+**What a step may carry.** A scenario id is letters, digits and `_ . @ -`, not
+starting with a dot, 200 characters at most (a run id is `<id>.<ms>`). The
+`id`, `key` and `service` of a yuno, and the `service` of a step, are letters,
+digits and `_ . ^ -`. A step's `command` is a name and `key=value` parameters
+without blanks, and a parameter may NOT be named like a parameter of
+`command-yuno` (`id`, `service`, `command`) or like a column of the agent's
+`yunos` topic (`yuno_name`, `date`, `global`, `realm_id`, ...): the agent takes
+the whole kw of `command-yuno` as the filter that selects the yuno, so such a
+parameter would pick another yuno or none. `save-scenario` refuses it:
+
+```bash
+ycommand ... -c 'save-scenario scenario={"id":"t2","node":"wattyzer","yunos":[{"id":"1620"}],"actions":{"stop":[{"yuno":"1620","command":"set-x date=1"}]}}'
+# -> ... actions.stop[0]: command: the parameter 'date' is command-yuno's or a yuno's field: it would select the yuno
+```
 
 ## Configuration
 
