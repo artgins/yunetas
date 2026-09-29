@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### JS: gui_agent 0.29.1
+
+- The scenarios list reads itself again whenever its tab is shown, so the runs
+  it counts are current (they only moved on a save or a delete).
+
 ## v7.25.14 (2026-09-29)
 
 A lite release (controlcenter only, rule of 2026-09-29): only the control

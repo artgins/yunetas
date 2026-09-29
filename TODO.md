@@ -323,9 +323,8 @@ is left, in order:
 **Deployed** 7.25.14 on a.com (1996, 1997) on 2026-09-29 and verified end to
 end: a scenario saved from the console, its `report` run by the control center
 through the dev node's agent (both steps answered, as the console user), its
-run listed, then deleted. Left, minor: the list tab's run count is stale until
-it is refreshed (it reloads when the scenario watched changes, not after a
-run); on a phone the rail's fifth item is clipped at 360 px in Spanish (the bar
+run listed, then deleted. The scenario of the yunovatios stress test is kept
+there as `yunovatios-stress`. Left, minor: on a phone the rail's fifth item is clipped at 360 px in Spanish (the bar
 scrolls); a control center started with `run-yuno play=0` and played seconds
 later logs one *"Publish event WITHOUT subscribers"* (`EV_ON_OPEN` of
 `__input_side__`, autoplay) per agent that reconnects in between -- its
