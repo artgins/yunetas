@@ -1815,6 +1815,19 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   `git tag -l | grep <version>` (catches both prefixed and unprefixed forms);
   if anything matches, stop and ask — duplicate `7.x.y`/`v7.x.y` tags pointing
   at different commits is a serious error.
+- **A change that touches only the agent or the controlcenter gets a LITE
+  release while a cycle is open** (rule of 2026-09-29). Bump `YUNETA_VERSION`
+  (`RELEASE` back to 1), write its CHANGELOG section and tag it as usual, but:
+  run only the tests the change affects (not the two-machine suite below), and
+  deploy ONLY the affected binary -- the agent with `--stop`/`--start`, one
+  agent at a time and a `*.bak-pre-<version>` of the running one first; the
+  controlcenter as a new release of 1996/1997 on a.com. No rebuild of every
+  yuno, no `sync-binaries` round over the nodes. **Why:** 7.25.13 changed only
+  `yuno_agent` and `controlcenter`, and the full procedure (suite on two
+  machines, packages, every yuno of every node rebuilt and upgraded) cost
+  hours for two standalone binaries. The full procedure comes back when the
+  cycle is CLOSED, or when it is strictly necessary -- a kernel change that
+  every yuno links is the typical case.
 - **The release suite runs on TWO machines before the tag** (rule of
   2026-09-25): `yunetas test` on the dev machine under `ulimit -Sn 1024`, and the
   full suite on **wattyzer** (build from source; `. /etc/profile.d/yuneta.sh`
