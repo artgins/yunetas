@@ -484,6 +484,9 @@ typedef struct _PRIVATE_DATA {
     uint64_t rxMsgs;
     uint64_t txMsgsec;
     uint64_t rxMsgsec;
+
+    uint64_t stats_dropped;         // EV_YUNO_STATS for a web client that is gone
+    uint64_t t_stats_dropped_log;   // msectimer: next time they may be said
 } PRIVATE_DATA;
 
 
@@ -933,11 +936,22 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
         "yuno_tag",
         "yuno_disabled",
         "yuno_running",
+        "__relays__",   // only this control center says what it relays
         0
     };
     for(int i=0; keys2delete[i]!=0; i++) {
         json_object_del(kw, keys2delete[i]);
     }
+
+    /*
+     *  Tell the agent which of its pushed events this control center
+     *  relays to the web client: an agent sends a watch-yuno-stats
+     *  through a control center only if it says EV_YUNO_STATS here. A
+     *  control center that does not know an event DROPS the agent's
+     *  connection when it gets one, so an older one must never be sent
+     *  it -- and an older one does not write this key.
+     */
+    json_object_set_new(kw, "__relays__", json_pack("[s]", EV_YUNO_STATS));
 
     const char *agent_id = kw_get_str(gobj, kw, "agent_id", "", 0);
     const char *cmd2agent = kw_get_str(gobj, kw, "cmd2agent", "", 0);
@@ -1564,6 +1578,79 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
 }
 
 /***************************************************************************
+ *  A reading of a watch-yuno-stats, sent by an agent along the route of the
+ *  web client that asked for it: relay it to that client, the way
+ *  ac_tty_mirror_data() relays the PTY. The client may be gone -- a tab
+ *  closed: the agent only learns when its watch expires, not renewed -- so
+ *  a reading for nobody is expected. It is counted, and said once a minute,
+ *  not once per reading.
+ ***************************************************************************/
+PRIVATE int ac_yuno_stats_relay(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
+    const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
+
+    hgobj gobj_requester = gobj_child_by_name(
+        priv->gobj_top_side,
+        dst_service
+    );
+    JSON_DECREF(jn_ievent_id);
+
+    if(!gobj_requester) {
+        jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
+        JSON_INCREF(jn_ievent_id);
+        dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
+        gobj_requester = gobj_find_service(dst_service, FALSE);
+    }
+
+    BOOL listening = FALSE;
+    if(gobj_requester) {
+        if(gobj_has_attr(gobj_requester, "opened")) {
+            listening = gobj_read_bool_attr(gobj_requester, "opened");
+        } else {
+            listening = gobj_in_this_state(gobj_requester, ST_SESSION);
+        }
+    }
+    if(!listening) {
+        priv->stats_dropped++;
+        if(!priv->t_stats_dropped_log || test_msectimer(priv->t_stats_dropped_log)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "yuno stats for a web client that is gone, dropped (the agent's watch expires)",
+                "service",      "%s", dst_service,
+                "dropped",      "%lu", (unsigned long)priv->stats_dropped,
+                NULL
+            );
+            priv->stats_dropped = 0;
+            priv->t_stats_dropped_log = start_msectimer(60*1000);
+        }
+        JSON_DECREF(jn_ievent_id);
+        KW_DECREF(kw);
+        return 0;
+    }
+    JSON_DECREF(jn_ievent_id);
+
+    KW_INCREF(kw);
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
+
+    json_t *iev = iev_create(
+        gobj,
+        event,
+        kw_redirect    // owned
+    );
+
+    return gobj_send_event(
+        gobj_requester,
+        EV_SEND_IEV,
+        iev,
+        gobj
+    );
+}
+
+/***************************************************************************
  *  HACK intermediate node, pero al revés(???)
  ***************************************************************************/
 PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -2010,6 +2097,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_MT_STATS_ANSWER,        ac_stats_yuno_answer,    0},
         {EV_MT_COMMAND_ANSWER,      ac_command_yuno_answer,  0},
         {EV_TTY_DATA,               ac_tty_mirror_data,      0},
+        {EV_YUNO_STATS,             ac_yuno_stats_relay,     0},
         {EV_WRITE_TTY,              ac_write_tty,            0},
 
         {EV_TREEDB_NODE_CREATED,    ac_treedb_node_create,   0},
@@ -2041,6 +2129,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
         {EV_TTY_DATA,               EVF_PUBLIC_EVENT},
+        {EV_YUNO_STATS,             EVF_PUBLIC_EVENT},
         {EV_MT_STATS_ANSWER,        EVF_PUBLIC_EVENT},
         {EV_WRITE_TTY,              0},
 

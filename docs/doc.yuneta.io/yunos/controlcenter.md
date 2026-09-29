@@ -88,6 +88,35 @@ control center routes the command to the one matching connected agent
 (`gobj_command`, first match only). The node's agent then executes it, and can
 itself target a specific yuno via its own `command-yuno` (`command=… service=…`).
 
+### Events pushed by a node, relayed to the web client
+
+Some of what a node's agent sends is not an answer but a stream, pushed along
+the route of the request that opened it: the PTY of `open-console`
+(`EV_TTY_OPEN`, `EV_TTY_DATA`, `EV_TTY_CLOSE`) and, since 7.25.13, the stats
+of a `watch-yuno-stats` (`EV_YUNO_STATS`). The control center relays each of
+them to the web client at the end of the route. It must KNOW the event: a
+control center that receives one it does not know drops the agent's
+connection. So `command-agent` tells the agent what this control center
+relays, in the kw it forwards:
+
+```json
+{"cmd2agent": "watch-yuno-stats ids=2120,5120 period=2000",
+ "__relays__": ["EV_YUNO_STATS"]}
+```
+
+and the agent refuses a watch that arrives through a control center without
+it (*"the control center in between does not relay EV_YUNO_STATS, ask
+stats-yuno instead"*). A `__relays__` sent by the web client is removed first:
+only the control center says what it relays.
+
+A stats reading for a web client that is gone (a closed tab) is expected --
+the agent learns it only when the watch expires, not renewed -- and is
+counted, not logged per reading: one warning a minute at most,
+
+```text
+yuno stats for a web client that is gone, dropped (the agent's watch expires)  dropped=42
+```
+
 ## Inventory (TreeDB)
 
 Beyond the live-connection scan, the control center keeps a declared inventory

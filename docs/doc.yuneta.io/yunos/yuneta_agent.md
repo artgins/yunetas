@@ -152,8 +152,14 @@ request came from -- the way the Terminal's PTY mirror sends `EV_TTY_DATA`
  "data": {"txMsgs": 3966, "rxMsgs": 3966, "rxMsgsec": 500, "...": "..."}}
 ```
 
-A yuno that does not run gets only its `state`. One watch per requester: a
-new call replaces the previous one. The readings are taken by the agent on
+A yuno that does not run gets only its `state`. One watch per requester --
+its connection AND the client at the far end of the route, because every web
+client of a control center shares that control center's connection: a new
+call replaces the previous one. A watch lives `watch_ttl` (60000 ms) unless it
+is asked again: behind a control center the agent never sees a browser leave,
+so the requester renews it (the answer carries the `ttl`; gui_agent renews
+every third of it), and one not renewed goes with *"watch-yuno-stats not
+renewed, expired"* in the agent's log. The readings are taken by the agent on
 loopback (`stats-yuno` to its own yunos), ONCE per yuno and service however
 many requesters watch it, at the shortest period asked; `period` is never
 under the attribute `watch_min_period` (1000 ms), and `max_watches` (30)
@@ -163,8 +169,10 @@ yunos.
 
 A client that asks for a watch must know `EV_YUNO_STATS`: a C client (an
 older `ycommand`) that receives an event it does not know drops the
-connection. Through the control center the events do not travel yet (the
-control center does not relay them); the Monitor polls there.
+connection. For the same reason a watch that arrives through a control center
+is accepted only if that control center says it relays the event
+(`__relays__`, see [the control center](controlcenter.md)); otherwise it is
+refused and the requester polls.
 
 ## Redundancy
 

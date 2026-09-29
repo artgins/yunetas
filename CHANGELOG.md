@@ -14,9 +14,20 @@
   with its requester's connection. A subscription could not do this: they go
   from a client to a server only, and the agent is the server of its yunos.
 - New kernel event `EV_YUNO_STATS` (`g_ev_kernel`).
-- gui_agent's Monitor (0.26.0) uses it when it talks to an agent directly,
-  and falls back to polling an agent that does not know the command. The
-  control center does not relay `EV_YUNO_STATS` yet.
+- One watch per requester = its connection plus the client at the far end of
+  the route (every web client of a control center shares its connection),
+  and it expires after `watch_ttl` (60000 ms) unless asked again: behind a
+  control center the agent never sees a browser leave. The answer carries the
+  `ttl`.
+- **The control center relays `EV_YUNO_STATS`** to the web client, like the
+  PTY mirror. `command-agent` now adds `__relays__: ["EV_YUNO_STATS"]` to the
+  kw it forwards (after removing one the client may have sent), and the agent
+  refuses a watch through a control center without it: a control center that
+  gets an event it does not know drops the agent's connection. A reading for
+  a web client that is gone is counted and said once a minute.
+- gui_agent's Monitor (0.26.0-0.27.0) uses it directly and through the control
+  center, per node, and polls a node whose agent or control center refuses the
+  watch.
 - `ac_timeout_periodic` of `C_AGENT` now tells its periodic timers apart by
   `src` (cert-sync and the watch), and logs a tick of an unknown one.
 

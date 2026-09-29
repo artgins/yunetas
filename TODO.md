@@ -258,10 +258,10 @@ monitor has to use `start_date` meanwhile.
 
 **Done (Unreleased, 2026-09-29):** the agent's `watch-yuno-stats` pushes
 `EV_YUNO_STATS` along the requester's route, the readings SAMPLED by the agent
-(option (a) below), and gui_agent's Monitor uses it on a direct link, falling
-back to polling an older agent. **Left:** (b) the yuno sending its own stats,
-and the control center relaying `EV_YUNO_STATS` (item 3) so the Monitor can
-stop polling through the control center too.
+(option (a) below), the control center relays it (item 3, with `__relays__`
+and a `watch_ttl`), and gui_agent's Monitor uses it both ways, polling a node
+that refuses. **Left:** (b) the yuno sending its own stats, and the
+Statistics cards moving to the same stream.
 
 **What the transport allows (checked 2026-09-29).** A subscription travels
 only from a CLIENT to a SERVER: `C_IEVENT_SRV` has no
