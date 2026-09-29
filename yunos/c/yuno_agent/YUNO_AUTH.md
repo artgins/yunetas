@@ -130,9 +130,10 @@ By default the SPA never sees a raw token (SEC-06): tokens live only in
 HttpOnly cookies scoped to the BFF host, so they cannot be forwarded to a
 backend on a **different** host. When a single SPA must open WebSockets to
 Yuneta backends on *other* hosts, for example the `gui_treedb` browser served
-at `artgins.ytreedb.com` that connects to `wss://app.wattyzer.com:1602`, it
-forwards the access_token itself in the `C_IEVENT_CLI` identity_card `jwt`
-field. The remote `C_IEVENT_SRV` accepts an identity-card JWT with priority
+at `artgins.ytreedb.com` that connects to `wss://app.wattyzer.com:1602`, or
+the Monitor workspace of `gui_agent` that talks to a node's agent directly
+(`wss://agent.yunovatios.es:1993`), it forwards the access_token itself in the
+`C_IEVENT_CLI` identity_card `jwt` field. The remote `C_IEVENT_SRV` accepts an identity-card JWT with priority
 over the (absent) cookie, and `C_AUTHZ` validates it against the issuer JWKS
 exactly as a cookie token — so each remote backend must have the issuer's
 JWKS provisioned (`add-jwk`) and a role for the target service.

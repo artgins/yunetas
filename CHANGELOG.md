@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### JS: gui_agent 0.23.0, the Monitor workspace
+
+- **A test, live, from its agent.** gui_agent gains a fifth workspace,
+  Monitor: a left-to-right graph of the yunos of one scenario (the agent url,
+  the yunos, the links the messages follow) with cpu %, msg/s in and out,
+  queue and state per yuno, and two uPlot charts over a 5-60 minute window.
+  First written for yunovatios' stress tests (sim_controllers -> gate_central
+  -> db_tracks_ce), and it matches what `ycommand` measures on them.
+- **It is the first transport of the console that does not go through the
+  control center**: it talks to the agent's `wss://<node>:1993` with the
+  access_token it gets from the BFF's `/auth/token`, so that plane's BFF needs
+  `expose_access_token` (`YUNO_AUTH.md` §2.2). The agent must serve a
+  certificate a browser trusts; the self-signed `yuneta_agent.yuneta.io` does
+  not.
+- The readings are polled (the Statistics exception, extended to this view)
+  until the agent can publish stats to a subscriber; `TODO.md` "Stats: three
+  things a live monitor cannot trust" lists what a monitor finds in the SDK
+  stats today.
+
 ### tr2check: check a topic filled by a load test
 
 - New tool `utils/c/tr2check` (installed in `/yuneta/bin`, shipped in the
