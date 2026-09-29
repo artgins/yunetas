@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v7.25.13 (2026-09-29)
+
 ### Agent: `watch-yuno-stats`, the stats of yunos pushed to whoever watches
 
 - New agent command `watch-yuno-stats ids=<id>[:<service>],... period=<ms>`
@@ -31,7 +33,7 @@
 - `ac_timeout_periodic` of `C_AGENT` now tells its periodic timers apart by
   `src` (cert-sync and the watch), and logs a tick of an unknown one.
 
-### JS: gui_agent 0.23.0 - 0.25.0, the Monitor workspace
+### JS: gui_agent 0.23.0 - 0.27.0, the Monitor workspace
 
 - **A test, live, from its agent.** gui_agent gains a fifth workspace,
   Monitor: a left-to-right graph of the yunos of one scenario (the agent url,

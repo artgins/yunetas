@@ -38,6 +38,13 @@ Registered in `src/c_controlcenter.c:96-111`:
 | `drop-agent`     | Drop the connection to a specific node.                                       |
 | `write-tty`      | Write bytes to a node's PTY console (the `yuno_agent22` backdoor).            |
 
+Besides answers, the control center relays what a node's agent PUSHES along
+the route of a request: the PTY of `open-console` (`EV_TTY_OPEN/DATA/CLOSE`)
+and, since 7.25.13, the readings of a `watch-yuno-stats` (`EV_YUNO_STATS`).
+`command-agent` adds `__relays__: ["EV_YUNO_STATS"]` to what it forwards, and
+the agent refuses a watch through a control center that does not say it:
+one that receives an event it does not know drops the agent's connection.
+
 Talk to it via `ycommand`:
 
 ```bash
