@@ -12336,10 +12336,10 @@ GOBJ_DEFINE_EVENT(EV_READ_RUNNING_BIN);
 
 /***************************************************************************
  *  Authz service notifications.  In mt_start the agent subscribes to ALL of
- *  its authz service's output events; EV_AUTHZ_USER_LOGIN/LOGOUT/NEW are
- *  consumed by controlcenter directly from its own local authz, so the agent
- *  only needs to accept-and-ignore them.  Without this they reach the FSM as
- *  "Event NOT DEFINED in state" on every login/logout.
+ *  its authz service's output events; the agent has nothing to do on
+ *  EV_AUTHZ_USER_LOGIN/LOGOUT/NEW, so it only accepts-and-ignores them.
+ *  Without this they reach the FSM as "Event NOT DEFINED in state" on every
+ *  login/logout.
  ***************************************************************************/
 PRIVATE int ac_authz_user_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {

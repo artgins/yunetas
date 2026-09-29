@@ -4695,10 +4695,15 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0, 0}
     };
 
+    /*
+     *  The user events are for whoever wants them (the agent, the mqtt
+     *  broker): a yuno whose services do not subscribe is not a bug, and
+     *  every login would say so.
+     */
     event_type_t event_types[] = { // HACK System gclass, not public events
-        {EV_AUTHZ_USER_LOGIN,   EVF_OUTPUT_EVENT},
-        {EV_AUTHZ_USER_LOGOUT,  EVF_OUTPUT_EVENT},
-        {EV_AUTHZ_USER_NEW,     EVF_OUTPUT_EVENT},
+        {EV_AUTHZ_USER_LOGIN,   EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_AUTHZ_USER_LOGOUT,  EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_AUTHZ_USER_NEW,     EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_ADD_USER,           0},
         {EV_REJECT_USER,        0},
         {EV_IDP_USER_CREATED,   0},

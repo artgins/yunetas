@@ -39,6 +39,12 @@ center's binary changes, and only it is deployed.
   refusal went with the `users` topic, and so did the *"Treedb Controlcenter
   not ready"* warnings a restart logged while the agents reconnected
   (`YUNO_AUTH.md` §4.9).
+- **`C_AUTHZ`: `EV_AUTHZ_USER_LOGIN/LOGOUT/NEW` are `EVF_NO_WARN_SUBS`.**
+  Their subscribers are optional (the agent, the mqtt broker); a yuno that has
+  none logged *"Publish event WITHOUT subscribers"* on every login -- the
+  control center did, from the moment it stopped subscribing (seen deploying
+  this release on a.com: 29 in the first minute). Reaches each yuno at its
+  next rebuild.
 
 ### JS: gui_agent 0.29.0, the Scenarios workspace, in place of Monitor and Statistics
 
