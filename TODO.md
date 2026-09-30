@@ -6,30 +6,43 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 `docs/doc.yuneta.io/yunos/mqtt_broker.md`,
 `docs/doc.yuneta.io/guide/guide_tls.md`) and git history.
 
-## Defects open after 7.25.5 (the next review round starts here)
+## Defects open after review round 21 (the next review round starts here)
 
-7.25.5 was released after twenty review rounds with these items found and not
-yet fixed. Each is a defect, not a design choice: fix it with a test that fails
-first.
+Round 21 (Unreleased, 2026-09-30) fixed the nine items 7.25.5 left open and
+what a review of 7.25.6-7.25.20 found (see CHANGELOG). Left open, each a
+defect or a gap, not a design choice; fix it with a test that fails first:
 
-- **`ac_identity_card` (C_IEVENT_SRV, before authentication)** logs errors with
-  the whole kw dumped, once per connection: a peer-caused condition, so a capped
-  warning (decoder severity rule).
-- **C_TCP_S `connxs` / `tconnxs`** are `SDF_STATS` without `mt_reading`: they
-  always read 0.
-- **gobj-js subscriptions**: a repeated `__own_event__` / `__rename_event_name__`
-  subscription is probably made twice, as C did before 7.25.5 (C fixed in
-  `gobj_subscribe_event()` with `_subscription_match_kw()`).
-- **C_PROT_MQTT2 `db__message_update_outgoing()`**: "QoS mismatch" is still an
-  ERROR; the other sites are a WARNING plus a protocol error.
-- **Agent audit `peer_field()`**: when the redacted copy cannot be allocated it
-  writes the raw peer text (out-of-memory path only).
-- **timeranger2.c ~7505**: the log says "stat() FAILED" where the call is now
-  `lstat()`.
-- **C_TRANGER handles opened through the agent** are not reaped when the
-  operator's session ends (documented; they can pile up).
-- **`tests/c/tr_treedb_delete_instance/README.md`** lists about half of its cases.
-- About 20 older code comments say "up to this fix" without naming a version.
+- **C_TRANGER handles opened through the agent are not reaped** when the
+  operator's session ends (documented in `api/gclass/data.md`). A
+  `command-yuno` reaches the yuno over its one C_IEVENT_CLI link to the agent,
+  which is what is stamped as `src_gobj`; the reaping paths
+  (`mt_subscription_deleted`, `ac_on_close` of a C_IEVENT_SRV, `mt_stop`)
+  never fire for it, and the operator's session lives in the agent (behind a
+  control center, not even there). Needs a DESIGN decision: an agent-to-yuno
+  "session ended" notification, and a rule for when several sessions of one
+  user are one owner.
+- **`_delete_subscription()` reads the publisher out of the subscription it is
+  given**: a stale subscription list that outlives its publisher points at
+  freed memory. Round 21 made a stale subscription remove nothing; the list
+  itself is the caller's bug.
+- **Traces that still show secrets**: the C_TCP `traffic` dump of RECEIVED
+  data on server gates (a Cookie header, a password in an HTTP body: the
+  sender cannot mark them), the `ev_kw` dump of an event a command is
+  redirected to or of an inter-event carrying a command (no command table
+  says what is secret there), and `__json_config_variables__` plus the
+  `[^^children^^]` templates in `view-config` and the traces.
+- **`C_FS` has no subscription block in `mt_create`** (neither the CHILD nor
+  the SERVICE model): its hosts subscribe by hand (watchfs does). Adding one
+  would double-subscribe them; decide the model and migrate watchfs with it.
+- **webstats counts days as N*86400** in `prune_store`, the whois cache expiry
+  and `new_visitor_days`: an hour off around a DST change.
+- **The static resolver does not take the IPv4 shorthand** glibc takes
+  (`"127.1"`): such a literal goes to DNS.
+- **The c_mqtt tests use fixed ports (18110-18117) and fixed `/tmp/test_mqtt_*`
+  dirs**: two runs on one machine at the same time collide ("bind() FAILED").
+- **The Python TUI (`utils/python/tui_yunetas`) was not checked** against
+  C_IEVENT_SRV closing a session frame that carries no well-formed routing, nor
+  against the identity card now refused when its jwt is not a string.
 
 ## Schema editing: the admin console
 
@@ -115,19 +128,6 @@ open:
 
 - **Apply is off on every in-tree yuno:** each one forces `impose_c_schema`,
   so gui_agent's Apply is off on all of them until one stops forcing it.
-
-## C_FS: the event types are read as bits, and a `kw` is leaked
-
-Seen 2026-09-27 while adding `FS_OVERFLOW_TYPE`. `fs_event_callback()` of
-`c_fs.c` tests `fs_type & (FS_SUBDIR_CREATED_TYPE)` and so on, but the types
-are consecutive VALUES (1..7), not bits: `FS_FILE_MODIFIED_TYPE` (5) matches a
-"directory created" (1), a "file created" (3) and a "file deleted" (4), so
-`EV_FS_CHANGED` is published for those too. And the `kw` it builds first is
-only consumed by that one publish: a "directory deleted" (2) matches nothing and
-leaks it. `FS_OVERFLOW_TYPE` is handled before the tests. Decide what `C_FS`
-means to publish for each type (it only publishes `EV_FS_CHANGED`) before
-touching it: `watchfs` depends on it. The `utils/c/fs_watcher` CLI had the same
-reading and was fixed (a diagnostic tool, no consumers).
 
 ## ytls (mbedTLS): a failed encrypted-output callback frees the gbuffer twice
 

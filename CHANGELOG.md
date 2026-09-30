@@ -2,6 +2,221 @@
 
 ## Unreleased
 
+Review round 21: the nine defects left open by the twenty rounds of 7.25.5,
+the review of everything released since (7.25.6-7.25.20), and what that
+review found. Every fix has a test that failed before it.
+
+### SECURITY: secrets that still reached a reader or a log
+
+- **`SDF_SECRET` on the credentials that were not flagged.**
+  `C_IEVENT_SRV.http_cookie` holds the browser's whole Cookie header, the BFF's
+  httpOnly access_token included, and view-gobj, view-gobj-tree and view-attrs
+  showed it for every connected browser. It is now masked, as are the MQTT 5
+  `auth_data` of C_PROT_MQTT2/C_PROT_MQTT, webstats `visitor_salt`, and the
+  esp32 transport `jwt` and `wifi_list`.
+- **`view-config` masks the secrets.** It dumped the config as it is, so a
+  password or client_secret in a service's kw, a child's kw or a `global` key
+  reached whoever asked. The new `gobj_mask_secret_config()` masks, on a copy,
+  every value that lands on an `SDF_SECRET` attr (the gclass attr tables
+  decide, no keyword list).
+- **Command parameters can be `SDF_SECRET`.** The `commands` trace printed the
+  command line, and with `ev_kw` the command kw, in clear: passwords given to
+  `set-user-pwd`, `create-user`, `set-email-user`. A parameter declared
+  `SDF_SECRET` is shown as `********` in all three traces (new
+  `command_mask_secret_kw()` / `command_mask_secret_line()`). Flagged: C_AUTHZ
+  `password`, C_IDP_KEYCLOAK `kc_admin_client_secret`, ycli `user_passw`,
+  C_PROT_MQTT `create-user` `password`, emailsender `set-email-user`
+  `password`.
+- **The `create_delete2` trace no longer prints secrets**: its kw and sdata
+  dumps showed the passwords a gobj is built with (the smtp child's,
+  ycommand's `user_passw`).
+- **Secret gbuffers: hidden from the traffic trace, wiped on free.** The
+  C_TCP `traffic` trace dumps outgoing bytes before TLS, so a credential sent
+  as data -- the SMTP AUTH line -- reached the log. New
+  `gbuffer_set_secret()` / `gbuffer_is_secret()`: every trace dump prints a
+  secret gbuffer as `<N bytes hidden>`, and it is zeroed when freed or grown.
+  C_TCP takes `"__secret__": true` in the `EV_TX_DATA` kw; the flag survives
+  the tx queue and gbuffer serialization. The emailsender marks its AUTH line.
+- **The persistent-attrs file is made 0600 when it is LOADED, not only when it
+  is saved.** A password set once and never saved again stayed in a 0664 file.
+  A save that cannot make the file 0600 now refuses to write instead of
+  warning, and a symlink planted in the 02775 data dir is neither read nor
+  written through (`O_NOFOLLOW`).
+- **A yuno's materialised config files are 0640, never world-readable.** The
+  agent wrote `bin/<n>-<role>^<name>.json`, which carries the yuno's secrets,
+  as 0664, and an existing file kept its old mode. Every one is now 0640,
+  narrowed at each launch (and files an earlier launch left behind are
+  narrowed too); if the mode cannot be narrowed, nothing is written and the
+  yuno is not run.
+- **The agent's audit never writes a peer field raw when it cannot redact
+  it.** A failed allocation inside the redaction wrote the JWT or `password=`
+  it was meant to hide, or 4 KB never scanned. It now writes
+  `<not written: no memory to redact it>` and logs it. A peer field that is
+  not UTF-8 is a warning, not an internal error.
+- **MQTT: the CONNECT decode trace no longer prints the password**, and prints
+  the username by its length (it read past a field that is not
+  NUL-terminated, so a long password also appeared on the username line). The
+  same over-read is fixed in the SUBSCRIBE/UNSUBSCRIBE traces and the "invalid
+  will topic" warning. **The dump of a refused CONNECT no longer carries the
+  credentials**: a CONNECT with one extra byte after a valid password put the
+  password in the log; of a CONNECT only the protocol name, level, flags and
+  keep alive are dumped now, of an AUTH only its reason code.
+
+### Kernel
+
+- **A renamed subscription is no longer a repeat of a plain one, nor of
+  another rename.** Since 7.25.5, subscribing `EV_X` with
+  `__rename_event_name__` found an existing plain `EV_X` subscription of the
+  same subscriber as REPEATED and replaced it, and two renames of one event
+  collapsed into one (withdrawing either removed both). The renamed event is
+  part of the match now; a kw with no rename is still a wildcard, and each kw
+  withdraws only what it made.
+- **`gobj_unsubscribe_list()` removes the subscription it is given, not the
+  first one that looks like it.** A stale plain subscription (already removed)
+  removed a live one, e.g. one with a `__filter__`. The object itself is
+  looked up; one no longer there removes nothing, is not passed to
+  `mt_subscription_deleted()`, and is logged.
+- **C_IEVENT_SRV: an identity card it refuses is the peer's, one capped
+  warning.** Before the session, a card with no routing, for another
+  role/yuno/service, or with no src role/service was an ERROR with the whole kw
+  (jwt included), plus a second ERROR "event UNKNOWN in not-session state".
+  Each is now one warning (protocol category, peername, kw capped, jwt hidden)
+  and the channel is closed. A jwt that is not a string is refused instead of
+  authenticated, and an event before the card gets one warning.
+- **C_TCP_S: `connxs` and `tconnxs` count the connections.** Both always read
+  0: `connxs` was never decremented, and servers without `child_tree_filter`
+  never saw their accepts. Now they are the connections held and those
+  accepted since the start, for both accept methods, as attrs and in `stats`.
+  C_TCP's own `connxs` is readable too.
+- **C_TCP: data sent while a connection closes is said once, with its count.**
+  It was dropped with no trace at the default levels; now one warning per
+  connection gives the messages and bytes dropped.
+- **C_GSS_UDP_S starts its C_UDP_S again when it stops by itself.** The
+  service stayed deaf and every send logged "Event NOT DEFINED in state". The
+  stop is said once, sends are refused meanwhile with one warning, and the
+  C_UDP_S restarts at the next `timeout_base` tick.
+- **Static resolver: v4-mapped literals answered as glibc answers them.**
+  "127.0.0.1" in `AF_INET6` with `AI_V4MAPPED` returns `::ffff:127.0.0.1`, and
+  "::ffff:1.2.3.4" in `AF_INET` returns `1.2.3.4`; both were
+  `EAI_ADDRFAMILY`.
+- **`C_FS` publishes by the value of the event type, watches the tree once,
+  and recursively only when asked.** The fs_watcher types are values, not
+  bits: a deleted directory published nothing and leaked its kw, and other
+  types published by accident. A recursive `C_FS` also added a recursive
+  watcher per subdirectory, so a change N levels down was published N+1 times,
+  and `"recursive": 0` reported the subdirectories anyway. Now one watcher on
+  the root, recursive only with `recursive` set. **Visible change**: a C_FS
+  (watchfs) configured `recursive: false` no longer reports subdirectories.
+
+### timeranger2 and its tools
+
+- **A feed that overflowed hears the deletes another feed of its topic
+  heard.** The feeds of a follower share the topic's cache, and the first to
+  hear a key-delete removed the key from it; a feed whose inotify queue
+  overflowed then compared the cache with `keys/`, found nothing gone, and
+  never got its `key_deleted`. Each feed now keeps the deletes it still owes.
+- **A directory deleted and recreated during an inotify overflow is watched
+  again.** Its `IN_DELETE_SELF` and `IN_IGNORED` were lost with the overflow,
+  the table kept the dead wd, and the rescan took the path as watched.
+  `IN_IGNORED` now clears its wd, and the rescan re-adds every watch.
+- **No rescan pass for a watcher its owner stopped on overflow.**
+- **The keys listing names the call that failed**: "lstat() FAILED", not
+  "stat() FAILED".
+- **`tr2check` resolves the topic path, and never gives a verdict on a partial
+  load.** A relative `db/topic` or a bare `topic` opened the wrong directory;
+  a key whose sequences could not all be kept in memory ended its load
+  silently and could still PASS (now exit 2). The open-files limit raises only
+  the soft limit, and says when it cannot.
+
+### MQTT
+
+- **A client's wrong ack is a WARNING, not an ERROR.** A PUBREC for a QoS 1
+  message ("QoS mismatch") and a PUBREL for a packet id with no QoS 2 message
+  waiting ("Message not found", with a stack) were ERRORs naming neither the
+  client nor the peer. Both are WARNINGs with client_id and peername; the
+  broker still answers DISCONNECT 0x82 and PUBCOMP. As a client, a PUBREC for
+  an unknown packet id is only the caller's WARNING (it was also an ERROR with
+  a stack).
+- **C_PROT_MQTT (deprecated): an UNSUBSCRIBE of several topics removes the
+  topics sent.** Each topic was read as a C string inside the packet and ran
+  into the next one. The same gclass stopped logging a WARNING on every
+  connection (an undeclared `connected` attr) and an ERROR for every absent
+  MQTT 5 property, and its logs print the command as a string (twelve used
+  `"%d"` on a `const char *`).
+
+### Agent
+
+- **`watch-yuno-stats` trusts only the routing hop it can, and every
+  requester must opt in.** The watch was named from the last hop of the ievent
+  stack, which the client writes, so a forged hop could stop or replace
+  another user's watch; it is now named from the agent's own hop, or the
+  control center's (with `cc_connection`). A direct `ycommand` watch was sent
+  events it cannot handle ("Event NOT DEFINED" until the watch expired): every
+  requester must now send `__relays__: ["EV_YUNO_STATS"]` (gui_agent 0.29.6
+  does). The first readings follow the answer and go to the renewed watch
+  only. New `max_watch_ids` (256) caps one watch.
+
+### Control center
+
+- **What only an agent sends is taken only from the agents' side.** The
+  answers of `command-agent`/`stats-agent`, the console PTY
+  (`EV_TTY_OPEN/DATA/CLOSE`) and `EV_YUNO_STATS` are public events; a web
+  client could send them too, with a route it wrote, and push answers,
+  console frames or readings to another client's channel. They are accepted
+  only from `__input_side__`.
+- **Every answer and stream an agent sends back checks the web client's
+  connection**, not only the stats: a slow answer or a console stream of a
+  client that had left reached the next client of that channel.
+  `ac_tty_mirror_open` also stored the client name from a freed frame.
+- **Several console mirrors through one agent's connection**: the clients
+  are kept per console; when the agent goes, each is dropped once.
+- **A run's step is answered only by the agent it went to.** A client with
+  `command-agent` could put `cc_run`/`cc_step` in its own command and end or
+  advance another user's run.
+- **A step may not carry a framework key, and every run checks its steps
+  again.** `__md_iev__=x` in a step replaced the routing of its answer (the run
+  waited for `run_step_timeout`), `__username__=` the stamped user, and a
+  scenario saved by 7.25.14 skipped every step check.
+- **`save-scenario` named a scenario it had freed** in its answer, when the
+  scenario came as a string.
+- A step an agent does not answer in time is a warning, not an error.
+
+### emailsender and webstats
+
+- **emailsender: a transient refusal of the login is retried.** Any reply but
+  235 to AUTH PLAIN was taken as rejected credentials: the yuno exited 0 and
+  was not relaunched, so a provider's `454 4.7.0` stopped the node's mail for
+  good. Only a 5xx is a refusal now; `EV_ON_CLOSE` carries the server's reply
+  text (`reply`), and the AUTH buffers are wiped before they are freed.
+- **emailsender: retries against a failing SMTP server are paced**: from
+  `timeout_retry` (2 s), doubling per failure in a row up to
+  `timeout_retry_max` (10 min), reset by a delivered message. With the default
+  `max_retries` of 4 an outage of 14 s is ridden out; `max_retries: 10` covers
+  about 17 minutes.
+- **emailsender: an email queued during the SMTP handshake waits for it**; it
+  was refused ("Event NOT DEFINED") and retried in the same instant, spending
+  all its retries before the server had greeted.
+- **emailsender: the send logs name the recipients** (`to`, `cc`, `bcc`); they
+  logged an empty `to`, and after a refused send bytes from freed memory.
+- **emailsender: a session the SMTP server ends is a WARNING**, with the reply
+  capped at 512 bytes; an ERROR now means our own failure.
+- **emailsender: `set-email-user url=` and `set-url-from` reach the SMTP
+  session** (it started on the old url); a running session takes the new url
+  at its next start, and the answer says so.
+- **webstats: the addresses a sentence dot, a port or `::ffff:` left bare are
+  bracketed** (`[a.b.c.d].`, `[a.b.c.d]:443`, `[::ffff:a.b.c.d]`), which could
+  bring back the OVH "phone number" drop.
+- **webstats: yesterday is the calendar day before, not `now - 86400`**, and a
+  scheduled run reports the day before its slot, not before the moment the
+  timer fired (spring and autumn DST days, `report_hour` 0).
+- **webstats: a run that keeps the stored day publishes it**, not the empty
+  one it read.
+
+### Comments
+
+- 31 comments said what the code did "up to this fix" without saying which
+  release; each now names it (7.25.4, by `git blame`).
+
 ### linux-ext-libs: openresty from its release tarball
 
 - **`extrae.sh` downloads openresty's release tarball** from openresty.org
