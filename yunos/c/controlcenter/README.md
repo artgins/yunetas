@@ -102,7 +102,12 @@ instead of `node` makes a DIRECT scenario, which the web console watches
 through its own link to that agent (and which `run-scenario` refuses). An
 action is `start`, `pause`, `resume`, `stop` or `report`, each a list of
 steps: a yuno of the scenario (its `key`, default its `id`), an optional
-service, and one command line with its `key=value` parameters.
+service, and one command line with its `key=value` parameters. A parameter
+may not be named like one of `command-yuno`'s (`id`, `service`, `command`) or
+a column of the agent's `yunos` topic (it would select the yuno), nor start
+with `__` (a framework key: `__md_iev__`, `__username__`, ...). `run-scenario`
+checks the steps again, so a scenario saved before a check existed is refused
+naming the step until it is saved again.
 
 `run-scenario scenario_id=<id> action=<action>` sends each step as
 `command-yuno id=<yuno> [service=<svc>] command=<command>` to the yuno's

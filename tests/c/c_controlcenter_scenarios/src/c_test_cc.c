@@ -15,7 +15,12 @@
  *          Verified:
  *              - save-scenario with the scenario as a string answers with
  *                its id: the id was read from the parsed json after it
- *                was freed.
+ *                was freed;
+ *              - a step parameter named like a framework key (`__md_iev__`,
+ *                `__username__`) is refused by save-scenario;
+ *              - a scenario saved before those checks (written straight into
+ *                the treedb here) is checked again at run-scenario, and the
+ *                run refused naming the step.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -241,6 +246,16 @@ PRIVATE void client_opens(hgobj gobj, hgobj channel)
 }
 
 /***************************************************************************
+ *  What reached a peer since the last time (yours)
+ ***************************************************************************/
+PRIVATE json_t *take_received(hgobj peer)
+{
+    json_t *received = json_incref(gobj_read_user_data(peer, "received"));
+    gobj_write_user_data(peer, "received", json_array());
+    return received;
+}
+
+/***************************************************************************
  *  A command's answer (owned): the result and a part of the comment
  ***************************************************************************/
 PRIVATE int check_response(
@@ -342,6 +357,101 @@ PRIVATE int test_save_scenario_as_string(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
+ *  A scenario whose start is one step of `command`, to save (yours)
+ ***************************************************************************/
+PRIVATE json_t *scenario_with_step(const char *id, const char *command)
+{
+    return json_pack("{s:s, s:s, s:[{s:s}], s:{s:[{s:s, s:s}]}}",
+        "id", id,
+        "node", AGENT_HOST,
+        "yunos", "id", "1234",
+        "actions", "start", "yuno", "1234", "command", command
+    );
+}
+
+/***************************************************************************
+ *  2. A step parameter named like a framework key is refused
+ ***************************************************************************/
+PRIVATE int test_save_refuses_framework_keys(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    const char *commands[] = {
+        "resume-generation __md_iev__=x",
+        "resume-generation __username__=root",
+        "resume-generation __md_command__=x",
+        0
+    };
+    for(int i=0; commands[i]; i++) {
+        json_t *kw = client_kw(gobj_name(client));
+        json_object_set_new(kw, "scenario", scenario_with_step("framework-keys", commands[i]));
+        ret += check_response(gobj,
+            gobj_command(priv->cc, "save-scenario", kw, client),
+            -1,
+            "actions.start[0]: command",
+            commands[i]
+        );
+    }
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", scenario_with_step("scn", "resume-generation rate=10"));
+    ret += check_response(gobj,
+        gobj_command(priv->cc, "save-scenario", kw, client),
+        0,
+        "scenario created: scn",
+        "a plain step is saved"
+    );
+    return ret;
+}
+
+/***************************************************************************
+ *  3. A scenario saved before the step checks is checked at the run
+ ***************************************************************************/
+PRIVATE int test_run_checks_old_scenarios(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    hgobj treedb = gobj_find_service("treedb_controlcenter", TRUE);
+    const char *commands[] = {
+        "resume-generation __username__=root",
+        "resume-generation id=4321",
+        0
+    };
+    for(int i=0; commands[i]; i++) {
+        char id[64];
+        snprintf(id, sizeof(id), "saved-before-checks-%d", i);
+        json_t *record = scenario_with_step(id, commands[i]);
+        json_object_set_new(record, "links", json_array());
+        json_object_set_new(record, "view", json_object());
+        json_t *node = gobj_update_node(treedb, "scenarios", record,
+            json_pack("{s:b}", "create", 1), gobj);
+        if(!node) {
+            ret += fail(gobj, "write an old scenario", id);
+            continue;
+        }
+        JSON_DECREF(node)
+
+        json_t *kw = client_kw(gobj_name(client));
+        json_object_set_new(kw, "scenario_id", json_string(id));
+        json_object_set_new(kw, "action", json_string("start"));
+        ret += check_response(gobj,
+            gobj_command(priv->cc, "run-scenario", kw, client),
+            -1,
+            "step 0",
+            commands[i]
+        );
+    }
+    json_t *sent = take_received(priv->agent_wire);
+    if(json_array_size(sent) != 0) {
+        ret += fail(gobj, "a refused run sends nothing", "");
+    }
+    JSON_DECREF(sent)
+    return ret;
+}
+
+/***************************************************************************
  *  All the tests
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -367,6 +477,8 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     result += test_save_scenario_as_string(gobj, client1);
+    result += test_save_refuses_framework_keys(gobj, client1);
+    result += test_run_checks_old_scenarios(gobj, client1);
 
     if(result == 0) {
         gobj_log_info(gobj, 0,

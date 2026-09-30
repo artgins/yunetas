@@ -268,6 +268,26 @@ ycommand ... -c 'save-scenario scenario={"id":"t2","node":"wattyzer","yunos":[{"
 # -> ... actions.stop[0]: command: the parameter 'date' is command-yuno's or a yuno's field: it would select the yuno
 ```
 
+Nor may a parameter start with `__` (`__md_iev__`, `__username__`,
+`__md_command__`, ...): those are the framework's keys, and the agent's command
+parser sets the parameters of the line over the kw -- a `__md_iev__` would
+replace the routing of the step's answer (the run waits for its deadline), a
+`__username__` the user the control center stamps.
+
+```bash
+ycommand ... -c 'save-scenario scenario={"id":"t3","node":"wattyzer","yunos":[{"id":"1620"}],"actions":{"stop":[{"yuno":"1620","command":"set-x __username__=root"}]}}'
+# -> ... actions.stop[0]: command: the parameter '__username__' is a framework key: it would replace what the control center sets
+```
+
+`run-scenario` checks the steps of the action again before it sends the first
+one, so a scenario saved before a check existed (by 7.25.14, which checked no
+step) is refused by name until it is saved again:
+
+```bash
+ycommand ... -c 'run-scenario scenario_id=t1 action=stop'
+# -> ... cannot run 'stop' of 't1': step 0: command: the parameter 'date' is command-yuno's or a yuno's field: it would select the yuno; save the scenario again
+```
+
 ## Configuration
 
 The yuno composes `authz` ([`C_AUTHZ`](#gclass-c-authz)) + `controlcenter` (`C_CONTROLCENTER`,

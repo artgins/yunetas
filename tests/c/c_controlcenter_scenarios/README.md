@@ -23,6 +23,12 @@ the very same string, and the read looks right.
    holding the scenario (encoded twice). Up to 7.25.20 the id was read from the
    parsed json after it was freed: the answer said
    *"scenario created: ZZZZ..."*.
+2. A step parameter named like a framework key (`__md_iev__`, `__username__`,
+   `__md_command__`) is refused by `save-scenario`; a plain one is saved.
+3. A scenario saved before those checks (written straight into the treedb by
+   the test, as 7.25.14 saved it) is checked again by `run-scenario`: the run
+   is refused naming the step (`step 0: command: ...`) and nothing is sent to
+   the agent. Up to 7.25.20 it ran.
 
 ## Run
 

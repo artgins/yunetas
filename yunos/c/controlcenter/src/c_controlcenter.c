@@ -1644,6 +1644,10 @@ PRIVATE BOOL is_scenario_id(const char *s)
  *  parameter named like a column of its `yunos` topic, or like one of
  *  command-yuno's own, would pick another yuno or none ("Yuno not found").
  *  The console refuses the same list (monitor_helpers.js).
+ *  Nor a framework key (`__md_iev__`, `__username__`, ...: any name that
+ *  starts with `__`): the agent's command parser sets the parameters of the
+ *  line over the kw, so it would replace the routing of the answer, or the
+ *  user the control center stamps.
  ***************************************************************************/
 PRIVATE const char *reserved_step_params[] = {
     "id", "service", "command",
@@ -1694,6 +1698,13 @@ PRIVATE int check_step_command(const char *command, char *bad, size_t badsz)
         snprintf(key, sizeof(key), "%.*s", (int)klen, words[i]);
         if(!is_plain_name(key)) {
             snprintf(bad, badsz, "a parameter name of letters, digits and _ . ^ -: '%.40s'", key);
+            ret = -1;
+            break;
+        }
+        if(strncmp(key, "__", 2)==0) {
+            snprintf(bad, badsz,
+                "the parameter '%.40s' is a framework key: it would replace what the control center sets",
+                key);
             ret = -1;
             break;
         }
@@ -1911,6 +1922,9 @@ PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz
  *  The steps of an action, resolved: the node and the command line each
  *  one goes to. NULL with the reason in `err`: a step whose yuno has no
  *  node cannot be run from here (a direct scenario runs from the console).
+ *  Each step is checked again as save-scenario checks it: a scenario saved
+ *  by an older control center (or written into the treedb by other means)
+ *  never went through those checks.
  ***************************************************************************/
 PRIVATE json_t *build_run_steps(hgobj gobj, json_t *scenario, const char *action, char *err, size_t errsz)
 {
@@ -1948,6 +1962,26 @@ PRIVATE json_t *build_run_steps(hgobj gobj, json_t *scenario, const char *action
         }
         const char *command = str_member(def, "command");
         const char *yuno_id = str_member(yuno, "id");
+
+        char bad[NAME_MAX];
+        if(!yuno_id || !is_plain_name(yuno_id)) {
+            JSON_DECREF(steps)
+            scenario_error(err, errsz, "step %d: yuno '%s': id: the yuno id of its agent; save the scenario again",
+                (int)idx, key);
+            return NULL;
+        }
+        if(!service || (!empty_string(service) && !is_plain_name(service))) {
+            JSON_DECREF(steps)
+            scenario_error(err, errsz, "step %d: service: letters, digits and _ . ^ -; save the scenario again",
+                (int)idx);
+            return NULL;
+        }
+        if(!command || check_step_command(command, bad, sizeof(bad)) < 0) {
+            JSON_DECREF(steps)
+            scenario_error(err, errsz, "step %d: command: %s; save the scenario again",
+                (int)idx, command? bad : "must be a string");
+            return NULL;
+        }
 
         json_t *line = empty_string(service)?
             json_sprintf("command-yuno id=%s command=%s", yuno_id, command) :
