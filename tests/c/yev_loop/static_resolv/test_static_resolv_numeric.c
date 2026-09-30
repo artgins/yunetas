@@ -11,6 +11,10 @@
  *       IPv4 address of "localhost" stalled the event loop 3 s on a node
  *       with a slow nameserver (test_yevent_connect_src_url, case E).
  *    C. AI_NUMERICHOST with a name answers EAI_NONAME, no lookup.
+ *    D. As glibc: an IPv4 address in AF_INET6 with AI_V4MAPPED answers its
+ *       v4-mapped IPv6 address ("::ffff:127.0.0.1"), and a v4-mapped IPv6
+ *       address in AF_INET answers its IPv4 address, flags or not. Up to
+ *       7.25.20 both answered EAI_ADDRFAMILY.
  *
  *  Queries are routed to an unprivileged port (-DYUNETA_DNS_PORT) where
  *  nothing answers, so a query that escapes costs a timeout: every case
@@ -25,6 +29,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <arpa/inet.h>
 
 /* Pull in the unit under test, with the static helpers visible. */
 #include "static_resolv.c"
@@ -34,6 +39,42 @@
 #endif
 
 #define FAST_MSEC   200     // a query that escapes waits a timeout, far above this
+
+static int check_addr(const char *what, const char *node, int family, int flags, const char *expected)
+{
+    struct addrinfo hints = {
+        .ai_family = family,
+        .ai_socktype = SOCK_STREAM,
+        .ai_flags = flags,
+    };
+    struct addrinfo *res = NULL;
+
+    uint64_t t0 = monotonic_msec();
+    int ret = yuneta_getaddrinfo(node, "0", &hints, &res);
+    uint64_t msec = monotonic_msec() - t0;
+
+    char got[INET6_ADDRSTRLEN] = "";
+    int n = 0;
+    for(struct addrinfo *ai = res; ai; ai = ai->ai_next) {
+        n++;
+        if(ai->ai_family == AF_INET6) {
+            inet_ntop(AF_INET6, &((struct sockaddr_in6 *)ai->ai_addr)->sin6_addr, got, sizeof(got));
+        } else if(ai->ai_family == AF_INET) {
+            inet_ntop(AF_INET, &((struct sockaddr_in *)ai->ai_addr)->sin_addr, got, sizeof(got));
+        }
+    }
+    int family_ok = res && res->ai_family == family;
+    if(res) {
+        yuneta_freeaddrinfo(res);
+    }
+
+    int ok = (ret == 0 && n == 1 && family_ok && strcmp(got, expected)==0 && msec < FAST_MSEC);
+    printf("%s: %s family %d flags 0x%x -> %d (%s) %s in %llu ms, expected %s ... %s\n",
+        what, node, family, flags, ret, ret? gai_strerror(ret):"ok", got,
+        (unsigned long long)msec, expected, ok? "PASS":"FAIL"
+    );
+    return ok? 0:1;
+}
 
 static int check(const char *what, const char *node, int family, int flags, int expected)
 {
@@ -70,6 +111,13 @@ int main(void)
     fail += check("B", "::1", AF_INET, AI_PASSIVE, EAI_ADDRFAMILY);
     fail += check("B", "127.0.0.1", AF_INET6, AI_PASSIVE, EAI_ADDRFAMILY);
     fail += check("C", "test.example", AF_UNSPEC, AI_NUMERICHOST, EAI_NONAME);
+    fail += check_addr("D", "127.0.0.1", AF_INET6, AI_V4MAPPED, "::ffff:127.0.0.1");
+    fail += check_addr("D", "127.0.0.1", AF_INET6, AI_V4MAPPED|AI_PASSIVE, "::ffff:127.0.0.1");
+    fail += check_addr("D", "::ffff:1.2.3.4", AF_INET, 0, "1.2.3.4");
+    fail += check_addr("D", "::ffff:1.2.3.4", AF_INET, AI_V4MAPPED, "1.2.3.4");
+    fail += check_addr("D", "127.0.0.1", AF_INET, AI_V4MAPPED, "127.0.0.1");
+    fail += check("D", "::1", AF_INET, AI_V4MAPPED, EAI_ADDRFAMILY);
+    fail += check("D", "::1", AF_INET, AI_NUMERICHOST, EAI_ADDRFAMILY);
 
     if(fail == 0) {
         printf("test_static_resolv_numeric: PASS\n");

@@ -50,6 +50,7 @@ typedef enum {
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE BOOL is_loopback_peer(const char *peername);
+PRIVATE void count_connections(hgobj gobj, json_int_t *connxs, json_int_t *tconnxs);
 PRIVATE void note_refused_connection(
     hgobj gobj,
     refusal_cause_t cause,
@@ -111,8 +112,8 @@ SDATA (DTP_INTEGER,     "exitOnError",          SDF_RD,             "-1",       
 SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,             0,              "tree of children to create on new accept, legacy method"),
 
 SDATA (DTP_DICT,        "clisrv_kw",            SDF_RD,             0,              "kw of clisrv gobj"),
-SDATA (DTP_INTEGER,     "connxs",               SDF_RD|SDF_STATS,   0,              "Current connections"),
-SDATA (DTP_INTEGER,     "tconnxs",              SDF_RD|SDF_STATS,   0,              "Total connections"),
+SDATA (DTP_INTEGER,     "connxs",               SDF_RD|SDF_STATS,   "0",            "Current connections: the connected clisrvs of the channels this server serves"),
+SDATA (DTP_INTEGER,     "tconnxs",              SDF_RD|SDF_STATS,   "0",            "Total connections accepted since the start"),
 SDATA (DTP_INTEGER,     "refusedConnxs",        SDF_RD|SDF_RSTATS,  "0",            "Connections refused at accept: the peer is in denied_ips, or not in allowed_ips with only_allowed_ips"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,              "more user data"),
@@ -147,8 +148,7 @@ typedef struct _PRIVATE_DATA {
     json_t * clisrv_kw;
     BOOL trace_tls;
 
-    json_int_t connxs;
-    json_int_t tconnxs;
+    json_int_t tconnxs;             // accepted here (legacy method)
     json_int_t refusedConnxs;
 
     uint64_t t_refusal_log[REFUSAL_CAUSES];         // next log of a cause (msectimer)
@@ -218,6 +218,16 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     if(strcmp(name, "refusedConnxs")==0) {
         v.found = 1;
         v.v.i = priv->refusedConnxs;
+    } else if(strcmp(name, "connxs")==0) {
+        json_int_t connxs, tconnxs;
+        count_connections(gobj, &connxs, &tconnxs);
+        v.found = 1;
+        v.v.i = connxs;
+    } else if(strcmp(name, "tconnxs")==0) {
+        json_int_t connxs, tconnxs;
+        count_connections(gobj, &connxs, &tconnxs);
+        v.found = 1;
+        v.v.i = tconnxs;
     }
 
     return v;
@@ -468,6 +478,7 @@ PRIVATE int mt_start(hgobj gobj)
         hgobj child = gobj_first_child(parent);
         int fd_listen = yev_get_fd(priv->yev_server_accept);
         int channels = 0;
+        int clisrvs_created = 0;
         while(child) {
             if(gobj_gclass_name(child) == C_CHANNEL ||
                 gobj_typeof_inherited_gclass(child, C_CHANNEL) // TODO review TODO in c_ievent_srv.c
@@ -502,11 +513,9 @@ PRIVATE int mt_start(hgobj gobj)
                     /*-------------------*
                      *  Name of clisrv
                      *-------------------*/
-                    priv->tconnxs++;
+                    clisrvs_created++;
                     char xname[80];
-                    snprintf(xname, sizeof(xname), "clisrv-%"JSON_INTEGER_FORMAT,
-                        priv->tconnxs
-                    );
+                    snprintf(xname, sizeof(xname), "clisrv-%d", clisrvs_created);
 
                     clisrv = gobj_create_pure_child(
                         xname, // the same name as the filter.
@@ -614,6 +623,62 @@ PRIVATE BOOL is_loopback_peer(const char *peername)
         }
     }
     return FALSE;
+}
+
+/***************************************************************************
+ *  The connections of this server, read from the clisrvs of the channels
+ *  it serves (the channels of its parent, as mt_start and the accept find
+ *  them): no clisrv tells this gobj of its connection or of its end, and
+ *  with the new method the accept is the clisrv's own.
+ *
+ *  `connxs`: the clisrvs connected now whose local port is this server's
+ *  (two servers can share one pool of channels, the agent's do).
+ *  `tconnxs`: the accepts counted here (legacy method), plus the
+ *  connections of each clisrv that accepts on this server's socket (new
+ *  method, its `connxs`).
+ *
+ *  Up to 7.25.20 both stats read 0: SDF_STATS attrs whose priv counters no
+ *  mt_reading served, a `connxs` that was never decremented (its EV_STOPPED
+ *  subscription was left commented out), and no count at all for the new
+ *  method.
+ ***************************************************************************/
+PRIVATE void count_connections(hgobj gobj, json_int_t *connxs, json_int_t *tconnxs)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    *connxs = 0;
+    *tconnxs = priv->tconnxs;
+
+    const char *lPort = gobj_read_str_attr(gobj, "lPort");
+    if(empty_string(lPort)) {
+        return; // not listening
+    }
+    int fd_listen = priv->yev_server_accept? yev_get_fd(priv->yev_server_accept) : -1;
+
+    hgobj child = gobj_first_child(gobj_parent(gobj));
+    while(child) {
+        if(gobj_gclass_name(child) == C_CHANNEL ||
+            gobj_typeof_inherited_gclass(child, C_CHANNEL)
+        ) {
+            hgobj clisrv = gobj_last_bottom_gobj(child);
+            if(clisrv &&
+                gobj_gclass_name(clisrv) == C_TCP &&
+                gobj_read_bool_attr(clisrv, "__clisrv__")
+            ) {
+                if(gobj_read_bool_attr(clisrv, "connected")) {
+                    const char *sockname = gobj_read_str_attr(clisrv, "sockname");
+                    const char *port = sockname? strrchr(sockname, ':') : NULL;
+                    if(port && strcmp(port+1, lPort)==0) {
+                        (*connxs)++;
+                    }
+                }
+                if(fd_listen >= 0 && gobj_read_integer_attr(clisrv, "fd_listen") == fd_listen) {
+                    *tconnxs += gobj_read_integer_attr(clisrv, "connxs");
+                }
+            }
+        }
+        child = gobj_next_child(child);
+    }
 }
 
 /***************************************************************************
@@ -775,11 +840,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         }
     }
 
-    /*
-     *  Concurrent connections
-     */
-    priv->connxs++;
-
     /*-----------------------------------------------------------*
      *  Create a filter, if.
      *  A filter is a top level gobj tree over the clisrv gobj.
@@ -823,6 +883,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             return 0;
         }
 
+        priv->tconnxs++;
+
         if(trace_level & TRACE_ACCEPTED) {
             const char *top_tree = gobj_full_name(gobj_top);
             const char *bottom_tree = gobj_full_name(gobj_bottom);
@@ -853,7 +915,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             /*-------------------*
              *  Name of clisrv
              *-------------------*/
-            priv->tconnxs++;
             char xname[80];
             snprintf(xname, sizeof(xname), "clisrv-%"JSON_INTEGER_FORMAT,
                 priv->tconnxs
@@ -1077,14 +1138,13 @@ PRIVATE json_t *cmd_view_cert(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
 
 /***************************************************************************
- *
+ *  A clisrv stopped. Nothing is counted here: `connxs` is read from the
+ *  clisrvs (count_connections()), which are no children of this gobj and do
+ *  not tell it their stops. Up to 7.25.20 this decremented a count that
+ *  nobody read, for a stop nobody sent.
  ***************************************************************************/
 PRIVATE int ac_clisrv_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    priv->connxs--;
-
     JSON_DECREF(kw)
     return 0;
 }

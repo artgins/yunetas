@@ -83,14 +83,15 @@ A drop, or a disconnection, takes `C_TCP` to `ST_WAIT_STOPPED` until its last
 read, write or connect is canceled or completes; only then does it publish
 `EV_DISCONNECTED`. Until then the layers above do not know, and they send.
 That `EV_TX_DATA` goes where the pending queue of a dead connection goes
-(`set_disconnected()` flushes it): away, with no error -- the `connections`
-trace level logs it (*"tcp tx data while closing, dropped"*). A protocol that
-must not lose data resends it on its own acknowledgements, as `C_QIOGATE`
-does:
+(`set_disconnected()` flushes it): away, with no error. What went is counted
+and said ONCE per connection, when its close ends: *"tcp data sent while the
+connection closes, dropped"*, WARNING, with `dropped_msgs` and
+`dropped_bytes`. A protocol that must not lose data resends it on its own
+acknowledgements, as `C_QIOGATE` does:
 
 ```C
 gobj_send_event(tcp, EV_DROP, 0, gobj);     // ST_WAIT_STOPPED: the read is being canceled
-gobj_send_event(tcp, EV_TX_DATA,            // dropped quietly; EV_DISCONNECTED follows
+gobj_send_event(tcp, EV_TX_DATA,            // dropped, counted; EV_DISCONNECTED follows
     json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
     gobj
 );
@@ -98,8 +99,9 @@ gobj_send_event(tcp, EV_TX_DATA,            // dropped quietly; EV_DISCONNECTED 
 
 Up to 7.25.10 `ST_WAIT_STOPPED` did not declare `EV_TX_DATA`: *"Event NOT
 DEFINED in state"*, one ERROR per message -- ten thousand in an hour on a sim
-of 300 controllers whose central went away. `tests/c/c_tcp`
-(`test_tcp_test7`).
+of 300 controllers whose central went away. Up to 7.25.20 the data then went
+with no trace at the default levels (only the `connections` trace said it,
+per message). `tests/c/c_tcp` (`test_tcp_test7`).
 
 ### A write that does not start
 
@@ -190,8 +192,8 @@ Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 | `shared` | `bool` | Enable port sharing (`SO_REUSEPORT`). |
 | `crypto` | `json` | TLS configuration for accepted connections. |
 | `only_allowed_ips` | `bool` | Accept only the peers in the yuno's `allowed_ips` list (whitelist mode). The `denied_ips` list applies with or without it. |
-| `connxs` | `integer` | Current connection count (stat). |
-| `tconnxs` | `integer` | Total connection count (stat). |
+| `connxs` | `integer` | Connections held now (stat): the connected clisrv `C_TCP`s of the channels this server serves whose local port is this server's, read when asked (up to 7.25.20 it read 0). |
+| `tconnxs` | `integer` | Connections accepted since the start (stat): counted at the accept with `child_tree_filter`, and the sum of the clisrvs' own `connxs` with the new method, where each clisrv accepts by itself (up to 7.25.20 it read 0). |
 | `refusedConnxs` | `integer` | Connections refused at accept by the ip lists (stat, since 7.25.5). |
 | `clisrv_kw` | `json` | Extra kw passed to each child client/server. |
 

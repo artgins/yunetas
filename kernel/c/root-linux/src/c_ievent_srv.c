@@ -70,6 +70,7 @@ typedef struct {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+GOBJ_DECLARE_EVENT(EV_GOODBYE);     // defined with the gclass, below
 PRIVATE int send_static_iev(
     hgobj gobj,
     const char *event,
@@ -101,6 +102,14 @@ PRIVATE BOOL peer_log_allowed(
     json_int_t *suppressed
 );
 PRIVATE size_t peer_json_dump(json_t *jn, char *bf, size_t bfsize);
+PRIVATE size_t peer_card_dump(json_t *kw, char *bf, size_t bfsize);
+PRIVATE void log_identity_card_refused(
+    hgobj gobj,
+    json_t *kw,     // not owned
+    const char *msg,
+    const char *key,
+    const char *value
+);
 PRIVATE json_int_t count_refused_subscription(
     hgobj gobj,
     hgobj gobj_service,
@@ -831,6 +840,10 @@ PRIVATE int ac_timeout_wait_idGot(hgobj gobj, gobj_event_t event, json_t *kw, hg
 /***************************************************************************
  *  remote ask
  *  Somebody wants our services.
+ *
+ *  What the card carries is the peer's: its routing is read with
+ *  peer_frame_routing() (plain json calls, no log), and a card this yuno
+ *  cannot serve is refused with log_identity_card_refused().
  ***************************************************************************/
 PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -842,15 +855,12 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     /*
      *  Final point of the request
      */
-    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, TRUE);
+    json_t *jn_request = peer_frame_routing(kw);
     if(!jn_request) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "no ievent_gate_stack",
-            NULL
+        log_identity_card_refused(gobj, kw,
+            "Identity card without its routing (__md_iev__ ievent stack), refused",
+            "event", EV_IDENTITY_CARD
         );
-        gobj_trace_json(gobj, kw, "no ievent_gate_stack");
         KW_DECREF(kw)
         return -1;
     }
@@ -876,17 +886,10 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
      *  Match wanted yuno role. Required.
      *------------------------------------*/
     if(strcasecmp(iev_dst_role, gobj_yuno_role())!=0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "dst_role NOT MATCH",
-            "my_role",      "%s", gobj_yuno_role(),
-            "dst_role",     "%s", iev_dst_role,
-            "peername",     "%s", peername?peername:"",
-            "sockname",     "%s", sockname?sockname:"",
-            NULL
+        log_identity_card_refused(gobj, kw,
+            "Identity card refused, dst_role NOT MATCH",
+            "dst_role", iev_dst_role
         );
-        gobj_trace_json(gobj, kw, "dst_role NOT MATCH");
         KW_DECREF(kw)
         return -1;
     }
@@ -896,17 +899,10 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
      *--------------------------------*/
     if(!empty_string(iev_dst_yuno)) {
         if(strcasecmp(iev_dst_yuno, gobj_yuno_name())!=0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL,
-                "msg",          "%s", "dst_yuno NOT MATCH",
-                "my_yuno",      "%s", gobj_yuno_name(),
-                "dst_yuno",     "%s", iev_dst_yuno,
-                "peername",     "%s", peername?peername:"",
-                "sockname",     "%s", sockname?sockname:"",
-                NULL
+            log_identity_card_refused(gobj, kw,
+                "Identity card refused, dst_yuno NOT MATCH",
+                "dst_yuno", iev_dst_yuno
             );
-            gobj_trace_json(gobj, kw, "dst_yuno NOT MATCH");
             KW_DECREF(kw)
             return -1;
         }
@@ -916,15 +912,10 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
      *  Save client yuno role. Required.
      *------------------------------------*/
     if(empty_string(iev_src_role)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "GOT identity card without yuno role",
-            "peername",     "%s", peername?peername:"",
-            "sockname",     "%s", sockname?sockname:"",
-            NULL
+        log_identity_card_refused(gobj, kw,
+            "Identity card refused, without yuno role",
+            "src_role", iev_src_role
         );
-        gobj_trace_json(gobj, kw, "GOT identity card without yuno role");
         KW_DECREF(kw)
         return -1;
     }
@@ -933,15 +924,10 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
      *  Save client yuno service. Required.
      *---------------------------------------*/
     if(empty_string(iev_src_service)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "GOT identity card without yuno service",
-            "peername",     "%s", peername?peername:"",
-            "sockname",     "%s", sockname?sockname:"",
-            NULL
+        log_identity_card_refused(gobj, kw,
+            "Identity card refused, without yuno service",
+            "src_service", iev_src_service
         );
-        gobj_trace_json(gobj, kw, "GOT identity card without yuno service");
         KW_DECREF(kw)
         return -1;
     }
@@ -951,16 +937,23 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
      *-----------------------------------*/
     hgobj gobj_service = gobj_find_service(iev_dst_service, FALSE);
     if (!gobj_service) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "dst_srv NOT FOUND in this yuno",
-            "dst_service",  "%s", iev_dst_service,
-            "peername",     "%s", peername?peername:"",
-            "sockname",     "%s", sockname?sockname:"",
-            NULL
+        log_identity_card_refused(gobj, kw,
+            "Identity card refused, dst_service NOT FOUND in this yuno",
+            "dst_service", iev_dst_service
         );
-        gobj_trace_json(gobj, kw, "dst_srv NOT FOUND in this yuno");
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    /*
+     *  The jwt is handed to the authentication, which reads it as a string
+     */
+    json_t *jn_jwt = json_object_get(kw, "jwt");
+    if(jn_jwt && !json_is_string(jn_jwt) && !json_is_null(jn_jwt)) {
+        log_identity_card_refused(gobj, kw,
+            "Identity card refused, its jwt is not a string",
+            "jwt", "(not a string)"
+        );
         KW_DECREF(kw)
         return -1;
     }
@@ -1429,6 +1422,57 @@ PRIVATE size_t peer_json_dump(json_t *jn, char *bf, size_t bfsize)
      */
     memset(bf, 0, bfsize);
     return json_dumpb(jn, bf, bfsize-1, JSON_COMPACT|JSON_ENCODE_ANY);
+}
+
+/***************************************************************************
+ *  A kw of the peer before its session, as peer_json_dump(): its jwt is a
+ *  credential, and is never written to a log.
+ ***************************************************************************/
+PRIVATE size_t peer_card_dump(json_t *kw, char *bf, size_t bfsize)
+{
+    json_t *kw_shown = json_copy(kw);
+    if(!kw_shown) {
+        // Error already logged
+        return peer_json_dump(json_null(), bf, bfsize);
+    }
+    if(json_object_get(kw_shown, "jwt")) {
+        json_object_set_new(kw_shown, "jwt", json_string("(hidden)"));
+    }
+    size_t size = peer_json_dump(kw_shown, bf, bfsize);
+    JSON_DECREF(kw_shown)
+    return size;
+}
+
+/***************************************************************************
+ *  An identity card refused for what the peer put in it: a warning, the kw
+ *  capped, no stack. The channel is dropped after it, so it is written once
+ *  per connection. Up to 7.25.20 each one was an error with the whole kw
+ *  dumped, and a second error ("event UNKNOWN in not-session state") with
+ *  the whole kw again.
+ ***************************************************************************/
+PRIVATE void log_identity_card_refused(
+    hgobj gobj,
+    json_t *kw,     // not owned
+    const char *msg,
+    const char *key,    // the field of the card that is refused
+    const char *value
+)
+{
+    char dump[MAX_LOG_DUMP_SIZE];
+    size_t size = peer_card_dump(kw, dump, sizeof(dump));
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", msg,
+        "my_role",      "%s", gobj_yuno_role(),
+        "my_yuno",      "%s", gobj_yuno_name(),
+        key,            "%s", value,
+        "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
+        "sockname",     "%s", gobj_has_bottom_attr(gobj, "sockname")?gobj_read_str_attr(gobj, "sockname"):"",
+        "kw",           "%s", dump,
+        "kw_size",      "%lu", (unsigned long)size,
+        NULL
+    );
 }
 
 /***************************************************************************
@@ -2060,28 +2104,36 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     /*-----------------------------------------*
      *  If state is not SESSION send self.
-     *  Mainly process EV_IDENTITY_CARD_ACK
+     *  Before its session a peer may send only its identity card, or leave.
+     *  Anything else is the peer's, not ours: a warning, capped, and the
+     *  channel dropped. Up to 7.25.20 it was an error with the whole kw,
+     *  also after a refused card, whose own log had said it already.
      *-----------------------------------------*/
     if(gobj_current_state(gobj) != ST_SESSION) {
-        int ret = -1;
-        if(gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT)) {
-            kw_incref(iev_kw);
-            ret = gobj_send_event(gobj, iev_event, iev_kw, gobj);
-            if(ret==0) {
-                KW_DECREF(iev_kw)
-                KW_DECREF(kw)
-                return 0;
-            }
+        if(iev_event != EV_IDENTITY_CARD && iev_event != EV_GOODBYE) {
+            char dump[MAX_LOG_DUMP_SIZE];
+            size_t size = peer_card_dump(iev_kw, dump, sizeof(dump));
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "Event before the identity card, channel closed",
+                "event",        "%s", iev_event,
+                "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
+                "kw",           "%s", dump,
+                "kw_size",      "%lu", (unsigned long)size,
+                NULL
+            );
+            drop(gobj);
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
+            return -1;
         }
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "event UNKNOWN in not-session state",
-            "event",        "%s", iev_event,
-            NULL
-        );
-        trace_inter_event(gobj, prefix, iev_event, iev_kw);
-        drop(gobj);
+        kw_incref(iev_kw);
+        int ret = gobj_send_event(gobj, iev_event, iev_kw, gobj);
+        if(ret < 0) {
+            // Error already logged
+            drop(gobj);
+        }
         KW_DECREF(iev_kw)
         KW_DECREF(kw)
         return ret;
