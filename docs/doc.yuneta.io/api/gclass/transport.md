@@ -190,8 +190,8 @@ Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 | `shared` | `bool` | Enable port sharing (`SO_REUSEPORT`). |
 | `crypto` | `json` | TLS configuration for accepted connections. |
 | `only_allowed_ips` | `bool` | Accept only the peers in the yuno's `allowed_ips` list (whitelist mode). The `denied_ips` list applies with or without it. |
-| `connxs` | `integer` | Current connection count (stat). |
-| `tconnxs` | `integer` | Total connection count (stat). |
+| `connxs` | `integer` | Connections held now (stat): the connected clisrv `C_TCP`s of the channels this server serves whose local port is this server's, read when asked (up to 7.25.20 it read 0). |
+| `tconnxs` | `integer` | Connections accepted since the start (stat): counted at the accept with `child_tree_filter`, and the sum of the clisrvs' own `connxs` with the new method, where each clisrv accepts by itself (up to 7.25.20 it read 0). |
 | `refusedConnxs` | `integer` | Connections refused at accept by the ip lists (stat, since 7.25.5). |
 | `clisrv_kw` | `json` | Extra kw passed to each child client/server. |
 

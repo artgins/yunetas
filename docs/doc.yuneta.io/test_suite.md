@@ -130,9 +130,10 @@ Plain and TLS TCP through the full GObj protocol stack.
 | **`c_tcps2/test1–4`** | TLS TCP with the newer method. |
 | **`c_tcp_inactivity/test1–4`** | `C_TCP`'s `timeout_inactivity`. |
 | **`test_c_tcp_s_ip_lists`** | [`C_TCP_S`](#gclass-c-tcp-s) at accept: a peer in `denied_ips` is refused (with or without `only_allowed_ips`, and the deny wins over `allowed_ips`), with `only_allowed_ips` a peer not in `allowed_ips` is refused, loopback is exempt from both lists; a refusal is logged on the transition (the first one of a cause, then one a minute at most) and counted in the stat `refusedConnxs`: a denied peer that connects 5 times more writes no line, and `refusedConnxs` is 8 (up to 7.25.4 there was no stat, and each refusal wrote a line); the list key of each peername form (`1.2.3.4:80`, `[2001:db8::1]:443`, `[::ffff:1.2.3.4]:80`); the `add-`/`remove-` ip commands store the form a peer is looked up by (`2001:DB8::1` as `2001:db8::1`, `::ffff:203.0.113.7` as `203.0.113.7`, `fe80::2%lo` as `fe80::2%1`) and refuse what is not an ip; a link-local entry without its interface denies on every interface and is refused in `allowed_ips`; and entries stored as typed by 7.25.4 are renamed or dropped at load, with a warning, and saved. |
+| **`test_c_tcp_s_stats`** | The connection stats of [`C_TCP_S`](#gclass-c-tcp-s): one server accepts with `child_tree_filter`, the other with the new method (each channel's `C_TCP` accepts by itself). Raw peers connect, close and connect again: `connxs` is 2, 1, 2 and `tconnxs` 2, 2, 3 on both, read as attributes and in the `stats` answer. Up to 7.25.20 both read 0 always (`SDF_STATS` without `mt_reading`, a `connxs` never decremented, and no count at all with the new method). |
 
 **Source:** `tests/c/c_tcp/`, `tests/c/c_tcp2/`, `tests/c/c_tcps/`, `tests/c/c_tcps2/`,
-`tests/c/c_tcp_inactivity/`, `tests/c/c_tcp_s_ip_lists/`
+`tests/c/c_tcp_inactivity/`, `tests/c/c_tcp_s_ip_lists/`, `tests/c/c_tcp_s_stats/`
 
 ## UDP networking
 

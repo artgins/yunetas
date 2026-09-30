@@ -487,6 +487,9 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     } else if(strcmp(name, "max_tx_in_progress")==0) {
         v.found = 1;
         v.v.i = priv->max_tx_in_progress;
+    } else if(strcmp(name, "connxs")==0) {
+        v.found = 1;
+        v.v.i = priv->connxs;
     }
 
     return v;
