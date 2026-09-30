@@ -2175,7 +2175,7 @@ PRIVATE int run_step_timed_out(hgobj gobj)
     json_object_set_new(step, "result", json_integer(-1));
     json_object_set_new(step, "comment", json_sprintf("not answered in %d ms",
         (int)gobj_read_integer_attr(gobj, "run_step_timeout")));
-    gobj_log_error(gobj, 0,
+    gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_APP,
         "msg",          "%s", "a step of a scenario run was not answered",
