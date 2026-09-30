@@ -375,3 +375,48 @@ subscription to an event that is not public returned an error without
 closing the channel, which left it connected and deaf.
 
 `tests/c/c_ievent_srv_peer_subs`.
+
+### An identity card the gate refuses
+
+Before its session a peer may send two things: its identity card
+(`EV_IDENTITY_CARD`) or `EV_GOODBYE`. The card carries the same routing as
+any frame, and it must name this yuno and one of its services:
+
+```json
+{
+    "jwt": "<token, or empty with the BFF cookie>",
+    "__md_iev__": {
+        "ievent_gate_stack": [
+            {
+                "src_yuno": "", "src_role": "ycommand", "src_service": "ycommand",
+                "dst_yuno": "", "dst_role": "yuneta_agent", "dst_service": "agent"
+            }
+        ],
+        "__msg_type__": "__identity__"
+    }
+}
+```
+
+What is refused, each time, is the peer's: the channel is closed, and the
+gate writes ONE warning (`MSGSET_PROTOCOL`, `peername`, the kw capped to 256
+bytes, no stack), with the card's `jwt` shown as `(hidden)`:
+
+| The card | Log |
+|----------|-----|
+| No routing, or a malformed one | *"Identity card without its routing (\_\_md_iev\_\_ ievent stack), refused"* |
+| `dst_role` is not this yuno's role | *"Identity card refused, dst_role NOT MATCH"*, with `dst_role` |
+| `dst_yuno` given and not this yuno's name | *"Identity card refused, dst_yuno NOT MATCH"*, with `dst_yuno` |
+| Empty `src_role` | *"Identity card refused, without yuno role"* |
+| Empty `src_service` | *"Identity card refused, without yuno service"* |
+| `dst_service` is no service of this yuno | *"Identity card refused, dst_service NOT FOUND in this yuno"*, with `dst_service` |
+| `jwt` present and not a string | *"Identity card refused, its jwt is not a string"* |
+| Any event but the card or `EV_GOODBYE` | *"Event before the identity card, channel closed"*, with `event` |
+
+A card refused by the authentication is answered with a negative
+`EV_IDENTITY_CARD_ACK`, logged by the authenticator, and the channel is
+dropped at `timeout_idgot`. Up to 7.25.20 each refusal above was an error
+with the whole kw (its jwt with it), followed by a second error, *"event
+UNKNOWN in not-session state"*, with the whole kw again; a jwt that was not
+a string went on to the authentication.
+
+`tests/c/c_ievent_srv_identity_card`.

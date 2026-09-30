@@ -63,6 +63,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `glogger_utf8` | The logger never writes a record that is not valid UTF-8 JSON |
 | `command_authz` | The per-command authorization gate (`SDF_AUTHZ_X`) |
 | `c_ievent_srv_peer_subs` | What a remote peer may put in a subscription through `C_IEVENT_SRV` (`__global__` keys of its own only, no `__local__`, no stray keys) and hold (`max_subscriptions`, `max_subscription_size`); a subscription's `__local__`/`__global__` change only its own copy of the event; each peer-repeated log written once; a client withdraws a subscription with a `__global__`; a `gbuffer` published to two remote subscribers and a local one (each twin holds its own reference); a `__username__` and routing stamps a peer sends are overwritten by the gate's; the routing a subscription stores is the peer's reversed hop only, and measured; a repeated subscription is kept as it is; a frame with no routing closes the channel with one capped warning |
+| `c_ievent_srv_identity_card` | The identity cards a peer sends to `C_IEVENT_SRV` before its session: a card without routing, for another role or yuno, without `src_role` / `src_service`, for a service that does not exist, with a `jwt` that is not a string, and an event before any card are each refused with ONE capped warning (no stack, the jwt hidden) and the channel closed; a good card opens the session |
 | `c_subscription_authz` | The subscription authorization gate (`enable_subscription_authz`): `C_IEVENT_CLI` peers over websocket subscribe to `C_NODE`'s `EV_TREEDB_NODE_*` feed and to `C_TRANGER`'s `EV_TRANGER_RECORD_ADDED`; with the gate on, a peer without `read` is refused and the feed reaches only the accepted subscriptions; a peer's `__config__` keeps only `__first_shot__`; a channel disabled and enabled again serves a new session; the six `C_IOGATE` channel commands with a `channel_name` that matches nothing; the `authzs` trace prints the kw it checked; an orderly teardown of the gate |
 | `command_delete_user` | `delete-user` of C_AUTHZ: immutability is the only boundary |
 | `command_shutdown` | `shutdown` answers first and stops after |
@@ -126,7 +127,7 @@ The single-binary directories that also register under `<directory>/`:
 
 | Directory | New binaries |
 |---|---|
-| `c_agent_find_new_yunos`, `c_ievent_srv_peer_subs`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_self_stop`, `c_udp_s_rx`, `c_udp_s_echo`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
+| `c_agent_find_new_yunos`, `c_ievent_srv_identity_card`, `c_ievent_srv_peer_subs`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_self_stop`, `c_udp_s_rx`, `c_udp_s_echo`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
 | `gbuffer` | `test_gbmem_realloc_refused` |
 | `c_subscriptions` | `test_subs_test3` |
 | `kw` | `test_kw_set_dict_value` |
