@@ -17,12 +17,17 @@
  *              1. 2 peers connect to each:           connxs 2, tconnxs 2
  *              2. 1 peer of each closes:             connxs 1, tconnxs 2
  *              3. 1 more peer connects to each:      connxs 2, tconnxs 3
- *              4. `shared_a` stopped, and started again: the same counts
+ *              4. a peer of `shared_a` closes, and `shared_a` is stopped and
+ *                 started again in the SAME turn (its accept still being
+ *                 canceled): it listens again, a peer connects,
+ *                 connxs 2, tconnxs 4
  *
  *          Then a C_IOGATE of the new method whose 2 channels have no
  *          C_TCP (the C_TCP_S creates clisrv-1 and clisrv-2) is stopped, a
  *          third channel added, and started again: its clisrv must be
- *          clisrv-3, not a second clisrv-1.
+ *          clisrv-3, not a second clisrv-1. Then its C_TCP_S is stopped
+ *          ALONE and started again in the same turn: its clisrvs go and
+ *          come with it, and a peer connects (connxs 1, tconnxs 1).
  *
  *          Up to 7.25.20 both stats read 0 always: they were SDF_STATS
  *          attrs backed by priv counters that no mt_reading served, and
@@ -83,6 +88,8 @@ PRIVATE server_t servers[] = {
     {"__shared_side__", "shared_b",    "127.0.0.2", SHARED_PORT, {-1, -1, -1}},
     {0}
 };
+PRIVATE server_t names_server =
+    {"__names_side__",  "names_port",  "127.0.0.1", 7817,        {-1, -1, -1}};
 PRIVATE const char *gates[] = {
     "__legacy_side__", "__new_side__", "__shared_side__", "__names_side__", 0
 };
@@ -155,6 +162,9 @@ PRIVATE int mt_stop(hgobj gobj)
         for(int i=0; i<MAX_PEERS; i++) {
             close_peer(&servers[s], i);
         }
+    }
+    for(int i=0; i<MAX_PEERS; i++) {
+        close_peer(&names_server, i);
     }
     return 0;
 }
@@ -377,23 +387,61 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             for(int s=0; servers[s].gate; s++) {
                 check_stats(gobj, &servers[s], "1 peer more", 2, 3);
             }
-            gobj_stop(find_server(&servers[2]));    // shared_a
+            /*
+             *  shared_a: a peer goes, and the server is stopped and started
+             *  again in the SAME turn, its accept still being canceled
+             */
+            close_peer(&servers[2], 1);
+            gobj_stop(find_server(&servers[2]));
+            gobj_start(find_server(&servers[2]));
             gobj_stop_tree(gobj_find_service("__names_side__", TRUE));
             set_timeout(priv->timer, 300);
             break;
 
         case 4:
-            gobj_start(find_server(&servers[2]));
+            connect_peer(gobj, &servers[2], 1);     // shared_a listens again
             add_names_channel(gobj);
             gobj_start_tree(gobj_find_service("__names_side__", TRUE));
             set_timeout(priv->timer, 300);
             break;
 
-        default:
+        case 5:
             for(int s=0; servers[s].gate; s++) {
-                check_stats(gobj, &servers[s], "shared_a started again", 2, 3);
+                if(s == 2) {
+                    check_stats(gobj, &servers[s], "shared_a started again", 2, 4);
+                } else {
+                    check_stats(gobj, &servers[s], "shared_a started again", 2, 3);
+                }
             }
             check_names_channel(gobj);
+
+            /*
+             *  names_port (new method) stopped ALONE and started again, in
+             *  the same turn: its clisrvs with it
+             */
+            gobj_stop(find_server(&names_server));
+            gobj_start(find_server(&names_server));
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 6:
+            connect_peer(gobj, &names_server, 0);   // names_port listens again
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 7:
+            check_stats(gobj, &names_server, "names_port started again alone", 1, 1);
+            set_yuno_must_die();
+            break;
+
+        default:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "unexpected step",
+                "step",         "%d", priv->step,
+                NULL
+            );
             set_yuno_must_die();
             break;
     }

@@ -50,6 +50,11 @@ typedef enum {
  *              Prototypes
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event);
+GOBJ_DECLARE_EVENT(EV_LISTEN_AGAIN);
+PRIVATE int start_listening(hgobj gobj);
+PRIVATE void stop_clisrvs(hgobj gobj);
+PRIVATE BOOL stop_is_pending(hgobj gobj);
+PRIVATE void end_of_stop(hgobj gobj);
 PRIVATE BOOL is_loopback_peer(const char *peername);
 PRIVATE void count_connections(hgobj gobj, json_int_t *connxs, json_int_t *tconnxs);
 PRIVATE void note_refused_connection(
@@ -151,6 +156,7 @@ typedef struct _PRIVATE_DATA {
 
     json_int_t tconnxs;             // accepted here (legacy method)
     int clisrvs_created;            // names of the clisrvs created (new method), unique across restarts
+    BOOL start_pending;             // started while its last stop still waited: listens when it ends
     json_int_t refusedConnxs;
 
     uint64_t t_refusal_log[REFUSAL_CAUSES];         // next log of a cause (msectimer)
@@ -291,7 +297,35 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // TODO this setup (until set ST_IDLE) must be in a time action
+    /*
+     *  Its last stop still waits for the cancel of an accept (or the stop of
+     *  a clisrv): the listen socket is open yet, and a new one could not
+     *  bind (the yuno exited, exitOnError), nor could the pending events be
+     *  overwritten. It listens when that stop ends (end_of_stop()).
+     */
+    if(gobj_in_this_state(gobj, ST_WAIT_STOPPED)) {
+        priv->start_pending = TRUE;
+        if(gobj_trace_level(gobj) & TRACE_LISTEN) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "Started while its last stop ends: listens after it",
+                "url",          "%s", priv->url,
+                NULL
+            );
+        }
+        return 0;
+    }
+    return start_listening(gobj);
+}
+
+/***************************************************************************
+ *  Listen: the accept event, and with the new method the clisrvs of the
+ *  channels
+ ***************************************************************************/
+PRIVATE int start_listening(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(empty_string(priv->url)) {
         gobj_log_error(gobj, 0,
@@ -464,6 +498,7 @@ PRIVATE int mt_start(hgobj gobj)
          *--------------------------------*/
         yev_start_event(priv->yev_server_accept);
         if(priv->use_dups > 0) {
+            GBMEM_FREE(priv->yev_dups)  // of the last start: all its events destroyed (end_of_stop)
             priv->yev_dups = GBMEM_MALLOC((priv->use_dups + 1)* sizeof(yev_event_h *));
             for(int dup_idx=1; dup_idx<=priv->use_dups; dup_idx++) {
                 priv->yev_dups[dup_idx] = yev_dup_accept_event(priv->yev_server_accept, dup_idx, gobj);
@@ -542,6 +577,12 @@ PRIVATE int mt_start(hgobj gobj)
                 gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
                 gobj_write_integer_attr(clisrv, "fd_clisrv", -1);
                 gobj_write_integer_attr(clisrv, "fd_listen", fd_listen);
+                if(gobj_read_pointer_attr(clisrv, "tcp_s") != gobj) {
+                    /*
+                     *  Its end is the end of a stop of this server (end_of_stop())
+                     */
+                    gobj_subscribe_event(clisrv, EV_STOPPED, 0, gobj);
+                }
                 gobj_write_pointer_attr(clisrv, "tcp_s", gobj);
                 gobj_start(clisrv); // this will create a yev_dup2_accept_event
                 channels++;
@@ -574,13 +615,13 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    priv->start_pending = FALSE;
+
     if(priv->yev_server_accept) {
         yev_stop_event(priv->yev_server_accept);
         if(yev_event_is_stopped(priv->yev_server_accept)) {
             yev_destroy_event(priv->yev_server_accept);
             priv->yev_server_accept = 0;
-        } else {
-            gobj_change_state(gobj, ST_WAIT_STOPPED);
         }
     }
 
@@ -593,11 +634,20 @@ PRIVATE int mt_stop(hgobj gobj)
             if(yev_event_is_stopped(priv->yev_dups[dup_idx])) {
                 yev_destroy_event(priv->yev_dups[dup_idx]);
                 priv->yev_dups[dup_idx] = 0;
-            } else {
-                gobj_change_state(gobj, ST_WAIT_STOPPED);
             }
         }
     }
+
+    /*
+     *  What its start started goes with its stop: with the new method the
+     *  clisrvs accept on the socket of this server, which is closed now.
+     *  Up to 7.25.20 they were left running: they accepted on a socket
+     *  number the stop closed, and the next start answered "GObj ALREADY
+     *  RUNNING" for each one.
+     */
+    stop_clisrvs(gobj);
+
+    end_of_stop(gobj);
 
     return 0;
 }
@@ -625,6 +675,99 @@ PRIVATE BOOL is_loopback_peer(const char *peername)
         }
     }
     return FALSE;
+}
+
+/***************************************************************************
+ *  The clisrvs this server started (new method): stopped with it
+ ***************************************************************************/
+PRIVATE void stop_clisrvs(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(json_object_size(priv->child_tree_filter) > 0) {
+        return; // legacy: a clisrv is a connection, which a stop of the listener keeps
+    }
+
+    hgobj child = gobj_first_child(gobj_parent(gobj));
+    while(child) {
+        if(gobj_gclass_name(child) == C_CHANNEL ||
+            gobj_typeof_inherited_gclass(child, C_CHANNEL)
+        ) {
+            hgobj clisrv = gobj_last_bottom_gobj(child);
+            if(clisrv &&
+                gobj_gclass_name(clisrv) == C_TCP &&
+                gobj_read_pointer_attr(clisrv, "tcp_s") == gobj &&
+                gobj_is_running(clisrv)
+            ) {
+                gobj_stop(clisrv);
+            }
+        }
+        child = gobj_next_child(child);
+    }
+}
+
+/***************************************************************************
+ *  Does the stop of this server still wait: an accept being canceled, or
+ *  (new method) a clisrv of it not yet stopped?
+ ***************************************************************************/
+PRIVATE BOOL stop_is_pending(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->yev_server_accept) {
+        return TRUE;
+    }
+    if(priv->yev_dups) {
+        for(int dup_idx=1; dup_idx<=priv->use_dups; dup_idx++) {
+            if(priv->yev_dups[dup_idx]) {
+                return TRUE;
+            }
+        }
+    }
+    if(json_object_size(priv->child_tree_filter) > 0) {
+        return FALSE;
+    }
+
+    hgobj child = gobj_first_child(gobj_parent(gobj));
+    while(child) {
+        if(gobj_gclass_name(child) == C_CHANNEL ||
+            gobj_typeof_inherited_gclass(child, C_CHANNEL)
+        ) {
+            hgobj clisrv = gobj_last_bottom_gobj(child);
+            if(clisrv &&
+                gobj_gclass_name(clisrv) == C_TCP &&
+                gobj_read_pointer_attr(clisrv, "tcp_s") == gobj &&
+                !gobj_in_this_state(clisrv, ST_STOPPED)
+            ) {
+                return TRUE;
+            }
+        }
+        child = gobj_next_child(child);
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  A stop ends when nothing of it waits: ST_STOPPED, and a start that came
+ *  meanwhile listens, on the next cycle of the loop (EV_LISTEN_AGAIN: this
+ *  runs inside the callback of the event, or of the clisrv, that ended it).
+ *  Until then ST_WAIT_STOPPED.
+ ***************************************************************************/
+PRIVATE void end_of_stop(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(stop_is_pending(gobj)) {
+        if(!gobj_in_this_state(gobj, ST_WAIT_STOPPED)) {
+            gobj_change_state(gobj, ST_WAIT_STOPPED);
+        }
+        return;
+    }
+
+    gobj_change_state(gobj, ST_STOPPED);
+    if(priv->start_pending) {
+        gobj_post_event(gobj, EV_LISTEN_AGAIN, json_object(), gobj);
+    }
 }
 
 /***************************************************************************
@@ -770,12 +913,14 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         if(priv->yev_server_accept == yev_event) {
             yev_destroy_event(yev_event);
             priv->yev_server_accept = 0;
-            gobj_change_state(gobj, ST_STOPPED);
+            end_of_stop(gobj);
         } else {
             int dup_idx = yev_get_dup_idx(yev_event);
-            if(dup_idx > 0 && yev_event == priv->yev_dups[dup_idx]) {
+            if(priv->yev_dups && dup_idx > 0 && dup_idx <= priv->use_dups &&
+                    yev_event == priv->yev_dups[dup_idx]) {
                 yev_destroy_event(yev_event);
                 priv->yev_dups[dup_idx] = 0;
+                end_of_stop(gobj);
             } else {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
@@ -1141,14 +1286,36 @@ PRIVATE json_t *cmd_view_cert(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
 
 /***************************************************************************
- *  A clisrv stopped. Nothing is counted here: `connxs` is read from the
- *  clisrvs (count_connections()), which are no children of this gobj and do
- *  not tell it their stops. Up to 7.25.20 this decremented a count that
+ *  A clisrv of this server (new method) stopped: it may end a stop of this
+ *  server. Nothing is counted here: `connxs` is read from the clisrvs
+ *  (count_connections()). Up to 7.25.20 this decremented a count that
  *  nobody read, for a stop nobody sent.
  ***************************************************************************/
 PRIVATE int ac_clisrv_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    JSON_DECREF(kw)
+    if(gobj_in_this_state(gobj, ST_WAIT_STOPPED)) {
+        end_of_stop(gobj);
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The stop that a start waited for ended: listen. A stop that came after
+ *  that start took it back (start_pending cleared), and a start after it
+ *  listened by itself: then there is nothing to do.
+ ***************************************************************************/
+PRIVATE int ac_listen_again(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->start_pending && gobj_is_running(gobj) && gobj_in_this_state(gobj, ST_STOPPED)) {
+        priv->start_pending = FALSE;
+        if(start_listening(gobj) < 0) {
+            // Error already logged
+        }
+    }
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -1179,6 +1346,7 @@ GOBJ_DEFINE_GCLASS(C_TCP_S);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DEFINE_EVENT(EV_LISTEN_AGAIN);   // a start that waited for the end of a stop
 
 /***************************************************************************
  *
@@ -1202,14 +1370,17 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_stopped[] = {
         {EV_STOPPED,            ac_clisrv_stopped,       0},
+        {EV_LISTEN_AGAIN,       ac_listen_again,         0},
         {0,0,0}
     };
     ev_action_t st_wait_stopped[] = {
         {EV_STOPPED,            ac_clisrv_stopped,       0},
+        {EV_LISTEN_AGAIN,       ac_listen_again,         0},
         {0,0,0}
     };
     ev_action_t st_idle[] = {
         {EV_STOPPED,            ac_clisrv_stopped,       0},
+        {EV_LISTEN_AGAIN,       ac_listen_again,         0},
         {0,0,0}
     };
 
@@ -1222,6 +1393,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_STOPPED,        0},
+        {EV_LISTEN_AGAIN,   0},
         {0, 0}
     };
 

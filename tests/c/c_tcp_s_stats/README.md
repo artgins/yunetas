@@ -18,13 +18,17 @@ two hosts, as the agent's servers share one pool.
 1. 2 peers connect to each server: `connxs` 2, `tconnxs` 2;
 2. 1 peer of each closes: `connxs` 1, `tconnxs` 2;
 3. 1 more peer connects to each: `connxs` 2, `tconnxs` 3;
-4. `shared_a` is stopped and started again: the same counts.
+4. a peer of `shared_a` closes, and `shared_a` is stopped and started again
+   in the SAME turn, its accept still being canceled: it listens again when
+   that stop ends, a peer connects, `connxs` 2, `tconnxs` 4.
 
 Then a `C_IOGATE` of the new method whose 2 channels have no `C_TCP` (the
 `C_TCP_S` creates `clisrv-1` and `clisrv-2`) is stopped with its tree, a third
 channel is added, and it is started again: the new clisrv must be
 `clisrv-3`, and the clisrvs started again must not leak the accept of their
-first start.
+first start. Last, that `C_TCP_S` is stopped ALONE and started again in the
+same turn: its clisrvs stop with it and start again when its stop ends, and a
+peer connects (`connxs` 1, `tconnxs` 1).
 
 Up to 7.25.20 both read 0 always: they were `SDF_STATS` attributes backed by
 priv counters that no `mt_reading` served; `connxs` was never decremented
@@ -33,6 +37,11 @@ and with the new method the server does not see the accepts at all.
 A count by local port made `shared_a` and `shared_b` each count the
 connections of both; a clisrv of the new method started again overwrote its
 first accept event (a leak, and *"Destroying a running event"* at the end).
+A stop and a start in the same turn made a second socket whose bind failed
+(the yuno exited); a lone stop of a new-method server left its clisrvs
+running (*"GObj ALREADY RUNNING"* at the start); a clisrv started again
+stayed in `ST_STOPPED` and kept the port bound; and the free of a clisrv's
+accept event closed the listening socket's number.
 
 ## Run
 

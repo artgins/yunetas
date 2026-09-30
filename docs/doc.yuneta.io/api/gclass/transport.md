@@ -224,6 +224,35 @@ gobj_create("shared_b", C_TCP_S, kw_b, gate);
 
 `tests/c/c_tcp_s_stats`.
 
+### Stop and start again
+
+A stop of the server (`gobj_stop()` of the `C_TCP_S` alone, not its tree)
+stops what its start started: its accept, and, with the new method, the
+clisrvs of its channels, which accept on its socket (their connections go
+with them). With `child_tree_filter` a clisrv is a connection, and a stop of
+the listener keeps it. The stop ends in `ST_STOPPED` when nothing of it
+waits, or in `ST_WAIT_STOPPED` until the last accept is canceled and the last
+clisrv has stopped.
+
+A start that comes while the stop still waits -- a stop and a start in the
+same turn, as a restart does -- does not listen at once: the old socket is
+still open, and a second one could not bind. The server stays running in
+`ST_WAIT_STOPPED`, and listens when the stop ends (`EV_LISTEN_AGAIN`, which it
+posts to itself for the next cycle of the loop):
+
+```C
+gobj_stop(tcp_s);       // ST_WAIT_STOPPED: its accept is being canceled
+gobj_start(tcp_s);      // running, still ST_WAIT_STOPPED: listens when the stop ends
+```
+
+Up to 7.25.20 that start created a second socket, whose bind failed (the
+yuno exited, `exitOnError`), or overwrote the accept still being canceled (a
+leak, *"dup_idx not match"*); a lone stop of a new-method server left its
+clisrvs accepting on the closed socket, and its next start answered *"GObj
+ALREADY RUNNING"* for each one; and a clisrv started again stayed in
+`ST_STOPPED`, so its next stop never canceled its accept, which kept the port
+bound. `tests/c/c_tcp_s_stats`.
+
 (tcp_s_ip_lists)=
 ### IP lists at accept
 

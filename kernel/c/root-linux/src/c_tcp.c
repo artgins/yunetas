@@ -342,6 +342,15 @@ PRIVATE int mt_start(hgobj gobj)
                 );
                 if(priv->yev_accept) {
                     yev_start_event(priv->yev_accept);
+                    /*
+                     *  Waiting for its accept, as set_disconnected() leaves
+                     *  it. Up to 7.25.20 a start after a stop stayed in
+                     *  ST_STOPPED with the accept armed: the next stop
+                     *  returned at once (try_to_stop_yevents()), the accept
+                     *  was never canceled, and it kept the listening socket
+                     *  of its C_TCP_S bound.
+                     */
+                    gobj_change_state(gobj, ST_DISCONNECTED);
                 }
 
             } else {

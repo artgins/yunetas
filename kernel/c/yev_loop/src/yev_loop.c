@@ -440,6 +440,20 @@ PRIVATE void really_free_yev_event(yev_event_t *yev_event)
         case YEV_CONNECT_TYPE:
         case YEV_ACCEPT_TYPE:
         case YEV_TIMER_TYPE:
+            /*
+             *  An accept made with yev_dup_accept_event() or
+             *  yev_dup2_accept_event() uses the socket of another event (the
+             *  listener's), which owns it: its free closes nothing. Up to
+             *  7.25.20 it closed that socket number and took back the
+             *  submissions of every event on it: the listener's socket
+             *  while it listened, or, freed after it, whatever file had the
+             *  number by then (a new listening socket, after a restart).
+             */
+            if(yev_event->type == YEV_ACCEPT_TYPE &&
+                    (yev_event->flag & (YEV_FLAG_ACCEPT_DUP|YEV_FLAG_ACCEPT_DUP2))) {
+                yev_event->fd = -1;
+                break;
+            }
             if(yev_event->fd > 0) {
                 take_back_submissions_on_fd(yev_loop, yev_event->fd);
                 if(gobj_trace_level(0) & (TRACE_URING)) {
