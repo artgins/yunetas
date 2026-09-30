@@ -68,7 +68,7 @@ SDATA (DTP_STRING,  "host",             SDF_RD,         "",         "host, decod
 SDATA (DTP_STRING,  "port",             SDF_RD,         "",         "port, decoded from url. Set internally"),
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if schema is secure. Set internally"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_RD,         "",         "SSL server certification, PEM str format"),
-SDATA (DTP_STRING,  "jwt",              SDF_RD,         "",         "TODO. Access with token JWT"),
+SDATA (DTP_STRING,  "jwt",              SDF_RD|SDF_SECRET,  "",         "TODO. Access with token JWT"),
 SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "true",     "Skip verification of cert common name"),
 SDATA (DTP_INTEGER, "keep_alive",       SDF_RD,         "10",       "Set keep-alive if > 0"),
 SDATA (DTP_BOOLEAN, "character_device", SDF_RD,         "false",    "Char device (Ex: tty://dev/ttyUSB2)"),

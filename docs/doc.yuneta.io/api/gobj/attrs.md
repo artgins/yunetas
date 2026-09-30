@@ -270,11 +270,11 @@ int gobj_mask_secret_attrs(
 | Key | Type | Description |
 |---|---|---|
 | `gobj` | `hgobj` | The gobj whose attrs table says which attributes are secret. |
-| `jn_attrs` | `json_t *` | A dict keyed by attribute name. Not owned; masked in place. Anything that is not a dict is left alone. |
+| `jn_attrs` | `json_t *` | A dict keyed by attribute name. Not owned; masked in place. |
 
 **Returns**
 
-`0`.
+`0`, or `-1` (logged) when `gobj` is NULL or `jn_attrs` is not a dict.
 
 **Example**
 
@@ -282,6 +282,49 @@ int gobj_mask_secret_attrs(
 json_t *jn_attrs = gobj_read_attrs(gobj, SDF_PERSIST|SDF_RD|SDF_WR, src);
 gobj_mask_secret_attrs(gobj, jn_attrs);     // "password": "********"
 return build_command_response(gobj, 0, 0, 0, jn_attrs);
+```
+
+---
+
+(gobj_mask_secret_config)=
+## [`gobj_mask_secret_config()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/gobj.c#L3675)
+
+The same masking for a whole yuno configuration, what `view-config` shows:
+the [`SDF_SECRET`](#SDF_SECRET) attributes of the yuno
+(`"yuno"`), of the gclass or service each `"global"` key names
+(`"<gclass or service>.<attr>"`, `"<...>.kw"`), and of every node of the
+`"services"` trees -- in its `kw` and down its `children`. It masks in place,
+so mask a COPY: the configuration is what the yuno builds its services from.
+A value a config variable (`(^^var^^)`) brings in is masked where it lands on
+a secret attribute; `__json_config_variables__` itself is shown as written.
+
+```C
+int gobj_mask_secret_config(
+    json_t  *jn_config  // not owned, modified in place
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_config` | `json_t *` | A yuno configuration (`yuneta_json_config()`), or a copy of one. Not owned; masked in place. |
+
+**Returns**
+
+`0`, or `-1` (logged) when `jn_config` is not a dict.
+
+**Example**
+
+```C
+/*
+ *  'services': [{'name': 'emailsender', 'gclass': 'C_EMAILSENDER',
+ *                'kw': {'password': 'hunter2'}}]
+ *  shows as 'kw': {'password': '********'}
+ */
+json_t *jn_data = json_deep_copy(yuneta_json_config());
+gobj_mask_secret_config(jn_data);
+return build_command_response(gobj, 0, 0, 0, jn_data);
 ```
 
 ---

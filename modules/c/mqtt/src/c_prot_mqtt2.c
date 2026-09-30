@@ -274,7 +274,7 @@ SDATA (DTP_BOOLEAN,     "clean_start",      SDF_VOLATIL,        0,      "New ses
 SDATA (DTP_INTEGER,     "session_expiry_interval",SDF_VOLATIL,  0,      "Session expiry interval in ?"),
 SDATA (DTP_INTEGER,     "keepalive",        SDF_VOLATIL,        0,      "Keepalive"),
 SDATA (DTP_STRING,      "auth_method",      SDF_VOLATIL,        0,      "Auth method"),
-SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL,        0,      "Auth data (in base64)"),
+SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL|SDF_SECRET, 0,      "Auth data (in base64)"),
 
 SDATA (DTP_INTEGER,     "msgs_out_inflight_maximum", SDF_VOLATIL,0,     "Connect property"),
 SDATA (DTP_INTEGER,     "msgs_out_inflight_quota", SDF_VOLATIL, 0,      "Connect property"),

@@ -147,10 +147,13 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
     attr is read, written and persisted exactly as without the flag (the
     emailsender still sends its real password, the persistent-attrs file
     still keeps it); what changes is what is SHOWN: `view-attrs`,
-    `write-attr`, `list-persistent-attrs`, `view-gobj` and the start-up
-    trace of the yuno's attrs answer `********` for it. An empty value is
-    shown empty, so "not set" still reads as such. A dict of attrs is masked
-    with [`gobj_mask_secret_attrs()`](#gobj_mask_secret_attrs).
+    `write-attr`, `list-persistent-attrs`, `view-gobj`, `view-config`, the
+    start-up trace of the yuno's attrs and the `create_delete2` trace of a
+    gobj being built answer `********` for it. An empty value is shown
+    empty, so "not set" still reads as such. A dict of attrs is masked with
+    [`gobj_mask_secret_attrs()`](#gobj_mask_secret_attrs), a whole
+    configuration with [`gobj_mask_secret_config()`](#gobj_mask_secret_config).
+    The C_TCP `traffic` dump is NOT masked: it prints the bytes on the wire.
 
 ```C
 SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),

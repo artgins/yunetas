@@ -215,7 +215,7 @@ it by hand, run the script.
 
 34. [**`print_error`**](logging/log.md#print_error) — `PUBLIC void print_error( pe_flag_t quit, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 2, 3)))`
 
-### `gobj.h` — 252 functions
+### `gobj.h` — 253 functions
 
 **Source:** `kernel/c/gobj-c/src/gobj.h`
 
@@ -321,407 +321,409 @@ it by hand, run the script.
 
 51. [**`gobj_mask_secret_attrs`**](gobj/attrs.md#gobj_mask_secret_attrs) — `PUBLIC int gobj_mask_secret_attrs(hgobj gobj, json_t *jn_attrs)`
 
-52. [**`gobj_read_attrs`**](gobj/attrs.md#gobj_read_attrs) — `PUBLIC json_t *gobj_read_attrs( hgobj gobj, sdata_flag_t include_flag, hgobj src )`
+52. [**`gobj_mask_secret_config`**](gobj/attrs.md#gobj_mask_secret_config) — `PUBLIC int gobj_mask_secret_config(json_t *jn_config)`
 
-53. [**`gobj_read_user_data`**](gobj/attrs.md#gobj_read_user_data) — `PUBLIC json_t *gobj_read_user_data( hgobj gobj, const char *name )`
+53. [**`gobj_read_attrs`**](gobj/attrs.md#gobj_read_attrs) — `PUBLIC json_t *gobj_read_attrs( hgobj gobj, sdata_flag_t include_flag, hgobj src )`
 
-54. [**`gobj_write_attr`**](gobj/attrs.md#gobj_write_attr) — `PUBLIC int gobj_write_attr( hgobj gobj, const char *path, json_t *value, hgobj src )`
+54. [**`gobj_read_user_data`**](gobj/attrs.md#gobj_read_user_data) — `PUBLIC json_t *gobj_read_user_data( hgobj gobj, const char *name )`
 
-55. [**`gobj_write_attrs`**](gobj/attrs.md#gobj_write_attrs) — `PUBLIC int gobj_write_attrs( hgobj gobj, json_t *kw, sdata_flag_t include_flag, hgobj src )`
+55. [**`gobj_write_attr`**](gobj/attrs.md#gobj_write_attr) — `PUBLIC int gobj_write_attr( hgobj gobj, const char *path, json_t *value, hgobj src )`
 
-56. [**`gobj_write_user_data`**](gobj/attrs.md#gobj_write_user_data) — `PUBLIC int gobj_write_user_data( hgobj gobj, const char *name, json_t *value )`
+56. [**`gobj_write_attrs`**](gobj/attrs.md#gobj_write_attrs) — `PUBLIC int gobj_write_attrs( hgobj gobj, json_t *kw, sdata_flag_t include_flag, hgobj src )`
 
-57. [**`gobj_has_bottom_attr`**](gobj/attrs.md#gobj_has_bottom_attr) — `PUBLIC BOOL gobj_has_bottom_attr(hgobj gobj_, const char *name)`
+57. [**`gobj_write_user_data`**](gobj/attrs.md#gobj_write_user_data) — `PUBLIC int gobj_write_user_data( hgobj gobj, const char *name, json_t *value )`
 
-58. [**`gobj_kw_get_user_data`**](gobj/info.md#gobj_kw_get_user_data) — `PUBLIC json_t *gobj_kw_get_user_data( hgobj gobj, const char *path, json_t *default_value, kw_flag_t flag )`
+58. [**`gobj_has_bottom_attr`**](gobj/attrs.md#gobj_has_bottom_attr) — `PUBLIC BOOL gobj_has_bottom_attr(hgobj gobj_, const char *name)`
 
-59. [**`gobj_read_str_attr`**](gobj/attrs.md#gobj_read_str_attr) — `PUBLIC const char *gobj_read_str_attr(hgobj gobj, const char *name)`
+59. [**`gobj_kw_get_user_data`**](gobj/info.md#gobj_kw_get_user_data) — `PUBLIC json_t *gobj_kw_get_user_data( hgobj gobj, const char *path, json_t *default_value, kw_flag_t flag )`
 
-60. [**`gobj_read_bool_attr`**](gobj/attrs.md#gobj_read_bool_attr) — `PUBLIC BOOL gobj_read_bool_attr(hgobj gobj, const char *name)`
+60. [**`gobj_read_str_attr`**](gobj/attrs.md#gobj_read_str_attr) — `PUBLIC const char *gobj_read_str_attr(hgobj gobj, const char *name)`
 
-61. [**`gobj_read_integer_attr`**](gobj/attrs.md#gobj_read_integer_attr) — `PUBLIC json_int_t gobj_read_integer_attr(hgobj gobj, const char *name)`
+61. [**`gobj_read_bool_attr`**](gobj/attrs.md#gobj_read_bool_attr) — `PUBLIC BOOL gobj_read_bool_attr(hgobj gobj, const char *name)`
 
-62. [**`gobj_read_real_attr`**](gobj/attrs.md#gobj_read_real_attr) — `PUBLIC double gobj_read_real_attr(hgobj gobj, const char *name)`
+62. [**`gobj_read_integer_attr`**](gobj/attrs.md#gobj_read_integer_attr) — `PUBLIC json_int_t gobj_read_integer_attr(hgobj gobj, const char *name)`
 
-63. [**`gobj_read_json_attr`**](gobj/attrs.md#gobj_read_json_attr) — `PUBLIC json_t *gobj_read_json_attr(hgobj gobj, const char *name)`
+63. [**`gobj_read_real_attr`**](gobj/attrs.md#gobj_read_real_attr) — `PUBLIC double gobj_read_real_attr(hgobj gobj, const char *name)`
 
-64. [**`gobj_read_pointer_attr`**](gobj/attrs.md#gobj_read_pointer_attr) — `PUBLIC void *gobj_read_pointer_attr(hgobj gobj, const char *name)`
+64. [**`gobj_read_json_attr`**](gobj/attrs.md#gobj_read_json_attr) — `PUBLIC json_t *gobj_read_json_attr(hgobj gobj, const char *name)`
 
-65. [**`gobj_write_str_attr`**](gobj/attrs.md#gobj_write_str_attr) — `PUBLIC int gobj_write_str_attr(hgobj gobj, const char *name, const char *value)`
+65. [**`gobj_read_pointer_attr`**](gobj/attrs.md#gobj_read_pointer_attr) — `PUBLIC void *gobj_read_pointer_attr(hgobj gobj, const char *name)`
 
-66. [**`gobj_write_strn_attr`**](gobj/attrs.md#gobj_write_strn_attr) — `PUBLIC int gobj_write_strn_attr(hgobj gobj_, const char *name, const char *s, size_t len)`
+66. [**`gobj_write_str_attr`**](gobj/attrs.md#gobj_write_str_attr) — `PUBLIC int gobj_write_str_attr(hgobj gobj, const char *name, const char *value)`
 
-67. [**`gobj_write_bool_attr`**](gobj/attrs.md#gobj_write_bool_attr) — `PUBLIC int gobj_write_bool_attr(hgobj gobj, const char *name, BOOL value)`
+67. [**`gobj_write_strn_attr`**](gobj/attrs.md#gobj_write_strn_attr) — `PUBLIC int gobj_write_strn_attr(hgobj gobj_, const char *name, const char *s, size_t len)`
 
-68. [**`gobj_write_integer_attr`**](gobj/attrs.md#gobj_write_integer_attr) — `PUBLIC int gobj_write_integer_attr(hgobj gobj, const char *name, json_int_t value)`
+68. [**`gobj_write_bool_attr`**](gobj/attrs.md#gobj_write_bool_attr) — `PUBLIC int gobj_write_bool_attr(hgobj gobj, const char *name, BOOL value)`
 
-69. [**`gobj_write_real_attr`**](gobj/attrs.md#gobj_write_real_attr) — `PUBLIC int gobj_write_real_attr(hgobj gobj, const char *name, double value)`
+69. [**`gobj_write_integer_attr`**](gobj/attrs.md#gobj_write_integer_attr) — `PUBLIC int gobj_write_integer_attr(hgobj gobj, const char *name, json_int_t value)`
 
-70. [**`gobj_write_json_attr`**](gobj/attrs.md#gobj_write_json_attr) — `PUBLIC int gobj_write_json_attr(hgobj gobj, const char *name, json_t *value)`
+70. [**`gobj_write_real_attr`**](gobj/attrs.md#gobj_write_real_attr) — `PUBLIC int gobj_write_real_attr(hgobj gobj, const char *name, double value)`
 
-71. [**`gobj_write_new_json_attr`**](gobj/attrs.md#gobj_write_new_json_attr) — `PUBLIC int gobj_write_new_json_attr(hgobj gobj, const char *name, json_t *value)`
+71. [**`gobj_write_json_attr`**](gobj/attrs.md#gobj_write_json_attr) — `PUBLIC int gobj_write_json_attr(hgobj gobj, const char *name, json_t *value)`
 
-72. [**`gobj_write_pointer_attr`**](gobj/attrs.md#gobj_write_pointer_attr) — `PUBLIC int gobj_write_pointer_attr(hgobj gobj, const char *name, void *value)`
+72. [**`gobj_write_new_json_attr`**](gobj/attrs.md#gobj_write_new_json_attr) — `PUBLIC int gobj_write_new_json_attr(hgobj gobj, const char *name, json_t *value)`
 
-73. [**`gobj_local_method`**](gobj/op.md#gobj_local_method) — `PUBLIC json_t *gobj_local_method( hgobj gobj, const char *lmethod, json_t *kw, hgobj src )`
+73. [**`gobj_write_pointer_attr`**](gobj/attrs.md#gobj_write_pointer_attr) — `PUBLIC int gobj_write_pointer_attr(hgobj gobj, const char *name, void *value)`
 
-74. [**`gobj_start`**](gobj/op.md#gobj_start) — `PUBLIC int gobj_start(hgobj gobj)`
+74. [**`gobj_local_method`**](gobj/op.md#gobj_local_method) — `PUBLIC json_t *gobj_local_method( hgobj gobj, const char *lmethod, json_t *kw, hgobj src )`
 
-75. [**`gobj_start_children`**](gobj/op.md#gobj_start_children) — `PUBLIC int gobj_start_children(hgobj gobj)`
+75. [**`gobj_start`**](gobj/op.md#gobj_start) — `PUBLIC int gobj_start(hgobj gobj)`
 
-76. [**`gobj_start_tree`**](gobj/op.md#gobj_start_tree) — `PUBLIC int gobj_start_tree(hgobj gobj)`
+76. [**`gobj_start_children`**](gobj/op.md#gobj_start_children) — `PUBLIC int gobj_start_children(hgobj gobj)`
 
-77. [**`gobj_stop`**](gobj/op.md#gobj_stop) — `PUBLIC int gobj_stop(hgobj gobj)`
+77. [**`gobj_start_tree`**](gobj/op.md#gobj_start_tree) — `PUBLIC int gobj_start_tree(hgobj gobj)`
 
-78. [**`gobj_stop_children`**](gobj/op.md#gobj_stop_children) — `PUBLIC int gobj_stop_children(hgobj gobj)`
+78. [**`gobj_stop`**](gobj/op.md#gobj_stop) — `PUBLIC int gobj_stop(hgobj gobj)`
 
-79. [**`gobj_stop_tree`**](gobj/op.md#gobj_stop_tree) — `PUBLIC int gobj_stop_tree(hgobj gobj)`
+79. [**`gobj_stop_children`**](gobj/op.md#gobj_stop_children) — `PUBLIC int gobj_stop_children(hgobj gobj)`
 
-80. [**`gobj_play`**](gobj/op.md#gobj_play) — `PUBLIC int gobj_play(hgobj gobj)`
+80. [**`gobj_stop_tree`**](gobj/op.md#gobj_stop_tree) — `PUBLIC int gobj_stop_tree(hgobj gobj)`
 
-81. [**`gobj_pause`**](gobj/op.md#gobj_pause) — `PUBLIC int gobj_pause(hgobj gobj)`
+81. [**`gobj_play`**](gobj/op.md#gobj_play) — `PUBLIC int gobj_play(hgobj gobj)`
 
-82. [**`gobj_enable`**](gobj/op.md#gobj_enable) — `PUBLIC int gobj_enable(hgobj gobj)`
+82. [**`gobj_pause`**](gobj/op.md#gobj_pause) — `PUBLIC int gobj_pause(hgobj gobj)`
 
-83. [**`gobj_disable`**](gobj/op.md#gobj_disable) — `PUBLIC int gobj_disable(hgobj gobj)`
+83. [**`gobj_enable`**](gobj/op.md#gobj_enable) — `PUBLIC int gobj_enable(hgobj gobj)`
 
-84. [**`gobj_change_parent`**](gobj/op.md#gobj_change_parent) — `PUBLIC int gobj_change_parent(hgobj gobj, hgobj gobj_new_parent)`
+84. [**`gobj_disable`**](gobj/op.md#gobj_disable) — `PUBLIC int gobj_disable(hgobj gobj)`
 
-85. [**`gobj_command`**](gobj/op.md#gobj_command) — `PUBLIC json_t *gobj_command( hgobj gobj, const char *command, json_t *kw, hgobj src )`
+85. [**`gobj_change_parent`**](gobj/op.md#gobj_change_parent) — `PUBLIC int gobj_change_parent(hgobj gobj, hgobj gobj_new_parent)`
 
-86. [**`gobj_audit_commands`**](gobj/info.md#gobj_audit_commands) — `PUBLIC int gobj_audit_commands( int (*audit_command_cb)( const char *command, json_t *kw, void *user_data ), void *user_data )`
+86. [**`gobj_command`**](gobj/op.md#gobj_command) — `PUBLIC json_t *gobj_command( hgobj gobj, const char *command, json_t *kw, hgobj src )`
 
-87. [**`gobj_stats`**](gobj/stats.md#gobj_stats) — `PUBLIC json_t * gobj_stats( hgobj gobj, const char* stats, json_t* kw, hgobj src )`
+87. [**`gobj_audit_commands`**](gobj/info.md#gobj_audit_commands) — `PUBLIC int gobj_audit_commands( int (*audit_command_cb)( const char *command, json_t *kw, void *user_data ), void *user_data )`
 
-88. [**`gobj_set_bottom_gobj`**](gobj/op.md#gobj_set_bottom_gobj) — `PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj, hgobj bottom_gobj)`
+88. [**`gobj_stats`**](gobj/stats.md#gobj_stats) — `PUBLIC json_t * gobj_stats( hgobj gobj, const char* stats, json_t* kw, hgobj src )`
 
-89. [**`gobj_last_bottom_gobj`**](gobj/op.md#gobj_last_bottom_gobj) — `PUBLIC hgobj gobj_last_bottom_gobj(hgobj gobj)`
+89. [**`gobj_set_bottom_gobj`**](gobj/op.md#gobj_set_bottom_gobj) — `PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj, hgobj bottom_gobj)`
 
-90. [**`gobj_bottom_gobj`**](gobj/op.md#gobj_bottom_gobj) — `PUBLIC hgobj gobj_bottom_gobj(hgobj gobj)`
+90. [**`gobj_last_bottom_gobj`**](gobj/op.md#gobj_last_bottom_gobj) — `PUBLIC hgobj gobj_last_bottom_gobj(hgobj gobj)`
 
-91. [**`gobj_default_service`**](gobj/op.md#gobj_default_service) — `PUBLIC hgobj gobj_default_service(void)`
+91. [**`gobj_bottom_gobj`**](gobj/op.md#gobj_bottom_gobj) — `PUBLIC hgobj gobj_bottom_gobj(hgobj gobj)`
 
-92. [**`gobj_find_service`**](gobj/op.md#gobj_find_service) — `PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)`
+92. [**`gobj_default_service`**](gobj/op.md#gobj_default_service) — `PUBLIC hgobj gobj_default_service(void)`
 
-93. [**`gobj_find_service_by_gclass`**](gobj/op.md#gobj_find_service_by_gclass) — `PUBLIC hgobj gobj_find_service_by_gclass(const char *gclass_name, BOOL verbose)`
+93. [**`gobj_find_service`**](gobj/op.md#gobj_find_service) — `PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)`
 
-94. [**`gobj_nearest_top_service`**](gobj/info.md#gobj_nearest_top_service) — `PUBLIC hgobj gobj_nearest_top_service(hgobj gobj)`
+94. [**`gobj_find_service_by_gclass`**](gobj/op.md#gobj_find_service_by_gclass) — `PUBLIC hgobj gobj_find_service_by_gclass(const char *gclass_name, BOOL verbose)`
 
-95. [**`gobj_find_gobj`**](gobj/op.md#gobj_find_gobj) — `PUBLIC hgobj gobj_find_gobj(const char *gobj_path)`
+95. [**`gobj_nearest_top_service`**](gobj/info.md#gobj_nearest_top_service) — `PUBLIC hgobj gobj_nearest_top_service(hgobj gobj)`
 
-96. [**`gobj_first_child`**](gobj/op.md#gobj_first_child) — `PUBLIC hgobj gobj_first_child(hgobj gobj)`
+96. [**`gobj_find_gobj`**](gobj/op.md#gobj_find_gobj) — `PUBLIC hgobj gobj_find_gobj(const char *gobj_path)`
 
-97. [**`gobj_last_child`**](gobj/op.md#gobj_last_child) — `PUBLIC hgobj gobj_last_child(hgobj gobj)`
+97. [**`gobj_first_child`**](gobj/op.md#gobj_first_child) — `PUBLIC hgobj gobj_first_child(hgobj gobj)`
 
-98. [**`gobj_next_child`**](gobj/op.md#gobj_next_child) — `PUBLIC hgobj gobj_next_child(hgobj child)`
+98. [**`gobj_last_child`**](gobj/op.md#gobj_last_child) — `PUBLIC hgobj gobj_last_child(hgobj gobj)`
 
-99. [**`gobj_prev_child`**](gobj/op.md#gobj_prev_child) — `PUBLIC hgobj gobj_prev_child(hgobj child)`
+99. [**`gobj_next_child`**](gobj/op.md#gobj_next_child) — `PUBLIC hgobj gobj_next_child(hgobj child)`
 
-100. [**`gobj_child_by_name`**](gobj/op.md#gobj_child_by_name) — `PUBLIC hgobj gobj_child_by_name(hgobj gobj, const char *name)`
+100. [**`gobj_prev_child`**](gobj/op.md#gobj_prev_child) — `PUBLIC hgobj gobj_prev_child(hgobj child)`
 
-101. [**`gobj_child_by_index`**](gobj/op.md#gobj_child_by_index) — `PUBLIC hgobj gobj_child_by_index(hgobj gobj, size_t index)`
+101. [**`gobj_child_by_name`**](gobj/op.md#gobj_child_by_name) — `PUBLIC hgobj gobj_child_by_name(hgobj gobj, const char *name)`
 
-102. [**`gobj_child_size`**](gobj/op.md#gobj_child_size) — `PUBLIC size_t gobj_child_size(hgobj gobj)`
+102. [**`gobj_child_by_index`**](gobj/op.md#gobj_child_by_index) — `PUBLIC hgobj gobj_child_by_index(hgobj gobj, size_t index)`
 
-103. [**`gobj_child_size2`**](gobj/op.md#gobj_child_size2) — `PUBLIC size_t gobj_child_size2( hgobj gobj_, json_t *jn_filter )`
+103. [**`gobj_child_size`**](gobj/op.md#gobj_child_size) — `PUBLIC size_t gobj_child_size(hgobj gobj)`
 
-104. [**`gobj_search_path`**](gobj/op.md#gobj_search_path) — `PUBLIC hgobj gobj_search_path(hgobj gobj, const char *path)`
+104. [**`gobj_child_size2`**](gobj/op.md#gobj_child_size2) — `PUBLIC size_t gobj_child_size2( hgobj gobj_, json_t *jn_filter )`
 
-105. [**`gobj_match_gobj`**](gobj/op.md#gobj_match_gobj) — `PUBLIC BOOL gobj_match_gobj( hgobj gobj, json_t *jn_filter )`
+105. [**`gobj_search_path`**](gobj/op.md#gobj_search_path) — `PUBLIC hgobj gobj_search_path(hgobj gobj, const char *path)`
 
-106. [**`gobj_find_child`**](gobj/op.md#gobj_find_child) — `PUBLIC hgobj gobj_find_child( hgobj gobj, json_t *jn_filter )`
+106. [**`gobj_match_gobj`**](gobj/op.md#gobj_match_gobj) — `PUBLIC BOOL gobj_match_gobj( hgobj gobj, json_t *jn_filter )`
 
-107. [**`gobj_find_child_by_tree`**](gobj/op.md#gobj_find_child_by_tree) — `PUBLIC hgobj gobj_find_child_by_tree( hgobj gobj, json_t *jn_filter )`
+107. [**`gobj_find_child`**](gobj/op.md#gobj_find_child) — `PUBLIC hgobj gobj_find_child( hgobj gobj, json_t *jn_filter )`
 
-108. [**`gobj_match_children`**](gobj/op.md#gobj_match_children) — `PUBLIC json_t *gobj_match_children( hgobj gobj, json_t *jn_filter )`
+108. [**`gobj_find_child_by_tree`**](gobj/op.md#gobj_find_child_by_tree) — `PUBLIC hgobj gobj_find_child_by_tree( hgobj gobj, json_t *jn_filter )`
 
-109. [**`gobj_match_children_tree`**](gobj/op.md#gobj_match_children_tree) — `PUBLIC json_t *gobj_match_children_tree( hgobj gobj, json_t *jn_filter )`
+109. [**`gobj_match_children`**](gobj/op.md#gobj_match_children) — `PUBLIC json_t *gobj_match_children( hgobj gobj, json_t *jn_filter )`
 
-110. [**`gobj_free_iter`**](gobj/op.md#gobj_free_iter) — `PUBLIC int gobj_free_iter(json_t *iter)`
+110. [**`gobj_match_children_tree`**](gobj/op.md#gobj_match_children_tree) — `PUBLIC json_t *gobj_match_children_tree( hgobj gobj, json_t *jn_filter )`
 
-111. [**`gobj_walk_gobj_children`**](gobj/op.md#gobj_walk_gobj_children) — `PUBLIC int gobj_walk_gobj_children( hgobj gobj, walk_type_t walk_type, cb_walking_t cb_walking, void *user_data, void *user_data2, void *user_data3 )`
+111. [**`gobj_free_iter`**](gobj/op.md#gobj_free_iter) — `PUBLIC int gobj_free_iter(json_t *iter)`
 
-112. [**`gobj_walk_gobj_children_tree`**](gobj/op.md#gobj_walk_gobj_children_tree) — `PUBLIC int gobj_walk_gobj_children_tree( hgobj gobj, walk_type_t walk_type, cb_walking_t cb_walking, void *user_data, void *user_data2, void *user_data3 )`
+112. [**`gobj_walk_gobj_children`**](gobj/op.md#gobj_walk_gobj_children) — `PUBLIC int gobj_walk_gobj_children( hgobj gobj, walk_type_t walk_type, cb_walking_t cb_walking, void *user_data, void *user_data2, void *user_data3 )`
 
-113. [**`gobj_yuno`**](gobj/info.md#gobj_yuno) — `PUBLIC hgobj gobj_yuno(void)`
+113. [**`gobj_walk_gobj_children_tree`**](gobj/op.md#gobj_walk_gobj_children_tree) — `PUBLIC int gobj_walk_gobj_children_tree( hgobj gobj, walk_type_t walk_type, cb_walking_t cb_walking, void *user_data, void *user_data2, void *user_data3 )`
 
-114. [**`gobj_yuno_name`**](gobj/info.md#gobj_yuno_name) — `PUBLIC const char *gobj_yuno_name(void)`
+114. [**`gobj_yuno`**](gobj/info.md#gobj_yuno) — `PUBLIC hgobj gobj_yuno(void)`
 
-115. [**`gobj_yuno_role`**](gobj/info.md#gobj_yuno_role) — `PUBLIC const char *gobj_yuno_role(void)`
+115. [**`gobj_yuno_name`**](gobj/info.md#gobj_yuno_name) — `PUBLIC const char *gobj_yuno_name(void)`
 
-116. [**`gobj_yuno_id`**](gobj/info.md#gobj_yuno_id) — `PUBLIC const char *gobj_yuno_id(void)`
+116. [**`gobj_yuno_role`**](gobj/info.md#gobj_yuno_role) — `PUBLIC const char *gobj_yuno_role(void)`
 
-117. [**`gobj_yuno_tag`**](gobj/info.md#gobj_yuno_tag) — `PUBLIC const char *gobj_yuno_tag(void)`
+117. [**`gobj_yuno_id`**](gobj/info.md#gobj_yuno_id) — `PUBLIC const char *gobj_yuno_id(void)`
 
-118. [**`gobj_yuno_role_plus_name`**](gobj/info.md#gobj_yuno_role_plus_name) — `PUBLIC const char *gobj_yuno_role_plus_name(void)`
+118. [**`gobj_yuno_tag`**](gobj/info.md#gobj_yuno_tag) — `PUBLIC const char *gobj_yuno_tag(void)`
 
-119. [**`gobj_yuno_realm_id`**](gobj/info.md#gobj_yuno_realm_id) — `PUBLIC const char *gobj_yuno_realm_id(void)`
+119. [**`gobj_yuno_role_plus_name`**](gobj/info.md#gobj_yuno_role_plus_name) — `PUBLIC const char *gobj_yuno_role_plus_name(void)`
 
-120. [**`gobj_yuno_realm_owner`**](gobj/info.md#gobj_yuno_realm_owner) — `PUBLIC const char *gobj_yuno_realm_owner(void)`
+120. [**`gobj_yuno_realm_id`**](gobj/info.md#gobj_yuno_realm_id) — `PUBLIC const char *gobj_yuno_realm_id(void)`
 
-121. [**`gobj_yuno_realm_role`**](gobj/info.md#gobj_yuno_realm_role) — `PUBLIC const char *gobj_yuno_realm_role(void)`
+121. [**`gobj_yuno_realm_owner`**](gobj/info.md#gobj_yuno_realm_owner) — `PUBLIC const char *gobj_yuno_realm_owner(void)`
 
-122. [**`gobj_yuno_realm_name`**](gobj/info.md#gobj_yuno_realm_name) — `PUBLIC const char *gobj_yuno_realm_name(void)`
+122. [**`gobj_yuno_realm_role`**](gobj/info.md#gobj_yuno_realm_role) — `PUBLIC const char *gobj_yuno_realm_role(void)`
 
-123. [**`gobj_yuno_realm_env`**](gobj/info.md#gobj_yuno_realm_env) — `PUBLIC const char *gobj_yuno_realm_env(void)`
+123. [**`gobj_yuno_realm_name`**](gobj/info.md#gobj_yuno_realm_name) — `PUBLIC const char *gobj_yuno_realm_name(void)`
 
-124. [**`gobj_yuno_node_owner`**](gobj/info.md#gobj_yuno_node_owner) — `PUBLIC const char *gobj_yuno_node_owner(void)`
+124. [**`gobj_yuno_realm_env`**](gobj/info.md#gobj_yuno_realm_env) — `PUBLIC const char *gobj_yuno_realm_env(void)`
 
-125. [**`gobj_name`**](gobj/info.md#gobj_name) — `PUBLIC const char * gobj_name(hgobj gobj)`
+125. [**`gobj_yuno_node_owner`**](gobj/info.md#gobj_yuno_node_owner) — `PUBLIC const char *gobj_yuno_node_owner(void)`
 
-126. [**`gobj_gclass_name`**](gobj/info.md#gobj_gclass_name) — `PUBLIC gclass_name_t gobj_gclass_name(hgobj gobj)`
+126. [**`gobj_name`**](gobj/info.md#gobj_name) — `PUBLIC const char * gobj_name(hgobj gobj)`
 
-127. [**`gobj_gclass`**](gobj/info.md#gobj_gclass) — `PUBLIC hgclass gobj_gclass(hgobj gobj)`
+127. [**`gobj_gclass_name`**](gobj/info.md#gobj_gclass_name) — `PUBLIC gclass_name_t gobj_gclass_name(hgobj gobj)`
 
-128. [**`gobj_full_name`**](gobj/info.md#gobj_full_name) — `PUBLIC const char * gobj_full_name(hgobj gobj)`
+128. [**`gobj_gclass`**](gobj/info.md#gobj_gclass) — `PUBLIC hgclass gobj_gclass(hgobj gobj)`
 
-129. [**`gobj_short_name`**](gobj/info.md#gobj_short_name) — `PUBLIC const char * gobj_short_name(hgobj gobj)`
+129. [**`gobj_full_name`**](gobj/info.md#gobj_full_name) — `PUBLIC const char * gobj_full_name(hgobj gobj)`
 
-130. [**`gobj_global_variables`**](gobj/info.md#gobj_global_variables) — `PUBLIC json_t * gobj_global_variables(void)`
+130. [**`gobj_short_name`**](gobj/info.md#gobj_short_name) — `PUBLIC const char * gobj_short_name(hgobj gobj)`
 
-131. [**`gobj_add_global_variable`**](gobj/info.md#gobj_add_global_variable) — `PUBLIC int gobj_add_global_variable(const char *name, json_t *value)`
+131. [**`gobj_global_variables`**](gobj/info.md#gobj_global_variables) — `PUBLIC json_t * gobj_global_variables(void)`
 
-132. [**`gobj_priv_data`**](gobj/info.md#gobj_priv_data) — `PUBLIC void * gobj_priv_data(hgobj gobj)`
+132. [**`gobj_add_global_variable`**](gobj/info.md#gobj_add_global_variable) — `PUBLIC int gobj_add_global_variable(const char *name, json_t *value)`
 
-133. [**`gobj_parent`**](gobj/info.md#gobj_parent) — `PUBLIC hgobj gobj_parent(hgobj gobj)`
+133. [**`gobj_priv_data`**](gobj/info.md#gobj_priv_data) — `PUBLIC void * gobj_priv_data(hgobj gobj)`
 
-134. [**`gobj_is_destroying`**](gobj/info.md#gobj_is_destroying) — `PUBLIC BOOL gobj_is_destroying(hgobj gobj)`
+134. [**`gobj_parent`**](gobj/info.md#gobj_parent) — `PUBLIC hgobj gobj_parent(hgobj gobj)`
 
-135. [**`gobj_is_running`**](gobj/info.md#gobj_is_running) — `PUBLIC BOOL gobj_is_running(hgobj gobj)`
+135. [**`gobj_is_destroying`**](gobj/info.md#gobj_is_destroying) — `PUBLIC BOOL gobj_is_destroying(hgobj gobj)`
 
-136. [**`gobj_is_playing`**](gobj/info.md#gobj_is_playing) — `PUBLIC BOOL gobj_is_playing(hgobj gobj)`
+136. [**`gobj_is_running`**](gobj/info.md#gobj_is_running) — `PUBLIC BOOL gobj_is_running(hgobj gobj)`
 
-137. [**`gobj_is_service`**](gobj/info.md#gobj_is_service) — `PUBLIC BOOL gobj_is_service(hgobj gobj)`
+137. [**`gobj_is_playing`**](gobj/info.md#gobj_is_playing) — `PUBLIC BOOL gobj_is_playing(hgobj gobj)`
 
-138. [**`gobj_is_top_service`**](gobj/info.md#gobj_is_top_service) — `PUBLIC BOOL gobj_is_top_service(hgobj gobj)`
+138. [**`gobj_is_service`**](gobj/info.md#gobj_is_service) — `PUBLIC BOOL gobj_is_service(hgobj gobj)`
 
-139. [**`gobj_is_disabled`**](gobj/info.md#gobj_is_disabled) — `PUBLIC BOOL gobj_is_disabled(hgobj gobj)`
+139. [**`gobj_is_top_service`**](gobj/info.md#gobj_is_top_service) — `PUBLIC BOOL gobj_is_top_service(hgobj gobj)`
 
-140. [**`gobj_is_volatil`**](gobj/info.md#gobj_is_volatil) — `PUBLIC BOOL gobj_is_volatil(hgobj gobj)`
+140. [**`gobj_is_disabled`**](gobj/info.md#gobj_is_disabled) — `PUBLIC BOOL gobj_is_disabled(hgobj gobj)`
 
-141. [**`gobj_set_volatil`**](gobj/info.md#gobj_set_volatil) — `PUBLIC int gobj_set_volatil(hgobj gobj, BOOL set)`
+141. [**`gobj_is_volatil`**](gobj/info.md#gobj_is_volatil) — `PUBLIC BOOL gobj_is_volatil(hgobj gobj)`
 
-142. [**`gobj_set_manual_start`**](gobj/info.md#gobj_set_manual_start) — `PUBLIC int gobj_set_manual_start(hgobj gobj, BOOL set)`
+142. [**`gobj_set_volatil`**](gobj/info.md#gobj_set_volatil) — `PUBLIC int gobj_set_volatil(hgobj gobj, BOOL set)`
 
-143. [**`gobj_is_pure_child`**](gobj/info.md#gobj_is_pure_child) — `PUBLIC BOOL gobj_is_pure_child(hgobj gobj)`
+143. [**`gobj_set_manual_start`**](gobj/info.md#gobj_set_manual_start) — `PUBLIC int gobj_set_manual_start(hgobj gobj, BOOL set)`
 
-144. [**`gobj_is_bottom_gobj`**](gobj/info.md#gobj_is_bottom_gobj) — `PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj)`
+144. [**`gobj_is_pure_child`**](gobj/info.md#gobj_is_pure_child) — `PUBLIC BOOL gobj_is_pure_child(hgobj gobj)`
 
-145. [**`gobj_typeof_gclass`**](gobj/info.md#gobj_typeof_gclass) — `PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name)`
+145. [**`gobj_is_bottom_gobj`**](gobj/info.md#gobj_is_bottom_gobj) — `PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj)`
 
-146. [**`gobj_typeof_inherited_gclass`**](gobj/info.md#gobj_typeof_inherited_gclass) — `PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj, const char *gclass_name)`
+146. [**`gobj_typeof_gclass`**](gobj/info.md#gobj_typeof_gclass) — `PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name)`
 
-147. [**`gobj_command_desc`**](gobj/info.md#gobj_command_desc) — `PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj, const char *name, BOOL verbose)`
+147. [**`gobj_typeof_inherited_gclass`**](gobj/info.md#gobj_typeof_inherited_gclass) — `PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj, const char *gclass_name)`
 
-148. [**`get_sdata_flag_table`**](gobj/info.md#get_sdata_flag_table) — `PUBLIC const char **get_sdata_flag_table(void)`
+148. [**`gobj_command_desc`**](gobj/info.md#gobj_command_desc) — `PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj, const char *name, BOOL verbose)`
 
-149. [**`get_attrs_schema`**](gobj/info.md#get_attrs_schema) — `PUBLIC json_t *get_attrs_schema(hgobj gobj)`
+149. [**`get_sdata_flag_table`**](gobj/info.md#get_sdata_flag_table) — `PUBLIC const char **get_sdata_flag_table(void)`
 
-150. [**`gobj2json`**](gobj/info.md#gobj2json) — `PUBLIC json_t *gobj2json( hgobj gobj, json_t *jn_filter )`
+150. [**`get_attrs_schema`**](gobj/info.md#get_attrs_schema) — `PUBLIC json_t *get_attrs_schema(hgobj gobj)`
 
-151. [**`gobj_view_tree`**](gobj/info.md#gobj_view_tree) — `PUBLIC json_t *gobj_view_tree( hgobj gobj, json_t *jn_filter )`
+151. [**`gobj2json`**](gobj/info.md#gobj2json) — `PUBLIC json_t *gobj2json( hgobj gobj, json_t *jn_filter )`
 
-152. [**`gobj_send_event`**](gobj/events_state.md#gobj_send_event) — `PUBLIC int gobj_send_event( hgobj dst, gobj_event_t event, json_t *kw, hgobj src )`
+152. [**`gobj_view_tree`**](gobj/info.md#gobj_view_tree) — `PUBLIC json_t *gobj_view_tree( hgobj gobj, json_t *jn_filter )`
 
-153. [**`gobj_send_event_to_children`**](gobj/events_state.md#gobj_send_event_to_children) — `PUBLIC int gobj_send_event_to_children( hgobj gobj, gobj_event_t event, json_t *kw, hgobj src )`
+153. [**`gobj_send_event`**](gobj/events_state.md#gobj_send_event) — `PUBLIC int gobj_send_event( hgobj dst, gobj_event_t event, json_t *kw, hgobj src )`
 
-154. [**`gobj_send_event_to_children_tree`**](gobj/events_state.md#gobj_send_event_to_children_tree) — `PUBLIC int gobj_send_event_to_children_tree( hgobj gobj, gobj_event_t event, json_t *kw, hgobj src )`
+154. [**`gobj_send_event_to_children`**](gobj/events_state.md#gobj_send_event_to_children) — `PUBLIC int gobj_send_event_to_children( hgobj gobj, gobj_event_t event, json_t *kw, hgobj src )`
 
-155. [**`gobj_post_event`**](gobj/events_state.md#gobj_post_event) — `PUBLIC int gobj_post_event( hgobj dst, gobj_event_t event, json_t *kw, hgobj src )`
+155. [**`gobj_send_event_to_children_tree`**](gobj/events_state.md#gobj_send_event_to_children_tree) — `PUBLIC int gobj_send_event_to_children_tree( hgobj gobj, gobj_event_t event, json_t *kw, hgobj src )`
 
-156. [**`gobj_posted_events_size`**](gobj/events_state.md#gobj_posted_events_size) — `PUBLIC size_t gobj_posted_events_size(void)`
+156. [**`gobj_post_event`**](gobj/events_state.md#gobj_post_event) — `PUBLIC int gobj_post_event( hgobj dst, gobj_event_t event, json_t *kw, hgobj src )`
 
-157. [**`gobj_deliver_posted_events`**](gobj/events_state.md#gobj_deliver_posted_events) — `PUBLIC int gobj_deliver_posted_events(void)`
+157. [**`gobj_posted_events_size`**](gobj/events_state.md#gobj_posted_events_size) — `PUBLIC size_t gobj_posted_events_size(void)`
 
-158. [**`gobj_change_state`**](gobj/events_state.md#gobj_change_state) — `PUBLIC BOOL gobj_change_state( hgobj gobj, gobj_state_t state_name )`
+158. [**`gobj_deliver_posted_events`**](gobj/events_state.md#gobj_deliver_posted_events) — `PUBLIC int gobj_deliver_posted_events(void)`
 
-159. [**`gobj_current_state`**](gobj/events_state.md#gobj_current_state) — `PUBLIC gobj_state_t gobj_current_state(hgobj gobj)`
+159. [**`gobj_change_state`**](gobj/events_state.md#gobj_change_state) — `PUBLIC BOOL gobj_change_state( hgobj gobj, gobj_state_t state_name )`
 
-160. [**`gobj_in_this_state`**](gobj/events_state.md#gobj_in_this_state) — `PUBLIC BOOL gobj_in_this_state(hgobj gobj, gobj_state_t state)`
+160. [**`gobj_current_state`**](gobj/events_state.md#gobj_current_state) — `PUBLIC gobj_state_t gobj_current_state(hgobj gobj)`
 
-161. [**`gobj_has_state`**](gobj/events_state.md#gobj_has_state) — `PUBLIC BOOL gobj_has_state(hgobj gobj, gobj_state_t state)`
+161. [**`gobj_in_this_state`**](gobj/events_state.md#gobj_in_this_state) — `PUBLIC BOOL gobj_in_this_state(hgobj gobj, gobj_state_t state)`
 
-162. [**`gobj_state_find_by_name`**](gobj/events_state.md#gobj_state_find_by_name) — `PUBLIC hgclass gobj_state_find_by_name(gclass_name_t gclass_name)`
+162. [**`gobj_has_state`**](gobj/events_state.md#gobj_has_state) — `PUBLIC BOOL gobj_has_state(hgobj gobj, gobj_state_t state)`
 
-163. [**`gobj_has_event`**](gobj/events_state.md#gobj_has_event) — `PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)`
+163. [**`gobj_state_find_by_name`**](gobj/events_state.md#gobj_state_find_by_name) — `PUBLIC hgclass gobj_state_find_by_name(gclass_name_t gclass_name)`
 
-164. [**`gobj_has_output_event`**](gobj/events_state.md#gobj_has_output_event) — `PUBLIC BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)`
+164. [**`gobj_has_event`**](gobj/events_state.md#gobj_has_event) — `PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)`
 
-165. [**`gobj_event_type`**](gobj/events_state.md#gobj_event_type) — `PUBLIC event_type_t *gobj_event_type( hgobj gobj, gobj_event_t event, BOOL include_system_events )`
+165. [**`gobj_has_output_event`**](gobj/events_state.md#gobj_has_output_event) — `PUBLIC BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)`
 
-166. [**`gobj_event_type_by_name`**](gobj/events_state.md#gobj_event_type_by_name) — `PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj, const char *event_name)`
+166. [**`gobj_event_type`**](gobj/events_state.md#gobj_event_type) — `PUBLIC event_type_t *gobj_event_type( hgobj gobj, gobj_event_t event, BOOL include_system_events )`
 
-167. [**`gobj_subs_desc`**](gobj/publish.md#gobj_subs_desc) — `PUBLIC const sdata_desc_t *gobj_subs_desc(void)`
+167. [**`gobj_event_type_by_name`**](gobj/events_state.md#gobj_event_type_by_name) — `PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj, const char *event_name)`
 
-168. [**`gobj_subscribe_event`**](gobj/publish.md#gobj_subscribe_event) — `PUBLIC json_t *gobj_subscribe_event( hgobj publisher, gobj_event_t event, json_t *kw, hgobj subscriber )`
+168. [**`gobj_subs_desc`**](gobj/publish.md#gobj_subs_desc) — `PUBLIC const sdata_desc_t *gobj_subs_desc(void)`
 
-169. [**`gobj_unsubscribe_event`**](gobj/publish.md#gobj_unsubscribe_event) — `PUBLIC int gobj_unsubscribe_event( hgobj publisher, gobj_event_t event, json_t *kw, hgobj subscriber )`
+169. [**`gobj_subscribe_event`**](gobj/publish.md#gobj_subscribe_event) — `PUBLIC json_t *gobj_subscribe_event( hgobj publisher, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-170. [**`gobj_unsubscribe_list`**](gobj/publish.md#gobj_unsubscribe_list) — `PUBLIC int gobj_unsubscribe_list( hgobj gobj, json_t *dl_subs, BOOL force )`
+170. [**`gobj_unsubscribe_event`**](gobj/publish.md#gobj_unsubscribe_event) — `PUBLIC int gobj_unsubscribe_event( hgobj publisher, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-171. [**`gobj_find_subscriptions`**](gobj/publish.md#gobj_find_subscriptions) — `PUBLIC json_t *gobj_find_subscriptions( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
+171. [**`gobj_unsubscribe_list`**](gobj/publish.md#gobj_unsubscribe_list) — `PUBLIC int gobj_unsubscribe_list( hgobj gobj, json_t *dl_subs, BOOL force )`
 
-172. [**`gobj_find_subscribings`**](gobj/publish.md#gobj_find_subscribings) — `PUBLIC json_t *gobj_find_subscribings( hgobj gobj, gobj_event_t event, json_t *kw, hgobj publisher )`
+172. [**`gobj_find_subscriptions`**](gobj/publish.md#gobj_find_subscriptions) — `PUBLIC json_t *gobj_find_subscriptions( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-173. [**`gobj_list_subscriptions`**](gobj/publish.md#gobj_list_subscriptions) — `PUBLIC json_t *gobj_list_subscriptions( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
+173. [**`gobj_find_subscribings`**](gobj/publish.md#gobj_find_subscribings) — `PUBLIC json_t *gobj_find_subscribings( hgobj gobj, gobj_event_t event, json_t *kw, hgobj publisher )`
 
-174. [**`gobj_list_subscribings`**](gobj/publish.md#gobj_list_subscribings) — `PUBLIC json_t *gobj_list_subscribings( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
+174. [**`gobj_list_subscriptions`**](gobj/publish.md#gobj_list_subscriptions) — `PUBLIC json_t *gobj_list_subscriptions( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-175. [**`gobj_publish_event`**](gobj/publish.md#gobj_publish_event) — `PUBLIC int gobj_publish_event( hgobj publisher, gobj_event_t event, json_t *kw )`
+175. [**`gobj_list_subscribings`**](gobj/publish.md#gobj_list_subscribings) — `PUBLIC json_t *gobj_list_subscribings( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-176. [**`gobj_authenticate`**](gobj/authz.md#gobj_authenticate) — `PUBLIC json_t *gobj_authenticate( hgobj gobj, json_t *kw, hgobj src )`
+176. [**`gobj_publish_event`**](gobj/publish.md#gobj_publish_event) — `PUBLIC int gobj_publish_event( hgobj publisher, gobj_event_t event, json_t *kw )`
 
-177. [**`gobj_authzs`**](gobj/authz.md#gobj_authzs) — `PUBLIC json_t *gobj_authzs( hgobj gobj )`
+177. [**`gobj_authenticate`**](gobj/authz.md#gobj_authenticate) — `PUBLIC json_t *gobj_authenticate( hgobj gobj, json_t *kw, hgobj src )`
 
-178. [**`gobj_authz`**](gobj/authz.md#gobj_authz) — `PUBLIC json_t *gobj_authz( hgobj gobj, const char *authz )`
+178. [**`gobj_authzs`**](gobj/authz.md#gobj_authzs) — `PUBLIC json_t *gobj_authzs( hgobj gobj )`
 
-179. [**`gobj_user_has_authz`**](gobj/authz.md#gobj_user_has_authz) — `PUBLIC BOOL gobj_user_has_authz( hgobj gobj, const char *authz, json_t *kw, hgobj src )`
+179. [**`gobj_authz`**](gobj/authz.md#gobj_authz) — `PUBLIC json_t *gobj_authz( hgobj gobj, const char *authz )`
 
-180. [**`gobj_get_global_authz_table`**](gobj/authz.md#gobj_get_global_authz_table) — `PUBLIC const sdata_desc_t *gobj_get_global_authz_table(void)`
+180. [**`gobj_user_has_authz`**](gobj/authz.md#gobj_user_has_authz) — `PUBLIC BOOL gobj_user_has_authz( hgobj gobj, const char *authz, json_t *kw, hgobj src )`
 
-181. [**`authzs_list`**](gobj/authz.md#authzs_list) — `PUBLIC json_t *authzs_list( hgobj gobj, const char *authz )`
+181. [**`gobj_get_global_authz_table`**](gobj/authz.md#gobj_get_global_authz_table) — `PUBLIC const sdata_desc_t *gobj_get_global_authz_table(void)`
 
-182. [**`authz_get_level_desc`**](gobj/authz.md#authz_get_level_desc) — `PUBLIC const sdata_desc_t *authz_get_level_desc( const sdata_desc_t *authz_table, const char *authz )`
+182. [**`authzs_list`**](gobj/authz.md#authzs_list) — `PUBLIC json_t *authzs_list( hgobj gobj, const char *authz )`
 
-183. [**`gobj_build_authzs_doc`**](gobj/authz.md#gobj_build_authzs_doc) — `PUBLIC json_t *gobj_build_authzs_doc( hgobj gobj, const char *cmd, json_t *kw )`
+183. [**`authz_get_level_desc`**](gobj/authz.md#authz_get_level_desc) — `PUBLIC const sdata_desc_t *authz_get_level_desc( const sdata_desc_t *authz_table, const char *authz )`
 
-184. [**`gobj_set_stat`**](gobj/stats.md#gobj_set_stat) — `PUBLIC json_int_t gobj_set_stat(hgobj gobj, const char *path, json_int_t value)`
+184. [**`gobj_build_authzs_doc`**](gobj/authz.md#gobj_build_authzs_doc) — `PUBLIC json_t *gobj_build_authzs_doc( hgobj gobj, const char *cmd, json_t *kw )`
 
-185. [**`gobj_incr_stat`**](gobj/stats.md#gobj_incr_stat) — `PUBLIC json_int_t gobj_incr_stat(hgobj gobj, const char *path, json_int_t value)`
+185. [**`gobj_set_stat`**](gobj/stats.md#gobj_set_stat) — `PUBLIC json_int_t gobj_set_stat(hgobj gobj, const char *path, json_int_t value)`
 
-186. [**`gobj_decr_stat`**](gobj/stats.md#gobj_decr_stat) — `PUBLIC json_int_t gobj_decr_stat(hgobj gobj, const char *path, json_int_t value)`
+186. [**`gobj_incr_stat`**](gobj/stats.md#gobj_incr_stat) — `PUBLIC json_int_t gobj_incr_stat(hgobj gobj, const char *path, json_int_t value)`
 
-187. [**`gobj_get_stat`**](gobj/stats.md#gobj_get_stat) — `PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path)`
+187. [**`gobj_decr_stat`**](gobj/stats.md#gobj_decr_stat) — `PUBLIC json_int_t gobj_decr_stat(hgobj gobj, const char *path, json_int_t value)`
 
-188. [**`gobj_jn_stats`**](gobj/stats.md#gobj_jn_stats) — `PUBLIC json_t *gobj_jn_stats(hgobj gobj)`
+188. [**`gobj_get_stat`**](gobj/stats.md#gobj_get_stat) — `PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path)`
 
-189. [**`gobj_create_resource`**](gobj/resource.md#gobj_create_resource) — `PUBLIC json_t *gobj_create_resource( hgobj gobj, const char *resource, json_t *kw, json_t *jn_options )`
+189. [**`gobj_jn_stats`**](gobj/stats.md#gobj_jn_stats) — `PUBLIC json_t *gobj_jn_stats(hgobj gobj)`
 
-190. [**`gobj_save_resource`**](gobj/resource.md#gobj_save_resource) — `PUBLIC int gobj_save_resource( hgobj gobj, const char *resource, json_t *record, json_t *jn_options )`
+190. [**`gobj_create_resource`**](gobj/resource.md#gobj_create_resource) — `PUBLIC json_t *gobj_create_resource( hgobj gobj, const char *resource, json_t *kw, json_t *jn_options )`
 
-191. [**`gobj_delete_resource`**](gobj/resource.md#gobj_delete_resource) — `PUBLIC int gobj_delete_resource( hgobj gobj, const char *resource, json_t *record, json_t *jn_options )`
+191. [**`gobj_save_resource`**](gobj/resource.md#gobj_save_resource) — `PUBLIC int gobj_save_resource( hgobj gobj, const char *resource, json_t *record, json_t *jn_options )`
 
-192. [**`gobj_list_resource`**](gobj/resource.md#gobj_list_resource) — `PUBLIC json_t *gobj_list_resource( hgobj gobj, const char *resource, json_t *jn_filter, json_t *jn_options )`
+192. [**`gobj_delete_resource`**](gobj/resource.md#gobj_delete_resource) — `PUBLIC int gobj_delete_resource( hgobj gobj, const char *resource, json_t *record, json_t *jn_options )`
 
-193. [**`gobj_get_resource`**](gobj/resource.md#gobj_get_resource) — `PUBLIC json_t *gobj_get_resource( hgobj gobj, const char *resource, json_t *jn_filter, json_t *jn_options )`
+193. [**`gobj_list_resource`**](gobj/resource.md#gobj_list_resource) — `PUBLIC json_t *gobj_list_resource( hgobj gobj, const char *resource, json_t *jn_filter, json_t *jn_options )`
 
-194. [**`gobj_treedbs`**](gobj/node.md#gobj_treedbs) — `PUBLIC json_t *gobj_treedbs( hgobj gobj, json_t *kw, hgobj src )`
+194. [**`gobj_get_resource`**](gobj/resource.md#gobj_get_resource) — `PUBLIC json_t *gobj_get_resource( hgobj gobj, const char *resource, json_t *jn_filter, json_t *jn_options )`
 
-195. [**`gobj_treedb_topics`**](gobj/node.md#gobj_treedb_topics) — `PUBLIC json_t *gobj_treedb_topics( hgobj gobj, const char *treedb_name, json_t *options, hgobj src )`
+195. [**`gobj_treedbs`**](gobj/node.md#gobj_treedbs) — `PUBLIC json_t *gobj_treedbs( hgobj gobj, json_t *kw, hgobj src )`
 
-196. [**`gobj_topic_desc`**](gobj/node.md#gobj_topic_desc) — `PUBLIC json_t *gobj_topic_desc( hgobj gobj, const char *topic_name )`
+196. [**`gobj_treedb_topics`**](gobj/node.md#gobj_treedb_topics) — `PUBLIC json_t *gobj_treedb_topics( hgobj gobj, const char *treedb_name, json_t *options, hgobj src )`
 
-197. [**`gobj_topic_links`**](gobj/node.md#gobj_topic_links) — `PUBLIC json_t *gobj_topic_links( hgobj gobj, const char *treedb_name, const char *topic_name, json_t *kw, hgobj src )`
+197. [**`gobj_topic_desc`**](gobj/node.md#gobj_topic_desc) — `PUBLIC json_t *gobj_topic_desc( hgobj gobj, const char *topic_name )`
 
-198. [**`gobj_topic_hooks`**](gobj/node.md#gobj_topic_hooks) — `PUBLIC json_t *gobj_topic_hooks( hgobj gobj, const char *treedb_name, const char *topic_name, json_t *kw, hgobj src )`
+198. [**`gobj_topic_links`**](gobj/node.md#gobj_topic_links) — `PUBLIC json_t *gobj_topic_links( hgobj gobj, const char *treedb_name, const char *topic_name, json_t *kw, hgobj src )`
 
-199. [**`gobj_topic_size`**](gobj/node.md#gobj_topic_size) — `PUBLIC size_t gobj_topic_size( hgobj gobj, const char *topic_name, const char *key )`
+199. [**`gobj_topic_hooks`**](gobj/node.md#gobj_topic_hooks) — `PUBLIC json_t *gobj_topic_hooks( hgobj gobj, const char *treedb_name, const char *topic_name, json_t *kw, hgobj src )`
 
-200. [**`gobj_create_node`**](gobj/node.md#gobj_create_node) — `PUBLIC json_t *gobj_create_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+200. [**`gobj_topic_size`**](gobj/node.md#gobj_topic_size) — `PUBLIC size_t gobj_topic_size( hgobj gobj, const char *topic_name, const char *key )`
 
-201. [**`gobj_update_node`**](gobj/node.md#gobj_update_node) — `PUBLIC json_t *gobj_update_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+201. [**`gobj_create_node`**](gobj/node.md#gobj_create_node) — `PUBLIC json_t *gobj_create_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-202. [**`gobj_delete_node`**](gobj/node.md#gobj_delete_node) — `PUBLIC int gobj_delete_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+202. [**`gobj_update_node`**](gobj/node.md#gobj_update_node) — `PUBLIC json_t *gobj_update_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-203. [**`gobj_link_nodes`**](gobj/node.md#gobj_link_nodes) — `PUBLIC int gobj_link_nodes( hgobj gobj, const char *hook, const char *parent_topic_name, json_t *parent_record, const char *child_topic_name, json_t *child_record, hgobj src )`
+203. [**`gobj_delete_node`**](gobj/node.md#gobj_delete_node) — `PUBLIC int gobj_delete_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-204. [**`gobj_unlink_nodes`**](gobj/node.md#gobj_unlink_nodes) — `PUBLIC int gobj_unlink_nodes( hgobj gobj, const char *hook, const char *parent_topic_name, json_t *parent_record, const char *child_topic_name, json_t *child_record, hgobj src )`
+204. [**`gobj_link_nodes`**](gobj/node.md#gobj_link_nodes) — `PUBLIC int gobj_link_nodes( hgobj gobj, const char *hook, const char *parent_topic_name, json_t *parent_record, const char *child_topic_name, json_t *child_record, hgobj src )`
 
-205. [**`gobj_get_node`**](gobj/node.md#gobj_get_node) — `PUBLIC json_t *gobj_get_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+205. [**`gobj_unlink_nodes`**](gobj/node.md#gobj_unlink_nodes) — `PUBLIC int gobj_unlink_nodes( hgobj gobj, const char *hook, const char *parent_topic_name, json_t *parent_record, const char *child_topic_name, json_t *child_record, hgobj src )`
 
-206. [**`gobj_list_nodes`**](gobj/node.md#gobj_list_nodes) — `PUBLIC json_t *gobj_list_nodes( hgobj gobj, const char *topic_name, json_t *jn_filter, json_t *jn_options, hgobj src )`
+206. [**`gobj_get_node`**](gobj/node.md#gobj_get_node) — `PUBLIC json_t *gobj_get_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-207. [**`gobj_list_instances`**](gobj/node.md#gobj_list_instances) — `PUBLIC json_t *gobj_list_instances( hgobj gobj, const char *topic_name, const char *pkey2_field, json_t *jn_filter, json_t *jn_options, hgobj src )`
+207. [**`gobj_list_nodes`**](gobj/node.md#gobj_list_nodes) — `PUBLIC json_t *gobj_list_nodes( hgobj gobj, const char *topic_name, json_t *jn_filter, json_t *jn_options, hgobj src )`
 
-208. [**`gobj_node_parents`**](gobj/node.md#gobj_node_parents) — `PUBLIC json_t *gobj_node_parents( hgobj gobj, const char *topic_name, json_t *kw, const char *link, json_t *jn_options, hgobj src )`
+208. [**`gobj_list_instances`**](gobj/node.md#gobj_list_instances) — `PUBLIC json_t *gobj_list_instances( hgobj gobj, const char *topic_name, const char *pkey2_field, json_t *jn_filter, json_t *jn_options, hgobj src )`
 
-209. [**`gobj_node_children`**](gobj/node.md#gobj_node_children) — `PUBLIC json_t *gobj_node_children( hgobj gobj, const char *topic_name, json_t *kw, const char *hook, json_t *jn_filter, json_t *jn_options, hgobj src )`
+209. [**`gobj_node_parents`**](gobj/node.md#gobj_node_parents) — `PUBLIC json_t *gobj_node_parents( hgobj gobj, const char *topic_name, json_t *kw, const char *link, json_t *jn_options, hgobj src )`
 
-210. [**`gobj_topic_jtree`**](gobj/node.md#gobj_topic_jtree) — `PUBLIC json_t *gobj_topic_jtree( hgobj gobj, const char *topic_name, const char *hook, const char *rename_hook, json_t *kw, json_t *jn_filter, json_t *jn_options, hgobj src )`
+210. [**`gobj_node_children`**](gobj/node.md#gobj_node_children) — `PUBLIC json_t *gobj_node_children( hgobj gobj, const char *topic_name, json_t *kw, const char *hook, json_t *jn_filter, json_t *jn_options, hgobj src )`
 
-211. [**`gobj_node_tree`**](gobj/node.md#gobj_node_tree) — `PUBLIC json_t *gobj_node_tree( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+211. [**`gobj_topic_jtree`**](gobj/node.md#gobj_topic_jtree) — `PUBLIC json_t *gobj_topic_jtree( hgobj gobj, const char *topic_name, const char *hook, const char *rename_hook, json_t *kw, json_t *jn_filter, json_t *jn_options, hgobj src )`
 
-212. [**`gobj_shoot_snap`**](gobj/node.md#gobj_shoot_snap) — `PUBLIC int gobj_shoot_snap( hgobj gobj, const char *tag, json_t *kw, hgobj src )`
+212. [**`gobj_node_tree`**](gobj/node.md#gobj_node_tree) — `PUBLIC json_t *gobj_node_tree( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-213. [**`gobj_activate_snap`**](gobj/node.md#gobj_activate_snap) — `PUBLIC int gobj_activate_snap( hgobj gobj, const char *tag, json_t *kw, hgobj src )`
+213. [**`gobj_shoot_snap`**](gobj/node.md#gobj_shoot_snap) — `PUBLIC int gobj_shoot_snap( hgobj gobj, const char *tag, json_t *kw, hgobj src )`
 
-214. [**`gobj_list_snaps`**](gobj/node.md#gobj_list_snaps) — `PUBLIC json_t *gobj_list_snaps( hgobj gobj, json_t *filter, hgobj src )`
+214. [**`gobj_activate_snap`**](gobj/node.md#gobj_activate_snap) — `PUBLIC int gobj_activate_snap( hgobj gobj, const char *tag, json_t *kw, hgobj src )`
 
-215. [**`gobj_repr_global_trace_levels`**](logging/trace.md#gobj_repr_global_trace_levels) — `PUBLIC json_t * gobj_repr_global_trace_levels(void)`
+215. [**`gobj_list_snaps`**](gobj/node.md#gobj_list_snaps) — `PUBLIC json_t *gobj_list_snaps( hgobj gobj, json_t *filter, hgobj src )`
 
-216. [**`gobj_repr_gclass_trace_levels`**](logging/trace.md#gobj_repr_gclass_trace_levels) — `PUBLIC json_t * gobj_repr_gclass_trace_levels(const char *gclass_name)`
+216. [**`gobj_repr_global_trace_levels`**](logging/trace.md#gobj_repr_global_trace_levels) — `PUBLIC json_t * gobj_repr_global_trace_levels(void)`
 
-217. [**`gobj_trace_level_list`**](logging/trace.md#gobj_trace_level_list) — `PUBLIC json_t *gobj_trace_level_list(hgclass gclass)`
+217. [**`gobj_repr_gclass_trace_levels`**](logging/trace.md#gobj_repr_gclass_trace_levels) — `PUBLIC json_t * gobj_repr_gclass_trace_levels(const char *gclass_name)`
 
-218. [**`gobj_get_global_trace_level`**](logging/trace.md#gobj_get_global_trace_level) — `PUBLIC json_t *gobj_get_global_trace_level(void)`
+218. [**`gobj_trace_level_list`**](logging/trace.md#gobj_trace_level_list) — `PUBLIC json_t *gobj_trace_level_list(hgclass gclass)`
 
-219. [**`gobj_get_global_trace_no_level`**](logging/trace.md#gobj_get_global_trace_no_level) — `PUBLIC json_t *gobj_get_global_trace_no_level(void)`
+219. [**`gobj_get_global_trace_level`**](logging/trace.md#gobj_get_global_trace_level) — `PUBLIC json_t *gobj_get_global_trace_level(void)`
 
-220. [**`gobj_get_gclass_trace_level`**](logging/trace.md#gobj_get_gclass_trace_level) — `PUBLIC json_t *gobj_get_gclass_trace_level(hgclass gclass)`
+220. [**`gobj_get_global_trace_no_level`**](logging/trace.md#gobj_get_global_trace_no_level) — `PUBLIC json_t *gobj_get_global_trace_no_level(void)`
 
-221. [**`gobj_get_gclass_trace_level2`**](logging/trace.md#gobj_get_gclass_trace_level2) — `PUBLIC json_t *gobj_get_gclass_trace_level2(hgclass gclass)`
+221. [**`gobj_get_gclass_trace_level`**](logging/trace.md#gobj_get_gclass_trace_level) — `PUBLIC json_t *gobj_get_gclass_trace_level(hgclass gclass)`
 
-222. [**`gobj_get_gclass_trace_no_level`**](logging/trace.md#gobj_get_gclass_trace_no_level) — `PUBLIC json_t *gobj_get_gclass_trace_no_level(hgclass gclass)`
+222. [**`gobj_get_gclass_trace_level2`**](logging/trace.md#gobj_get_gclass_trace_level2) — `PUBLIC json_t *gobj_get_gclass_trace_level2(hgclass gclass)`
 
-223. [**`gobj_get_gobj_trace_level`**](logging/trace.md#gobj_get_gobj_trace_level) — `PUBLIC json_t *gobj_get_gobj_trace_level(hgobj gobj)`
+223. [**`gobj_get_gclass_trace_no_level`**](logging/trace.md#gobj_get_gclass_trace_no_level) — `PUBLIC json_t *gobj_get_gclass_trace_no_level(hgclass gclass)`
 
-224. [**`gobj_get_gobj_trace_no_level`**](logging/trace.md#gobj_get_gobj_trace_no_level) — `PUBLIC json_t *gobj_get_gobj_trace_no_level(hgobj gobj)`
+224. [**`gobj_get_gobj_trace_level`**](logging/trace.md#gobj_get_gobj_trace_level) — `PUBLIC json_t *gobj_get_gobj_trace_level(hgobj gobj)`
 
-225. [**`gobj_get_gclass_trace_level_list`**](logging/trace.md#gobj_get_gclass_trace_level_list) — `PUBLIC json_t *gobj_get_gclass_trace_level_list(hgclass gclass)`
+225. [**`gobj_get_gobj_trace_no_level`**](logging/trace.md#gobj_get_gobj_trace_no_level) — `PUBLIC json_t *gobj_get_gobj_trace_no_level(hgobj gobj)`
 
-226. [**`gobj_get_gclass_trace_no_level_list`**](logging/trace.md#gobj_get_gclass_trace_no_level_list) — `PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass)`
+226. [**`gobj_get_gclass_trace_level_list`**](logging/trace.md#gobj_get_gclass_trace_level_list) — `PUBLIC json_t *gobj_get_gclass_trace_level_list(hgclass gclass)`
 
-227. [**`gobj_get_gobj_trace_level_tree`**](logging/trace.md#gobj_get_gobj_trace_level_tree) — `PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj)`
+227. [**`gobj_get_gclass_trace_no_level_list`**](logging/trace.md#gobj_get_gclass_trace_no_level_list) — `PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass)`
 
-228. [**`gobj_get_gobj_trace_no_level_tree`**](logging/trace.md#gobj_get_gobj_trace_no_level_tree) — `PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj)`
+228. [**`gobj_get_gobj_trace_level_tree`**](logging/trace.md#gobj_get_gobj_trace_level_tree) — `PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj)`
 
-229. [**`gobj_global_trace_level`**](logging/trace.md#gobj_global_trace_level) — `PUBLIC uint32_t gobj_global_trace_level(void)`
+229. [**`gobj_get_gobj_trace_no_level_tree`**](logging/trace.md#gobj_get_gobj_trace_no_level_tree) — `PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj)`
 
-230. [**`gobj_global_trace_level2`**](logging/trace.md#gobj_global_trace_level2) — `PUBLIC uint32_t gobj_global_trace_level2(void)`
+230. [**`gobj_global_trace_level`**](logging/trace.md#gobj_global_trace_level) — `PUBLIC uint32_t gobj_global_trace_level(void)`
 
-231. [**`gobj_trace_level`**](logging/trace.md#gobj_trace_level) — `PUBLIC uint32_t gobj_trace_level(hgobj gobj)`
+231. [**`gobj_global_trace_level2`**](logging/trace.md#gobj_global_trace_level2) — `PUBLIC uint32_t gobj_global_trace_level2(void)`
 
-232. [**`gobj_trace_no_level`**](logging/trace.md#gobj_trace_no_level) — `PUBLIC uint32_t gobj_trace_no_level(hgobj gobj)`
+232. [**`gobj_trace_level`**](logging/trace.md#gobj_trace_level) — `PUBLIC uint32_t gobj_trace_level(hgobj gobj)`
 
-233. [**`gobj_is_level_tracing`**](logging/trace.md#gobj_is_level_tracing) — `PUBLIC BOOL gobj_is_level_tracing(hgobj gobj, uint32_t level)`
+233. [**`gobj_trace_no_level`**](logging/trace.md#gobj_trace_no_level) — `PUBLIC uint32_t gobj_trace_no_level(hgobj gobj)`
 
-234. [**`gobj_is_level_not_tracing`**](logging/trace.md#gobj_is_level_not_tracing) — `PUBLIC BOOL gobj_is_level_not_tracing(hgobj gobj, uint32_t level)`
+234. [**`gobj_is_level_tracing`**](logging/trace.md#gobj_is_level_tracing) — `PUBLIC BOOL gobj_is_level_tracing(hgobj gobj, uint32_t level)`
 
-235. [**`gobj_set_gobj_trace`**](logging/trace.md#gobj_set_gobj_trace) — `PUBLIC int gobj_set_gobj_trace(hgobj gobj, const char* level, BOOL set, json_t* kw)`
+235. [**`gobj_is_level_not_tracing`**](logging/trace.md#gobj_is_level_not_tracing) — `PUBLIC BOOL gobj_is_level_not_tracing(hgobj gobj, uint32_t level)`
 
-236. [**`gobj_set_gclass_trace`**](logging/trace.md#gobj_set_gclass_trace) — `PUBLIC int gobj_set_gclass_trace(hgclass gclass, const char *level, BOOL set)`
+236. [**`gobj_set_gobj_trace`**](logging/trace.md#gobj_set_gobj_trace) — `PUBLIC int gobj_set_gobj_trace(hgobj gobj, const char* level, BOOL set, json_t* kw)`
 
-237. [**`gobj_set_deep_tracing`**](logging/trace.md#gobj_set_deep_tracing) — `PUBLIC int gobj_set_deep_tracing(int level)`
+237. [**`gobj_set_gclass_trace`**](logging/trace.md#gobj_set_gclass_trace) — `PUBLIC int gobj_set_gclass_trace(hgclass gclass, const char *level, BOOL set)`
 
-238. [**`gobj_get_deep_tracing`**](logging/trace.md#gobj_get_deep_tracing) — `PUBLIC int gobj_get_deep_tracing(void)`
+238. [**`gobj_set_deep_tracing`**](logging/trace.md#gobj_set_deep_tracing) — `PUBLIC int gobj_set_deep_tracing(int level)`
 
-239. [**`gobj_set_global_trace`**](logging/trace.md#gobj_set_global_trace) — `PUBLIC int gobj_set_global_trace(const char *level, BOOL set)`
+239. [**`gobj_get_deep_tracing`**](logging/trace.md#gobj_get_deep_tracing) — `PUBLIC int gobj_get_deep_tracing(void)`
 
-240. [**`gobj_set_global_no_trace`**](logging/trace.md#gobj_set_global_no_trace) — `PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set)`
+240. [**`gobj_set_global_trace`**](logging/trace.md#gobj_set_global_trace) — `PUBLIC int gobj_set_global_trace(const char *level, BOOL set)`
 
-241. [**`gobj_set_global_trace2`**](logging/trace.md#gobj_set_global_trace2) — `PUBLIC int gobj_set_global_trace2(uint32_t level, BOOL set)`
+241. [**`gobj_set_global_no_trace`**](logging/trace.md#gobj_set_global_no_trace) — `PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set)`
 
-242. [**`gobj_set_global_no_trace2`**](logging/trace.md#gobj_set_global_no_trace2) — `PUBLIC int gobj_set_global_no_trace2(uint32_t level, BOOL set)`
+242. [**`gobj_set_global_trace2`**](logging/trace.md#gobj_set_global_trace2) — `PUBLIC int gobj_set_global_trace2(uint32_t level, BOOL set)`
 
-243. [**`gobj_load_trace_filter`**](logging/trace.md#gobj_load_trace_filter) — `PUBLIC int gobj_load_trace_filter(hgclass gclass, json_t *jn_trace_filter)`
+243. [**`gobj_set_global_no_trace2`**](logging/trace.md#gobj_set_global_no_trace2) — `PUBLIC int gobj_set_global_no_trace2(uint32_t level, BOOL set)`
 
-244. [**`gobj_add_trace_filter`**](logging/trace.md#gobj_add_trace_filter) — `PUBLIC int gobj_add_trace_filter(hgclass gclass, const char *attr, const char *value)`
+244. [**`gobj_load_trace_filter`**](logging/trace.md#gobj_load_trace_filter) — `PUBLIC int gobj_load_trace_filter(hgclass gclass, json_t *jn_trace_filter)`
 
-245. [**`gobj_remove_trace_filter`**](logging/trace.md#gobj_remove_trace_filter) — `PUBLIC int gobj_remove_trace_filter(hgclass gclass, const char *attr, const char *value)`
+245. [**`gobj_add_trace_filter`**](logging/trace.md#gobj_add_trace_filter) — `PUBLIC int gobj_add_trace_filter(hgclass gclass, const char *attr, const char *value)`
 
-246. [**`gobj_get_trace_filter`**](logging/trace.md#gobj_get_trace_filter) — `PUBLIC json_t *gobj_get_trace_filter(hgclass gclass)`
+246. [**`gobj_remove_trace_filter`**](logging/trace.md#gobj_remove_trace_filter) — `PUBLIC int gobj_remove_trace_filter(hgclass gclass, const char *attr, const char *value)`
 
-247. [**`gobj_set_gclass_no_trace`**](logging/trace.md#gobj_set_gclass_no_trace) — `PUBLIC int gobj_set_gclass_no_trace(hgclass gclass, const char *level, BOOL set)`
+247. [**`gobj_get_trace_filter`**](logging/trace.md#gobj_get_trace_filter) — `PUBLIC json_t *gobj_get_trace_filter(hgclass gclass)`
 
-248. [**`gobj_set_gobj_no_trace`**](logging/trace.md#gobj_set_gobj_no_trace) — `PUBLIC int gobj_set_gobj_no_trace(hgobj gobj, const char *level, BOOL set)`
+248. [**`gobj_set_gclass_no_trace`**](logging/trace.md#gobj_set_gclass_no_trace) — `PUBLIC int gobj_set_gclass_no_trace(hgclass gclass, const char *level, BOOL set)`
 
-249. [**`trace_machine`**](logging/trace.md#trace_machine) — `PUBLIC void trace_machine(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)))`
+249. [**`gobj_set_gobj_no_trace`**](logging/trace.md#gobj_set_gobj_no_trace) — `PUBLIC int gobj_set_gobj_no_trace(hgobj gobj, const char *level, BOOL set)`
 
-250. [**`trace_machine2`**](logging/trace.md#trace_machine2) — `PUBLIC void trace_machine2(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)))`
+250. [**`trace_machine`**](logging/trace.md#trace_machine) — `PUBLIC void trace_machine(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)))`
 
-251. [**`gobj_set_trace_machine_format`**](logging/trace.md#gobj_set_trace_machine_format) — `PUBLIC void gobj_set_trace_machine_format(int format)`
+251. [**`trace_machine2`**](logging/trace.md#trace_machine2) — `PUBLIC void trace_machine2(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)))`
 
-252. [**`tab`**](logging/trace.md#tab) — `PUBLIC char *tab(char *bf, int bflen)`
+252. [**`gobj_set_trace_machine_format`**](logging/trace.md#gobj_set_trace_machine_format) — `PUBLIC void gobj_set_trace_machine_format(int format)`
+
+253. [**`tab`**](logging/trace.md#tab) — `PUBLIC char *tab(char *bf, int bflen)`
 
 ### `helpers.h` — 172 functions
 
@@ -1275,7 +1277,7 @@ it by hand, run the script.
 
 11. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 604 functions**
+**Total: 605 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2332,7 +2334,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1010 functions** sorted alphabetically with their source header.
+All **1011 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2638,6 +2640,7 @@ All **1010 functions** sorted alphabetically with their source header.
 | [**`gobj_log_set_last_message`**](logging/log.md#gobj_log_set_last_message) | `glogger.h` | gobj-c (Core Framework) |
 | [**`gobj_log_warning`**](logging/log.md#gobj_log_warning) | `glogger.h` | gobj-c (Core Framework) |
 | [**`gobj_mask_secret_attrs`**](gobj/attrs.md#gobj_mask_secret_attrs) | `gobj.h` | gobj-c (Core Framework) |
+| [**`gobj_mask_secret_config`**](gobj/attrs.md#gobj_mask_secret_config) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_match_children`**](gobj/op.md#gobj_match_children) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_match_children_tree`**](gobj/op.md#gobj_match_children_tree) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_match_gobj`**](gobj/op.md#gobj_match_gobj) | `gobj.h` | gobj-c (Core Framework) |

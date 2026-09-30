@@ -1688,8 +1688,8 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    json_t *jn_data = yuneta_json_config();
-    json_incref(jn_data);
+    json_t *jn_data = json_deep_copy(yuneta_json_config());
+    gobj_mask_secret_config(jn_data);
 
     json_t *kw_response = build_command_response(
         gobj,
