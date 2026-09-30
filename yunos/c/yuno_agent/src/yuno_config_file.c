@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include "yuno_config_file.h"
 
@@ -161,6 +162,96 @@ PUBLIC int write_yuno_config_file(
 }
 
 /***************************************************************************
+ *  Is `name` a temporary file of write_yuno_config_file() for the yuno of
+ *  `suffix` ("-<role>^<name>.json"): ".<n>-<role>^<name>.json.XXXXXX",
+ *  the six characters that mkostemp() chose?
+ ***************************************************************************/
+PRIVATE BOOL is_temp_config_file(const char *name, const char *suffix, size_t suffix_len)
+{
+    if(name[0] != '.') {
+        return FALSE;
+    }
+    const char *p = name + 1;
+    size_t digits = strspn(p, "0123456789");
+    if(digits == 0 || digits > 9) {
+        return FALSE;
+    }
+    p += digits;
+    if(strncmp(p, suffix, suffix_len) != 0) {
+        return FALSE;
+    }
+    p += suffix_len;
+    if(p[0] != '.') {
+        return FALSE;
+    }
+    p++;
+    if(strlen(p) != 6) {
+        return FALSE;
+    }
+    for(int i=0; i<6; i++) {
+        if(!isalnum((unsigned char)p[i])) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  A temporary file of an earlier write that did not reach its rename (the
+ *  agent died in between): removed if it is a regular file, not followed
+ *  if it is a link. Returns 0, or -1 (logged).
+ ***************************************************************************/
+PRIVATE int remove_temp_config_file(hgobj gobj, DIR *dir, const char *bin_path, const char *name)
+{
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), bin_path, name, NULL);
+
+    struct stat st;
+    if(fstatat(dirfd(dir), name, &st, AT_SYMLINK_NOFOLLOW) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot stat a temporary configuration file of a yuno",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    if(!S_ISREG(st.st_mode)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "A temporary configuration file of a yuno is not a regular file, left as it is",
+            "path",         "%s", path,
+            NULL
+        );
+        return 0;
+    }
+    if(unlinkat(dirfd(dir), name, 0) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot remove a temporary configuration file of a yuno",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_SYSTEM,
+        "msg",          "%s", "A temporary configuration file of a yuno, left by an interrupted write, removed",
+        "path",         "%s", path,
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
  *  See yuno_config_file.h
  ***************************************************************************/
 PUBLIC int narrow_stale_yuno_config_files(
@@ -222,6 +313,12 @@ PUBLIC int narrow_stale_yuno_config_files(
         }
 
         const char *name = de->d_name;
+        if(is_temp_config_file(name, suffix, suffix_len)) {
+            if(remove_temp_config_file(gobj, dir, bin_path, name) < 0) {
+                ret = -1;   // Error already logged
+            }
+            continue;
+        }
         size_t digits = strspn(name, "0123456789");
         if(digits == 0 || digits > 9 || strcmp(name + digits, suffix) != 0) {
             continue;

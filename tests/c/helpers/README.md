@@ -126,7 +126,10 @@ file whole and no temporary file behind. The files
 of an earlier launch that wrote more of them (`4-role^name.json` when three
 are written now) are narrowed to `0640`: never widened, never removed, and a
 symbolic link, its target and the files of another yuno are not touched; a
-yuno name too long to build their names from is refused with a log.
+yuno name too long to build their names from is refused with a log. The
+temporary files a write left when the agent died before its rename
+(`.<n>-role^name.json.XXXXXX`) are removed; a link with that name, another
+yuno's temporary file, or a name that only looks like one, is kept.
 
 `test_dir_read_error` fails the `readdir()` of one directory with `EIO`
 (`--wrap=opendir,--wrap=readdir`): `find_files_with_suffix_array()`,

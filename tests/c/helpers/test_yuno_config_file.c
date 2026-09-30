@@ -32,7 +32,10 @@
  *             are narrowed to 0640, never widened, never removed; the
  *             files of another yuno, a symbolic link and its target, and
  *             the files written now are not touched; a yuno name too
- *             long to build the file names from is refused with a log.
+ *             long to build the file names from is refused with a log;
+ *             the temporary files (.<n>-<role>^<name>.json.XXXXXX) a
+ *             write left when the agent died before its rename are
+ *             removed, regular files only, and nothing else is.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -275,6 +278,11 @@ PRIVATE void test_stale(void)
         "x-role^name.json", "-role^name.json", "4-role^name.json.bak",
         "role^name.sh",
         "outside.json",                             // target of the link
+        ".2-role^name.json.AbC123",                 // temps of an interrupted write
+        ".12-role^name.json.x9Y8z7",
+        ".2-role^name.json.short",                  // not a temp: kept
+        ".2-other^name.json.AbC123",                // another yuno's: kept
+        "2-role^name.json.AbC123",                  // no dot: kept
         0
     };
     for(int i=0; files[i]; i++) {
@@ -285,6 +293,12 @@ PRIVATE void test_stale(void)
     unlink(link_path);
     if(symlink(BASE "/outside.json", link_path)<0) {
         check(FALSE, "(stale) cannot create the link of the test");
+    }
+    char temp_link_path[PATH_MAX];
+    build_path(temp_link_path, sizeof(temp_link_path), BASE, ".3-role^name.json.LnK000", NULL);
+    unlink(temp_link_path);
+    if(symlink(BASE "/outside.json", temp_link_path)<0) {
+        check(FALSE, "(stale) cannot create the temp link of the test");
     }
 
     int ret = narrow_stale_yuno_config_files(0, BASE, "role^name", 3);
@@ -310,6 +324,16 @@ PRIVATE void test_stale(void)
     check(lmode_of("outside.json") == 0664, "(stale) a link is not followed: its target is not touched");
     check(lmode_of("4-role^name.json") != -1 && lmode_of("12-role^name.json") != -1,
         "(stale) nothing is removed");
+    check(lmode_of(".2-role^name.json.AbC123") == -1 &&
+          lmode_of(".12-role^name.json.x9Y8z7") == -1,
+        "(stale) the temporary files of an interrupted write are removed");
+    check(lmode_of(".2-role^name.json.short") != -1 &&
+          lmode_of(".2-other^name.json.AbC123") != -1 &&
+          lmode_of("2-role^name.json.AbC123") != -1,
+        "(stale) a name that is not this yuno's temporary file is kept");
+    check(lmode_of(".3-role^name.json.LnK000") != -1 && lmode_of("outside.json") == 0664,
+        "(stale) a temporary name that is a link is left, not followed");
+    unlink(temp_link_path);
 
     /*
      *  A name too long to build the suffix of: refused with a log, not

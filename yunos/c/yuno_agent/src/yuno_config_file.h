@@ -47,8 +47,11 @@ PUBLIC int write_yuno_config_file(
  *  this launch did not rewrite. They are not removed: the launch script
  *  does not name them, and an operator may still want to read them.
  *  A symbolic link or anything but a regular file is left as it is.
- *  Returns 0, or -1 if one could not be narrowed (logged, the others are
- *  still narrowed).
+ *  The temporary files of write_yuno_config_file() that an interrupted
+ *  write left for this yuno (.<n>-<role_plus_name>.json.XXXXXX, regular
+ *  files only) are removed, logged: call it after this launch's writes.
+ *  Returns 0, or -1 if one could not be narrowed or removed (logged, the
+ *  others are still done).
  */
 PUBLIC int narrow_stale_yuno_config_files(
     hgobj gobj,

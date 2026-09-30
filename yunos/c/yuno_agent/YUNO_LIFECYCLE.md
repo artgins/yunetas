@@ -119,7 +119,10 @@ this one writes only three. The launch script does not name it and the yuno
 never reads it, but its secrets are still in it. At every launch the agent
 narrows each such file (a number over the ones it wrote now) to `0640`. It
 never widens a mode, never removes a file, and leaves a symbolic link as it
-is (with a warning). A file it cannot narrow is logged, and the yuno still
+is (with a warning). The one exception is a temporary file that a write left
+because the agent died before its rename (`.<n>-<role>^<name>.json.XXXXXX`):
+it is removed, with the warning *"A temporary configuration file of a yuno,
+left by an interrupted write, removed"*, if it is a regular file. A file it cannot narrow is logged, and the yuno still
 runs: that file is not part of its configuration.
 
 ### 2.3 The `yunos` topic
