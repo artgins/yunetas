@@ -122,12 +122,21 @@ yuno stats for a web client that is gone, dropped (the agent's watch expires)  d
 The channel a browser holds in `__top_side__` (`top-12`) is taken by the next
 client once it closes, so a stream still pushed for the tab that left would
 reach whoever connected after it -- up to `watch_ttl` of another user's node
-data. Each connection gets a number when it opens, `command-agent` stamps it
-on the request (`cc_connection`, in the first frame of the ievent stack, which
-the agent keeps with the watch), and a relayed `EV_YUNO_STATS` -- like the
-answer of a `run-scenario` -- is delivered only while the channel still holds
-that connection. The rest is dropped and counted with the gone ones
-(`reconnected=its channel holds another connection now` in the warning).
+data. Each connection gets a number when it opens, `command-agent` and
+`stats-agent` stamp it on the request (`cc_connection`, in the first frame of
+the ievent stack, which the agent gives back with its answer and keeps with a
+watch or a console), and what comes back -- the answer of a command or of a
+stats, the PTY of `open-console` (`EV_TTY_OPEN`, `EV_TTY_DATA`,
+`EV_TTY_CLOSE`), a relayed `EV_YUNO_STATS`, the answer of a `run-scenario` --
+is delivered only while the channel still holds that connection. A stream
+(`EV_YUNO_STATS`, `EV_TTY_DATA`) for another connection is dropped and counted
+with the gone ones (`reconnected=its channel holds another connection now` in
+the warning); an answer is dropped with a warning each (*"answer for a web
+client that is gone, dropped: its channel holds another connection now"*).
+When an agent's connection closes, the client of its console mirror is
+dropped only if it is still the connection that opened it. Up to 7.25.20 only
+`EV_YUNO_STATS` and the run's answer were checked: a slow answer, or a PTY
+stream, of the client that left reached the next one.
 
 ## Scenarios (TreeDB)
 

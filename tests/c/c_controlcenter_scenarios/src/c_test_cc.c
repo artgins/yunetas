@@ -23,7 +23,12 @@
  *                run refused naming the step;
  *              - a step answer is taken only from the agent the step went
  *                to, and only as this control center marked it: a client
- *                cannot pass one through command-agent, nor inject one.
+ *                cannot pass one through command-agent, nor inject one;
+ *              - what an agent sends back for a web client (a command's or
+ *                a stats' answer, the PTY mirror) reaches its channel only
+ *                while it is the connection that asked: a closed channel's
+ *                name is taken by the next client; and the agent's close
+ *                drops the client of its console mirror, and only it.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -245,6 +250,34 @@ PRIVATE void client_opens(hgobj gobj, hgobj channel)
     gobj_send_event(priv->cc, EV_ON_OPEN,
         json_pack("{s:{s:I}}", "__temp__", "channel_gobj", (json_int_t)(uintptr_t)channel),
         priv->top_side
+    );
+}
+
+/***************************************************************************
+ *  The web client of `channel` leaves
+ ***************************************************************************/
+PRIVATE void client_closes(hgobj gobj, hgobj channel)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_write_bool_attr(channel, "opened", FALSE);
+    gobj_send_event(priv->cc, EV_ON_CLOSE,
+        json_pack("{s:{s:I}}", "__temp__", "channel_gobj", (json_int_t)(uintptr_t)channel),
+        priv->top_side
+    );
+}
+
+/***************************************************************************
+ *  The agent's channel closes, as __input_side__ says it (the agent's
+ *  C_IEVENT_SRV stays in session: only the control center is told)
+ ***************************************************************************/
+PRIVATE void agent_closes(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_send_event(priv->cc, EV_ON_CLOSE,
+        json_pack("{s:{s:I}}", "__temp__", "channel_gobj", (json_int_t)(uintptr_t)priv->agent_channel),
+        priv->input_side
     );
 }
 
@@ -598,6 +631,122 @@ PRIVATE int test_forged_step_answers(hgobj gobj, hgobj requester, hgobj other)
 }
 
 /***************************************************************************
+ *  5. What the agent sends back reaches a channel only while it is the
+ *     connection that asked
+ ***************************************************************************/
+PRIVATE int test_late_answers_to_another_client(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, 0, "command-agent");
+    json_t *command = agent_request(gobj, "command-agent reaches the agent");
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "stats2agent", json_string("stats-yuno"));
+    ret += check_response(gobj, gobj_command(priv->cc, "stats-agent", kw, client),
+        0, 0, "stats-agent");
+    json_t *stats = agent_request(gobj, "stats-agent reaches the agent");
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("open-console"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, 0, "command-agent open-console");
+    json_t *console = agent_request(gobj, "open-console reaches the agent");
+
+    if(!command || !stats || !console) {
+        JSON_DECREF(command)
+        JSON_DECREF(stats)
+        JSON_DECREF(console)
+        return -1;
+    }
+
+    agent_sends(gobj, EV_TTY_OPEN, console, 0, "tty open");
+    if(count_received(client, EV_TTY_OPEN, "tty open") != 1) {
+        ret += fail(gobj, "the mirror opens on the client that asked", "");
+    }
+
+    /*
+     *  The agent goes: the client of its mirror is dropped. The agent's
+     *  channel names it as the mirror opened it (read from a freed frame
+     *  up to 7.25.20).
+     */
+    agent_closes(gobj);
+    if(count_received(client, EV_DROP, 0) != 1) {
+        ret += fail(gobj, "the agent's close drops the client of its mirror", "");
+    }
+    agent_sends(gobj, EV_TTY_OPEN, console, 0, "tty open again");
+    if(count_received(client, EV_TTY_OPEN, "tty open again") != 1) {
+        ret += fail(gobj, "the mirror opens again on the client that asked", "");
+    }
+
+    /*
+     *  The asker goes, another client takes its channel
+     */
+    client_closes(gobj, client);
+    client_opens(gobj, client);
+
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, command, 0, "late command answer");
+    agent_sends(gobj, EV_MT_STATS_ANSWER, stats, 0, "late stats answer");
+    agent_sends(gobj, EV_TTY_DATA, console, 0, "late tty data");
+    agent_sends(gobj, EV_TTY_DATA, console, 0, "late tty data");
+    agent_sends(gobj, EV_TTY_OPEN, console, 0, "late tty open");
+
+    json_t *received = take_received(client);
+    if(json_array_size(received) != 0) {
+        char *s = json_dumps(received, JSON_COMPACT);
+        ret += fail(gobj, "what the agent sent back for a connection that is gone reached the next one", s);
+        gbmem_free(s);
+    }
+    JSON_DECREF(received)
+
+    JSON_DECREF(command)
+    JSON_DECREF(stats)
+
+    /*
+     *  The new connection's own answer does reach it
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, 0, "command-agent of the new connection");
+    command = agent_request(gobj, "command-agent of the new connection reaches the agent");
+    if(command) {
+        agent_sends(gobj, EV_MT_COMMAND_ANSWER, command, 0, "own answer");
+        JSON_DECREF(command)
+    }
+    if(count_received(client, EV_MT_COMMAND_ANSWER, "own answer") != 1) {
+        ret += fail(gobj, "the new connection gets its own answer", "");
+    }
+
+    /*
+     *  The agent goes: the mirror's client, gone, is not the new one
+     */
+    agent_closes(gobj);
+    if(count_received(client, EV_DROP, 0) != 0) {
+        ret += fail(gobj, "the agent's close dropped the connection that took the mirror's channel", "");
+    }
+
+    agent_sends(gobj, EV_TTY_CLOSE, console, 0, "late tty close");
+    JSON_DECREF(console)
+    received = take_received(client);
+    if(json_array_size(received) != 0) {
+        char *s = json_dumps(received, JSON_COMPACT);
+        ret += fail(gobj, "the mirror of a connection that is gone reached the next one", s);
+        gbmem_free(s);
+    }
+    JSON_DECREF(received)
+    return ret;
+}
+
+/***************************************************************************
  *  All the tests
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -626,6 +775,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_save_refuses_framework_keys(gobj, client1);
     result += test_run_checks_old_scenarios(gobj, client1);
     result += test_forged_step_answers(gobj, client1, client2);
+    result += test_late_answers_to_another_client(gobj, client3);
 
     if(result == 0) {
         gobj_log_info(gobj, 0,

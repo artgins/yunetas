@@ -38,9 +38,10 @@
  *  channel in `__top_side__`: that name is taken by the next client once
  *  it closes. Each connection gets a number when it opens
  *  (`cc_connection`, in the channel's user data), stamped on what it sends
- *  to an agent; what comes back later -- an EV_YUNO_STATS still pushed by
- *  a watch that has not expired, the answer of a run -- reaches the channel
- *  only if it is still that connection.
+ *  to an agent (command-agent, stats-agent); what comes back later -- the
+ *  answer of a command or of a stats, the PTY of an open-console, an
+ *  EV_YUNO_STATS still pushed by a watch that has not expired, the answer
+ *  of a run -- reaches the channel only if it is still that connection.
  *
  *  Users are NOT kept here: who may use this yuno is its C_AUTHZ's store.
  *
@@ -98,6 +99,7 @@ PRIVATE BOOL is_scenario_action(const char *action);
 PRIVATE int check_scenario(hgobj gobj, json_t *scenario, char *err, size_t errsz);
 PRIVATE json_t *build_run_steps(hgobj gobj, json_t *scenario, const char *action, char *err, size_t errsz);
 PRIVATE json_t *sort_runs_newest_first(json_t *runs);
+PRIVATE BOOL requester_listens(hgobj requester);
 PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event);
 PRIVATE int run_send_step(hgobj gobj);
 PRIVATE int run_step_answered(hgobj gobj, json_t *kw);
@@ -107,6 +109,30 @@ PRIVATE int run_agent_disconnected(hgobj gobj);
 PRIVATE hgobj channel_of_side(hgobj side, hgobj g);
 PRIVATE json_int_t connection_number(hgobj channel);
 PRIVATE BOOL same_connection(hgobj gobj, json_t *kw, hgobj channel);
+PRIVATE void stamp_client_connection(hgobj gobj, json_t *kw, hgobj src);
+PRIVATE hgobj requester_of_route(
+    hgobj gobj,
+    json_t *kw,
+    char *dst_service,
+    size_t dst_service_size,
+    BOOL *reconnected
+);
+PRIVATE hgobj requester_of_answer(
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *kw,
+    char *dst_service,
+    size_t dst_service_size
+);
+PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj requester);
+PRIVATE void count_dropped_stream(
+    hgobj gobj,
+    gobj_event_t event,
+    const char *dst_service,
+    BOOL reconnected,
+    uint64_t *dropped,
+    uint64_t *t_next_log
+);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -279,6 +305,8 @@ typedef struct _PRIVATE_DATA {
 
     uint64_t stats_dropped;         // EV_YUNO_STATS for a web client that is gone
     uint64_t t_stats_dropped_log;   // msectimer: next time they may be said
+    uint64_t tty_dropped;           // EV_TTY_DATA for a web client that is gone
+    uint64_t t_tty_dropped_log;     // msectimer: next time they may be said
 
     hgobj run_timer;                // deadline of the step of the run in flight
     json_t *run;                    // the run in flight, or NULL (one at a time)
@@ -780,20 +808,7 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
      */
     json_object_set_new(kw, "__relays__", json_pack("[s]", EV_YUNO_STATS));
 
-    /*
-     *  Which connection of a web client asks: what the agent pushes back
-     *  later reaches its channel only while it is still that connection.
-     */
-    hgobj client_channel = channel_of_side(priv->gobj_top_side, src);
-    if(client_channel) {
-        json_t *jn_client = json_array_get(
-            kw_get_list(gobj, kw, "__md_iev__`ievent_gate_stack", 0, 0), 0
-        );
-        if(json_is_object(jn_client)) {
-            json_object_set_new(jn_client, "cc_connection",
-                json_integer(connection_number(client_channel)));
-        }
-    }
+    stamp_client_connection(gobj, kw, src);
 
     const char *agent_id = kw_get_str(gobj, kw, "agent_id", "", 0);
     const char *cmd2agent = kw_get_str(gobj, kw, "cmd2agent", "", 0);
@@ -897,6 +912,8 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
     for(int i=0; keys2delete[i]!=0; i++) {
         json_object_del(kw, keys2delete[i]);
     }
+
+    stamp_client_connection(gobj, kw, src);
 
     const char *agent_id = kw_get_str(gobj, kw, "agent_id", "", 0);
     const char *stats2agent = kw_get_str(gobj, kw, "stats2agent", "", 0);
@@ -1511,14 +1528,17 @@ PRIVATE json_t *cmd_scenario_runs(hgobj gobj, const char *cmd, json_t *kw, hgobj
  *  out of session: neither takes EV_SEND_IEV. The answer has nowhere to go,
  *  and that is the client's leaving, not an error here.
  ***************************************************************************/
+PRIVATE BOOL requester_listens(hgobj requester)
+{
+    if(gobj_has_attr(requester, "opened")) {
+        return gobj_read_bool_attr(requester, "opened");
+    }
+    return gobj_in_this_state(requester, ST_SESSION);
+}
+
 PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event)
 {
-    BOOL listening;
-    if(gobj_has_attr(requester, "opened")) {
-        listening = gobj_read_bool_attr(requester, "opened");
-    } else {
-        listening = gobj_in_this_state(requester, ST_SESSION);
-    }
+    BOOL listening = requester_listens(requester);
     if(!listening) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2266,6 +2286,171 @@ PRIVATE BOOL same_connection(hgobj gobj, json_t *kw, hgobj channel)
 }
 
 /***************************************************************************
+ *  Which connection of a web client asks (kw not owned, the request to an
+ *  agent): what the agent sends back later, an answer or a stream, reaches
+ *  its channel only while it is still that connection.
+ ***************************************************************************/
+PRIVATE void stamp_client_connection(hgobj gobj, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj client_channel = channel_of_side(priv->gobj_top_side, src);
+    if(!client_channel) {
+        return;     // not a web client: a local service, found by its name
+    }
+    json_t *jn_client = json_array_get(
+        kw_get_list(gobj, kw, "__md_iev__`ievent_gate_stack", 0, 0), 0
+    );
+    if(json_is_object(jn_client)) {
+        json_object_set_new(jn_client, "cc_connection",
+            json_integer(connection_number(client_channel)));
+    }
+}
+
+/***************************************************************************
+ *  Who gets what an agent sends back along the route of a request (kw not
+ *  owned): pops this control center's hop off the stack, whose
+ *  `dst_service` is the channel of __top_side__ that asked -- or, when no
+ *  channel has that name, the next hop's, a local service. Its name is
+ *  copied in `dst_service` (the popped frame is freed here).
+ *  NULL when there is nobody; NULL and `reconnected` when the channel is
+ *  held by another connection now: its name was taken by the next client.
+ *  A closed channel is returned, to be found not listening.
+ ***************************************************************************/
+PRIVATE hgobj requester_of_route(
+    hgobj gobj,
+    json_t *kw,
+    char *dst_service,
+    size_t dst_service_size,
+    BOOL *reconnected
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    *reconnected = FALSE;
+    json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
+    snprintf(dst_service, dst_service_size, "%s",
+        kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0));
+    JSON_DECREF(jn_ievent_id);
+
+    hgobj gobj_requester = gobj_child_by_name(priv->gobj_top_side, dst_service);
+    if(gobj_requester) {
+        if(!same_connection(gobj, kw, gobj_requester) &&
+                connection_number(gobj_requester) != 0) {
+            *reconnected = TRUE;
+            return NULL;
+        }
+        return gobj_requester;
+    }
+
+    json_t *jn_next = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
+    snprintf(dst_service, dst_service_size, "%s",
+        kw_get_str(gobj, jn_next, "dst_service", "", 0));
+    return gobj_find_service(dst_service, FALSE);
+}
+
+/***************************************************************************
+ *  The requester of an answer (kw not owned), as requester_of_route()
+ *  finds it; NULL, logged, when there is none, or when its channel is
+ *  held by another connection now.
+ ***************************************************************************/
+PRIVATE hgobj requester_of_answer(
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *kw,
+    char *dst_service,
+    size_t dst_service_size
+)
+{
+    BOOL reconnected;
+    hgobj gobj_requester = requester_of_route(
+        gobj, kw, dst_service, dst_service_size, &reconnected
+    );
+    if(reconnected) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "answer for a web client that is gone, dropped: its channel holds another connection now",
+            "service",      "%s", dst_service,
+            "event",        "%s", event,
+            NULL
+        );
+        return NULL;
+    }
+    if(!gobj_requester) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "service not found",
+            "service",      "%s", dst_service,
+            "event",        "%s", event,
+            NULL
+        );
+    }
+    return gobj_requester;
+}
+
+/***************************************************************************
+ *  Send `event` (kw owned) back to its requester, if it is listening
+ ***************************************************************************/
+PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj requester)
+{
+    if(!requester_is_listening(gobj, requester, event)) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
+    KW_INCREF(kw);
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
+
+    json_t *iev = iev_create(
+        gobj,
+        event,
+        kw_redirect    // owned
+    );
+
+    return gobj_send_event(
+        requester,
+        EV_SEND_IEV,
+        iev,
+        gobj
+    );
+}
+
+/***************************************************************************
+ *  A frame of a stream (a PTY, a watch) for a web client that is gone.
+ *  Expected -- the agent learns it only when the stream ends -- and many:
+ *  counted, and said once a minute, not once per frame.
+ ***************************************************************************/
+PRIVATE void count_dropped_stream(
+    hgobj gobj,
+    gobj_event_t event,
+    const char *dst_service,
+    BOOL reconnected,
+    uint64_t *dropped,
+    uint64_t *t_next_log
+)
+{
+    (*dropped)++;
+    if(!*t_next_log || test_msectimer(*t_next_log)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", event == EV_YUNO_STATS?
+                "yuno stats for a web client that is gone, dropped (the agent's watch expires)" :
+                "stream for a web client that is gone, dropped",
+            "event",        "%s", event,
+            "service",      "%s", dst_service,
+            "reconnected",  "%s", reconnected? "its channel holds another connection now" : "",
+            "dropped",      "%lu", (unsigned long)*dropped,
+            NULL
+        );
+        *dropped = 0;
+        *t_next_log = start_msectimer(60*1000);
+    }
+}
+
+/***************************************************************************
  *  The run is over: write it (linked to its scenario) and answer the
  *  requester with it, if it is still there.
  ***************************************************************************/
@@ -2473,10 +2658,19 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             // Debe venir del agent
         }
 
+        json_int_t mirror_connection = json_integer_value(
+            gobj_read_user_data(channel_gobj, "tty_mirror_dst_connection")
+        );
+        if(gobj_requester && mirror_connection &&
+                mirror_connection != connection_number(gobj_requester)) {
+            gobj_requester = 0;     // its channel is another client's now
+        }
+
         if(gobj_requester) {
-            gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(""));
             gobj_send_event(gobj_requester, EV_DROP, 0, gobj);
         }
+        gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(""));
+        gobj_write_user_data(channel_gobj, "tty_mirror_dst_connection", json_integer(0));
     }
 
     KW_DECREF(kw);
@@ -2485,65 +2679,26 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  HACK intermediate node
+ *  An answer reaches the web client only while its channel is still the
+ *  connection that asked (the name of a closed channel is the next
+ *  client's).
  ***************************************************************************/
 PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
-    const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-
-    hgobj gobj_requester = gobj_child_by_name(
-        priv->gobj_top_side,
-        dst_service
-    );
-    JSON_DECREF(jn_ievent_id);
-
+    char dst_service[NAME_MAX];
+    hgobj gobj_requester = requester_of_answer(gobj, event, kw, dst_service, sizeof(dst_service));
     if(!gobj_requester) {
-        // Debe venir del agent
-        jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
-        JSON_INCREF(jn_ievent_id);
-        dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-        gobj_requester = gobj_find_service(dst_service, TRUE);
-    }
-
-    if(!gobj_requester) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "service not found",
-            "service",      "%s", dst_service,
-            NULL
-        );
-        JSON_DECREF(jn_ievent_id);
-        KW_DECREF(kw);
-        return 0;
-    }
-    JSON_DECREF(jn_ievent_id);
-    if(!requester_is_listening(gobj, gobj_requester, event)) {
+        // Error already logged
         KW_DECREF(kw);
         return 0;
     }
 
-    KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE); // "__answer__"
-
-    json_t *iev = iev_create(
-        gobj,
-        event,
-        kw_redirect    // owned
-    );
-
-    return gobj_send_event(
-        gobj_requester,
-        EV_SEND_IEV,
-        iev,
-        gobj
-    );
+    return relay_to_requester(gobj, event, kw, gobj_requester);
 }
 
 /***************************************************************************
  *  HACK intermediate node
+ *  As ac_stats_yuno_answer(), and the answers of the steps of a run.
  ***************************************************************************/
 PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -2571,208 +2726,85 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
         return run_step_answered(gobj, kw);
     }
 
-    json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
-    const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-
-    hgobj gobj_requester = gobj_child_by_name(
-        priv->gobj_top_side,
-        dst_service
-    );
-    JSON_DECREF(jn_ievent_id);
-
+    char dst_service[NAME_MAX];
+    hgobj gobj_requester = requester_of_answer(gobj, event, kw, dst_service, sizeof(dst_service));
     if(!gobj_requester) {
-        // Debe venir del agent
-        jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
-        JSON_INCREF(jn_ievent_id);
-        dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-        gobj_requester = gobj_find_service(dst_service, TRUE);
-    }
-
-    if(!gobj_requester) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "service not found",
-            "service",      "%s", dst_service,
-            NULL
-        );
-        JSON_DECREF(jn_ievent_id);
-        KW_DECREF(kw);
-        return 0;
-    }
-    JSON_DECREF(jn_ievent_id);
-    if(!requester_is_listening(gobj, gobj_requester, event)) {
+        // Error already logged
         KW_DECREF(kw);
         return 0;
     }
 
-    KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
-
-    json_t *iev = iev_create(
-        gobj,
-        event,
-        kw_redirect    // owned
-    );
-
-    return gobj_send_event(
-        gobj_requester,
-        EV_SEND_IEV,
-        iev,
-        gobj
-    );
+    return relay_to_requester(gobj, event, kw, gobj_requester);
 }
 
 /***************************************************************************
  *  HACK intermediate node
+ *  The PTY of an open-console opens: the agent's channel remembers the
+ *  client of its mirror, and the connection, to drop it if the agent goes.
  ***************************************************************************/
 PRIVATE int ac_tty_mirror_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
-    const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-
-    hgobj gobj_requester = gobj_child_by_name(
-        priv->gobj_top_side,
-        dst_service
-    );
-    JSON_DECREF(jn_ievent_id);
-
+    char dst_service[NAME_MAX];
+    hgobj gobj_requester = requester_of_answer(gobj, event, kw, dst_service, sizeof(dst_service));
     if(!gobj_requester) {
-        // Debe venir del agent
-        jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
-        JSON_INCREF(jn_ievent_id);
-        dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-        gobj_requester = gobj_find_service(dst_service, TRUE);
-    }
-
-    if(!gobj_requester) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "service not found",
-            "service",      "%s", dst_service,
-            NULL
-        );
-        JSON_DECREF(jn_ievent_id);
+        // Error already logged
         KW_DECREF(kw);
         return 0;
     }
 
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
     gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(dst_service));
+    gobj_write_user_data(channel_gobj, "tty_mirror_dst_connection", json_integer(
+        channel_of_side(priv->gobj_top_side, gobj_requester)? connection_number(gobj_requester) : 0
+    ));
 
-    JSON_DECREF(jn_ievent_id);
-    if(!requester_is_listening(gobj, gobj_requester, event)) {
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
-
-    json_t *iev = iev_create(
-        gobj,
-        event,
-        kw_redirect    // owned
-    );
-
-    return gobj_send_event(
-        gobj_requester,
-        EV_SEND_IEV,
-        iev,
-        gobj
-    );
+    return relay_to_requester(gobj, event, kw, gobj_requester);
 }
 
 /***************************************************************************
  *  HACK intermediate node
+ *  The PTY closes: the agent's channel forgets its mirror, whoever holds
+ *  the client's channel now.
  ***************************************************************************/
 PRIVATE int ac_tty_mirror_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
-    const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-
-    hgobj gobj_requester = gobj_child_by_name(
-        priv->gobj_top_side,
-        dst_service
-    );
-    JSON_DECREF(jn_ievent_id);
-
-    if(!gobj_requester) {
-        // Debe venir del agent
-        jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
-        JSON_INCREF(jn_ievent_id);
-        dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-        gobj_requester = gobj_find_service(dst_service, TRUE);
-    }
-
-    if(!gobj_requester) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "service not found",
-            "service",      "%s", dst_service,
-            NULL
-        );
-        JSON_DECREF(jn_ievent_id);
-        KW_DECREF(kw);
-        return 0;
-    }
-
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
     gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(""));
+    gobj_write_user_data(channel_gobj, "tty_mirror_dst_connection", json_integer(0));
 
-    JSON_DECREF(jn_ievent_id);
-    if(!requester_is_listening(gobj, gobj_requester, event)) {
+    char dst_service[NAME_MAX];
+    hgobj gobj_requester = requester_of_answer(gobj, event, kw, dst_service, sizeof(dst_service));
+    if(!gobj_requester) {
+        // Error already logged
         KW_DECREF(kw);
         return 0;
     }
 
-    KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
-
-    json_t *iev = iev_create(
-        gobj,
-        event,
-        kw_redirect    // owned
-    );
-
-    return gobj_send_event(
-        gobj_requester,
-        EV_SEND_IEV,
-        iev,
-        gobj
-    );
+    return relay_to_requester(gobj, event, kw, gobj_requester);
 }
 
 /***************************************************************************
  *  HACK intermediate node
+ *  The PTY's output, relayed as ac_yuno_stats_relay() relays a watch: a
+ *  frame for a client that is gone is counted, not logged one by one.
  ***************************************************************************/
 PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
-    const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-
-    hgobj gobj_requester = gobj_child_by_name(
-        priv->gobj_top_side,
-        dst_service
+    char dst_service[NAME_MAX];
+    BOOL reconnected;
+    hgobj gobj_requester = requester_of_route(
+        gobj, kw, dst_service, sizeof(dst_service), &reconnected
     );
-    JSON_DECREF(jn_ievent_id);
-
-    if(!gobj_requester) {
-        // Debe venir del agent
-        jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
-        JSON_INCREF(jn_ievent_id);
-        dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-        gobj_requester = gobj_find_service(dst_service, TRUE);
+    if(reconnected || (gobj_requester && !requester_listens(gobj_requester))) {
+        count_dropped_stream(gobj, event, dst_service, reconnected,
+            &priv->tty_dropped, &priv->t_tty_dropped_log);
+        KW_DECREF(kw);
+        return 0;
     }
-
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2781,31 +2813,10 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
             "service",      "%s", dst_service,
             NULL
         );
-        JSON_DECREF(jn_ievent_id);
         KW_DECREF(kw);
         return 0;
     }
-    JSON_DECREF(jn_ievent_id);
-    if(!requester_is_listening(gobj, gobj_requester, event)) {
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
-
-    json_t *iev = iev_create(
-        gobj,
-        event,
-        kw_redirect    // owned
-    );
-
-    return gobj_send_event(
-        gobj_requester,
-        EV_SEND_IEV,
-        iev,
-        gobj
-    );
+    return relay_to_requester(gobj, event, kw, gobj_requester);
 }
 
 /***************************************************************************
@@ -2820,75 +2831,19 @@ PRIVATE int ac_yuno_stats_relay(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*
-     *  The popped frame is freed here: its dst_service is copied first,
-     *  the warning below still names it.
-     */
-    json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
     char dst_service[NAME_MAX];
-    snprintf(dst_service, sizeof(dst_service), "%s",
-        kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0));
-    JSON_DECREF(jn_ievent_id);
-
-    hgobj gobj_requester = gobj_child_by_name(
-        priv->gobj_top_side,
-        dst_service
+    BOOL reconnected;
+    hgobj gobj_requester = requester_of_route(
+        gobj, kw, dst_service, sizeof(dst_service), &reconnected
     );
-    BOOL reconnected = FALSE;
-    if(gobj_requester) {
-        /*  Another connection holds the channel (a closed one holds 0 and
-         *  is not listening: that one is only gone).  */
-        reconnected = !same_connection(gobj, kw, gobj_requester) &&
-            connection_number(gobj_requester) != 0;
-    } else {
-        json_t *jn_next = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
-        snprintf(dst_service, sizeof(dst_service), "%s",
-            kw_get_str(gobj, jn_next, "dst_service", "", 0));
-        gobj_requester = gobj_find_service(dst_service, FALSE);
-    }
 
-    BOOL listening = FALSE;
-    if(gobj_requester && !reconnected) {
-        if(gobj_has_attr(gobj_requester, "opened")) {
-            listening = gobj_read_bool_attr(gobj_requester, "opened");
-        } else {
-            listening = gobj_in_this_state(gobj_requester, ST_SESSION);
-        }
-    }
-    if(!listening) {
-        priv->stats_dropped++;
-        if(!priv->t_stats_dropped_log || test_msectimer(priv->t_stats_dropped_log)) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "yuno stats for a web client that is gone, dropped (the agent's watch expires)",
-                "service",      "%s", dst_service,
-                "reconnected",  "%s", reconnected? "its channel holds another connection now" : "",
-                "dropped",      "%lu", (unsigned long)priv->stats_dropped,
-                NULL
-            );
-            priv->stats_dropped = 0;
-            priv->t_stats_dropped_log = start_msectimer(60*1000);
-        }
+    if(!gobj_requester || !requester_listens(gobj_requester)) {
+        count_dropped_stream(gobj, event, dst_service, reconnected,
+            &priv->stats_dropped, &priv->t_stats_dropped_log);
         KW_DECREF(kw);
         return 0;
     }
-
-    KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
-
-    json_t *iev = iev_create(
-        gobj,
-        event,
-        kw_redirect    // owned
-    );
-
-    return gobj_send_event(
-        gobj_requester,
-        EV_SEND_IEV,
-        iev,
-        gobj
-    );
+    return relay_to_requester(gobj, event, kw, gobj_requester);
 }
 
 /***************************************************************************

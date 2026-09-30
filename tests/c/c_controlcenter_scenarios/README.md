@@ -35,6 +35,16 @@ the very same string, and the read looks right.
    goes to that client, not to the run. A client injects the step's answer
    itself: dropped with a warning. The agent's answer ends the run. Up to
    7.25.20 the answer through `command-agent` ended the run.
+5. What the agent sends back reaches a channel only while it is the connection
+   that asked. A client sends `command-agent`, `stats-agent` and
+   `open-console`; the console's `EV_TTY_OPEN` reaches it, and when the agent's
+   connection closes the client of the mirror is dropped (up to 7.25.20 the
+   agent's channel named it from a freed frame, and with the poison nobody was
+   dropped). The client leaves and the next one takes its channel: the late
+   answers, `EV_TTY_DATA` (two frames, one warning), `EV_TTY_OPEN` and
+   `EV_TTY_CLOSE` are dropped with warnings, the agent's close drops nobody,
+   and the new connection gets its own answer. Up to 7.25.20 all of them
+   reached the new client.
 
 ## Run
 
