@@ -196,6 +196,13 @@ PRIVATE void mt_destroy(hgobj gobj)
  *      bottom gobj exists yet, auto-create a C_TCP client child with that
  *      url and start it. The C_TCP child decides TLS vs plain from the
  *      URL schema (smtps:// → implicit TLS from byte zero).
+ *
+ *      A bottom built before the url was changed (the owner writes it:
+ *      set-email-user, set-url-from) is given the new url before it starts:
+ *      C_TCP takes its url at each start and at each connect. It is given
+ *      a fresh copy of the crypto too, because C_TCP writes into the one it
+ *      holds the ssl_server_name of the host it connected to; that is also
+ *      why the bottom gets a COPY and not our own attr.
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
@@ -203,17 +210,33 @@ PRIVATE int mt_start(hgobj gobj)
     hgobj bottom = gobj_bottom_gobj(gobj);
 
     if(!empty_string(url) && !bottom) {
-        json_t *kw_tcp = json_pack("{s:s, s:I, s:O}",
+        json_t *kw_tcp = json_pack("{s:s, s:I, s:o}",
             "url", url,
             "timeout_inactivity", gobj_read_integer_attr(gobj, "timeout_inactivity"),
-            "crypto", gobj_read_json_attr(gobj, "crypto")
+            "crypto", json_deep_copy(gobj_read_json_attr(gobj, "crypto"))
         );
+        if(!kw_tcp) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "json_pack() FAILED for the bottom C_TCP",
+                NULL
+            );
+            return -1;
+        }
         bottom = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw_tcp, gobj);
         if(!bottom) {
             /* Error already logged by gobj_create_pure_child */
             return -1;
         }
         gobj_set_bottom_gobj(gobj, bottom);
+
+    } else if(!empty_string(url) && bottom &&
+            strcmp(url, gobj_read_str_attr(bottom, "url")) != 0) {
+        gobj_write_str_attr(bottom, "url", url);
+        gobj_write_new_json_attr(bottom, "crypto",
+            json_deep_copy(gobj_read_json_attr(gobj, "crypto"))
+        );
     }
 
     if(bottom) {

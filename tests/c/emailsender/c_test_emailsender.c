@@ -11,6 +11,15 @@
  *                      it the credentials AND the url of the fake server,
  *                      then one email is sent. The fake server ends the
  *                      yuno when it is delivered.
+ *          "set_url"   the `emailsender` service starts WITH credentials
+ *                      and a url where nobody listens, so its SMTP session
+ *                      runs: set-url-from gives it the url of the fake
+ *                      server, the service is paused and played again (the
+ *                      answer of the command says the url waits for that),
+ *                      then one email is sent. The fake server ends the
+ *                      yuno when it is delivered. The fake server is NOT
+ *                      the service's __input_side__ here (a pause stops
+ *                      that one): the driver starts it.
  *          "session"   a C_SMTP_SESSION of our own (no emailsender) sends
  *                      one message; the fake server refuses the login. The
  *                      EV_ON_CLOSE of the session must say so: auth_rejected
@@ -44,14 +53,16 @@ PRIVATE int start_scenario(hgobj gobj);
  *          Data: config, public data, private data
  ***************************************************************************/
 GOBJ_DEFINE_EVENT(EV_START_SCENARIO);
+GOBJ_DEFINE_EVENT(EV_PLAY_EMAILSENDER);
 
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description--*/
-SDATA (DTP_STRING,      "scenario",         SDF_RD,             "send",     "send, set_user or session"),
-SDATA (DTP_STRING,      "smtp_url",         SDF_RD,             "",         "url of the fake server (set_user, session)"),
+SDATA (DTP_STRING,      "scenario",         SDF_RD,             "send",     "send, set_user, set_url or session"),
+SDATA (DTP_STRING,      "smtp_url",         SDF_RD,             "",         "url of the fake server (set_user, set_url, session)"),
+SDATA (DTP_STRING,      "server_service",   SDF_RD,             "__input_side__", "service of the fake server, started here in set_url and session"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
@@ -68,7 +79,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj smtp;             // scenario "session": the session under test
-    hgobj input_side;       // scenario "session": the fake server
+    hgobj input_side;       // scenarios "set_url" and "session": the fake server
 } PRIVATE_DATA;
 
 
@@ -165,9 +176,12 @@ PRIVATE int start_scenario(hgobj gobj)
 
     const char *scenario = gobj_read_str_attr(gobj, "scenario");
 
-    if(strcmp(scenario, "session") == 0) {
-        priv->input_side = gobj_find_service("__input_side__", TRUE);
+    if(strcmp(scenario, "set_url") == 0 || strcmp(scenario, "session") == 0) {
+        priv->input_side = gobj_find_service(gobj_read_str_attr(gobj, "server_service"), TRUE);
         gobj_start_tree(priv->input_side);
+    }
+
+    if(strcmp(scenario, "session") == 0) {
         gobj_start(priv->smtp);
 
         json_t *kw_msg = json_pack("{s:s, s:s, s:s}",
@@ -176,6 +190,36 @@ PRIVATE int start_scenario(hgobj gobj)
             "body", "Subject: test\r\n\r\nbody\r\n"
         );
         return gobj_send_event(priv->smtp, EV_SEND_MESSAGE, kw_msg, gobj);
+    }
+
+    if(strcmp(scenario, "set_url") == 0) {
+        hgobj emailsender = gobj_find_service("emailsender", TRUE);
+        char command[PATH_MAX];
+        snprintf(command, sizeof(command),
+            "set-url-from url=%s",
+            gobj_read_str_attr(gobj, "smtp_url")
+        );
+        json_t *jn_resp = gobj_command(emailsender, command, json_object(), gobj);
+        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
+        if(strstr(comment, "pause and play")) {
+            gobj_log_info(gobj, 0,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "set-url-from says the url waits for a play",
+                NULL
+            );
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "set-url-from does not say the url waits",
+                "comment",      "%s", comment,
+                NULL
+            );
+        }
+        JSON_DECREF(jn_resp)
+
+        gobj_pause(emailsender);
+        return gobj_post_event(gobj, EV_PLAY_EMAILSENDER, 0, gobj);
     }
 
     if(strcmp(scenario, "set_user") == 0) {
@@ -237,6 +281,18 @@ PRIVATE int send_one_email(hgobj gobj)
 PRIVATE int ac_start_scenario(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     start_scenario(gobj);
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Scenario "set_url": the service was paused, play it and send
+ ***************************************************************************/
+PRIVATE int ac_play_emailsender(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gobj_play(gobj_find_service("emailsender", TRUE));
+    send_one_email(gobj);
 
     KW_DECREF(kw)
     return 0;
@@ -353,6 +409,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_idle[] = {
         {EV_START_SCENARIO,         ac_start_scenario,          0},
+        {EV_PLAY_EMAILSENDER,       ac_play_emailsender,        0},
         {EV_ON_OPEN,                ac_on_open,                 0},
         {EV_ON_CLOSE,               ac_on_close,                0},
         {EV_ON_MESSAGE,             ac_on_message,              0},
@@ -366,6 +423,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_START_SCENARIO, 0},
+        {EV_PLAY_EMAILSENDER, 0},
         {EV_ON_OPEN,        0},
         {EV_ON_CLOSE,       0},
         {EV_ON_MESSAGE,     0},

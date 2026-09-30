@@ -95,6 +95,7 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
                 'scenario': 'send',                                 \n\
+                'server_service': '__input_side__',                 \n\
                 'smtp_url': 'tcp://127.0.0.1:7821'                  \n\
             }                                                       \n\
         },                                                          \n\

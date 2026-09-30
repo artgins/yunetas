@@ -1,9 +1,12 @@
 /****************************************************************************
- *          main_auth_rejected.c
+ *          main_set_url_running.c
  *
- *          A permanent refusal of the login (535) is reported by
- *          C_SMTP_SESSION on EV_ON_CLOSE as auth_rejected, with the
- *          reply text of the server.
+ *          A url changed while the SMTP session runs is taken when it
+ *          starts again: the service starts with credentials and a url
+ *          where nobody listens, set-url-from gives it the url of the fake
+ *          server, and after a pause and a play the email is delivered
+ *          THERE. Up to 7.25.20 the session kept the url it was created
+ *          with until the yuno was restarted.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -20,8 +23,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_auth_rejected"
-#define APP_DOC         "C_SMTP_SESSION reports a refused login with its reply"
+#define APP_NAME        "test_emailsender_set_url_running"
+#define APP_DOC         "set-url-from reaches a running SMTP session at its next start"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -33,7 +36,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_auth_rejected"
+#define BASE    "/tmp/test_emailsender_set_url_running"
 
 /***************************************************************************
  *                      Default config
@@ -69,19 +72,43 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
+            'name': 'emailsender',                                  \n\
+            'gclass': 'C_EMAILSENDER',                              \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'username': 'user',                                 \n\
+                'password': 'secret',                               \n\
+                'url': 'tcp://127.0.0.1:7829',                      \n\
+                'from': 'sender@example.com',                       \n\
+                'timeout_inactivity': 30000,                        \n\
+                'tranger_path': '"BASE"/store',                     \n\
+                'tranger_database': 'emailsender',                  \n\
+                'topic_emails_queue': 'emails_queue',               \n\
+                'topic_emails_failed': 'emails_failed',             \n\
+                'tkey': 'tm'                                        \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__input_side__',                               \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false                                       \n\
+        },                                                          \n\
+        {                                                           \n\
             'name': 'c_test',                                       \n\
             'gclass': 'C_TEST_EMAILSENDER',                         \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
-                'scenario': 'session',                              \n\
-                'server_service': '__input_side__',                 \n\
-                'smtp_url': 'tcp://127.0.0.1:7822'                  \n\
+                'scenario': 'set_url',                              \n\
+                'server_service': 'fake_smtp_server',               \n\
+                'smtp_url': 'tcp://127.0.0.1:7824'                  \n\
             }                                                       \n\
         },                                                          \n\
         {                                                           \n\
-            'name': '__input_side__',                               \n\
+            'name': 'fake_smtp_server',                             \n\
             'gclass': 'C_IOGATE',                                   \n\
             'autostart': false,                                     \n\
             'autoplay': false,                                      \n\
@@ -92,7 +119,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7822',              \n\
+                        'url': 'tcp://127.0.0.1:7824',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -110,8 +137,8 @@ PRIVATE char variable_config[]= "\
                             'name': 'fake_smtp',                    \n\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
-                                'auth_replies': ['535 5.7.8 Authentication credentials invalid'], \n\
-                                'die_on_delivery': false            \n\
+                                'auth_replies': ['235 2.7.0 Authentication successful'], \n\
+                                'die_on_delivery': true             \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
@@ -176,12 +203,16 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
+        "msg", "Creating __timeranger2__.json",
+        "msg", "Creating topic",
+        "msg", "Creating topic",
+        "msg", "set-url-from says the url waits for a play",
         "msg", "Fake smtp: AUTH answered",
-        "msg", "AUTH PLAIN rejected",
-        "msg", "Refused login reported with its reply",
+        "msg", "Fake smtp: message delivered",
+        "msg", "email sent",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

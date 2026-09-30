@@ -30,6 +30,7 @@
  ***************************************************************************/
 PRIVATE int open_queues(hgobj gobj);
 PRIVATE int start_smtp(hgobj gobj);
+PRIVATE BOOL set_smtp_url(hgobj gobj, const char *url);
 PRIVATE int close_queues(hgobj gobj);
 PRIVATE int process_smtp_response(
     hgobj gobj,
@@ -431,6 +432,22 @@ PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgob
         );
     }
 
+    /*-----------------------------*
+     *      Optional url/from
+     *  Written BEFORE the SMTP side is started below: up to 7.25.20 it
+     *  started first, on the url it had.
+     *-----------------------------*/
+    BOOL url_waits = FALSE;
+    const char *url = kw_get_str(gobj, kw, "url", "", 0);
+    if(!empty_string(url)) {
+        url_waits = set_smtp_url(gobj, url);
+    }
+    const char *from = kw_get_str(gobj, kw, "from", "", 0);
+    if(!empty_string(from)) {
+        gobj_write_str_attr(gobj, "from", from);
+        gobj_save_persistent_attrs(gobj, json_string("from"));
+    }
+
     gobj_write_str_attr(gobj, "username", username);
     gobj_write_str_attr(gobj, "password", password);
     gobj_save_persistent_attrs(gobj, json_pack("[s,s]", "username", "password"));
@@ -446,24 +463,13 @@ PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgob
         start_smtp(gobj);
     }
 
-    /*-----------------------------*
-     *      Optional url/from
-     *-----------------------------*/
-    const char *url = kw_get_str(gobj, kw, "url", "", 0);
-    if(!empty_string(url)) {
-        gobj_write_str_attr(gobj, "url", url);
-        gobj_save_persistent_attrs(gobj, json_string("url"));
-    }
-    const char *from = kw_get_str(gobj, kw, "from", "", 0);
-    if(!empty_string(from)) {
-        gobj_write_str_attr(gobj, "from", from);
-        gobj_save_persistent_attrs(gobj, json_string("from"));
-    }
-
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Email username set: %s", username),
+        json_sprintf("%s: email username set: %s%s",
+            gobj_yuno_role_plus_name(), username,
+            url_waits? ". The new url is taken when the SMTP side starts again (pause and play the yuno)" : ""
+        ),
         0,
         0,
         kw  // owned
@@ -492,9 +498,9 @@ PRIVATE json_t *cmd_set_url_and_from(hgobj gobj, const char *cmd, json_t *kw, hg
         );
     }
 
+    BOOL url_waits = FALSE;
     if(!empty_string(url)) {
-        gobj_write_str_attr(gobj, "url", url);
-        gobj_save_persistent_attrs(gobj, json_string("url"));
+        url_waits = set_smtp_url(gobj, url);
     }
     if(!empty_string(from)) {
         gobj_write_str_attr(gobj, "from", from);
@@ -504,7 +510,10 @@ PRIVATE json_t *cmd_set_url_and_from(hgobj gobj, const char *cmd, json_t *kw, hg
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("URL/from set: %s/%s", url, from),
+        json_sprintf("%s: URL/from set: %s/%s%s",
+            gobj_yuno_role_plus_name(), url, from,
+            url_waits? ". The new url is taken when the SMTP side starts again (pause and play the yuno)" : ""
+        ),
         0,
         0,
         kw  // owned
@@ -760,6 +769,26 @@ PRIVATE int start_smtp(hgobj gobj)
     gobj_start(priv->smtp);
     priv->smtp_started = TRUE;
     return 0;
+}
+
+/***************************************************************************
+ *  Set the url of the SMTP server, ours (persisted) and the SMTP child's.
+ *
+ *  The child takes its url when it starts (its C_TCP is built, or given the
+ *  new url, in its mt_start): up to 7.25.20 only ours was written, and the
+ *  child went on with the url of its creation until the yuno was restarted.
+ *  Answers TRUE when the child is running already: the new url waits for
+ *  its next start.
+ ***************************************************************************/
+PRIVATE BOOL set_smtp_url(hgobj gobj, const char *url)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_write_str_attr(gobj, "url", url);
+    gobj_save_persistent_attrs(gobj, json_string("url"));
+    gobj_write_str_attr(priv->smtp, "url", url);
+
+    return priv->smtp_started;
 }
 
 /***************************************************************************

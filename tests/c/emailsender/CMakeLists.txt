@@ -46,6 +46,8 @@ endif()
 SET(SRCS
     auth_transient
     auth_rejected
+    set_email_user
+    set_url_running
 )
 
 ##############################################

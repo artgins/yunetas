@@ -23,7 +23,21 @@ With either one blank the SMTP side does **not** start: the yuno runs, accepts
 and queues emails, and logs one ERROR (*"SMTP username or password is empty:
 emails are queued, NOT sent. Set them with the set-email-user command"*).
 `set-email-user` applies at once, with no restart: it hands the credentials to
-the SMTP session, starts it, and the queue is sent. (Before this, a blank
+the SMTP session, starts it, and the queue is sent. A `url=` (and a `from=`)
+given with them is written first, so the session starts on that url:
+
+```bash
+ycommand -c 'command-yuno id=<id> service=emailsender command=set-email-user username=<user> password=<password> url=smtps://ssl0.ovh.net:465'
+```
+
+A url changed while the SMTP session is already running (`set-email-user` or
+`set-url-from` on a yuno that was sending) is taken when the session starts
+again -- pause and play the yuno -- and the command's answer says so: the
+session hands the new url to its `C_TCP` in its `mt_start`, with a fresh copy
+of its `crypto` (the one `C_TCP` used holds the TLS server name of the old
+host). Up to 7.25.20 the session kept the url it was created with until the
+yuno was restarted, and `set-email-user ... url=` even started it on the old
+one. (Before this, a blank
 password made the service refuse to start, since both attrs were
 `SDF_REQUIRED`, so `set-email-user` had nothing to talk to.)
 
