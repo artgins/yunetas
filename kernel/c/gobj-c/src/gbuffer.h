@@ -34,6 +34,7 @@ typedef struct gbuffer_s {
 
     char *label;                /* like user_data */
     size_t mark;                /* like user_data */
+    BOOL secret;                /* holds a credential: never dumped (gbuffer_set_secret) */
     struct sockaddr_storage addr;   /* like user_data, mainly to use in udp: the peer */
     socklen_t addrlen;          /* length of addr, 0 when no address is set */
 
@@ -262,6 +263,19 @@ static inline size_t gbuffer_freebytes(gbuffer_t *gbuf)
 }
 
 PUBLIC int gbuffer_setlabel(gbuffer_t *gbuf, const char *label);
+
+/*
+ *  A secret gbuffer holds a credential (an SMTP AUTH line, a password in a
+ *  frame): gobj_trace_dump_gbuf() / gobj_trace_dump_full_gbuf() print
+ *  "<N bytes hidden>" instead of its bytes, so a traffic trace never shows
+ *  it, and its memory is wiped when the gbuffer grows (the old block) and
+ *  when it is freed. The flag travels with the gbuffer (queues,
+ *  serialize/deserialize) and gbuffer_append_gbuf() passes it on to the
+ *  destination. Set it BEFORE writing the secret, if the gbuffer may grow:
+ *  a block freed before the flag was set is not wiped.
+ */
+PUBLIC int gbuffer_set_secret(gbuffer_t *gbuf, BOOL secret);
+PUBLIC BOOL gbuffer_is_secret(gbuffer_t *gbuf);
 
 static inline char *gbuffer_getlabel(gbuffer_t *gbuf)
 {

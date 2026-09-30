@@ -572,6 +572,95 @@ If a label is already set, it is freed before assigning the new one. The functio
 
 ---
 
+(gbuffer_set_secret)=
+## [`gbuffer_set_secret()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/gbuffer.c#L595)
+
+Marks the [`gbuffer_t *`](#gbuffer_t) as holding a secret -- a credential sent
+as data, such as an SMTP `AUTH` line. A secret gbuffer:
+
+- is never dumped: [`gobj_trace_dump_gbuf()`](#gobj_trace_dump_gbuf) and
+  [`gobj_trace_dump_full_gbuf()`](#gobj_trace_dump_full_gbuf) print
+  `"<N bytes hidden>"` (and `"secret": true`) instead of its bytes, so the
+  `traffic` trace of `C_TCP`, `C_UDP` and `C_UDP_S` does not show it;
+- is wiped (zeroed) when it is freed, and its old block is wiped when it grows;
+- keeps the flag through the tx queues, through
+  [`gbuffer_serialize()`](#gbuffer_serialize) /
+  [`gbuffer_deserialize()`](#gbuffer_deserialize), and passes it to the
+  destination of [`gbuffer_append_gbuf()`](#gbuffer_append_gbuf).
+
+`C_TCP` also sets it from the kw of `EV_TX_DATA`: `"__secret__": true`.
+
+```C
+int gbuffer_set_secret(
+    gbuffer_t *gbuf,
+    BOOL secret
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gbuf` | `gbuffer_t *` | The gbuffer. |
+| `secret` | `BOOL` | `TRUE` to mark it secret, `FALSE` to clear the mark. |
+
+**Returns**
+
+`0`, or `-1` (logged) when `gbuf` is `NULL`.
+
+**Example**
+
+```C
+/*
+ *  Set the flag BEFORE writing the secret if the gbuffer may grow:
+ *  a block freed before the flag was set is not wiped.
+ */
+gbuffer_t *gbuf = gbuffer_create(line_len + 2, line_len + 2);
+gbuffer_set_secret(gbuf, TRUE);
+gbuffer_append(gbuf, (void *)line, line_len);      // "AUTH PLAIN AGFsaWNlAGh1bnRlcjI="
+gbuffer_append(gbuf, "\r\n", 2);
+
+json_t *kw_tx = json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf);
+gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_tx, gobj);
+// traffic trace: "data": "<32 bytes hidden>"
+```
+
+---
+
+(gbuffer_is_secret)=
+## [`gbuffer_is_secret()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/gbuffer.c#L613)
+
+Answers whether the [`gbuffer_t *`](#gbuffer_t) was marked with
+[`gbuffer_set_secret()`](#gbuffer_set_secret).
+
+```C
+BOOL gbuffer_is_secret(
+    gbuffer_t *gbuf
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gbuf` | `gbuffer_t *` | The gbuffer. |
+
+**Returns**
+
+`TRUE` if it is secret; `FALSE` if not, or (logged) when `gbuf` is `NULL`.
+
+**Example**
+
+```C
+if(gbuffer_is_secret(gbuf)) {
+    gobj_trace_msg(gobj, "tx %lu bytes (secret)", (unsigned long)gbuffer_leftbytes(gbuf));
+} else {
+    gobj_trace_dump_gbuf(gobj, gbuf, "tx");
+}
+```
+
+---
+
 (gbuffer_vprintf)=
 ## `gbuffer_vprintf()`
 
@@ -666,6 +755,9 @@ This function does not return a value.
 **Notes**
 
 Only a chunk of the [`gbuffer_t *`](#gbuffer_t) data is printed. Use [`gobj_trace_dump_full_gbuf()`](#gobj_trace_dump_full_gbuf) to log the entire buffer.
+
+A gbuffer marked with [`gbuffer_set_secret()`](#gbuffer_set_secret) is not
+dumped: `"data"` is `"<N bytes hidden>"`.
 
 ---
 

@@ -153,7 +153,10 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
     empty, so "not set" still reads as such. A dict of attrs is masked with
     [`gobj_mask_secret_attrs()`](#gobj_mask_secret_attrs), a whole
     configuration with [`gobj_mask_secret_config()`](#gobj_mask_secret_config).
-    The C_TCP `traffic` dump is NOT masked: it prints the bytes on the wire.
+    The C_TCP `traffic` dump prints the bytes on the wire: a frame that
+    carries a credential is sent with `"__secret__": true` in the kw of
+    `EV_TX_DATA` (or marked with [`gbuffer_set_secret()`](#gbuffer_set_secret))
+    and is dumped as `<N bytes hidden>`.
 
 ```C
 SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),

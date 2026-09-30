@@ -89,6 +89,7 @@ PUBLIC gbuffer_t *gbuffer_create(
     gbuf->tail = 0;
     gbuf->curp = 0;
     gbuf->refcount = 1;
+    gbuf->secret = FALSE;
 
     /*----------------------------*
      *   Retorna pointer a gbuf
@@ -104,6 +105,21 @@ PUBLIC gbuffer_t *gbuffer_create(
     }
 
     return gbuf;
+}
+
+/***************************************************************************
+ *    Zero memory that held a secret, in a way the compiler cannot drop
+ ***************************************************************************/
+PRIVATE void wipe_secret(void *p, size_t len)
+{
+#ifdef __linux__
+    explicit_bzero(p, len);
+#else
+    volatile unsigned char *v = p;
+    while(len--) {
+        *v++ = 0;
+    }
+#endif
 }
 
 /***************************************************************************
@@ -128,9 +144,19 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
     }
 
     /*
-     *  Realloc buffer
+     *  Realloc buffer. A secret one is copied, and the old block wiped
+     *  before it is freed: a realloc would free it with the secret in it.
      */
-    new_buf = GBMEM_REALLOC(gbuf->data, more+1);
+    if(gbuf->secret) {
+        new_buf = GBMEM_MALLOC(more+1);
+        if(new_buf) {
+            memcpy(new_buf, gbuf->data, gbuf->data_size+1);
+            wipe_secret(gbuf->data, gbuf->data_size+1);
+            GBMEM_FREE(gbuf->data)
+        }
+    } else {
+        new_buf = GBMEM_REALLOC(gbuf->data, more+1);
+    }
     if(!new_buf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -179,6 +205,9 @@ PUBLIC void gbuffer_remove(gbuffer_t *gbuf)
         gbuf->label = 0;
     }
     if(gbuf->data) {
+        if(gbuf->secret) {
+            wipe_secret(gbuf->data, gbuf->data_size+1);
+        }
         GBMEM_FREE(gbuf->data)
         gbuf->data = 0;
     }
@@ -406,6 +435,9 @@ PUBLIC int gbuffer_append_gbuf(
         ln = gbuffer_leftbytes(src);
         chunk_size = MIN(src->data_size, ln);
     }
+    if(src->secret) {
+        dst->secret = TRUE;
+    }
     return 0;
 }
 
@@ -558,6 +590,41 @@ PUBLIC int gbuffer_setlabel(gbuffer_t *gbuf, const char *label)
 }
 
 /***************************************************************************
+ *    Mark the gbuffer as holding a secret: the trace dumps hide its bytes
+ ***************************************************************************/
+PUBLIC int gbuffer_set_secret(gbuffer_t *gbuf, BOOL secret)
+{
+    if(!gbuf) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "gbuffer_set_secret() with NULL gbuf",
+            NULL
+        );
+        return -1;
+    }
+    gbuf->secret = secret?TRUE:FALSE;
+    return 0;
+}
+
+/***************************************************************************
+ *    Does the gbuffer hold a secret?
+ ***************************************************************************/
+PUBLIC BOOL gbuffer_is_secret(gbuffer_t *gbuf)
+{
+    if(!gbuf) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "gbuffer_is_secret() with NULL gbuf",
+            NULL
+        );
+        return FALSE;
+    }
+    return gbuf->secret;
+}
+
+/***************************************************************************
  *  Save gbuffer to file
  *  gbuf own
  ***************************************************************************/
@@ -626,6 +693,9 @@ PUBLIC json_t *gbuffer_serialize(
     json_object_set_new(__gbuffer__, "label", jn_label);
     size_t mark = gbuffer_getmark(gbuf);
     json_object_set_new(__gbuffer__, "mark", json_integer((json_int_t)mark));
+    if(gbuf->secret) {
+        json_object_set_new(__gbuffer__, "secret", json_true());
+    }
 
     /*
      *  Convert to base64 the content of gbuffer
@@ -689,6 +759,7 @@ PUBLIC gbuffer_t *gbuffer_deserialize(
     }
     gbuffer_setlabel(gbuf, label);
     gbuffer_setmark(gbuf, mark);
+    gbuffer_set_secret(gbuf, json_is_true(json_object_get(__gbuffer__, "secret")));
     return gbuf;
 }
 
@@ -1282,7 +1353,12 @@ PUBLIC void gobj_trace_dump_gbuf(
     json_object_set_new(jn_data, "len", json_integer((json_int_t)len));
     json_object_set_new(jn_data, "label", json_string(label?label:""));
     json_object_set_new(jn_data, "mark", json_integer((json_int_t)gbuffer_getmark(gbuf)));
-    json_object_set_new(jn_data, "data", tdump2json(bf, len));
+    if(gbuf->secret) {
+        json_object_set_new(jn_data, "secret", json_true());
+        json_object_set_new(jn_data, "data", json_sprintf("<%lu bytes hidden>", (unsigned long)len));
+    } else {
+        json_object_set_new(jn_data, "data", tdump2json(bf, len));
+    }
 
     va_list ap;
     va_start(ap, fmt);
@@ -1316,7 +1392,12 @@ PUBLIC void gobj_trace_dump_full_gbuf(
     json_object_set_new(jn_data, "len", json_integer(len));
     json_object_set_new(jn_data, "label", json_string(label?label:""));
     json_object_set_new(jn_data, "mark", json_integer((json_int_t)gbuffer_getmark(gbuf)));
-    json_object_set_new(jn_data, "data", tdump2json(bf, len));
+    if(gbuf->secret) {
+        json_object_set_new(jn_data, "secret", json_true());
+        json_object_set_new(jn_data, "data", json_sprintf("<%lu bytes hidden>", (unsigned long)len));
+    } else {
+        json_object_set_new(jn_data, "data", tdump2json(bf, len));
+    }
 
     va_list ap;
     va_start(ap, fmt);

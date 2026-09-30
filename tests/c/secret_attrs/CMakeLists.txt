@@ -52,6 +52,7 @@ endif()
 ##############################################
 set(SRCS
     test_secret_attrs
+    test_secret_traffic
 )
 
 ##############################################
@@ -69,6 +70,7 @@ foreach(test ${SRCS})
     endif()
 
     target_link_libraries(${binary}
+        ${MODULE_TEST}
         ${YUNETAS_KERNEL_LIBS}
         ${YUNETAS_EXTERNAL_LIBS}
         ${YUNETAS_PCRE_LIBS}

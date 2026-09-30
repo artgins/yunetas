@@ -87,7 +87,7 @@ it by hand, run the script.
 
 15. [**`print_track_mem`**](helpers/memory.md#print_track_mem) — `PUBLIC void print_track_mem(void)`
 
-### `gbuffer.h` — 26 functions
+### `gbuffer.h` — 28 functions
 
 **Source:** `kernel/c/gobj-c/src/gbuffer.h`
 
@@ -115,33 +115,37 @@ it by hand, run the script.
 
 12. [**`gbuffer_setlabel`**](helpers/gbuffer.md#gbuffer_setlabel) — `PUBLIC int gbuffer_setlabel(gbuffer_t *gbuf, const char *label)`
 
-13. [**`gbuf2file`**](helpers/gbuffer.md#gbuf2file) — `PUBLIC int gbuf2file( hgobj gobj, gbuffer_t *gbuf, const char *path, int permission, BOOL overwrite )`
+13. [**`gbuffer_set_secret`**](helpers/gbuffer.md#gbuffer_set_secret) — `PUBLIC int gbuffer_set_secret(gbuffer_t *gbuf, BOOL secret)`
 
-14. [**`gbuffer_serialize`**](helpers/gbuffer.md#gbuffer_serialize) — `PUBLIC json_t* gbuffer_serialize( hgobj gobj, gbuffer_t *gbuf )`
+14. [**`gbuffer_is_secret`**](helpers/gbuffer.md#gbuffer_is_secret) — `PUBLIC BOOL gbuffer_is_secret(gbuffer_t *gbuf)`
 
-15. [**`gbuffer_deserialize`**](helpers/gbuffer.md#gbuffer_deserialize) — `PUBLIC gbuffer_t *gbuffer_deserialize( hgobj gobj, const json_t *jn )`
+15. [**`gbuf2file`**](helpers/gbuffer.md#gbuf2file) — `PUBLIC int gbuf2file( hgobj gobj, gbuffer_t *gbuf, const char *path, int permission, BOOL overwrite )`
 
-16. [**`gbuffer_binary_to_base64`**](helpers/gbuffer.md#gbuffer_binary_to_base64) — `PUBLIC gbuffer_t *gbuffer_binary_to_base64(const char *src, size_t len)`
+16. [**`gbuffer_serialize`**](helpers/gbuffer.md#gbuffer_serialize) — `PUBLIC json_t* gbuffer_serialize( hgobj gobj, gbuffer_t *gbuf )`
 
-17. [**`gbuffer_file2base64`**](helpers/gbuffer.md#gbuffer_file2base64) — `PUBLIC gbuffer_t *gbuffer_file2base64(const char *path)`
+17. [**`gbuffer_deserialize`**](helpers/gbuffer.md#gbuffer_deserialize) — `PUBLIC gbuffer_t *gbuffer_deserialize( hgobj gobj, const json_t *jn )`
 
-18. [**`gbuffer_base64_to_binary`**](helpers/gbuffer.md#gbuffer_base64_to_binary) — `PUBLIC gbuffer_t *gbuffer_base64_to_binary(const char *base64, size_t base64_len)`
+18. [**`gbuffer_binary_to_base64`**](helpers/gbuffer.md#gbuffer_binary_to_base64) — `PUBLIC gbuffer_t *gbuffer_binary_to_base64(const char *src, size_t len)`
 
-19. [**`gbuffer_encode_base64`**](helpers/gbuffer.md#gbuffer_encode_base64) — `PUBLIC gbuffer_t *gbuffer_encode_base64( gbuffer_t *gbuf_input )`
+19. [**`gbuffer_file2base64`**](helpers/gbuffer.md#gbuffer_file2base64) — `PUBLIC gbuffer_t *gbuffer_file2base64(const char *path)`
 
-20. [**`str2gbuf`**](helpers/gbuffer.md#str2gbuf) — `PUBLIC gbuffer_t *str2gbuf( const char *fmt, ... ) JANSSON_ATTRS((format(printf, 1, 2)))`
+20. [**`gbuffer_base64_to_binary`**](helpers/gbuffer.md#gbuffer_base64_to_binary) — `PUBLIC gbuffer_t *gbuffer_base64_to_binary(const char *base64, size_t base64_len)`
 
-21. [**`json2gbuf`**](helpers/gbuffer.md#json2gbuf) — `PUBLIC gbuffer_t *json2gbuf( gbuffer_t *gbuf, json_t *jn, size_t flags )`
+21. [**`gbuffer_encode_base64`**](helpers/gbuffer.md#gbuffer_encode_base64) — `PUBLIC gbuffer_t *gbuffer_encode_base64( gbuffer_t *gbuf_input )`
 
-22. [**`gbuf2json`**](helpers/gbuffer.md#gbuf2json) — `PUBLIC json_t *gbuf2json( gbuffer_t *gbuf, int verbose )`
+22. [**`str2gbuf`**](helpers/gbuffer.md#str2gbuf) — `PUBLIC gbuffer_t *str2gbuf( const char *fmt, ... ) JANSSON_ATTRS((format(printf, 1, 2)))`
 
-23. [**`gbuf2json_from_peer`**](helpers/gbuffer.md#gbuf2json_from_peer) — `PUBLIC json_t *gbuf2json_from_peer( hgobj gobj, gbuffer_t *gbuf, hgobj peer_gobj )`
+23. [**`json2gbuf`**](helpers/gbuffer.md#json2gbuf) — `PUBLIC gbuffer_t *json2gbuf( gbuffer_t *gbuf, json_t *jn, size_t flags )`
 
-24. [**`config_gbuffer2json`**](helpers/gbuffer.md#config_gbuffer2json) — `PUBLIC json_t *config_gbuffer2json( gbuffer_t *gbuf, int verbose )`
+24. [**`gbuf2json`**](helpers/gbuffer.md#gbuf2json) — `PUBLIC json_t *gbuf2json( gbuffer_t *gbuf, int verbose )`
 
-25. [**`gobj_trace_dump_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_gbuf) — `PUBLIC void gobj_trace_dump_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
+25. [**`gbuf2json_from_peer`**](helpers/gbuffer.md#gbuf2json_from_peer) — `PUBLIC json_t *gbuf2json_from_peer( hgobj gobj, gbuffer_t *gbuf, hgobj peer_gobj )`
 
-26. [**`gobj_trace_dump_full_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_full_gbuf) — `PUBLIC void gobj_trace_dump_full_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
+26. [**`config_gbuffer2json`**](helpers/gbuffer.md#config_gbuffer2json) — `PUBLIC json_t *config_gbuffer2json( gbuffer_t *gbuf, int verbose )`
+
+27. [**`gobj_trace_dump_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_gbuf) — `PUBLIC void gobj_trace_dump_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
+
+28. [**`gobj_trace_dump_full_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_full_gbuf) — `PUBLIC void gobj_trace_dump_full_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
 
 ### `glogger.h` — 34 functions
 
@@ -1277,7 +1281,7 @@ it by hand, run the script.
 
 11. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 605 functions**
+**Total: 607 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2334,7 +2338,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1011 functions** sorted alphabetically with their source header.
+All **1013 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2449,10 +2453,12 @@ All **1011 functions** sorted alphabetically with their source header.
 | [**`gbuffer_file2base64`**](helpers/gbuffer.md#gbuffer_file2base64) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuffer_get`**](helpers/gbuffer.md#gbuffer_get) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuffer_getline`**](helpers/gbuffer.md#gbuffer_getline) | `gbuffer.h` | gobj-c (Core Framework) |
+| [**`gbuffer_is_secret`**](helpers/gbuffer.md#gbuffer_is_secret) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuffer_printf`**](helpers/gbuffer.md#gbuffer_printf) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuffer_remove`**](helpers/gbuffer.md#gbuffer_remove) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuffer_serialize`**](helpers/gbuffer.md#gbuffer_serialize) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuffer_set_rd_offset`**](helpers/gbuffer.md#gbuffer_set_rd_offset) | `gbuffer.h` | gobj-c (Core Framework) |
+| [**`gbuffer_set_secret`**](helpers/gbuffer.md#gbuffer_set_secret) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuffer_set_wr`**](helpers/gbuffer.md#gbuffer_set_wr) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuffer_setlabel`**](helpers/gbuffer.md#gbuffer_setlabel) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`gbuffer_vprintf`**](helpers/gbuffer.md#gbuffer_vprintf) | `gbuffer.h` | gobj-c (Core Framework) |
