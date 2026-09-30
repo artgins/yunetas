@@ -132,6 +132,7 @@ PRIVATE sys_calloc_fn_t base_calloc;
 PRIVATE sys_free_fn_t base_free;
 PRIVATE poison_hdr_t *quarantine[QUARANTINE_SIZE];
 PRIVATE size_t quarantine_idx = 0;
+PRIVATE BOOL quarantine_closed = FALSE;   // from the end of the run: freed at once
 
 PRIVATE void *poison_malloc(size_t size)
 {
@@ -151,6 +152,10 @@ PRIVATE void poison_free(void *p)
     }
     poison_hdr_t *hdr = ((poison_hdr_t *)p) - 1;
     memset(p, POISON_BYTE, hdr->size);
+    if(quarantine_closed) {
+        base_free(hdr);
+        return;
+    }
     poison_hdr_t *old = quarantine[quarantine_idx];
     quarantine[quarantine_idx] = hdr;
     quarantine_idx = (quarantine_idx + 1) % QUARANTINE_SIZE;
@@ -185,8 +190,15 @@ PRIVATE void install_poison_allocators(void)
     gbmem_set_allocators(poison_malloc, poison_realloc, poison_calloc, poison_free);
 }
 
+/*
+ *  The blocks held are freed, and every block freed from now on too. It runs
+ *  in cleaning(), before the entry point's memory check (print_track_mem()):
+ *  the held blocks are freed memory, and counted as not free they printed a
+ *  false leak report on every run, which would hide a real one.
+ */
 PRIVATE void release_quarantine(void)
 {
+    quarantine_closed = TRUE;
     for(size_t i=0; i<QUARANTINE_SIZE; i++) {
         if(quarantine[i]) {
             base_free(quarantine[i]);
@@ -296,6 +308,7 @@ static void cleaning(void)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
     result += test_json(NULL);
+    release_quarantine();
 }
 
 /***************************************************************************
@@ -355,8 +368,7 @@ int main(int argc, char *argv[])
         register_yuno_and_more,
         cleaning
     );
-    release_quarantine();
-
+    release_quarantine();   // an entry point that ended before cleaning()
     if(get_cur_system_memory()!=0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
         print_track_mem();

@@ -14,6 +14,11 @@ Freed memory is poisoned (`0x5A`) and held in a quarantine before it is given
 back (`main.c`), so a read after a free reads the poison instead of what was
 there: without it the block is handed out again at once, often to a copy of
 the very same string, and the read looks right.
+The quarantine is emptied, and closed (a block freed after is freed at once),
+in `cleaning()`, before the entry point's memory check: the blocks it held are
+freed memory, and counted as not free they printed a false report of ~4000
+`mem-not-free` blocks on every run. A clean run prints none; a real leak is
+still reported and fails the test.
 
 ## What it pins
 
