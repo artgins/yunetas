@@ -202,7 +202,7 @@ longer than one datagram in pieces, the NUL after the last one).
 | Property | Value |
 |----------|-------|
 | **States** | `ST_IDLE` |
-| **Input events** | `EV_SEND_MESSAGE` (a gbuffer to send: to its address, or, with none, to the known peer its label names -- see *Answer a peer*), and from its `C_UDP_S`: `EV_RX_DATA`, `EV_TX_READY`, `EV_STOPPED`; `EV_TIMEOUT_PERIODIC` from its timer |
+| **Input events** | `EV_SEND_MESSAGE` (a gbuffer to send: to its address, or, with none, to the known peer its label names -- see *Answer a peer*), and from its `C_UDP_S`: `EV_RX_DATA`, `EV_TX_READY`, `EV_STOPPED`; `EV_TIMEOUT_PERIODIC` from its timer, `EV_TIMEOUT` from its restart timer |
 | **Output events** | `EV_ON_OPEN` (a new channel), `EV_ON_MESSAGE` (a whole frame, its gbuffer in the kw, without the NUL; the gbuffer carries its peer as label and address), `EV_ON_CLOSE` (a channel with no datagram for `seconds_inactivity`) |
 
 A channel is keyed by the PEER of the datagram, the label `C_UDP_S` writes in
@@ -273,29 +273,61 @@ The label contract is the original one (the pre-v7 `C_UDP_S` sent to the
 
 `C_UDP_S` stops by itself when its read fails or cannot be started again (no
 memory for the next read, a socket error): it logs the cause as an ERROR and
-publishes `EV_STOPPED`. `C_GSS_UDP_S` then:
+publishes `EV_STOPPED` -- while it still RUNS, which is how `C_GSS_UDP_S`
+tells it from a stop made from outside. `C_GSS_UDP_S` then:
 
-- says it once: *"UDP server stopped by itself, it is started again at the
-  next timeout_base"*, WARNING;
-- refuses every `EV_SEND_MESSAGE` until then (the event answers -1), with ONE
-  warning, *"EV_SEND_MESSAGE while the UDP server is stopped, dropped"*;
-- starts the `C_UDP_S` again at its next `timeout_base` tick (the backoff of
-  a failure that persists: a start that fails is tried again at the next
-  one), and says *"UDP server started again"*, INFO, with `tx_dropped`, the
-  sends refused meanwhile.
+- says it once: *"UDP server stopped by itself, it is started again after a
+  backoff"*, WARNING, with `backoff_ms`;
+- starts the `C_UDP_S` again after that backoff, and says *"UDP server
+  started again"*, INFO, with `tx_dropped`, the sends refused meanwhile. The
+  backoff is `timeout_base` first, and DOUBLES (up to 5 minutes) each time
+  the `C_UDP_S` stops again, or cannot start (*"UDP server cannot start
+  again, it is tried again after a backoff"*), within a minute of the last
+  try; a restart that holds a minute sets it back to `timeout_base`. A
+  failure that persists is said a few times an hour, not at every tick. A
+  `C_UDP_S` that cannot start at the first start of the `C_GSS_UDP_S` takes
+  the same path (*"UDP server cannot start, it is tried again after a
+  backoff"*).
+
+A send is refused whenever the `C_UDP_S` is not in `ST_IDLE`: stopped, or
+still stopping (`ST_WAIT_STOPPED`, while a send of its own is in flight, the
+window before its `EV_STOPPED`). The event answers -1, and ONE warning is
+logged per stop, *"EV_SEND_MESSAGE while the UDP server is stopped,
+dropped"*, with `udp_state`; the count comes with the restart, or, if the
+`C_GSS_UDP_S` is stopped first, with its stop (*"UDP server stops with sends
+refused while it was stopped"*, `tx_dropped`).
+
+A `C_UDP_S` stopped from OUTSIDE (a `gobj_stop()` of it alone: it no longer
+runs when its `EV_STOPPED` comes) is not started again -- that stop was
+somebody's decision. It is said once, INFO, *"UDP server stopped from
+outside, it is not started again"*, and the sends are refused as above.
 
 Its own stop (`gobj_stop()` of the `C_GSS_UDP_S`) stops the `C_UDP_S` too, and
-that `EV_STOPPED` is its end, not a restart. Up to 7.25.20 the `EV_STOPPED`
-was taken with no action: the service could not receive again, and every send
-reached a stopped `C_UDP_S` and logged *"Event NOT DEFINED in state"*.
-`tests/c/c_gss_udp_s_self_stop`.
+that `EV_STOPPED` is its end, not a restart.
+
+A `timeout_base` of 0 or less would arm no timer at all: no peer forgotten
+after `seconds_inactivity`, and no base for the backoff. It is refused at the
+create with a WARNING (*"timeout_base <= 0 would arm no timer ..."*), and the
+default `5000` is used (and written back to the attribute):
+
+```C
+json_t *kw_gss = json_pack("{s:s, s:i}",
+    "url", "udp://127.0.0.1:1992",
+    "timeout_base", 2000        // inactivity check, and first restart delay
+);
+hgobj gss = gobj_create("logs", C_GSS_UDP_S, kw_gss, gobj);
+```
+
+Up to 7.25.20 the `EV_STOPPED` was taken with no action: the service could
+not receive again, and every send reached a stopped `C_UDP_S` and logged
+*"Event NOT DEFINED in state"*. `tests/c/c_gss_udp_s_self_stop`.
 
 ### Key attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `url` | `string` | UDP listening URL. |
-| `timeout_base` | `integer` | Period of the inactivity check, in milliseconds (default `5000`). |
+| `timeout_base` | `integer` | Period of the inactivity check, and first delay of a restart of the `C_UDP_S`, in milliseconds (default `5000`; `<= 0` is refused with a warning and the default used). |
 | `seconds_inactivity` | `integer` | Seconds without a datagram before a channel is closed (default `300`). |
 | `disable_end_of_frame` | `bool` | Publish every datagram as it comes (`EV_ON_MESSAGE` with the `EV_RX_DATA` kw), without joining until a NUL. |
 | `max_channels` | `integer` | Peers held at once (default `1024`, `0` no limit). A datagram of a new peer beyond it is dropped. |

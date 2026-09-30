@@ -20,12 +20,26 @@
  *          ceiling.
  *
  *          When its C_UDP_S stops by itself (its read failed, or could not
- *          start again: EV_STOPPED while this gobj runs), the service would
- *          be deaf, and every send would reach a stopped C_UDP_S ("Event
- *          NOT DEFINED in state"). So it is said once, the sends are
- *          refused (one warning a stop), and the C_UDP_S is started again at
- *          the next timeout_base, the backoff of a failure that persists.
+ *          start again: EV_STOPPED while this gobj AND the C_UDP_S run), the
+ *          service would be deaf, and every send would reach a stopped
+ *          C_UDP_S ("Event NOT DEFINED in state"). So it is said once, and
+ *          the C_UDP_S is started again after a backoff: timeout_base
+ *          first, doubled (up to RESTART_BACKOFF_MAX_MS) each time it stops
+ *          again, or cannot start, within RESTART_HOLD_MS of the last try.
  *          Up to 7.25.20 the EV_STOPPED was taken with no action.
+ *
+ *          A send is refused (one warning a stop, the count when it starts
+ *          again or when this gobj stops) whenever the C_UDP_S is not in
+ *          ST_IDLE: stopped, or still stopping (ST_WAIT_STOPPED, a send in
+ *          flight), the window before its EV_STOPPED.
+ *
+ *          A C_UDP_S stopped from outside (gobj_stop() of it alone: it no
+ *          longer runs when its EV_STOPPED comes) is not started again: that
+ *          stop was somebody's decision. It is said once, INFO.
+ *
+ *          timeout_base <= 0 would leave the periodic timer unarmed: no peer
+ *          ever forgotten, and no base for the backoff. It is refused with a
+ *          warning, and the default (5000) used.
  *
     TODO review, dl_list is not a good choice for performance (bounded by
     max_channels)
@@ -66,6 +80,9 @@
  ***************************************************************************/
 #define FRAME_INITIAL_SIZE  (4*1024)    // a frame buffer starts here and doubles up to max_frame_size
 #define PEER_LOG_INTERVAL_MS (10*1000)  // one log of a frame cut, or of a drop of pending bytes, per interval
+#define TIMEOUT_BASE_DEFAULT 5000       // the default of timeout_base, used when it is <= 0
+#define RESTART_HOLD_MS     (60*1000)   // a C_UDP_S that runs this long since its restart resets the backoff
+#define RESTART_BACKOFF_MAX_MS (5*60*1000) // the backoff of a restart doubles up to this
 
 /***************************************************************************
  *              Structures
@@ -89,6 +106,7 @@ PRIVATE void del_udp_channel(hgobj gobj, UDP_CHANNEL *ch);
 PRIVATE void publish_frame(hgobj gobj, UDP_CHANNEL *ch);
 PRIVATE void free_channels(hgobj gobj);
 PRIVATE void restart_udp_server(hgobj gobj);
+PRIVATE json_int_t schedule_restart(hgobj gobj);
 
 
 /***************************************************************************
@@ -147,8 +165,11 @@ typedef struct _PRIVATE_DATA {
     json_int_t pending_drops;       // not logged since the last log
     uint64_t t_frame_cut_log;       // msectimer: no log of a frame cut before it
     json_int_t frames_cut;          // not logged since the last log
-    BOOL udp_stopped;               // the C_UDP_S stopped by itself, started again at the next timeout
-    json_int_t tx_dropped;          // sends refused while it is stopped
+    hgobj timer_restart;            // the backoff of a restart of the C_UDP_S
+    BOOL udp_stopped;               // the C_UDP_S stopped by itself, started again by timer_restart
+    json_int_t tx_dropped;          // sends refused while it is not in ST_IDLE
+    json_int_t restart_backoff_ms;  // delay of the last restart scheduled, 0 none yet
+    uint64_t t_restart_holds;       // msectimer: a stop before it doubles the backoff
 } PRIVATE_DATA;
 
 
@@ -169,12 +190,25 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->timer_restart = gobj_create_pure_child("restart", C_TIMER, 0, gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(timeout_base,          gobj_read_integer_attr)
+    if(priv->timeout_base <= 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "timeout_base <= 0 would arm no timer (no peer forgotten, no restart of the UDP server): the default is used",
+            "timeout_base", "%d", (int)priv->timeout_base,
+            "default",      "%d", TIMEOUT_BASE_DEFAULT,
+            NULL
+        );
+        priv->timeout_base = TIMEOUT_BASE_DEFAULT;
+        gobj_write_integer_attr(gobj, "timeout_base", priv->timeout_base);
+    }
     SET_PRIV(seconds_inactivity,    gobj_read_integer_attr)
     SET_PRIV(disable_end_of_frame,  gobj_read_bool_attr)
     SET_PRIV(max_channels,          gobj_read_integer_attr)
@@ -218,8 +252,23 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->timer);
+    gobj_start(priv->timer_restart);
     set_timeout_periodic(priv->timer, priv->timeout_base);
-    gobj_start(priv->gobj_udp_s);
+
+    priv->restart_backoff_ms = 0;
+    priv->t_restart_holds = 0;
+    if(gobj_start(priv->gobj_udp_s) < 0) {
+        // Error already logged
+        json_int_t backoff_ms = schedule_restart(gobj);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "UDP server cannot start, it is tried again after a backoff",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "backoff_ms",   "%ld", (long)backoff_ms,
+            NULL
+        );
+    }
     return 0;
 }
 
@@ -231,8 +280,22 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
-    gobj_stop(priv->gobj_udp_s);
+    clear_timeout(priv->timer_restart);
+    if(gobj_is_running(priv->gobj_udp_s)) {
+        gobj_stop(priv->gobj_udp_s);    // not running: stopped from outside
+    }
     free_channels(gobj);
+
+    if(priv->tx_dropped > 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "UDP server stops with sends refused while it was stopped",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "tx_dropped",   "%ld", (long)priv->tx_dropped,
+            NULL
+        );
+    }
     priv->udp_stopped = FALSE;
     priv->tx_dropped = 0;
     return 0;
@@ -338,8 +401,29 @@ PRIVATE void publish_frame(hgobj gobj, UDP_CHANNEL *ch)
 }
 
 /***************************************************************************
- *  Start again the C_UDP_S that stopped by itself. A start that fails is
- *  tried again at the next timeout.
+ *  The C_UDP_S is down (stopped by itself, or its start failed): mark it,
+ *  and arm its restart. The backoff doubles when the last try did not hold
+ *  RESTART_HOLD_MS, else it goes back to timeout_base. Return the delay.
+ ***************************************************************************/
+PRIVATE json_int_t schedule_restart(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->restart_backoff_ms > 0 &&
+            priv->t_restart_holds && !test_msectimer(priv->t_restart_holds)) {
+        priv->restart_backoff_ms = MIN(2*priv->restart_backoff_ms, RESTART_BACKOFF_MAX_MS);
+    } else {
+        priv->restart_backoff_ms = priv->timeout_base;
+    }
+
+    priv->udp_stopped = TRUE;
+    set_timeout(priv->timer_restart, priv->restart_backoff_ms);
+    return priv->restart_backoff_ms;
+}
+
+/***************************************************************************
+ *  Start again the C_UDP_S that is down. A start that fails is tried
+ *  again after the next backoff.
  ***************************************************************************/
 PRIVATE void restart_udp_server(hgobj gobj)
 {
@@ -348,10 +432,32 @@ PRIVATE void restart_udp_server(hgobj gobj)
     if(gobj_is_running(priv->gobj_udp_s)) {
         gobj_stop(priv->gobj_udp_s);
     }
+
+    /*
+     *  Marked live BEFORE the start: an EV_STOPPED inside it marks it down
+     *  again, and is not overwritten here
+     */
+    priv->udp_stopped = FALSE;
+    priv->t_restart_holds = start_msectimer(RESTART_HOLD_MS);
+
     if(gobj_start(priv->gobj_udp_s) < 0) {
         // Error already logged
+        json_int_t backoff_ms = schedule_restart(gobj);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "UDP server cannot start again, it is tried again after a backoff",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "backoff_ms",   "%ld", (long)backoff_ms,
+            "tx_dropped",   "%ld", (long)priv->tx_dropped,
+            NULL
+        );
         return;
     }
+    if(priv->udp_stopped) {
+        return; // stopped again inside its start: said, and scheduled
+    }
+
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -360,7 +466,6 @@ PRIVATE void restart_udp_server(hgobj gobj)
         "tx_dropped",   "%ld", (long)priv->tx_dropped,
         NULL
     );
-    priv->udp_stopped = FALSE;
     priv->tx_dropped = 0;
 }
 
@@ -570,19 +675,24 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         return -1;
     }
 
-    if(priv->udp_stopped) {
+    /*
+     *  Not only after its EV_STOPPED: a C_UDP_S still stopping
+     *  (ST_WAIT_STOPPED, a send in flight) takes no EV_TX_DATA either
+     */
+    if(priv->udp_stopped || !gobj_in_this_state(priv->gobj_udp_s, ST_IDLE)) {
         if(priv->tx_dropped++ == 0) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                 "msg",          "%s", "EV_SEND_MESSAGE while the UDP server is stopped, dropped",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "udp_state",    "%s", gobj_current_state(priv->gobj_udp_s),
                 "len",          "%d", (int)gbuffer_leftbytes(gbuf),
                 NULL
             );
         }
         KW_DECREF(kw);
-        return -1;  // the first one logged, the count at the restart
+        return -1;  // the first one logged, the count at the restart or at the stop
     }
 
     /*
@@ -629,10 +739,6 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     UDP_CHANNEL *ch, *nx;
 
-    if(priv->udp_stopped) {
-        restart_udp_server(gobj);
-    }
-
     ch = dl_first(&priv->dl_channel);
     while(ch) {
         nx = dl_next(ch);
@@ -648,21 +754,63 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  The C_UDP_S stopped. By our own stop (mt_stop): its end. By itself: see
- *  the header, started again at the next timeout.
+ *  The backoff of a restart is over
+ ***************************************************************************/
+PRIVATE int ac_restart_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->udp_stopped) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Restart timer of the UDP server fired with the server not marked down",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            NULL
+        );
+        KW_DECREF(kw);
+        return -1;
+    }
+    restart_udp_server(gobj);
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  The C_UDP_S stopped. By our own stop (mt_stop): its end. From outside
+ *  (it no longer runs): not started again. By itself (it still runs): see
+ *  the header, started again after a backoff.
  ***************************************************************************/
 PRIVATE int ac_udp_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_is_running(gobj) && !priv->udp_stopped) {
-        priv->udp_stopped = TRUE;
+    if(!gobj_is_running(gobj)) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
+    if(!gobj_is_running(priv->gobj_udp_s)) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "UDP server stopped from outside, it is not started again",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            NULL
+        );
+        KW_DECREF(kw);
+        return 0;
+    }
+
+    if(!priv->udp_stopped) {
+        json_int_t backoff_ms = schedule_restart(gobj);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "UDP server stopped by itself, it is started again at the next timeout_base",
+            "msg",          "%s", "UDP server stopped by itself, it is started again after a backoff",
             "url",          "%s", gobj_read_str_attr(gobj, "url"),
-            "timeout_base", "%d", (int)priv->timeout_base,
+            "backoff_ms",   "%ld", (long)backoff_ms,
             NULL
         );
     }
@@ -723,6 +871,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_MESSAGE,       ac_send_message,    0},
         {EV_TX_READY,           ac_transmit_ready,  0},
         {EV_TIMEOUT_PERIODIC,   ac_timeout,         0},
+        {EV_TIMEOUT,            ac_restart_timeout, 0},
         {EV_STOPPED,            ac_udp_stopped,     0},
         {0, 0, 0}
     };
@@ -740,6 +889,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_MESSAGE,       0},
         {EV_TX_READY,           0},
         {EV_TIMEOUT_PERIODIC,   0},
+        {EV_TIMEOUT,            0},
         {EV_STOPPED,            0},
         {0, 0}
     };

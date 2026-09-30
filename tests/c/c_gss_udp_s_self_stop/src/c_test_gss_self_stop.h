@@ -29,6 +29,7 @@ GOBJ_DECLARE_GCLASS(C_TEST_GSS_SELF_STOP);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_TEST_SEND_IN_WAIT);
 
 /***************************************************************
  *              Prototypes

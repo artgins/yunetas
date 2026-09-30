@@ -104,19 +104,28 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]", // errors_list
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]", // errors_list
             "msg", "Starting yuno",
+            "msg", "timeout_base <= 0 would arm no timer (no peer forgotten, no restart of the UDP server): the default is used",
             "msg", "UDP listening ...",
             "msg", "Playing yuno",
             "msg", "Cannot start event: gbuffer WITHOUT space to read",
             "msg", "UDP: the read cannot be started again, the server stops listening",
-            "msg", "UDP server stopped by itself, it is started again at the next timeout_base",
             "msg", "EV_SEND_MESSAGE while the UDP server is stopped, dropped",
+            "msg", "UDP server stopped by itself, it is started again after a backoff",
             "msg", "UDP listening ...",
             "msg", "UDP server started again",
-            "msg", "TEST: C_GSS_UDP_S refused the send while stopped, and hears and sends again",
+            "msg", "Cannot start event: gbuffer WITHOUT space to read",
+            "msg", "UDP: the read cannot be started again, the server stops listening",
+            "msg", "UDP server stopped by itself, it is started again after a backoff",
+            "msg", "UDP listening ...",
+            "msg", "UDP server started again",
+            "msg", "EV_SEND_MESSAGE while the UDP server is stopped, dropped",
+            "msg", "UDP server stopped from outside, it is not started again",
+            "msg", "TEST: C_GSS_UDP_S refused the sends while stopped or stopping, started it again with a backoff, and not after a stop from outside",
             "msg", "Exit to die",
             "msg", "Pausing yuno",
+            "msg", "UDP server stops with sends refused while it was stopped",
             "msg", "Yuno stopped, gobj end"
         ),
         NULL,   // expected, NULL: we want to check only the logs
