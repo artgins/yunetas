@@ -3067,6 +3067,7 @@ PUBLIC json_t *gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs)
             json_incref(jn_attrs)
         );
         if(jn_item) {
+            gobj_mask_secret_attrs(gobj, jn_item);  // it is for showing
             json_object_set_new(jn_dict, gobj_short_name(gobj), jn_item);
         }
     } else {
@@ -3079,6 +3080,7 @@ PUBLIC json_t *gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs)
                 json_incref(jn_attrs)
             );
             if(jn_item) {
+                gobj_mask_secret_attrs(gobj_, jn_item);  // it is for showing
                 json_object_set_new(jn_dict, gobj_short_name(gobj_), jn_item);
             }
         }

@@ -187,6 +187,9 @@ The function verifies if the attribute has the `SDF_WR` or `SDF_PERSIST` flag se
 ## [`gobj_list_persistent_attrs()`](https://github.com/artgins/yunetas/blob/7.25.18/kernel/c/gobj-c/src/gobj.c#L3054)
 
 Retrieves a list of persistent attributes for a given `hgobj` or all services if `gobj` is `NULL`.
+It is what `list-persistent-attrs` shows, so the [`SDF_SECRET`](#SDF_SECRET)
+attributes come masked (`"********"`, since 7.25.19); the file on disk keeps
+the real value.
 
 ```C
 json_t *gobj_list_persistent_attrs(

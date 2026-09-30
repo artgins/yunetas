@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Kernel: `list-persistent-attrs` masks the secrets too
+
+- 7.25.19 masked `SDF_SECRET` attrs in `view-attrs` and the rest, but
+  `list-persistent-attrs` (and the answer of `remove-persistent-attrs`)
+  still showed them in clear: the mask was applied one level above the
+  `{<gobj>: {attrs}}` it answers. `gobj_list_persistent_attrs()` masks each
+  gobj's attrs itself now; every caller of it shows what it answers.
+
 ## v7.25.19 (2026-09-30)
 
 The end of the lost webstats report of wattyzer, and what it turned up:

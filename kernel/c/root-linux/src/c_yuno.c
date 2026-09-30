@@ -2115,8 +2115,7 @@ PRIVATE json_t *cmd_list_persistent_attrs(hgobj gobj, const char* cmd, json_t* k
     /*
      *  Inform
      */
-    json_t *jn_data = gobj_list_persistent_attrs(gobj2read, jn_attrs);
-    gobj_mask_secret_attrs(gobj2read, jn_data);
+    json_t *jn_data = gobj_list_persistent_attrs(gobj2read, jn_attrs);  // secrets masked
     json_t *kw_response = build_command_response(
         gobj,
         0,      // result
