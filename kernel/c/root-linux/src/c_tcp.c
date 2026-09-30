@@ -477,6 +477,8 @@ PRIVATE void mt_destroy(hgobj gobj)
     // This would be in mt_stop, but by now not full control of stopping uring events
     // Other gclass's managing io_uring events with the same problem
 
+    log_closing_drops(gobj);    // destroyed in ST_WAIT_STOPPED: its close never ended
+
     EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_accept)
@@ -561,6 +563,8 @@ PRIVATE void set_inactivity_timeout(hgobj gobj)
 PRIVATE void set_connected(hgobj gobj, int fd)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    log_closing_drops(gobj);    // a new connection starts its own count
 
     gobj_write_bool_attr(gobj, "connected", TRUE);
     get_peer_and_sock_name(gobj, fd);
@@ -1213,7 +1217,9 @@ PRIVATE void start_pending_writes(hgobj gobj)
 
 /***************************************************************************
  *  The close of a connection ended: what was sent to it while it closed
- *  (ac_tx_data_closing()) is said in ONE warning, not one per frame.
+ *  (ac_tx_data_closing()) is said in ONE warning, not one per frame. Every
+ *  end of a close says it: its end in try_to_stop_yevents(), a destroy
+ *  while it still waits (mt_destroy), and, as a guard, the next connection.
  ***************************************************************************/
 PRIVATE void log_closing_drops(hgobj gobj)
 {

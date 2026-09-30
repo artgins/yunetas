@@ -29,6 +29,7 @@ GOBJ_DECLARE_GCLASS(C_TEST7);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_TEST_DESTROY_TCP);
 
 /***************************************************************
  *              Prototypes

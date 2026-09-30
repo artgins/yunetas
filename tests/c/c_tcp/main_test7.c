@@ -103,10 +103,13 @@ static int register_yuno_and_more(void)
      *  No error: the data sent while closing goes away with ONE warning
      *  for the connection, which says what went
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s, s:i, s:i}]",
+    json_t *errors_list = json_pack("[{s:s, s:i, s:i}, {s:s, s:i, s:i}]",
         "msg", "tcp data sent while the connection closes, dropped",
         "dropped_msgs", 2,
-        "dropped_bytes", 13
+        "dropped_bytes", 13,
+        "msg", "tcp data sent while the connection closes, dropped",   // the destroyed one
+        "dropped_msgs", 1,
+        "dropped_bytes", 4
     );
 
     set_expected_results(

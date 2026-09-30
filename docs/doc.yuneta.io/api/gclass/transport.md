@@ -87,8 +87,11 @@ That `EV_TX_DATA` goes where the pending queue of a dead connection goes
 (`set_disconnected()` flushes it): away, with no error. What went is counted
 and said ONCE per connection, when its close ends: *"tcp data sent while the
 connection closes, dropped"*, WARNING, with `dropped_msgs` and
-`dropped_bytes`. A protocol that must not lose data resends it on its own
-acknowledgements, as `C_QIOGATE` does:
+`dropped_bytes`. It is said also when the close does not end its own way:
+a `C_TCP` destroyed while it still waits in `ST_WAIT_STOPPED` says it at its
+destroy, and a count never carries into the next connection. A protocol that
+must not lose data resends it on its own acknowledgements, as `C_QIOGATE`
+does:
 
 ```C
 gobj_send_event(tcp, EV_DROP, 0, gobj);     // ST_WAIT_STOPPED: the read is being canceled
@@ -102,7 +105,8 @@ Up to 7.25.10 `ST_WAIT_STOPPED` did not declare `EV_TX_DATA`: *"Event NOT
 DEFINED in state"*, one ERROR per message -- ten thousand in an hour on a sim
 of 300 controllers whose central went away. Up to 7.25.20 the data then went
 with no trace at the default levels (only the `connections` trace said it,
-per message). `tests/c/c_tcp` (`test_tcp_test7`).
+per message). `tests/c/c_tcp` (`test_tcp_test7`, also a `C_TCP` stopped and
+destroyed in `ST_WAIT_STOPPED`).
 
 ### A write that does not start
 

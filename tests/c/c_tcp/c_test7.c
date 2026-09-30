@@ -23,6 +23,11 @@
  *              2. 1 s later: the connection must have been dropped
  *                 (EV_DISCONNECTED); the C_TCP is stopped
  *              3. 1 s later: the C_TCP must be in ST_STOPPED
+ *              4. A second C_TCP connects, is dropped, and is sent "gone"
+ *                 (4 bytes) in ST_WAIT_STOPPED; on the next cycle of the
+ *                 loop, still in ST_WAIT_STOPPED, it is DESTROYED. Its
+ *                 drop is said too, at the destroy: the close never ended
+ *                 through the path that says it.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -73,6 +78,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj gobj_tcp;
+    hgobj gobj_tcp2;
     int fd_listen;
     int phase;
     int connected;
@@ -129,6 +135,12 @@ PRIVATE void mt_create(hgobj gobj)
         json_pack("{s:s}", "url", url),
         gobj
     );
+    priv->gobj_tcp2 = gobj_create(
+        "tcp_client2",
+        C_TCP,
+        json_pack("{s:s}", "url", url),
+        gobj
+    );
 }
 
 /***************************************************************************
@@ -167,6 +179,9 @@ PRIVATE int mt_stop(hgobj gobj)
     gobj_stop(priv->timer);
     if(gobj_is_running(priv->gobj_tcp)) {
         gobj_stop(priv->gobj_tcp);
+    }
+    if(priv->gobj_tcp2 && gobj_is_running(priv->gobj_tcp2)) {
+        gobj_stop(priv->gobj_tcp2);
     }
 
     return 0;
@@ -237,6 +252,21 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(src == priv->gobj_tcp2) {
+        gobj_send_event(priv->gobj_tcp2, EV_DROP, 0, gobj);
+        gbuffer_t *gbuf = gbuffer_create(16, 16);
+        gbuffer_append_string(gbuf, "gone");
+        gobj_send_event(
+            priv->gobj_tcp2,
+            EV_TX_DATA,
+            json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),    // the kw owns it
+            gobj
+        );
+        gobj_post_event(gobj, EV_TEST_DESTROY_TCP, json_object(), gobj);
+        KW_DECREF(kw)
+        return 0;
+    }
+
     priv->connected++;
     if(priv->connected == 1) {
         gobj_send_event(priv->gobj_tcp, EV_DROP, 0, gobj);
@@ -257,6 +287,35 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->phase = 1;
         set_timeout(priv->timer, 1000);
     }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The second C_TCP, still closing: destroyed
+ ***************************************************************************/
+PRIVATE int ac_destroy_tcp(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!gobj_in_this_state(priv->gobj_tcp2, ST_WAIT_STOPPED)) {
+        test_fail(gobj, "TEST: the second C_TCP is not closing (not in ST_WAIT_STOPPED): nothing tested");
+    }
+    gobj_stop(priv->gobj_tcp2);     // its stop waits too, in ST_WAIT_STOPPED
+    if(!gobj_in_this_state(priv->gobj_tcp2, ST_WAIT_STOPPED)) {
+        test_fail(gobj, "TEST: the stop of the second C_TCP did not wait: nothing tested");
+    }
+    gobj_destroy(priv->gobj_tcp2);
+    priv->gobj_tcp2 = 0;
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "TEST: a C_TCP destroyed while closing",
+        NULL
+    );
+    set_yuno_must_die();
 
     KW_DECREF(kw)
     return 0;
@@ -321,7 +380,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, 1000);
             break;
 
-        default:
+        case 2:
             if(!gobj_in_this_state(priv->gobj_tcp, ST_STOPPED)) {
                 test_fail(gobj, "TEST: the stop of the C_TCP did not end (ST_WAIT_STOPPED for ever)");
             } else {
@@ -332,6 +391,18 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     NULL
                 );
             }
+            gobj_start(priv->gobj_tcp2);
+            priv->phase = 3;
+            set_timeout(priv->timer, 2000);     // the connect must not take this long
+            break;
+
+        case 3:
+            test_fail(gobj, "TEST: the second C_TCP did not connect");
+            set_yuno_must_die();
+            break;
+
+        default:
+            test_fail(gobj, "TEST: unexpected phase");
             set_yuno_must_die();
             break;
     }
@@ -374,6 +445,7 @@ GOBJ_DEFINE_GCLASS(C_TEST7);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DEFINE_EVENT(EV_TEST_DESTROY_TCP);
 
 /***************************************************************************
  *
@@ -402,6 +474,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_STOPPED,            ac_stopped,         0},
         {EV_RX_DATA,            ac_transport_event, 0},
         {EV_TX_READY,           ac_transport_event, 0},
+        {EV_TEST_DESTROY_TCP,   ac_destroy_tcp,     0},
         {0, 0, 0}
     };
 
@@ -417,6 +490,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_STOPPED,            0},
         {EV_RX_DATA,            0},
         {EV_TX_READY,           0},
+        {EV_TEST_DESTROY_TCP,   0},
         {0, 0}
     };
 
