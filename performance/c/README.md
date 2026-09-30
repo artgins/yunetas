@@ -727,6 +727,52 @@ their retry timers and moved by whole seconds in every period
 projection), `test_tr_treedb_delete_instance` and `test_tr_treedb_files`
 gained cases, so their times cannot be compared. `timeranger2/test_topic_pkey_integer` stays at 1.84-2.12 s.
 
+### Sep-2026: 7.25.20 against 7.25.5 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
+
+Each release built whole from its own tree (a git worktree of the 7.25.5 tag,
+the same `.config`, compiler and `outputs_ext`), the two binaries of each
+benchmark run alternately, the order flipped every round, with a `sync` and a
+3 s pause before each run: 8 rounds, 24 for the three timeranger2 ctest
+binaries. Mean +- standard deviation. No module was padded or relinked, so a
+change under ~2.5% on an append is not told apart from code placement. The
+report: [`performance/reports/7.25.20.html`](../reports/7.25.20.html).
+
+| Case | 7.25.5 | 7.25.20 | Change |
+|------|--------|---------|--------|
+| `perf_c_treedb` `same_literal` (s) | 0.667 +- 0.051 | 0.318 +- 0.009 | x2.1 faster |
+| `perf_c_treedb` `seed` (s) | 11.09 +- 0.23 | 10.19 +- 0.40 | -8.1% |
+| `perf_c_treedb` `newer_literal` (s) | 13.56 +- 0.56 | 12.85 +- 0.71 | -5.3% (noise) |
+| `perf_tr_treedb` `update_memory` (us, CPU) | 2.762 +- 0.051 | 2.316 +- 0.037 | -16.2% |
+| `perf_tr_treedb` `update_saved` | 10.25 +- 0.26 | 7.66 +- 0.16 | -25.2% |
+| `perf_tr_treedb` `link_unlink` | 10.85 +- 0.23 | 8.65 +- 0.18 | -20.3% |
+| `perf_tr_treedb` `create_link_half` | 69.7 +- 1.0 | 64.9 +- 1.3 | -7.0% |
+| `perf_tr_treedb` `delete_parent` | 2996 +- 68 | 2478 +- 45 | -17.3% |
+| `perf_tr_treedb` `reopen`, `delete_force` | 392.0, 69.4 | 386.0, 68.5 | noise |
+| `test_topic_pkey_integer`, appends/s | 226,148 +- 5,101 | 226,720 +- 4,468 | +0.3% |
+| the same, with an rt list | 169,624 +- 3,376 | 191,284 +- 4,132 | +12.8% |
+| `perf_timeranger2` `build_appends` (ms) | 1717.6 +- 26.0 | 1750.3 +- 27.1 | +1.9% (noise) |
+| `perf_timeranger2` `tm_build_appends` (ms) | 1632.1 +- 38.6 | 1690.7 +- 40.2 | +3.6% (see below) |
+| `perf_timeranger2` `open_master`, `open_replica` (ms) | 78.6, 103.7 | 78.2, 104.0 | noise |
+| `perf_timeranger2` `tm_query_migrated`, `unmigrated` (ms) | 7.35, 390.1 | 7.35, 389.7 | noise |
+| reads, iterator / pages (records/s) | 189,582 / 169,498 | 188,895 / 168,796 | noise |
+| `perf_rotatory` audit / flushed / log (ns) | 569 / 1244 / 374 | 572 / 1244 / 375 | noise |
+| `perf_yev_ping_pong` / `2` (K msg/s) | 150.2 / 85.1 | 150.1 / 84.3 | noise |
+| `perf_tcp_test4` / `5` (round trips/s) | 38,151 / 29,614 | 38,191 / 30,073 | noise |
+| `perf_tcps_test4` / `5` (round trips/s) | 27,868 / 23,630 | 27,849 / 23,271 | noise |
+| `perf_auth_bff` (logins/s) | 8,448 | 8,347 | noise |
+
+Every gain has one cause, the `SWITCHS` fix of 7.25.7 (`3e8ff0508`): the macro
+compiled `regcomp(".*")` on entry and freed it only at `SWITCHS_END` (it leaked
+on every `return` from a case). `tr_treedb.c` switches on the type of every
+column, so each treedb write paid for it; `tr_treedb.c` and `c_treedb.c` did
+not change between the two releases. The rt-list gain is the benchmark's own
+callback, which switches on the key once per record.
+
+`tm_build_appends` +3.6% (t = 3.0) runs append code that is the same in both
+releases (`timeranger2.c` changed only in its rt-disk rescan): code
+placement, as far as this method can tell; `test_topic_pkey_integer`, 24 rounds,
+moved +0.3%.
+
 ### Key takeaways
 
 - **RelWithDebInfo vs Debug:** ~50% higher throughput with optimizations enabled.

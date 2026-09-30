@@ -1,6 +1,10 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.20 (2026-09-30)
+
+The last hole of the secret masking of 7.25.19, and the performance study of
+the fifteen releases since the last one (7.25.5): the report of this release
+measures 7.25.20 against 7.25.5.
 
 ### Kernel: `list-persistent-attrs` masks the secrets too
 
@@ -9,6 +13,25 @@
   still showed them in clear: the mask was applied one level above the
   `{<gobj>: {attrs}}` it answers. `gobj_list_persistent_attrs()` masks each
   gobj's attrs itself now; every caller of it shows what it answers.
+
+### Performance, against 7.25.5
+
+- The report of this release measures it against 7.25.5, the release of the
+  last report: [`performance/reports/7.25.20.html`](https://github.com/artgins/yunetas/blob/7.25.20/performance/reports/7.25.20.html),
+  and the trend on [doc.yuneta.io/performance](https://doc.yuneta.io/performance/).
+  Both releases built whole, run alternately, 8 rounds (24 for the timeranger2
+  tests).
+- Faster, all from the `SWITCHS` fix of 7.25.7 (it compiled a regex on every
+  entry): the open of 40 treedbs with an unchanged schema 0.667 -> 0.318 s
+  (x2.1), a saved treedb update -25.2%, link/unlink -20.3%, the delete of a
+  parent of 200 children -17.3%, an update in memory -16.2%, the first open of
+  40 treedbs -8.1%, a create -7.0%, appends with a live reader +12.8% (the
+  benchmark's callback uses `SWITCHS`).
+- Nothing slower beyond its noise. `tm_build_appends` +3.6% (at the edge of
+  the spread) runs the same append code in both releases: placement.
+  `test_topic_pkey_integer` +0.3%.
+- `make_report.py` takes the words of a report from its json (`story`), so a
+  report is no longer written for one release.
 
 ## v7.25.19 (2026-09-30)
 

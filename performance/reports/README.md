@@ -1,7 +1,7 @@
 # Performance reports
 
-Every Yuneta release ships a performance report: one self-contained `.html`
-page with charts, and the raw figures it was made from, in a `.json` file of
+A Yuneta release that moves a lot of code ships a performance report: one
+self-contained `.html` page with charts, and the raw figures it was made from, in a `.json` file of
 the same name. The page is written for someone who decides whether to adopt
 Yuneta. It shows what the release does on one machine, what changed against
 the release before, and every loss with its reason.
@@ -16,6 +16,7 @@ The same figures, release after release, are charted on
 
 | Release | Against | Report | Rendered | Raw figures |
 |---------|---------|--------|----------|-------------|
+| 7.25.20 | 7.25.5 | [7.25.20.html](7.25.20.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.20/performance/reports/7.25.20.html) | [7.25.20.json](7.25.20.json) |
 | 7.25.5 | 7.25.4 | [7.25.5.html](7.25.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/7.25.5.html) | [7.25.5.json](7.25.5.json) |
 
 ## Make the report of a release
@@ -129,4 +130,5 @@ unit or its `id` between releases.
 | `ab[].commit` | For `scope: change`, the commit measured. |
 | `ab[].change_pct` | `(current - previous) / previous x 100` of the means, in the figure's own unit. |
 | `figures[]` | One absolute figure of `version`, measured at tag time: `mean`, `sd`, `median`, `min`, `max`, `n`. `derived` says how a rate was computed from a benchmark's output. `headline` marks the figures shown first. |
+| `story` | Optional: the words of the page, which differ from release to release. `title`, `lead`, `hero` (`value`, `text`), `tiles` (`[id, label]` pairs of A/B figures), `append_note`, `ab_sub`, `ab_order` (the ids of the A/B chart, also used for the docs chart), `prices_sub`, `prices` (`[id, title]` pairs; `[]` for none) and `no_prices` (the text shown when `prices` is empty). Without it the page takes the words of the 7.25.5 report. |
 | `binaries[]` | Size of each static executable: `bytes` on disk (with debug information), `stripped_bytes`, and the `text` / `data` / `bss` of `size`. |

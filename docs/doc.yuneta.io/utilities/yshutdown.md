@@ -24,4 +24,4 @@ For a controlled redeploy of a single yuno, prefer the agent flow
 
 ## See also
 
-- [`utils/c/yshutdown/README.md`](https://github.com/artgins/yunetas/blob/7.25.18/utils/c/yshutdown/README.md).
+- [`utils/c/yshutdown/README.md`](https://github.com/artgins/yunetas/blob/7.25.20/utils/c/yshutdown/README.md).
