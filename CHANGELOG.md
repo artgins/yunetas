@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## v7.25.16 (2026-09-30)
+
+A lite release (control center and agent only): the two points the review of
+7.25.15 left in TODO.
+
+### Control center: two editors of one scenario
+
+- **`save-scenario` takes the `revision` the scenario was read at** and
+  refuses the save when it was saved (or deleted) since, naming who --
+  instead of the last writer silently winning. The revision is the record's
+  `g_rowid`, which `scenarios` and `save-scenario` now answer in
+  `__md_treedb__` (`updated_at` counts seconds: two saves in one second look
+  the same). Without `revision`, or 0, nothing is checked: a new scenario, or
+  an overwrite on purpose.
+
+### Agent: a yuno that runs but is not connected is answered for
+
+- `command-yuno`, `stats-yuno` and `authzs-yuno` sent nothing, and answered
+  nothing, for a matched yuno whose row has no channel (starting, or going):
+  the requester waited for ever, a control center running a scenario for its
+  step's whole deadline, with every other run held behind it. Now the command
+  is answered at once with an error when it reached none of the yunos, and
+  logged when it reached only some.
+
+### JS: gui_agent 0.29.4
+
+- The live view keeps the revision of the scenario it shows (from the list
+  and from each save) and sends it with a save of the same scenario; a
+  refusal says somebody saved it after it was opened (`scenario changed since
+  read`). A save under another name, confirmed first, is an overwrite and
+  sends none.
+
 ## v7.25.15 (2026-09-30)
 
 A lite release (control center and agent only, rule of 2026-09-29): only

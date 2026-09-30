@@ -330,18 +330,9 @@ later logs one *"Publish event WITHOUT subscribers"* (`EV_ON_OPEN` of
 `__input_side__`, autoplay) per agent that reconnects in between -- its
 subscription is made in `mt_play`.
 
-Left after the review of 2026-09-30 (the rest of it went into 7.25.15 /
-gui_agent 0.29.3):
-
-- **`save-scenario` is last-writer-wins.** Two operators editing one scenario
-  overwrite each other without a word, and the list opens the document it
-  cached when it was read. An `updated_at` sent back with the save and
-  compared there would refuse the stale one.
-- **A step to a yuno the agent has no channel for waits the whole
-  `run_step_timeout`**: `command_to_yuno()` in the agent answers nothing when
-  the yuno row has no `_channel_gobj` (a yuno starting, or just gone), so the
-  control center learns it only at the deadline -- and holds every other run
-  for those 30 s.
+The two points left by the review of 2026-09-30 went into 7.25.16: a save
+carries the revision it read (refused if somebody saved since), and the agent
+answers at once for a yuno that runs but is not connected.
 
 ## Agent: a C_COUNTER still running when the agent stops
 

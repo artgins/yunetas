@@ -40,7 +40,7 @@ Registered in the `command_table` of `src/c_controlcenter.c`:
 | `drop-agent`     | Drop the connection to a specific node.                                       |
 | `write-tty`      | Write bytes to a node's PTY console (the `yuno_agent22` backdoor).            |
 | `scenarios`      | List the scenarios, or one (`scenario_id=`).                                  |
-| `save-scenario`  | Create or replace a scenario, whole (`scenario={...}`), validated.            |
+| `save-scenario`  | Create or replace a scenario, whole (`scenario={...}`), validated; `revision=` (the `__md_treedb__.g_rowid` it was read at) refuses it when somebody saved it since. |
 | `delete-scenario`| Delete a scenario and its runs (`scenario_id=`).                              |
 | `run-scenario`   | Run the steps of an action of a scenario, in order (`scenario_id= action=`).   |
 | `scenario-runs`  | The runs of a scenario, newest first (`scenario_id=`).                        |

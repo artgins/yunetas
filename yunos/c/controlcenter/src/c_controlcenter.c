@@ -18,7 +18,7 @@
  *  yunos have no identity outside it (their identity, node + id, lives in
  *  each agent).
  *      scenarios [scenario_id=]            list them, or one
- *      save-scenario scenario={}           create or replace one (validated here)
+ *      save-scenario scenario={} [revision=]  create or replace one (validated here)
  *      delete-scenario scenario_id=        delete one and its runs
  *      run-scenario scenario_id= action=   run the steps of an action, in order
  *      scenario-runs scenario_id=          the runs of one, newest first
@@ -169,6 +169,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_save_scenario[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_JSON,      "scenario",     0,              0,          "The scenario, whole: {id, description, group, node, agent_url, yunos, links, actions, view}"),
+SDATAPM (DTP_INTEGER,   "revision",     0,              "0",        "The revision the scenario was read at (`__md_treedb__`g_rowid` in what `scenarios` answers): refused if it was saved since. 0: no check"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_run_scenario[] = {
@@ -1020,7 +1021,7 @@ PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             priv->gobj_treedb_controlcenter,
             "scenarios",
             json_pack("{s:s}", "id", scenario_id),
-            json_pack("{s:b}", "hook_size", 1),
+            json_pack("{s:b, s:b}", "hook_size", 1, "with_metadata", 1),
             gobj
         );
         if(!node) {
@@ -1040,7 +1041,7 @@ PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             priv->gobj_treedb_controlcenter,
             "scenarios",
             0,
-            json_pack("{s:b}", "hook_size", 1),
+            json_pack("{s:b, s:b}", "hook_size", 1, "with_metadata", 1),
             gobj
         );
     }
@@ -1059,6 +1060,13 @@ PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src
  *  Create a scenario, or replace it WHOLE: every column is written, so a
  *  field the new document leaves out is emptied, not kept. Who created it
  *  and when stays; who changed it and when is written each time.
+ *
+ *  `revision` is what makes two editors safe: the `g_rowid` of the
+ *  scenario when it was read (every save moves it; `updated_at` counts
+ *  seconds, too coarse to tell two saves apart). Given, a save over a
+ *  scenario saved since -- or deleted since -- is refused and says by whom
+ *  and when, instead of the last writer silently winning. 0 is no check:
+ *  a new scenario, or an overwrite asked for on purpose.
  ***************************************************************************/
 PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -1121,10 +1129,38 @@ PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj
         priv->gobj_treedb_controlcenter,
         "scenarios",
         json_pack("{s:s}", "id", scenario_id),
-        0,
+        json_pack("{s:b}", "with_metadata", 1),
         gobj
     );
     BOOL is_new = existing? FALSE : TRUE;
+
+    json_int_t revision = kw_get_int(gobj, kw, "revision", 0, KW_WILD_NUMBER);
+    json_int_t stored = existing?
+        kw_get_int(gobj, existing, "__md_treedb__`g_rowid", 0, KW_REQUIRED) : 0;
+    if(revision > 0 && revision != stored) {
+        json_t *jn_comment = existing?
+            json_sprintf("%s: scenario '%s' was saved by %s since you read it "
+                "(revision %lld, yours %lld): read it again",
+                gobj_yuno_role_plus_name(), scenario_id,
+                kw_get_str(gobj, existing, "updated_by", "", 0),
+                (long long)stored, (long long)revision) :
+            json_sprintf("%s: scenario '%s' was deleted since you read it",
+                gobj_yuno_role_plus_name(), scenario_id);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "save-scenario refused: the scenario changed since it was read",
+            "scenario_id",  "%s", scenario_id,
+            "revision",     "%lld", (long long)revision,
+            "stored",       "%lld", (long long)stored,
+            "username",     "%s", username,
+            NULL
+        );
+        JSON_DECREF(existing)
+        JSON_DECREF(jn_parsed)
+        JSON_DECREF(record)
+        return msg_iev_build_response(gobj, -1, jn_comment, 0, 0, kw);
+    }
     JSON_DECREF(existing)
     if(is_new) {
         json_object_set_new(record, "created_by", json_string(username));
@@ -1136,7 +1172,7 @@ PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj
         priv->gobj_treedb_controlcenter,
         "scenarios",
         record, // owned
-        json_pack("{s:b, s:b}", "create", 1, "hook_size", 1),
+        json_pack("{s:b, s:b, s:b}", "create", 1, "hook_size", 1, "with_metadata", 1),
         gobj
     );
     if(!node) {

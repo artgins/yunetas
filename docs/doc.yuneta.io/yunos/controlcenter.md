@@ -198,6 +198,21 @@ watch, or just a group of yunos to watch. It is a document saved whole:
 and writes every column: a key the new document leaves out is emptied, not
 kept.
 
+**Two editors of one scenario** (since 7.25.16). `scenarios` answers each
+scenario with its treedb metadata, and its `__md_treedb__.g_rowid` is the
+REVISION it was read at: every save moves it. Sent back as `revision=`, a save
+over a scenario somebody saved (or deleted) since is refused, naming who, and
+the editor reads it again instead of the last writer silently winning.
+Without `revision` (or with 0) there is no check: a new scenario, or an
+overwrite asked for on purpose. `updated_at` is not used for this: it counts
+seconds, and two saves in one second look the same.
+
+```bash
+ycommand ... -c 'scenarios scenario_id=t1'                # ... "__md_treedb__": {"g_rowid": 7, ...}
+ycommand ... -c 'save-scenario revision=7 scenario={...}' # saved: the answer carries g_rowid 8
+ycommand ... -c 'save-scenario revision=7 scenario={...}' # -> scenario 't1' was saved by ana since you read it (revision 8, yours 7): read it again
+```
+
 ```bash
 ycommand --url=wss://<cc-host>:1996 --yuno-role=controlcenter --yuno-service=controlcenter \
     -c 'save-scenario scenario={"id":"t1","node":"wattyzer","yunos":[{"id":"1620"}],"actions":{"report":[{"yuno":"1620","command":"help"}]}}'
