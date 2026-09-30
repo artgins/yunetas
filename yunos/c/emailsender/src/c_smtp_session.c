@@ -68,6 +68,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int start_bottom(hgobj gobj);
 PRIVATE int send_smtp_line(hgobj gobj, const char *line);
 PRIVATE int parse_response_code(const char *bf, size_t len, int *code, BOOL *is_final);
 PRIVATE int begin_send_current_message(hgobj gobj);
@@ -147,6 +148,7 @@ typedef struct _PRIVATE_DATA {
     int auth_reject_code;       /* SMTP reply code of a refused AUTH (5xx), forwarded on EV_ON_CLOSE as auth_rejected; 0 = none */
     char close_reply[REPLY_TEXT_MAX]; /* text of the reply that closed the session, forwarded on EV_ON_CLOSE as reply */
     json_int_t retry_delay;     /* ms the transport waits after the next aborted session; 0 = timeout_retry */
+    BOOL detached;              /* stopped: the connection closing is ours, nothing of it is told */
 } PRIVATE_DATA;
 
 
@@ -259,9 +261,7 @@ PRIVATE int mt_start(hgobj gobj)
         );
     }
 
-    if(bottom) {
-        gobj_start(bottom);
-    }
+    start_bottom(gobj);
 
     return 0;
 }
@@ -286,7 +286,25 @@ PRIVATE int mt_stop(hgobj gobj)
         send_smtp_line(gobj, "QUIT");
     }
 
-    gobj_stop(gobj_bottom_gobj(gobj));
+    /*
+     *  The owner stops us when it pauses, and closes the queue the message
+     *  in hand came from: it is dropped, the owner sends it again after its
+     *  play. The connection now closing is ours, not the server's: nothing
+     *  of it is told upward, and nothing of it paces the next one (see
+     *  ac_disconnected). Up to 7.25.20 the message survived the stop and
+     *  went out after the next start, answered to an owner that had
+     *  forgotten it.
+     */
+    cleanup_current_message(gobj);
+    if(st != ST_DISCONNECTED) {
+        priv->detached = TRUE;
+        priv->inform_on_close = FALSE;
+    }
+
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    if(bottom && gobj_is_running(bottom)) {
+        gobj_stop(bottom);
+    }
 
     return 0;
 }
@@ -300,6 +318,27 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 
+
+/***************************************************************************
+ *  Start the bottom C_TCP, unless its last stop has not ended yet: a pause
+ *  and a play in a row find it still closing (ST_WAIT_STOPPED), and C_TCP
+ *  refuses to start then ("Initial wrong tcp state"). It is started when
+ *  its EV_STOPPED comes (ac_stopped). Up to 7.25.20 a quick pause and
+ *  play left the session with no transport.
+ ***************************************************************************/
+PRIVATE int start_bottom(hgobj gobj)
+{
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    if(!bottom || gobj_is_running(bottom)) {
+        return 0;
+    }
+
+    gobj_state_t st = gobj_current_state(bottom);
+    if(st != ST_STOPPED && st != ST_DISCONNECTED) {
+        return 0;   // still closing: ac_stopped starts it
+    }
+    return gobj_start(bottom);
+}
 
 /***************************************************************************
  *  Write one SMTP command line (CRLF appended) to the bottom transport.
@@ -755,6 +794,20 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         istream_destroy(priv->istream_in);
         priv->istream_in = NULL;
     }
+
+    if(priv->detached) {
+        /*
+         *  The close of our own stop (mt_stop). A message the owner sent
+         *  after it played again waits here for the new connection.
+         */
+        priv->detached = FALSE;
+        priv->reject_code = 0;
+        priv->auth_reject_code = 0;
+        priv->close_reply[0] = 0;
+        KW_DECREF(kw)
+        return 0;
+    }
+
     cleanup_current_message(gobj);
 
     if(priv->inform_on_close) {
@@ -802,6 +855,15 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+
+    if(priv->detached) {
+        /*
+         *  A read that completed while our stop closed the connection:
+         *  the session it belongs to is over.
+         */
+        KW_DECREF(kw)
+        return 0;
+    }
 
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "rx %s <== %s",
@@ -1187,7 +1249,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     priv->jn_recipients = jn_rcpts;
     priv->recipient_index = 0;
 
-    if(gobj_current_state(gobj) == ST_IDLE) {
+    if(gobj_current_state(gobj) == ST_IDLE && !priv->detached) {
         int ret = begin_send_current_message(gobj);
         KW_DECREF(kw)
         return ret;
@@ -1222,13 +1284,27 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Bottom child stopped.
+ *  Bottom child stopped. If we were started again while it was closing
+ *  (a pause and a play in a row), it is started now; a message sent in
+ *  the meantime waits for its connection.
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     if(gobj_is_volatil(src)) {
         gobj_destroy(src);
+        KW_DECREF(kw)
+        return 0;
     }
+
+    if(gobj_is_running(gobj) && src == gobj_bottom_gobj(gobj)) {
+        start_bottom(gobj);
+        if(priv->jn_current_msg && gobj_current_state(src) == ST_DISCONNECTED) {
+            gobj_send_event(src, EV_CONNECT, 0, gobj);
+        }
+    }
+
     KW_DECREF(kw)
     return 0;
 }

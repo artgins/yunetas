@@ -123,6 +123,15 @@ a message is already in flight). The send completes normally and the following
 reconnect-to-deliver cycle log a spurious *"Event NOT DEFINED in state"* even
 though the mail was delivered.
 
+**Pause and play.** A pause (or the stop of the yuno) with a message in
+flight leaves it at the head of `emails_queue`, with no retry spent: the
+session drops what it holds and says nothing of the connection it closes, and
+the next play sends the queue again -- also when the play comes right after the
+pause, while the old connection is still closing (the session starts its
+`C_TCP` when that close ends). Up to 7.25.20 the pause freed the message while
+the emailsender kept pointing at it, and a queued message waited for the next
+email to be sent after a play.
+
 Inspect the queues at runtime: `ycommand command-yuno id=<id> command=list-queues`
 (also `remove-emails-failed` to drain the dead-letter queue).
 

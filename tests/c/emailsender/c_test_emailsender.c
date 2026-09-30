@@ -26,7 +26,35 @@
  *          "session"   a C_SMTP_SESSION of our own (no emailsender) sends
  *                      one message; the fake server refuses the login. The
  *                      EV_ON_CLOSE of the session must say so: auth_rejected
- *                      with the code, and the reply text.
+ *                      with the code (`expect_auth_code`), and the reply
+ *                      text (starting with `expect_reply`).
+ *          "pause"     one email is sent; when the fake server says the
+ *                      session connected (it is in its handshake, the email
+ *                      in flight), the `emailsender` service is paused and,
+ *                      in the next cycle of the loop, played again. The
+ *                      email must be delivered once, with no retry spent.
+ *          "shutdown"  one email is sent; when the fake server says the
+ *                      session connected, the yuno is told to die. The
+ *                      email stays queued, with nothing said about it.
+ *          "set_url_stash"  the `emailsender` service starts WITH
+ *                      credentials and a dead url: the email sent at the
+ *                      play waits in the SMTP session. `action_delay` ms
+ *                      later set-url-from gives it the fake server, and the
+ *                      service is paused and played. The email must be
+ *                      delivered once, at the new url.
+ *          "no_recipients"  an EV_SEND_EMAIL whose `to` holds no address
+ *                      (",", no cc), then a good one: the first goes to the failed
+ *                      queue once, the second is delivered.
+ *          "refill"    one email at the play, a second `action_delay` ms
+ *                      later, while the session waits to reconnect.
+ *          "late_server"  one email at the play, with the fake server down;
+ *                      the driver starts it `action_delay` ms later and
+ *                      measures how long the session takes to connect: at
+ *                      least `min_wait` ms, or its reconnection is not
+ *                      paced.
+ *          "url_log"   set-url-from gives the running service a dead url,
+ *                      then one email is sent: the session goes on with the
+ *                      url it runs on, and the log must say THAT one.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -52,7 +80,9 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE int send_one_email(hgobj gobj);
+PRIVATE int send_email_to(hgobj gobj, const char *to, const char *cc);
 PRIVATE int start_scenario(hgobj gobj);
+PRIVATE int set_url_from(hgobj gobj, const char *url, BOOL expect_wait);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -68,7 +98,12 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "scenario",         SDF_RD,             "send",     "send, set_user, set_url or session"),
 SDATA (DTP_STRING,      "smtp_url",         SDF_RD,             "",         "url of the fake server (set_user, set_url, session)"),
 SDATA (DTP_BOOLEAN,     "send_on_connect",  SDF_RD,             "0",        "scenario send: send when the fake server has a client"),
-SDATA (DTP_STRING,      "server_service",   SDF_RD,             "__input_side__", "service of the fake server, started here in set_url and session"),
+SDATA (DTP_STRING,      "server_service",   SDF_RD,             "__input_side__", "service of the fake server, started here in set_url, set_url_stash, late_server and session"),
+SDATA (DTP_STRING,      "dead_url",         SDF_RD,             "",         "url where nobody listens (url_log)"),
+SDATA (DTP_INTEGER,     "expect_auth_code", SDF_RD,             "535",      "scenario session: the auth_rejected code expected"),
+SDATA (DTP_STRING,      "expect_reply",     SDF_RD,             "535 5.7.8","scenario session: how the reply expected starts"),
+SDATA (DTP_INTEGER,     "action_delay",     SDF_RD,             "0",        "ms to the second step of set_url_stash, refill and late_server"),
+SDATA (DTP_INTEGER,     "min_wait",         SDF_RD,             "0",        "scenario late_server: ms the session must wait at least"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
@@ -85,8 +120,11 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     BOOL sent_on_connect;
+    BOOL acted_on_connect;  // scenarios "pause" and "shutdown": done once
     hgobj smtp;             // scenario "session": the session under test
-    hgobj input_side;       // scenarios "set_url" and "session": the fake server
+    hgobj input_side;       // the fake server, when the driver starts it
+    hgobj timer;            // the second step of a scenario
+    uint64_t server_started;// scenario "late_server": when (msectimer)
 } PRIVATE_DATA;
 
 
@@ -116,6 +154,8 @@ PRIVATE void mt_create(hgobj gobj)
         );
         priv->smtp = gobj_create_pure_child("smtp", C_SMTP_SESSION, kw_smtp, gobj);
     }
+
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 }
 
 /***************************************************************************
@@ -154,10 +194,11 @@ PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    clear_timeout(priv->timer);
     if(priv->smtp && gobj_is_running(priv->smtp)) {
         gobj_stop(priv->smtp);
     }
-    if(priv->input_side) {
+    if(priv->input_side && gobj_is_running(priv->input_side)) {
         gobj_stop_tree(priv->input_side);
     }
 
@@ -183,9 +224,30 @@ PRIVATE int start_scenario(hgobj gobj)
 
     const char *scenario = gobj_read_str_attr(gobj, "scenario");
 
-    if(strcmp(scenario, "set_url") == 0 || strcmp(scenario, "session") == 0) {
+    if(strcmp(scenario, "set_url") == 0 || strcmp(scenario, "session") == 0 ||
+            strcmp(scenario, "set_url_stash") == 0 || strcmp(scenario, "pause") == 0 ||
+            strcmp(scenario, "shutdown") == 0) {
         priv->input_side = gobj_find_service(gobj_read_str_attr(gobj, "server_service"), TRUE);
         gobj_start_tree(priv->input_side);
+    }
+
+    if(strcmp(scenario, "late_server") == 0 || strcmp(scenario, "refill") == 0 ||
+            strcmp(scenario, "set_url_stash") == 0) {
+        if(strcmp(scenario, "late_server") == 0) {
+            priv->input_side = gobj_find_service(gobj_read_str_attr(gobj, "server_service"), TRUE);
+        }
+        set_timeout(priv->timer, gobj_read_integer_attr(gobj, "action_delay"));
+        return send_one_email(gobj);
+    }
+
+    if(strcmp(scenario, "no_recipients") == 0) {
+        send_email_to(gobj, ",", "");
+        return send_one_email(gobj);
+    }
+
+    if(strcmp(scenario, "url_log") == 0) {
+        set_url_from(gobj, gobj_read_str_attr(gobj, "dead_url"), TRUE);
+        return send_one_email(gobj);
     }
 
     if(strcmp(scenario, "session") == 0) {
@@ -200,32 +262,8 @@ PRIVATE int start_scenario(hgobj gobj)
     }
 
     if(strcmp(scenario, "set_url") == 0) {
-        hgobj emailsender = gobj_find_service("emailsender", TRUE);
-        char command[PATH_MAX];
-        snprintf(command, sizeof(command),
-            "set-url-from url=%s",
-            gobj_read_str_attr(gobj, "smtp_url")
-        );
-        json_t *jn_resp = gobj_command(emailsender, command, json_object(), gobj);
-        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
-        if(strstr(comment, "pause and play")) {
-            gobj_log_info(gobj, 0,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "set-url-from says the url waits for a play",
-                NULL
-            );
-        } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "set-url-from does not say the url waits",
-                "comment",      "%s", comment,
-                NULL
-            );
-        }
-        JSON_DECREF(jn_resp)
-
-        gobj_pause(emailsender);
+        set_url_from(gobj, gobj_read_str_attr(gobj, "smtp_url"), TRUE);
+        gobj_pause(gobj_find_service("emailsender", TRUE));
         return gobj_post_event(gobj, EV_PLAY_EMAILSENDER, 0, gobj);
     }
 
@@ -259,13 +297,52 @@ PRIVATE int start_scenario(hgobj gobj)
 }
 
 /***************************************************************************
+ *  set-url-from url=<url> to the emailsender service. With expect_wait
+ *  the answer must say that the url waits for the next start.
+ ***************************************************************************/
+PRIVATE int set_url_from(hgobj gobj, const char *url, BOOL expect_wait)
+{
+    hgobj emailsender = gobj_find_service("emailsender", TRUE);
+    char command[PATH_MAX];
+    snprintf(command, sizeof(command), "set-url-from url=%s", url);
+    json_t *jn_resp = gobj_command(emailsender, command, json_object(), gobj);
+    const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
+    BOOL waits = strstr(comment, "pause and play")? TRUE : FALSE;
+    if(waits == expect_wait) {
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "set-url-from says the url waits for a play",
+            NULL
+        );
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "set-url-from does not say what is expected of the url",
+            "comment",      "%s", comment,
+            NULL
+        );
+    }
+    JSON_DECREF(jn_resp)
+    return waits? 0 : -1;
+}
+
+/***************************************************************************
  *  One email to the emailsender service
  ***************************************************************************/
 PRIVATE int send_one_email(hgobj gobj)
 {
+    return send_email_to(gobj, TEST_TO, TEST_CC);
+}
+
+/***************************************************************************
+ *  One email to `to` and `cc`, through the public EV_SEND_EMAIL
+ ***************************************************************************/
+PRIVATE int send_email_to(hgobj gobj, const char *to, const char *cc)
+{
     json_t *kw_email = json_pack("{s:s, s:s, s:s, s:s, s:s, s:b}",
-        "to", TEST_TO,
-        "cc", TEST_CC,
+        "to", to,
+        "cc", cc,
         "reply_to", "",
         "subject", "test",
         "body", "body of the test",
@@ -305,9 +382,48 @@ PRIVATE int ac_fake_client_connected(hgobj gobj, gobj_event_t event, json_t *kw,
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    const char *scenario = gobj_read_str_attr(gobj, "scenario");
+
     if(gobj_read_bool_attr(gobj, "send_on_connect") && !priv->sent_on_connect) {
         priv->sent_on_connect = TRUE;
         send_one_email(gobj);
+    }
+
+    if(strcmp(scenario, "pause") == 0 && !priv->acted_on_connect) {
+        /*
+         *  The session is in its handshake, the email in flight: pause, and
+         *  play in the next cycle, while its C_TCP is still closing.
+         */
+        priv->acted_on_connect = TRUE;
+        gobj_pause(gobj_find_service("emailsender", TRUE));
+        gobj_post_event(gobj, EV_PLAY_EMAILSENDER, 0, gobj);
+    }
+
+    if(strcmp(scenario, "shutdown") == 0 && !priv->acted_on_connect) {
+        priv->acted_on_connect = TRUE;
+        set_yuno_must_die();
+    }
+
+    if(strcmp(scenario, "late_server") == 0 && !priv->acted_on_connect) {
+        priv->acted_on_connect = TRUE;
+        uint64_t waited = time_in_milliseconds_monotonic() - priv->server_started;
+        json_int_t min_wait = gobj_read_integer_attr(gobj, "min_wait");
+        if((json_int_t)waited >= min_wait) {
+            gobj_log_info(gobj, 0,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "The session waited its paced time to connect",
+                NULL
+            );
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "The session connected before its paced time",
+                "waited",       "%ld", (long)waited,
+                "min_wait",     "%ld", (long)min_wait,
+                NULL
+            );
+        }
     }
 
     KW_DECREF(kw)
@@ -315,12 +431,49 @@ PRIVATE int ac_fake_client_connected(hgobj gobj, gobj_event_t event, json_t *kw,
 }
 
 /***************************************************************************
- *  Scenario "set_url": the service was paused, play it and send
+ *  The second step of a scenario
+ ***************************************************************************/
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *scenario = gobj_read_str_attr(gobj, "scenario");
+
+    if(strcmp(scenario, "refill") == 0) {
+        send_one_email(gobj);
+
+    } else if(strcmp(scenario, "late_server") == 0) {
+        priv->server_started = time_in_milliseconds_monotonic();
+        gobj_start_tree(priv->input_side);
+
+    } else if(strcmp(scenario, "set_url_stash") == 0) {
+        set_url_from(gobj, gobj_read_str_attr(gobj, "smtp_url"), TRUE);
+        gobj_pause(gobj_find_service("emailsender", TRUE));
+        gobj_post_event(gobj, EV_PLAY_EMAILSENDER, 0, gobj);
+
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_TIMEOUT in a scenario without a second step",
+            "scenario",     "%s", scenario,
+            NULL
+        );
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The service was paused, play it (and send, in scenario "set_url")
  ***************************************************************************/
 PRIVATE int ac_play_emailsender(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_play(gobj_find_service("emailsender", TRUE));
-    send_one_email(gobj);
+    if(strcmp(gobj_read_str_attr(gobj, "scenario"), "set_url") == 0) {
+        send_one_email(gobj);
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -349,8 +502,11 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     int auth_rejected = (int)kw_get_int(gobj, kw, "auth_rejected", 0, 0);
     const char *reply = kw_get_str(gobj, kw, "reply", "", 0);
+    int expect_code = (int)gobj_read_integer_attr(gobj, "expect_auth_code");
+    const char *expect_reply = gobj_read_str_attr(gobj, "expect_reply");
 
-    if(auth_rejected == 535 && strncmp(reply, "535 5.7.8", 9) == 0) {
+    if(auth_rejected == expect_code &&
+            strncmp(reply, expect_reply, strlen(expect_reply)) == 0) {
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "Refused login reported with its reply",
@@ -442,6 +598,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,                ac_on_open,                 0},
         {EV_ON_CLOSE,               ac_on_close,                0},
         {EV_ON_MESSAGE,             ac_on_message,              0},
+        {EV_TIMEOUT,                ac_timeout,                 0},
         {0,0,0}
     };
 
@@ -457,6 +614,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,        0},
         {EV_ON_CLOSE,       0},
         {EV_ON_MESSAGE,     0},
+        {EV_TIMEOUT,        0},
         {0, 0}
     };
 

@@ -17,7 +17,19 @@ against a fake SMTP server.
   later: a test acts while the client is in its handshake. With `auth_min_gaps` an
   AUTH sooner than its gap after the previous one is an ERROR ("Fake smtp: AUTH
   too early").
+  RCPT TO and the end of DATA are answered from `rcpt_replies` and
+  `data_replies` the same way; only a 250 to the end of DATA is a delivery
+  (anything else logs "Fake smtp: message refused"), and after a `421` the
+  server closes the connection. `connection_plan` says what it does with each
+  connection: `greet`, `drop` (closed at once), `garbage` (two malformed lines
+  in one write) or `long_line` (a line longer than the client's reply buffer).
+  `connect_min_gaps` / `connect_max_gaps` and `data_min_gaps` check the pacing
+  of the connections and of the uploads like `auth_min_gaps` ("Fake smtp:
+  connection too early" / "too late", "Fake smtp: DATA too early").
 - **Driver**: `C_TEST_EMAILSENDER`, one `scenario` per test (see its header).
+  A test that needs the fake server up before the emailsender connects lists it
+  first, `autostart`/`autoplay`, under its own name (the emailsender starts and
+  stops its `__input_side__` with its own play and pause).
 
 Each test also lists the messages it expects logged as ERROR (most expect
 none): the list of expected logs says what was logged, not at which level, so
@@ -38,3 +50,6 @@ that exit into a failure.
 | `set_url_running` | 7824 | the service starts WITH credentials and the dead url, so its session runs; `set-url-from` gives it the url of the fake server (its answer says the url waits for the next start), the service is paused and played, and the email is delivered at the new url. Up to 7.25.20 the session kept the url it was created with until the yuno was restarted. Here the fake server is not the service's `__input_side__` (a pause stops that one): the driver starts it |
 | `send_in_handshake` | 7825 | the email is sent while the SMTP session waits for the greeting: it waits for the handshake and is delivered. Up to 7.25.20 `C_SMTP_SESSION` took `EV_SEND_MESSAGE` only disconnected or idle: "Event NOT DEFINED", and since the emailsender retries a refused send at once, every retry was spent in the same instant and the email went to the failed queue |
 | `auth_backoff` | 7826 | the server answers `454` to three AUTHs, then `235`; with `timeout_retry` 1 s the gaps between the AUTHs must be at least 1, 2 and 4 s, and the email is delivered. Up to 7.25.20 every retry came after the transport's fixed 2 s: "Fake smtp: AUTH too early" at the fourth |
+| `pause_in_flight` | 7827 | the emailsender is paused while its email is in flight (the session in its handshake) and played in the next cycle of the loop, its C_TCP still closing: the email is delivered once, no retry spent. Up to 7.25.20 the pause freed the queued message while `qmsg_cur_email` kept pointing at it (the late `EV_ON_CLOSE` resolved freed memory: "email NOT sent, will retry"), and the play restarted a C_TCP still closing ("Initial wrong tcp state") |
+| `shutdown_in_flight` | 7830 | the yuno is told to die with the email in flight: it stays queued and nothing is said about it. Up to 7.25.20 the `EV_ON_CLOSE` of the closing session resolved the freed message (a segfault here) |
+| `set_url_stash` | 7831 | the email of the play waits in the SMTP session (dead url); `set-url-from` gives it the fake server, and a pause and a play send it once, at the new url. Up to 7.25.20 the waiting message survived the stop of the session and the owner kept a dangling pointer to its queued copy |

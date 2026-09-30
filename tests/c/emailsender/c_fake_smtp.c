@@ -29,6 +29,23 @@
  *          greeting, which then waits banner_delay more), so a test can act
  *          DURING the handshake.
  *
+ *          RCPT TO and the end of DATA are answered with the lines of
+ *          `rcpt_replies` and `data_replies`, like AUTH. Only a 250 to the
+ *          end of DATA is a delivery; any other answer is logged as
+ *          "Fake smtp: message refused". After a 421, whatever it answers,
+ *          the server closes the connection, as RFC 5321 says it does.
+ *
+ *          `connection_plan` says what the server does with each connection
+ *          (one entry per connection, "greet" once they run out): "greet",
+ *          "drop" (close it at once, nothing said), "garbage" (two malformed
+ *          lines in one write) or "long_line" (a line longer than a client's
+ *          reply buffer). Each one but "greet" is logged (INFO).
+ *
+ *          `connect_min_gaps` / `connect_max_gaps` (ms, one per connection)
+ *          and `data_min_gaps` (ms, one per end of DATA) check the pacing of
+ *          the client like `auth_min_gaps`: "Fake smtp: connection too
+ *          early", "... too late", "Fake smtp: DATA too early" (ERRORs).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -49,7 +66,11 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE const char *nth_reply(hgobj gobj, const char *name, size_t count);
+PRIVATE json_int_t nth_gap(hgobj gobj, const char *name, size_t count);
+PRIVATE void drop_client(hgobj gobj);
 PRIVATE int send_reply(hgobj gobj, const char *reply);
+PRIVATE int greet_client(hgobj gobj);
 PRIVATE int process_line(hgobj gobj, const char *line);
 
 /***************************************************************************
@@ -67,6 +88,12 @@ SDATA (DTP_INTEGER,     "banner_delay",     SDF_RD,             "0",        "ms 
 SDATA (DTP_INTEGER,     "notify_delay",     SDF_RD,             "500",      "ms after a connection to tell notify_service"),
 SDATA (DTP_STRING,      "notify_service",   SDF_RD,             "",         "service told of each client connected (EV_FAKE_CLIENT_CONNECTED)"),
 SDATA (DTP_LIST,        "auth_min_gaps",    SDF_RD,             "[]",       "ms that AUTH n must come after AUTH n-1 (entry 0 unused)"),
+SDATA (DTP_LIST,        "rcpt_replies",     SDF_RD,             "[\"250 2.1.5 Ok\"]", "Answers to RCPT TO, one per RCPT, the last one repeated"),
+SDATA (DTP_LIST,        "data_replies",     SDF_RD,             "[\"250 2.0.0 Ok: queued\"]", "Answers to the end of DATA, one per message, the last one repeated"),
+SDATA (DTP_LIST,        "data_min_gaps",    SDF_RD,             "[]",       "ms that the end of DATA n must come after the end of DATA n-1 (entry 0 unused)"),
+SDATA (DTP_LIST,        "connection_plan",  SDF_RD,             "[]",       "What to do with each connection: greet, drop, garbage, long_line. greet when they run out"),
+SDATA (DTP_LIST,        "connect_min_gaps", SDF_RD,             "[]",       "ms that connection n must come after connection n-1 (entry 0 unused)"),
+SDATA (DTP_LIST,        "connect_max_gaps", SDF_RD,             "[]",       "ms that connection n must come within after connection n-1 (entry 0 unused, 0 = no check)"),
 SDATA (DTP_BOOLEAN,     "die_on_delivery",  SDF_RD,             "1",        "End the yuno a second after a message is delivered"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
@@ -87,9 +114,16 @@ typedef struct _PRIVATE_DATA {
     hgobj tcp;
     BOOL notify_pending;
     BOOL banner_pending;
+    BOOL die_pending;
     BOOL in_data;
     size_t auth_count;
+    size_t rcpt_count;
+    size_t data_count;
+    size_t conn_count;
     uint64_t auth_not_before;   /* msectimer: the next AUTH must not come sooner */
+    uint64_t data_not_before;   /* msectimer: the next end of DATA must not come sooner */
+    uint64_t conn_not_before;   /* msectimer: the next connection must not come sooner */
+    uint64_t conn_not_after;    /* msectimer: the next connection must not come later */
     char line[LINE_MAX];
     size_t line_len;
 } PRIVATE_DATA;
@@ -148,6 +182,59 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 /***************************************************************************
+ *  The answer number `count` of the list attr `name`, the last one when
+ *  they run out
+ ***************************************************************************/
+PRIVATE const char *nth_reply(hgobj gobj, const char *name, size_t count)
+{
+    json_t *jn_replies = gobj_read_json_attr(gobj, name);
+    size_t n = json_array_size(jn_replies);
+    if(n == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "list of replies is empty",
+            "attr",         "%s", name,
+            NULL
+        );
+        return NULL;
+    }
+    size_t idx = count < n? count : n - 1;
+    const char *reply = json_string_value(json_array_get(jn_replies, idx));
+    if(!reply) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "list of replies has no string answer",
+            "attr",         "%s", name,
+            NULL
+        );
+    }
+    return reply;
+}
+
+/***************************************************************************
+ *  Entry `count` of the list attr `name` of gaps, 0 when there is none
+ ***************************************************************************/
+PRIVATE json_int_t nth_gap(hgobj gobj, const char *name, size_t count)
+{
+    json_t *jn_gaps = gobj_read_json_attr(gobj, name);
+    return json_integer_value(json_array_get(jn_gaps, count));
+}
+
+/***************************************************************************
+ *  Close the connection of the client
+ ***************************************************************************/
+PRIVATE void drop_client(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->notify_pending = FALSE;
+    priv->banner_pending = FALSE;
+    gobj_send_event(priv->tcp, EV_DROP, 0, gobj);
+}
+
+/***************************************************************************
  *  One reply line, CRLF added
  ***************************************************************************/
 PRIVATE int send_reply(hgobj gobj, const char *reply)
@@ -166,7 +253,57 @@ PRIVATE int send_reply(hgobj gobj, const char *reply)
     json_t *kw_tx = json_pack("{s:I}",
         "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
-    return gobj_send_event(priv->tcp, EV_TX_DATA, kw_tx, gobj);
+    int ret = gobj_send_event(priv->tcp, EV_TX_DATA, kw_tx, gobj);
+
+    if(strncmp(reply, "421", 3) == 0) {
+        drop_client(gobj);
+    }
+    return ret;
+}
+
+/***************************************************************************
+ *  Greet a client, or do with it what the connection plan says
+ ***************************************************************************/
+PRIVATE int greet_client(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_plan = gobj_read_json_attr(gobj, "connection_plan");
+    const char *plan = json_string_value(json_array_get(jn_plan, priv->conn_count - 1));
+    if(!plan || strcmp(plan, "greet") == 0) {
+        return send_reply(gobj, "220 fake.smtp ESMTP");
+    }
+
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "Fake smtp: connection not greeted",
+        "plan",         "%s", plan,
+        NULL
+    );
+
+    if(strcmp(plan, "drop") == 0) {
+        drop_client(gobj);
+        return 0;
+    }
+    if(strcmp(plan, "garbage") == 0) {
+        return send_reply(gobj, "garbage one\r\ngarbage two");
+    }
+    if(strcmp(plan, "long_line") == 0) {
+        char line[10000];
+        memset(line, 'x', sizeof(line) - 1);
+        memcpy(line, "220-", 4);
+        line[sizeof(line) - 1] = 0;
+        return send_reply(gobj, line);
+    }
+
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "connection_plan: unknown entry",
+        "plan",         "%s", plan,
+        NULL
+    );
+    return -1;
 }
 
 /***************************************************************************
@@ -179,13 +316,43 @@ PRIVATE int process_line(hgobj gobj, const char *line)
     if(priv->in_data) {
         if(strcmp(line, ".") == 0) {
             priv->in_data = FALSE;
+
+            if(priv->data_not_before && !test_msectimer(priv->data_not_before)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "Fake smtp: DATA too early",
+                    "data",         "%d", (int)priv->data_count,
+                    NULL
+                );
+            }
+            json_int_t next_gap = nth_gap(gobj, "data_min_gaps", priv->data_count + 1);
+            priv->data_not_before = next_gap > 0? start_msectimer((uint64_t)next_gap) : 0;
+
+            const char *reply = nth_reply(gobj, "data_replies", priv->data_count);
+            priv->data_count++;
+            if(!reply) {
+                // Error already logged
+                return -1;
+            }
+            if(strncmp(reply, "250", 3) != 0) {
+                gobj_log_info(gobj, 0,
+                    "msgset",       "%s", MSGSET_INFO,
+                    "msg",          "%s", "Fake smtp: message refused",
+                    "reply",        "%s", reply,
+                    NULL
+                );
+                return send_reply(gobj, reply);
+            }
+
             gobj_log_info(gobj, 0,
                 "msgset",       "%s", MSGSET_INFO,
                 "msg",          "%s", "Fake smtp: message delivered",
                 NULL
             );
-            send_reply(gobj, "250 2.0.0 Ok: queued");
+            send_reply(gobj, reply);
             if(gobj_read_bool_attr(gobj, "die_on_delivery")) {
+                priv->die_pending = TRUE;
                 set_timeout(priv->timer, 1000);
             }
         }
@@ -205,22 +372,13 @@ PRIVATE int process_line(hgobj gobj, const char *line)
                 NULL
             );
         }
-        json_t *jn_gaps = gobj_read_json_attr(gobj, "auth_min_gaps");
-        json_int_t next_gap = json_integer_value(json_array_get(jn_gaps, priv->auth_count + 1));
+        json_int_t next_gap = nth_gap(gobj, "auth_min_gaps", priv->auth_count + 1);
         priv->auth_not_before = next_gap > 0? start_msectimer((uint64_t)next_gap) : 0;
 
-        json_t *jn_replies = gobj_read_json_attr(gobj, "auth_replies");
-        size_t n = json_array_size(jn_replies);
-        size_t idx = priv->auth_count < n? priv->auth_count : n - 1;
-        const char *reply = json_string_value(json_array_get(jn_replies, idx));
+        const char *reply = nth_reply(gobj, "auth_replies", priv->auth_count);
         priv->auth_count++;
         if(!reply) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "auth_replies has no string answer",
-                NULL
-            );
+            // Error already logged
             return -1;
         }
         gobj_log_info(gobj, 0,
@@ -231,8 +389,25 @@ PRIVATE int process_line(hgobj gobj, const char *line)
         );
         return send_reply(gobj, reply);
     }
-    if(strncasecmp(line, "MAIL FROM:", 10) == 0 || strncasecmp(line, "RCPT TO:", 8) == 0) {
+    if(strncasecmp(line, "MAIL FROM:", 10) == 0) {
         return send_reply(gobj, "250 2.1.0 Ok");
+    }
+    if(strncasecmp(line, "RCPT TO:", 8) == 0) {
+        const char *reply = nth_reply(gobj, "rcpt_replies", priv->rcpt_count);
+        priv->rcpt_count++;
+        if(!reply) {
+            // Error already logged
+            return -1;
+        }
+        if(strncmp(reply, "250", 3) != 0) {
+            gobj_log_info(gobj, 0,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Fake smtp: RCPT refused",
+                "reply",        "%s", reply,
+                NULL
+            );
+        }
+        return send_reply(gobj, reply);
     }
     if(strcasecmp(line, "DATA") == 0) {
         priv->in_data = TRUE;
@@ -265,6 +440,30 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->in_data = FALSE;
     priv->line_len = 0;
 
+    if(priv->conn_not_before && !test_msectimer(priv->conn_not_before)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Fake smtp: connection too early",
+            "connection",   "%d", (int)priv->conn_count,
+            NULL
+        );
+    }
+    if(priv->conn_not_after && test_msectimer(priv->conn_not_after)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Fake smtp: connection too late",
+            "connection",   "%d", (int)priv->conn_count,
+            NULL
+        );
+    }
+    json_int_t min_gap = nth_gap(gobj, "connect_min_gaps", priv->conn_count + 1);
+    json_int_t max_gap = nth_gap(gobj, "connect_max_gaps", priv->conn_count + 1);
+    priv->conn_not_before = min_gap > 0? start_msectimer((uint64_t)min_gap) : 0;
+    priv->conn_not_after = max_gap > 0? start_msectimer((uint64_t)max_gap) : 0;
+    priv->conn_count++;
+
     if(!empty_string(gobj_read_str_attr(gobj, "notify_service"))) {
         priv->notify_pending = TRUE;
         set_timeout(priv->timer, gobj_read_integer_attr(gobj, "notify_delay"));
@@ -277,7 +476,24 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->banner_pending = TRUE;
         set_timeout(priv->timer, banner_delay);
     } else {
-        send_reply(gobj, "220 fake.smtp ESMTP");
+        greet_client(gobj);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The client is gone: what was waiting for it is not done
+ ***************************************************************************/
+PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->notify_pending = FALSE;
+    priv->banner_pending = FALSE;
+    if(!priv->die_pending) {
+        clear_timeout(priv->timer);
     }
 
     KW_DECREF(kw)
@@ -341,7 +557,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             priv->banner_pending = TRUE;
             set_timeout(priv->timer, banner_delay);
         } else {
-            send_reply(gobj, "220 fake.smtp ESMTP");
+            greet_client(gobj);
         }
         KW_DECREF(kw)
         return 0;
@@ -354,7 +570,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "msg",          "%s", "Fake smtp: greeting after the delay",
             NULL
         );
-        send_reply(gobj, "220 fake.smtp ESMTP");
+        greet_client(gobj);
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    if(!priv->die_pending) {
         KW_DECREF(kw)
         return 0;
     }
@@ -422,7 +643,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_idle[] = {
         {EV_CONNECTED,              ac_connected,               0},
         {EV_RX_DATA,                ac_rx_data,                 0},
-        {EV_DISCONNECTED,           ac_ignore,                  0},
+        {EV_DISCONNECTED,           ac_disconnected,            0},
         {EV_TX_READY,               ac_ignore,                  0},
         {EV_STOPPED,                ac_ignore,                  0},
         {EV_TIMEOUT,                ac_timeout,                 0},

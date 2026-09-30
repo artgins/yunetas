@@ -125,6 +125,9 @@ dropped while waiting:
   exactly one more attempt, never a loop.
 - The body is persisted as part of the queued message (a string), so it
   survives both retries and a yuno restart.
+- A pause (or the stop of the yuno) with a message in flight leaves it at the
+  head of `emails_queue` without spending a retry; the next play sends the
+  queue again, also when it comes right after the pause.
 - A message stays at the head of the queue until it is either sent or its
   attempts are exhausted. A transient send failure (server NACK, connection
   dropped mid-send) is retried up to `max_retries` total attempts.

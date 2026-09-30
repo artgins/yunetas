@@ -32,6 +32,7 @@ PRIVATE int open_queues(hgobj gobj);
 PRIVATE int start_smtp(hgobj gobj);
 PRIVATE BOOL set_smtp_url(hgobj gobj, const char *url);
 PRIVATE int close_queues(hgobj gobj);
+PRIVATE int tira_dela_cola(hgobj gobj);
 PRIVATE int process_smtp_response(
     hgobj gobj,
     q_msg_t *msg,
@@ -321,6 +322,13 @@ PRIVATE int mt_play(hgobj gobj)
     // gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
     gobj_start_tree(priv->gobj_input_side);
 
+    /*
+     *  What a pause left in the queue is sent now. Up to 7.25.20 it waited
+     *  for the next email queued: after a pause the session does not
+     *  connect by itself, so no EV_ON_OPEN came to send it.
+     */
+    tira_dela_cola(gobj);
+
     return 0;
 }
 
@@ -333,11 +341,24 @@ PRIVATE int mt_pause(hgobj gobj)
 
     /*--------------------------------*
      *      Stop smtp
+     *  It drops the message it holds, and tells nothing of the session
+     *  it closes: its answers would be about a message of a closed queue.
      *--------------------------------*/
     if(priv->smtp_started) {
         gobj_stop(priv->smtp);
         priv->smtp_started = FALSE;
     }
+    priv->smtp_ready = FALSE;
+
+    /*
+     *  close_queues() frees every queued message, the one in flight too.
+     *  It stays in the queue on disk, and the next play sends it again.
+     *  Up to 7.25.20 qmsg_cur_email kept pointing at it: the EV_ON_CLOSE
+     *  of the session still closing resolved freed memory, and a play
+     *  found a message "in flight" that was gone.
+     */
+    priv->qmsg_cur_email = NULL;
+    gobj_change_state(gobj, ST_IDLE);
 
     /*--------------------------------*
      *      Close queues
@@ -1233,6 +1254,16 @@ PRIVATE int process_smtp_response(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Paused, the queues are closed and their messages freed: whatever
+     *  this answer is about, there is nothing left to resolve, and the
+     *  message is sent again at the next play. A semantic guard, like the
+     *  one of tira_dela_cola().
+     */
+    if(!gobj_is_playing(gobj)) {
+        return 0;
+    }
 
     if(!msg) {
         /*
