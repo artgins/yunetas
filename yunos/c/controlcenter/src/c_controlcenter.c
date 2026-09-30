@@ -2738,7 +2738,10 @@ PRIVATE int ac_yuno_stats_relay(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     );
     BOOL reconnected = FALSE;
     if(gobj_requester) {
-        reconnected = !same_connection(gobj, kw, gobj_requester);
+        /*  Another connection holds the channel (a closed one holds 0 and
+         *  is not listening: that one is only gone).  */
+        reconnected = !same_connection(gobj, kw, gobj_requester) &&
+            connection_number(gobj_requester) != 0;
     } else {
         json_t *jn_next = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
         snprintf(dst_service, sizeof(dst_service), "%s",
