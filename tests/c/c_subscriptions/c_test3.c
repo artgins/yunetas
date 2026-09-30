@@ -34,6 +34,20 @@
  *         is matched: each repeat was a second subscription, each event
  *         arrived twice, and the withdrawal found nothing.
  *
+ *      5) A renamed subscription is not the plain one: EV_ON_MESSAGE
+ *         plain, then EV_ON_MESSAGE renamed to EV_TEST_RENAMED2, are two
+ *         subscriptions (each event arrives once under each name), and the
+ *         renamed kw withdraws only the renamed one. 7.25.5 found the plain
+ *         one as a repeat of the renamed kw, and replaced it.
+ *
+ *      6) Two renames of one event are two subscriptions: EV_ON_MESSAGE
+ *         renamed to EV_TEST_RENAMED and to EV_TEST_RENAMED2 both stay, and
+ *         each rename withdraws its own. 7.25.5 collapsed them into one,
+ *         and withdrawing either removed both.
+ *
+ *      7) A renamed `__own_event__` subscription repeated with the same kw
+ *         is still one.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -89,6 +103,7 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     int received;                   // EV_ON_MESSAGE received
     int renamed;                    // EV_TEST_RENAMED received, from EV_ON_MESSAGE
+    int renamed2;                   // EV_TEST_RENAMED2 received, from EV_ON_MESSAGE
 } PRIVATE_DATA;
 
 
@@ -318,13 +333,96 @@ PRIVATE int ac_test_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->renamed = 0;
     gobj_publish_event(gobj, EV_ON_MESSAGE, json_object());
     check(gobj, priv->renamed == 1, "each event arrives once, renamed");
-    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, kw_rename, gobj);
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_rename), gobj);
     check(gobj, count_subscriptions(gobj) == 0, "the same kw withdraws it (__rename_event_name__)");
 
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INFO,
         "msg",          "%s", "own event and renamed event override ok",
+        NULL
+    );
+
+    /*
+     *  5) A renamed subscription over a plain one: two subscriptions
+     */
+    json_t *kw_rename_bare = json_pack("{s:{s:s}}",
+        "__config__", "__rename_event_name__", EV_TEST_RENAMED2
+    );
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_rename_bare), gobj);
+    check(gobj, count_subscriptions(gobj) == 2, "a renamed subscription does not replace the plain one");
+    priv->received = 0;
+    priv->renamed2 = 0;
+    gobj_publish_event(gobj, EV_ON_MESSAGE, json_object());
+    check(gobj, priv->received == 1 && priv->renamed2 == 1, "each event arrives once, plain and renamed");
+
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, kw_rename_bare, gobj);
+    check(gobj, count_subscriptions(gobj) == 1, "the renamed kw withdraws only the renamed one");
+    priv->received = 0;
+    priv->renamed2 = 0;
+    gobj_publish_event(gobj, EV_ON_MESSAGE, json_object());
+    check(gobj, priv->received == 1 && priv->renamed2 == 0, "the plain one is the one left");
+
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    check(gobj, count_subscriptions(gobj) == 0, "the plain kw withdraws the plain one");
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "renamed over plain ok",
+        NULL
+    );
+
+    /*
+     *  6) Two renames of one event: two subscriptions
+     */
+    json_t *kw_rename2 = json_pack("{s:{s:s}, s:{s:s}}",
+        "__config__", "__rename_event_name__", EV_TEST_RENAMED2,
+        "__global__", "tag", "renamed"
+    );
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_rename), gobj);
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_rename2), gobj);
+    check(gobj, count_subscriptions(gobj) == 2, "two renames of one event are two subscriptions");
+    priv->renamed = 0;
+    priv->renamed2 = 0;
+    gobj_publish_event(gobj, EV_ON_MESSAGE, json_object());
+    check(gobj, priv->renamed == 1 && priv->renamed2 == 1, "each event arrives once under each name");
+
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, kw_rename, gobj);
+    check(gobj, count_subscriptions(gobj) == 1, "a rename withdraws only its own");
+    priv->renamed = 0;
+    priv->renamed2 = 0;
+    gobj_publish_event(gobj, EV_ON_MESSAGE, json_object());
+    check(gobj, priv->renamed == 0 && priv->renamed2 == 1, "the other rename is the one left");
+
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_rename2), gobj);
+    check(gobj, count_subscriptions(gobj) == 0, "the other rename withdraws its own");
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "two renames ok",
+        NULL
+    );
+
+    /*
+     *  7) A renamed __own_event__ subscription repeated is one
+     */
+    json_t *kw_own_rename = json_pack("{s:{s:s, s:b}}",
+        "__config__", "__rename_event_name__", EV_TEST_RENAMED2, "__own_event__", 1
+    );
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_own_rename), gobj);
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_own_rename), gobj);
+    check(gobj, count_subscriptions(gobj) == 1, "a repeated renamed __own_event__ subscription is one");
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, kw_own_rename, gobj);
+    check(gobj, count_subscriptions(gobj) == 0, "the same kw withdraws it (renamed __own_event__)");
+    JSON_DECREF(kw_rename2)
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "renamed own event override ok",
         NULL
     );
 
@@ -366,6 +464,23 @@ PRIVATE int ac_renamed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  EV_ON_MESSAGE of a subscription that renames it to EV_TEST_RENAMED2
+ ***************************************************************************/
+PRIVATE int ac_renamed2(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    check(gobj,
+        strcmp(kw_get_str(gobj, kw, "__original_event_name__", "", 0), EV_ON_MESSAGE)==0,
+        "the second renamed event carries its original name"
+    );
+    priv->renamed2++;
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *                          FSM
  ***************************************************************************/
 /*---------------------------------------------*
@@ -394,6 +509,7 @@ GOBJ_DEFINE_GCLASS(C_TEST3);
  *------------------------*/
 GOBJ_DEFINE_EVENT(EV_TEST_RUN);
 GOBJ_DEFINE_EVENT(EV_TEST_RENAMED);
+GOBJ_DEFINE_EVENT(EV_TEST_RENAMED2);
 
 /***************************************************************************
  *          Create the GClass
@@ -419,6 +535,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TEST_RUN,               ac_test_run,            0},
         {EV_ON_MESSAGE,             ac_on_message,          0},
         {EV_TEST_RENAMED,           ac_renamed,             0},
+        {EV_TEST_RENAMED2,          ac_renamed2,            0},
         {0,0,0}
     };
 
@@ -433,6 +550,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_TEST_RUN,               0},
         {EV_TEST_RENAMED,           0},
+        {EV_TEST_RENAMED2,          0},
         {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT},
         {NULL, 0}
     };

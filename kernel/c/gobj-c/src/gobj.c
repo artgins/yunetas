@@ -8435,7 +8435,12 @@ PRIVATE json_t * _create_subscription(
  *  to the stored `__global__`: with `kw` as it came, the same kw matched no
  *  subscription, a repeat of it was made twice (the subscriber got each
  *  event twice) and its withdrawal found nothing. Up to 7.25.4 the kw was
- *  compared as it came. Return a new reference.
+ *  compared as it came. A known renamed event goes into the kw as its
+ *  `renamed_event`, which _match_subscription() compares: it is what the
+ *  subscriber receives, so a plain and a renamed subscription, or two
+ *  renames of one event, are two. 7.25.5 dropped it, and a renamed kw
+ *  found the plain subscription, and any other rename, as a repeat of
+ *  itself. Return a new reference.
  ***************************************************************************/
 PRIVATE json_t *_subscription_match_kw(
     gobj_t *publisher,
@@ -8468,7 +8473,14 @@ PRIVATE json_t *_subscription_match_kw(
     const char *renamed_event = json_string_value(
         json_object_get(config_match, "__rename_event_name__")
     );
-    if(!empty_string(renamed_event) && gobj_find_event_type(renamed_event, 0, FALSE)) {
+    event_type_t *renamed_type = empty_string(renamed_event)?
+        NULL : gobj_find_event_type(renamed_event, 0, FALSE);
+    if(renamed_type) {
+        json_object_set_new(
+            kw_match,
+            "renamed_event",
+            json_integer((json_int_t)(uintptr_t)(renamed_type->event_name))
+        );
         json_object_del(config_match, "__rename_event_name__");
         json_t *global_match = json_object_get(kw_match, "__global__");
         if(event && json_size(global_match) > 0) {
@@ -8513,6 +8525,17 @@ PRIVATE BOOL _match_subscription(
     if(event) {
         gobj_event_t event_ = (gobj_event_t)(uintptr_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
         if(event != event_) {
+            return FALSE;
+        }
+    }
+
+    /*
+     *  Set by _subscription_match_kw() for a renamed kw, and present in a
+     *  stored subscription used as the kw (_delete_subscription())
+     */
+    if(kw_has_key(kw, "renamed_event")) {
+        if(kw_get_int(0, kw, "renamed_event", 0, 0) !=
+                kw_get_int(0, subs, "renamed_event", 0, 0)) {
             return FALSE;
         }
     }
