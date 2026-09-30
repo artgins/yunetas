@@ -192,4 +192,8 @@ is about, and runs it in the time zone of Madrid: an ordinary day, the turn of
 a month and of a year, and both changes of hour. Up to 7.25.20 the day was the
 one of `now - 86400`: the day BEFORE yesterday from 00:00 to 01:00 after the
 23-hour day of spring, and the same day from 23:00 on the 25-hour day of
-autumn.
+autumn. It also checks `day_before_of()` (N calendar days back: `keep_days`,
+`new_visitor_days`) and `moment_days_before()` (the same time of day N days
+back: the age of a `whois_cache_days` answer) across both changes; up to
+7.25.20 they were `t - N*86400`, an hour off per change of hour and a day off
+near midnight.

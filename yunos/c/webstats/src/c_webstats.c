@@ -139,7 +139,6 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report);
 PRIVATE gbuffer_t *break_tag_lines(gbuffer_t *src);
 PRIVATE const char *latency_str(double v, char *bf, size_t bfsize);
 PRIVATE const char *human_bytes(json_int_t n, char *bf, size_t bfsize);
-PRIVATE int date_of(hgobj gobj, time_t t, char *bf, size_t bfsize);
 PRIVATE int parse_access_line(const char *line, ACCESS_LINE *al);
 PRIVATE int count_key(hgobj gobj, json_t *jn_map, const char *key, const char *map_name);
 PRIVATE int count_keyn(hgobj gobj, json_t *jn_map, const char *key, size_t len, const char *map_name);
@@ -664,7 +663,7 @@ PRIVATE json_t *cmd_report_day(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_int_t keep_days = gobj_read_integer_attr(gobj, "keep_days");
     if(keep_days > 0) {
         char oldest[DATE_SIZE];
-        if(date_of(gobj, time(NULL) - keep_days*24*60*60, oldest, sizeof(oldest)) == 0) {
+        if(day_before_of(gobj, time(NULL), (int)keep_days, oldest, sizeof(oldest)) == 0) {
             if(strcmp(date, oldest) < 0) {
                 return msg_iev_build_response(
                     gobj,
@@ -988,42 +987,6 @@ PRIVATE json_t *cmd_preview_report(hgobj gobj, const char *cmd, json_t *kw, hgob
 
 
 
-
-/***************************************************************************
- *  "YYYY-MM-DD" of a time, in local time.
- *
- *  strftime() and not snprintf() of the tm fields: it is the call made for
- *  this, and it says whether the day fitted instead of leaving a silently
- *  cut date that would then be compared against every line of the file.
- ***************************************************************************/
-PRIVATE int date_of(hgobj gobj, time_t t, char *bf, size_t bfsize)
-{
-    struct tm tm;
-
-    if(!localtime_r(&t, &tm)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "localtime_r() FAILED",
-            "t",            "%ld", (long)t,
-            NULL
-        );
-        return -1;
-    }
-
-    if(strftime(bf, bfsize, "%Y-%m-%d", &tm) == 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Date does not fit in the buffer",
-            "bfsize",       "%d", (int)bfsize,
-            NULL
-        );
-        return -1;
-    }
-
-    return 0;
-}
 
 /***************************************************************************
  *  Arm the schedule for the next report_hour:report_minute.
@@ -2266,7 +2229,12 @@ PRIVATE int prune_store(hgobj gobj)
     }
 
     char oldest[DATE_SIZE];
-    if(date_of(gobj, time(NULL) - keep_days*24*60*60, oldest, sizeof(oldest)) < 0) {
+    /*
+     *  Days on the calendar: time(NULL) - keep_days*86400 is an hour off
+     *  across every change of hour, and near midnight that is a day (up
+     *  to 7.25.20 the oldest day kept moved by one twice a year).
+     */
+    if(day_before_of(gobj, time(NULL), (int)keep_days, oldest, sizeof(oldest)) < 0) {
         // Error already logged
         return -1;
     }
@@ -2425,7 +2393,7 @@ PRIVATE void compare_with_history(hgobj gobj)
 
     for(int back=1; back<=7; back++) {
         char date[DATE_SIZE];
-        if(date_of(gobj, target - back*24*60*60, date, sizeof(date)) < 0) {
+        if(day_before_of(gobj, target, (int)back, date, sizeof(date)) < 0) {
             continue;               // Error already logged
         }
 
@@ -2555,7 +2523,7 @@ PRIVATE void count_new_visitors(hgobj gobj)
 
     for(json_int_t back=1; back<=window; back++) {
         char date[DATE_SIZE];
-        if(date_of(gobj, target - back*24*60*60, date, sizeof(date)) < 0) {
+        if(day_before_of(gobj, target, (int)back, date, sizeof(date)) < 0) {
             continue;               // Error already logged
         }
 
@@ -3140,7 +3108,14 @@ PRIVATE json_t *whois_cache_from_history(hgobj gobj)
     if(days <= 0) {
         return jn_cache;
     }
-    json_int_t oldest = (json_int_t)time(NULL) - days*24*60*60;
+    /*
+     *  An answer is fresh for `days` calendar days, to the same time of
+     *  day: time(NULL) - days*86400 is an hour off across a change of hour.
+     */
+    json_int_t oldest = (json_int_t)moment_days_before(gobj, time(NULL), (int)days);
+    if(oldest < 0) {
+        return jn_cache;    // Error already logged
+    }
 
     struct tm tm;
     memset(&tm, 0, sizeof(tm));
@@ -3170,7 +3145,7 @@ PRIVATE json_t *whois_cache_from_history(hgobj gobj)
 
     for(json_int_t back=0; back<=days; back++) {
         char date[DATE_SIZE];
-        if(date_of(gobj, target - back*24*60*60, date, sizeof(date)) < 0) {
+        if(day_before_of(gobj, target, (int)back, date, sizeof(date)) < 0) {
             continue;               // Error already logged
         }
 
@@ -4270,7 +4245,7 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
             tm.tm_isdst = -1;
             time_t t = mktime(&tm);
             if(t != (time_t)-1) {
-                if(date_of(gobj, t - 24*60*60, yesterday, sizeof(yesterday)) == 0) {
+                if(day_before_of(gobj, t, 1, yesterday, sizeof(yesterday)) == 0) {
                     prev_record = load_report(gobj, yesterday);
                 }
             }

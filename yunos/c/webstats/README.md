@@ -228,6 +228,13 @@ Attributes of `C_WEBSTATS`, all settable from the batch config.
 from the timestamps, so there is no reason to race `logrotate`, and a report
 that is built at six is in the mailbox when somebody opens it.
 
+Every count of days is made on the calendar (`local_day.c`): the oldest day
+`keep_days` keeps, the `new_visitor_days` of history, the days back of the
+comparison, and the age of a `whois_cache_days` answer (the same time of day,
+N days before). Up to 7.25.20 they were `now - N*86400`, one hour off across
+each change of hour: near midnight the oldest day kept, or the window of new
+visitors, moved by one day twice a year.
+
 The stat `next_run` says when the schedule is armed for (epoch seconds). A run
 reports the day before its **slot**, and when it ends the next slot armed is
 always a later one: a timer that fires a little before its slot, with a run
