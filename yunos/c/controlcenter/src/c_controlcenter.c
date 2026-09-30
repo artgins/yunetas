@@ -2670,33 +2670,30 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_write_user_data(channel_gobj, "cc_connection", json_integer(0));
     }
 
-    const char *dst_service = json_string_value(
-        gobj_read_user_data(channel_gobj, "tty_mirror_dst_service")
-    );
-
-    if(!empty_string(dst_service)) {
-        hgobj gobj_requester = gobj_child_by_name(
-            priv->gobj_top_side,
-            dst_service
-        );
-
-        if(!gobj_requester) {
-            // Debe venir del agent
-        }
-
-        json_int_t mirror_connection = json_integer_value(
-            gobj_read_user_data(channel_gobj, "tty_mirror_dst_connection")
-        );
-        if(gobj_requester && mirror_connection &&
-                mirror_connection != connection_number(gobj_requester)) {
-            gobj_requester = 0;     // its channel is another client's now
-        }
-
-        if(gobj_requester) {
+    /*
+     *  The consoles mirrored through an agent's channel end with it: their
+     *  clients are dropped, each only if it is still the connection that
+     *  opened its console.
+     */
+    json_t *mirrors = gobj_read_user_data(channel_gobj, "tty_mirrors");
+    if(json_object_size(mirrors) > 0) {
+        json_t *dropped = json_object();
+        const char *console; json_t *jn_mirror;
+        json_object_foreach(mirrors, console, jn_mirror) {
+            const char *dst_service = kw_get_str(gobj, jn_mirror, "dst_service", "", 0);
+            hgobj gobj_requester = gobj_child_by_name(priv->gobj_top_side, dst_service);
+            json_int_t mirror_connection = kw_get_int(gobj, jn_mirror, "connection", 0, 0);
+            if(!gobj_requester || json_object_get(dropped, dst_service)) {
+                continue;
+            }
+            if(mirror_connection && mirror_connection != connection_number(gobj_requester)) {
+                continue;   // its channel is another client's now
+            }
+            json_object_set_new(dropped, dst_service, json_true());
             gobj_send_event(gobj_requester, EV_DROP, 0, gobj);
         }
-        gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(""));
-        gobj_write_user_data(channel_gobj, "tty_mirror_dst_connection", json_integer(0));
+        JSON_DECREF(dropped)
+        gobj_write_user_data(channel_gobj, "tty_mirrors", json_object());
     }
 
     KW_DECREF(kw);
@@ -2775,8 +2772,11 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
 
 /***************************************************************************
  *  HACK intermediate node
- *  The PTY of an open-console opens: the agent's channel remembers the
- *  client of its mirror, and the connection, to drop it if the agent goes.
+ *  The PTY of an open-console opens: the agent's channel remembers, per
+ *  console, the client of its mirror and its connection, to drop it if the
+ *  agent goes. Several consoles go through one agent's channel; a console
+ *  opened again by another client is that client's now, as the agent
+ *  routes it (add_console_route() refreshes the route of the channel).
  ***************************************************************************/
 PRIVATE int ac_tty_mirror_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -2796,9 +2796,15 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
     }
 
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
-    gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(dst_service));
-    gobj_write_user_data(channel_gobj, "tty_mirror_dst_connection", json_integer(
-        channel_of_side(priv->gobj_top_side, gobj_requester)? connection_number(gobj_requester) : 0
+    json_t *mirrors = gobj_read_user_data(channel_gobj, "tty_mirrors");
+    if(!json_is_object(mirrors)) {
+        mirrors = json_object();
+        gobj_write_user_data(channel_gobj, "tty_mirrors", mirrors);
+    }
+    json_object_set_new(mirrors, kw_get_str(gobj, kw, "data`name", "", 0), json_pack("{s:s, s:I}",
+        "dst_service", dst_service,
+        "connection", channel_of_side(priv->gobj_top_side, gobj_requester)?
+            connection_number(gobj_requester) : (json_int_t)0
     ));
 
     return relay_to_requester(gobj, event, kw, gobj_requester);
@@ -2806,8 +2812,8 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
 
 /***************************************************************************
  *  HACK intermediate node
- *  The PTY closes: the agent's channel forgets its mirror, whoever holds
- *  the client's channel now.
+ *  The PTY closes: the agent's channel forgets that console's mirror,
+ *  whoever holds the client's channel now.
  ***************************************************************************/
 PRIVATE int ac_tty_mirror_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -2817,8 +2823,10 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     }
 
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
-    gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(""));
-    gobj_write_user_data(channel_gobj, "tty_mirror_dst_connection", json_integer(0));
+    json_t *mirrors = gobj_read_user_data(channel_gobj, "tty_mirrors");
+    if(json_is_object(mirrors)) {
+        json_object_del(mirrors, kw_get_str(gobj, kw, "data`name", "", 0));
+    }
 
     char dst_service[NAME_MAX];
     hgobj gobj_requester = requester_of_answer(gobj, event, kw, dst_service, sizeof(dst_service));

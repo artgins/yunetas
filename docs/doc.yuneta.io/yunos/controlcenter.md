@@ -133,8 +133,14 @@ is delivered only while the channel still holds that connection. A stream
 with the gone ones (`reconnected=its channel holds another connection now` in
 the warning); an answer is dropped with a warning each (*"answer for a web
 client that is gone, dropped: its channel holds another connection now"*).
-When an agent's connection closes, the client of its console mirror is
-dropped only if it is still the connection that opened it. Up to 7.25.20 only
+When an agent's connection closes, the client of each console mirrored
+through it is dropped, once, and only if it is still the connection that
+opened that console. Several consoles go through one agent's connection; the
+control center keeps their clients per console name, and a console opened
+again by another client is that client's -- the agent routes it the same way
+(one route per console and control-center channel, refreshed by the re-open).
+Up to 7.25.20 the control center kept one client per agent connection: the
+last console opened, cleared by the close of any console. Up to 7.25.20 only
 `EV_YUNO_STATS` and the run's answer were checked: a slow answer, or a PTY
 stream, of the client that left reached the next one.
 

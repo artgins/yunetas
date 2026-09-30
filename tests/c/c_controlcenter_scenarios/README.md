@@ -50,6 +50,12 @@ the very same string, and the read looks right.
    `EV_YUNO_STATS`), routed to another client's channel with that client's
    connection: nothing reaches it, one warning each, and the sender's channel
    takes no mirror. Up to 7.25.20 all six were delivered.
+7. Several consoles mirrored through one agent's channel. Two clients, two
+   consoles: the agent's close drops both. One console opened again by another
+   client: only that client is dropped (the agent routes it to the last
+   opener). One client with two consoles, one closed: dropped once. Up to
+   7.25.20 the channel kept one client, the last opened, cleared by the close
+   of any console.
 
 ## Run
 

@@ -30,7 +30,9 @@
  *                name is taken by the next client; and the agent's close
  *                drops the client of its console mirror, and only it;
  *              - what only an agent sends, injected by a web client and
- *                routed to another client, reaches nobody.
+ *                routed to another client, reaches nobody;
+ *              - several consoles mirrored through one agent's channel:
+ *                the agent's close drops the client of each, once.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -311,11 +313,17 @@ PRIVATE json_t *agent_request(hgobj gobj, const char *what)
 }
 
 /***************************************************************************
- *  The agent sends `event` back along the route of `request` (not owned),
- *  as C_AGENT does: msg_iev_build_response() on the request, arriving
- *  from its channel of __input_side__.
+ *  The agent sends `event` with `jn_data` (owned, the PTY's {name, ...} of
+ *  a console) back along the route of `request` (not owned)
  ***************************************************************************/
-PRIVATE void agent_sends(hgobj gobj, gobj_event_t event, json_t *request, int result, const char *comment)
+PRIVATE void agent_sends_data(
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *request,
+    int result,
+    const char *comment,
+    json_t *jn_data
+)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -324,12 +332,22 @@ PRIVATE void agent_sends(hgobj gobj, gobj_event_t event, json_t *request, int re
         result,
         json_string(comment),
         0,
-        0,
+        jn_data,
         json_deep_copy(request)
     );
     kw_set_subdict_value(gobj, kw, "__temp__", "channel_gobj",
         json_integer((json_int_t)(uintptr_t)priv->agent_channel));
     gobj_send_event(priv->cc, event, kw, priv->input_side);
+}
+
+/***************************************************************************
+ *  The agent sends `event` back along the route of `request` (not owned),
+ *  as C_AGENT does: msg_iev_build_response() on the request, arriving
+ *  from its channel of __input_side__.
+ ***************************************************************************/
+PRIVATE void agent_sends(hgobj gobj, gobj_event_t event, json_t *request, int result, const char *comment)
+{
+    agent_sends_data(gobj, event, request, result, comment, NULL);
 }
 
 /***************************************************************************
@@ -793,10 +811,81 @@ PRIVATE int test_injected_agent_events(hgobj gobj, hgobj victim, hgobj attacker)
     }
     JSON_DECREF(received)
     json_t *mirrors = gobj_read_user_data(attacker, "tty_mirrors");
-    if(json_object_size(mirrors) != 0 ||
-            !empty_string(json_string_value(gobj_read_user_data(attacker, "tty_mirror_dst_service")))) {
+    if(json_object_size(mirrors) != 0) {
         ret += fail(gobj, "a client's channel took a mirror it injected", "");
     }
+    return ret;
+}
+
+/***************************************************************************
+ *  `client` opens `console` through the agent (yours: the route the agent
+ *  keeps), and the agent says it open
+ ***************************************************************************/
+PRIVATE json_t *open_console(hgobj gobj, hgobj client, const char *console)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("open-console"));
+    json_object_set_new(kw, "name", json_string(console));
+    check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, 0, "command-agent open-console");
+    json_t *route = agent_request(gobj, "open-console reaches the agent");
+    if(route) {
+        agent_sends_data(gobj, EV_TTY_OPEN, route, 0, "tty open",
+            json_pack("{s:s}", "name", console));
+    }
+    if(count_received(client, EV_TTY_OPEN, "tty open") != 1) {
+        fail(gobj, "a console opens on its client", console);
+    }
+    return route;
+}
+
+/***************************************************************************
+ *  7. Several consoles mirrored through one agent's channel: when the
+ *     agent goes, the client of each is dropped, once; a console opened
+ *     again by another client is that client's, as the agent routes it; a
+ *     console closed drops nobody
+ ***************************************************************************/
+PRIVATE int test_several_mirrors(hgobj gobj, hgobj client_a, hgobj client_b)
+{
+    int ret = 0;
+
+    /*  Two clients, two consoles  */
+    json_t *route_a = open_console(gobj, client_a, "console-a");
+    json_t *route_b = open_console(gobj, client_b, "console-b");
+    agent_closes(gobj);
+    if(count_received(client_a, EV_DROP, 0) != 1 || count_received(client_b, EV_DROP, 0) != 1) {
+        ret += fail(gobj, "the agent's close drops the client of each console", "");
+    }
+    JSON_DECREF(route_a)
+    JSON_DECREF(route_b)
+
+    /*  One console, opened again by another client  */
+    route_a = open_console(gobj, client_a, "console-a");
+    route_b = open_console(gobj, client_b, "console-a");
+    agent_closes(gobj);
+    if(count_received(client_a, EV_DROP, 0) != 0 || count_received(client_b, EV_DROP, 0) != 1) {
+        ret += fail(gobj, "a console opened again is its last client's", "");
+    }
+    JSON_DECREF(route_a)
+    JSON_DECREF(route_b)
+
+    /*  One client, two consoles, one closed  */
+    route_a = open_console(gobj, client_a, "console-a");
+    route_b = open_console(gobj, client_a, "console-b");
+    agent_sends_data(gobj, EV_TTY_CLOSE, route_b, 0, "tty close",
+        json_pack("{s:s}", "name", "console-b"));
+    if(count_received(client_a, EV_TTY_CLOSE, "tty close") != 1) {
+        ret += fail(gobj, "a console closes on its client", "");
+    }
+    agent_closes(gobj);
+    if(count_received(client_a, EV_DROP, 0) != 1) {
+        ret += fail(gobj, "the agent's close drops a client of two consoles once", "");
+    }
+    JSON_DECREF(route_a)
+    JSON_DECREF(route_b)
     return ret;
 }
 
@@ -831,6 +920,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_forged_step_answers(gobj, client1, client2);
     result += test_injected_agent_events(gobj, client1, client2);
     result += test_late_answers_to_another_client(gobj, client3);
+    result += test_several_mirrors(gobj, client1, client2);
 
     if(result == 0) {
         gobj_log_info(gobj, 0,
