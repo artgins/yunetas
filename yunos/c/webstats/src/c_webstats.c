@@ -37,6 +37,8 @@
 #include <glob.h>
 
 #include "c_log_reader.h"
+#include "ip_literals.h"
+#include "local_day.h"
 #include "c_webstats.h"
 
 /***************************************************************************
@@ -135,7 +137,6 @@ PRIVATE int accumulate_error_line(hgobj gobj, const char *line);
 PRIVATE int send_report(hgobj gobj);
 PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report);
 PRIVATE gbuffer_t *break_tag_lines(gbuffer_t *src);
-PRIVATE gbuffer_t *bracket_ip_literals(gbuffer_t *src);
 PRIVATE const char *latency_str(double v, char *bf, size_t bfsize);
 PRIVATE const char *human_bytes(json_int_t n, char *bf, size_t bfsize);
 PRIVATE int date_of(hgobj gobj, time_t t, char *bf, size_t bfsize);
@@ -302,6 +303,7 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj timer;                    // the daily schedule, seconds are accurate enough
+    time_t schedule_slot;           // the report_hour:report_minute the timer is armed for
     hgobj reader;                   // the file being read, or 0
 
     json_t *jn_files;               // files left in this run
@@ -589,7 +591,7 @@ PRIVATE json_t *cmd_send_yesterday(hgobj gobj, const char *cmd, json_t *kw, hgob
 PRIVATE json_t *run_yesterday(hgobj gobj, BOOL send, json_t *kw)
 {
     char date[DATE_SIZE];
-    if(date_of(gobj, time(NULL) - 24*60*60, date, sizeof(date)) < 0) {
+    if(yesterday_of(gobj, time(NULL), date, sizeof(date)) < 0) {
         return msg_iev_build_response(
             gobj,
             -1,
@@ -1068,6 +1070,7 @@ PRIVATE int arm_schedule(hgobj gobj)
         return -1;
     }
 
+    priv->schedule_slot = next;
     set_timeout(priv->timer, (json_int_t)(next - now) * 1000);
 
     return 0;
@@ -2200,12 +2203,13 @@ PRIVATE json_t *load_report(hgobj gobj, const char *date)
     }
 
     /*
-     *  Take the LAST row by asking for its rowid, not by asking for the
-     *  first row backward: from_rowid is a position among the rows the
-     *  iterator returns and `backward` does not turn it into a position
-     *  from the end. (1, 1, TRUE) hands back row 1 -- the OLDEST -- so a
-     *  day reported twice answered for ever with its first version, and a
-     *  re-run to correct a day changed nothing that anybody could read.
+     *  Every row of the day is read, newest first, because the answer is
+     *  not always the last one: it is the newest row WITH data (see above).
+     *  A day has one row per run of it, so the page is small. Rows are
+     *  addressed by position from the start: `backward` does not turn
+     *  from_rowid into a position from the end, (1, 1, TRUE) is the OLDEST
+     *  row -- which is how a day reported twice answered for ever with its
+     *  first version before 7.25.17.
      */
     size_t rows = tranger2_iterator_size(iterator);
     json_t *record = NULL;
@@ -3712,8 +3716,10 @@ PRIVATE int complete_run(hgobj gobj)
      *  lines, passed this guard, and stored (and mailed) NO DATA over a day
      *  of 4632 requests.
      *
-     *  Asked to send it, the run sends the STORED report instead: whoever
-     *  rebuilds a day with send=1 wants that day's mail.
+     *  Kept, the stored report IS the report of this run: it is the one
+     *  mailed (whoever rebuilds a day with send=1 wants that day's mail)
+     *  and the one published. Up to 7.25.20 the run mailed the stored one
+     *  and published the empty one it had read.
      */
     json_int_t got = report_activity(gobj, priv->jn_report);
 
@@ -3734,24 +3740,19 @@ PRIVATE int complete_run(hgobj gobj)
         }
     }
 
-    if(!stored) {
+    if(stored) {
+        JSON_DECREF(priv->jn_report)
+        priv->jn_report = stored;
+    } else {
         store_report(gobj);     // Error already logged
         prune_store(gobj);      // Error already logged
     }
 
     if(priv->send_when_done) {
-        if(stored) {
-            json_t *read_now = priv->jn_report;
-            priv->jn_report = stored;
-            send_report(gobj);  // Error already logged
-            priv->jn_report = read_now;
-        } else {
-            send_report(gobj);  // Error already logged
-        }
+        send_report(gobj);      // Error already logged
     }
-    JSON_DECREF(stored)
 
-    gobj_publish_event(gobj, EV_REPORT_READY, json_incref(priv->jn_report));
+    gobj_publish_event(gobj, EV_REPORT_READY, kw_incref(priv->jn_report));
 
     gobj_change_state(gobj, ST_IDLE);
 
@@ -3794,108 +3795,6 @@ PRIVATE gbuffer_t *break_tag_lines(gbuffer_t *src)
         gbuffer_append(dst, p+i, 1);
         if(p[i] == '>' && i+1 < len && p[i+1] == '<') {
             gbuffer_append(dst, "\n", 1);
-        }
-    }
-
-    return dst;
-}
-
-/***************************************************************************
- *  Write every IPv4 address of the text as [a.b.c.d].
- *
- *  MANDATORY for a mail body, like break_tag_lines(). OVH's outbound
- *  relay reads "34.140.132.132" as a Spanish phone number (+34 and nine
- *  digits), and in a report full of addresses marked "banned" that is
- *  enough for it to accept the mail (250 queued) and deliver it to NOBODY
- *  -- no bounce, no Junk, not at gmail or outlook either. Found on
- *  2026-09-30, bisecting wattyzer's report of 2026-09-29 down to one row
- *  of Top clients. Google Cloud addresses start with 34, so it comes back.
- *  Proven on the relay: [34.140.132.132] and 34.140.132.132/32 pass, and
- *  so does a middle dot; 34[.]140[.]132[.]132 -- the usual defang -- does
- *  NOT, nor does the last dot alone.
- *
- *  Only the TEXT between tags is touched, and only an address that stands
- *  on its own: one glued to a word, a slash or another dot is a version
- *  (Chrome/142.0.0.0), not an address. The stored record keeps the plain
- *  address; this is the mail's way of writing it.
- ***************************************************************************/
-PRIVATE BOOL ip_octet(const char *p, size_t len, size_t *used)
-{
-    size_t n = 0;
-    int value = 0;
-    while(n < len && n < 4 && p[n] >= '0' && p[n] <= '9') {
-        value = value*10 + (p[n] - '0');
-        n++;
-    }
-    if(n == 0 || n > 3 || value > 255) {
-        return FALSE;
-    }
-    *used = n;
-    return TRUE;
-}
-
-PRIVATE BOOL ip_neighbour(char c)
-{
-    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-           c == '.' || c == '/' || c == '_' || c == '-' || c == '[' || c == ']' || c == ':';
-}
-
-PRIVATE gbuffer_t *bracket_ip_literals(gbuffer_t *src)
-{
-    if(!src) {
-        return NULL;
-    }
-
-    char *p = gbuffer_cur_rd_pointer(src);
-    size_t len = gbuffer_leftbytes(src);
-
-    gbuffer_t *dst = gbuffer_create(len + len/8 + 1024, 16*1024*1024);
-    if(!dst) {
-        // Error already logged
-        return NULL;
-    }
-
-    BOOL in_tag = FALSE;
-    size_t i = 0;
-    while(i < len) {
-        char c = p[i];
-        if(c == '<') {
-            in_tag = TRUE;
-        } else if(c == '>') {
-            in_tag = FALSE;
-        }
-
-        size_t total = 0;
-        if(!in_tag && c >= '0' && c <= '9' && (i == 0 || !ip_neighbour(p[i-1]))) {
-            size_t at = i;
-            int octets = 0;
-            while(octets < 4) {
-                size_t used = 0;
-                if(!ip_octet(p+at, len-at, &used)) {
-                    break;
-                }
-                at += used;
-                octets++;
-                if(octets < 4) {
-                    if(at >= len || p[at] != '.') {
-                        break;
-                    }
-                    at++;
-                }
-            }
-            if(octets == 4 && (at >= len || !ip_neighbour(p[at]))) {
-                total = at - i;
-            }
-        }
-
-        if(total > 0) {
-            gbuffer_append(dst, "[", 1);
-            gbuffer_append(dst, p+i, total);
-            gbuffer_append(dst, "]", 1);
-            i += total;
-        } else {
-            gbuffer_append(dst, p+i, 1);
-            i++;
         }
     }
 
@@ -4879,14 +4778,18 @@ PRIVATE int send_report(hgobj gobj)
 
 
 /***************************************************************************
- *  The schedule fired: report the day that just ended.
+ *  The schedule fired: report the day before its SLOT, the day that ended
+ *  at the report_hour:report_minute it was armed for. Not the day before
+ *  the moment it fires: a timer a second early across midnight (report_hour
+ *  0) would report the day before that, and one fired late (a suspended
+ *  machine) the day after. Up to 7.25.20 it took time(NULL).
  ***************************************************************************/
 PRIVATE int ac_schedule(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     char date[DATE_SIZE];
-    if(date_of(gobj, time(NULL) - 24*60*60, date, sizeof(date)) < 0) {
+    if(yesterday_of(gobj, priv->schedule_slot, date, sizeof(date)) < 0) {
         // Error already logged
         arm_schedule(gobj);     // do not lose the schedule over one bad day
         KW_DECREF(kw)

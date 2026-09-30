@@ -30,13 +30,13 @@
  ***************************************************************************/
 PRIVATE int open_queues(hgobj gobj);
 PRIVATE int start_smtp(hgobj gobj);
+PRIVATE BOOL set_smtp_url(hgobj gobj, const char *url);
 PRIVATE int close_queues(hgobj gobj);
 PRIVATE int process_smtp_response(
     hgobj gobj,
     q_msg_t *msg,
     int result,
-    BOOL permanent,
-    const char *to
+    BOOL permanent
 );
 
 /***************************************************************************
@@ -119,6 +119,8 @@ SDATA (DTP_STRING,      "from",                 SDF_PERSIST|SDF_REQUIRED,"",    
 SDATA (DTP_STRING,      "from_beautiful",       SDF_PERSIST,            "",     "from with name"),
 SDATA (DTP_INTEGER,     "max_retries",          SDF_PERSIST|SDF_WR,     "4",    "Maximum retries to send email"),
 SDATA (DTP_INTEGER,     "timeout_inactivity",   SDF_PERSIST,            "30000", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
+SDATA (DTP_INTEGER,     "timeout_retry",        SDF_RD,                 "2000", "ms before connecting again after the SMTP server ended a session; doubles at each failure in a row up to timeout_retry_max, back to this after a message is delivered"),
+SDATA (DTP_INTEGER,     "timeout_retry_max",    SDF_RD,                 "600000", "Cap of the doubling of timeout_retry (ms)"),
 SDATA (DTP_BOOLEAN,     "only_test",            SDF_PERSIST|SDF_WR,     0,      "True when testing, send only to test_email"),
 SDATA (DTP_BOOLEAN,     "add_test",             SDF_PERSIST|SDF_WR,     0,      "True when testing, add test_email to send"),
 SDATA (DTP_STRING,      "test_email",           SDF_PERSIST|SDF_WR,     "",     "test email"),
@@ -213,9 +215,11 @@ PRIVATE void mt_create(hgobj gobj)
     }
     hostname[sizeof(hostname) - 1] = '\0';
 
-    json_t *kw_smtp = json_pack("{s:s, s:I, s:s, s:s, s:s}",
+    json_t *kw_smtp = json_pack("{s:s, s:I, s:I, s:I, s:s, s:s, s:s}",
         "url", gobj_read_str_attr(gobj, "url"),
         "timeout_inactivity", gobj_read_integer_attr(gobj, "timeout_inactivity"),
+        "timeout_retry", gobj_read_integer_attr(gobj, "timeout_retry"),
+        "timeout_retry_max", gobj_read_integer_attr(gobj, "timeout_retry_max"),
         "username", gobj_read_str_attr(gobj, "username"),
         "password", gobj_read_str_attr(gobj, "password"),
         "helo_name", hostname
@@ -431,6 +435,22 @@ PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgob
         );
     }
 
+    /*-----------------------------*
+     *      Optional url/from
+     *  Written BEFORE the SMTP side is started below: up to 7.25.20 it
+     *  started first, on the url it had.
+     *-----------------------------*/
+    BOOL url_waits = FALSE;
+    const char *url = kw_get_str(gobj, kw, "url", "", 0);
+    if(!empty_string(url)) {
+        url_waits = set_smtp_url(gobj, url);
+    }
+    const char *from = kw_get_str(gobj, kw, "from", "", 0);
+    if(!empty_string(from)) {
+        gobj_write_str_attr(gobj, "from", from);
+        gobj_save_persistent_attrs(gobj, json_string("from"));
+    }
+
     gobj_write_str_attr(gobj, "username", username);
     gobj_write_str_attr(gobj, "password", password);
     gobj_save_persistent_attrs(gobj, json_pack("[s,s]", "username", "password"));
@@ -446,24 +466,13 @@ PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgob
         start_smtp(gobj);
     }
 
-    /*-----------------------------*
-     *      Optional url/from
-     *-----------------------------*/
-    const char *url = kw_get_str(gobj, kw, "url", "", 0);
-    if(!empty_string(url)) {
-        gobj_write_str_attr(gobj, "url", url);
-        gobj_save_persistent_attrs(gobj, json_string("url"));
-    }
-    const char *from = kw_get_str(gobj, kw, "from", "", 0);
-    if(!empty_string(from)) {
-        gobj_write_str_attr(gobj, "from", from);
-        gobj_save_persistent_attrs(gobj, json_string("from"));
-    }
-
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Email username set: %s", username),
+        json_sprintf("%s: email username set: %s%s",
+            gobj_yuno_role_plus_name(), username,
+            url_waits? ". The new url is taken when the SMTP side starts again (pause and play the yuno)" : ""
+        ),
         0,
         0,
         kw  // owned
@@ -492,9 +501,9 @@ PRIVATE json_t *cmd_set_url_and_from(hgobj gobj, const char *cmd, json_t *kw, hg
         );
     }
 
+    BOOL url_waits = FALSE;
     if(!empty_string(url)) {
-        gobj_write_str_attr(gobj, "url", url);
-        gobj_save_persistent_attrs(gobj, json_string("url"));
+        url_waits = set_smtp_url(gobj, url);
     }
     if(!empty_string(from)) {
         gobj_write_str_attr(gobj, "from", from);
@@ -504,7 +513,10 @@ PRIVATE json_t *cmd_set_url_and_from(hgobj gobj, const char *cmd, json_t *kw, hg
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("URL/from set: %s/%s", url, from),
+        json_sprintf("%s: URL/from set: %s/%s%s",
+            gobj_yuno_role_plus_name(), url, from,
+            url_waits? ". The new url is taken when the SMTP side starts again (pause and play the yuno)" : ""
+        ),
         0,
         0,
         kw  // owned
@@ -760,6 +772,26 @@ PRIVATE int start_smtp(hgobj gobj)
     gobj_start(priv->smtp);
     priv->smtp_started = TRUE;
     return 0;
+}
+
+/***************************************************************************
+ *  Set the url of the SMTP server, ours (persisted) and the SMTP child's.
+ *
+ *  The child takes its url when it starts (its C_TCP is built, or given the
+ *  new url, in its mt_start): up to 7.25.20 only ours was written, and the
+ *  child went on with the url of its creation until the yuno was restarted.
+ *  Answers TRUE when the child is running already: the new url waits for
+ *  its next start.
+ ***************************************************************************/
+PRIVATE BOOL set_smtp_url(hgobj gobj, const char *url)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_write_str_attr(gobj, "url", url);
+    gobj_save_persistent_attrs(gobj, json_string("url"));
+    gobj_write_str_attr(priv->smtp, "url", url);
+
+    return priv->smtp_started;
 }
 
 /***************************************************************************
@@ -1078,7 +1110,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
                 NULL
             );
             priv->qmsg_cur_email = NULL;
-            process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, to?to:"");
+            process_smtp_response(gobj, qmsg_for_fail, -1, TRUE);
             KW_DECREF(msg);
             return -1;
         }
@@ -1124,7 +1156,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
     if(!mime_body) {
         /* Error already logged */
         priv->qmsg_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, to); // permanent: bad content
+        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE); // permanent: bad content
         KW_DECREF(msg);
         return -1;
     }
@@ -1149,7 +1181,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
         gobj_trace_json(gobj, msg, "json_pack() FAILED for kw_send");
         GBUFFER_DECREF(mime_body)
         priv->qmsg_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, to); // permanent: cannot build request
+        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE); // permanent: cannot build request
         KW_DECREF(msg);
         return -1;
     }
@@ -1175,7 +1207,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
          *  and here). Transient: retry on the next dequeue / reconnect.
          */
         priv->qmsg_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, FALSE, to);
+        process_smtp_response(gobj, qmsg_for_fail, -1, FALSE);
     }
 
     return 0;
@@ -1197,8 +1229,7 @@ PRIVATE int process_smtp_response(
     hgobj gobj,
     q_msg_t *msg,
     int result,
-    BOOL permanent,
-    const char *to
+    BOOL permanent
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1218,11 +1249,24 @@ PRIVATE int process_smtp_response(
         return tira_dela_cola(gobj);
     }
 
+    /*
+     *  The recipients are read back from the queued message, which stays in
+     *  its queue until it is unloaded below. Up to 7.25.20 the callers passed
+     *  them: a pointer into a json already released (tira_dela_cola), or ""
+     *  (a reply of the session).
+     */
+    json_t *jn_email = trq_msg_json(msg);   // Error already logged if NULL
+    const char *to = kw_get_str(gobj, jn_email, "to", "", 0);
+    const char *cc = kw_get_str(gobj, jn_email, "cc", "", 0);
+    const char *bcc = kw_get_str(gobj, jn_email, "bcc", "", 0);
+
     if(result >= 0) {
         gobj_log_info(gobj, 0,
             "msgset",   "%s", MSGSET_INFO,
             "msg",      "%s", "email sent",
             "to",       "%s", to,
+            "cc",       "%s", cc,
+            "bcc",      "%s", bcc,
             "url",      "%s", priv->url,
             NULL
         );
@@ -1242,6 +1286,8 @@ PRIVATE int process_smtp_response(
                 "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "email NOT sent, will retry",
                 "to",           "%s", to,
+                "cc",           "%s", cc,
+                "bcc",          "%s", bcc,
                 "url",          "%s", priv->url,
                 "attempt",      "%ld", (long)priv->cur_retries,
                 "max_retries",  "%ld", (long)priv->max_retries,
@@ -1256,6 +1302,8 @@ PRIVATE int process_smtp_response(
                 "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "email NOT sent, moved to failed queue",
                 "to",           "%s", to,
+                "cc",           "%s", cc,
+                "bcc",          "%s", bcc,
                 "url",          "%s", priv->url,
                 "attempt",      "%ld", (long)priv->cur_retries,
                 "max_retries",  "%ld", (long)priv->max_retries,
@@ -1267,6 +1315,8 @@ PRIVATE int process_smtp_response(
             priv->cur_retries = 0;
         }
     }
+
+    JSON_DECREF(jn_email)
 
     gobj_change_state(gobj, ST_IDLE);
     tira_dela_cola(gobj);
@@ -1427,6 +1477,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "msgset",       "%s", MSGSET_AUTH,
                 "msg",          "%s", "SMTP credentials rejected: exiting, NOT relaunched. Fix the credentials and run the yuno again",
                 "code",         "%d", auth_rejected,
+                "reply",        "%s", kw_get_str(gobj, kw, "reply", "", 0),
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "username",     "%s", gobj_read_str_attr(gobj, "username"),
                 NULL
@@ -1440,9 +1491,9 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              *  Session dropped with a message in flight. A 5xx code means the
              *  server rejected THIS message in its own transaction
              *  (MAIL FROM / RCPT TO / DATA) → permanent, dead-letter it.
-             *  No code (handshake failure: EHLO/banner — the server never saw
-             *  the message; a refused AUTH exits above) or a 4xx / plain drop
-             *  → transient,
+             *  No code (handshake failure: banner/EHLO, a transient 4xx to
+             *  AUTH — the server never saw the message; a 5xx to AUTH exits
+             *  above) or a 4xx / plain drop → transient,
              *  keep it queued for a retry (until max_retries). The SMTP child
              *  owns reconnection; we only resolve the in-flight message here.
              */
@@ -1450,7 +1501,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             BOOL permanent = (code >= 500 && code < 600);
             q_msg_t *qmsg = priv->qmsg_cur_email;
             priv->qmsg_cur_email = NULL;
-            process_smtp_response(gobj, qmsg, -1, permanent, "");
+            process_smtp_response(gobj, qmsg, -1, permanent);
         }
     }
 
@@ -1484,7 +1535,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     q_msg_t *qmsg = priv->qmsg_cur_email;
     priv->qmsg_cur_email = NULL;
-    process_smtp_response(gobj, qmsg, ok ? 0 : -1, permanent, "");
+    process_smtp_response(gobj, qmsg, ok ? 0 : -1, permanent);
 
     KW_DECREF(kw);
     return 0;

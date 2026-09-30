@@ -161,3 +161,21 @@ regex on entry that only `SWITCHS_END` freed, so each such `return` lost it:
 the leak is outside gbmem, so the test measures the libc heap (`mallinfo2()`)
 over 100000 x 3 returns (+1.06 GB with the old macro, +1 KB with the new one).
 A pattern that does not compile answers `FALSE` and is logged.
+
+`test_ip_literals` compiles webstats' `bracket_ip_literals()`
+(`yunos/c/webstats/src/ip_literals.c`), which writes every IPv4 address of the
+mail body as `[a.b.c.d]` so that a mail relay does not read it as a phone
+number. What stands on its own is bracketed, what is glued to a word, a slash
+or another number is a version and stays as it is (`Chrome/142.0.0.0`,
+`1.2.3.4.5`, `v1.2.3.4`, anything inside a tag). And the three forms that
+7.25.20 left bare because `.` and `:` counted as glue: the dot of a sentence
+end (`[a.b.c.d].`), a port (`[a.b.c.d]:443`), and the IPv4-mapped IPv6 form
+(`[::ffff:a.b.c.d]`).
+
+`test_local_day` compiles webstats' `yesterday_of()`
+(`yunos/c/webstats/src/local_day.c`), the day a report run at a given moment
+is about, and runs it in the time zone of Madrid: an ordinary day, the turn of
+a month and of a year, and both changes of hour. Up to 7.25.20 the day was the
+one of `now - 86400`: the day BEFORE yesterday from 00:00 to 01:00 after the
+23-hour day of spring, and the same day from 23:00 on the 25-hour day of
+autumn.

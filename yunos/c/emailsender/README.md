@@ -23,7 +23,21 @@ With either one blank the SMTP side does **not** start: the yuno runs, accepts
 and queues emails, and logs one ERROR (*"SMTP username or password is empty:
 emails are queued, NOT sent. Set them with the set-email-user command"*).
 `set-email-user` applies at once, with no restart: it hands the credentials to
-the SMTP session, starts it, and the queue is sent. (Before this, a blank
+the SMTP session, starts it, and the queue is sent. A `url=` (and a `from=`)
+given with them is written first, so the session starts on that url:
+
+```bash
+ycommand -c 'command-yuno id=<id> service=emailsender command=set-email-user username=<user> password=<password> url=smtps://ssl0.ovh.net:465'
+```
+
+A url changed while the SMTP session is already running (`set-email-user` or
+`set-url-from` on a yuno that was sending) is taken when the session starts
+again -- pause and play the yuno -- and the command's answer says so: the
+session hands the new url to its `C_TCP` in its `mt_start`, with a fresh copy
+of its `crypto` (the one `C_TCP` used holds the TLS server name of the old
+host). Up to 7.25.20 the session kept the url it was created with until the
+yuno was restarted, and `set-email-user ... url=` even started it on the old
+one. (Before this, a blank
 password made the service refuse to start, since both attrs were
 `SDF_REQUIRED`, so `set-email-user` had nothing to talk to.)
 
@@ -41,13 +55,51 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   code is carried up from `C_SMTP_SESSION` (via `EV_ON_CLOSE` for mid-transaction
   drops, `EV_ON_MESSAGE` for the DATA ack); `code in [500,600)` ⇒ permanent.
 - **Bad content** (MIME build / recipient parse failures) → permanent, dead-letter.
-- **Rejected credentials** (any reply but `235` to `AUTH PLAIN`) → the yuno logs
-  one ERROR and **exits with code 0** (`LOG_OPT_EXIT_ZERO`), so neither the
-  watcher nor the agent relaunches it: retrying wrong credentials is what gets the
-  node's address banned by the mail provider. `C_SMTP_SESSION` reports it on
+- **Rejected credentials** (a `5xx` to `AUTH PLAIN`: `535`, `534`, `530`,
+  `538`, ...) → the yuno logs one ERROR, with the server's reply text, and
+  **exits with code 0** (`LOG_OPT_EXIT_ZERO`), so neither the watcher nor the
+  agent relaunches it: retrying wrong credentials is what gets the node's
+  address banned by the mail provider. `C_SMTP_SESSION` reports it on
   `EV_ON_CLOSE` as `auth_rejected` (the reply code), apart from `code`: the
   message was never seen by the server, so it stays queued without spending a
   retry.
+- **A transient refusal of the login** (a `4xx` to `AUTH PLAIN`: `454`
+  temporary authentication failure, `421`, `432`, ...) says nothing of the
+  credentials: the session closes like any drop, the in-flight message spends
+  a retry, and the login is tried again at the next connection.
+- **Retries are paced.** After a session the server ends (a `4xx`, a refused
+  message, a reply that never comes), the next connection waits
+  `timeout_retry` ms (default `2000`), twice as long after each further failure
+  in a row, up to `timeout_retry_max` (default `600000`), and back to
+  `timeout_retry` once a message is delivered. The message spends one of its
+  `max_retries` per failure, so the two together say how long an outage the
+  queue rides out before a message goes to the failed queue: with the defaults,
+  four attempts are spread over 2 + 4 + 8 = 14 s; a batch config for a
+  provider known to have long outages raises `max_retries`
+  (`'max_retries': 10` covers about 17 minutes):
+
+  ```json
+  "kw": {
+      "max_retries": 10,
+      "timeout_retry": 2000,
+      "timeout_retry_max": 600000
+  }
+  ```
+
+  (Up to 7.25.20 every retry came after the transport's fixed 2 s, even
+  failing again and again: the four attempts of a message were gone in about
+  8 s.) (Up to 7.25.20
+  it was taken as a refusal, and a brief outage of the provider stopped the
+  yuno for good while the queue piled up.)
+- **Why a session closed**: every close caused by a reply of the server
+  (a refused login, a refused message, a failed EHLO, ...) carries that reply's
+  text on `EV_ON_CLOSE` as `reply`, next to its code.
+- **Severity**: a session the server ends -- a refusal, a `4xx`, an unexpected
+  or malformed reply, a reply that never comes -- is a **WARNING** of the
+  `Protocol` msgset from `C_SMTP_SESSION`, with the reply (capped at 512 bytes).
+  An ERROR from the session is our own failure (no memory, an encoder). What
+  the emailsender decides about the email stays as it was: `email NOT sent,
+  moved to failed queue` and the exit on rejected credentials are ERRORs.
 - **Binary bodies**: a non-UTF-8 body is persisted base64 under `body_base64`
   (a plain `json_string` would silently drop it) and decoded at send time.
 
