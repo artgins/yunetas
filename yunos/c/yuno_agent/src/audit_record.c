@@ -36,11 +36,12 @@
  *
  *          - A secret is never written: its value is replaced by
  *            `<redacted>`. A secret is a parameter whose name holds (any
- *            case) one of secret_name_parts[], or one of
- *            secret_name_joined[] once '_', '-', '.' and blanks are taken
- *            out, or "priv" and "key": password, user_passw, client_secret,
- *            access_token, api_key, x-api-key, http_cookie, private_key,
- *            ... (see those lists for why each one is there). And the
+ *            case) one of the parts of is_secret_name() (helpers.h, the one
+ *            list of the SDK), or one of its joined parts once '_', '-',
+ *            '.' and blanks are taken out, or "priv" and "key":
+ *            password, user_passw, client_secret, access_token, api_key,
+ *            x-api-key, http_cookie, private_key, ... (see its lists in
+ *            helpers.c for why each one is there). And the
  *            `value` of a write-attr whose `attribute` has such a name (any
  *            case, in the text, in the kw, in a kw string, or in the same
  *            json object; with its json escapes decoded: api\u005fkey).
@@ -227,41 +228,8 @@ PRIVATE const char *read_only_commands[] = {
 #define COMMAND_YUNO    "command-yuno"
 
 /*
- *  A parameter whose name holds one of these (any case) is a secret.
- *  Taken from the attributes and parameters of the SDK and of the projects
- *  (a scan of every SDATA / SDATAPM name, 2026-09-24):
- */
-PRIVATE const char *secret_name_parts[] = {
-    "passw",        // password, passwd, user_passw
-    "pwd",
-    "passphrase",   // the key of a private key file
-    "secret",       // secret, client_secret, kc_admin_client_secret, sign_secret
-    "token",        // token, access_token, refresh_token
-    "jwt",
-    "bearer",
-    "authorization",// an HTTP Authorization header: "Bearer <token>", "Basic <user:pass>"
-    "cookie",       // http_cookie (the session of a browser); cookie_domain is redacted too
-    "credential",
-    "salt",         // visitor_salt of webstats: with it the visitors can be told again
-    0
-};
-
-/*
- *  ... or one of these, once '_', '-', '.' and blanks are taken out
- *  (api_key, apikey, x-api-key, ESIOS_API_KEY; session_id, __session_id__)
- */
-PRIVATE const char *secret_name_joined[] = {
-    "apikey",       // api_key of wattyzer gate_pvpc (write-attr attribute=api_key value=...)
-    "sessionid",    // __session_id__ of c_ievent_srv / c_prot_mqtt2
-    "sessionkey",
-    "authdata",     // auth_data of c_prot_mqtt2 (the MQTT 5 auth data)
-    0
-};
-/*
- *  Not secrets, and kept: the PATH of a key or a certificate
- *  (ssl_certificate_key, ssl_trusted_certificate), cert_pem (a public
- *  certificate), the ids of treedb (pkey, rkey, tkey), in_session,
- *  mqtt_clean_session, max_sessions, authz, auth_method, ignore_private.
+ *  A parameter with a secret's name is a secret: is_secret_name() of
+ *  helpers.h holds the one list of the SDK
  */
 
 /***************************************************************************
@@ -664,95 +632,11 @@ PRIVATE BOOL has_reset(const char *command, json_t *kw)
 }
 
 /***************************************************************************
- *  TRUE if `name` (of `len` bytes) is the name of a secret parameter.
- *  One pass over the name, no copy: at each byte, only the parts that
- *  begin with that letter are compared. Any case; for the joined parts the
- *  bytes '_', '-', '.' and blanks of the name are skipped.
+ *
  ***************************************************************************/
-PRIVATE BOOL is_joiner(char c)
-{
-    return (c == '_' || c == '-' || c == '.' || c == ' ' || c == '\t')? TRUE: FALSE;
-}
-
 PRIVATE char ascii_lower(char c)
 {
     return (c >= 'A' && c <= 'Z')? (char)(c + ('a' - 'A')): c;
-}
-
-/*
- *  TRUE if `part` (lower case) begins at name[i]
- */
-PRIVATE BOOL part_at(const char *name, size_t len, size_t i, const char *part, BOOL joined)
-{
-    size_t j = i;
-    size_t k = 0;
-    while(part[k]) {
-        if(j >= len) {
-            return FALSE;
-        }
-        char c = name[j];
-        if(joined && k > 0 && is_joiner(c)) {
-            j++;
-            continue;
-        }
-        if(ascii_lower(c) != part[k]) {
-            return FALSE;
-        }
-        j++;
-        k++;
-    }
-    return TRUE;
-}
-
-/*
- *  The letters that begin a part (made once from the lists): at any other
- *  byte of a name nothing is compared
- */
-PRIVATE BOOL first_letters_done = FALSE;
-PRIVATE BOOL first_letters[256];
-
-PRIVATE void make_first_letters(void)
-{
-    for(int p=0; secret_name_parts[p]; p++) {
-        first_letters[(unsigned char)secret_name_parts[p][0]] = TRUE;
-    }
-    for(int p=0; secret_name_joined[p]; p++) {
-        first_letters[(unsigned char)secret_name_joined[p][0]] = TRUE;
-    }
-    first_letters['p'] = TRUE;  // priv
-    first_letters['k'] = TRUE;  // key
-    first_letters_done = TRUE;
-}
-
-PRIVATE BOOL is_secret_name(const char *name, size_t len)
-{
-    if(!first_letters_done) {
-        make_first_letters();
-    }
-    BOOL has_priv = FALSE;
-    BOOL has_key = FALSE;
-    for(size_t i=0; i<len; i++) {
-        char c = ascii_lower(name[i]);
-        if(!first_letters[(unsigned char)c]) {
-            continue;
-        }
-        for(int p=0; secret_name_parts[p]; p++) {
-            if(secret_name_parts[p][0] == c && part_at(name, len, i, secret_name_parts[p], FALSE)) {
-                return TRUE;
-            }
-        }
-        for(int p=0; secret_name_joined[p]; p++) {
-            if(secret_name_joined[p][0] == c && part_at(name, len, i, secret_name_joined[p], TRUE)) {
-                return TRUE;
-            }
-        }
-        if(c == 'p' && !has_priv) {
-            has_priv = part_at(name, len, i, "priv", FALSE);
-        } else if(c == 'k' && !has_key) {
-            has_key = part_at(name, len, i, "key", FALSE);
-        }
-    }
-    return (has_priv && has_key)? TRUE: FALSE;
 }
 
 PRIVATE key_kind_t key_kind(const char *key, size_t len, const redact_ctx_t *ctx)

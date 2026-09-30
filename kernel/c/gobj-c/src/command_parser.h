@@ -47,8 +47,10 @@ PUBLIC const sdata_desc_t *command_get_cmd_desc(
 );
 
 /*
- *  What a trace shows of a command: its SDF_SECRET parameters masked as
- *  "********", by the command table of `gobj`.
+ *  What a trace shows of a command: its SDF_SECRET parameters (by the
+ *  command table of `gobj`) and the keys with a secret's name
+ *  (is_secret_name(): the free keys of a SDF_WILD_CMD command) masked as
+ *  "********", whatever the json type of the value.
  *  command_mask_secret_kw() answers a NEW reference (a masked copy, or kw
  *  itself when nothing is secret; NULL for a NULL kw): decref it.
  *  command_mask_secret_line() answers a gbmem string ("name key=value..."

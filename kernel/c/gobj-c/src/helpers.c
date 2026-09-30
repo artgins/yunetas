@@ -1336,6 +1336,140 @@ PUBLIC char *get_parameter(char *s, char **save_ptr)
 }
 
 /***************************************************************************
+ *  The names of the secrets (is_secret_name()). A name that holds one of
+ *  these (any case) is a secret. Taken from the attributes and parameters
+ *  of the SDK and of the projects (a scan of every SDATA / SDATAPM name,
+ *  2026-09-24).
+ ***************************************************************************/
+PRIVATE const char *secret_name_parts[] = {
+    "passw",        // password, passwd, user_passw
+    "pwd",
+    "passphrase",   // the key of a private key file
+    "secret",       // secret, client_secret, kc_admin_client_secret, sign_secret
+    "token",        // token, access_token, refresh_token
+    "jwt",
+    "bearer",
+    "authorization",// an HTTP Authorization header: "Bearer <token>", "Basic <user:pass>"
+    "cookie",       // http_cookie (the session of a browser); cookie_domain is taken too
+    "credential",
+    "salt",         // visitor_salt of webstats: with it the visitors can be told again
+    0
+};
+
+/*
+ *  ... or one of these, once '_', '-', '.' and blanks are taken out
+ *  (api_key, apikey, x-api-key, ESIOS_API_KEY; session_id, __session_id__)
+ */
+PRIVATE const char *secret_name_joined[] = {
+    "apikey",       // api_key of wattyzer gate_pvpc (write-attr attribute=api_key value=...)
+    "sessionid",    // __session_id__ of c_ievent_srv / c_prot_mqtt2
+    "sessionkey",
+    "authdata",     // auth_data of c_prot_mqtt2 (the MQTT 5 auth data)
+    0
+};
+/*
+ *  Not secrets: the PATH of a key or a certificate (ssl_certificate_key,
+ *  ssl_trusted_certificate), cert_pem (a public certificate), the ids of
+ *  treedb (pkey, rkey, tkey), in_session, mqtt_clean_session,
+ *  max_sessions, authz, auth_method, ignore_private.
+ */
+
+PRIVATE BOOL is_name_joiner(char c)
+{
+    return (c == '_' || c == '-' || c == '.' || c == ' ' || c == '\t')? TRUE: FALSE;
+}
+
+PRIVATE char name_lower(char c)
+{
+    return (c >= 'A' && c <= 'Z')? (char)(c + ('a' - 'A')): c;
+}
+
+/*
+ *  TRUE if `part` (lower case) begins at name[i]
+ */
+PRIVATE BOOL name_part_at(const char *name, size_t len, size_t i, const char *part, BOOL joined)
+{
+    size_t j = i;
+    size_t k = 0;
+    while(part[k]) {
+        if(j >= len) {
+            return FALSE;
+        }
+        char c = name[j];
+        if(joined && k > 0 && is_name_joiner(c)) {
+            j++;
+            continue;
+        }
+        if(name_lower(c) != part[k]) {
+            return FALSE;
+        }
+        j++;
+        k++;
+    }
+    return TRUE;
+}
+
+/*
+ *  The letters that begin a part (made once from the lists): at any other
+ *  byte of a name nothing is compared
+ */
+PRIVATE BOOL secret_first_letters_done = FALSE;
+PRIVATE BOOL secret_first_letters[256];
+
+PRIVATE void make_secret_first_letters(void)
+{
+    for(int p=0; secret_name_parts[p]; p++) {
+        secret_first_letters[(unsigned char)secret_name_parts[p][0]] = TRUE;
+    }
+    for(int p=0; secret_name_joined[p]; p++) {
+        secret_first_letters[(unsigned char)secret_name_joined[p][0]] = TRUE;
+    }
+    secret_first_letters['p'] = TRUE;  // priv
+    secret_first_letters['k'] = TRUE;  // key
+    secret_first_letters_done = TRUE;
+}
+
+/***************************************************************************
+ *  TRUE if `name` (of `len` bytes) is the name of a secret.
+ *  One pass over the name, no copy: at each byte, only the parts that
+ *  begin with that letter are compared. Any case; for the joined parts the
+ *  bytes '_', '-', '.' and blanks of the name are skipped.
+ ***************************************************************************/
+PUBLIC BOOL is_secret_name(const char *name, size_t len)
+{
+    if(!name) {
+        return FALSE;
+    }
+    if(!secret_first_letters_done) {
+        make_secret_first_letters();
+    }
+    BOOL has_priv = FALSE;
+    BOOL has_key = FALSE;
+    for(size_t i=0; i<len; i++) {
+        char c = name_lower(name[i]);
+        if(!secret_first_letters[(unsigned char)c]) {
+            continue;
+        }
+        for(int p=0; secret_name_parts[p]; p++) {
+            if(secret_name_parts[p][0] == c && name_part_at(name, len, i, secret_name_parts[p], FALSE)) {
+                return TRUE;
+            }
+        }
+        for(int p=0; secret_name_joined[p]; p++) {
+            if(secret_name_joined[p][0] == c && name_part_at(name, len, i, secret_name_joined[p], TRUE)) {
+                return TRUE;
+            }
+        }
+        if(c == 'p' && !has_priv) {
+            has_priv = name_part_at(name, len, i, "priv", FALSE);
+        } else if(c == 'k' && !has_key) {
+            has_key = name_part_at(name, len, i, "key", FALSE);
+        }
+    }
+    return (has_priv && has_key)? TRUE: FALSE;
+}
+
+/***************************************************************************
  *  Extract key=value or key='this value' parameter
  *  Return the value, the key in `key`
  *  The string is modified (nulls inserted)!

@@ -1500,8 +1500,15 @@ PRIVATE void mask_shown_attrs(hgobj g, json_t *jn_data, const char *attribute)
         gobj_mask_secret_attrs(g, jn_shown);
         return;
     }
+    /*
+     *  Masked whatever its json type: empty_json() is TRUE for every number
+     *  and boolean, and a "pin": 1234 was shown. Only a null or an empty
+     *  string stays, as gobj_mask_secret_attrs() does.
+     */
     const sdata_desc_t *desc = gobj_attr_desc(g, attribute, FALSE);
-    if(desc && (desc->flag & SDF_SECRET) && !empty_json(jn_shown)) {
+    BOOL not_set = json_is_null(jn_shown) ||
+        (json_is_string(jn_shown) && json_string_length(jn_shown) == 0);
+    if(desc && (desc->flag & SDF_SECRET) && !not_set) {
         json_object_set_new(jn_data, gobj_short_name(g), json_string("********"));
     }
 }

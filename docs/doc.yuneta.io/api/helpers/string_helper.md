@@ -459,6 +459,56 @@ The function iterates through the list and compares each element with `str` usin
 
 ---
 
+(is_secret_name)=
+## [`is_secret_name()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/helpers.c#L1438)
+
+Tells, by its NAME, whether a key holds a secret -- for what cannot be known
+by a declaration ([`SDF_SECRET`](#SDF_SECRET)): the free keys of a command
+that is forwarded (`SDF_WILD_CMD`, the agent's `command-yuno`), a config
+variable, a field of an audit record. It is the one list of the SDK: the
+command traces ([`command_mask_secret_kw()`](#command_mask_secret_kw),
+[`command_mask_secret_line()`](#command_mask_secret_line)),
+[`gobj_mask_secret_config()`](#gobj_mask_secret_config) and the agent's
+audit record all ask it.
+
+A name is a secret's, in any case, when it holds one of `passw`, `pwd`,
+`passphrase`, `secret`, `token`, `jwt`, `bearer`, `authorization`, `cookie`,
+`credential`, `salt`; or one of `apikey`, `sessionid`, `sessionkey`,
+`authdata` once `_`, `-`, `.` and blanks are taken out (`api_key`,
+`X-Api-Key`, `__session_id__`); or both `priv` and `key` (`private_key`). Not
+secrets: the PATH of a key or a certificate (`ssl_certificate_key`), a public
+`cert_pem`, `max_sessions`, `authz`, `auth_method`.
+
+```C
+BOOL is_secret_name(
+    const char *name,
+    size_t      len
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `name` | `const char *` | The name. It need not be NUL-terminated. |
+| `len` | `size_t` | The bytes of `name` to look at. |
+
+**Returns**
+
+`TRUE` if it is the name of a secret; `FALSE` if not, or when `name` is NULL.
+
+**Example**
+
+```C
+is_secret_name("smtp_password", 13);    // TRUE
+is_secret_name("X-Api-Key", 9);         // TRUE (apikey, joined)
+is_secret_name("private_key", 11);      // TRUE (priv + key)
+is_secret_name("ssl_certificate_key", 19); // FALSE (a path)
+is_secret_name("username", 8);          // FALSE
+```
+
+---
+
 (left_justify)=
 ## [`left_justify()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/helpers.c#L1150)
 

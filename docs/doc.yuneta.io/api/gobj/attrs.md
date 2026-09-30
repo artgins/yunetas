@@ -252,8 +252,9 @@ If the attribute exists, the function returns a reference to the JSON object sto
 Replaces, in a dict of attributes of `gobj` (what
 [`gobj_read_attrs()`](#gobj_read_attrs) or
 [`gobj_list_persistent_attrs()`](#gobj_list_persistent_attrs) answer), the
-value of every [`SDF_SECRET`](#SDF_SECRET) attribute by `"********"`. An empty
-value stays empty. For what is SHOWN; what is saved or used reads the
+value of every [`SDF_SECRET`](#SDF_SECRET) attribute by `"********"`, whatever
+its json type (a number or a boolean too). Only an absent value, a json null
+or an empty string stays as it is, so "not set" still shows. For what is SHOWN; what is saved or used reads the
 attributes as they are -- the persistence itself reads through
 `gobj_read_attrs()`, which is why the masking is a separate step and not a
 flag of the read.
@@ -274,7 +275,8 @@ int gobj_mask_secret_attrs(
 
 **Returns**
 
-`0`, or `-1` (logged) when `gobj` is NULL or `jn_attrs` is not a dict.
+`0`, or `-1` (logged, *"Cannot mask the secrets: gobj NULL or attrs not a
+dict"*) when `gobj` is NULL or `jn_attrs` is not a dict.
 
 **Example**
 
@@ -295,8 +297,22 @@ the [`SDF_SECRET`](#SDF_SECRET) attributes of the yuno
 (`"<gclass or service>.<attr>"`, `"<...>.kw"`), and of every node of the
 `"services"` trees -- in its `kw` and down its `children`. It masks in place,
 so mask a COPY: the configuration is what the yuno builds its services from.
-A value a config variable (`(^^var^^)`) brings in is masked where it lands on
-a secret attribute; `__json_config_variables__` itself is shown as written.
+A secret is masked whatever its json type, as in
+[`gobj_mask_secret_attrs()`](#gobj_mask_secret_attrs).
+
+A `"global"` key can also name a gobj by its NAME (a child, which is no gclass
+and no service): when the prefix is not a gclass nor a service, the key is
+masked if its attribute is `SDF_SECRET` in ANY gclass -- over-masking is safe.
+The same for a node of `"services"` whose `gclass` is not registered.
+
+A config variable is masked in the `"<prefix>.__json_config_variables__"`
+dicts when it FEEDS a secret -- a secret attribute written `(^^var^^)` -- or
+when its name is a secret's ([`is_secret_name()`](#is_secret_name):
+`smtp_password`, `api_token`, ...). The `create_delete2` trace masks the
+variables it prints the same way; there a variable also feeds a secret when
+its value is the value that secret already got. A variable that feeds a
+secret of a service the configuration does not describe (one created later
+with `gobj_service_factory()`), and whose name is no secret's, is shown.
 
 ```C
 int gobj_mask_secret_config(
@@ -321,6 +337,10 @@ int gobj_mask_secret_config(
  *  'services': [{'name': 'emailsender', 'gclass': 'C_EMAILSENDER',
  *                'kw': {'password': 'hunter2'}}]
  *  shows as 'kw': {'password': '********'}
+ *
+ *  'global': {'emailsender.__json_config_variables__': {'smtp': 'hunter2'}},
+ *  'services': [{..., 'kw': {'password': '(^^smtp^^)'}}]
+ *  shows as {'smtp': '********'} and 'password': '********'
  */
 json_t *jn_data = json_deep_copy(yuneta_json_config());
 gobj_mask_secret_config(jn_data);

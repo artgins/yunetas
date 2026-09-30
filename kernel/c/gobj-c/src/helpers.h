@@ -258,6 +258,19 @@ PUBLIC char *get_parameter(char *s, char **save_ptr);
 PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
 
 /**rst**
+ *  TRUE if `name` (of `len` bytes, not NUL-terminated) is the name of a
+ *  secret: a password, a token, a key... by NAME, for what cannot be
+ *  known by its declaration (SDF_SECRET): the free keys of a command that
+ *  is forwarded (SDF_WILD_CMD), a config variable, an audit record.
+ *  Any case. A name holds one of the parts "passw", "pwd", "passphrase",
+ *  "secret", "token", "jwt", "bearer", "authorization", "cookie",
+ *  "credential", "salt"; or one of "apikey", "sessionid", "sessionkey",
+ *  "authdata" once '_', '-', '.' and blanks are taken out; or "priv" and
+ *  "key" both (private_key). The one list of the SDK.
+**rst**/
+PUBLIC BOOL is_secret_name(const char *name, size_t len);
+
+/**rst**
     Split a string by delim returning the list of strings.
     Return filling `list_size` if not null with items size,
     WARNING Remember free with split_free2().

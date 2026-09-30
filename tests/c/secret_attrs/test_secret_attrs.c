@@ -19,7 +19,20 @@
  *            4. The commands trace (with ev_kw): the command line and
  *               the kw of a command whose parameter is SDF_SECRET, given
  *               as key=value, as a required positional parameter and in
- *               the kw -- and the kw the command parser expands.
+ *               the kw -- and the kw the command parser expands. A
+ *               positional secret with a '=' in it (abc==, 'q=...') is
+ *               masked and the rest of the line still shown; a secret
+ *               that is a number is masked; the error a malformed line
+ *               answers ("extra parameters") does not echo a secret.
+ *            4b. The command-yuno shape: a SDF_WILD_CMD command forwards
+ *               free keys to a table that is not known where it is traced;
+ *               a key with a secret's name (password=...) is masked, in
+ *               the line, in the kw, and inside a quoted `command`.
+ *            2b. view-config also masks: a secret that is a number, a
+ *               'global' key whose prefix is the name of a child (not a
+ *               gclass, not a service), and the __json_config_variables__
+ *               that feed a secret or have a secret's name (also in the
+ *               create_delete2 trace).
  *
  *          And the persistent-attrs file (dbsimple.c):
  *
@@ -67,6 +80,9 @@ PRIVATE int s_command_seen = 0;
 PRIVATE int s_command_kw_seen = 0;
 PRIVATE int s_expanded_kw_seen = 0;
 PRIVATE int s_command_secret_seen = 0;
+PRIVATE int s_wild_secret_seen = 0;
+PRIVATE int s_wild_line_seen = 0;
+PRIVATE int s_tail_line_seen = 0;
 
 GOBJ_DEFINE_GCLASS(C_TEST_SECRET_DRIVER);
 GOBJ_DEFINE_GCLASS(C_TEST_SECRET_HOLDER);
@@ -95,7 +111,16 @@ PRIVATE char variable_config[]= "\
         'daemon_log_handlers': {}                                   \n\
     },                                                              \n\
     'global': {                                                     \n\
-        'secret-other.password': 'glob-hunter2'                     \n\
+        'secret-other.password': 'glob-hunter2',                    \n\
+        'secret-child.password': 'gname-hunter2',                   \n\
+        'secret-vars.__json_config_variables__': {                  \n\
+            'smtp_pw': 'var-hunter2',                               \n\
+            'api_token': 'tok-hunter2',                             \n\
+            'plain_var': 'visible-var'                              \n\
+        },                                                          \n\
+        'secret-traced.__json_config_variables__': {                \n\
+            'traced_pw': 'trace-hunter2'                            \n\
+        }                                                           \n\
     },                                                              \n\
     'yuno': {                                                       \n\
         'autoplay': true,                                           \n\
@@ -120,7 +145,17 @@ PRIVATE char variable_config[]= "\
             'autostart': false,                                     \n\
             'kw': {                                                 \n\
                 'password': 'cfg-hunter2',                          \n\
+                'pin': 7777777777777,                               \n\
                 'note': 'visible-note'                              \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'secret-vars',                                  \n\
+            'gclass': 'C_TEST_SECRET_HOLDER',                       \n\
+            'autostart': false,                                     \n\
+            'kw': {                                                 \n\
+                'password': '(^^smtp_pw^^)',                        \n\
+                'note': '(^^plain_var^^)'                           \n\
             }                                                       \n\
         },                                                          \n\
         {                                                           \n\
@@ -196,8 +231,18 @@ PRIVATE int capture_logs(void *h, int priority, const char *bf, size_t len)
     if(strstr(bf, "expanded_command")) {
         s_expanded_kw_seen++;
     }
-    if(strstr(bf, "cmd-hunter2") || strstr(bf, "kw-hunter2") || strstr(bf, "pos-hunter2")) {
+    if(strstr(bf, "cmd-hunter2") || strstr(bf, "kw-hunter2") || strstr(bf, "pos-hunter2") ||
+        strstr(bf, "6666666666666") || strstr(bf, "err-hunter2")) {
         s_command_secret_seen++;
+    }
+    if(strstr(bf, "wild-hunter2") || strstr(bf, "wildkw-hunter2") || strstr(bf, "nest-hunter2")) {
+        s_wild_secret_seen++;
+    }
+    if(strstr(bf, "command-yuno") && strstr(bf, "service=visible-service")) {
+        s_wild_line_seen++;
+    }
+    if(strstr(bf, "set-password-pos") && strstr(bf, "note=visible-tail")) {
+        s_tail_line_seen++;
     }
     return 0;
 }
@@ -293,6 +338,21 @@ PRIVATE void check_view_config(hgobj gobj)
     check_true("view-config still shows what is not secret",
         s && strstr(s, "visible-note")
     );
+    check_true("view-config hides a secret that is a number",
+        s && !strstr(s, "7777777777777")
+    );
+    check_true("view-config hides a 'global' secret named by a child's name",
+        s && !strstr(s, "gname-hunter2")
+    );
+    check_true("view-config hides a config variable that feeds a secret",
+        s && !strstr(s, "var-hunter2")
+    );
+    check_true("view-config hides a config variable with a secret's name",
+        s && !strstr(s, "tok-hunter2")
+    );
+    check_true("view-config still shows a plain config variable",
+        s && strstr(s, "visible-var")
+    );
     GBMEM_FREE(s)
     JSON_DECREF(resp)
 
@@ -300,6 +360,27 @@ PRIVATE void check_view_config(hgobj gobj)
         gobj_read_str_attr(gobj_find_service("secret-holder", TRUE), "password"),
         "cfg-hunter2"
     );
+    check_str("the config variable still reaches the attr",
+        gobj_read_str_attr(gobj_find_service("secret-vars", TRUE), "password"),
+        "var-hunter2"
+    );
+
+    hgobj holder = gobj_find_service("secret-holder", TRUE);
+    json_t *jn_attrs = gobj_read_attrs(holder, SDF_PERSIST, gobj);
+    gobj_mask_secret_attrs(holder, jn_attrs);
+    check_str("a secret that is a number is shown masked",
+        kw_get_str(gobj, jn_attrs, "pin", "", 0), MASK
+    );
+    JSON_DECREF(jn_attrs)
+
+    resp = gobj_command(gobj_yuno(),
+        "view-attrs gobj_name=secret-holder attribute=pin", json_object(), gobj
+    );
+    json_t *jn_pin = json_object_get(kw_get_dict(gobj, resp, "data", 0, 0), gobj_short_name(holder));
+    check_str("view-attrs of one secret that is a number shows it masked",
+        json_is_string(jn_pin)? json_string_value(jn_pin) : "(not a string)", MASK
+    );
+    JSON_DECREF(resp)
 }
 
 PRIVATE void check_create_delete2_trace(void)
@@ -316,7 +397,7 @@ PRIVATE void check_create_delete2_trace(void)
             "name", "secret-traced",
             "gclass", "C_TEST_SECRET_HOLDER",
             "kw",
-                "password", "trace-hunter2"
+                "password", "(^^traced_pw^^)"  // 'trace-hunter2', from the config variables
         )
     );
     s_capturing = FALSE;
@@ -355,6 +436,24 @@ PRIVATE void check_command_trace(void)
         holder
     );
     JSON_DECREF(resp)
+    resp = gobj_command(holder, "set-password-pos abc==pos-hunter2==", 0, holder);
+    JSON_DECREF(resp)
+    resp = gobj_command(holder, "set-password-pos 'q=pos-hunter2' note=visible-tail", 0, holder);
+    JSON_DECREF(resp)
+    resp = gobj_command(holder,
+        "set-password",
+        json_pack("{s:I}", "password", (json_int_t)6666666666666),
+        holder
+    );
+    JSON_DECREF(resp)
+    resp = gobj_command(holder, "set-password password= err-hunter2", 0, holder);
+    check_int("a malformed line is refused",
+        (int)kw_get_int(0, resp, "result", 0, 0), -1
+    );
+    check_true("its answer does not echo the secret",
+        !strstr(kw_get_str(0, resp, "comment", "", 0), "err-hunter2")
+    );
+    JSON_DECREF(resp)
     resp = gobj_command(holder, "set-password-pos pos-hunter2", 0, holder);
     JSON_DECREF(resp)
     s_capturing = FALSE;
@@ -365,8 +464,45 @@ PRIVATE void check_command_trace(void)
     check_true("the commands trace printed the command kw", s_command_kw_seen > 0);
     check_true("the parser printed the expanded kw", s_expanded_kw_seen > 0);
     check_int("the commands trace hides the secret parameter", s_command_secret_seen, 0);
+    check_true("the line after a positional with a '=' is still shown", s_tail_line_seen > 0);
     check_str("the secret parameter still reaches the command",
         gobj_read_str_attr(holder, "password"), "pos-hunter2"
+    );
+}
+
+PRIVATE void check_wild_command_trace(void)
+{
+    hgobj holder = gobj_find_service("secret-holder", TRUE);
+    s_wild_secret_seen = 0;
+    s_wild_line_seen = 0;
+
+    gobj_set_global_trace("commands", TRUE);
+    gobj_set_global_trace("ev_kw", TRUE);
+    s_capturing = TRUE;
+    json_t *resp = gobj_command(holder,
+        "command-yuno id=x service=visible-service command=set-user-pwd password=wild-hunter2",
+        0, holder
+    );
+    JSON_DECREF(resp)
+    resp = gobj_command(holder,
+        "command-yuno id=x service=visible-service command=set-user-pwd",
+        json_pack("{s:s}", "password", "wildkw-hunter2"),
+        holder
+    );
+    JSON_DECREF(resp)
+    resp = gobj_command(holder,
+        "command-yuno id=x service=visible-service command=\"set-user-pwd password=nest-hunter2\"",
+        0, holder
+    );
+    JSON_DECREF(resp)
+    s_capturing = FALSE;
+    gobj_set_global_trace("ev_kw", FALSE);
+    gobj_set_global_trace("commands", FALSE);
+
+    check_true("the commands trace printed the wild command", s_wild_line_seen > 0);
+    check_int("the commands trace hides a free key with a secret's name", s_wild_secret_seen, 0);
+    check_str("the free key still reaches the command",
+        gobj_read_str_attr(holder, "note"), "set-user-pwd password=nest-hunter2"
     );
 }
 
@@ -452,6 +588,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     check_view_config(gobj);
     check_create_delete2_trace();
     check_command_trace();
+    check_wild_command_trace();
     check_persistent_file();
 
     set_yuno_must_die();
@@ -465,12 +602,34 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************/
 PRIVATE json_t *cmd_set_password(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    gobj_write_str_attr(gobj, "password", kw_get_str(gobj, kw, "password", "", 0));
+    json_t *jn_password = kw_get_dict_value(gobj, kw, "password", 0, 0);
+    if(json_is_string(jn_password)) {   // a number is only for the trace check
+        gobj_write_str_attr(gobj, "password", json_string_value(jn_password));
+    }
+    KW_DECREF(kw)
+    return build_command_response(gobj, 0, 0, 0, 0);
+}
+
+/*
+ *  The shape of the agent's command-yuno: the free keys go to a table
+ *  that is not this one. It keeps what it got, to be checked.
+ */
+PRIVATE json_t *cmd_command_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *password = kw_get_str(gobj, kw, "password", "", 0);
+    const char *command = kw_get_str(gobj, kw, "command", "", 0);
+    gobj_write_str_attr(gobj, "note", empty_string(password)? command : password);
     KW_DECREF(kw)
     return build_command_response(gobj, 0, 0, 0, 0);
 }
 
 /*-PM----type-----------name------------flag--------------------default-description--*/
+PRIVATE sdata_desc_t pm_command_yuno[] = {
+SDATAPM (DTP_STRING,    "id",           0,                      0,      "Id of yuno"),
+SDATAPM (DTP_STRING,    "command",      0,                      0,      "Command to be executed in matched yunos"),
+SDATAPM (DTP_STRING,    "service",      0,                      0,      "Service of yuno where execute the command"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_set_password[] = {
 SDATAPM (DTP_STRING,    "password",     SDF_SECRET,             0,      "The new password"),
 SDATAPM (DTP_STRING,    "note",         0,                      0,      "Not a secret"),
@@ -485,6 +644,7 @@ PRIVATE sdata_desc_t holder_command_table[] = {
 /*-CMD---type-----------name----------------alias---items-------------------json_fn-------------description--*/
 SDATACM (DTP_SCHEMA,    "set-password",     0,      pm_set_password,        cmd_set_password,   "Set the password"),
 SDATACM (DTP_SCHEMA,    "set-password-pos", 0,      pm_set_password_pos,    cmd_set_password,   "Set the password, positional"),
+SDATACM2 (DTP_SCHEMA,   "command-yuno",     SDF_WILD_CMD,   0,      pm_command_yuno,    cmd_command_yuno,   "Command to yuno, free keys"),
 SDATA_END()
 };
 
@@ -499,6 +659,7 @@ PRIVATE sdata_desc_t holder_attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------------default-description---------- */
 SDATA (DTP_STRING,      "password",         SDF_PERSIST|SDF_SECRET,   "",     "A secret"),
 SDATA (DTP_STRING,      "note",             SDF_PERSIST,              "",     "Not a secret"),
+SDATA (DTP_INTEGER,     "pin",              SDF_PERSIST|SDF_SECRET,   "0",    "A secret that is a number"),
 SDATA_END()
 };
 

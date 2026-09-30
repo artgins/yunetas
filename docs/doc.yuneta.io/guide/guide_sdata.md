@@ -149,8 +149,9 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
     still keeps it); what changes is what is SHOWN: `view-attrs`,
     `write-attr`, `list-persistent-attrs`, `view-gobj`, `view-config`, the
     start-up trace of the yuno's attrs and the `create_delete2` trace of a
-    gobj being built answer `********` for it. An empty value is shown
-    empty, so "not set" still reads as such. A dict of attrs is masked with
+    gobj being built answer `********` for it, whatever its json type (a
+    number or a boolean too). An absent value or an empty string is shown
+    as it is, so "not set" still reads as such. A dict of attrs is masked with
     [`gobj_mask_secret_attrs()`](#gobj_mask_secret_attrs), a whole
     configuration with [`gobj_mask_secret_config()`](#gobj_mask_secret_config).
     The C_TCP `traffic` dump prints the bytes on the wire: a frame that
@@ -178,7 +179,10 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
 
     A COMMAND PARAMETER takes the flag too: the `commands` trace prints
     the command line, and with `ev_kw` its kw, with the parameter masked
-    (see [`command_mask_secret_kw()`](#command_mask_secret_kw)).
+    (see [`command_mask_secret_kw()`](#command_mask_secret_kw)). A key the
+    command table cannot know -- the free keys of a `SDF_WILD_CMD` command,
+    which the agent's `command-yuno` forwards to another yuno -- is masked
+    when its NAME is a secret's ([`is_secret_name()`](#is_secret_name)).
 
 ```C
 SDATAPM (DTP_STRING,    "password",     SDF_SECRET,     0,          "Password"),
@@ -186,6 +190,7 @@ SDATAPM (DTP_STRING,    "password",     SDF_SECRET,     0,          "Password"),
 
 ```text
 🌀🌀 mach(C_AUTHZ^authz), cmd: set-user-pwd username=bob password=********
+🌀🌀 mach(C_AGENT^agent), cmd: command-yuno id=1 service=authz command=set-user-pwd password=********
 ```
 
 

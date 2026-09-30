@@ -163,11 +163,20 @@ Aliases have precedence when the descriptor has no `json_fn` command function se
 (command_mask_secret_kw)=
 ## [`command_mask_secret_kw()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/command_parser.c#L275)
 
-The kw of a command as a trace shows it: every parameter the command table of
-`gobj` declares with `SDF_SECRET` (by name or alias) is `"********"`; an empty
-value stays empty. The kernel uses it for the `"command kw"` trace of
-`gobj_command()` and the `"expanded_command: kw_cmd"` trace of
-[`command_parser()`](#command_parser) (both under `ev_kw`).
+The kw of a command as a trace shows it. A value is `"********"` when its key
+is a parameter the command table of `gobj` declares with `SDF_SECRET` (by
+name or alias), or when the key has a secret's NAME
+([`is_secret_name()`](#is_secret_name): `password`, `token`, `api_key`, ...) --
+at any depth of the kw. The name rule is what covers a key the table cannot
+know: the free keys of a `SDF_WILD_CMD` command, which forwards them to a table
+somewhere else (the agent's `command-yuno ... password=X`, whose `password`
+belongs to the remote yuno's command). In a `SDF_WILD_CMD` command a string
+value with a `=` in it is a command line going on (the `command` of
+`command-yuno`), and is masked by names too. A secret is masked whatever its
+json type (`"password": 1234` too); only an absent one or an empty string
+shows as it is, so "not set" still shows. The kernel uses it for the
+`"command kw"` trace of `gobj_command()` and the `"expanded_command: kw_cmd"`
+trace of [`command_parser()`](#command_parser) (both under `ev_kw`).
 
 ```C
 json_t *command_mask_secret_kw(
@@ -187,8 +196,8 @@ json_t *command_mask_secret_kw(
 
 **Returns**
 
-A NEW reference, to decref: a masked copy, or `kw` itself when the command
-has no secret parameter (or is not in the table). `NULL` for a `NULL` kw.
+A NEW reference, to decref: a masked copy, or `kw` itself when nothing in it
+is secret. `NULL` for a `NULL` kw.
 
 **Example**
 
@@ -206,6 +215,15 @@ SDATA_END()
 json_t *kw_shown = command_mask_secret_kw(gobj, "set-email-user", kw);
 gobj_trace_json(gobj, kw_shown, "command kw");  // "password": "********"
 JSON_DECREF(kw_shown)
+
+/*
+ *  A wild command: the free keys are masked by name
+ */
+SDATACM2 (DTP_SCHEMA,   "command-yuno",     SDF_WILD_CMD,   0,  pm_command_yuno, cmd_command_yuno, "Command to yuno"),
+
+kw_shown = command_mask_secret_kw(gobj, "command-yuno",
+    kw  // {"id": "x", "command": "set-user-pwd", "password": "hunter2"}
+);      // {"id": "x", "command": "set-user-pwd", "password": "********"}
 ```
 
 ---
@@ -213,11 +231,18 @@ JSON_DECREF(kw_shown)
 (command_mask_secret_line)=
 ## [`command_mask_secret_line()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/command_parser.c#L306)
 
-The command line as a trace shows it: the value of every `SDF_SECRET`
-parameter is `********`, given as `key=value` or as one of the leading
-required parameters written without key. What cannot be parsed as a
-parameter is shown as `<...>`. The `commands` (and `machine`) trace of
-`gobj_command()` prints the command this way.
+The command line as a trace shows it: the value of every secret parameter is
+`********` -- `SDF_SECRET` in the command table of `gobj`, or with a secret's
+name ([`is_secret_name()`](#is_secret_name)), as for
+[`command_mask_secret_kw()`](#command_mask_secret_kw) -- given as `key=value`
+or as one of the leading required parameters written without key. A
+positional value with a `=` in it (`abc==`, `'pa=ss'`) is that parameter's
+value, unless what is before the `=` is a key of the command or a secret's
+name: then it is the first `key=value`. In a `SDF_WILD_CMD` command a value
+with a `=` is a command line going on, shown `key='...'` masked by names. What
+cannot be parsed as a parameter is shown as `<...>`, never dropped silently.
+The `commands` (and `machine`) trace of `gobj_command()` prints the command
+this way.
 
 ```C
 char *command_mask_secret_line(
@@ -235,8 +260,8 @@ char *command_mask_secret_line(
 
 **Returns**
 
-A `gbmem` string, to `GBMEM_FREE`. The line as it came when the command has
-no secret parameter.
+A `gbmem` string, to `GBMEM_FREE`: the line as it was parsed (quotes and
+blanks are not kept).
 
 **Example**
 
@@ -244,7 +269,19 @@ no secret parameter.
 char *line = command_mask_secret_line(gobj, "set-email-user username=bob password=hunter2");
 gobj_trace_msg(gobj, "cmd: %s", line);  // "set-email-user username=bob password=********"
 GBMEM_FREE(line)
+
+line = command_mask_secret_line(gobj,   // "password" is SDF_REQUIRED|SDF_SECRET
+    "set-password-pos 'q=hunter2' note=visible"
+);                                      // "set-password-pos ******** note=visible"
+
+line = command_mask_secret_line(agent,  // command-yuno is SDF_WILD_CMD
+    "command-yuno id=x command=\"set-user-pwd password=hunter2\""
+);                                      // "command-yuno id=x command='set-user-pwd password=********'"
 ```
+
+The errors the parser answers for a malformed line mask what they echo the
+same way: `set-password password= hunter2` is refused with *"command
+'set-password' with extra parameters: '<...>'"*, not with the secret.
 
 ---
 

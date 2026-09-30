@@ -168,10 +168,29 @@ PRIVATE int write_json_parameters(
     json_t *kw,     // not own
     json_t *jn_global  // not own
 );
-PRIVATE void mask_secret_attrs_of_gclass(gclass_t *gclass, json_t *jn_attrs);
-PRIVATE void mask_secret_tree_config(json_t *jn_tree);
-PRIVATE void trace_attrs_masked(hgobj gobj, gclass_t *gclass, json_t *jn_attrs, const char *msg);
+PRIVATE void mask_secret_attrs_of_gclass(gclass_t *gclass, json_t *jn_attrs, json_t *jn_secret_vars);
+PRIVATE void mask_secret_tree_config(json_t *jn_tree, json_t *jn_secret_vars);
+PRIVATE BOOL attr_is_secret(gclass_t *gclass, const char *attr);
+PRIVATE BOOL secret_is_set(json_t *value);
+PRIVATE json_t *new_secret_vars(void);
+PRIVATE void collect_config_variables(json_t *jn_value, json_t *jn_secret_vars);
+PRIVATE void mask_config_variables(json_t *jn_vars, json_t *jn_secret_vars);
+PRIVATE void collect_secrets(gclass_t *gclass, json_t *jn_config, json_t *jn_secret_vars);
+PRIVATE void trace_attrs_masked(
+    hgobj gobj,
+    gclass_t *gclass,
+    json_t *jn_attrs,
+    json_t *jn_secret_vars, // not owned, what collect_secrets() found elsewhere; NULL: none
+    const char *msg
+);
 PRIVATE void trace_tree_config_masked(hgobj gobj, json_t *jn_tree, const char *msg);
+PRIVATE void trace_config_variables_masked(
+    hgobj gobj,
+    gclass_t *gclass,
+    json_t *jn_config,
+    json_t *jn_vars,
+    const char *msg
+);
 PRIVATE json_t *extract_all_mine(
      const char *gclass_name,
      const char *gobj_name,
@@ -2207,7 +2226,10 @@ PUBLIC hgobj gobj_service_factory(
             gclass_name,
             gobj_name
         );
-        trace_attrs_masked(0, gclass, jn_global_mine, "global_mine");
+        json_t *jn_secret_vars = new_secret_vars();
+        collect_secrets(NULL, kw, jn_secret_vars);  // kw is a service tree
+        trace_attrs_masked(0, gclass, jn_global_mine, jn_secret_vars, "global_mine");
+        JSON_DECREF(jn_secret_vars)
     }
 
     /*
@@ -2244,7 +2266,7 @@ PUBLIC hgobj gobj_service_factory(
             gobj_name
         );
         trace_tree_config_masked(0, kw, "kw with global_mine");
-        gobj_trace_json(0, __json_config_variables__, "__json_config_variables__");
+        trace_config_variables_masked(0, NULL, kw, __json_config_variables__, "__json_config_variables__");
     }
 
     /*
@@ -2875,7 +2897,10 @@ PRIVATE int write_json_parameters(
                 gobj->gclass->gclass_name,
                 gobj->gobj_name
             );
-            trace_attrs_masked(0, gobj->gclass, jn_global_mine, "global_mine");
+            json_t *jn_secret_vars = new_secret_vars();
+            collect_secrets(gobj->gclass, kw, jn_secret_vars);
+            trace_attrs_masked(0, gobj->gclass, jn_global_mine, jn_secret_vars, "global_mine");
+            JSON_DECREF(jn_secret_vars)
         }
 
         /*
@@ -2909,8 +2934,10 @@ PRIVATE int write_json_parameters(
                 gobj->gclass->gclass_name,
                 gobj->gobj_name
             );
-            trace_attrs_masked(0, gobj->gclass, kw, "kw with global_mine");
-            gobj_trace_json(0, __json_config_variables__, "__json_config_variables__");
+            trace_attrs_masked(0, gobj->gclass, kw, NULL, "kw with global_mine");
+            trace_config_variables_masked(
+                0, gobj->gclass, kw, __json_config_variables__, "__json_config_variables__"
+            );
         }
 
         /*
@@ -2929,7 +2956,7 @@ PRIVATE int write_json_parameters(
                 gobj->gclass->gclass_name,
                 gobj->gobj_name
             );
-            trace_attrs_masked(gobj, gobj->gclass, new_kw, "final kw");
+            trace_attrs_masked(gobj, gobj->gclass, new_kw, NULL, "final kw");
         }
 
         json_t *__user_data__ = kw_get_dict(gobj, new_kw, "__user_data__", 0, KW_EXTRACT);
@@ -2973,7 +3000,7 @@ PRIVATE int write_json_parameters(
             gobj->gclass->gclass_name,
             gobj->gobj_name
         );
-        trace_attrs_masked(gobj, gobj->gclass, hs, "final hs");
+        trace_attrs_masked(gobj, gobj->gclass, hs, NULL, "final hs");
     }
 
     return ret;
@@ -3665,7 +3692,7 @@ PUBLIC int gobj_mask_secret_attrs(hgobj gobj_, json_t *jn_attrs)
         );
         return -1;
     }
-    mask_secret_attrs_of_gclass(gobj->gclass, jn_attrs);
+    mask_secret_attrs_of_gclass(gobj->gclass, jn_attrs, NULL);
     return 0;
 }
 
@@ -3684,13 +3711,20 @@ PUBLIC int gobj_mask_secret_config(json_t *jn_config)
         return -1;
     }
 
+    /*
+     *  The config variables that feed a secret, collected on the way
+     */
+    json_t *jn_secret_vars = new_secret_vars();
+
     json_t *jn_yuno = json_object_get(jn_config, "yuno");
     if(__yuno__ && json_is_object(jn_yuno)) {
-        mask_secret_attrs_of_gclass(__yuno__->gclass, jn_yuno);
+        mask_secret_attrs_of_gclass(__yuno__->gclass, jn_yuno, jn_secret_vars);
     }
 
     /*
-     *  'global' keys are "<gclass or service name>.<attr>" or ".kw", see is_for_me()
+     *  'global' keys are "<gclass, service or gobj name>.<attr>" or ".kw",
+     *  see is_for_me(). A prefix that is no gclass and no service (the name
+     *  of a child) masks what is SDF_SECRET in any gclass.
      */
     json_t *jn_global = json_object_get(jn_config, "global");
     const char *key;
@@ -3701,6 +3735,9 @@ PUBLIC int gobj_mask_secret_config(json_t *jn_config)
         if(!p) {
             continue;
         }
+        if(strcmp(p+1, "__json_config_variables__")==0) {
+            continue;   // below, once every secret is known
+        }
         char prefix[GOBJ_NAME_MAX+1];
         snprintf(prefix, sizeof(prefix), "%.*s", (int)(p - key), key);
         gclass_t *gclass = gclass_find_by_name(prefix);
@@ -3708,17 +3745,14 @@ PUBLIC int gobj_mask_secret_config(json_t *jn_config)
             gobj_t *service = gobj_find_service(prefix, FALSE);
             gclass = service? service->gclass : 0;
         }
-        if(!gclass) {
-            continue;
-        }
         if(strcasecmp(p+1, "kw")==0) {
             if(json_is_object(jn_value)) {
-                mask_secret_attrs_of_gclass(gclass, jn_value);
+                mask_secret_attrs_of_gclass(gclass, jn_value, jn_secret_vars);
             }
             continue;
         }
-        const sdata_desc_t *it = gclass_attr_desc(gclass, p+1, FALSE);
-        if(it && (it->flag & SDF_SECRET) && !empty_json(jn_value)) {
+        if(attr_is_secret(gclass, p+1) && secret_is_set(jn_value)) {
+            collect_config_variables(jn_value, jn_secret_vars);
             json_object_set_new(jn_global, key, json_string("********"));
         }
     }
@@ -3727,69 +3761,224 @@ PUBLIC int gobj_mask_secret_config(json_t *jn_config)
     size_t idx;
     json_t *jn_service;
     json_array_foreach(jn_services, idx, jn_service) {
-        mask_secret_tree_config(jn_service);
+        mask_secret_tree_config(jn_service, jn_secret_vars);
     }
+
+    json_object_foreach(jn_global, key, jn_value) {
+        const char *p = strchr(key, '.');
+        if(p && strcmp(p+1, "__json_config_variables__")==0 && json_is_object(jn_value)) {
+            mask_config_variables(jn_value, jn_secret_vars);
+        }
+    }
+
+    JSON_DECREF(jn_secret_vars)
     return 0;
 }
 
 /***************************************************************************
- *  ATTR: mask the SDF_SECRET attrs of `gclass` in a dict of its attrs
+ *  ATTR: is `attr` a SDF_SECRET attr of `gclass`, or of any gclass when
+ *  `gclass` is NULL (not known: over-masking is safe)
  ***************************************************************************/
-PRIVATE void mask_secret_attrs_of_gclass(gclass_t *gclass, json_t *jn_attrs)
+PRIVATE BOOL attr_is_secret(gclass_t *gclass, const char *attr)
 {
-    const sdata_desc_t *it = gclass->attrs_table;
-    while(it->name) {
-        if(it->flag & SDF_SECRET) {
-            json_t *v = json_object_get(jn_attrs, it->name);
-            if(v && !empty_json(v)) {
-                json_object_set_new(jn_attrs, it->name, json_string("********"));
-            }
+    if(gclass) {
+        const sdata_desc_t *it = gclass_attr_desc(gclass, attr, FALSE);
+        return (it && (it->flag & SDF_SECRET))? TRUE : FALSE;
+    }
+    gclass_t *gclass_ = dl_first(&dl_gclass);
+    while(gclass_) {
+        const sdata_desc_t *it = gclass_attr_desc(gclass_, attr, FALSE);
+        if(it && (it->flag & SDF_SECRET)) {
+            return TRUE;
         }
-        it++;
+        gclass_ = dl_next(gclass_);
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  ATTR: a secret is shown masked unless it is absent or an empty string
+ *  ("not set" still shows). A number or a boolean is masked too.
+ ***************************************************************************/
+PRIVATE BOOL secret_is_set(json_t *value)
+{
+    if(!value || json_is_null(value)) {
+        return FALSE;
+    }
+    if(json_is_string(value) && json_string_length(value) == 0) {
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  ATTR: what a secret tells of the config variables that feed it:
+ *  {"names": {<variable>: true}, "values": {<secret value>: true}}. A
+ *  secret still to be filled names its variable, "(^^name^^)"; one that is
+ *  filled already (the kw of a gobj of a service being built) is found by
+ *  its value.
+ ***************************************************************************/
+PRIVATE json_t *new_secret_vars(void)
+{
+    return json_pack("{s:{}, s:{}}", "names", "values");
+}
+
+/***************************************************************************
+ *  ATTR: add to `jn_secret_vars` what a secret value tells
+ ***************************************************************************/
+PRIVATE void collect_config_variables(json_t *jn_value, json_t *jn_secret_vars)
+{
+    if(!jn_secret_vars) {
+        return;
+    }
+    if(json_is_string(jn_value)) {
+        const char *s = json_string_value(jn_value);
+        if(!empty_string(s)) {
+            json_object_set_new(json_object_get(jn_secret_vars, "values"), s, json_true());
+        }
+        json_t *jn_names = json_object_get(jn_secret_vars, "names");
+        const char *open;
+        while((open = strstr(s, "(^^"))) {
+            const char *name = open + 3;
+            const char *close = strstr(name, "^^)");
+            if(!close) {
+                break;
+            }
+            if(close > name) {
+                json_object_setn_new(jn_names, name, (size_t)(close - name), json_true());
+            }
+            s = close + 3;
+        }
+        return;
+    }
+    size_t idx;
+    const char *key;
+    json_t *jn_item;
+    if(json_is_array(jn_value)) {
+        json_array_foreach(jn_value, idx, jn_item) {
+            collect_config_variables(jn_item, jn_secret_vars);
+        }
+    } else if(json_is_object(jn_value)) {
+        json_object_foreach(jn_value, key, jn_item) {
+            collect_config_variables(jn_item, jn_secret_vars);
+        }
+    }
+}
+
+/***************************************************************************
+ *  ATTR: mask a dict of config variables (__json_config_variables__): a
+ *  variable that feeds a secret (named by it, or with its value, see
+ *  new_secret_vars()), or whose name is a secret's (is_secret_name()), as
+ *  a "(^^smtp_password^^)" is
+ ***************************************************************************/
+PRIVATE void mask_config_variables(json_t *jn_vars, json_t *jn_secret_vars)
+{
+    json_t *jn_names = json_object_get(jn_secret_vars, "names");
+    json_t *jn_values = json_object_get(jn_secret_vars, "values");
+    const char *key;
+    json_t *jn_value;
+    void *n;
+    json_object_foreach_safe(jn_vars, n, key, jn_value) {
+        const char *svalue = json_string_value(jn_value);
+        BOOL secret = json_object_get(jn_names, key) ||
+            (svalue && json_object_get(jn_values, svalue)) ||
+            is_secret_name(key, strlen(key));
+        if(secret && secret_is_set(jn_value)) {
+            json_object_set_new(jn_vars, key, json_string("********"));
+        }
+    }
+}
+
+/***************************************************************************
+ *  ATTR: mask the SDF_SECRET attrs of `gclass` (of any gclass if NULL) in
+ *  a dict of its attrs, collecting the config variables they take
+ ***************************************************************************/
+PRIVATE void mask_secret_attrs_of_gclass(gclass_t *gclass, json_t *jn_attrs, json_t *jn_secret_vars)
+{
+    const char *key;
+    json_t *jn_value;
+    void *n;
+    json_object_foreach_safe(jn_attrs, n, key, jn_value) {
+        if(!secret_is_set(jn_value) || !attr_is_secret(gclass, key)) {
+            continue;
+        }
+        collect_config_variables(jn_value, jn_secret_vars);
+        json_object_set_new(jn_attrs, key, json_string("********"));
     }
 }
 
 /***************************************************************************
  *  ATTR: mask the secrets of a 'service tree' config, down its children.
  *  A node's attrs are in its kw, and at its top level too once
- *  gobj_service_factory() has merged the node's global settings there.
+ *  gobj_service_factory() has merged the node's global settings there. A
+ *  node whose gclass is not known masks what is SDF_SECRET in any gclass.
  ***************************************************************************/
-PRIVATE void mask_secret_tree_config(json_t *jn_tree)
+PRIVATE void mask_secret_tree_config(json_t *jn_tree, json_t *jn_secret_vars)
 {
     if(!json_is_object(jn_tree)) {
         return; // Not a node: whoever builds the tree refuses it, with a log
     }
     const char *gclass_name = json_string_value(json_object_get(jn_tree, "gclass"));
     gclass_t *gclass = gclass_name? gclass_find_by_name(old_to_new_gclass_name(gclass_name)) : 0;
-    if(gclass) {
-        mask_secret_attrs_of_gclass(gclass, jn_tree);
-        json_t *jn_kw = json_object_get(jn_tree, "kw");
-        if(json_is_object(jn_kw)) {
-            mask_secret_attrs_of_gclass(gclass, jn_kw);
-        }
+    mask_secret_attrs_of_gclass(gclass, jn_tree, jn_secret_vars);
+    json_t *jn_kw = json_object_get(jn_tree, "kw");
+    if(json_is_object(jn_kw)) {
+        mask_secret_attrs_of_gclass(gclass, jn_kw, jn_secret_vars);
     }
 
     size_t idx;
     json_t *jn_child;
     json_array_foreach(json_object_get(jn_tree, "children"), idx, jn_child) {
-        mask_secret_tree_config(jn_child);
+        mask_secret_tree_config(jn_child, jn_secret_vars);
     }
     json_array_foreach(json_object_get(jn_tree, "zchilds"), idx, jn_child) {
-        mask_secret_tree_config(jn_child);
+        mask_secret_tree_config(jn_child, jn_secret_vars);
     }
 }
 
 /***************************************************************************
- *  ATTR: trace a dict of attrs of `gclass` with its secrets masked
+ *  ATTR: collect what the secrets of `jn_config` (the attrs of `gclass`,
+ *  or a 'service tree' when `gclass` is NULL) tell of the config
+ *  variables, leaving `jn_config` as it is
  ***************************************************************************/
-PRIVATE void trace_attrs_masked(hgobj gobj, gclass_t *gclass, json_t *jn_attrs, const char *msg)
+PRIVATE void collect_secrets(gclass_t *gclass, json_t *jn_config, json_t *jn_secret_vars)
 {
+    json_t *jn_config_copy = json_deep_copy(jn_config);
+    if(json_is_object(jn_config_copy)) {
+        if(gclass) {
+            mask_secret_attrs_of_gclass(gclass, jn_config_copy, jn_secret_vars);
+        } else {
+            mask_secret_tree_config(jn_config_copy, jn_secret_vars);
+        }
+    }
+    JSON_DECREF(jn_config_copy)
+}
+
+/***************************************************************************
+ *  ATTR: trace a dict of attrs of `gclass` with its secrets masked, and
+ *  the __json_config_variables__ in it that feed a secret of it, or one
+ *  that collect_secrets() found in the config it goes with
+ ***************************************************************************/
+PRIVATE void trace_attrs_masked(
+    hgobj gobj,
+    gclass_t *gclass,
+    json_t *jn_attrs,
+    json_t *jn_secret_vars_, // not owned
+    const char *msg
+)
+{
+    json_t *jn_secret_vars = jn_secret_vars_? json_deep_copy(jn_secret_vars_) : new_secret_vars();
     json_t *jn_shown = json_deep_copy(jn_attrs);
     if(json_is_object(jn_shown)) {
-        mask_secret_attrs_of_gclass(gclass, jn_shown);
+        mask_secret_attrs_of_gclass(gclass, jn_shown, jn_secret_vars);
+        json_t *jn_vars = json_object_get(jn_shown, "__json_config_variables__");
+        if(json_is_object(jn_vars)) {
+            mask_config_variables(jn_vars, jn_secret_vars);
+        }
     }
     gobj_trace_json(gobj, jn_shown, "%s", msg);
     JSON_DECREF(jn_shown)
+    JSON_DECREF(jn_secret_vars)
 }
 
 /***************************************************************************
@@ -3798,9 +3987,34 @@ PRIVATE void trace_attrs_masked(hgobj gobj, gclass_t *gclass, json_t *jn_attrs, 
 PRIVATE void trace_tree_config_masked(hgobj gobj, json_t *jn_tree, const char *msg)
 {
     json_t *jn_shown = json_deep_copy(jn_tree);
-    mask_secret_tree_config(jn_shown);
+    mask_secret_tree_config(jn_shown, NULL);
     gobj_trace_json(gobj, jn_shown, "%s", msg);
     JSON_DECREF(jn_shown)
+}
+
+/***************************************************************************
+ *  ATTR: trace the __json_config_variables__ that will fill `jn_config`
+ *  (the attrs of `gclass`, or a 'service tree' when `gclass` is NULL):
+ *  a variable that feeds a secret there, or with a secret's name, masked
+ ***************************************************************************/
+PRIVATE void trace_config_variables_masked(
+    hgobj gobj,
+    gclass_t *gclass,
+    json_t *jn_config,
+    json_t *jn_vars,
+    const char *msg
+)
+{
+    json_t *jn_secret_vars = new_secret_vars();
+    collect_secrets(gclass, jn_config, jn_secret_vars);
+
+    json_t *jn_shown = json_deep_copy(jn_vars);
+    if(json_is_object(jn_shown)) {
+        mask_config_variables(jn_shown, jn_secret_vars);
+    }
+    gobj_trace_json(gobj, jn_shown, "%s", msg);
+    JSON_DECREF(jn_shown)
+    JSON_DECREF(jn_secret_vars)
 }
 
 /***************************************************************************

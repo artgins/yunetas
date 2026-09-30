@@ -1079,7 +1079,8 @@ PUBLIC json_t *gobj_read_attr( // Return is NOT yours!
 /*
  *  Replace, in a dict of attrs of `gobj` (what gobj_read_attrs() or
  *  gobj_list_persistent_attrs() answer), the value of every SDF_SECRET attr
- *  by "********". An empty value stays empty, so "not set" still shows.
+ *  by "********", whatever its json type. An absent value or an empty
+ *  string stays, so "not set" still shows.
  *  For what is SHOWN (view-attrs, write-attr, list-persistent-attrs,
  *  view-gobj); what is SAVED or used reads the attrs as they are.
  */
@@ -1088,9 +1089,13 @@ PUBLIC int gobj_mask_secret_attrs(hgobj gobj, json_t *jn_attrs); // not owned, m
 /*
  *  The same for a whole yuno configuration (what view-config shows): the
  *  SDF_SECRET attrs of the yuno ("yuno"), of the gclasses and services named
- *  by the "global" keys ("<gclass or service>.<attr>", "<...>.kw"), and of
- *  every node of the "services" trees, in its kw and down its children.
- *  Mask a COPY: the configuration is what the yuno builds from.
+ *  by the "global" keys ("<gclass or service>.<attr>", "<...>.kw"; a prefix
+ *  that is neither, the name of a child, masks what is SDF_SECRET in any
+ *  gclass), of every node of the "services" trees, in its kw and down its
+ *  children, and the "<...>.__json_config_variables__" that feed a secret
+ *  ("(^^var^^)") or have a secret's name (is_secret_name()).
+ *  A secret is masked whatever its json type; an absent one or an empty
+ *  string stays. Mask a COPY: the configuration is what the yuno builds from.
  */
 PUBLIC int gobj_mask_secret_config(json_t *jn_config); // not owned, modified in place
 
