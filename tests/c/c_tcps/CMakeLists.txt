@@ -57,6 +57,7 @@ SET(SRCS
     test3
     test4
     test5
+    test6
 )
 
 ##############################################
@@ -86,3 +87,6 @@ foreach(test ${SRCS})
     add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()
+
+# test6 poisons freed memory (a use after free reads poison, every run)
+target_sources(test_tcps_test6 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../emailsender/poison_alloc.c)

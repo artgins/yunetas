@@ -253,6 +253,21 @@ ALREADY RUNNING"* for each one; and a clisrv started again stayed in
 `ST_STOPPED`, so its next stop never canceled its accept, which kept the port
 bound. `tests/c/c_tcp_s_stats`.
 
+A TLS server keeps ONE ytls for its life (freed in its destroy): the clisrvs
+of the connections that outlive a stop (`child_tree_filter`) still use it.
+A start again reloads, in that same ytls, the certificates of its `crypto`,
+as the `reload-certs` command does: new connections take the new
+certificates, and a live connection keeps the context it was made with. So
+a restart is also a way to apply new certificates:
+
+```bash
+ycommand -c 'command-agent service=agent_secure_port command=reload-certs'   # the same, without a restart
+```
+
+Up to 7.25.20 the start freed the ytls and made a new one: the next record of
+a connection that lived across the stop was decrypted with freed memory.
+`tests/c/c_tcps` (`test6`).
+
 (tcp_s_ip_lists)=
 ### IP lists at accept
 

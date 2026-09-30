@@ -12,6 +12,16 @@ short write's rest went out after a later write and the peer failed the
 record MAC ("bad record mac"); the echoes alone rarely show it on a loopback,
 the stat always does.
 
+`test6` stops and starts again, in the same turn, a TLS `C_TCP_S` with
+`child_tree_filter` while a connection of it lives, and reloads its
+certificates (`reload-certs`). Then a message on the old connection and one
+on a new connection must both come back. Freed memory is poisoned
+(`tests/c/emailsender/poison_alloc.c`, linked in), so a use of freed memory
+reads poison every run. Up to 7.25.20 the start after the stop freed the ytls
+(`ytls_cleanup`) the live connection still used, and made a new one: the
+next record of that connection was decrypted with freed memory (red: a
+SegFault in `ytls_decrypt_data()`).
+
 ## Run
 
 ```bash

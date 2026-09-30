@@ -467,8 +467,26 @@ PRIVATE int start_listening(hgobj gobj)
             );
         }
 
-        EXEC_AND_RESET(ytls_cleanup, priv->ytls)
-        priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
+        if(priv->ytls) {
+            /*
+             *  A start again: the SAME ytls, which the clisrvs of the
+             *  connections that outlived the stop (child_tree_filter) still
+             *  use, with the certificates of `crypto` reloaded -- as
+             *  reload-certs does: new connections take them, a live one
+             *  keeps the context it was made with. It is freed in
+             *  mt_destroy. Up to 7.25.20 it was freed here and made again:
+             *  the next record of such a connection was decrypted with
+             *  freed memory.
+             */
+            if(ytls_reload_certificates(priv->ytls, jn_crypto) < 0) {
+                // Error already logged: the previous certificates are kept
+            }
+        } else {
+            priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
+        }
+    } else {
+        priv->use_ssl = FALSE;  // a url no longer secure; a ytls of before stays for its connections
+        gobj_write_bool_attr(gobj, "use_ssl", FALSE);
     }
 
     gobj_write_str_attr(gobj, "lHost", host);
