@@ -110,6 +110,7 @@ PRIVATE hgobj channel_of_side(hgobj side, hgobj g);
 PRIVATE json_int_t connection_number(hgobj channel);
 PRIVATE BOOL same_connection(hgobj gobj, json_t *kw, hgobj channel);
 PRIVATE void stamp_client_connection(hgobj gobj, json_t *kw, hgobj src);
+PRIVATE BOOL client_relays(json_t *kw, gobj_event_t event);
 PRIVATE hgobj requester_of_route(
     hgobj gobj,
     json_t *kw,
@@ -308,6 +309,10 @@ typedef struct _PRIVATE_DATA {
     uint64_t t_stats_dropped_log;   // msectimer: next time they may be said
     uint64_t tty_dropped;           // EV_TTY_DATA for a web client that is gone
     uint64_t t_tty_dropped_log;     // msectimer: next time they may be said
+    uint64_t tty_unrouted;          // EV_TTY_DATA routed to no requester
+    uint64_t t_tty_unrouted_log;    // msectimer: next time they may be said
+    uint64_t injected;              // events of an agent sent from __top_side__
+    uint64_t t_injected_log;        // msectimer: next time they may be said
 
     hgobj run_timer;                // deadline of the step of the run in flight
     json_t *run;                    // the run in flight, or NULL (one at a time)
@@ -771,6 +776,8 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
     /*----------------------------------------*
      *  Job
      *----------------------------------------*/
+    BOOL client_takes_yuno_stats = client_relays(kw, EV_YUNO_STATS);
+
     const char *keys2delete[] = { // WARNING parameters of command-yuno command of agent
         "id",
         "command",
@@ -800,14 +807,18 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
     }
 
     /*
-     *  Tell the agent which of its pushed events this control center
-     *  relays to the web client: an agent sends a watch-yuno-stats
-     *  through a control center only if it says EV_YUNO_STATS here. A
-     *  control center that does not know an event DROPS the agent's
-     *  connection when it gets one, so an older one must never be sent
-     *  it -- and an older one does not write this key.
+     *  Tell the agent which of its pushed events reach the client: an
+     *  agent sends a watch-yuno-stats through a control center only if it
+     *  says EV_YUNO_STATS here. It is said only when BOTH take it: this
+     *  control center relays it (an older one, which does not know the
+     *  event, drops the agent's connection when it gets one, and does not
+     *  write this key), and the client said so in its own __relays__ (a
+     *  ycommand does not: it logs "Event NOT DEFINED" on each one). The
+     *  client's other entries are not the agent's business.
      */
-    json_object_set_new(kw, "__relays__", json_pack("[s]", EV_YUNO_STATS));
+    if(client_takes_yuno_stats) {
+        json_object_set_new(kw, "__relays__", json_pack("[s]", EV_YUNO_STATS));
+    }
 
     stamp_client_connection(gobj, kw, src);
 
@@ -851,7 +862,7 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
         json_t *webix = gobj_command( // debe retornar siempre 0.
             child,
             cmd2agent,
-            json_incref(kw),
+            kw_incref(kw),
             src
         );
         JSON_DECREF(webix);
@@ -945,7 +956,7 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
         json_t *webix = gobj_stats( // debe retornar siempre 0.
             child,
             stats2agent,
-            json_incref(kw),
+            kw_incref(kw),
             src
         );
         JSON_DECREF(webix);
@@ -2309,11 +2320,31 @@ PRIVATE void stamp_client_connection(hgobj gobj, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Does the client of a request (kw not owned) say it takes `event`, in
+ *  its `__relays__` (a list naming it)?
+ ***************************************************************************/
+PRIVATE BOOL client_relays(json_t *kw, gobj_event_t event)
+{
+    json_t *jn_relays = json_object_get(kw, "__relays__");
+    size_t idx; json_t *jn_relay;
+    json_array_foreach(jn_relays, idx, jn_relay) {
+        if(json_is_string(jn_relay) && strcmp(json_string_value(jn_relay), event)==0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  Who gets what an agent sends back along the route of a request (kw not
  *  owned): pops this control center's hop off the stack, whose
- *  `dst_service` is the channel of __top_side__ that asked -- or, when no
- *  channel has that name, the next hop's, a local service. Its name is
- *  copied in `dst_service` (the popped frame is freed here).
+ *  `dst_service` is who asked -- the channel of __top_side__ of a web
+ *  client, or, for a request that came in by one of this yuno's own
+ *  ievent links (its agent's `agent_client`: a C_IEVENT_CLI dispatches a
+ *  command as its own src), that C_IEVENT_CLI service. Its name is copied
+ *  in `dst_service` (the popped frame is freed here). Nothing else is a
+ *  requester: the hops below were written by the client, and a name the
+ *  agent echoed that names another local service is not believed.
  *  NULL when there is nobody; NULL and `reconnected` when the channel is
  *  held by another connection now: its name was taken by the next client.
  *  A closed channel is returned, to be found not listening.
@@ -2344,10 +2375,11 @@ PRIVATE hgobj requester_of_route(
         return gobj_requester;
     }
 
-    json_t *jn_next = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
-    snprintf(dst_service, dst_service_size, "%s",
-        kw_get_str(gobj, jn_next, "dst_service", "", 0));
-    return gobj_find_service(dst_service, FALSE);
+    hgobj gobj_link = gobj_find_service(dst_service, FALSE);
+    if(gobj_link && gobj_typeof_gclass(gobj_link, C_IEVENT_CLI)) {
+        return gobj_link;
+    }
+    return NULL;
 }
 
 /***************************************************************************
@@ -2379,10 +2411,10 @@ PRIVATE hgobj requester_of_answer(
         return NULL;
     }
     if(!gobj_requester) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "service not found",
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "answer of an agent for no requester of this control center, dropped",
             "service",      "%s", dst_service,
             "event",        "%s", event,
             NULL
@@ -2395,6 +2427,8 @@ PRIVATE hgobj requester_of_answer(
  *  What an agent sends back (an answer, a stream) is public for the
  *  agents' sake, so a web client can send it too: it would be relayed by
  *  the routing IT wrote, to another client. Taken only from __input_side__.
+ *  An authenticated client can send them as fast as it likes: the one that
+ *  opens a minute is said, with the ones counted since, the others counted.
  ***************************************************************************/
 PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -2403,16 +2437,22 @@ PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     if(src == priv->gobj_input_side) {
         return TRUE;
     }
-    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
-    gobj_log_warning(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PROTOCOL,
-        "msg",          "%s", "event of an agent not from the agents' side, dropped",
-        "event",        "%s", event,
-        "src",          "%s", gobj_short_name(src),
-        "channel",      "%s", channel_gobj? gobj_short_name(channel_gobj) : "",
-        NULL
-    );
+    priv->injected++;
+    if(!priv->t_injected_log || test_msectimer(priv->t_injected_log)) {
+        hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "event of an agent not from the agents' side, dropped",
+            "event",        "%s", event,
+            "src",          "%s", gobj_short_name(src),
+            "channel",      "%s", channel_gobj? gobj_short_name(channel_gobj) : "",
+            "dropped",      "%lu", (unsigned long)priv->injected,
+            NULL
+        );
+        priv->injected = 0;
+        priv->t_injected_log = start_msectimer(60*1000);
+    }
     return FALSE;
 }
 
@@ -2865,13 +2905,23 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
         return 0;
     }
     if(!gobj_requester) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "service not found",
-            "service",      "%s", dst_service,
-            NULL
-        );
+        /*
+         *  A route of the agent that names nobody here: said once a
+         *  minute, as the frames of a client that is gone
+         */
+        priv->tty_unrouted++;
+        if(!priv->t_tty_unrouted_log || test_msectimer(priv->t_tty_unrouted_log)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "PTY output of an agent for no requester of this control center, dropped",
+                "service",      "%s", dst_service,
+                "dropped",      "%lu", (unsigned long)priv->tty_unrouted,
+                NULL
+            );
+            priv->tty_unrouted = 0;
+            priv->t_tty_unrouted_log = start_msectimer(60*1000);
+        }
         KW_DECREF(kw);
         return 0;
     }

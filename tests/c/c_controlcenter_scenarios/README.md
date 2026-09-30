@@ -49,13 +49,32 @@ the very same string, and the read looks right.
    (`EV_MT_COMMAND_ANSWER`, `EV_MT_STATS_ANSWER`, `EV_TTY_OPEN`/`DATA`/`CLOSE`,
    `EV_YUNO_STATS`), routed to another client's channel with that client's
    connection: nothing reaches it, one warning each, and the sender's channel
-   takes no mirror. Up to 7.25.20 all six were delivered.
+   takes no mirror. Up to 7.25.20 all six were delivered. The warning is
+   said once a minute, with `dropped=` counting the others: the one injected
+   in case 4 is said, these six are counted (one warning per injected frame
+   let an authenticated client flood the log).
 7. Several consoles mirrored through one agent's channel. Two clients, two
    consoles: the agent's close drops both. One console opened again by another
    client: only that client is dropped (the agent routes it to the last
    opener). One client with two consoles, one closed: dropped once. Up to
    7.25.20 the channel kept one client, the last opened, cleared by the close
    of any console.
+8. `command-agent` tells the agent the client takes `EV_YUNO_STATS`
+   (`__relays__: ["EV_YUNO_STATS"]`) only when the client's own `__relays__`
+   names it: not without one, not for another entry, not for a string; and
+   only that entry is passed on. Up to 7.25.20 it said so for every client,
+   and a `ycommand` watch through the control center got readings it cannot
+   handle.
+9. What the agent sends back for no web client goes only to the
+   `C_IEVENT_CLI` link the request came in by (the control center's link to
+   its own agent), named in the control center's own hop. A route whose hop
+   names nobody and whose next hop (the client's) names a local service that
+   listens: nothing reaches that service, a warning; the same for two PTY
+   frames, one warning. A hop naming a local service that is not a link:
+   dropped, a warning. A `command-agent` from a `C_IEVENT_CLI` in session:
+   its answer goes back by that link. Up to 7.25.20 the answer went to the
+   service of the next hop -- the local service in the forged case, the
+   control center itself (nobody) through the local agent.
 
 ## Run
 

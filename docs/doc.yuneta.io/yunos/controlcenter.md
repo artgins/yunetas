@@ -97,18 +97,48 @@ the route of the request that opened it: the PTY of `open-console`
 of a `watch-yuno-stats` (`EV_YUNO_STATS`). The control center relays each of
 them to the web client at the end of the route. It must KNOW the event: a
 control center that receives one it does not know drops the agent's
-connection. So `command-agent` tells the agent what this control center
-relays, in the kw it forwards:
+connection. And the client at the end must know it too: `ycommand` logs
+*"Event NOT DEFINED"* on every reading. So the web client says it takes the
+event, in its request:
 
 ```json
-{"cmd2agent": "watch-yuno-stats ids=2120,5120 period=2000",
+{"agent_id": "node1",
+ "cmd2agent": "watch-yuno-stats ids=2120,5120 period=2000",
  "__relays__": ["EV_YUNO_STATS"]}
 ```
 
-and the agent refuses a watch that arrives through a control center without
-it (*"the control center in between does not relay EV_YUNO_STATS, ask
-stats-yuno instead"*). A `__relays__` sent by the web client is removed first:
-only the control center says what it relays.
+`command-agent` removes the client's `__relays__` and, only if it named
+`EV_YUNO_STATS`, writes its own `__relays__: ["EV_YUNO_STATS"]` in the kw it
+forwards (the client's other entries are not passed on). The agent refuses a
+watch without it (*"the client, or the control center in between, does not say
+it takes EV_YUNO_STATS (__relays__), ask stats-yuno instead"*), and the client
+polls `stats-yuno`. Up to 7.25.20 the control center said it for every client,
+so a `ycommand` watch through it got readings it could not handle.
+
+**Deploy order:** gui_agent 0.29.7 or later first, or together with this
+control center. An older gui_agent does not send `__relays__` through the
+control center: its Monitor is refused the watch and polls instead, the same
+fallback it takes with an agent that refuses a direct watch.
+
+Who gets what the agent sends back is the requester named in the control
+center's OWN hop of the route: the web client's channel of `__top_side__`, or
+the control center's link to its own agent (`agent_client`, a `C_IEVENT_CLI`)
+for a request made through the local agent:
+
+```bash
+ycommand -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=node1 cmd2agent="list-yunos"'
+```
+
+A route that names anything else is dropped with the warning *"answer of an
+agent for no requester of this control center, dropped"* (the PTY output with
+*"PTY output of an agent for no requester of this control center, dropped"*,
+once a minute). Up to 7.25.20 it fell back to a service named by the hop
+below, which the client writes, so the answers of a request through the local
+agent were sent to the control center itself and lost.
+
+An event that only an agent sends, sent by a web client from `__top_side__`,
+is dropped: *"event of an agent not from the agents' side, dropped"*, at most
+once a minute, with `dropped=` counting the ones since the last warning.
 
 A stats reading for a web client that is gone (a closed tab) is expected --
 the agent learns it only when the watch expires, not renewed -- and is

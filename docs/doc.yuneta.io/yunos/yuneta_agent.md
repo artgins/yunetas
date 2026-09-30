@@ -204,8 +204,9 @@ client that receives an event it does not know drops the connection, or logs
 *"Event NOT DEFINED in state"* on every one (`ycommand`, until the watch
 expired). So a watch is accepted only if its kw carries `__relays__` with the
 event -- written by a control center in between (see
-[the control center](controlcenter.md), which removes the web client's own
-first), or by a client connected directly:
+[the control center](controlcenter.md): it removes the web client's own, and
+writes it only when the web client's request named the event), or by a client
+connected directly:
 
 ```json
 {"ids": "2120,5120", "period": 2000, "__relays__": ["EV_YUNO_STATS"]}
@@ -213,8 +214,8 @@ first), or by a client connected directly:
 
 Otherwise it is refused (*"this client does not say it takes EV_YUNO_STATS
 (__relays__), ask stats-yuno instead"*, or through a control center *"the
-control center in between does not relay EV_YUNO_STATS, ask stats-yuno
-instead"*) and the requester polls.
+client, or the control center in between, does not say it takes EV_YUNO_STATS
+(__relays__), ask stats-yuno instead"*) and the requester polls.
 
 ## Redundancy
 

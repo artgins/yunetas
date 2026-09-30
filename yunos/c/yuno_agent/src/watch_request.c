@@ -71,7 +71,9 @@ PUBLIC int watch_route_name(
  *
  *  A client that gets an event it does not know drops its connection (a
  *  control center, an older C client) or logs "Event NOT DEFINED" on each
- *  one (ycommand): whoever is sent EV_YUNO_STATS says it takes it.
+ *  one (ycommand): whoever is sent EV_YUNO_STATS says it takes it. Through
+ *  a control center it is the control center that writes `__relays__`, and
+ *  only when it relays the event AND its client said it takes it.
  ***************************************************************************/
 PUBLIC json_t *watch_refusal(
     json_t *kw,
@@ -87,7 +89,7 @@ PUBLIC json_t *watch_refusal(
         }
     }
     if(relayed) {
-        return json_sprintf("%s: the control center in between does not relay %s, ask stats-yuno instead",
+        return json_sprintf("%s: the client, or the control center in between, does not say it takes %s (__relays__), ask stats-yuno instead",
             gobj_yuno_role_plus_name(), event);
     }
     return json_sprintf("%s: this client does not say it takes %s (__relays__), ask stats-yuno instead",

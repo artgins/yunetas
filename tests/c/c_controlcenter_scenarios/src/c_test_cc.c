@@ -32,7 +32,13 @@
  *              - what only an agent sends, injected by a web client and
  *                routed to another client, reaches nobody;
  *              - several consoles mirrored through one agent's channel:
- *                the agent's close drops the client of each, once.
+ *                the agent's close drops the client of each, once;
+ *              - the agent is told the client takes EV_YUNO_STATS only when
+ *                the client said so in its own __relays__;
+ *              - what an agent sends back for no web client goes only to
+ *                the C_IEVENT_CLI link the request came in by, never to a
+ *                local service a hop below names; a flood of it, or of
+ *                agent events injected by a client, is said once a minute.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -890,6 +896,162 @@ PRIVATE int test_several_mirrors(hgobj gobj, hgobj client_a, hgobj client_b)
 }
 
 /***************************************************************************
+ *  What command-agent tells the agent in `__relays__` (yours: the list, or
+ *  NULL when it writes none) for a request of `client` carrying `relays`
+ *  (owned, or NULL for none)
+ ***************************************************************************/
+PRIVATE json_t *forwarded_relays(hgobj gobj, hgobj client, json_t *relays)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("watch-yuno-stats ids=1234"));
+    if(relays) {
+        json_object_set_new(kw, "__relays__", relays);
+    }
+    check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, 0, "command-agent watch-yuno-stats");
+    json_t *forwarded = agent_request(gobj, "watch-yuno-stats reaches the agent");
+    json_t *jn_relays = json_incref(json_object_get(forwarded, "__relays__"));
+    JSON_DECREF(forwarded)
+    return jn_relays;
+}
+
+/***************************************************************************
+ *  8. The control center says it relays EV_YUNO_STATS only for a client
+ *     that said it takes it: a ycommand through the control center is not
+ *     sent readings it cannot handle
+ ***************************************************************************/
+PRIVATE int test_relays_only_for_who_asks(hgobj gobj, hgobj client)
+{
+    int ret = 0;
+
+    json_t *jn_relays = forwarded_relays(gobj, client, NULL);
+    if(jn_relays) {
+        ret += fail(gobj, "a client without __relays__ is said to take EV_YUNO_STATS", "");
+    }
+    JSON_DECREF(jn_relays)
+
+    jn_relays = forwarded_relays(gobj, client, json_pack("[s]", "EV_SOMETHING_ELSE"));
+    if(jn_relays) {
+        ret += fail(gobj, "a client whose __relays__ does not name EV_YUNO_STATS is said to take it", "");
+    }
+    JSON_DECREF(jn_relays)
+
+    jn_relays = forwarded_relays(gobj, client, json_string(EV_YUNO_STATS));
+    if(jn_relays) {
+        ret += fail(gobj, "a __relays__ that is not a list is taken", "");
+    }
+    JSON_DECREF(jn_relays)
+
+    jn_relays = forwarded_relays(gobj, client,
+        json_pack("[s, s]", "EV_SOMETHING_ELSE", EV_YUNO_STATS));
+    json_t *expected = json_pack("[s]", EV_YUNO_STATS);
+    if(!jn_relays || !json_equal(jn_relays, expected)) {
+        char *s = jn_relays? json_dumps(jn_relays, JSON_COMPACT) : 0;
+        ret += fail(gobj, "a client that takes EV_YUNO_STATS: the agent is told only that", s? s : "none");
+        if(s) {
+            gbmem_free(s);
+        }
+    }
+    JSON_DECREF(expected)
+    JSON_DECREF(jn_relays)
+    return ret;
+}
+
+/***************************************************************************
+ *  9. Who gets what the agent sends back when it names no web client:
+ *     only one of this yuno's own ievent links (C_IEVENT_CLI), the one the
+ *     request came in by -- never a local service named in a hop below
+ *     this control center's, nor one that is not a link
+ ***************************************************************************/
+PRIVATE int test_answer_to_local_requesters(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    hgobj local = gobj_find_service("authz", TRUE);
+
+    /*
+     *  The agent's route: this control center's hop names nobody, the
+     *  next one (the client's) a local service that listens
+     */
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, 0, "command-agent");
+    json_t *request = agent_request(gobj, "command-agent reaches the agent");
+    if(!request) {
+        return -1;
+    }
+    json_t *jn_stack = kw_get_list(gobj, request, "__md_iev__`ievent_gate_stack", 0, 0);
+    json_object_set_new(json_array_get(jn_stack, 0), "src_service", json_string("nobody-here"));
+    json_object_set_new(json_array_get(jn_stack, 1), "dst_service", json_string("authz"));
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, request, 0, "routed to the next hop");
+    agent_sends(gobj, EV_TTY_DATA, request, 0, "tty routed to nobody");
+    agent_sends(gobj, EV_TTY_DATA, request, 0, "tty routed to nobody");
+
+    /*
+     *  This control center's hop names a local service that is not a link
+     */
+    json_object_set_new(json_array_get(jn_stack, 0), "src_service", json_string("authz"));
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, request, 0, "routed to a local service");
+    JSON_DECREF(request)
+
+    json_t *received = take_received(local);
+    if(json_array_size(received) != 0) {
+        char *s = json_dumps(received, JSON_COMPACT);
+        ret += fail(gobj, "an answer of the agent reached a local service it named", s);
+        gbmem_free(s);
+    }
+    JSON_DECREF(received)
+    if(count_received(client, EV_MT_COMMAND_ANSWER, 0) != 0) {
+        ret += fail(gobj, "a rerouted answer reached the client", "");
+    }
+
+    /*
+     *  A request that came in by this yuno's link to its own agent (a
+     *  C_IEVENT_CLI gives itself as the src of a command it dispatches):
+     *  the answer goes back by that link
+     */
+    hgobj uplink = gobj_create_service("cc_uplink", C_IEVENT_CLI, 0, gobj);
+    hgobj uplink_wire = create_peer("cc_uplink_wire", uplink);
+    gobj_set_bottom_gobj(uplink, uplink_wire);
+    gobj_change_state(uplink, ST_SESSION);
+
+    kw = json_pack("{s:s, s:s, s:s, s:{s:[{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}]}}",
+        "__username__", "yuneta",
+        "agent_id", AGENT_HOST,
+        "cmd2agent", "list-yunos",
+        "__md_iev__",
+            "ievent_gate_stack",
+                "dst_yuno", "",
+                "dst_role", "controlcenter",
+                "dst_service", "controlcenter",
+                "src_yuno", "",
+                "src_role", "yuneta_agent",
+                "src_service", "input-1",
+                "user", "yuneta",
+                "host", "cc-node"
+    );
+    check_response(gobj, gobj_command(priv->cc, "command-agent", kw, uplink),
+        0, 0, "command-agent by the link to the local agent");
+    request = agent_request(gobj, "command-agent by the link reaches the agent");
+    if(request) {
+        agent_sends(gobj, EV_MT_COMMAND_ANSWER, request, 0, "via the local agent");
+        JSON_DECREF(request)
+    }
+    if(count_received(uplink_wire, EV_MT_COMMAND_ANSWER, "via the local agent") != 1) {
+        ret += fail(gobj, "the answer goes back by the link the request came in by", "");
+    }
+    gobj_stop(uplink_wire);
+    gobj_destroy(uplink);
+    return ret;
+}
+
+/***************************************************************************
  *  All the tests
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -921,6 +1083,8 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_injected_agent_events(gobj, client1, client2);
     result += test_late_answers_to_another_client(gobj, client3);
     result += test_several_mirrors(gobj, client1, client2);
+    result += test_relays_only_for_who_asks(gobj, client1);
+    result += test_answer_to_local_requesters(gobj, client1);
 
     if(result == 0) {
         gobj_log_info(gobj, 0,

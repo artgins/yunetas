@@ -48,9 +48,31 @@ Registered in the `command_table` of `src/c_controlcenter.c`:
 Besides answers, the control center relays what a node's agent PUSHES along
 the route of a request: the PTY of `open-console` (`EV_TTY_OPEN/DATA/CLOSE`)
 and, since 7.25.13, the readings of a `watch-yuno-stats` (`EV_YUNO_STATS`).
-`command-agent` adds `__relays__: ["EV_YUNO_STATS"]` to what it forwards, and
-the agent refuses a watch through a control center that does not say it:
-one that receives an event it does not know drops the agent's connection.
+`command-agent` removes the `__relays__` of the client and writes its own
+`__relays__: ["EV_YUNO_STATS"]` only when the client's request said it takes
+that event (its own `__relays__` names it). The agent refuses a watch whose kw
+does not say it: a control center that receives an event it does not know
+drops the agent's connection, and a client that does not know it (`ycommand`)
+logs *"Event NOT DEFINED"* on every reading. Up to 7.25.20 the control center
+said it for every client, so a `ycommand ... command-agent
+cmd2agent="watch-yuno-stats ids=..."` was sent readings it could not handle.
+
+Deploy order: **gui_agent 0.29.7 or later first** (or together with this
+control center). An older gui_agent does not send `__relays__` through the
+control center, so its watch is refused and its Monitor falls back to polling
+`stats-yuno`, as it does for an agent that refuses a direct watch.
+
+What an agent sends back reaches a web client's channel of `__top_side__`, or,
+for a request that came in by the control center's link to its own agent
+(`ycommand -c 'command-yuno id=<cc> service=controlcenter command=command-agent ...'`),
+that `C_IEVENT_CLI` link. Nothing else: a route that names any other local
+service is dropped with a warning. Up to 7.25.20 the control center fell back
+to a service named by the client's own hop of the route, and the answers of the
+request through the local agent went nowhere.
+
+An event that only an agent sends (an answer, the PTY, `EV_YUNO_STATS`) sent by
+a web client is dropped with the warning *"event of an agent not from the
+agents' side, dropped"*, at most once a minute (`dropped=` counts them).
 
 Talk to it via `ycommand`:
 
