@@ -7699,7 +7699,7 @@ PRIVATE int find_keys_in_disk(
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM,
-                    "msg",          "%s", "Cannot list the keys of the topic, stat() FAILED",
+                    "msg",          "%s", "Cannot list the keys of the topic, lstat() FAILED",
                     "path",         "%s", path,
                     "errno",        "%d", errno,
                     "serrno",       "%s", strerror(errno),
