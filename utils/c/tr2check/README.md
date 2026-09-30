@@ -34,7 +34,11 @@ verdict on part of it would be a lie; up to 7.25.20 it could say PASS).
 
 The tool never writes to the store. It raises its soft limit of open files
 to the hard one (timeranger2 keeps the files of every key open), and says on
-stderr when it cannot.
+stderr when it cannot. It never raises the HARD limit, not even run as root:
+a topic with more keys than that needs it raised before the run
+(`ulimit -Hn`, or `/etc/security/limits.d/`). Up to 7.25.20 it set both
+limits to 200000: raised for root, a failure for any other user whose hard
+limit was lower (silently), and a lower hard limit where it was higher.
 
 | Option | Default | Purpose |
 |---|---|---|

@@ -17,7 +17,9 @@
  *  without changing its figures:
  *
  *  - key E: a record with no checksum at all (`no_checksum`);
- *  - key U: its md2 file made unreadable (`unreadable_keys`).
+ *  - key U: its md2 file made unreadable (`unreadable_keys`). Not as
+ *    root: a mode of 000 does not stop root (CAP_DAC_OVERRIDE), and that
+ *    case is skipped.
  *
  *  And a third, `empty`, with no record: nothing checked is not a PASS.
  *
@@ -287,8 +289,8 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*
-     *  The md2 files of key U cannot be read (the test runs as the store's
-     *  owner, not as root)
+     *  The md2 files of key U cannot be read. Root reads them all the same
+     *  (CAP_DAC_OVERRIDE): as root the case of the unreadable key is skipped.
      */
     char path_u[PATH_MAX];
     build_path(path_u, sizeof(path_u), path_database, "verdicts", "keys", "U", NULL);
@@ -408,15 +410,19 @@ PRIVATE int do_test(void)
     /*-------------------------------------*
      *  A key that cannot be read
      *-------------------------------------*/
-    set_expected_results("tr2check: unreadable key", NULL, NULL, NULL, 1);
-    jn = run_tr2check(path_verdicts, "--key=U 2>/dev/null", &exit_code);
-    result += expect_int("exit code of an unreadable key", exit_code, 1);
-    result += expect_str("result", kw_get_str(0, jn, "result", "", 0), "FAIL");
-    result += expect_int("unreadable_keys", kw_get_int(0, jn, "unreadable_keys", -1, 0), 1);
-    result += expect_str("the unreadable key is U",
-        json_string_value(json_array_get(kw_get_list(0, jn, "examples`unreadable_keys", 0, 0), 0)), "U");
-    JSON_DECREF(jn)
-    result += test_json(NULL);
+    if(geteuid() == 0) {
+        printf("     SKIPPED the unreadable key, running as root: a mode of 000 is still read\n");
+    } else {
+        set_expected_results("tr2check: unreadable key", NULL, NULL, NULL, 1);
+        jn = run_tr2check(path_verdicts, "--key=U 2>/dev/null", &exit_code);
+        result += expect_int("exit code of an unreadable key", exit_code, 1);
+        result += expect_str("result", kw_get_str(0, jn, "result", "", 0), "FAIL");
+        result += expect_int("unreadable_keys", kw_get_int(0, jn, "unreadable_keys", -1, 0), 1);
+        result += expect_str("the unreadable key is U",
+            json_string_value(json_array_get(kw_get_list(0, jn, "examples`unreadable_keys", 0, 0), 0)), "U");
+        JSON_DECREF(jn)
+        result += test_json(NULL);
+    }
 
     /*-------------------------------------*
      *  An empty topic is not a PASS

@@ -60,7 +60,9 @@
  ***************************************************************************/
 #define NAME        "tr2check"
 #define DOC         "Check a topic filled by a load test: count, duplicates, gaps, " \
-                    "checksums, storage rate and latency."
+                    "checksums, storage rate and latency. The soft limit of open files " \
+                    "is raised to the hard one, never the hard one itself (not even as " \
+                    "root): raise it before the run for a topic with more keys."
 
 #define VERSION     YUNETA_VERSION
 #define SUPPORT     "<support at artgins.com>"
@@ -1033,7 +1035,8 @@ int main(int argc, char *argv[])
 
     /*
      *  timeranger2 keeps the files of every key open: the soft limit goes up
-     *  to the hard one, which an unprivileged process cannot raise.
+     *  to the hard one. The hard one is left alone, root included: it is
+     *  the operator's to raise.
      */
     struct rlimit rl;
     if(getrlimit(RLIMIT_NOFILE, &rl) < 0) {
