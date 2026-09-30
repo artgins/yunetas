@@ -25,6 +25,16 @@
  *          MSGSET_PROTOCOL with the reply, capped: a remote peer can cause
  *          it. An ERROR is for our own failures only (no memory, an encoder).
  *
+ *          The next session after an aborted one is paced. The transport
+ *          (C_TCP) reconnects by itself after `timeout_between_connections`,
+ *          and resets its own backoff as soon as the TCP connection is up,
+ *          which a server refusing the login or the message never stops it
+ *          from being. So the session, which knows the SMTP session failed,
+ *          sets that delay: `timeout_retry` after the first failure in a row,
+ *          doubled at each next one up to `timeout_retry_max`, and back at
+ *          `timeout_retry` once a message is delivered. The waiting is the
+ *          transport's own timer; nothing here kicks it.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -101,6 +111,8 @@ SDATA (DTP_STRING,  "helo_name",        SDF_RD,     "localhost","EHLO domain adv
 SDATA (DTP_STRING,  "username",         SDF_RD,     "",         "SMTP AUTH PLAIN username"),
 SDATA (DTP_STRING,  "password",         SDF_RD|SDF_SECRET,     "",         "SMTP AUTH PLAIN password"),
 SDATA (DTP_INTEGER, "timeout_response", SDF_RD,     "30000",    "Per-command server response timeout (ms)"),
+SDATA (DTP_INTEGER, "timeout_retry",    SDF_RD,     "2000",     "ms the transport waits before connecting again after the server ended a session. Doubles at each such failure in a row, up to timeout_retry_max; back to this once a message is delivered"),
+SDATA (DTP_INTEGER, "timeout_retry_max",SDF_RD,     "600000",   "Cap of the doubling of timeout_retry (ms)"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. Default if null is parent."),
 SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),
 SDATA (DTP_POINTER, "user_data2",       0,          0,          "more user data"),
@@ -134,6 +146,7 @@ typedef struct _PRIVATE_DATA {
     int reject_code;            /* SMTP reply code of a per-message rejection, forwarded on EV_ON_CLOSE; 0 = transient/link error */
     int auth_reject_code;       /* SMTP reply code of a refused AUTH (5xx), forwarded on EV_ON_CLOSE as auth_rejected; 0 = none */
     char close_reply[REPLY_TEXT_MAX]; /* text of the reply that closed the session, forwarded on EV_ON_CLOSE as reply */
+    json_int_t retry_delay;     /* ms the transport waits after the next aborted session; 0 = timeout_retry */
 } PRIVATE_DATA;
 
 
@@ -614,13 +627,27 @@ PRIVATE int abort_session_on_error(hgobj gobj, const char *reason)
 /***************************************************************************
  *  Drop the underlying TCP, keeping the text of the reply that caused it:
  *  ac_disconnected publishes EV_ON_CLOSE upward with it.
+ *
+ *  The transport reconnects by itself after its timeout_between_connections,
+ *  which it reads when the drop completes: it is given the paced delay
+ *  first, and the next failure in a row waits twice as long.
  ***************************************************************************/
 PRIVATE int drop_session(hgobj gobj, const char *reply)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     snprintf(priv->close_reply, sizeof(priv->close_reply), "%s", reply? reply : "");
-    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+
+    json_int_t base = gobj_read_integer_attr(gobj, "timeout_retry");
+    json_int_t cap = gobj_read_integer_attr(gobj, "timeout_retry_max");
+    if(priv->retry_delay < base) {
+        priv->retry_delay = base;
+    }
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    gobj_write_integer_attr(bottom, "timeout_between_connections", priv->retry_delay);
+    priv->retry_delay = (priv->retry_delay * 2 < cap)? priv->retry_delay * 2 : cap;
+
+    gobj_send_event(bottom, EV_DROP, 0, gobj);
     return -1;
 }
 
@@ -1056,6 +1083,16 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  stays up), and it must find us idle with nothing in flight.
          */
         cleanup_current_message(gobj);
+        if(ok) {
+            /*
+             *  The server works: the next aborted session starts the
+             *  pacing again from timeout_retry.
+             */
+            priv->retry_delay = 0;
+            gobj_write_integer_attr(gobj_bottom_gobj(gobj), "timeout_between_connections",
+                gobj_read_integer_attr(gobj, "timeout_retry")
+            );
+        }
         gobj_change_state(gobj, ST_IDLE);
         gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
         return 0;

@@ -49,6 +49,7 @@ SET(SRCS
     set_email_user
     set_url_running
     send_in_handshake
+    auth_backoff
 )
 
 ##############################################

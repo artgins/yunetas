@@ -18,6 +18,10 @@
  *          message delivered: time for the client to read the 250 and say
  *          so.
  *
+ *          With `auth_min_gaps` (ms, one per AUTH) an AUTH that comes sooner
+ *          than its gap after the previous AUTH is logged as an ERROR
+ *          ("Fake smtp: AUTH too early"): a test of the client's pacing.
+ *
  *          With `banner_delay` the 220 greeting waits that many ms after the
  *          connection: the client stays in its handshake that long. With
  *          `notify_service` that service is sent EV_FAKE_CLIENT_CONNECTED
@@ -62,6 +66,7 @@ SDATA (DTP_LIST,        "auth_replies",     SDF_RD,             "[\"235 2.7.0 Au
 SDATA (DTP_INTEGER,     "banner_delay",     SDF_RD,             "0",        "ms to wait before greeting a client with 220"),
 SDATA (DTP_INTEGER,     "notify_delay",     SDF_RD,             "500",      "ms after a connection to tell notify_service"),
 SDATA (DTP_STRING,      "notify_service",   SDF_RD,             "",         "service told of each client connected (EV_FAKE_CLIENT_CONNECTED)"),
+SDATA (DTP_LIST,        "auth_min_gaps",    SDF_RD,             "[]",       "ms that AUTH n must come after AUTH n-1 (entry 0 unused)"),
 SDATA (DTP_BOOLEAN,     "die_on_delivery",  SDF_RD,             "1",        "End the yuno a second after a message is delivered"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
@@ -84,6 +89,7 @@ typedef struct _PRIVATE_DATA {
     BOOL banner_pending;
     BOOL in_data;
     size_t auth_count;
+    uint64_t auth_not_before;   /* msectimer: the next AUTH must not come sooner */
     char line[LINE_MAX];
     size_t line_len;
 } PRIVATE_DATA;
@@ -190,6 +196,19 @@ PRIVATE int process_line(hgobj gobj, const char *line)
         return send_reply(gobj, "250 fake.smtp");
     }
     if(strncasecmp(line, "AUTH ", 5) == 0) {
+        if(priv->auth_not_before && !test_msectimer(priv->auth_not_before)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Fake smtp: AUTH too early",
+                "auth",         "%d", (int)priv->auth_count,
+                NULL
+            );
+        }
+        json_t *jn_gaps = gobj_read_json_attr(gobj, "auth_min_gaps");
+        json_int_t next_gap = json_integer_value(json_array_get(jn_gaps, priv->auth_count + 1));
+        priv->auth_not_before = next_gap > 0? start_msectimer((uint64_t)next_gap) : 0;
+
         json_t *jn_replies = gobj_read_json_attr(gobj, "auth_replies");
         size_t n = json_array_size(jn_replies);
         size_t idx = priv->auth_count < n? priv->auth_count : n - 1;

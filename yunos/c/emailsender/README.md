@@ -66,7 +66,29 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
 - **A transient refusal of the login** (a `4xx` to `AUTH PLAIN`: `454`
   temporary authentication failure, `421`, `432`, ...) says nothing of the
   credentials: the session closes like any drop, the in-flight message spends
-  a retry, and the login is tried again at the next connection. (Up to 7.25.20
+  a retry, and the login is tried again at the next connection.
+- **Retries are paced.** After a session the server ends (a `4xx`, a refused
+  message, a reply that never comes), the next connection waits
+  `timeout_retry` ms (default `2000`), twice as long after each further failure
+  in a row, up to `timeout_retry_max` (default `600000`), and back to
+  `timeout_retry` once a message is delivered. The message spends one of its
+  `max_retries` per failure, so the two together say how long an outage the
+  queue rides out before a message goes to the failed queue: with the defaults,
+  four attempts are spread over 2 + 4 + 8 = 14 s; a batch config for a
+  provider known to have long outages raises `max_retries`
+  (`'max_retries': 10` covers about 17 minutes):
+
+  ```json
+  "kw": {
+      "max_retries": 10,
+      "timeout_retry": 2000,
+      "timeout_retry_max": 600000
+  }
+  ```
+
+  (Up to 7.25.20 every retry came after the transport's fixed 2 s, even
+  failing again and again: the four attempts of a message were gone in about
+  8 s.) (Up to 7.25.20
   it was taken as a refusal, and a brief outage of the provider stopped the
   yuno for good while the queue piled up.)
 - **Why a session closed**: every close caused by a reply of the server
