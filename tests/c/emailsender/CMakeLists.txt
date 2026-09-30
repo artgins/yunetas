@@ -59,6 +59,7 @@ SET(SRCS
     server_close_paced
     late_server
     refill_paced
+    long_line
 )
 
 ##############################################

@@ -1053,17 +1053,29 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     while(gbuffer_leftbytes(gbuf) > 0) {
         char *bf = gbuffer_cur_rd_pointer(gbuf);
         size_t len = gbuffer_leftbytes(gbuf);
-        size_t consumed = istream_consume(priv->istream_in, bf, len);
-        if(consumed == 0) {
-            /*
-             *  The istream is full: the server sent a line longer than
-             *  LINE_BUFFER_MAX. Stop, to avoid spinning.
-             */
+
+        /*
+         *  One line at most per consume, and measured BEFORE it: a line
+         *  longer than LINE_BUFFER_MAX is the server's doing, a WARNING.
+         *  Up to 7.25.20 it was found by filling the istream, which logs
+         *  "gbuf FULL" (and the gbuffer its own two) as ERRORs with a stack
+         *  first.
+         */
+        const char *nl = memchr(bf, '\n', len);
+        size_t chunk = nl? (size_t)(nl - bf) + 1 : len;
+        if(istream_length(priv->istream_in) + chunk >= LINE_BUFFER_MAX) {
             char dump[REPLY_TEXT_MAX];
             snprintf(dump, sizeof(dump), "%.*s",
-                (int)(len < sizeof(dump) - 1? len : sizeof(dump) - 1), bf
+                (int)(chunk < sizeof(dump) - 1? chunk : sizeof(dump) - 1), bf
             );
             abort_session_by_peer(gobj, "SMTP reply line too long", 0, dump);
+            break;
+        }
+
+        size_t consumed = istream_consume(priv->istream_in, bf, chunk);
+        if(consumed == 0) {
+            // Error already logged by istream_consume
+            abort_session_on_error(gobj, "istream_consume() took nothing");
             break;
         }
         gbuffer_get(gbuf, consumed);
