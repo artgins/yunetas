@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v7.25.18 (2026-09-30)
+
+emailsender and webstats only: no kernel change. Found chasing a webstats
+report of wattyzer that stopped arriving (OVH accepts it -- `250 queued` --
+and it is lost after the relay; the cause is still being narrowed down, see
+TODO). Each node takes it with `install-binary` of the two roles and the
+usual promotion.
+
 ### emailsender: the `smtp` trace no longer writes the credentials
 
 - `C_SMTP_SESSION`'s `smtp` trace wrote every command line, `AUTH PLAIN`
