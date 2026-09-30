@@ -19,7 +19,7 @@ it by hand, run the script.
 
 ## gobj-c (Core Framework)
 
-### `command_parser.h` — 5 functions
+### `command_parser.h` — 7 functions
 
 **Source:** `kernel/c/gobj-c/src/command_parser.h`
 
@@ -31,7 +31,11 @@ it by hand, run the script.
 
 4. [**`command_get_cmd_desc`**](parsers/command_parser.md#command_get_cmd_desc) — `PUBLIC const sdata_desc_t *command_get_cmd_desc( const sdata_desc_t *command_table, const char *command )`
 
-5. [**`search_command_desc`**](parsers/command_parser.md#search_command_desc) — `PUBLIC const sdata_desc_t *search_command_desc( hgobj gobj, const char *command, int level, hgobj *gobj_found )`
+5. [**`command_mask_secret_kw`**](parsers/command_parser.md#command_mask_secret_kw) — `PUBLIC json_t *command_mask_secret_kw( hgobj gobj, const char *command, json_t *kw )`
+
+6. [**`command_mask_secret_line`**](parsers/command_parser.md#command_mask_secret_line) — `PUBLIC char *command_mask_secret_line( hgobj gobj, const char *command )`
+
+7. [**`search_command_desc`**](parsers/command_parser.md#search_command_desc) — `PUBLIC const sdata_desc_t *search_command_desc( hgobj gobj, const char *command, int level, hgobj *gobj_found )`
 
 ### `dl_list.h` — 8 functions
 
@@ -1281,7 +1285,7 @@ it by hand, run the script.
 
 11. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 607 functions**
+**Total: 609 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2338,7 +2342,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1013 functions** sorted alphabetically with their source header.
+All **1015 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2371,6 +2375,8 @@ All **1013 functions** sorted alphabetically with their source header.
 | [**`comm_prot_get_gclass`**](helpers/common_protocol.md#comm_prot_get_gclass) | `helpers.h` | gobj-c (Core Framework) |
 | [**`comm_prot_register`**](helpers/common_protocol.md#comm_prot_register) | `helpers.h` | gobj-c (Core Framework) |
 | [**`command_get_cmd_desc`**](parsers/command_parser.md#command_get_cmd_desc) | `command_parser.h` | gobj-c (Core Framework) |
+| [**`command_mask_secret_kw`**](parsers/command_parser.md#command_mask_secret_kw) | `command_parser.h` | gobj-c (Core Framework) |
+| [**`command_mask_secret_line`**](parsers/command_parser.md#command_mask_secret_line) | `command_parser.h` | gobj-c (Core Framework) |
 | [**`command_parser`**](parsers/command_parser.md#command_parser) | `command_parser.h` | gobj-c (Core Framework) |
 | [**`config_gbuffer2json`**](helpers/gbuffer.md#config_gbuffer2json) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`copyfile`**](helpers/file_system.md#copyfile) | `helpers.h` | gobj-c (Core Framework) |

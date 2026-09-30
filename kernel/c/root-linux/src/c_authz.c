@@ -213,7 +213,7 @@ SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
 SDATAPM (DTP_STRING,    "role",         0,      0,          "ROLE format: roles^ROLE^users"),
 SDATAPM (DTP_BOOLEAN,   "disabled",     0,      0,          "Disabled"),
 
-SDATAPM (DTP_STRING,    "password",     0,      0,          "Password"),
+SDATAPM (DTP_STRING,    "password",     SDF_SECRET, 0,      "Password"),
 SDATAPM (DTP_INTEGER,   "hashIterations",0,     "27500",    "Default To build a password"),
 SDATAPM (DTP_STRING,    "algorithm",    0,      "sha256",   "Default To build a password"),
 SDATA_END()
@@ -233,13 +233,13 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_check_passw[] = {
 /*-PM----type-----------name------------flag----default-----description---------- */
 SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
-SDATAPM (DTP_STRING,    "password",     0,      0,          "Password"),
+SDATAPM (DTP_STRING,    "password",     SDF_SECRET, 0,      "Password"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_set_passw[] = {
 /*-PM----type-----------name------------flag----default-----description---------- */
 SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
-SDATAPM (DTP_STRING,    "password",     0,      0,          "Password"),
+SDATAPM (DTP_STRING,    "password",     SDF_SECRET, 0,      "Password"),
 SDATAPM (DTP_INTEGER,   "hashIterations",0,     "27500",    "Default To build a password"),
 SDATAPM (DTP_STRING,    "algorithm",    0,      "sha256",   "Default To build a password"),
 SDATA_END()

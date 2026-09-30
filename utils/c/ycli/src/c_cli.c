@@ -287,7 +287,7 @@ SDATAPM (DTP_STRING,    "token_endpoint",       0,      "",         "Explicit OA
 SDATAPM (DTP_STRING,    "end_session_endpoint", 0,      "",         "Explicit OIDC end_session endpoint URL. Skips discovery when set together with --token-endpoint"),
 SDATAPM (DTP_STRING,    "client_id",    0,              "",         "OAuth2 client_id (Keycloak/Auth0/Azure AD/...)"),
 SDATAPM (DTP_STRING,    "user_id",      0,              "",         "OAuth2 User Id (interactive jwt)"),
-SDATAPM (DTP_STRING,    "user_passw",   0,              "",         "OAuth2 User password (interactive jwt)"),
+SDATAPM (DTP_STRING,    "user_passw",   SDF_SECRET,     "",         "OAuth2 User password (interactive jwt)"),
 SDATA_END()
 };
 

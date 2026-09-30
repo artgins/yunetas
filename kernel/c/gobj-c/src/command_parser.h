@@ -4,7 +4,7 @@
  *          Command parser
  *
  *          Copyright (c) 2017-2023 Niyamaka.
- *
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -44,6 +44,24 @@ PUBLIC json_t *build_command_response( // OLD build_webix()
 PUBLIC const sdata_desc_t *command_get_cmd_desc(
     const sdata_desc_t *command_table,
     const char *command
+);
+
+/*
+ *  What a trace shows of a command: its SDF_SECRET parameters masked as
+ *  "********", by the command table of `gobj`.
+ *  command_mask_secret_kw() answers a NEW reference (a masked copy, or kw
+ *  itself when nothing is secret; NULL for a NULL kw): decref it.
+ *  command_mask_secret_line() answers a gbmem string ("name key=value..."
+ *  with the secret values masked): GBMEM_FREE it.
+ */
+PUBLIC json_t *command_mask_secret_kw(
+    hgobj gobj,
+    const char *command,    // "name [parameters]"
+    json_t *kw              // not owned
+);
+PUBLIC char *command_mask_secret_line(
+    hgobj gobj,
+    const char *command     // "name [parameters]"
 );
 
 /*

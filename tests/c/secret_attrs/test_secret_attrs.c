@@ -16,12 +16,17 @@
  *            3. The create_delete2 trace: the kw of a service being built
  *               and its final sdata.
  *
+ *            4. The commands trace (with ev_kw): the command line and
+ *               the kw of a command whose parameter is SDF_SECRET, given
+ *               as key=value, as a required positional parameter and in
+ *               the kw -- and the kw the command parser expands.
+ *
  *          And the persistent-attrs file (dbsimple.c):
  *
- *            4. a file written before 7.25.19 (0664) is made 0600 when it
+ *            5. a file written before 7.25.19 (0664) is made 0600 when it
  *               is LOADED, not only at its next save -- a password set once
  *               is never saved again.
- *            5. a symlink planted in place of the file (the data dirs are
+ *            6. a symlink planted in place of the file (the data dirs are
  *               02775) is neither read nor written through.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -58,6 +63,10 @@ PRIVATE BOOL s_capturing = FALSE;
 PRIVATE int s_final_kw_seen = 0;
 PRIVATE int s_final_hs_seen = 0;
 PRIVATE int s_trace_secret_seen = 0;
+PRIVATE int s_command_seen = 0;
+PRIVATE int s_command_kw_seen = 0;
+PRIVATE int s_expanded_kw_seen = 0;
+PRIVATE int s_command_secret_seen = 0;
 
 GOBJ_DEFINE_GCLASS(C_TEST_SECRET_DRIVER);
 GOBJ_DEFINE_GCLASS(C_TEST_SECRET_HOLDER);
@@ -177,6 +186,18 @@ PRIVATE int capture_logs(void *h, int priority, const char *bf, size_t len)
     }
     if(strstr(bf, "trace-hunter2")) {
         s_trace_secret_seen++;
+    }
+    if(strstr(bf, "set-password")) {
+        s_command_seen++;
+    }
+    if(strstr(bf, "command kw")) {
+        s_command_kw_seen++;
+    }
+    if(strstr(bf, "expanded_command")) {
+        s_expanded_kw_seen++;
+    }
+    if(strstr(bf, "cmd-hunter2") || strstr(bf, "kw-hunter2") || strstr(bf, "pos-hunter2")) {
+        s_command_secret_seen++;
     }
     return 0;
 }
@@ -313,6 +334,42 @@ PRIVATE void check_create_delete2_trace(void)
     }
 }
 
+PRIVATE void check_command_trace(void)
+{
+    hgobj holder = gobj_find_service("secret-holder", TRUE);
+    s_command_seen = 0;
+    s_command_kw_seen = 0;
+    s_expanded_kw_seen = 0;
+    s_command_secret_seen = 0;
+
+    gobj_set_global_trace("commands", TRUE);
+    gobj_set_global_trace("ev_kw", TRUE);
+    s_capturing = TRUE;
+    json_t *resp = gobj_command(holder,
+        "set-password password=cmd-hunter2 note=visible", 0, holder
+    );
+    JSON_DECREF(resp)
+    resp = gobj_command(holder,
+        "set-password",
+        json_pack("{s:s}", "password", "kw-hunter2"),
+        holder
+    );
+    JSON_DECREF(resp)
+    resp = gobj_command(holder, "set-password-pos pos-hunter2", 0, holder);
+    JSON_DECREF(resp)
+    s_capturing = FALSE;
+    gobj_set_global_trace("ev_kw", FALSE);
+    gobj_set_global_trace("commands", FALSE);
+
+    check_true("the commands trace printed the command", s_command_seen > 0);
+    check_true("the commands trace printed the command kw", s_command_kw_seen > 0);
+    check_true("the parser printed the expanded kw", s_expanded_kw_seen > 0);
+    check_int("the commands trace hides the secret parameter", s_command_secret_seen, 0);
+    check_str("the secret parameter still reaches the command",
+        gobj_read_str_attr(holder, "password"), "pos-hunter2"
+    );
+}
+
 PRIVATE void check_persistent_file(void)
 {
     hgobj holder = gobj_find_service("secret-holder", TRUE);
@@ -394,6 +451,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     check_http_cookie(gobj);
     check_view_config(gobj);
     check_create_delete2_trace();
+    check_command_trace();
     check_persistent_file();
 
     set_yuno_must_die();
@@ -401,6 +459,34 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     KW_DECREF(kw)
     return 0;
 }
+
+/***************************************************************
+ *              Commands
+ ***************************************************************/
+PRIVATE json_t *cmd_set_password(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    gobj_write_str_attr(gobj, "password", kw_get_str(gobj, kw, "password", "", 0));
+    KW_DECREF(kw)
+    return build_command_response(gobj, 0, 0, 0, 0);
+}
+
+/*-PM----type-----------name------------flag--------------------default-description--*/
+PRIVATE sdata_desc_t pm_set_password[] = {
+SDATAPM (DTP_STRING,    "password",     SDF_SECRET,             0,      "The new password"),
+SDATAPM (DTP_STRING,    "note",         0,                      0,      "Not a secret"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_set_password_pos[] = {
+SDATAPM (DTP_STRING,    "password",     SDF_REQUIRED|SDF_SECRET, 0,     "The new password"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t holder_command_table[] = {
+/*-CMD---type-----------name----------------alias---items-------------------json_fn-------------description--*/
+SDATACM (DTP_SCHEMA,    "set-password",     0,      pm_set_password,        cmd_set_password,   "Set the password"),
+SDATACM (DTP_SCHEMA,    "set-password-pos", 0,      pm_set_password_pos,    cmd_set_password,   "Set the password, positional"),
+SDATA_END()
+};
 
 /***************************************************************
  *              GClass
@@ -481,7 +567,7 @@ PRIVATE int register_c_test_secret(void)
         holder_attrs_table,
         0,                          // priv size
         0,                          // authz_table
-        0,                          // command_table
+        holder_command_table,       // command_table
         0,                          // s_user_trace_level
         0                           // gclass_flag
     );

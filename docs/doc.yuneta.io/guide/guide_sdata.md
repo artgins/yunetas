@@ -176,6 +176,18 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
     to; a symlink in place of the file is neither read nor written through
     (*"Refused the persistent attrs file: it is a symlink"*).
 
+    A COMMAND PARAMETER takes the flag too: the `commands` trace prints
+    the command line, and with `ev_kw` its kw, with the parameter masked
+    (see [`command_mask_secret_kw()`](#command_mask_secret_kw)).
+
+```C
+SDATAPM (DTP_STRING,    "password",     SDF_SECRET,     0,          "Password"),
+```
+
+```text
+🌀🌀 mach(C_AUTHZ^authz), cmd: set-user-pwd username=bob password=********
+```
+
 
 ## Common Flag Combinations
 - **Public Attributes:** Combine `SDF_RD|SDF_WR|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS`.

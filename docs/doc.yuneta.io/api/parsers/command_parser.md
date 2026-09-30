@@ -160,6 +160,94 @@ Aliases have precedence when the descriptor has no `json_fn` command function se
 
 ---
 
+(command_mask_secret_kw)=
+## [`command_mask_secret_kw()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/command_parser.c#L275)
+
+The kw of a command as a trace shows it: every parameter the command table of
+`gobj` declares with `SDF_SECRET` (by name or alias) is `"********"`; an empty
+value stays empty. The kernel uses it for the `"command kw"` trace of
+`gobj_command()` and the `"expanded_command: kw_cmd"` trace of
+[`command_parser()`](#command_parser) (both under `ev_kw`).
+
+```C
+json_t *command_mask_secret_kw(
+    hgobj gobj,
+    const char *command,    // "name [parameters]"
+    json_t *kw              // not owned
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj whose command table describes the command. |
+| `command` | `const char *` | The command; only its first word is used to find the descriptor. |
+| `kw` | `json_t *` | The kw of the command. Not owned. |
+
+**Returns**
+
+A NEW reference, to decref: a masked copy, or `kw` itself when the command
+has no secret parameter (or is not in the table). `NULL` for a `NULL` kw.
+
+**Example**
+
+```C
+/*
+ *  The parameter is declared secret in the command's schema
+ */
+PRIVATE sdata_desc_t pm_set_email_user[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "username",     0,              0,          "User name"),
+SDATAPM (DTP_STRING,    "password",     SDF_SECRET,     0,          "Password"),
+SDATA_END()
+};
+
+json_t *kw_shown = command_mask_secret_kw(gobj, "set-email-user", kw);
+gobj_trace_json(gobj, kw_shown, "command kw");  // "password": "********"
+JSON_DECREF(kw_shown)
+```
+
+---
+
+(command_mask_secret_line)=
+## [`command_mask_secret_line()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/command_parser.c#L306)
+
+The command line as a trace shows it: the value of every `SDF_SECRET`
+parameter is `********`, given as `key=value` or as one of the leading
+required parameters written without key. What cannot be parsed as a
+parameter is shown as `<...>`. The `commands` (and `machine`) trace of
+`gobj_command()` prints the command this way.
+
+```C
+char *command_mask_secret_line(
+    hgobj gobj,
+    const char *command     // "name [parameters]"
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj whose command table describes the command. |
+| `command` | `const char *` | The command line. |
+
+**Returns**
+
+A `gbmem` string, to `GBMEM_FREE`. The line as it came when the command has
+no secret parameter.
+
+**Example**
+
+```C
+char *line = command_mask_secret_line(gobj, "set-email-user username=bob password=hunter2");
+gobj_trace_msg(gobj, "cmd: %s", line);  // "set-email-user username=bob password=********"
+GBMEM_FREE(line)
+```
+
+---
+
 (search_command_desc)=
 ## [`search_command_desc()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/command_parser.c#L667)
 

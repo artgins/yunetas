@@ -5087,16 +5087,23 @@ PUBLIC json_t *gobj_command( // With AUTHZ
     BOOL tracea = is_commands_tracing(gobj) ||
         (is_machine_tracing(gobj, 0) && !is_machine_not_tracing(src, 0));
     if(tracea) {
+        /*
+         *  The SDF_SECRET parameters of the command are shown masked
+         */
+        char *command_shown = command_mask_secret_line(gobj, command);
         trace_machine("🌀🌀 mach(%s%s), cmd: %s%s%s, src: %s",
             (!gobj->running)?"!!":"",
             gobj_short_name(gobj),
             On_Yellow BIWhite,
-            command,
+            command_shown,
             Color_Off,
             gobj_short_name(src)
         );
+        GBMEM_FREE(command_shown)
         if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
-            gobj_trace_json(gobj, kw, "command kw");
+            json_t *kw_shown = command_mask_secret_kw(gobj, command, kw);
+            gobj_trace_json(gobj, kw_shown, "command kw");
+            JSON_DECREF(kw_shown)
         }
     }
 
