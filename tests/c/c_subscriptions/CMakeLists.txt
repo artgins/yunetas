@@ -62,7 +62,16 @@ SET(SRCS
 ##############################################
 foreach(test ${SRCS})
     set(binary "test_subs_${test}")
-    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c")
+    if(test STREQUAL "test3")
+        # Freed memory poisoned: a stale subscription read after its
+        # publisher was destroyed reads poison, every run
+        add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../emailsender/poison_alloc.c")
+        target_include_directories(${binary} PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/../emailsender")
+    else()
+        add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c")
+    endif()
 
     if(CONFIG_FULLY_STATIC)
         set_target_properties(${binary} PROPERTIES

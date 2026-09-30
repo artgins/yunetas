@@ -34,7 +34,10 @@ Tests subscribe / unsubscribe / publish semantics of the GObj framework. Verifie
   before it in the same unsubscribe is gone as asked, with no warning (it
   is not taken for a hard subscription kept). A subscription the
   publisher refuses (`mt_subscription_added()` answers -1) is not made and
-  leaks nothing (up to 7.25.20 each refusal leaked it).
+  leaks nothing (up to 7.25.20 each refusal leaked it). A stale list that
+  outlives its publisher (destroyed, its memory poisoned by
+  `../emailsender/poison_alloc.c`) removes nothing and follows no pointer
+  (up to 7.25.20 it read the freed publisher: a crash under the poison).
 
 ## Run
 

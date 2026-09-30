@@ -76,6 +76,13 @@
  *         answers -1) is not made, and leaks nothing. Up to 7.25.20 its
  *         creation reference was never dropped.
  *
+ *     13) A stale list of subscriptions that outlives its publisher: the
+ *         publisher is destroyed, its gobj freed (and poisoned, see
+ *         main_test3.c), and gobj_unsubscribe_list() of the list removes
+ *         nothing and follows no pointer: a subscription removed has its
+ *         publisher and subscriber zeroed. Up to 7.25.20 the publisher was
+ *         read out of it: freed memory.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -625,6 +632,28 @@ PRIVATE int ac_test_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INFO,
         "msg",          "%s", "refused subscription ok",
+        NULL
+    );
+
+    /*
+     *  13) A stale list that outlives its publisher
+     */
+    hgobj pub13 = gobj_create("pub13", C_TEST3, 0, gobj);
+    gobj_subscribe_event(pub13, EV_ON_MESSAGE, NULL, gobj);
+    json_t *dl_stale13 = gobj_find_subscriptions(pub13, EV_ON_MESSAGE, NULL, gobj);
+    check(gobj, json_array_size(dl_stale13) == 1, "one subscription to the publisher that goes");
+    gobj_destroy(pub13);
+    json_t *subs13 = json_array_get(dl_stale13, 0);
+    check(gobj, kw_get_int(gobj, subs13, "publisher", -1, 0) == 0,
+        "a removed subscription holds no publisher pointer"
+    );
+    gobj_unsubscribe_list(gobj, dl_stale13, FALSE);
+    check(gobj, count_subscribings(gobj) == 0, "the stale list removed nothing live");
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "stale list after its publisher ok",
         NULL
     );
 

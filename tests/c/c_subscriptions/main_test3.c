@@ -10,6 +10,7 @@
  ****************************************************************************/
 #include <yunetas.h>
 #include "c_test3.h"
+#include "poison_alloc.h"
 
 /***************************************************************************
  *                      Names
@@ -127,7 +128,7 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Hard subscription REPEATED, the one there is kept and returned",
@@ -154,6 +155,8 @@ static int register_yuno_and_more(void)
         "msg", "withdrawn meanwhile ok",
         "msg", "subscription refused by the test",
         "msg", "refused subscription ok",
+        "msg", "Subscription(s) already removed, nothing to remove",
+        "msg", "stale list after its publisher ok",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"
@@ -182,6 +185,8 @@ static void cleaning(void)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
+
+    release_quarantine();   // before the memory check of the entry point
 }
 
 /***************************************************************************
@@ -189,6 +194,13 @@ static void cleaning(void)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    /*
+     *  Freed memory is poisoned (poison_alloc.c, of tests/c/emailsender): a
+     *  stale subscription whose publisher was destroyed reads poison, every
+     *  run, if its publisher is followed (check 13).
+     */
+    install_poison_allocators();
+
     /*------------------------------*
      *  Captura salida logger
      *------------------------------*/
@@ -246,6 +258,7 @@ int main(int argc, char *argv[])
         register_yuno_and_more,
         cleaning
     );
+    release_quarantine();   // an entry point that ended before cleaning()
 
     if(get_cur_system_memory()!=0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);

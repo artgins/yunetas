@@ -9015,6 +9015,16 @@ PRIVATE int _delete_subscription(
     subs_flag_t subs_flag = (subs_flag_t)kw_get_int(gobj, subs, "subs_flag", 0, KW_REQUIRED);
     BOOL hard_subscription = (subs_flag & __hard_subscription__)?1:0;
 
+    /*-------------------------------------------------*
+     *  A subscription removed has its pointers zeroed (below): one from a
+     *  stale list, which may outlive its publisher, is never followed.
+     *  Up to 7.25.20 the publisher was read out of it, freed memory once
+     *  the publisher was destroyed.
+     *-------------------------------------------------*/
+    if(!publisher || !subscriber) {
+        return 1;
+    }
+
     /*-------------------------------*
      *  Check if hard subscription
      *-------------------------------*/
@@ -9081,6 +9091,7 @@ PRIVATE int _delete_subscription(
     /*--------------------------------*
      *      Delete subscription
      *--------------------------------*/
+    json_incref(subs);  // alive until its pointers are zeroed, below
     int idx = _get_subs_idx(publisher->dl_subscriptions, subs);
 
     if(idx >= 0) {
@@ -9122,6 +9133,13 @@ PRIVATE int _delete_subscription(
         gobj_trace_json(gobj, subs, "subscription in subscriber not found");
     }
 
+    /*
+     *  Whoever still holds it (a list of gobj_find_subscriptions(), a
+     *  publication in progress) holds no pointer to a gobj that may go
+     */
+    json_object_set_new(subs, "publisher", json_integer(0));
+    json_object_set_new(subs, "subscriber", json_integer(0));
+    JSON_DECREF(subs)   // the reference taken above
     return 0;
 }
 
