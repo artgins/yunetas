@@ -256,8 +256,30 @@ authenticate (an MQTT or IoT field port) accepted it.
 
 | Command | Description |
 |---------|-------------|
-| `help` | Show available commands. |
-| `view-services` | List connected client channels. |
+| `help` (`h`, `?`) | Its commands, or the help of one (`cmd=`). Since 7.25.17: it had commands and no `help` before, so asking it answered *"command not available"*. |
+| `reload-certs` | Load the certificate again from the `crypto` attribute (what the certbot deploy hook asks after a renewal); active connections are kept. |
+| `view-cert` | The certificate the listener has LOADED -- `subject`, `issuer`, `not_before`, `not_after`, `serial`, `days_remaining` -- and the `url` it listens on. -1 on a listener without TLS. |
+
+A `C_TCP_S` is usually a child of a gate, and a service only when the yuno
+makes it one -- the agent does: `agent_secure_port` is its `wss` listener.
+Through the control center:
+
+```bash
+ycommand ... -c 'command-agent agent_id=artgins cmd2agent="command-agent service=agent_secure_port command=help"'
+# or on the node
+ycommand -c 'command-agent service=agent_secure_port command=view-cert'
+```
+
+```json
+{"subject": "/CN=agent.artgins.com", "issuer": "/C=US/O=Let's Encrypt/CN=YE1",
+ "not_before": 1790750856, "not_after": 1798526855,
+ "serial": "0535E69BB16E40FFFA335B77E2EEDEDD7E73", "days_remaining": 89,
+ "url": "wss://0.0.0.0:1993"}
+```
+
+The `url` carries the BIND address; the name a client must dial is the
+certificate's CN -- which is how gui_agent's *For TreeDB* export finds
+`wss://agent.artgins.com:1993` (since gui_agent 0.29.5).
 
 ---
 
@@ -484,6 +506,15 @@ and `tests/c/c_udp_s_rx` for the receive side.
 | `rx_buffer_size` | `integer` | Receive buffer size: the gbuffer of each read (a new one when the host kept the previous one, see *Transmit*). |
 | `txMsgs` / `rxMsgs` / `txBytes` / `rxBytes` | `integer` | Counters (stats). |
 | `rxRefusedMsgs` | `integer` | Datagrams dropped by the ip lists (stats, see *Receive*). |
+
+### Commands
+
+The same three as `C_TCP_S`: `help` (since 7.25.17), `reload-certs` and
+`view-cert` -- the last two answer -1 here, a `C_UDP_S` has no TLS.
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=<udp server service> command=help'
+```
 
 ---
 

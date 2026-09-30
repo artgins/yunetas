@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## v7.25.17 (2026-09-30)
+
+### Kernel: `C_TCP_S` and `C_UDP_S` answer `help`
+
+- They were the only gclasses with commands (`reload-certs`, `view-cert`) and
+  no `help`: `command-agent service=agent_secure_port command=help` answered
+  *"command not available"*, and the commands could only be found in the
+  code. Every gclass with a command table in the SDK and in the projects now
+  has one (the two command-parser test fixtures excepted). Deployed with the
+  agents and the control center; every other yuno gets it at its next build.
+- `view-cert` says in its description that it answers the listening `url`
+  too. The transport page documented a `help` that did not exist and a
+  `view-services` that does not; it lists the three real commands now.
+
+### JS: gui_agent 0.29.5
+
+- **"For TreeDB" gives each agent its own domain.** The export built an
+  agent's url from the node's name (`wss://artgins:1993`), because the scan
+  read the certificate from `view-config`, where the agent's is a global
+  override it does not see. It asks the agent's secure gate `view-cert`
+  instead: the loaded certificate's CN (`wss://agent.artgins.com:1993`) and
+  the gate's port. A CN that is not a hostname -- the package's own
+  self-signed `yuneta_agent.yuneta.io` -- falls back to `view-config` and the
+  node's name, as before.
+
 ## v7.25.16 (2026-09-30)
 
 A lite release (control center and agent only): the two points the review of
