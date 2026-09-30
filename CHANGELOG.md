@@ -1,5 +1,35 @@
 # **Changelog**
 
+## Unreleased
+
+### linux-ext-libs: openresty from its release tarball
+
+- **`extrae.sh` downloads openresty's release tarball** from openresty.org
+  (sha256 pinned in `repos2clone.sh` as `SHA256_OPENRESTY`) instead of
+  cloning the git repo, and `configure-libs.sh` builds from it. Building from
+  the git tag ran `util/mirror-tarballs`, which fetches about 45 modules as
+  tarballs from github.com -- one download per module, and impossible where
+  only git reaches GitHub (Claude Code on the web). The release tarball IS the
+  output of that step, with the same modules at the same versions (checked
+  against the `ver=` pins of `mirror-tarballs` at `v1.31.1.1`), and it is
+  configured with the same flags, so the binary is built from the same
+  sources. `configure-libs.sh` goes to **`VERSION="1.23"`**: every node that
+  builds from source must run `./extrae.sh && ./configure-libs.sh` again
+  before `yunetas build`.
+
+### root-linux: the house rules, applied where an audit found them broken
+
+- **`search_process()` (behind `--stop`) allocates through `gbmem_*`** and no
+  longer leaks the `/proc/*/comm` glob when an allocation fails. The
+  executable-name check of `entry_point.c` takes `gbmem_strdup()` too. Both
+  pairs were balanced (no heap mixing), but they bypassed the allocator's
+  limits and `CONFIG_DEBUG_TRACK_MEMORY`.
+- **Braces on every body** in `c_authz.c`, `c_uart.c`, `c_websocket.c`,
+  `run_command.c`, `c_yuno.c`, `entry_point.c` and `ydaemon.c`, and
+  `// Error already logged` after the `gclass_create()` of `C_ASSETS`,
+  `C_AUTH_BFF`, `C_PROT_RAW` and `C_PTY`. No behaviour change: those files
+  compile to the same machine code as before.
+
 ## v7.25.20 (2026-09-30)
 
 The last hole of the secret masking of 7.25.19, and the performance study of
@@ -169,34 +199,6 @@ A lite release (control center and agent only): the two points the review of
   refusal says somebody saved it after it was opened (`scenario changed since
   read`). A save under another name, confirmed first, is an overwrite and
   sends none.
-
-### linux-ext-libs: openresty from its release tarball
-
-- **`extrae.sh` downloads openresty's release tarball** from openresty.org
-  (sha256 pinned in `repos2clone.sh` as `SHA256_OPENRESTY`) instead of
-  cloning the git repo, and `configure-libs.sh` builds from it. Building from
-  the git tag ran `util/mirror-tarballs`, which fetches about 45 modules as
-  tarballs from github.com -- one download per module, and impossible where
-  only git reaches GitHub (Claude Code on the web). The release tarball IS the
-  output of that step, with the same modules at the same versions (checked
-  against the `ver=` pins of `mirror-tarballs` at `v1.31.1.1`), and it is
-  configured with the same flags, so the binary is built from the same
-  sources. `configure-libs.sh` goes to **`VERSION="1.23"`**: every node that
-  builds from source must run `./extrae.sh && ./configure-libs.sh` again
-  before `yunetas build`.
-
-### root-linux: the house rules, applied where an audit found them broken
-
-- **`search_process()` (behind `--stop`) allocates through `gbmem_*`** and no
-  longer leaks the `/proc/*/comm` glob when an allocation fails. The
-  executable-name check of `entry_point.c` takes `gbmem_strdup()` too. Both
-  pairs were balanced (no heap mixing), but they bypassed the allocator's
-  limits and `CONFIG_DEBUG_TRACK_MEMORY`.
-- **Braces on every body** in `c_authz.c`, `c_uart.c`, `c_websocket.c`,
-  `run_command.c`, `c_yuno.c`, `entry_point.c` and `ydaemon.c`, and
-  `// Error already logged` after the `gclass_create()` of `C_ASSETS`,
-  `C_AUTH_BFF`, `C_PROT_RAW` and `C_PTY`. No behaviour change: those files
-  compile to the same machine code as before.
 
 ## v7.25.15 (2026-09-30)
 
