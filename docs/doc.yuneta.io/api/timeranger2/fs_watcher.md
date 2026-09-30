@@ -190,7 +190,12 @@ What the owners of the tree do:
   `disks/<rt_id>/` (its signal is a directory created and removed), so the
   follower's cache is compared with the topic's `keys/`, read once, and a key
   gone from there is heard as deleted (its `key_deleted` callback fires; INFO
-  *"keys deleted while the inotify events were lost"*). At each
+  *"keys deleted while the inotify events were lost"*). The cache is shared by
+  every feed of the topic and forgets a key with the first feed that hears its
+  delete, so each feed also keeps the deletes the OTHER feeds heard and it has
+  not (`deletes_unheard`): those gone from `keys/` are told too. Up to 7.25.20
+  a feed that overflowed while another feed of its topic heard a delete never
+  heard of it. At each
   `FS_RESCAN_DIR_TYPE`: the master hard-links each new md2 into
   `disks/<rt_id>/<key>/` and the follower consumes the link when it reads it,
   so a link still there IS a record not handed over yet, and the key directory
@@ -219,7 +224,10 @@ its queue is that echo, which is why a single burst can overflow it twice.
   deleted key is heard once, and a key born during the overflow is watched
   afterwards. With the code that aborted, the test aborts. It needs about four
   open files per key and raises its soft limit to the hard one, as a yuno does;
-  below that it is skipped.
+  below that it is skipped. Before it, a cheap case that always runs: two
+  feeds of one topic, the whole-topic one overflowed (by directories created
+  and removed in one of its key directories) while a key is deleted, and the
+  one keyed on that key hearing it first. Both hear the delete once.
 - `test_fs_watcher_overflow`: the watcher alone, with an owner slow on purpose
   (100 us per directory) and a periodic timer probing the loop. `max_queued_events`
   + 4096 directories are created with the loop stopped: every one is told to the

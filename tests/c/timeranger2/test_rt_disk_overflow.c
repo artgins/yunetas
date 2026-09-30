@@ -25,6 +25,16 @@
  *      - a key born while the queue was full is WATCHED afterwards: its
  *        next record arrives.
  *
+ *  Before that, TWO feeds on one topic (do_test_two_feeds, cheap: it needs
+ *  no open file per event). The whole-topic feed overflows -- its queue
+ *  filled by directories created and removed in one of its key directories
+ *  -- and a key is deleted then; a second feed, keyed on that key, hears
+ *  the delete as it comes, before the first one reads down to its overflow.
+ *  The feeds share the topic's cache, and up to 7.25.20 the feed that heard
+ *  took the key out of it: the overflowed one compared that cache with
+ *  keys/, found nothing gone, and never heard of the delete. Each feed must
+ *  hear it once.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -34,6 +44,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/resource.h>
+#include <sys/stat.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -46,6 +57,7 @@
 #define APP "test_rt_disk_overflow"
 
 #define DATABASE    "tr_rt_disk_overflow"
+#define DATABASE2   "tr_rt_disk_overflow_feeds"
 #define TOPIC_NAME  "topic_rt_disk_overflow"
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 #define SEED_KEY_ID 0           // exists before the flood; deleted during it
@@ -65,6 +77,8 @@ PRIVATE int received_bad_key = 0;   // a key outside 0..n_keys: BUG
 PRIVATE int deleted_seed = 0;       // key_deleted callbacks for the seed key
 PRIVATE int deleted_other = 0;      // key_deleted callbacks for any other key: BUG
 PRIVATE json_t *rt = NULL;          // the feed of the follower
+PRIVATE int seed_received = 0;      // records of the feed keyed on the seed key
+PRIVATE int seed_deleted = 0;       // its key_deleted callbacks
 
 PRIVATE int my_record_callback(
     json_t *tranger,
@@ -103,6 +117,33 @@ PRIVATE int my_key_deleted_callback(
     return 0;
 }
 
+PRIVATE int seed_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    seed_received++;
+    JSON_DECREF(record)
+    return 0;
+}
+
+PRIVATE int seed_key_deleted_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    void *user_data
+)
+{
+    seed_deleted++;
+    return 0;
+}
+
 /***************************************************************
  *              Helpers
  ***************************************************************/
@@ -119,7 +160,7 @@ PRIVATE int max_queued_events(void)
     return n;
 }
 
-PRIVATE json_t *startup_tranger(BOOL master)
+PRIVATE json_t *startup_tranger(const char *database, BOOL master)
 {
     char path_root[PATH_MAX];
     build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
@@ -127,7 +168,7 @@ PRIVATE json_t *startup_tranger(BOOL master)
 
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i}",
         "path", path_root,
-        "database", DATABASE,
+        "database", database,
         "master", master?1:0,
         "on_critical_error", LOG_OPT_TRACE_STACK,
         "filename_mask", "%Y",
@@ -201,6 +242,175 @@ PRIVATE void drain(int expected)
 }
 
 /***************************************************************************
+ *  Two feeds on one topic, the whole-topic one overflowed
+ ***************************************************************************/
+PRIVATE json_t *create_topic(json_t *tm)
+{
+    return tranger2_create_topic(
+        tm, TOPIC_NAME, "id", "tm",
+        json_pack("{s:i, s:s, s:i, s:i}",
+            "on_critical_error", 4,
+            "filename_mask", "%Y-%m-%d",
+            "xpermission" , 02700,
+            "rpermission", 0600
+        ),
+        sf_int_key,
+        json_pack("{s:s, s:I, s:s}",
+            "id", "",
+            "tm", (json_int_t)0,
+            "content", ""
+        ),
+        0
+    );
+}
+
+PRIVATE int do_test_two_feeds(void)
+{
+    int result = 0;
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database),
+        getenv("HOME"), "tests_yuneta", DATABASE2, NULL);
+    rmrdir(path_database);
+
+    queue_limit = max_queued_events();
+    n_keys = 1;
+    received = GBMEM_MALLOC(sizeof(int) * (size_t)(n_keys + 1));
+    received_total = 0;
+    deleted_seed = 0;
+    deleted_other = 0;
+
+    set_expected_results(
+        "two feeds: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_tranger(DATABASE2, TRUE);
+    if(!tm) {
+        GBMEM_FREE(received);
+        return -1;
+    }
+    if(!create_topic(tm)) {
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    if(append_one(tm, SEED_KEY_ID, BASE_T)<0) {
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("two feeds: follower", NULL, NULL, NULL, 1);
+    json_t *tf = startup_tranger(DATABASE2, FALSE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    rt = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, "", NULL, my_record_callback, "rtALL", "", NULL
+    );
+    json_t *rt_seed = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, "0000000000000000000", NULL, seed_record_callback, "rtSEED", "", NULL
+    );
+    if(!rt || !rt_seed) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    tranger2_set_rt_key_deleted_callback(rt, my_key_deleted_callback, NULL);
+    tranger2_set_rt_key_deleted_callback(rt_seed, seed_key_deleted_callback, NULL);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+
+    /*
+     *  A record of each key: disks/rtALL/<key>/ of both keys are made and
+     *  watched, and disks/rtSEED/ gets the seed key's
+     */
+    if(append_one(tm, SEED_KEY_ID, BASE_T + 1)<0 || append_one(tm, 1, BASE_T + 1)<0) {
+        result += -1;
+    }
+    drain(2);
+    if(received[SEED_KEY_ID] != 1 || received[1] != 1 || seed_received != 1) {
+        printf("%sERROR%s --> before the overflow: whole-topic feed %d/%d, seed feed %d, expected 1/1/1\n",
+            On_Red BWhite, Color_Off, received[SEED_KEY_ID], received[1], seed_received);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  With the loop stopped: the queue of rtALL filled past its limit by a
+     *  directory created and removed in its key directory of key 1 (nothing
+     *  a feed hears as a record or a delete), then the seed key deleted --
+     *  rtALL's signal is dropped, rtSEED's (one event) comes first
+     */
+    set_expected_results_unordered(
+        "two feeds: the key deleted while one feed was overflowed reaches both",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
+            "msg", "keys deleted while the inotify events were lost",
+            "msg", "watched tree rescanned after lost inotify events"
+        ),
+        NULL, NULL, 1
+    );
+    char churn[PATH_MAX];
+    build_path(churn, sizeof(churn), path_database, TOPIC_NAME, "disks", "rtALL",
+        "0000000000000000001", "c", NULL);
+    for(int i = 0; i < queue_limit/2 + 1024; i++) {
+        if(mkdir(churn, 0700)<0 || rmdir(churn)<0) {
+            printf("%sERROR%s --> cannot churn %s: %s\n",
+                On_Red BWhite, Color_Off, churn, strerror(errno));
+            result += -1;
+            break;
+        }
+    }
+    if(tranger2_delete_key(tm, TOPIC_NAME, "0000000000000000000")<0) {
+        printf("%sERROR%s --> the seed key could not be deleted\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    drain(0);
+
+    if(deleted_seed != 1 || deleted_other != 0) {
+        printf("%sERROR%s --> the overflowed feed heard the delete %d times (others %d), expected 1\n",
+            On_Red BWhite, Color_Off, deleted_seed, deleted_other);
+        result += -1;
+    }
+    if(seed_deleted != 1) {
+        printf("%sERROR%s --> the keyed feed heard the delete %d times, expected 1\n",
+            On_Red BWhite, Color_Off, seed_deleted);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("two feeds: shutdown", NULL, NULL, NULL, 1);
+    tranger2_close_rt_disk(tf, rt);
+    rt = NULL;
+    tranger2_close_rt_disk(tf, rt_seed);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    GBMEM_FREE(received);
+    received_total = 0;
+    received_bad_key = 0;
+    deleted_seed = 0;
+    deleted_other = 0;
+    rmrdir(path_database);
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -245,26 +455,11 @@ PRIVATE int do_test(void)
         NULL, NULL, 1
     );
 
-    json_t *tm = startup_tranger(TRUE);
+    json_t *tm = startup_tranger(DATABASE, TRUE);
     if(!tm) {
         return -1;
     }
-    json_t *topic = tranger2_create_topic(
-        tm, TOPIC_NAME, "id", "tm",
-        json_pack("{s:i, s:s, s:i, s:i}",
-            "on_critical_error", 4,
-            "filename_mask", "%Y-%m-%d",
-            "xpermission" , 02700,
-            "rpermission", 0600
-        ),
-        sf_int_key,
-        json_pack("{s:s, s:I, s:s}",
-            "id", "",
-            "tm", (json_int_t)0,
-            "content", ""
-        ),
-        0
-    );
+    json_t *topic = create_topic(tm);
     if(!topic) {
         tranger2_shutdown(tm);
         return -1;
@@ -279,7 +474,7 @@ PRIVATE int do_test(void)
      *-------------------------------------*/
     set_expected_results("overflow: follower", NULL, NULL, NULL, 1);
 
-    json_t *tf = startup_tranger(FALSE);
+    json_t *tf = startup_tranger(DATABASE, FALSE);
     if(!tf) {
         tranger2_shutdown(tm);
         return -1;
@@ -471,7 +666,8 @@ int main(int argc, char *argv[])
 
     yev_loop_create(0, 2024, 10, NULL, &yev_loop);
 
-    int result = do_test();
+    int result = do_test_two_feeds();
+    result += do_test();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
