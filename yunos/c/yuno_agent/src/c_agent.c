@@ -8776,6 +8776,13 @@ PRIVATE gbuffer_t *build_yuno_running_script(
     json_decref(hs_realm);
     json_decref(binary);
 
+    /*
+     *  An earlier launch may have written more of them, with the mode of
+     *  that time: the launch script no longer names them, the secrets are
+     *  still in them. A failure is logged, and does not stop the launch.
+     */
+    narrow_stale_yuno_config_files(gobj, yuno_bin_path, role_plus_name, n_config);
+
     if(write_failed) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

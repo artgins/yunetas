@@ -16,7 +16,12 @@
  *
  *          Cases:
  *          1. a new file: 0640, with its content;
- *          2. a file that existed as 0664: 0640, with the new content.
+ *          2. a file that existed as 0664: 0640, with the new content;
+ *          3. the files of an earlier launch that wrote more of them
+ *             (<n>-<role>^<name>.json with n over the ones written now)
+ *             are narrowed to 0640, never widened, never removed; the
+ *             files of another yuno, a symbolic link and its target, and
+ *             the files written now are not touched.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -101,6 +106,93 @@ PRIVATE void test_write(void)
 }
 
 /***************************************************************************
+ *  Create `name` in BASE with `mode` and `text`
+ ***************************************************************************/
+PRIVATE void make_file(const char *name, int mode, const char *text)
+{
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), BASE, name, NULL);
+    unlink(path);
+    FILE *f = fopen(path, "w");
+    if(f) {
+        fputs(text, f);
+        fclose(f);
+    }
+    chmod(path, (mode_t)mode);
+}
+
+/***************************************************************************
+ *  The mode of `name` in BASE, not following a link
+ ***************************************************************************/
+PRIVATE int lmode_of(const char *name)
+{
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), BASE, name, NULL);
+    struct stat st;
+    if(lstat(path, &st)<0) {
+        return -1;
+    }
+    return (int)(st.st_mode & 07777);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void test_stale(void)
+{
+    const char *files[] = {
+        "1-role^name.json", "2-role^name.json", "3-role^name.json",
+        "4-role^name.json", "5-role^name.json", "12-role^name.json",
+        "7-role^name.json",                         // 0600
+        "4-role^name2.json", "4-role.json", "4-other^name.json",
+        "x-role^name.json", "-role^name.json", "4-role^name.json.bak",
+        "role^name.sh",
+        "outside.json",                             // target of the link
+        0
+    };
+    for(int i=0; files[i]; i++) {
+        make_file(files[i], strcmp(files[i], "7-role^name.json")==0? 0600 : 0664, "{}");
+    }
+    char link_path[PATH_MAX];
+    build_path(link_path, sizeof(link_path), BASE, "6-role^name.json", NULL);
+    unlink(link_path);
+    if(symlink(BASE "/outside.json", link_path)<0) {
+        check(FALSE, "(stale) cannot create the link of the test");
+    }
+
+    int ret = narrow_stale_yuno_config_files(0, BASE, "role^name", 3);
+    check(ret == 0, "(stale) answers 0");
+
+    check(lmode_of("4-role^name.json") == 0640, "(stale) 4 of 3 written: narrowed to 0640");
+    check(lmode_of("5-role^name.json") == 0640, "(stale) 5 of 3 written: narrowed to 0640");
+    check(lmode_of("12-role^name.json") == 0640, "(stale) 12 of 3 written: narrowed to 0640");
+    check(lmode_of("7-role^name.json") == 0600, "(stale) a 0600 one is not widened");
+    check(lmode_of("1-role^name.json") == 0664 &&
+          lmode_of("2-role^name.json") == 0664 &&
+          lmode_of("3-role^name.json") == 0664,
+        "(stale) the ones written now (1..3) are not touched");
+    check(lmode_of("4-role^name2.json") == 0664 &&
+          lmode_of("4-role.json") == 0664 &&
+          lmode_of("4-other^name.json") == 0664,
+        "(stale) the files of another yuno are not touched");
+    check(lmode_of("x-role^name.json") == 0664 &&
+          lmode_of("-role^name.json") == 0664 &&
+          lmode_of("4-role^name.json.bak") == 0664 &&
+          lmode_of("role^name.sh") == 0664,
+        "(stale) a name that is not <n>-<role>^<name>.json is not touched");
+    check(lmode_of("outside.json") == 0664, "(stale) a link is not followed: its target is not touched");
+    check(lmode_of("4-role^name.json") != -1 && lmode_of("12-role^name.json") != -1,
+        "(stale) nothing is removed");
+
+    unlink(link_path);
+    for(int i=0; files[i]; i++) {
+        char path[PATH_MAX];
+        build_path(path, sizeof(path), BASE, files[i], NULL);
+        unlink(path);
+    }
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -148,6 +240,7 @@ int main(int argc, char *argv[])
     mkrdir(BASE, 02775);
 
     test_write();
+    test_stale();
 
     rmdir(BASE);
 
