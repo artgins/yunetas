@@ -303,6 +303,7 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj timer;                    // the daily schedule, seconds are accurate enough
+    time_t schedule_slot;           // the report_hour:report_minute the timer is armed for
     hgobj reader;                   // the file being read, or 0
 
     json_t *jn_files;               // files left in this run
@@ -1069,6 +1070,7 @@ PRIVATE int arm_schedule(hgobj gobj)
         return -1;
     }
 
+    priv->schedule_slot = next;
     set_timeout(priv->timer, (json_int_t)(next - now) * 1000);
 
     return 0;
@@ -4776,14 +4778,18 @@ PRIVATE int send_report(hgobj gobj)
 
 
 /***************************************************************************
- *  The schedule fired: report the day that just ended.
+ *  The schedule fired: report the day before its SLOT, the day that ended
+ *  at the report_hour:report_minute it was armed for. Not the day before
+ *  the moment it fires: a timer a second early across midnight (report_hour
+ *  0) would report the day before that, and one fired late (a suspended
+ *  machine) the day after. Up to 7.25.20 it took time(NULL).
  ***************************************************************************/
 PRIVATE int ac_schedule(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     char date[DATE_SIZE];
-    if(yesterday_of(gobj, time(NULL), date, sizeof(date)) < 0) {
+    if(yesterday_of(gobj, priv->schedule_slot, date, sizeof(date)) < 0) {
         // Error already logged
         arm_schedule(gobj);     // do not lose the schedule over one bad day
         KW_DECREF(kw)

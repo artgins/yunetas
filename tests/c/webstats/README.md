@@ -19,3 +19,15 @@ The report a run publishes (`EV_REPORT_READY`) is the report of the day.
 No mail is sent (`send_email: false`, `send=0`), no registry is asked
 (`whois_enabled: false`); the logs and the store live under
 `/tmp/test_webstats_report_ready`, rebuilt at each run.
+
+## `schedule_slot`
+
+The day a scheduled run reports is the day before its **slot**, the
+`report_hour:report_minute` the schedule timer was armed for, not the day
+before the moment the timer fires. The driver (`C_TEST_SCHEDULE_SLOT`) sets
+the schedule to one minute ago, so the slot is tomorrow and its day is today,
+and delivers `EV_TIMEOUT` to webstats at once: the timer firing before its
+slot, as one a second early across midnight does with a `report_hour` of 0.
+The run must report today. Up to 7.25.20 `ac_schedule()` took the day before
+`time(NULL)` and reported yesterday. Logs and store live under
+`/tmp/test_webstats_schedule_slot`.
