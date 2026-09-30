@@ -29,9 +29,11 @@ the peer:
    that stop, and up again at 2.3 s.
 5. Then it is stopped from outside (`gobj_stop()` of the `C_UDP_S`): *"UDP
    server stopped from outside, it is not started again"*, a send meanwhile
-   refused with one warning, and 1.2 s later it is still down. At its stop
-   the `C_GSS_UDP_S` says the sends refused since (*"UDP server stops with
-   sends refused while it was stopped"*).
+   refused with one warning, and 1.2 s later it is still down.
+6. The `C_GSS_UDP_S` is stopped and started again, as logcenter's pause and
+   play do: at its stop it says the sends refused since (*"UDP server stops
+   with sends refused while it was stopped"*), its start finds its timers
+   stopped (no *"GObj ALREADY RUNNING"*), and the peer's `four` is heard.
 
 Up to 7.25.20 `C_GSS_UDP_S` took that `EV_STOPPED` with no action: `lost` and
 `back` each logged *"Event NOT DEFINED in state"* (from `C_UDP_S` in

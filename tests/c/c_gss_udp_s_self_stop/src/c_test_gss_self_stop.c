@@ -31,8 +31,11 @@
  *              6. (2.3 s) it must be up again. Then it is stopped from
  *                 outside (gobj_stop() of the C_UDP_S): said, not started
  *                 again, and a send meanwhile refused.
- *              7. (1.2 s) it must still be down. At its stop the
- *                 C_GSS_UDP_S says the sends refused since.
+ *              7. (1.2 s) it must still be down. The C_GSS_UDP_S is then
+ *                 stopped and started again (a pause and a play of its host):
+ *                 at its stop it says the sends refused since, and its start
+ *                 finds its timers stopped (no "GObj ALREADY RUNNING").
+ *              8. The peer sends "four": the host must get it.
  *
  *          Up to 7.25.20 C_GSS_UDP_S took the EV_STOPPED of its C_UDP_S
  *          with no action: it went on sending to it ("Event NOT DEFINED in
@@ -436,7 +439,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, 1200);
             break;
 
-        default:
+        case 7:
             {
                 check(gobj, !gobj_is_running(priv->gobj_udp_s),
                     "the C_UDP_S stopped from outside was started again"
@@ -448,16 +451,39 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 );
                 check(gobj, got[0] == 0, "the peer got a refused send");
 
-                if(!priv->failures) {
-                    gobj_log_info(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INFO,
-                        "msg",          "%s", "TEST: C_GSS_UDP_S refused the sends while stopped or stopping, started it again with a backoff, and not after a stop from outside",
-                        NULL
-                    );
-                }
-                set_yuno_must_die();
+                /*
+                 *  The C_GSS_UDP_S stopped and started again, as a pause and
+                 *  a play of its host do (logcenter)
+                 */
+                gobj_stop(priv->gobj_gss);
+                gobj_start(priv->gobj_gss);
+                set_timeout(priv->timer, 100);
             }
+            break;
+
+        case 8:
+            peer_send(gobj, "four");
+            set_timeout(priv->timer, 200);
+            break;
+
+        case 9:
+            check(gobj, strcmp(priv->received, "one two three four ")==0,
+                "the C_GSS_UDP_S started again does not hear"
+            );
+            if(!priv->failures) {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INFO,
+                    "msg",          "%s", "TEST: C_GSS_UDP_S refused the sends while stopped or stopping, started it again with a backoff, and not after a stop from outside",
+                    NULL
+                );
+            }
+            set_yuno_must_die();
+            break;
+
+        default:
+            check(gobj, FALSE, "unexpected phase");
+            set_yuno_must_die();
             break;
     }
 

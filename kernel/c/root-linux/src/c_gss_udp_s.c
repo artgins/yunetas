@@ -252,7 +252,6 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->timer);
-    gobj_start(priv->timer_restart);
     set_timeout_periodic(priv->timer, priv->timeout_base);
 
     priv->restart_backoff_ms = 0;
@@ -279,7 +278,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    clear_timeout(priv->timer);
+    clear_timeout(priv->timer);         // a C_TIMER runs while it has a timeout: this stops it
     clear_timeout(priv->timer_restart);
     if(gobj_is_running(priv->gobj_udp_s)) {
         gobj_stop(priv->gobj_udp_s);    // not running: stopped from outside
