@@ -2,7 +2,9 @@
  *          MAIN_LEGACY_PROT.C
  *
  *          C_PROT_MQTT (deprecated) as a server, driven by hand on a fake
- *          transport: no broker, no socket. See c_legacy_prot.c.
+ *          transport: no broker, no socket. See c_legacy_prot.c. The log
+ *          is scanned too: the password of a malformed CONNECT must not be
+ *          in it.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -85,6 +87,43 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
     return TRUE;
 }
 
+/***************************************************************************
+ *  Log scanner: every line of the log, traces included
+ ***************************************************************************/
+extern const char *legacy_password_needle;
+extern const char legacy_password_fill;
+
+PRIVATE int password_shown = 0;     // lines with the password
+
+PRIVATE int scan_log_write(void *v, int priority, const char *bf, size_t len)
+{
+    /*
+     *  A dump splits the password in rows of 16 bytes: look for a row of it
+     */
+    char password_row[17];
+    memset(password_row, legacy_password_fill, 16);
+    password_row[16] = 0;
+    if(memmem(bf, len, legacy_password_needle, strlen(legacy_password_needle)) ||
+        memmem(bf, len, password_row, 16)
+    ) {
+        password_shown++;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  What the scanner saw: no password
+ ***************************************************************************/
+PRIVATE int check_scanned_log(void)
+{
+    if(password_shown != 0) {
+        printf("%sERROR --> %s: %d%s\n", On_Red BWhite,
+            "the password is in the log", password_shown, Color_Off);
+        return -1;
+    }
+    return 0;
+}
+
 time_measure_t time_measure;
 
 /***************************************************************************
@@ -120,7 +159,9 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[]"),
+        json_pack("[{s:s}]",
+            "msg", "Mqtt: too much data"    // the CONNECT with one byte too many
+        ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys
         TRUE            // verbose
@@ -140,6 +181,7 @@ static void cleaning(void)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
     result += test_json(NULL);  // check captured error log
+    result += check_scanned_log();
 }
 
 /***************************************************************************
@@ -165,6 +207,17 @@ int main(int argc, char *argv[])
         0                   // fwrite_fn
     );
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
+
+    /*
+     *  Scan every line, traces included: the password
+     */
+    gobj_log_register_handler(
+        "scan_log",         // handler_name
+        0,                  // close_fn
+        scan_log_write,     // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("scan_log", "scan_log", LOG_OPT_ALL, 0);
 
     /*------------------------------------------------*
      *  Fresh work_dir every run

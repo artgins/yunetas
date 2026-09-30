@@ -22,6 +22,17 @@ connection, `C_PROT_MQTT` too) are `SDF_SECRET`: `view-attrs`, `view-gobj` and
 `list-persistent-attrs` show them as `********` (an empty one stays empty).
 Up to 7.25.20 `auth_data` showed in clear.
 
+A frame the protocol refuses is dumped in the log, at every trace level
+(*"MQTT malformed packet: <command>"*, length-capped). Of a CONNECT only the
+head is dumped, the protocol name, level, flags and keep alive, and of an AUTH
+only its reason code: the properties and the payload carry the credentials.
+Up to 7.25.20 the whole CONNECT was dumped, password included.
+
+```text
+"msg": "MQTT malformed packet: CMD_CONNECT (credentials not dumped)",
+"data": {"0000": "00 04 4D 51 54 54 05 C2 00 3C     ..MQTT...<"}
+```
+
 ```bash
 ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-attrs gobj=<C_PROT_MQTT2 full name> attribute=auth_data'
 # {"C_PROT_MQTT2^<name>": "********"}

@@ -5,7 +5,8 @@
  *          client (a PUBREL of a QoS 1 message, a PUBREC of a QoS 1 message)
  *          is said as a WARNING of the peer, never an ERROR; the CONNECT
  *          decode trace never prints the password, nor reads past the
- *          username; and auth_data is shown masked. See c_wrong_ack.c.
+ *          username; the dump of a malformed CONNECT never carries the
+ *          password; and auth_data is shown masked. See c_wrong_ack.c.
  *
  *          Embedded C_AUTHZ + C_MQTT_BROKER, an input gate on port 18117,
  *          and a raw MQTT client (a C_TCP of the driver) that writes the
@@ -179,6 +180,7 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
  ***************************************************************************/
 extern const char *wrong_ack_username;
 extern const char *wrong_ack_password_needle;
+extern const char wrong_ack_password_fill;
 
 PRIVATE int log_errors = 0;         // ERROR or worse, expected or not
 PRIVATE int password_shown = 0;     // lines with the password
@@ -193,7 +195,15 @@ PRIVATE int scan_log_write(void *v, int priority, const char *bf, size_t len)
     if(priority <= LOG_ERR) {
         log_errors++;
     }
-    if(memmem(bf, len, wrong_ack_password_needle, strlen(wrong_ack_password_needle))) {
+    /*
+     *  A dump splits the password in rows of 16 bytes: look for a row of it
+     */
+    char password_row[17];
+    memset(password_row, wrong_ack_password_fill, 16);
+    password_row[16] = 0;
+    if(memmem(bf, len, wrong_ack_password_needle, strlen(wrong_ack_password_needle)) ||
+        memmem(bf, len, password_row, 16)
+    ) {
         password_shown++;
     }
     if(memmem(bf, len, "CONNECT\n", strlen("CONNECT\n"))) {
@@ -269,10 +279,11 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
             "msg", "No authz db, authz only to local access",   // C_AUTHZ of the test, without a db
             "msg", "Message not found",     // PUBREL of the QoS 1 message, a WARNING
-            "msg", "QoS mismatch"           // PUBREC of the QoS 1 message, a WARNING
+            "msg", "QoS mismatch",          // PUBREC of the QoS 1 message, a WARNING
+            "msg", "Mqtt: too much data"    // the CONNECT with one byte too many
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys

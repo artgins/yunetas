@@ -29,6 +29,12 @@
  *                 answer DISCONNECT 0x82 and say "QoS mismatch" as a
  *                 WARNING. Up to 7.25.20 it was an ERROR, with no client_id
  *                 nor peername.
+ *              5. A second raw client sends the same CONNECT with one byte
+ *                 too many: the broker refuses it ("Mqtt: too much data")
+ *                 and dumps the malformed frame, at every trace level. The
+ *                 dump must not carry the password (main checks the log).
+ *                 Up to 7.25.20 the whole CONNECT was dumped, password and
+ *                 all.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -53,12 +59,13 @@
  */
 const char *wrong_ack_username = "wack_user";
 const char *wrong_ack_password_needle = "PASSWORD-SHOULD-NOT-BE-LOGGED";
+const char wrong_ack_password_fill = 'p';     // the rest of the password
 #define PASSWORD_LEN        300     // > 255: its length has a non-zero high byte
 
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE void send_bytes(hgobj gobj, const uint8_t *bf, size_t len);
+PRIVATE void send_bytes(hgobj gobj, hgobj tcp, const uint8_t *bf, size_t len);
 PRIVATE void send_ack(hgobj gobj, uint8_t type, uint16_t mid);
 
 /***************************************************************************
@@ -84,6 +91,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj gobj_tcp;
+    hgobj gobj_tcp2;        // the client of the malformed CONNECT
     int phase;
     gbuffer_t *rx;          // what the broker sent, not parsed yet
 
@@ -115,6 +123,12 @@ PRIVATE void mt_create(hgobj gobj)
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->gobj_tcp = gobj_create(
         "raw_client",
+        C_TCP,
+        json_pack("{s:s}", "url", BROKER_URL),
+        gobj
+    );
+    priv->gobj_tcp2 = gobj_create(
+        "raw_client2",
         C_TCP,
         json_pack("{s:s}", "url", BROKER_URL),
         gobj
@@ -159,6 +173,9 @@ PRIVATE int mt_stop(hgobj gobj)
     if(gobj_is_running(priv->gobj_tcp)) {
         gobj_stop(priv->gobj_tcp);
     }
+    if(gobj_is_running(priv->gobj_tcp2)) {
+        gobj_stop(priv->gobj_tcp2);
+    }
 
     return 0;
 }
@@ -200,14 +217,12 @@ PRIVATE int mt_pause(hgobj gobj)
 /***************************************************************************
  *  Write raw bytes to the broker
  ***************************************************************************/
-PRIVATE void send_bytes(hgobj gobj, const uint8_t *bf, size_t len)
+PRIVATE void send_bytes(hgobj gobj, hgobj tcp, const uint8_t *bf, size_t len)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     gbuffer_t *gbuf = gbuffer_create(len, len);
     gbuffer_append(gbuf, (void *)bf, len);
     gobj_send_event(
-        priv->gobj_tcp,
+        tcp,
         EV_TX_DATA,
         json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),    // the kw owns it
         gobj
@@ -219,8 +234,47 @@ PRIVATE void send_bytes(hgobj gobj, const uint8_t *bf, size_t len)
  ***************************************************************************/
 PRIVATE void send_ack(hgobj gobj, uint8_t type, uint16_t mid)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     uint8_t ack[] = {type, 0x02, (uint8_t)(mid >> 8), (uint8_t)(mid & 0xFF)};
-    send_bytes(gobj, ack, sizeof(ack));
+    send_bytes(gobj, priv->gobj_tcp, ack, sizeof(ack));
+}
+
+/***************************************************************************
+ *  CONNECT with username and a PASSWORD_LEN password, and `extra` bytes
+ *  too many after it
+ ***************************************************************************/
+PRIVATE size_t build_connect(uint8_t *bf, size_t extra)
+{
+    static const uint8_t connect_head[] = {
+        0x00, 0x04, 'M', 'Q', 'T', 'T', 0x05,   // protocol name, level 5
+        0xC2,                                   // flags: username, password, clean start
+        0x00, 0x3C,                             // keep alive 60 s
+        0x00,                                   // properties length
+        0x00, 7, 'w', 'a', 'c', 'k', '_', 'c', 'l'
+    };
+    size_t ulen = strlen(wrong_ack_username);
+    size_t nlen = strlen(wrong_ack_password_needle);
+    size_t remaining = sizeof(connect_head) + 2 + ulen + 2 + PASSWORD_LEN + extra;
+    size_t n = 0;
+
+    bf[n++] = 0x10;                                     // CONNECT
+    bf[n++] = (uint8_t)((remaining & 0x7F) | 0x80);     // remaining length, 2 bytes
+    bf[n++] = (uint8_t)(remaining >> 7);
+    memcpy(bf + n, connect_head, sizeof(connect_head));
+    n += sizeof(connect_head);
+    bf[n++] = 0x00;
+    bf[n++] = (uint8_t)ulen;
+    memcpy(bf + n, wrong_ack_username, ulen);
+    n += ulen;
+    bf[n++] = (uint8_t)(PASSWORD_LEN >> 8);
+    bf[n++] = (uint8_t)(PASSWORD_LEN & 0xFF);
+    memcpy(bf + n, wrong_ack_password_needle, nlen);
+    memset(bf + n + nlen, wrong_ack_password_fill, PASSWORD_LEN - nlen);
+    n += PASSWORD_LEN;
+    memset(bf + n, 0, extra);
+    n += extra;
+    return n;
 }
 
 /***************************************************************************
@@ -458,7 +512,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, 500);
             break;
 
-        default:
+        case 4:
             parse_rx(gobj);
             if(priv->disconnect_reason != 0x82) {
                 test_error(gobj,
@@ -467,6 +521,15 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 );
             }
             gobj_set_gclass_trace(gclass_find_by_name(C_PROT_MQTT2), "show-decode", FALSE);
+
+            /*
+             *  5. The malformed CONNECT, from a second client
+             */
+            gobj_start(priv->gobj_tcp2);    // CONNECT goes at EV_CONNECTED
+            set_timeout(priv->timer, 500);
+            break;
+
+        default:
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
@@ -478,6 +541,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(gobj_is_running(priv->gobj_tcp)) {
                 gobj_stop(priv->gobj_tcp);
             }
+            if(gobj_is_running(priv->gobj_tcp2)) {
+                gobj_stop(priv->gobj_tcp2);
+            }
             set_yuno_must_die();
             break;
     }
@@ -488,38 +554,20 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  Connected: CONNECT with username and password, SUBSCRIBE, and a QoS 1
- *  PUBLISH
+ *  PUBLISH. The second client: the CONNECT with one byte too many.
  ***************************************************************************/
 PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    static const uint8_t connect_head[] = {
-        0x00, 0x04, 'M', 'Q', 'T', 'T', 0x05,   // protocol name, level 5
-        0xC2,                                   // flags: username, password, clean start
-        0x00, 0x3C,                             // keep alive 60 s
-        0x00,                                   // properties length
-        0x00, 7, 'w', 'a', 'c', 'k', '_', 'c', 'l'
-    };
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     uint8_t bf[512];
-    size_t ulen = strlen(wrong_ack_username);
-    size_t nlen = strlen(wrong_ack_password_needle);
-    size_t remaining = sizeof(connect_head) + 2 + ulen + 2 + PASSWORD_LEN;
-    size_t n = 0;
 
-    bf[n++] = 0x10;                                     // CONNECT
-    bf[n++] = (uint8_t)((remaining & 0x7F) | 0x80);     // remaining length, 2 bytes
-    bf[n++] = (uint8_t)(remaining >> 7);
-    memcpy(bf + n, connect_head, sizeof(connect_head));
-    n += sizeof(connect_head);
-    bf[n++] = 0x00;
-    bf[n++] = (uint8_t)ulen;
-    memcpy(bf + n, wrong_ack_username, ulen);
-    n += ulen;
-    bf[n++] = (uint8_t)(PASSWORD_LEN >> 8);
-    bf[n++] = (uint8_t)(PASSWORD_LEN & 0xFF);
-    memcpy(bf + n, wrong_ack_password_needle, nlen);
-    memset(bf + n + nlen, 'p', PASSWORD_LEN - nlen);
-    n += PASSWORD_LEN;
-    send_bytes(gobj, bf, n);
+    if(src == priv->gobj_tcp2) {
+        send_bytes(gobj, src, bf, build_connect(bf, 1));
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    send_bytes(gobj, src, bf, build_connect(bf, 0));
 
     static const uint8_t subscribe[] = {
         0x82, 9,                                // SUBSCRIBE, remaining length
@@ -528,7 +576,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         0x00, 3, 't', '/', 'w',                 // topic filter
         0x01                                    // QoS 1
     };
-    send_bytes(gobj, subscribe, sizeof(subscribe));
+    send_bytes(gobj, src, subscribe, sizeof(subscribe));
 
     static const uint8_t publish[] = {
         0x32, 9,                                // PUBLISH, QoS 1, remaining length
@@ -537,7 +585,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         0x00,                                   // properties length
         'p'                                     // payload
     };
-    send_bytes(gobj, publish, sizeof(publish));
+    send_bytes(gobj, src, publish, sizeof(publish));
 
     KW_DECREF(kw)
     return 0;
@@ -551,7 +599,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-    if(gbuf) {
+    if(gbuf && src == priv->gobj_tcp) {
         gbuffer_append_gbuf(priv->rx, gbuf);
     }
 

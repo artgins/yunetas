@@ -17,6 +17,12 @@
  *                 topic was read in the packet as a C string: "a/b" went on
  *                 with the length of the next topic, so it was not found
  *                 (0x11, No subscription existed) and stayed subscribed.
+ *              3. A new connection: CONNECT with a username, a 300-byte
+ *                 password and one byte too many. The protocol refuses it
+ *                 ("Mqtt: too much data") and dumps the malformed frame, at
+ *                 every trace level: the dump must not carry the password
+ *                 (main checks the log). Up to 7.25.20 the whole CONNECT
+ *                 was dumped, password and all.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -33,6 +39,14 @@
 #define CLIENT_ID           "legacy_cl"
 #define SHORT_TOPIC         "a/b"
 #define LONG_TOPIC_LEN      300     // > 255: its length has a non-zero high byte
+#define USERNAME            "legacy_user"
+#define PASSWORD_LEN        300
+
+/*
+ *  Shared with main_legacy_prot.c, which scans the log for them
+ */
+const char *legacy_password_needle = "PASSWORD-SHOULD-NOT-BE-LOGGED";
+const char legacy_password_fill = 'p';     // the rest of the password
 
 /***************************************************************************
  *              Prototypes
@@ -421,6 +435,41 @@ PRIVATE void unsubscribe_both(hgobj gobj)
 }
 
 /***************************************************************************
+ *  3. A new connection, and CONNECT with credentials and one byte too many
+ ***************************************************************************/
+PRIVATE void connect_malformed(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    uint8_t bf[1024];
+    size_t n;
+
+    gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);
+    gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+
+    static const uint8_t connect_head[] = {
+        0x00, 0x04, 'M', 'Q', 'T', 'T', 0x05,   // protocol name, level 5
+        0xC2,                                   // flags: username, password, clean start
+        0x00, 0x3C,                             // keep alive 60 s
+        0x00                                    // properties length
+    };
+    size_t nlen = strlen(legacy_password_needle);
+    n = put_fixed_header(bf, 0x10,
+        sizeof(connect_head) + 2 + strlen(CLIENT_ID) + 2 + strlen(USERNAME) + 2 + PASSWORD_LEN + 1
+    );
+    memcpy(bf + n, connect_head, sizeof(connect_head));
+    n += sizeof(connect_head);
+    n += put_string(bf + n, CLIENT_ID);
+    n += put_string(bf + n, USERNAME);
+    bf[n++] = (uint8_t)(PASSWORD_LEN >> 8);
+    bf[n++] = (uint8_t)(PASSWORD_LEN & 0xFF);
+    memcpy(bf + n, legacy_password_needle, nlen);
+    memset(bf + n + nlen, legacy_password_fill, PASSWORD_LEN - nlen);
+    n += PASSWORD_LEN;
+    bf[n++] = 0x00;     // one byte too many
+    peer_sends(gobj, bf, n);
+}
+
+/***************************************************************************
  *  What the unsubscription must leave
  ***************************************************************************/
 PRIVATE void check_unsubscribed(hgobj gobj)
@@ -502,6 +551,11 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 check_unsubscribed(gobj);
                 set_timeout(priv->timer, 100);
             }
+            break;
+
+        case 2:
+            connect_malformed(gobj);
+            set_timeout(priv->timer, 100);
             break;
 
         default:

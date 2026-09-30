@@ -8292,6 +8292,37 @@ PRIVATE int framehead_consume(
 }
 
 /***************************************************************************
+ *  Dump a malformed frame of the peer, length-capped. The credentials are
+ *  never dumped: a CONNECT carries them in its properties (Authentication
+ *  Data) and in its payload (the password), so of a CONNECT only what
+ *  comes before them is dumped -- the protocol name, level, flags and keep
+ *  alive --, and of an AUTH (all Authentication Data) only its reason code.
+ ***************************************************************************/
+PRIVATE void dump_malformed_frame(hgobj gobj, mqtt_message_t command, gbuffer_t *gbuf)
+{
+    const uint8_t *p = gbuffer_head_pointer(gbuf);
+    size_t total = gbuffer_totalbytes(gbuf);
+    size_t len = total;
+
+    if(command == CMD_CONNECT) {
+        size_t head = 2 + 1 + 1 + 2;    // protocol name length, level, flags, keep alive
+        if(total >= 2) {
+            size_t name_len = ((size_t)p[0] << 8) | p[1];
+            head += MIN(name_len, 6);   // "MQTT", "MQIsdp": a longer one is not read further
+        }
+        len = MIN(total, head);
+    } else if(command == CMD_AUTH) {
+        len = MIN(total, 1);
+    }
+
+    gobj_trace_dump(gobj, (const char *)p, MIN(len, MAX_LOG_DUMP_SIZE),
+        "MQTT malformed packet: %s%s",
+        mqtt_command_string(command),
+        (len < total)? " (credentials not dumped)" : ""
+    );
+}
+
+/***************************************************************************
  *  Process the completed frame
  ***************************************************************************/
 PRIVATE int frame_completed(hgobj gobj, hgobj src)
@@ -8439,11 +8470,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
     }
 
     if(ret < 0 && gbuf) {
-        // Malformed packet from the peer: dump the offending frame (length-capped)
-        gobj_trace_dump(gobj, gbuffer_head_pointer(gbuf),
-            MIN(gbuffer_totalbytes(gbuf), MAX_LOG_DUMP_SIZE),
-            "MQTT malformed packet: %s", mqtt_command_string(frame->command)
-        );
+        dump_malformed_frame(gobj, frame->command, gbuf);
     }
 
     GBUFFER_DECREF(gbuf);

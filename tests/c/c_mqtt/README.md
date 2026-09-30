@@ -56,7 +56,11 @@ username past its end (the packet is not NUL-terminated): *"username
 has no QoS 2 message 20, so it must answer PUBCOMP 20 and say *"Message not
 found"* as a WARNING. D. PUBREC of the QoS 1 message the broker delivered: a
 *"QoS mismatch"* WARNING and DISCONNECT 0x82. Up to 7.25.20 both C and D were
-ERRORs (C with a stack); the test fails on any ERROR in the log.
+ERRORs (C with a stack); the test fails on any ERROR in the log. E. A second
+raw client sends the same CONNECT with one byte too many: the broker refuses
+it and dumps the frame, and the dump must not carry the password (the scanner
+also looks for a 16-byte row of it, as a dump splits it). Up to 7.25.20 the
+whole CONNECT was dumped.
 
 `test_mqtt_legacy_prot` (`main_legacy_prot.c` + `c_legacy_prot.c`) drives
 `C_PROT_MQTT`, the deprecated protocol gclass, as a server with no broker and
@@ -69,7 +73,9 @@ UNSUBSCRIBEs both in ONE packet: the UNSUBACK must carry two 0x00, the
 "unsubscribing" `EV_ON_MESSAGE` must list the two topics as sent, and no
 subscription may be left. Up to 7.25.20 the topic was read in the packet as a
 C string: `a/b` ran on into the length of the next topic, so it answered 0x11
-and `a/b` stayed subscribed.
+and `a/b` stayed subscribed. Then, on a new connection, a CONNECT with a
+300-byte password and one byte too many: the dump of the refused frame must
+not carry the password (up to 7.25.20 it carried the whole CONNECT).
 
 ## Run
 
