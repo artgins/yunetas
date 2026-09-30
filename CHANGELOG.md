@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### emailsender: the `smtp` trace no longer writes the credentials
+
+- `C_SMTP_SESSION`'s `smtp` trace wrote every command line, `AUTH PLAIN`
+  included: the base64 of the user and password of the relay, that is the
+  password in clear, in the yuno's log and from there in the logcenter's. It
+  names the mechanism now (`>>> AUTH PLAIN <credentials not traced>`). Found
+  tracing a report that did not arrive; the two lines that had been written
+  on wattyzer were overwritten in place.
+
+### webstats: `send-yesterday`
+
+- Builds the report of yesterday and mails it, whatever `send_email` says,
+  with nothing to type -- `report-day` wants the date and `send=1`.
+  `analyze-now` says in its help that it mails only when `send_email` is on.
+
 ## v7.25.17 (2026-09-30)
 
 ### Kernel: `C_TCP_S` and `C_UDP_S` answer `help`

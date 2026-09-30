@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <limits.h>
 #include <string.h>
+#include <strings.h>
 
 #include <istream.h>
 #include "c_smtp_session.h"
@@ -99,7 +100,7 @@ enum {
     TRACE_TRAFFIC = 0x0002,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
-{"smtp",     "Trace SMTP FSM phases (commands sent + reply codes)"},
+{"smtp",     "Trace SMTP FSM phases (commands sent, AUTH without its credentials, + reply codes)"},
 {"traffic",  "Trace raw bytes in/out (hex dump)"},
 {0, 0},
 };
@@ -269,7 +270,20 @@ PRIVATE int send_smtp_line(hgobj gobj, const char *line)
     gbuffer_append(gbuf, "\r\n", 2);
 
     if(gobj_trace_level(gobj) & TRACE_SMTP) {
-        gobj_trace_msg(gobj, ">>> %s", line);
+        /*
+         *  AUTH carries the credentials (PLAIN: base64 of user and password,
+         *  i.e. in clear): the trace names the mechanism and nothing else.
+         *  Up to 7.25.17 it wrote the whole line to the log, and from there
+         *  to the logcenter.
+         */
+        if(strncasecmp(line, "AUTH ", 5)==0) {
+            const char *mech = line + 5;
+            const char *end = strchr(mech, ' ');
+            int mech_len = end? (int)(end - mech) : (int)strlen(mech);
+            gobj_trace_msg(gobj, ">>> AUTH %.*s <credentials not traced>", mech_len, mech);
+        } else {
+            gobj_trace_msg(gobj, ">>> %s", line);
+        }
     }
 
     json_t *kw_tx = json_pack("{s:I}",

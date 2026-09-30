@@ -172,6 +172,8 @@ PRIVATE const char *str_or_empty(json_t *jn);
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_analyze_now(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_send_yesterday(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *run_yesterday(hgobj gobj, BOOL send, json_t *kw);
 PRIVATE json_t *cmd_report_day(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_report(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_reports(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -222,7 +224,8 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,                  0,              pm_authzs,      cmd_authzs,     "Authorization's help"),
-SDATACM (DTP_SCHEMA,    "analyze-now",      0,                  0,              cmd_analyze_now, "Build the report of yesterday, now"),
+SDATACM (DTP_SCHEMA,    "analyze-now",      0,                  0,              cmd_analyze_now, "Build the report of yesterday, now (mailed only if send_email is on)"),
+SDATACM (DTP_SCHEMA,    "send-yesterday",   0,                  0,              cmd_send_yesterday, "Build the report of yesterday and mail it, whatever send_email says"),
 SDATACM (DTP_SCHEMA,    "report-day",       0,                  pm_report_day,  cmd_report_day, "Rebuild the report of a day still on disk"),
 SDATACM (DTP_SCHEMA,    "get-report",       0,                  pm_get_report,  cmd_get_report, "Get a stored report"),
 SDATACM (DTP_SCHEMA,    "list-reports",     0,                  0,              cmd_list_reports, "List the days already reported"),
@@ -565,6 +568,24 @@ PRIVATE json_t *cmd_analyze_now(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    return run_yesterday(gobj, priv->send_email, kw);
+}
+
+/***************************************************************************
+ *  The report of yesterday, mailed: what the daily run sends at its hour,
+ *  asked for again with nothing to type (`report-day` wants the date and
+ *  send=1).
+ ***************************************************************************/
+PRIVATE json_t *cmd_send_yesterday(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    return run_yesterday(gobj, TRUE, kw);
+}
+
+/***************************************************************************
+ *  Build the report of yesterday, and send it when `send`.
+ ***************************************************************************/
+PRIVATE json_t *run_yesterday(hgobj gobj, BOOL send, json_t *kw)
+{
     char date[DATE_SIZE];
     if(date_of(gobj, time(NULL) - 24*60*60, date, sizeof(date)) < 0) {
         return msg_iev_build_response(
@@ -579,7 +600,7 @@ PRIVATE json_t *cmd_analyze_now(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    if(start_run(gobj, date, priv->send_email) < 0) {
+    if(start_run(gobj, date, send) < 0) {
         return msg_iev_build_response(
             gobj,
             -1,
@@ -595,8 +616,8 @@ PRIVATE json_t *cmd_analyze_now(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("%s: reading the logs of %s",
-            gobj_yuno_role_plus_name(), date
+        json_sprintf("%s: reading the logs of %s%s",
+            gobj_yuno_role_plus_name(), date, send? ", the report will be mailed" : ""
         ),
         0,
         0,
