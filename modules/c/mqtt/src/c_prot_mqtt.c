@@ -631,7 +631,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_create_user[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "username",     0,              0,          "User name"),
-SDATAPM (DTP_STRING,    "password",     0,              0,          "Password"),
+SDATAPM (DTP_STRING,    "password",     SDF_SECRET,     0,          "Password"),
 SDATA_END()
 };
 
