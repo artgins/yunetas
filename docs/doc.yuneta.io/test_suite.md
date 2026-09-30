@@ -243,11 +243,13 @@ crash or leak cannot mask neighbours.
 | **`test_c_node_paged_nodes`** | The paging of `C_NODE`'s `nodes`: no `limit` answers the plain list; a `limit` answers `{total_rows, pages, data}`; `from` is 1-based; a page past the end is empty with the right total; `from` / `limit` given as strings work. |
 | **`test_c_tranger`** | [`C_TRANGER`](#gclass-c-tranger) commands: `topics`, `list-keys` (counts and time spans), `open-iterator` and its pages by `t` and by `tm`. `add-record` appends (a dict or its json text, `write`, master-only; it was a stub). The pushes of a live list carry its `list_id` as `rt_id`. A handle of one session is refused to another (`close-rt`, `close-iterator`, `close-list`, `get-page`, `get-list-data` answer `-403`), and through the agent's one link (a `C_IEVENT_CLI`) a handle of one user is refused to another user and to a relayed command of no user, and not to the same user. `mark-tm-order` and `add-record` ask `write` and answer `-403` on a refusal (a counting authz checker). |
 | **`test_c_agent_find_new_yunos`** | The rows of the agent's `find-new-yunos`, against a real [`C_NODE`](#gclass-c-node) with the agent's schema: a yuno already registered at the new release (a single one, and a `yuno_multiple` one) is marked *"already registered, pending promotion (deactivate-snap)"*, not listed as new. |
+| **`test_c_controlcenter_scenarios`** | The control center's scenarios, on its own source (`c_controlcenter.c`), between a `__top_side__` of fake web clients and an `__input_side__` with one agent connected (a real `C_IEVENT_SRV` in session, answered as the agent does). Freed memory is poisoned and held in a quarantine, so a read after a free reads the poison: `save-scenario` with the scenario as a string answers with its id (up to 7.25.20 the id was read from the parsed json after it was freed). |
 
 **Source:** `tests/c/c_subscriptions/`, `tests/c/c_node_link_events/`,
 `tests/c/c_node_initial_load/`, `tests/c/tr_treedb_link_events/`,
 `tests/c/tr_treedb_failed_save/`, `tests/c/c_node_failed_save/`,
 `tests/c/c_subscription_authz/`, `tests/c/c_ievent_srv_peer_subs/`, `tests/c/c_agent_find_new_yunos/`,
+`tests/c/c_controlcenter_scenarios/`,
 `tests/c/c_node_authz/`, `tests/c/c_node_paged_nodes/`, `tests/c/c_tranger/`
 
 ## Timeranger2 persistence

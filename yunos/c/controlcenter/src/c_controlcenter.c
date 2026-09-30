@@ -1101,7 +1101,10 @@ PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    const char *scenario_id = json_string_value(json_object_get(jn_scenario, "id"));
+    /*  Copied: a scenario parsed here is freed before the answers name it  */
+    char scenario_id[SCENARIO_ID_MAX+1];
+    snprintf(scenario_id, sizeof(scenario_id), "%s",
+        json_string_value(json_object_get(jn_scenario, "id")));
     const char *username = username_of(gobj, kw, src);
     json_int_t now = (json_int_t)time_in_seconds();
 

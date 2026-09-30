@@ -1,0 +1,31 @@
+# c_controlcenter_scenarios test
+
+Tests the scenarios of the control center, and the routing of what its agents
+send back, on the control center's own source
+(`yunos/c/controlcenter/src/c_controlcenter.c`, compiled into the test).
+
+The control center runs as in production, between two sides played by
+`C_TEST_CC_PEER`: `__top_side__`, whose channels are web clients, and
+`__input_side__`, with one agent connected -- a real `C_IEVENT_SRV` in session,
+whose frames are decoded by the peer below it and answered by the test as the
+agent does (`msg_iev_build_response()` on the request).
+
+Freed memory is poisoned (`0x5A`) and held in a quarantine before it is given
+back (`main.c`), so a read after a free reads the poison instead of what was
+there: without it the block is handed out again at once, often to a copy of
+the very same string, and the read looks right.
+
+## What it pins
+
+1. `save-scenario` with the scenario as a string answers with its id. The
+   command parser already parses a `DTP_JSON` parameter that arrives as a
+   string, so the handler sees a string only when the json is itself a string
+   holding the scenario (encoded twice). Up to 7.25.20 the id was read from the
+   parsed json after it was freed: the answer said
+   *"scenario created: ZZZZ..."*.
+
+## Run
+
+```bash
+ctest -R '^test_c_controlcenter_scenarios$' --output-on-failure --test-dir build
+```
