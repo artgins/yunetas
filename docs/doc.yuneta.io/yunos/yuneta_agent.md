@@ -118,6 +118,23 @@ Up to 7.25.4 each of them answered an EMPTY list with result `0`, which reads
 as "the directory is empty". A SUBdirectory the agent cannot open is skipped,
 as before. (`tests/c/helpers/test_dir_listing`.)
 
+## A yuno that runs but is not connected
+
+`command-yuno`, `stats-yuno` and `authzs-yuno` go to every yuno that matches
+and is running, through the channel the yuno opened to the agent. A yuno that
+runs but has no channel -- starting, not yet connected, or going -- used to
+get nothing and answer nothing, so the requester waited for ever (a control
+center running a scenario, its step's whole deadline). Since 7.25.16 the
+command is answered at once when it reached none of them,
+
+```text
+yuneta_agent^controlador: set-period: yuno stress runs but is not connected to the agent (starting or stopping): nothing sent
+```
+
+and when it reached only some, the others are named in a warning of the
+agent's log (*"yuno running but not connected to the agent, nothing sent to
+it"*): the ones that got it answer on their own.
+
 ## Stats pushed to a watcher (`watch-yuno-stats`)
 
 Since 7.25.13 a client can ask the agent to SEND it the stats of some yunos

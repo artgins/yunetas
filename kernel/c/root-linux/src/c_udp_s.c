@@ -50,6 +50,7 @@ PRIVATE int udp_set_broadcast(int fd, int on);
 // PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int reload_ytls_from_attrs(hgobj gobj);
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_cert(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
@@ -60,6 +61,14 @@ PRIVATE json_t *cmd_view_cert(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 /*---------------------------------------------*
  *      Commands
  *---------------------------------------------*/
+PRIVATE sdata_desc_t pm_help[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "level=1: search in bottoms, level=2: search in all childs"),
+SDATA_END()
+};
+PRIVATE const char *a_help[] = {"h", "?", 0};
+
 PRIVATE sdata_desc_t pm_reload_certs[] = {
 SDATA_END()
 };
@@ -68,8 +77,9 @@ SDATA_END()
 };
 
 PRIVATE sdata_desc_t command_table[] = {
+SDATACM(DTP_SCHEMA, "help",         a_help, pm_help,        cmd_help,         "Available commands or help about a command."),
 SDATACM(DTP_SCHEMA, "reload-certs", 0, pm_reload_certs, cmd_reload_certs, "Reload TLS certificates from the 'crypto' attribute without dropping active connections"),
-SDATACM(DTP_SCHEMA, "view-cert",    0, pm_view_cert,    cmd_view_cert,    "Show metadata of the currently loaded TLS server certificate"),
+SDATACM(DTP_SCHEMA, "view-cert",    0, pm_view_cert,    cmd_view_cert,    "Show metadata of the currently loaded TLS server certificate (subject, issuer, not_before, not_after, serial, days_remaining) and the url it listens on"),
 SDATA_END()
 };
 
@@ -1334,6 +1344,23 @@ PRIVATE int reload_ytls_from_attrs(hgobj gobj)
 
 
 
+
+/***************************************************************************
+ *  Command: help
+ ***************************************************************************/
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
+}
 
 /***************************************************************************
  *  Command: reload-certs

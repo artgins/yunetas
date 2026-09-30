@@ -1,6 +1,174 @@
 # **Changelog**
 
-## Unreleased
+## v7.25.20 (2026-09-30)
+
+The last hole of the secret masking of 7.25.19, and the performance study of
+the fifteen releases since the last one (7.25.5): the report of this release
+measures 7.25.20 against 7.25.5.
+
+### Kernel: `list-persistent-attrs` masks the secrets too
+
+- 7.25.19 masked `SDF_SECRET` attrs in `view-attrs` and the rest, but
+  `list-persistent-attrs` (and the answer of `remove-persistent-attrs`)
+  still showed them in clear: the mask was applied one level above the
+  `{<gobj>: {attrs}}` it answers. `gobj_list_persistent_attrs()` masks each
+  gobj's attrs itself now; every caller of it shows what it answers.
+
+### Performance, against 7.25.5
+
+- The report of this release measures it against 7.25.5, the release of the
+  last report: [`performance/reports/7.25.20.html`](https://github.com/artgins/yunetas/blob/7.25.20/performance/reports/7.25.20.html),
+  and the trend on [doc.yuneta.io/performance](https://doc.yuneta.io/performance/).
+  Both releases built whole, run alternately, 8 rounds (24 for the timeranger2
+  tests).
+- Faster, all from the `SWITCHS` fix of 7.25.7 (it compiled a regex on every
+  entry): the open of 40 treedbs with an unchanged schema 0.667 -> 0.318 s
+  (x2.1), a saved treedb update -25.2%, link/unlink -20.3%, the delete of a
+  parent of 200 children -17.3%, an update in memory -16.2%, the first open of
+  40 treedbs -8.1%, a create -7.0%, appends with a live reader +12.8% (the
+  benchmark's callback uses `SWITCHS`).
+- Nothing slower beyond its noise. `tm_build_appends` +3.6% (at the edge of
+  the spread) runs the same append code in both releases: placement.
+  `test_topic_pkey_integer` +0.3%.
+- `make_report.py` takes the words of a report from its json (`story`), so a
+  report is no longer written for one release.
+
+## v7.25.19 (2026-09-30)
+
+The end of the lost webstats report of wattyzer, and what it turned up:
+the report's IP addresses as `[a.b.c.d]` (OVH read one as a phone number and
+dropped the mail), secrets masked where attrs are shown, the persistent-attrs
+file 0600, and the SMTP refusal text in the log. A kernel change, so the
+suite ran on both machines (215/215 each); deployed as emailsender and
+webstats on every node -- the other yunos take the masking at their next
+build.
+
+### Kernel: secrets are not shown, and not left world-readable
+
+- **`SDF_SECRET`**, a new attr flag: the attr is read, written and persisted
+  as before, and SHOWN as `********` by `view-attrs`, `write-attr` (its
+  answer echoed the value written), `list-persistent-attrs`, `view-gobj` and
+  the start-up trace of the yuno's attrs -- through the new
+  `gobj_mask_secret_attrs()`. Marked: the passwords of the emailsender and
+  its SMTP session, `client_secret` (auth_bff), `sign_secret` (assets),
+  `kc_admin_client_secret` (keycloak), the MQTT password, and the user
+  passwords and tokens of `c_task_authenticate`, `c_ievent_cli`, `c_tcp`,
+  mqtt2 and the CLI tools. `view-attrs` showed the relay's password in
+  clear to whoever asked.
+- **The persistent-attrs file is written 0600** (`dbsimple.c`), and
+  fchmod'ed so the files written before are closed at their next save: it
+  was `json_dump_file()` with the process umask -- 0666 on every node --
+  and it holds those secrets in clear.
+
+### emailsender: a refused login says why
+
+- The SMTP server's reply TEXT is logged with its code when the login is
+  refused. `535` alone could not tell a wrong password from what it was on
+  2026-09-30: `535 5.7.1 Authentication failed`, OVH blocking the account.
+
+### webstats: the report's IP addresses go out as [a.b.c.d]
+
+- OVH's outbound relay read `34.140.132.132` as a Spanish phone number (+34
+  and nine digits) and, in a report full of addresses marked "banned",
+  accepted the mail (`250 queued`) and delivered it to NOBODY: no bounce,
+  not in Junk, not at gmail or outlook either. wattyzer's report of
+  2026-09-29 was the first with such an address, bisected down to one row
+  of Top clients; Google Cloud addresses start with 34, so it recurs.
+  The mail (and `preview-report`) now writes every standalone IPv4 as
+  `[a.b.c.d]` -- proven on the relay; the usual defang `a[.]b[.]c[.]d` does
+  NOT pass. The stored record keeps the plain address.
+
+## v7.25.18 (2026-09-30)
+
+emailsender and webstats only: no kernel change. Found chasing a webstats
+report of wattyzer that stopped arriving (OVH accepts it -- `250 queued` --
+and it is lost after the relay; the cause is still being narrowed down, see
+TODO). Each node takes it with `install-binary` of the two roles and the
+usual promotion.
+
+### emailsender: the `smtp` trace no longer writes the credentials
+
+- `C_SMTP_SESSION`'s `smtp` trace wrote every command line, `AUTH PLAIN`
+  included: the base64 of the user and password of the relay, that is the
+  password in clear, in the yuno's log and from there in the logcenter's. It
+  names the mechanism now (`>>> AUTH PLAIN <credentials not traced>`). Found
+  tracing a report that did not arrive; the two lines that had been written
+  on wattyzer were overwritten in place.
+
+### webstats: a rebuilt day with no access log keeps (and sends) the stored report
+
+- The guard against storing an empty rebuild over a good day measured the
+  lines KEPT from every source; the fail2ban and error logs of a day outlive
+  its access log, so rebuilding such a day (`report-day ... send=1` after the
+  rotation) passed the guard and stored -- and mailed -- `NO DATA` over a day
+  of 4632 requests. It measures what the report saw now (requests + errors,
+  the NO DATA of the subject), and a rebuild asked to send mails the STORED
+  report. `load_report` answers the newest record WITH data when a later one
+  is empty (the store is append-only: the good day was never lost), which
+  also mends the days already written that way.
+
+### webstats: `send-yesterday`
+
+- Builds the report of yesterday and mails it, whatever `send_email` says,
+  with nothing to type -- `report-day` wants the date and `send=1`.
+  `analyze-now` says in its help that it mails only when `send_email` is on.
+
+## v7.25.17 (2026-09-30)
+
+### Kernel: `C_TCP_S` and `C_UDP_S` answer `help`
+
+- They were the only gclasses with commands (`reload-certs`, `view-cert`) and
+  no `help`: `command-agent service=agent_secure_port command=help` answered
+  *"command not available"*, and the commands could only be found in the
+  code. Every gclass with a command table in the SDK and in the projects now
+  has one (the two command-parser test fixtures excepted). Deployed with the
+  agents and the control center; every other yuno gets it at its next build.
+- `view-cert` says in its description that it answers the listening `url`
+  too. The transport page documented a `help` that did not exist and a
+  `view-services` that does not; it lists the three real commands now.
+
+### JS: gui_agent 0.29.5
+
+- **"For TreeDB" gives each agent its own domain.** The export built an
+  agent's url from the node's name (`wss://artgins:1993`), because the scan
+  read the certificate from `view-config`, where the agent's is a global
+  override it does not see. It asks the agent's secure gate `view-cert`
+  instead: the loaded certificate's CN (`wss://agent.artgins.com:1993`) and
+  the gate's port. A CN that is not a hostname -- the package's own
+  self-signed `yuneta_agent.yuneta.io` -- falls back to `view-config` and the
+  node's name, as before.
+
+## v7.25.16 (2026-09-30)
+
+A lite release (control center and agent only): the two points the review of
+7.25.15 left in TODO.
+
+### Control center: two editors of one scenario
+
+- **`save-scenario` takes the `revision` the scenario was read at** and
+  refuses the save when it was saved (or deleted) since, naming who --
+  instead of the last writer silently winning. The revision is the record's
+  `g_rowid`, which `scenarios` and `save-scenario` now answer in
+  `__md_treedb__` (`updated_at` counts seconds: two saves in one second look
+  the same). Without `revision`, or 0, nothing is checked: a new scenario, or
+  an overwrite on purpose.
+
+### Agent: a yuno that runs but is not connected is answered for
+
+- `command-yuno`, `stats-yuno` and `authzs-yuno` sent nothing, and answered
+  nothing, for a matched yuno whose row has no channel (starting, or going):
+  the requester waited for ever, a control center running a scenario for its
+  step's whole deadline, with every other run held behind it. Now the command
+  is answered at once with an error when it reached none of the yunos, and
+  logged when it reached only some.
+
+### JS: gui_agent 0.29.4
+
+- The live view keeps the revision of the scenario it shows (from the list
+  and from each save) and sends it with a save of the same scenario; a
+  refusal says somebody saved it after it was opened (`scenario changed since
+  read`). A save under another name, confirmed first, is an overwrite and
+  sends none.
 
 ### linux-ext-libs: openresty from its release tarball
 

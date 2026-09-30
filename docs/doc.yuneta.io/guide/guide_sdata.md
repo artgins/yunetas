@@ -71,6 +71,7 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
 | `SDF_AUTHZ_P`   | Authorization constraint parameter. |
 | `SDF_AUTHZ_S`   | Stats read requires authorization (`__read_stats__`). |
 | `SDF_AUTHZ_RS`  | Stats reset requires authorization (`__reset_stats__`). |
+| `SDF_SECRET`    | A secret: read and saved as usual, SHOWN as `********`. |
 
 (SDF_NOTACCESS)=
 ### SDF_NOTACCESS
@@ -140,6 +141,30 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
 ### SDF_AUTHZ_RS
     Stats reset requires authorization (`__reset_stats__`).
 
+(SDF_SECRET)=
+### SDF_SECRET
+    A secret -- a password, a client secret, a token. Since 7.25.19. The
+    attr is read, written and persisted exactly as without the flag (the
+    emailsender still sends its real password, the persistent-attrs file
+    still keeps it); what changes is what is SHOWN: `view-attrs`,
+    `write-attr`, `list-persistent-attrs`, `view-gobj` and the start-up
+    trace of the yuno's attrs answer `********` for it. An empty value is
+    shown empty, so "not set" still reads as such. A dict of attrs is masked
+    with [`gobj_mask_secret_attrs()`](#gobj_mask_secret_attrs).
+
+```C
+SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
+```
+
+```text
+> command-yuno id=1 service=__yuno__ command=view-attrs attribute=password
+{ "C_EMAILSENDER^emailsender": "********" }
+```
+
+    The persistent-attrs file itself (`<realm>/<yuno>/data/*-persistent-attrs.json`)
+    is written 0600 since 7.25.19: up to 7.25.18 it took the process umask,
+    0666 on every node, and it holds these secrets in clear.
+
 
 ## Common Flag Combinations
 - **Public Attributes:** Combine `SDF_RD|SDF_WR|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS`.
@@ -161,7 +186,7 @@ The `sdata_desc_t` structure defines a field or schema. Each descriptor specifie
 | `default_value` | `const char *`         | The default value of the field. |
 | `header`        | `const char *`         | Header text for table columns. |
 | `fillspace`     | `int`                  | Column width for table formatting. |
-| [`description`](https://github.com/artgins/yunetas/blob/7.25.14/utils/c/yuno-skeleton/make_skeleton.c#L199)   | `const char *`         | A description of the field's purpose. |
+| [`description`](https://github.com/artgins/yunetas/blob/7.25.20/utils/c/yuno-skeleton/make_skeleton.c#L199)   | `const char *`         | A description of the field's purpose. |
 | `json_fn`       | `json_function_fn`     | Custom function for processing JSON data. |
 | `schema`        | `const sdata_desc_t *` | Pointer to a sub-schema for compound fields. |
 | `authpth`       | `const char *`         | Authorization path for accessing or modifying the field. |

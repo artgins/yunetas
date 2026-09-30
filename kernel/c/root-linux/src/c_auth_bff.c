@@ -215,7 +215,7 @@ SDATA (DTP_STRING,      "issuer",               SDF_RD, "",     "OIDC issuer URL
 SDATA (DTP_STRING,      "token_endpoint",       SDF_RD, "",     "Explicit OAuth2 token endpoint URL. Overrides discovery"),
 SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD, "",     "Explicit OIDC end_session endpoint URL. Overrides discovery"),
 SDATA (DTP_STRING,      "client_id",            SDF_RD, "",     "IdP client_id (resource)"),
-SDATA (DTP_STRING,      "client_secret",        SDF_RD, "",     "Client secret (leave empty for public clients with PKCE)"),
+SDATA (DTP_STRING,      "client_secret",        SDF_RD|SDF_SECRET, "",     "Client secret (leave empty for public clients with PKCE)"),
 SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
 SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "CORS Access-Control-Allow-Origin value"),
 SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); rejects callback requests whose redirect_uri does not start with this"),

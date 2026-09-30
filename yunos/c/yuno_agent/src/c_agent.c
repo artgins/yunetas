@@ -118,6 +118,13 @@ PRIVATE int trace_off_yuno(
     json_t *kw,
     hgobj src
 );
+PRIVATE json_t *unreached_yunos_response(
+    hgobj gobj,
+    const char *what,
+    json_t *jn_unreached,
+    int sent,
+    json_t *kw
+);
 PRIVATE int command_to_yuno(
     hgobj gobj,
     json_t *yuno,
@@ -6114,16 +6121,28 @@ PRIVATE json_t *cmd_command_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     /*------------------------------------------------*
      *      Send command
      *------------------------------------------------*/
+    int sent = 0;
+    json_t *jn_unreached = json_array();
     int idx; json_t *yuno;
     json_array_foreach(iter, idx, yuno) {
         /*
          *  Command to yuno
          */
         json_t *kw_yuno = json_deep_copy(kw);
-        command_to_yuno(gobj, yuno, json_string_value(jn_command), kw_yuno, src);
+        if(command_to_yuno(gobj, yuno, json_string_value(jn_command), kw_yuno, src) < 0) {
+            json_array_append_new(jn_unreached, json_string(kw_get_str(gobj, yuno, "id", "", 0)));
+        } else {
+            sent++;
+        }
     }
     JSON_DECREF(iter)
+    json_t *jn_response = unreached_yunos_response(
+        gobj, json_string_value(jn_command), jn_unreached, sent, kw
+    );
     JSON_DECREF(jn_command);
+    if(jn_response) {
+        return jn_response;
+    }
 
     KW_DECREF(kw);
     return 0;   /* Asynchronous response */
@@ -6168,15 +6187,25 @@ PRIVATE json_t *cmd_stats_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     /*------------------------------------------------*
      *      Send stats
      *------------------------------------------------*/
+    int sent = 0;
+    json_t *jn_unreached = json_array();
     int idx; json_t *yuno;
     json_array_foreach(iter, idx, yuno) {
         /*
          *  Command to yuno
          */
         json_t *kw_yuno = json_deep_copy(kw);
-        stats_to_yuno(gobj, yuno, stats, kw_yuno, src);
+        if(stats_to_yuno(gobj, yuno, stats, kw_yuno, src) < 0) {
+            json_array_append_new(jn_unreached, json_string(kw_get_str(gobj, yuno, "id", "", 0)));
+        } else {
+            sent++;
+        }
     }
     JSON_DECREF(iter)
+    json_t *jn_response = unreached_yunos_response(gobj, cmd, jn_unreached, sent, kw);
+    if(jn_response) {
+        return jn_response;
+    }
 
     KW_DECREF(kw);
     return 0;   /* Asynchronous response */
@@ -6455,15 +6484,25 @@ PRIVATE json_t *cmd_authzs_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*------------------------------------------------*
      *      Send authzs
      *------------------------------------------------*/
+    int sent = 0;
+    json_t *jn_unreached = json_array();
     int idx; json_t *yuno;
     json_array_foreach(iter, idx, yuno) {
         /*
          *  Command to yuno
          */
         json_t *kw_yuno = json_deep_copy(kw);
-        authzs_to_yuno(gobj, yuno, kw_yuno, src);
+        if(authzs_to_yuno(gobj, yuno, kw_yuno, src) < 0) {
+            json_array_append_new(jn_unreached, json_string(kw_get_str(gobj, yuno, "id", "", 0)));
+        } else {
+            sent++;
+        }
     }
     JSON_DECREF(iter)
+    json_t *jn_response = unreached_yunos_response(gobj, cmd, jn_unreached, sent, kw);
+    if(jn_response) {
+        return jn_response;
+    }
 
     KW_DECREF(kw);
     return 0;   /* Asynchronous response */
@@ -9190,7 +9229,65 @@ PRIVATE int trace_off_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
 }
 
 /***************************************************************************
- *
+ *  After a command, stats or authzs was sent to the yunos that matched: a
+ *  yuno that runs but whose row has no channel yet (starting) or any more
+ *  (going) got nothing, and nothing will answer for it. When none got it,
+ *  the requester is answered NOW -- a control center running a scenario
+ *  otherwise waited its step's whole deadline, holding every other run --
+ *  and when only some did, it is logged.
+ *  Returns the response (kw owned by it), or NULL: the answers are
+ *  asynchronous and kw stays the caller's.
+ ***************************************************************************/
+PRIVATE json_t *unreached_yunos_response(
+    hgobj gobj,
+    const char *what,
+    json_t *jn_unreached,   // owned
+    int sent,
+    json_t *kw              // owned only when a response is returned
+)
+{
+    json_t *jn_response = NULL;
+    if(json_array_size(jn_unreached) > 0) {
+        char ids[256] = "";
+        size_t len = 0;
+        size_t i; json_t *jn_id;
+        json_array_foreach(jn_unreached, i, jn_id) {
+            int n = snprintf(ids + len, sizeof(ids) - len, "%s%s",
+                i? "," : "", json_string_value(jn_id));
+            if(n < 0 || (size_t)n >= sizeof(ids) - len) {
+                len = sizeof(ids) - 1;  // the log below carries the whole list
+                break;
+            }
+            len += (size_t)n;
+        }
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "yuno running but not connected to the agent, nothing sent to it",
+            "what",         "%s", what? what : "",
+            "yunos",        "%j", jn_unreached,
+            "sent",         "%d", sent,
+            NULL
+        );
+        if(sent == 0) {
+            jn_response = msg_iev_build_response(gobj,
+                -1,
+                json_sprintf("%s: %s: yuno %s runs but is not connected to the agent "
+                    "(starting or stopping): nothing sent",
+                    gobj_yuno_role_plus_name(), what? what : "", ids),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+    JSON_DECREF(jn_unreached)
+    return jn_response;
+}
+
+/***************************************************************************
+ *  -1: the yuno has no channel (the caller says so, see
+ *  unreached_yunos_response).
  ***************************************************************************/
 PRIVATE int command_to_yuno(hgobj gobj, json_t *yuno, const char *command, json_t *kw, hgobj src)
 {

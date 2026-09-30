@@ -302,7 +302,7 @@ def xpos(v, lo, hi):
     return max(0.0, min(100.0, (v - lo) / (hi - lo) * 100.0))
 
 
-def diverging_chart(entries, lo=-100.0, hi=40.0):
+def diverging_chart(entries, version, prev, lo=-100.0, hi=40.0):
     """
     One row per entry: the change of the time an operation takes, 7.25.x against
     the release before, colored by verdict, with a whisker of +-1 sd.
@@ -353,10 +353,12 @@ def diverging_chart(entries, lo=-100.0, hi=40.0):
         parts.append('<text x="%.2f%%" y="12" text-anchor="%s">%s</text>' % (x, anchor, ('+' if t > 0 else '') + '%d%%' % t))
     out.append('<div class="row axisrow"><div class="lab">.</div><svg role="presentation" aria-hidden="true">%s</svg><div class="val">.</div></div>'
                % ''.join(parts))
+    separate = any('separate' in e.get('scope', '') for e in entries)
     out.append('<p class="small">Change of the time one operation takes (a throughput is turned into '
-               'time per operation), 7.25.5 against 7.25.4. Left of zero is faster. '
-               'Bars past +40% are cut; the right column gives the real factor. '
-               '&dagger; release against release from two separate runs, not one alternated run.</p>')
+               'time per operation), %s against %s. Left of zero is faster. '
+               'Bars past +40%% are cut; the right column gives the real factor.%s</p>' % (
+                   esc(version), esc(prev),
+                   ' &dagger; release against release from two separate runs, not one alternated run.' if separate else ''))
     out.append('</div>')
     return '\n'.join(out)
 
@@ -468,12 +470,19 @@ def build_html(rep, reports):
 
     # ---- header
     H.append('<p class="small">Yuneta Simplified &middot; performance report &middot; %s</p>' % esc(rep['date']))
-    H.append('<h1>Yuneta %s: faster where it runs every second, and every price named</h1>' % esc(version))
-    H.append('<p class="lead">%s is a correctness release: crash safety of the stores and the schemas, '
-             'a hardened agent audit, a stricter message bus. This page shows what that did to speed, '
-             'measured against %s on the same machine, with the same benchmarks, the two releases run '
-             'alternately. The hot paths got faster or stayed where they were. The few operations that got '
-             'slower are listed with the reason, because each one buys a guarantee.</p>' % (esc(version), esc(prev)))
+    story = rep.get('story', {})
+    if story.get('title'):
+        H.append('<h1>%s</h1>' % md_code(story['title']))
+    else:
+        H.append('<h1>Yuneta %s: faster where it runs every second, and every price named</h1>' % esc(version))
+    if story.get('lead'):
+        H.append('<p class="lead">%s</p>' % md_code(story['lead']))
+    else:
+        H.append('<p class="lead">%s is a correctness release: crash safety of the stores and the schemas, '
+                 'a hardened agent audit, a stricter message bus. This page shows what that did to speed, '
+                 'measured against %s on the same machine, with the same benchmarks, the two releases run '
+                 'alternately. The hot paths got faster or stayed where they were. The few operations that got '
+                 'slower are listed with the reason, because each one buys a guarantee.</p>' % (esc(version), esc(prev)))
 
     # ---- hero
     aud = ab_get('rotatory.audit_record')
@@ -496,17 +505,25 @@ def build_html(rep, reports):
                           '<span class="%s">%s %s</span> than %s (%s)' % (
                               cls, esc(amount), word, esc(prev), esc(fmt(e['previous']['mean'], e['unit'])))))
 
-    tile_ab('tr2.open_master', 'Open a large store (20 000 files)')
-    tile_ab('treedb.update_memory', 'treedb: update a node in memory')
-    tile_ab('treedb.update_saved', 'treedb: update a node and save it')
-    tile_ab('ctreedb.same_literal_release', 'Start 40 treedbs, schema unchanged')
-    tile_ab('tr2.tm_query', 'Query one minute of a key (migrated)')
+    if story.get('tiles'):
+        for i, lab in story['tiles']:
+            tile_ab(i, lab)
+    else:
+        tile_ab('tr2.open_master', 'Open a large store (20 000 files)')
+        tile_ab('treedb.update_memory', 'treedb: update a node in memory')
+        tile_ab('treedb.update_saved', 'treedb: update a node and save it')
+        tile_ab('ctreedb.same_literal_release', 'Start 40 treedbs, schema unchanged')
+        tile_ab('tr2.tm_query', 'Query one minute of a key (migrated)')
     e = ab_get('tr2.append_rate')
     if e:
         tiles.append(tile('Appends per second', fmt(e['current']['mean']),
+                          story.get('append_note') or
                           'same as %s (%s), with four new checks per append' % (esc(prev), esc(fmt(e['previous']['mean'])))))
     H.append('<section class="hero">')
-    if aud:
+    if story.get('hero'):
+        H.append('<div class="big"><div class="v">%s</div><div class="l">%s</div></div>'
+                 % (esc(story['hero']['value']), md_code(story['hero']['text'])))
+    elif aud:
         H.append('<div class="big"><div class="v">%s</div><div class="l">cheaper: one agent audit record costs '
                  '<b>%s ns</b>, down from %s ns. Every command sent to the agent is audited, so this is paid on every '
                  'command. The agent now also flushes each record, and still pays less than %s did without '
@@ -602,10 +619,11 @@ def build_html(rep, reports):
 
     # ---- A/B
     H.append('<h2>%s against %s</h2>' % (esc(version), esc(prev)))
-    H.append('<p class="sub">Each benchmark linked twice, with the module of each release, and the two '
+    H.append('<p class="sub">%s</p>' % md_code(story.get('ab_sub') or
+             'Each benchmark linked twice, with the module of each release, and the two '
              'binaries run alternately (8 to 80 rounds, see the table). A change inside its whisker is noise. '
-             'Everything is on one axis: the change of the time an operation takes.</p>')
-    order = [
+             'Everything is on one axis: the change of the time an operation takes.'))
+    order = story.get('ab_order') or [
         'tr2.append_rate', 'tr2.append_rate_rt', 'tr2.build_appends', 'tr2.tm_build_appends', 'tr2.open_master',
         'tr2.tm_query', 'tr2.open_replica', 'tr2.create_topic', 'tr2.topic_version_change', 'tr2.tm_query_unmigrated',
         'treedb.update_memory', 'treedb.update_saved', 'treedb.link_unlink', 'treedb.create_link_half',
@@ -616,13 +634,14 @@ def build_html(rep, reports):
         'publish.250b.plain.1', 'publish.250b.plain.100', 'publish.20kb.plain.100',
         'publish.250b.global.100', 'publish.20kb.global.100',
     ]
-    H.append('<div class="card">%s</div>' % diverging_chart([AB[i] for i in order if i in AB]))
+    H.append('<div class="card">%s</div>' % diverging_chart([AB[i] for i in order if i in AB], version, prev))
 
     # ---- prices
     H.append('<h2>Prices paid on purpose</h2>')
-    H.append('<p class="sub">What got slower, how much, and what it buys. None of these is on the path of '
+    H.append('<p class="sub">%s</p>' % md_code(story.get('prices_sub') or
+             'What got slower, how much, and what it buys. None of these is on the path of '
              'an ordinary append, read or update: they are one-time costs (a new topic, a schema change, the '
-             'first start of a treedb), a migration step, or the cost of a guarantee a remote peer relies on.</p>')
+             'first start of a treedb), a migration step, or the cost of a guarantee a remote peer relies on.'))
     cards = []
 
     def price_card(i, title, extra_rows=None, prev_label=None, cur_label=None):
@@ -635,22 +654,29 @@ def build_html(rep, reports):
             rows_ += extra_rows
         cards.append(paired_card(title, rows_, e['unit'], e.get('reason', ''), ratio_text(e)))
 
-    price_card('tr2.create_topic', 'Create 10 topics (timeranger2)')
-    price_card('tr2.topic_version_change', 'Change the topic_version of 10 topics')
-    price_card('tr2.open_replica', 'Open a store as a replica')
-    mig = ab_get('tr2.tm_query')
-    price_card('tr2.tm_query_unmigrated', 'A tm query before and after mark-tm-order',
-               extra_rows=[('migrated', mig['current']['mean'], 'bar-cur')] if mig else None,
-               cur_label='not migrated')
-    price_card('ctreedb.seed', 'First open of 40 treedbs (C_TREEDB)')
-    price_card('ctreedb.newer_literal', 'Open 40 treedbs with a newer schema')
-    price_card('ctreedb.same_literal_fix', 'Everyday open: the last schema fixes', prev_label='before', cur_label='after')
-    price_card('treedb.delete_force', 'Forced delete of a node (treedb)')
-    price_card('publish.250b.global.100', 'Publish to 100 subscribers with __global__ (250 B)')
-    price_card('publish.20kb.global.100', 'Publish to 100 subscribers with __global__ (20 KB)')
-    price_card('audit.build.run_yuno', 'Build the audit record of run-yuno', prev_label='before', cur_label='after')
-    price_card('ctest.treedb_schema_fidelity', 'A test that creates four stores', prev_label=prev + ' era', cur_label=version)
-    H.append('<div class="multi">%s</div>' % '\n'.join(cards))
+    if 'prices' in story:
+        for i, title in story['prices']:
+            price_card(i, title)
+    else:
+        price_card('tr2.create_topic', 'Create 10 topics (timeranger2)')
+        price_card('tr2.topic_version_change', 'Change the topic_version of 10 topics')
+        price_card('tr2.open_replica', 'Open a store as a replica')
+        mig = ab_get('tr2.tm_query')
+        price_card('tr2.tm_query_unmigrated', 'A tm query before and after mark-tm-order',
+                   extra_rows=[('migrated', mig['current']['mean'], 'bar-cur')] if mig else None,
+                   cur_label='not migrated')
+        price_card('ctreedb.seed', 'First open of 40 treedbs (C_TREEDB)')
+        price_card('ctreedb.newer_literal', 'Open 40 treedbs with a newer schema')
+        price_card('ctreedb.same_literal_fix', 'Everyday open: the last schema fixes', prev_label='before', cur_label='after')
+        price_card('treedb.delete_force', 'Forced delete of a node (treedb)')
+        price_card('publish.250b.global.100', 'Publish to 100 subscribers with __global__ (250 B)')
+        price_card('publish.20kb.global.100', 'Publish to 100 subscribers with __global__ (20 KB)')
+        price_card('audit.build.run_yuno', 'Build the audit record of run-yuno', prev_label='before', cur_label='after')
+        price_card('ctest.treedb_schema_fidelity', 'A test that creates four stores', prev_label=prev + ' era', cur_label=version)
+    if cards:
+        H.append('<div class="multi">%s</div>' % '\n'.join(cards))
+    elif story.get('no_prices'):
+        H.append('<div class="card"><p>%s</p></div>' % md_code(story['no_prices']))
 
     # ---- binary sizes
     bins = [x for x in rep.get('binaries', []) if x['kind'] in ('yuno', 'agent')]
@@ -842,7 +868,8 @@ def svg_trend(reports):
     H = 70 + rows_ * ch + 10
     body = ['<text class="t" x="20" y="30">Yuneta performance, release after release</text>',
             '<text class="m" x="20" y="48">one panel per figure, each on its own scale from zero &#183; '
-            'the A/B figures of each release report (7.25.4 is the baseline of 7.25.5)</text>']
+            'the A/B figures of each release report (%s is the baseline of %s)</text>' % (
+                esc(list(reports.values())[0].get('previous', '')), esc(list(reports)[0]))]
     for k, (mid, lab) in enumerate(TREND_METRICS):
         pts = trend_series(reports, mid)
         cx = 20 + (k % cols) * cw
@@ -933,7 +960,7 @@ def build_docs(reports):
     written.append(p)
     for v, rep in reports.items():
         p = os.path.join(DOCS_SVG, 'perf_change_%s.svg' % v)
-        open(p, 'w').write(svg_change_chart(rep, AB_ORDER))
+        open(p, 'w').write(svg_change_chart(rep, rep.get('story', {}).get('ab_order') or AB_ORDER))
         written.append(p)
         s = svg_absolute(rep)
         if s:

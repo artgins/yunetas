@@ -244,7 +244,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,  "kc_base_url",           SDF_PERSIST, "",   "Keycloak base URL for the admin REST API (set via set-kc-config)"),
 SDATA (DTP_STRING,  "kc_realm",              SDF_PERSIST, "",   "Keycloak realm where the accounts live"),
 SDATA (DTP_STRING,  "kc_admin_client_id",    SDF_PERSIST, "",   "Confidential admin client_id (client_credentials, role manage-users)"),
-SDATA (DTP_STRING,  "kc_admin_client_secret",SDF_PERSIST, "",   "Admin client secret (persisted; never in code or committed config)"),
+SDATA (DTP_STRING,  "kc_admin_client_secret",SDF_PERSIST|SDF_SECRET, "",   "Admin client secret (persisted; never in code or committed config)"),
 SDATA (DTP_STRING,  "kc_redirect_uri",       SDF_PERSIST, "",   "redirect_uri for the set-password invite email"),
 SDATA (DTP_STRING,  "kc_email_client_id",    SDF_PERSIST, "",   "client_id the invite email links to (the SPA client)"),
 SDATA (DTP_JSON,    "kc_crypto",             SDF_RD,      "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}", "TLS crypto for KC outbound calls. Verifying-by-default against the system CA (public KC). For a private/self-signed KC CA, override with {\"ssl_trusted_certificate\":\"/path/ca.pem\"}. mbedTLS has no system store: set ssl_trusted_certificate there"),

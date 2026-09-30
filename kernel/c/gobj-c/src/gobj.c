@@ -271,6 +271,7 @@ PRIVATE const char *sdata_flag_names[] = {
     "SDF_AUTHZ_P",
     "SDF_AUTHZ_S",
     "SDF_AUTHZ_RS",
+    "SDF_SECRET",
     0
 };
 
@@ -3066,6 +3067,7 @@ PUBLIC json_t *gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs)
             json_incref(jn_attrs)
         );
         if(jn_item) {
+            gobj_mask_secret_attrs(gobj, jn_item);  // it is for showing
             json_object_set_new(jn_dict, gobj_short_name(gobj), jn_item);
         }
     } else {
@@ -3078,6 +3080,7 @@ PUBLIC json_t *gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs)
                 json_incref(jn_attrs)
             );
             if(jn_item) {
+                gobj_mask_secret_attrs(gobj_, jn_item);  // it is for showing
                 json_object_set_new(jn_dict, gobj_short_name(gobj_), jn_item);
             }
         }
@@ -3638,6 +3641,29 @@ PUBLIC json_t *gobj_read_attrs( // Return is yours!
     }
 
     return jn_attrs;
+}
+
+/***************************************************************************
+ *  ATTR: mask the secrets of a dict of attrs, for showing it
+ ***************************************************************************/
+PUBLIC int gobj_mask_secret_attrs(hgobj gobj_, json_t *jn_attrs)
+{
+    gobj_t *gobj = gobj_;
+
+    if(!gobj || !json_is_object(jn_attrs)) {
+        return 0;
+    }
+    const sdata_desc_t *it = gobj->gclass->attrs_table;
+    while(it->name) {
+        if(it->flag & SDF_SECRET) {
+            json_t *v = json_object_get(jn_attrs, it->name);
+            if(v && !empty_json(v)) {
+                json_object_set_new(jn_attrs, it->name, json_string("********"));
+            }
+        }
+        it++;
+    }
+    return 0;
 }
 
 /***************************************************************************
@@ -7366,10 +7392,12 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
         );
     }
     if(kw_find_str_in_list(gobj, jn_filter, "attrs")!=-1 || !json_array_size(jn_filter)) {
+        json_t *jn_attrs = gobj_read_attrs(gobj, SDF_PUBLIC_ATTR, gobj);
+        gobj_mask_secret_attrs(gobj, jn_attrs);
         json_object_set_new(
             jn_dict,
             "attrs",
-            gobj_read_attrs(gobj, SDF_PUBLIC_ATTR, gobj)
+            jn_attrs
         );
     }
 

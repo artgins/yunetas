@@ -135,6 +135,7 @@ PRIVATE int accumulate_error_line(hgobj gobj, const char *line);
 PRIVATE int send_report(hgobj gobj);
 PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report);
 PRIVATE gbuffer_t *break_tag_lines(gbuffer_t *src);
+PRIVATE gbuffer_t *bracket_ip_literals(gbuffer_t *src);
 PRIVATE const char *latency_str(double v, char *bf, size_t bfsize);
 PRIVATE const char *human_bytes(json_int_t n, char *bf, size_t bfsize);
 PRIVATE int date_of(hgobj gobj, time_t t, char *bf, size_t bfsize);
@@ -153,6 +154,7 @@ PRIVATE int open_store(hgobj gobj);
 PRIVATE int close_store(hgobj gobj);
 PRIVATE int store_report(hgobj gobj);
 PRIVATE json_t *load_report(hgobj gobj, const char *date);
+PRIVATE json_int_t report_activity(hgobj gobj, json_t *report);
 PRIVATE int prune_store(hgobj gobj);
 PRIVATE void compare_with_history(hgobj gobj);
 PRIVATE void count_new_visitors(hgobj gobj);
@@ -172,6 +174,8 @@ PRIVATE const char *str_or_empty(json_t *jn);
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_analyze_now(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_send_yesterday(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *run_yesterday(hgobj gobj, BOOL send, json_t *kw);
 PRIVATE json_t *cmd_report_day(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_report(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_reports(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -222,7 +226,8 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,                  0,              pm_authzs,      cmd_authzs,     "Authorization's help"),
-SDATACM (DTP_SCHEMA,    "analyze-now",      0,                  0,              cmd_analyze_now, "Build the report of yesterday, now"),
+SDATACM (DTP_SCHEMA,    "analyze-now",      0,                  0,              cmd_analyze_now, "Build the report of yesterday, now (mailed only if send_email is on)"),
+SDATACM (DTP_SCHEMA,    "send-yesterday",   0,                  0,              cmd_send_yesterday, "Build the report of yesterday and mail it, whatever send_email says"),
 SDATACM (DTP_SCHEMA,    "report-day",       0,                  pm_report_day,  cmd_report_day, "Rebuild the report of a day still on disk"),
 SDATACM (DTP_SCHEMA,    "get-report",       0,                  pm_get_report,  cmd_get_report, "Get a stored report"),
 SDATACM (DTP_SCHEMA,    "list-reports",     0,                  0,              cmd_list_reports, "List the days already reported"),
@@ -565,6 +570,24 @@ PRIVATE json_t *cmd_analyze_now(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    return run_yesterday(gobj, priv->send_email, kw);
+}
+
+/***************************************************************************
+ *  The report of yesterday, mailed: what the daily run sends at its hour,
+ *  asked for again with nothing to type (`report-day` wants the date and
+ *  send=1).
+ ***************************************************************************/
+PRIVATE json_t *cmd_send_yesterday(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    return run_yesterday(gobj, TRUE, kw);
+}
+
+/***************************************************************************
+ *  Build the report of yesterday, and send it when `send`.
+ ***************************************************************************/
+PRIVATE json_t *run_yesterday(hgobj gobj, BOOL send, json_t *kw)
+{
     char date[DATE_SIZE];
     if(date_of(gobj, time(NULL) - 24*60*60, date, sizeof(date)) < 0) {
         return msg_iev_build_response(
@@ -579,7 +602,7 @@ PRIVATE json_t *cmd_analyze_now(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    if(start_run(gobj, date, priv->send_email) < 0) {
+    if(start_run(gobj, date, send) < 0) {
         return msg_iev_build_response(
             gobj,
             -1,
@@ -595,8 +618,8 @@ PRIVATE json_t *cmd_analyze_now(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("%s: reading the logs of %s",
-            gobj_yuno_role_plus_name(), date
+        json_sprintf("%s: reading the logs of %s%s",
+            gobj_yuno_role_plus_name(), date, send? ", the report will be mailed" : ""
         ),
         0,
         0,
@@ -2135,10 +2158,23 @@ PRIVATE int store_report(hgobj gobj)
 }
 
 /***************************************************************************
+ *  What a report saw: its requests plus its errors. 0 is the NO DATA of
+ *  the subject line.
+ ***************************************************************************/
+PRIVATE json_int_t report_activity(hgobj gobj, json_t *report)
+{
+    return kw_get_int(gobj, json_object_get(report, "totals"), "requests", 0, 0) +
+           kw_get_int(gobj, json_object_get(report, "errors"), "total", 0, 0);
+}
+
+/***************************************************************************
  *  The stored record of a day, or NULL.
  *
- *  Read backward and take one: a day reported more than once has more than
- *  one record under its key, and the newest is the answer.
+ *  A day reported more than once has more than one record under its key,
+ *  and the newest is the answer -- unless it is empty and an older one is
+ *  not: a rebuild after the logs rotated away stored NO DATA over a real
+ *  day until 7.25.17, and the store being append-only, the real day is
+ *  still there to be answered.
  ***************************************************************************/
 PRIVATE json_t *load_report(hgobj gobj, const char *date)
 {
@@ -2176,9 +2212,20 @@ PRIVATE json_t *load_report(hgobj gobj, const char *date)
 
     if(rows > 0) {
         json_t *page = tranger2_iterator_get_page(
-            priv->tranger, iterator, (json_int_t)rows, 1, FALSE
+            priv->tranger, iterator, 1, (json_int_t)rows, FALSE
         );
-        record = json_incref(json_array_get(json_object_get(page, "data"), 0));
+        json_t *data = json_object_get(page, "data");
+        size_t n = json_array_size(data);
+        for(size_t i = n; i > 0; i--) {
+            json_t *r = json_array_get(data, i - 1);
+            if(report_activity(gobj, r) > 0) {
+                record = json_incref(r);
+                break;
+            }
+        }
+        if(!record && n > 0) {
+            record = json_incref(json_array_get(data, n - 1));   // all empty: the newest
+        }
         JSON_DECREF(page)
     }
 
@@ -3657,45 +3704,52 @@ PRIVATE int complete_run(hgobj gobj)
      *  answers. Found by rebuilding 2026-08-05 on the 7th: the day was gone
      *  from disk, the report came back empty, and every visitor of the day
      *  after looked new because the day before had nobody in it.
+     *
+     *  "Nothing" is what the REPORT says -- no request and no error, the
+     *  same test that writes NO DATA in the subject -- and not the lines
+     *  kept from every source: the fail2ban and error logs of a day outlive
+     *  its access log, so up to 7.25.17 a rebuild of such a day kept some
+     *  lines, passed this guard, and stored (and mailed) NO DATA over a day
+     *  of 4632 requests.
+     *
+     *  Asked to send it, the run sends the STORED report instead: whoever
+     *  rebuilds a day with send=1 wants that day's mail.
      */
-    json_int_t kept = 0;
-    size_t idx;
-    json_t *jn_source;
-    json_array_foreach(kw_get_list(gobj, priv->jn_report, "sources", 0, KW_REQUIRED), idx, jn_source) {
-        kept += kw_get_int(gobj, jn_source, "kept", 0, 0);
-    }
+    json_int_t got = report_activity(gobj, priv->jn_report);
 
-    BOOL abandon = FALSE;
-    if(kept == 0) {
-        json_t *stored = load_report(gobj, priv->target_date);
-        if(stored) {
-            json_int_t had = kw_get_int(gobj,
-                json_object_get(stored, "totals"), "requests", 0, 0
+    json_t *stored = NULL;
+    if(got == 0) {
+        stored = load_report(gobj, priv->target_date);
+        if(stored && report_activity(gobj, stored) > 0) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", "Read nothing for a day already stored with data, keeping the stored one",
+                "date",         "%s", priv->target_date,
+                "stored",       "%ld", (long)report_activity(gobj, stored),
+                NULL
             );
-            had += kw_get_int(gobj, json_object_get(stored, "errors"), "total", 0, 0);
-            if(had > 0) {
-                abandon = TRUE;
-                gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_OPERATIONAL,
-                    "msg",          "%s", "Read nothing for a day already stored with data, keeping the stored one",
-                    "date",         "%s", priv->target_date,
-                    "stored",       "%ld", (long)had,
-                    NULL
-                );
-            }
+        } else {
             JSON_DECREF(stored)
         }
     }
 
-    if(!abandon) {
+    if(!stored) {
         store_report(gobj);     // Error already logged
         prune_store(gobj);      // Error already logged
     }
 
-    if(priv->send_when_done && !abandon) {
-        send_report(gobj);      // Error already logged
+    if(priv->send_when_done) {
+        if(stored) {
+            json_t *read_now = priv->jn_report;
+            priv->jn_report = stored;
+            send_report(gobj);  // Error already logged
+            priv->jn_report = read_now;
+        } else {
+            send_report(gobj);  // Error already logged
+        }
     }
+    JSON_DECREF(stored)
 
     gobj_publish_event(gobj, EV_REPORT_READY, json_incref(priv->jn_report));
 
@@ -3740,6 +3794,108 @@ PRIVATE gbuffer_t *break_tag_lines(gbuffer_t *src)
         gbuffer_append(dst, p+i, 1);
         if(p[i] == '>' && i+1 < len && p[i+1] == '<') {
             gbuffer_append(dst, "\n", 1);
+        }
+    }
+
+    return dst;
+}
+
+/***************************************************************************
+ *  Write every IPv4 address of the text as [a.b.c.d].
+ *
+ *  MANDATORY for a mail body, like break_tag_lines(). OVH's outbound
+ *  relay reads "34.140.132.132" as a Spanish phone number (+34 and nine
+ *  digits), and in a report full of addresses marked "banned" that is
+ *  enough for it to accept the mail (250 queued) and deliver it to NOBODY
+ *  -- no bounce, no Junk, not at gmail or outlook either. Found on
+ *  2026-09-30, bisecting wattyzer's report of 2026-09-29 down to one row
+ *  of Top clients. Google Cloud addresses start with 34, so it comes back.
+ *  Proven on the relay: [34.140.132.132] and 34.140.132.132/32 pass, and
+ *  so does a middle dot; 34[.]140[.]132[.]132 -- the usual defang -- does
+ *  NOT, nor does the last dot alone.
+ *
+ *  Only the TEXT between tags is touched, and only an address that stands
+ *  on its own: one glued to a word, a slash or another dot is a version
+ *  (Chrome/142.0.0.0), not an address. The stored record keeps the plain
+ *  address; this is the mail's way of writing it.
+ ***************************************************************************/
+PRIVATE BOOL ip_octet(const char *p, size_t len, size_t *used)
+{
+    size_t n = 0;
+    int value = 0;
+    while(n < len && n < 4 && p[n] >= '0' && p[n] <= '9') {
+        value = value*10 + (p[n] - '0');
+        n++;
+    }
+    if(n == 0 || n > 3 || value > 255) {
+        return FALSE;
+    }
+    *used = n;
+    return TRUE;
+}
+
+PRIVATE BOOL ip_neighbour(char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+           c == '.' || c == '/' || c == '_' || c == '-' || c == '[' || c == ']' || c == ':';
+}
+
+PRIVATE gbuffer_t *bracket_ip_literals(gbuffer_t *src)
+{
+    if(!src) {
+        return NULL;
+    }
+
+    char *p = gbuffer_cur_rd_pointer(src);
+    size_t len = gbuffer_leftbytes(src);
+
+    gbuffer_t *dst = gbuffer_create(len + len/8 + 1024, 16*1024*1024);
+    if(!dst) {
+        // Error already logged
+        return NULL;
+    }
+
+    BOOL in_tag = FALSE;
+    size_t i = 0;
+    while(i < len) {
+        char c = p[i];
+        if(c == '<') {
+            in_tag = TRUE;
+        } else if(c == '>') {
+            in_tag = FALSE;
+        }
+
+        size_t total = 0;
+        if(!in_tag && c >= '0' && c <= '9' && (i == 0 || !ip_neighbour(p[i-1]))) {
+            size_t at = i;
+            int octets = 0;
+            while(octets < 4) {
+                size_t used = 0;
+                if(!ip_octet(p+at, len-at, &used)) {
+                    break;
+                }
+                at += used;
+                octets++;
+                if(octets < 4) {
+                    if(at >= len || p[at] != '.') {
+                        break;
+                    }
+                    at++;
+                }
+            }
+            if(octets == 4 && (at >= len || !ip_neighbour(p[at]))) {
+                total = at - i;
+            }
+        }
+
+        if(total > 0) {
+            gbuffer_append(dst, "[", 1);
+            gbuffer_append(dst, p+i, total);
+            gbuffer_append(dst, "]", 1);
+            i += total;
+        } else {
+            gbuffer_append(dst, p+i, 1);
+            i++;
         }
     }
 
@@ -4593,8 +4749,10 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
         json_string_value(json_object_get(report, "date"))
     );
 
-    gbuffer_t *wrapped = break_tag_lines(gbuf);
+    gbuffer_t *bracketed = bracket_ip_literals(gbuf);
     GBUFFER_DECREF(gbuf)
+    gbuffer_t *wrapped = break_tag_lines(bracketed);
+    GBUFFER_DECREF(bracketed)
 
     return wrapped;
 }

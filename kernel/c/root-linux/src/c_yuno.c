@@ -866,6 +866,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Show attrs in start
      *--------------------------*/
     json_t *attrs = gobj_read_attrs(gobj, -1, gobj);
+    gobj_mask_secret_attrs(gobj, attrs);
     gobj_trace_json(gobj, attrs, "yuno's attrs"); // Show attributes of yuno
     JSON_DECREF(attrs)
 
@@ -1464,6 +1465,11 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     }
     gobj_save_persistent_attrs(gobj2write, json_string(attribute));
 
+    const sdata_desc_t *desc = gobj_attr_desc(gobj2write, attribute, FALSE);
+    BOOL secret = desc && (desc->flag & SDF_SECRET);
+    json_t *jn_attrs = gobj_read_attrs(gobj2write, SDF_PERSIST|SDF_RD|SDF_WR|SDF_STATS|SDF_RSTATS|SDF_PSTATS, gobj);
+    gobj_mask_secret_attrs(gobj2write, jn_attrs);
+
     json_t *kw_response = build_command_response(
         gobj,
         0,     // result
@@ -1471,13 +1477,33 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             "%s: %s=%s done",
             gobj_short_name(gobj2write),
             attribute,
-            svalue
+            secret? "********" : svalue
         ),
         0,      // jn_schema
-        gobj_read_attrs(gobj2write, SDF_PERSIST|SDF_RD|SDF_WR|SDF_STATS|SDF_RSTATS|SDF_PSTATS, gobj)
+        jn_attrs
     );
     JSON_DECREF(kw)
     return kw_response;
+}
+
+/***************************************************************************
+ *  In what view-attrs answers -- {<gobj short name>: {attrs} or the value
+ *  of the one attr asked} -- show the SDF_SECRET attrs of `g` masked.
+ ***************************************************************************/
+PRIVATE void mask_shown_attrs(hgobj g, json_t *jn_data, const char *attribute)
+{
+    json_t *jn_shown = json_object_get(jn_data, gobj_short_name(g));
+    if(!jn_shown) {
+        return;
+    }
+    if(empty_string(attribute)) {
+        gobj_mask_secret_attrs(g, jn_shown);
+        return;
+    }
+    const sdata_desc_t *desc = gobj_attr_desc(g, attribute, FALSE);
+    if(desc && (desc->flag & SDF_SECRET) && !empty_json(jn_shown)) {
+        json_object_set_new(jn_data, gobj_short_name(g), json_string("********"));
+    }
 }
 
 /***************************************************************************
@@ -1569,6 +1595,11 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             }
         }
         gobj_bottom = gobj_bottom_gobj(gobj_bottom);
+    }
+
+    mask_shown_attrs(gobj2read, jn_data, attribute);
+    for(hgobj b = gobj_bottom_gobj(gobj2read); b; b = gobj_bottom_gobj(b)) {
+        mask_shown_attrs(b, jn_data, attribute);
     }
 
     json_t *kw_response = build_command_response(
@@ -2084,7 +2115,7 @@ PRIVATE json_t *cmd_list_persistent_attrs(hgobj gobj, const char* cmd, json_t* k
     /*
      *  Inform
      */
-    json_t *jn_data = gobj_list_persistent_attrs(gobj2read, jn_attrs);
+    json_t *jn_data = gobj_list_persistent_attrs(gobj2read, jn_attrs);  // secrets masked
     json_t *kw_response = build_command_response(
         gobj,
         0,      // result

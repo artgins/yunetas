@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <limits.h>
 #include <string.h>
+#include <strings.h>
 
 #include <istream.h>
 #include "c_smtp_session.h"
@@ -83,7 +84,7 @@ SDATA (DTP_STRING,  "url",              SDF_RD,     "",         "SMTP server URL
 SDATA (DTP_DICT,    "crypto",           SDF_RD,     "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}", "TLS crypto for the smtps:// bottom C_TCP. Verifies the server cert against the system CA by default; override ssl_trusted_certificate for a private mail CA, or ssl_allow_insecure_client=true to skip (MITM risk)."),
 SDATA (DTP_STRING,  "helo_name",        SDF_RD,     "localhost","EHLO domain advertised to the server"),
 SDATA (DTP_STRING,  "username",         SDF_RD,     "",         "SMTP AUTH PLAIN username"),
-SDATA (DTP_STRING,  "password",         SDF_RD,     "",         "SMTP AUTH PLAIN password"),
+SDATA (DTP_STRING,  "password",         SDF_RD|SDF_SECRET,     "",         "SMTP AUTH PLAIN password"),
 SDATA (DTP_INTEGER, "timeout_response", SDF_RD,     "30000",    "Per-command server response timeout (ms)"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. Default if null is parent."),
 SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),
@@ -99,7 +100,7 @@ enum {
     TRACE_TRAFFIC = 0x0002,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
-{"smtp",     "Trace SMTP FSM phases (commands sent + reply codes)"},
+{"smtp",     "Trace SMTP FSM phases (commands sent, AUTH without its credentials, + reply codes)"},
 {"traffic",  "Trace raw bytes in/out (hex dump)"},
 {0, 0},
 };
@@ -269,7 +270,20 @@ PRIVATE int send_smtp_line(hgobj gobj, const char *line)
     gbuffer_append(gbuf, "\r\n", 2);
 
     if(gobj_trace_level(gobj) & TRACE_SMTP) {
-        gobj_trace_msg(gobj, ">>> %s", line);
+        /*
+         *  AUTH carries the credentials (PLAIN: base64 of user and password,
+         *  i.e. in clear): the trace names the mechanism and nothing else.
+         *  Up to 7.25.17 it wrote the whole line to the log, and from there
+         *  to the logcenter.
+         */
+        if(strncasecmp(line, "AUTH ", 5)==0) {
+            const char *mech = line + 5;
+            const char *end = strchr(mech, ' ');
+            int mech_len = end? (int)(end - mech) : (int)strlen(mech);
+            gobj_trace_msg(gobj, ">>> AUTH %.*s <credentials not traced>", mech_len, mech);
+        } else {
+            gobj_trace_msg(gobj, ">>> %s", line);
+        }
     }
 
     json_t *kw_tx = json_pack("{s:I}",
@@ -741,6 +755,19 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
+     *  The text of the reply, kept: `line` lives in the kw's gbuffer, which
+     *  the KW_DECREF below releases, and a refusal says WHY in its text
+     *  ("535 5.7.1 Authentication failed" is a blocked account at OVH, not
+     *  a wrong password -- the code alone cannot tell them apart).
+     */
+    char reply[256];
+    size_t rlen = line_len;
+    while(rlen > 0 && (line[rlen - 1] == '\r' || line[rlen - 1] == '\n')) {
+        rlen--;
+    }
+    snprintf(reply, sizeof(reply), "%.*s", (int)rlen, line);
+
+    /*
      *  Re-arm for the next line BEFORE running any handler that may send.
      *  KW_DECREF below will release the gbuffer payload via gobj's
      *  registered auto-cleanup for the "gbuffer" key (see gobj.c:562) —
@@ -825,7 +852,16 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(st == ST_WAIT_AUTH_RESP) {
         if(code != SMTP_CODE_AUTH_OK) {
             priv->auth_reject_code = code;
-            return abort_session(gobj, "AUTH PLAIN rejected");
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "AUTH PLAIN rejected",
+                "code",         "%d", code,
+                "reply",        "%s", reply,
+                NULL
+            );
+            gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+            return -1;
         }
         return enter_idle_after_handshake(gobj);
     }

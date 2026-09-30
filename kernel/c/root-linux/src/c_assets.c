@@ -110,7 +110,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_POINTER,     "treedb",           0,                  0,              "C_NODE gobj owning the treedb, EXTERNALLY set. Takes precedence over 'treedb_service'"),
 SDATA (DTP_STRING,      "treedb_service",   SDF_RD,             "",             "Service name of the C_NODE that owns the treedb whose __assets__ is served"),
 SDATA (DTP_STRING,      "public_url",       SDF_WR,             "",             "Url prefix a web server serves the blobs from, e.g. '/media/'. Empty: 'get-asset' answers inline"),
-SDATA (DTP_STRING,      "sign_secret",      SDF_WR,             "",             "Shared secret of the web server's secure_link_md5. Empty: 'get-asset' answers inline"),
+SDATA (DTP_STRING,      "sign_secret",      SDF_WR|SDF_SECRET,             "",             "Shared secret of the web server's secure_link_md5. Empty: 'get-asset' answers inline"),
 SDATA (DTP_INTEGER,     "url_ttl",          SDF_WR,             "900",          "Seconds a signed url stays valid"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
