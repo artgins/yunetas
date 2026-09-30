@@ -20,7 +20,11 @@
  *          and when it grows (the old block): the test wraps the gbmem
  *          allocators (gbmem_set_allocators) and looks into every block
  *          freed. A plain gbuffer with the same kind of content is the
- *          control that the look works.
+ *          control that the look works. A secret appended to a gbuffer too
+ *          small for it fails, and the part copied is flagged (hidden and
+ *          wiped) too. A secret gbuffer is never serialized
+ *          (gbuffer_serialize() answers NULL, and a kw carrying it crosses
+ *          without it).
  *
  *          Topology: the pepon server (C_IOGATE -> C_TCP_S + C_CHANNEL ->
  *          C_PROT_RAW -> C_TCP, no echo) and a pure C_TCP client, the only
@@ -303,6 +307,52 @@ PRIVATE void check_gbuffer_wipe(void)
     check_int("no secret gbuffer is freed with its bytes", s_freed_with_secret, 0);
 }
 
+/*
+ *  A secret appended to a gbuffer too small for it: the append fails, and
+ *  the part it copied is a secret too. And a secret gbuffer is never
+ *  serialized: its base64 would go into a json the traces print.
+ */
+PRIVATE void check_gbuffer_append_and_serialize(void)
+{
+    s_freed_with_secret = 0;
+
+    gbuffer_t *src = gbuffer_create(64, 64);
+    gbuffer_set_secret(src, TRUE);
+    gbuffer_append_string(src, "WIPE-SECRET-03-longer-than-its-destination");
+    gbuffer_t *dst = gbuffer_create(16, 16);
+    check_int("appending a secret to a small gbuffer fails", gbuffer_append_gbuf(dst, src), -1);
+    check_true("the destination holds part of the secret",
+        memmem(gbuffer_cur_rd_pointer(dst), gbuffer_leftbytes(dst), "WIPE-SECRET", 11)?TRUE:FALSE
+    );
+    check_true("the destination of a failed append is secret", gbuffer_is_secret(dst));
+    GBUFFER_DECREF(dst)
+    GBUFFER_DECREF(src)
+    check_int("the destination of a failed append is freed wiped", s_freed_with_secret, 0);
+
+    gbuffer_t *gbuf = gbuffer_create(64, 64);
+    gbuffer_append_string(gbuf, "VISIBLE-SERIALIZED");
+    json_t *jn = gbuffer_serialize(0, gbuf);
+    check_true("a plain gbuffer is serialized (control)", jn?TRUE:FALSE);
+    JSON_DECREF(jn)
+
+    gbuffer_set_secret(gbuf, TRUE);
+    jn = gbuffer_serialize(0, gbuf);
+    check_true("a secret gbuffer is not serialized", jn?FALSE:TRUE);
+    JSON_DECREF(jn)
+
+    json_t *kw = json_pack("{s:s, s:I}",
+        "note", "visible",
+        "gbuffer", (json_int_t)(uintptr_t)gbuf     // the kw takes the reference
+    );
+    kw = kw_serialize(0, kw);
+    check_true("a serialized kw carries no secret gbuffer",
+        !json_object_get(kw, "__gbuffer___") && !json_object_get(kw, "gbuffer")
+    );
+    check_true("the rest of the kw is serialized", json_object_get(kw, "note")?TRUE:FALSE);
+    JSON_DECREF(kw)
+    check_int("the secret gbuffer is freed wiped", s_freed_with_secret, 0);
+}
+
 PRIVATE void send_frame(hgobj gobj, const char *frame, BOOL secret)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -394,6 +444,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     switch(priv->phase) {
         case PHASE_INIT:
             check_gbuffer_wipe();
+            check_gbuffer_append_and_serialize();
             priv->phase = PHASE_CONNECTING;
             s_capturing = TRUE;
             gobj_start(priv->clitcp);

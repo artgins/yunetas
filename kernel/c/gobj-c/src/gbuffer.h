@@ -269,10 +269,11 @@ PUBLIC int gbuffer_setlabel(gbuffer_t *gbuf, const char *label);
  *  frame): gobj_trace_dump_gbuf() / gobj_trace_dump_full_gbuf() print
  *  "<N bytes hidden>" instead of its bytes, so a traffic trace never shows
  *  it, and its memory is wiped when the gbuffer grows (the old block) and
- *  when it is freed. The flag travels with the gbuffer (queues,
- *  serialize/deserialize) and gbuffer_append_gbuf() passes it on to the
- *  destination. Set it BEFORE writing the secret, if the gbuffer may grow:
- *  a block freed before the flag was set is not wiped.
+ *  when it is freed. The flag travels with the gbuffer (queues), and
+ *  gbuffer_append_gbuf() passes it on to the destination, before the copy.
+ *  gbuffer_serialize() refuses a secret gbuffer (NULL, logged): a secret
+ *  never leaves the yuno as a json. Set it BEFORE writing the secret, if
+ *  the gbuffer may grow: a block freed before the flag was set is not wiped.
  */
 PUBLIC int gbuffer_set_secret(gbuffer_t *gbuf, BOOL secret);
 PUBLIC BOOL gbuffer_is_secret(gbuffer_t *gbuf);

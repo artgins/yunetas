@@ -412,6 +412,14 @@ PUBLIC int gbuffer_append_gbuf(
     size_t ln = gbuffer_leftbytes(src);
     size_t chunk_size = MIN(src->data_size, ln);
 
+    /*
+     *  Before the copy: on a failure dst holds part of the secret, and
+     *  that part is hidden from the dumps and wiped too
+     */
+    if(src->secret) {
+        dst->secret = TRUE;
+    }
+
     while(ln>0) {
         p = gbuffer_get(src, chunk_size);
         if(!p) {
@@ -434,9 +442,6 @@ PUBLIC int gbuffer_append_gbuf(
         }
         ln = gbuffer_leftbytes(src);
         chunk_size = MIN(src->data_size, ln);
-    }
-    if(src->secret) {
-        dst->secret = TRUE;
     }
     return 0;
 }
@@ -680,12 +685,28 @@ PUBLIC int gbuf2file(
 
 /***************************************************************************
  *  Serialize gbuffer_t
+ *  A secret gbuffer is refused (NULL, logged): its bytes would go as
+ *  base64 into a json that the traffic traces print, and neither that
+ *  json nor the base64 copy would be wiped. No producer serializes one;
+ *  a secret stays inside the yuno that holds it.
  ***************************************************************************/
 PUBLIC json_t *gbuffer_serialize(
     hgobj gobj,
     gbuffer_t *gbuf  // not owned
 )
 {
+    if(gbuf->secret) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot serialize a secret gbuffer",
+            "label",        "%s", gbuf->label? gbuf->label : "",
+            "len",          "%lu", (unsigned long)gbuffer_leftbytes(gbuf),
+            NULL
+        );
+        return NULL;
+    }
+
     json_t *__gbuffer__ = json_object();
     char *label = gbuffer_getlabel(gbuf);
     json_t *jn_label = json_string(label?label:"");
@@ -693,9 +714,6 @@ PUBLIC json_t *gbuffer_serialize(
     json_object_set_new(__gbuffer__, "label", jn_label);
     size_t mark = gbuffer_getmark(gbuf);
     json_object_set_new(__gbuffer__, "mark", json_integer((json_int_t)mark));
-    if(gbuf->secret) {
-        json_object_set_new(__gbuffer__, "secret", json_true());
-    }
 
     /*
      *  Convert to base64 the content of gbuffer
@@ -759,7 +777,6 @@ PUBLIC gbuffer_t *gbuffer_deserialize(
     }
     gbuffer_setlabel(gbuf, label);
     gbuffer_setmark(gbuf, mark);
-    gbuffer_set_secret(gbuf, json_is_true(json_object_get(__gbuffer__, "secret")));
     return gbuf;
 }
 

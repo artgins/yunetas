@@ -365,10 +365,29 @@ json_t *gbuffer_serialize(
 **Returns**
 
 A JSON object containing the serialized [`gbuffer_t *`](#gbuffer_t), including its label, mark, and Base64-encoded data.
+`NULL` (logged, *"Cannot serialize a secret gbuffer"*) when the gbuffer is
+secret ([`gbuffer_set_secret()`](#gbuffer_set_secret)): its bytes would go as
+base64 into a json that the traffic traces print, and neither copy would be
+wiped.
 
 **Notes**
 
 The function encodes the buffer's data in Base64 format to make sure that safe storage and transmission. The returned JSON object must be freed by the caller.
+
+**Example**
+
+```C
+gbuffer_t *gbuf = gbuffer_create(64, 64);
+gbuffer_append_string(gbuf, "hello");
+json_t *jn = gbuffer_serialize(gobj, gbuf);     // {"label": "", "mark": 0, "data": "aGVsbG8="}
+gbuffer_t *copy = gbuffer_deserialize(gobj, jn);
+JSON_DECREF(jn)
+GBUFFER_DECREF(copy)
+
+gbuffer_set_secret(gbuf, TRUE);
+jn = gbuffer_serialize(gobj, gbuf);             // NULL: "Cannot serialize a secret gbuffer"
+GBUFFER_DECREF(gbuf)
+```
 
 ---
 
@@ -583,10 +602,12 @@ as data, such as an SMTP `AUTH` line. A secret gbuffer:
   `"<N bytes hidden>"` (and `"secret": true`) instead of its bytes, so the
   `traffic` trace of `C_TCP`, `C_UDP` and `C_UDP_S` does not show it;
 - is wiped (zeroed) when it is freed, and its old block is wiped when it grows;
-- keeps the flag through the tx queues, through
-  [`gbuffer_serialize()`](#gbuffer_serialize) /
-  [`gbuffer_deserialize()`](#gbuffer_deserialize), and passes it to the
-  destination of [`gbuffer_append_gbuf()`](#gbuffer_append_gbuf).
+- keeps the flag through the tx queues, and passes it to the destination
+  of [`gbuffer_append_gbuf()`](#gbuffer_append_gbuf) -- before the copy, so a
+  destination left with part of the secret by a failed append is flagged too;
+- is never serialized: [`gbuffer_serialize()`](#gbuffer_serialize) refuses it
+  (`NULL`, logged), so a secret never leaves the yuno as base64 in a json
+  (a kw with it that crosses an ievent loses its `gbuffer`, logged too).
 
 `C_TCP` also sets it from the kw of `EV_TX_DATA`: `"__secret__": true`.
 
