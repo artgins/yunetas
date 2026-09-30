@@ -3210,7 +3210,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%s", get_command_name(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3224,7 +3224,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%s", get_command_name(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3238,7 +3238,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%s", get_command_name(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3253,7 +3253,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%s", get_command_name(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3274,7 +3274,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%s", get_command_name(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3288,7 +3288,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%s", get_command_name(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3303,7 +3303,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%s", get_command_name(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3317,7 +3317,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%s", get_command_name(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3332,7 +3332,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%s", get_command_name(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3348,7 +3348,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%s", get_command_name(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3362,7 +3362,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%s", get_command_name(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3378,7 +3378,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt unknown property of command",
-                "command",      "%d", get_command_name(command),
+                "command",      "%s", get_command_name(command),
                 "identifier",   "%d", identifier,
                 NULL
             );
