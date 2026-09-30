@@ -37,8 +37,10 @@ PRIVATE int process_smtp_response(
     hgobj gobj,
     q_msg_t *msg,
     int result,
-    BOOL permanent
+    BOOL permanent,
+    const char *url
 );
+PRIVATE int count_addresses(const char *addresses);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -434,7 +436,7 @@ PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgob
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What username?"),
+            json_sprintf("%s: What username?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -449,7 +451,7 @@ PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgob
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What password?"),
+            json_sprintf("%s: What password?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -515,7 +517,7 @@ PRIVATE json_t *cmd_set_url_and_from(hgobj gobj, const char *cmd, json_t *kw, hg
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What url or from?"),
+            json_sprintf("%s: What url or from?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -568,9 +570,7 @@ PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -200,
-            json_sprintf(
-                "Field 'to' is empty."
-            ),
+            json_sprintf("%s: Field 'to' is empty.", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -606,10 +606,7 @@ PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf(
-            "Email enqueue to '%s'.",
-            to
-        ),
+        json_sprintf("%s: Email enqueue to '%s'.", gobj_yuno_role_plus_name(), to),
         0,
         0,
         kw  // owned
@@ -630,7 +627,7 @@ PRIVATE json_t *cmd_disable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Alarm emails disabled"),
+        json_sprintf("%s: Alarm emails disabled", gobj_yuno_role_plus_name()),
         0,
         0,
         kw  // owned
@@ -688,7 +685,9 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Email Queues: in queue %d, failed %d", total_queues, total_fails),
+        json_sprintf("%s: Email Queues: in queue %d, failed %d",
+            gobj_yuno_role_plus_name(), total_queues, total_fails
+        ),
         0,
         jn_data,
         kw  // owned
@@ -727,7 +726,7 @@ PRIVATE json_t *cmd_remove_emails_failed(hgobj gobj, const char *cmd, json_t *kw
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Deleted Emails failed: %d", total_fails),
+        json_sprintf("%s: Deleted Emails failed: %d", gobj_yuno_role_plus_name(), total_fails),
         0,
         0,
         kw  // owned
@@ -748,7 +747,7 @@ PRIVATE json_t *cmd_enable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw,
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Alarm emails enabled"),
+        json_sprintf("%s: Alarm emails enabled", gobj_yuno_role_plus_name()),
         0,
         0,
         kw  // owned
@@ -1131,7 +1130,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
                 NULL
             );
             priv->qmsg_cur_email = NULL;
-            process_smtp_response(gobj, qmsg_for_fail, -1, TRUE);
+            process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, NULL);
             KW_DECREF(msg);
             return -1;
         }
@@ -1177,7 +1176,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
     if(!mime_body) {
         /* Error already logged */
         priv->qmsg_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE); // permanent: bad content
+        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, NULL); // permanent: bad content
         KW_DECREF(msg);
         return -1;
     }
@@ -1202,7 +1201,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
         gobj_trace_json(gobj, msg, "json_pack() FAILED for kw_send");
         GBUFFER_DECREF(mime_body)
         priv->qmsg_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE); // permanent: cannot build request
+        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, NULL); // permanent: cannot build request
         KW_DECREF(msg);
         return -1;
     }
@@ -1246,6 +1245,25 @@ PRIVATE int tira_dela_cola(hgobj gobj)
 }
 
 /***************************************************************************
+ *  How many addresses a to/cc/bcc field holds: its items split by ',' or
+ *  ';' (as C_SMTP_SESSION splits them) that are not blank.
+ ***************************************************************************/
+PRIVATE int count_addresses(const char *addresses)
+{
+    int count = 0;
+    BOOL in_item = FALSE;
+    for(const char *p = addresses; p && *p; p++) {
+        if(*p == ',' || *p == ';') {
+            in_item = FALSE;
+        } else if(*p != ' ' && *p != '\t' && !in_item) {
+            in_item = TRUE;
+            count++;
+        }
+    }
+    return count;
+}
+
+/***************************************************************************
  *  Resolve the in-flight message after an SMTP send attempt.
  *      result >= 0 -> sent OK: unload from the queue.
  *      result <  0 -> failed:
@@ -1261,7 +1279,8 @@ PRIVATE int process_smtp_response(
     hgobj gobj,
     q_msg_t *msg,
     int result,
-    BOOL permanent
+    BOOL permanent,
+    const char *url     // the server the message was tried at, "" when none
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1300,7 +1319,14 @@ PRIVATE int process_smtp_response(
     json_t *jn_email = trq_msg_json(msg);   // Error already logged if NULL
     const char *to = kw_get_str(gobj, jn_email, "to", "", 0);
     const char *cc = kw_get_str(gobj, jn_email, "cc", "", 0);
-    const char *bcc = kw_get_str(gobj, jn_email, "bcc", "", 0);
+    /*
+     *  A bcc is hidden by definition: the logs (and the logcenter they
+     *  reach) say how many, never who.
+     */
+    int bcc_count = count_addresses(kw_get_str(gobj, jn_email, "bcc", "", 0));
+    if(!url) {
+        url = "";
+    }
 
     if(result >= 0) {
         gobj_log_info(gobj, 0,
@@ -1308,8 +1334,8 @@ PRIVATE int process_smtp_response(
             "msg",      "%s", "email sent",
             "to",       "%s", to,
             "cc",       "%s", cc,
-            "bcc",      "%s", bcc,
-            "url",      "%s", priv->url,
+            "bcc_count","%d", bcc_count,
+            "url",      "%s", url,
             NULL
         );
         priv->sent++;
@@ -1329,8 +1355,8 @@ PRIVATE int process_smtp_response(
                 "msg",          "%s", "email NOT sent, will retry",
                 "to",           "%s", to,
                 "cc",           "%s", cc,
-                "bcc",          "%s", bcc,
-                "url",          "%s", priv->url,
+                "bcc_count",    "%d", bcc_count,
+                "url",          "%s", url,
                 "attempt",      "%ld", (long)priv->cur_retries,
                 "max_retries",  "%ld", (long)priv->max_retries,
                 NULL
@@ -1345,8 +1371,8 @@ PRIVATE int process_smtp_response(
                 "msg",          "%s", "email NOT sent, moved to failed queue",
                 "to",           "%s", to,
                 "cc",           "%s", cc,
-                "bcc",          "%s", bcc,
-                "url",          "%s", priv->url,
+                "bcc_count",    "%d", bcc_count,
+                "url",          "%s", url,
                 "attempt",      "%ld", (long)priv->cur_retries,
                 "max_retries",  "%ld", (long)priv->max_retries,
                 "permanent",    "%d", permanent?1:0,
@@ -1558,7 +1584,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             BOOL permanent = (code >= 500 && code < 600);
             q_msg_t *qmsg = priv->qmsg_cur_email;
             priv->qmsg_cur_email = NULL;
-            process_smtp_response(gobj, qmsg, -1, permanent);
+            process_smtp_response(gobj, qmsg, -1, permanent, kw_get_str(gobj, kw, "url", "", 0));
 
         } else if(gobj_in_this_state(gobj, ST_IDLE)) {
             /*
@@ -1604,7 +1630,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     q_msg_t *qmsg = priv->qmsg_cur_email;
     priv->qmsg_cur_email = NULL;
-    process_smtp_response(gobj, qmsg, ok ? 0 : -1, permanent);
+    process_smtp_response(gobj, qmsg, ok ? 0 : -1, permanent, kw_get_str(gobj, kw, "url", "", 0));
 
     KW_DECREF(kw);
     return 0;

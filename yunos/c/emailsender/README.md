@@ -134,9 +134,17 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
 - **Severity**: a session the server ends -- a refusal, a `4xx`, an unexpected
   or malformed reply, a reply that never comes -- is a **WARNING** of the
   `Protocol` msgset from `C_SMTP_SESSION`, with the reply (capped at 512 bytes).
-  An ERROR from the session is our own failure (no memory, an encoder). What
-  the emailsender decides about the email stays as it was: `email NOT sent,
-  moved to failed queue` and the exit on rejected credentials are ERRORs.
+  An ERROR from `C_SMTP_SESSION` is our own failure (no memory, an encoder).
+  The ERRORs of the emailsender are not about who failed but about what an
+  operator must act on, whoever caused it: `email NOT sent, moved to failed
+  queue` (an email that will not be delivered unless somebody sends it again)
+  and the exit on a refused login (the yuno stops). A retry is a WARNING.
+- **What the logs name**: `to` and `cc`, the `url` of the server the message
+  was sent to (the one the session runs on, which a `set-url-from` does not
+  change until the next start: up to 7.25.20 the log named the new url), and
+  `bcc_count` -- never the `bcc` addresses, which are hidden by definition
+  (in the branch they were written to the log, and from there to the
+  logcenter).
 - **Binary bodies**: a non-UTF-8 body is persisted base64 under `body_base64`
   (a plain `json_string` would silently drop it) and decoded at send time.
 

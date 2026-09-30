@@ -60,6 +60,7 @@ SET(SRCS
     late_server
     refill_paced
     long_line
+    url_log
 )
 
 ##############################################

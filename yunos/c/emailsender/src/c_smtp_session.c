@@ -1008,6 +1008,9 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         if(priv->close_reply[0]) {
             json_object_set_new(kw_close, "reply", json_string(priv->close_reply));
         }
+        json_object_set_new(kw_close, "url",
+            json_string(gobj_read_str_attr(gobj_bottom_gobj(gobj), "url"))
+        );
         gobj_publish_event(gobj, EV_ON_CLOSE, kw_close);
     }
     priv->reject_code = 0;
@@ -1356,9 +1359,15 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              */
             return reject_current_message(gobj, code, reply, "DATA body rejected by server");
         }
-        json_t *kw_ack = json_pack("{s:b, s:i}",
+        /*
+         *  `url`: the server it went to, the one of our transport. A url
+         *  written to us while we run waits for our next start, so the
+         *  owner's own url may already be another.
+         */
+        json_t *kw_ack = json_pack("{s:b, s:i, s:s}",
             "ok", 1,
-            "code", code
+            "code", code,
+            "url", gobj_read_str_attr(gobj_bottom_gobj(gobj), "url")
         );
         /*
          *  Resolve BEFORE publishing: a subscriber reacting to EV_ON_MESSAGE
