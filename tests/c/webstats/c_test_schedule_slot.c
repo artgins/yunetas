@@ -12,6 +12,11 @@
  *          ac_schedule() took yesterday of time(NULL), and reported the day
  *          before.
  *
+ *          And the run arms the slot AFTER the one it served. Fired early,
+ *          and over before that slot, it found the slot still ahead and armed
+ *          it again: the day ran, and was mailed, twice. `next_run` must be
+ *          the served slot plus one calendar day.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -37,6 +42,7 @@
  *          Data: config, public data, private data
  ***************************************************************************/
 GOBJ_DEFINE_EVENT(EV_FIRE_EARLY);
+GOBJ_DEFINE_EVENT(EV_CHECK_NEXT_RUN);
 
 /*---------------------------------------------*
  *      Attributes
@@ -60,6 +66,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj webstats;
     char expected_date[16];     // the day the slot reports
+    time_t served_slot;         // the slot the early fire serves
 } PRIVATE_DATA;
 
 
@@ -156,6 +163,7 @@ PRIVATE int ac_fire_early(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    priv->served_slot = (time_t)gobj_read_integer_attr(priv->webstats, "next_run");
     gobj_send_event(priv->webstats, EV_TIMEOUT, 0, gobj);
 
     KW_DECREF(kw)
@@ -183,6 +191,47 @@ PRIVATE int ac_report_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             "msg",          "%s", "Scheduled run reported a day that is not its slot's",
             "date",         "%s", date,
             "expected",     "%s", priv->expected_date,
+            NULL
+        );
+    }
+
+    /*
+     *  The schedule is armed again when the run ends, after this event
+     */
+    gobj_post_event(gobj, EV_CHECK_NEXT_RUN, 0, gobj);
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The next run must be the day after the slot served, not that slot again
+ ***************************************************************************/
+PRIVATE int ac_check_next_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    struct tm tm;
+    localtime_r(&priv->served_slot, &tm);
+    tm.tm_mday++;
+    tm.tm_isdst = -1;
+    time_t expected = mktime(&tm);
+
+    time_t next_run = (time_t)gobj_read_integer_attr(priv->webstats, "next_run");
+    if(next_run == expected) {
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Scheduled run armed the slot after its own",
+            NULL
+        );
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Scheduled run did not arm the slot after its own",
+            "served_slot",  "%ld", (long)priv->served_slot,
+            "next_run",     "%ld", (long)next_run,
+            "expected",     "%ld", (long)expected,
             NULL
         );
     }
@@ -242,6 +291,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_idle[] = {
         {EV_FIRE_EARLY,             ac_fire_early,              0},
         {EV_REPORT_READY,           ac_report_ready,            0},
+        {EV_CHECK_NEXT_RUN,         ac_check_next_run,          0},
         {0,0,0}
     };
 
@@ -253,6 +303,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_FIRE_EARLY,     0},
         {EV_REPORT_READY,   0},
+        {EV_CHECK_NEXT_RUN, 0},
         {0, 0}
     };
 

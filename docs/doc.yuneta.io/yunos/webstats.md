@@ -78,7 +78,7 @@ for `/%2eenv` is counted with the ones that ask for `/.env`.
 |-----------|---------|---------|
 | `access_log_paths` | both trees | Access logs. The yuno also reads each `<path>.1` |
 | `error_log_paths` | both trees | Error logs, same rule |
-| `report_hour` / `report_minute` | 6 / 0 | Local time of the daily run |
+| `report_hour` / `report_minute` | 6 / 0 | Local time of the daily run. The stat `next_run` (epoch seconds) says when it is armed for; a run never arms its own slot again |
 | `send_email` | `true` | `false` keeps the record and skips the mail |
 | `email_to` | — | Destination |
 | `email_from` | — | Sender. `"(^^__hostname__^^)@domain"` names the node. Empty: the sender is left to the email service |

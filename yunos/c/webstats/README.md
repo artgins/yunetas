@@ -228,6 +228,12 @@ Attributes of `C_WEBSTATS`, all settable from the batch config.
 from the timestamps, so there is no reason to race `logrotate`, and a report
 that is built at six is in the mailbox when somebody opens it.
 
+The stat `next_run` says when the schedule is armed for (epoch seconds). A run
+reports the day before its **slot**, and when it ends the next slot armed is
+always a later one: a timer that fires a little before its slot, with a run
+that ends before the slot too, found that same slot still ahead, and up to
+7.25.20 armed it again -- the day ran, and was mailed, twice.
+
 `internal_networks` matters for the numbers: on `artgins` the clients that
 hammered Keycloak were **our own nodes**. Without this list the "top clients"
 table is the suite talking to itself.

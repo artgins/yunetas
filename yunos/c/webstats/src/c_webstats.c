@@ -247,6 +247,7 @@ SDATA (DTP_LIST,    "access_log_paths", SDF_RD,             "[]",       "Access 
 SDATA (DTP_LIST,    "error_log_paths",  SDF_RD,             "[]",       "Error logs. The yuno also reads each '<path>.1'. Empty: both standard trees"),
 SDATA (DTP_INTEGER, "report_hour",      SDF_WR|SDF_PERSIST, "6",        "Local hour of the daily run"),
 SDATA (DTP_INTEGER, "report_minute",    SDF_WR|SDF_PERSIST, "0",        "Local minute of the daily run"),
+SDATA (DTP_INTEGER, "next_run",         SDF_RD|SDF_STATS,   "0",        "When the next scheduled run is armed for (epoch seconds)"),
 SDATA (DTP_BOOLEAN, "send_email",       SDF_WR|SDF_PERSIST, "true",     "Send the daily report by email"),
 SDATA (DTP_STRING,  "email_to",         SDF_WR|SDF_PERSIST, "",         "Destination of the report"),
 SDATA (DTP_STRING,  "email_from",       SDF_RD,             "",         "Sender of the report, '(^^__hostname__^^)@domain' names the node. Empty: the default of the email service"),
@@ -304,6 +305,7 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     hgobj timer;                    // the daily schedule, seconds are accurate enough
     time_t schedule_slot;           // the report_hour:report_minute the timer is armed for
+    time_t served_slot;             // the last slot that ran: never armed again
     hgobj reader;                   // the file being read, or 0
 
     json_t *jn_files;               // files left in this run
@@ -1047,11 +1049,16 @@ PRIVATE int arm_schedule(hgobj gobj)
     tm.tm_isdst = -1;
 
     time_t next = mktime(&tm);
-    if(next <= now) {
+    while(next != (time_t)-1 && (next <= now || next <= priv->served_slot)) {
         /*
          *  Tomorrow. mktime() normalises the overflow, and it is the only
          *  way that stays right across a DST change: adding 86400 seconds
          *  lands one hour off twice a year.
+         *
+         *  Not the slot that has just run either: a timer that fires a
+         *  little before its slot, with a run that ends before the slot
+         *  too, finds that slot still ahead. Arming it again ran (and
+         *  mailed) the same day twice.
          */
         tm.tm_mday++;
         tm.tm_isdst = -1;
@@ -1071,6 +1078,7 @@ PRIVATE int arm_schedule(hgobj gobj)
     }
 
     priv->schedule_slot = next;
+    gobj_write_integer_attr(gobj, "next_run", (json_int_t)next);
     set_timeout(priv->timer, (json_int_t)(next - now) * 1000);
 
     return 0;
@@ -4787,6 +4795,8 @@ PRIVATE int send_report(hgobj gobj)
 PRIVATE int ac_schedule(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->served_slot = priv->schedule_slot;
 
     char date[DATE_SIZE];
     if(yesterday_of(gobj, priv->schedule_slot, date, sizeof(date)) < 0) {

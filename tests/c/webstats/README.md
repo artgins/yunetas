@@ -29,5 +29,8 @@ the schedule to one minute ago, so the slot is tomorrow and its day is today,
 and delivers `EV_TIMEOUT` to webstats at once: the timer firing before its
 slot, as one a second early across midnight does with a `report_hour` of 0.
 The run must report today. Up to 7.25.20 `ac_schedule()` took the day before
-`time(NULL)` and reported yesterday. Logs and store live under
+`time(NULL)` and reported yesterday. And when the run ends, the schedule
+(`next_run`) must be the slot it served plus one calendar day: fired before
+its slot and over before it too, the run found that slot still ahead and, up
+to 7.25.20, armed it again -- the day ran, and was mailed, twice. Logs and store live under
 `/tmp/test_webstats_schedule_slot`.

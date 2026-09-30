@@ -2,7 +2,8 @@
  *          main_schedule_slot.c
  *
  *          The day a scheduled webstats run reports is the day before its
- *          slot, even when its timer fires early: see c_test_schedule_slot.c.
+ *          slot, even when its timer fires early, and the run arms the
+ *          next slot, not its own again: see c_test_schedule_slot.c.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -142,12 +143,13 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Creating __timeranger2__.json",
         "msg", "Creating topic",
         "msg", "Scheduled run reported the day of its slot",
+        "msg", "Scheduled run armed the slot after its own",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"
