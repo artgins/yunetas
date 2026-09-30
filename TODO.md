@@ -334,20 +334,6 @@ The two points left by the review of 2026-09-30 went into 7.25.16: a save
 carries the revision it read (refused if somebody saved since), and the agent
 answers at once for a yuno that runs but is not connected.
 
-## webstats: wattyzer's report is dropped after the relay (open, 2026-09-30)
-
-From the report of 2026-09-29 on, wattyzer's daily webstats mail does not
-arrive -- not in the inbox, not in Junk -- while the relay accepts it
-(`250 2.0.0 Ok: 53153 bytes queued`). Ruled out: the code (no diff
-7.25.12..7.25.13 in emailsender/webstats), the sender `wattyzer@` and the
-HTML format (test mails with both arrive), the size and line lengths, URI
-blocklists (no domain of the report listed). A `NO DATA` report of the same
-node arrives: the filter drops on CONTENT. Being narrowed down by bisecting
-the HTML of 2026-09-29 (mails `BISECCION-A..D`). The other four nodes'
-reports arrive. Also seen, not the cause (logcenter's text arrives with them):
-the 7bit body goes out with bare LF, which `mime_encoder.c` does not
-normalise -- RFC 5321 wants CRLF.
-
 ## Agent: a C_COUNTER still running when the agent stops
 
 Seen deploying 7.25.13 (2026-09-29), at the orderly `--stop` of the main agent

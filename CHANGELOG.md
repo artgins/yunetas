@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### webstats: the report's IP addresses go out as [a.b.c.d]
+
+- OVH's outbound relay read `34.140.132.132` as a Spanish phone number (+34
+  and nine digits) and, in a report full of addresses marked "banned",
+  accepted the mail (`250 queued`) and delivered it to NOBODY: no bounce,
+  not in Junk, not at gmail or outlook either. wattyzer's report of
+  2026-09-29 was the first with such an address, bisected down to one row
+  of Top clients; Google Cloud addresses start with 34, so it recurs.
+  The mail (and `preview-report`) now writes every standalone IPv4 as
+  `[a.b.c.d]` -- proven on the relay; the usual defang `a[.]b[.]c[.]d` does
+  NOT pass. The stored record keeps the plain address.
+
 ## v7.25.18 (2026-09-30)
 
 emailsender and webstats only: no kernel change. Found chasing a webstats
