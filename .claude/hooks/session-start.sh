@@ -12,12 +12,21 @@
 #       - the inotify limits of 99-yuneta-core.conf (the Linux default of
 #         128 instances per user is below what the treedb tests open)
 #
-#   Always done (fast): OS packages, the `yunetas` CLI, a default .config,
-#   the three points above, and `npm ci` of the JS packages present (ci: a plain install
-#   rewrites package-lock.json with some npm versions).
+#   Always done: OS packages and the `yunetas` CLI when missing, a default
+#   .config when missing, the three points above, and `npm ci` of the JS
+#   packages present that have no node_modules yet (ci: a plain install
+#   rewrites package-lock.json with some npm versions). Each step is skipped
+#   when its result is already there, so a container that was prepared once
+#   starts fast.
+#
+#   It runs only at the start of a session (matcher "startup" in
+#   .claude/settings.json), never on resume, clear or compact: `npm ci`
+#   deletes node_modules, and doing that under a running vite or vitest
+#   breaks it.
 #
 #   Done only with YUNETAS_HOOK_BUILD_C=1 (about 20 minutes, cached with the
 #   container afterwards): the external libraries and `yunetas init/build`.
+#   The hook timeout in .claude/settings.json (1800 s) leaves room for it.
 #
 #   Run the C suite afterwards as:
 #       cd build && su yuneta -s /bin/bash -c 'ulimit -Sn 1024; ctest'
@@ -37,9 +46,13 @@ cd "${YUNETAS_DIR}"
 if ! command -v ninja >/dev/null 2>&1 || ! command -v pipx >/dev/null 2>&1; then
     ./install-dependencies.sh
 fi
-if ! command -v yunetas >/dev/null 2>&1 || ! command -v alldefconfig >/dev/null 2>&1; then
-    pip install --quiet yunetas kconfiglib
+if ! command -v yunetas >/dev/null 2>&1; then
+    pipx install yunetas
 fi
+if ! command -v alldefconfig >/dev/null 2>&1; then
+    pipx install kconfiglib
+fi
+export PATH="${HOME}/.local/bin:${PATH}"
 
 #
 #   Default .config (the node configuration: static, OpenSSL, no memory tracking)
@@ -56,7 +69,7 @@ if ! id yuneta >/dev/null 2>&1; then
     useradd -m -g yuneta yuneta
 fi
 mkdir -p /yuneta
-chown -R yuneta:yuneta /yuneta
+find /yuneta -xdev \( ! -user yuneta -o ! -group yuneta \) -exec chown -h yuneta:yuneta {} +
 
 #
 #   inotify limits, the same values as 99-yuneta-core.conf
@@ -71,7 +84,7 @@ fi
 #   JS packages: the submodules, or sibling clones of the standalone repos
 #
 for d in kernel/js/gobj-js kernel/js/gobj-ui ../gobj-js ../gobj-ui.js; do
-    if [ -f "${d}/package.json" ]; then
+    if [ -f "${d}/package.json" ] && [ ! -d "${d}/node_modules" ]; then
         (cd "${d}" && npm ci --no-audit --no-fund)
     fi
 done
