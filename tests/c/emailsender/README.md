@@ -31,6 +31,17 @@ against a fake SMTP server.
   first, `autostart`/`autoplay`, under its own name (the emailsender starts and
   stops its `__input_side__` with its own play and pause).
 
+`pause_in_flight`, `shutdown_in_flight`, `set_url_stash` and `no_recipients`
+run with freed memory poisoned (`poison_alloc.c`, the technique of
+`tests/c/c_controlcenter_scenarios`): every block freed is filled with `0x5A`
+and held in a quarantine of 4096 blocks before it is given back, so a read
+after a free reads the poison. Without it the queue opened again after a pause
+loads the same message into the very block just freed, and a dangling
+`q_msg_t` reads right. Against the code before the fixes each of the four
+segfaults on every run. The quarantine is emptied, and closed, in `cleaning()`
+and after `yuneta_entry_point()`, before the memory check: the blocks it holds
+are freed memory, and a clean run reports none.
+
 Each test also lists the messages it expects logged as ERROR (most expect
 none): the list of expected logs says what was logged, not at which level, so
 a second log handler collects every ERROR and the test compares them at its

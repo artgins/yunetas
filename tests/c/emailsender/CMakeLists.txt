@@ -72,6 +72,7 @@ foreach(test ${SRCS})
         "main_${test}.c"
         c_fake_smtp.c
         c_test_emailsender.c
+        poison_alloc.c
         ${YUNETAS_BASE}/yunos/c/emailsender/src/c_emailsender.c
         ${YUNETAS_BASE}/yunos/c/emailsender/src/c_smtp_session.c
         ${YUNETAS_BASE}/yunos/c/emailsender/src/mime_encoder.c

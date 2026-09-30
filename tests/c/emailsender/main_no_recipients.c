@@ -19,6 +19,7 @@
 #include <c_emailsender.h>
 #include "c_fake_smtp.h"
 #include "c_test_emailsender.h"
+#include "poison_alloc.h"
 
 /***************************************************************************
  *                      Names
@@ -284,6 +285,8 @@ static void cleaning(void)
     }
     JSON_DECREF(expected_errors)
     JSON_DECREF(error_msgs)
+
+    release_quarantine();   // before the memory check of the entry point
 }
 
 /***************************************************************************
@@ -291,6 +294,13 @@ static void cleaning(void)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    /*
+     *  Freed memory is poisoned (poison_alloc.c): the dangling message this
+     *  test is about reads poison, every run, instead of the block the
+     *  queue reopened in its place.
+     */
+    install_poison_allocators();
+
     atexit(exit_guard);
 
     /*------------------------------*
@@ -356,6 +366,7 @@ int main(int argc, char *argv[])
         register_yuno_and_more,
         cleaning
     );
+    release_quarantine();   // an entry point that ended before cleaning()
 
     if(get_cur_system_memory()!=0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
