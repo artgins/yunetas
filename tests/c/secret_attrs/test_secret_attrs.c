@@ -1,7 +1,8 @@
 /****************************************************************************
  *          test_secret_attrs.c
  *
- *          Regression test for the SDF_SECRET attrs (7.25.19).
+ *          Regression test for the SDF_SECRET attrs (7.25.19) and the file
+ *          that persists them.
  *
  *          A secret is read, written and saved as usual and SHOWN masked.
  *          The places that show it, and what is checked in each:
@@ -14,6 +15,14 @@
  *               and a 'global' key ("<service>.<attr>").
  *            3. The create_delete2 trace: the kw of a service being built
  *               and its final sdata.
+ *
+ *          And the persistent-attrs file (dbsimple.c):
+ *
+ *            4. a file written before 7.25.19 (0664) is made 0600 when it
+ *               is LOADED, not only at its next save -- a password set once
+ *               is never saved again.
+ *            5. a symlink planted in place of the file (the data dirs are
+ *               02775) is neither read nor written through.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -172,6 +181,48 @@ PRIVATE int capture_logs(void *h, int priority, const char *bf, size_t len)
     return 0;
 }
 
+PRIVATE BOOL file_contains(const char *path, const char *text)
+{
+    char bf[1024] = {0};
+    int fd = open(path, O_RDONLY|O_NOFOLLOW);
+    if(fd < 0) {
+        return FALSE;
+    }
+    ssize_t n = read(fd, bf, sizeof(bf)-1);
+    close(fd);
+    if(n <= 0) {
+        return FALSE;
+    }
+    return strstr(bf, text)?TRUE:FALSE;
+}
+
+PRIVATE int write_file(const char *path, const char *content, mode_t mode)
+{
+    unlink(path);
+    int fd = open(path, O_WRONLY|O_CREAT|O_TRUNC, mode);
+    if(fd < 0) {
+        printf("FAIL cannot create %s\n", path);
+        s_result += -1;
+        return -1;
+    }
+    if(write(fd, content, strlen(content)) < 0) {
+        printf("FAIL cannot write %s\n", path);
+        s_result += -1;
+    }
+    fchmod(fd, mode);   // not subject to the umask
+    close(fd);
+    return 0;
+}
+
+PRIVATE int file_mode(const char *path)
+{
+    struct stat st;
+    if(lstat(path, &st) < 0) {
+        return -1;
+    }
+    return (int)(st.st_mode & 07777);
+}
+
 /***************************************************************
  *              Checks
  ***************************************************************/
@@ -262,6 +313,53 @@ PRIVATE void check_create_delete2_trace(void)
     }
 }
 
+PRIVATE void check_persistent_file(void)
+{
+    hgobj holder = gobj_find_service("secret-holder", TRUE);
+    char path[PATH_MAX];
+    char planted[PATH_MAX];
+    yuneta_realm_file(path, sizeof(path), "data",
+        "C_TEST_SECRET_HOLDER-secret-holder-persistent-attrs.json", TRUE
+    );
+    yuneta_realm_file(planted, sizeof(planted), "data", "planted.json", TRUE);
+
+    /*
+     *  A file left 0664 by a release before 7.25.19
+     */
+    write_file(path, "{\"password\": \"disk-secret\"}", 0664);
+    check_int("the old file is 0664", file_mode(path), 0664);
+    gobj_load_persistent_attrs(holder, 0);
+    check_str("the old file is loaded",
+        gobj_read_str_attr(holder, "password"), "disk-secret"
+    );
+    check_int("loading the old file makes it 0600", file_mode(path), 0600);
+
+    /*
+     *  A symlink planted in place of the file
+     */
+    unlink(path);
+    write_file(planted, "{\"password\": \"planted\"}", 0644);
+    if(symlink(planted, path) < 0) {
+        printf("FAIL cannot create the symlink %s\n", path);
+        s_result += -1;
+    }
+    gobj_write_str_attr(holder, "password", "before");
+    gobj_load_persistent_attrs(holder, 0);
+    check_str("a symlinked file is not loaded",
+        gobj_read_str_attr(holder, "password"), "before"
+    );
+    gobj_write_str_attr(holder, "password", "through-the-link");
+    int ret = gobj_save_persistent_attrs(holder, json_string("password"));
+    check_true("a save through a symlink fails", ret < 0);
+    check_true("the symlink target is not written",
+        !file_contains(planted, "through-the-link")
+    );
+    check_int("the symlink target keeps its mode", file_mode(planted), 0644);
+
+    unlink(path);
+    unlink(planted);
+}
+
 /***************************************************************
  *              Framework Methods
  ***************************************************************/
@@ -296,6 +394,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     check_http_cookie(gobj);
     check_view_config(gobj);
     check_create_delete2_trace();
+    check_persistent_file();
 
     set_yuno_must_die();
 

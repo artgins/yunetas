@@ -166,7 +166,12 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
 
     The persistent-attrs file itself (`<realm>/<yuno>/data/*-persistent-attrs.json`)
     is written 0600 since 7.25.19: up to 7.25.18 it took the process umask,
-    0666 on every node, and it holds these secrets in clear.
+    0666 on every node, and it holds these secrets in clear. A file left
+    wider by an older release is made 0600 when it is LOADED (logged as
+    *"Persistent attrs file made 0600"*), not only at its next save. A file
+    that cannot be made 0600 (not owned by the yuno's user) is not written
+    to; a symlink in place of the file is neither read nor written through
+    (*"Refused the persistent attrs file: it is a symlink"*).
 
 
 ## Common Flag Combinations
