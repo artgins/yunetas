@@ -399,7 +399,19 @@ any frame, and it must name this yuno and one of its services:
 
 What is refused, each time, is the peer's: the channel is closed, and the
 gate writes ONE warning (`MSGSET_PROTOCOL`, `peername`, the kw capped to 256
-bytes, no stack), with the card's `jwt` shown as `(hidden)`:
+bytes, no stack), with no credential in it. Before a session there is no
+command table to ask which parameter is `SDF_SECRET`, so the NAME decides
+(`is_secret_name()`, the one list of the SDK: `passw`, `token`, `secret`,
+`jwt`, `api_key`, `private_key`... any case): at any depth of the kw the value
+of such a key is shown as `(hidden)`, and in a string (a command line) the
+value of such a `name=value` as `********`. A command sent before the card:
+
+```text
+kw   {"jwt": "eyJ...", "password": "s3cr3t", "kw": {"passw": "x"}, "__command__": "help token=abc"}
+log  {"jwt":"(hidden)","password":"(hidden)","kw":{"passw":"(hidden)"},"__command__":"help token=********", ...}
+```
+
+
 
 | The card | Log |
 |----------|-----|
@@ -416,7 +428,7 @@ A card refused by the authentication is answered with a negative
 `EV_IDENTITY_CARD_ACK`, logged by the authenticator, and the channel is
 dropped at `timeout_idgot`. Up to 7.25.20 each refusal above was an error
 with the whole kw (its jwt with it), followed by a second error, *"event
-UNKNOWN in not-session state"*, with the whole kw again; a jwt that was not
-a string went on to the authentication.
+UNKNOWN in not-session state"*, with the whole kw again, credentials and
+all; a jwt that was not a string went on to the authentication.
 
 `tests/c/c_ievent_srv_identity_card`.

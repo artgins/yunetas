@@ -16,14 +16,16 @@ refused and its channel closed; the client connects again and sends the next:
 4. no `src_service`;
 5. a `dst_service` that is not in this yuno;
 6. a `jwt` that is not a string;
-7. a command (`EV_MT_COMMAND`) before any card;
+7. a command (`EV_MT_COMMAND`) before any card, carrying credentials: a
+   `password` key, a `passw` and a `client_secret` down its kw, and
+   `token=...` in its command line;
 8. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session.
 
 Each refusal is caused by the peer, so it is ONE warning (`MSGSET_PROTOCOL`,
 `peername`, the kw capped, no stack), and the jwt of the card is never
 written to the log (`main.c` counts the lines of each, their priority and
-their size, and looks for the jwt in every line). Only the good card opens a
-session.
+their size, and looks for the jwt, and for the credentials of the command,
+in every line). Only the good card opens a session.
 
 Up to 7.25.20 each refusal was an error with the whole kw dumped (the jwt
 with it), followed by a second error, *"event UNKNOWN in not-session

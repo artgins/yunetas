@@ -256,7 +256,18 @@ PRIVATE int send_card(hgobj gobj, int card)
             break;
 
         case 7:
-            json_object_set_new(kw, "__command__", json_string("help"));
+            /*
+             *  A command that carries credentials, in its kw and in its
+             *  line: none may reach the log
+             */
+            json_object_set_new(kw, "password", json_string("tester-secret-password"));
+            json_object_set_new(kw, "kw", json_pack("{s:s, s:[{s:s}]}",
+                "passw", "tester-secret-passw",
+                "list", "client_secret", "tester-secret-nested"
+            ));
+            json_object_set_new(kw, "__command__",
+                json_string("help token=tester-secret-inline")
+            );
             msg_iev_push_stack(gobj, kw, IEVENT_STACK_ID,
                 card_routing("", role, "tester", role, "cli")
             );

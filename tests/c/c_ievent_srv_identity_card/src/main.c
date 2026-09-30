@@ -195,12 +195,17 @@ peer_log_count_t peer_log_counts[] = {
 };
 
 int jwt_logged = 0;     // lines that carry the jwt of a card: none
+int secret_logged = 0;  // lines that carry a credential of the command before the card: none
 
 static int peer_log_write(void *v, int priority, const char *bf, size_t len)
 {
     const char *jwt = "tester-jwt-credential";
     if(memmem(bf, len, jwt, strlen(jwt))) {
         jwt_logged++;
+    }
+    const char *secret = "tester-secret";
+    if(memmem(bf, len, secret, strlen(secret))) {
+        secret_logged++;
     }
     for(int i=0; peer_log_counts[i].mark; i++) {
         peer_log_count_t *c = &peer_log_counts[i];
@@ -289,6 +294,15 @@ static void cleaning(void)
             On_Red BWhite,
             "the jwt of a card was written to the log",
             jwt_logged,
+            Color_Off
+        );
+        result += -1;
+    }
+    if(secret_logged) {
+        printf("%sERROR --> %s: %d lines%s\n",
+            On_Red BWhite,
+            "a credential of a command before the card was written to the log",
+            secret_logged,
             Color_Off
         );
         result += -1;
