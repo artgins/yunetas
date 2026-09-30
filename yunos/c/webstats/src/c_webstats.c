@@ -258,7 +258,7 @@ SDATA (DTP_LIST,    "internal_networks",SDF_RD,             "[]",       "Address
 SDATA (DTP_LIST,    "asset_extensions", SDF_RD,             "[]",       "What a browser fetches to render. Empty: js, css"),
 SDATA (DTP_LIST,    "bot_agents",       SDF_RD,             "[]",       "User agent marks of a declared crawler. Empty: the usual set"),
 SDATA (DTP_INTEGER, "new_visitor_days", SDF_WR|SDF_PERSIST, "30",       "Days of history that decide whether a visitor is new"),
-SDATA (DTP_STRING,  "visitor_salt",     SDF_RD,             "",         "Salt of the visitor fingerprint. Empty: none, see README"),
+SDATA (DTP_STRING,  "visitor_salt",     SDF_RD|SDF_SECRET,  "",         "Salt of the visitor fingerprint. Empty: none, see README"),
 SDATA (DTP_INTEGER, "keep_days",        SDF_RD,             "400",      "Days of aggregates kept"),
 SDATA (DTP_STRING,  "fail2ban_log_path",SDF_RD,             DEFAULT_FAIL2BAN_LOG, "fail2ban's log, to say which clients were banned. The yuno also reads its last rotation. Empty: not read"),
 SDATA (DTP_BOOLEAN, "whois_enabled",    SDF_WR|SDF_PERSIST, "true",     "Look up the country and organisation of the top clients"),

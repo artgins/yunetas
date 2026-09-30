@@ -178,7 +178,7 @@ SDATA (DTP_JSON,        "jwt_payload",          SDF_VOLATIL, 0, "JWT payload (de
 
 // SEC-06: Cookie header captured from the HTTP Upgrade request.
 // Used as a JWT source when no jwt field is present in IDENTITY_CARD.
-SDATA (DTP_STRING,      "http_cookie",          SDF_VOLATIL, "", "Cookie header from HTTP Upgrade (SEC-06)"),
+SDATA (DTP_STRING,      "http_cookie",          SDF_VOLATIL|SDF_SECRET, "", "Cookie header from HTTP Upgrade (SEC-06)"),
 
 SDATA (DTP_STRING,      "client_yuno_role",     SDF_VOLATIL, 0, "yuno role of connected client"),
 SDATA (DTP_STRING,      "client_yuno_name",     SDF_VOLATIL, 0, "yuno name of connected client"),

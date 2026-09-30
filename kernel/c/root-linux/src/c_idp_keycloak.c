@@ -162,7 +162,7 @@ PRIVATE sdata_desc_t pm_set_kc_config[] = {
 SDATAPM (DTP_STRING,    "kc_base_url",            0,      0,      "Keycloak base URL, e.g. https://auth.example.com"),
 SDATAPM (DTP_STRING,    "kc_realm",               0,      0,      "Keycloak realm"),
 SDATAPM (DTP_STRING,    "kc_admin_client_id",     0,      0,      "Confidential admin client_id (client_credentials, manage-users)"),
-SDATAPM (DTP_STRING,    "kc_admin_client_secret", 0,      0,      "Admin client secret"),
+SDATAPM (DTP_STRING,    "kc_admin_client_secret", SDF_SECRET, 0, "Admin client secret"),
 SDATAPM (DTP_STRING,    "kc_redirect_uri",        0,      0,      "redirect_uri for the set-password invite email"),
 SDATAPM (DTP_STRING,    "kc_email_client_id",     0,      0,      "client_id the invite email links to (the SPA client)"),
 SDATA_END()

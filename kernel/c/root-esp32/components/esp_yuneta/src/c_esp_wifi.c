@@ -56,7 +56,7 @@ SDATA (DTP_STRING,  "mac_address",      SDF_RD|SDF_STATS,       "",         "Wif
 SDATA (DTP_INTEGER, "rssi",             SDF_RD|SDF_STATS,       "",         "Wifi RSSI"),
 SDATA (DTP_INTEGER, "timeout_smartconfig",SDF_PERSIST|SDF_STATS,"30",       "Timeout in seconds waiting smartconfig"),
 
-SDATA (DTP_JSON,    "wifi_list",        SDF_PERSIST,            "[]",       "List of wifis (ssid/passw)"),
+SDATA (DTP_JSON,    "wifi_list",        SDF_PERSIST|SDF_SECRET, "[]",       "List of wifis (ssid/passw)"),
 SDATA_END()
 };
 

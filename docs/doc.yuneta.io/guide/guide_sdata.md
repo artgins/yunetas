@@ -147,10 +147,16 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
     attr is read, written and persisted exactly as without the flag (the
     emailsender still sends its real password, the persistent-attrs file
     still keeps it); what changes is what is SHOWN: `view-attrs`,
-    `write-attr`, `list-persistent-attrs`, `view-gobj` and the start-up
-    trace of the yuno's attrs answer `********` for it. An empty value is
-    shown empty, so "not set" still reads as such. A dict of attrs is masked
-    with [`gobj_mask_secret_attrs()`](#gobj_mask_secret_attrs).
+    `write-attr`, `list-persistent-attrs`, `view-gobj`, `view-config`, the
+    start-up trace of the yuno's attrs and the `create_delete2` trace of a
+    gobj being built answer `********` for it. An empty value is shown
+    empty, so "not set" still reads as such. A dict of attrs is masked with
+    [`gobj_mask_secret_attrs()`](#gobj_mask_secret_attrs), a whole
+    configuration with [`gobj_mask_secret_config()`](#gobj_mask_secret_config).
+    The C_TCP `traffic` dump prints the bytes on the wire: a frame that
+    carries a credential is sent with `"__secret__": true` in the kw of
+    `EV_TX_DATA` (or marked with [`gbuffer_set_secret()`](#gbuffer_set_secret))
+    and is dumped as `<N bytes hidden>`.
 
 ```C
 SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
@@ -163,7 +169,24 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
 
     The persistent-attrs file itself (`<realm>/<yuno>/data/*-persistent-attrs.json`)
     is written 0600 since 7.25.19: up to 7.25.18 it took the process umask,
-    0666 on every node, and it holds these secrets in clear.
+    0666 on every node, and it holds these secrets in clear. A file left
+    wider by an older release is made 0600 when it is LOADED (logged as
+    *"Persistent attrs file made 0600"*), not only at its next save. A file
+    that cannot be made 0600 (not owned by the yuno's user) is not written
+    to; a symlink in place of the file is neither read nor written through
+    (*"Refused the persistent attrs file: it is a symlink"*).
+
+    A COMMAND PARAMETER takes the flag too: the `commands` trace prints
+    the command line, and with `ev_kw` its kw, with the parameter masked
+    (see [`command_mask_secret_kw()`](#command_mask_secret_kw)).
+
+```C
+SDATAPM (DTP_STRING,    "password",     SDF_SECRET,     0,          "Password"),
+```
+
+```text
+🌀🌀 mach(C_AUTHZ^authz), cmd: set-user-pwd username=bob password=********
+```
 
 
 ## Common Flag Combinations

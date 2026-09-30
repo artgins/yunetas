@@ -37,6 +37,21 @@
     output now waits in dl_tx_encrypted while a write is in flight, and the
     next clear message is taken only when that queue is empty.
 
+    Secrets and the `traffic` trace. The trace dumps what goes out in
+    clear, before TLS, so a credential sent as data (an SMTP AUTH line)
+    lands in the log. Send it with `"__secret__": true` in the kw of
+    EV_TX_DATA (or mark the gbuffer with gbuffer_set_secret()): the flag
+    goes on the gbuffer, survives the tx queues of a connection not yet
+    up, and the dump prints "<N bytes hidden>" instead of the bytes.
+
+        json_t *kw_tx = json_pack("{s:I, s:b}",
+            "gbuffer", (json_int_t)(uintptr_t)gbuf,
+            "__secret__", 1
+        );
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_tx, gobj);
+
+    What is RECEIVED is dumped as it comes: the sender cannot flag it.
+
     This gclass works with two type of TCP clients:
             - cli (pure client)
             - clisrv (client of server)
@@ -999,6 +1014,18 @@ PRIVATE int start_write_event(hgobj gobj, yev_event_h yev_write_event)
 }
 
 /***************************************************************************
+ *  `"__secret__": true` in the kw of EV_TX_DATA: the gbuffer holds a
+ *  credential. The flag goes on the gbuffer, so it survives the tx queues,
+ *  and the traffic dump prints "<N bytes hidden>" for it.
+ ***************************************************************************/
+PRIVATE void mark_secret_gbuffer(hgobj gobj, json_t *kw, gbuffer_t *gbuf)
+{
+    if(kw_get_bool(gobj, kw, "__secret__", 0, 0)) {
+        gbuffer_set_secret(gbuf, TRUE);
+    }
+}
+
+/***************************************************************************
  *  Write the current gbuffer
  ***************************************************************************/
 PRIVATE int write_data(hgobj gobj)
@@ -1889,6 +1916,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         KW_DECREF(kw)
         return -1;
     }
+    mark_secret_gbuffer(gobj, kw, gbuf);
 
     if(!priv->gbuf_txing) {
         priv->gbuf_txing = gbuffer_incref(gbuf);
@@ -1980,6 +2008,7 @@ PRIVATE int ac_tx_data_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, 
         KW_DECREF(kw)
         return -1;
     }
+    mark_secret_gbuffer(gobj, kw, gbuf);
 
     if(priv->timeout_inactivity > 0) {
         enqueue_write(gobj, gbuffer_incref(gbuf));
@@ -2044,6 +2073,7 @@ PRIVATE int ac_tx_data_queued(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
         KW_DECREF(kw)
         return -1;
     }
+    mark_secret_gbuffer(gobj, kw, gbuf);
 
     if(priv->timeout_inactivity > 0) {
         enqueue_write(gobj, gbuffer_incref(gbuf));

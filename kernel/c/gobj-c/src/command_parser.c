@@ -36,6 +36,7 @@ PRIVATE json_t *build_cmd_kw(
     json_t *kw, // not owned
     int *result
 );
+PRIVATE const sdata_desc_t *find_ip_parameter(const sdata_desc_t *input_parameters, const char *key);
 
 /***************************************************************
  *              Data
@@ -66,7 +67,10 @@ PUBLIC json_t *command_parser(
     const sdata_desc_t *cnf_cmd = 0;
     json_t *kw_cmd = expand_command(gobj, command, kw, &cnf_cmd);
     if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
-        gobj_trace_json(gobj, kw_cmd, "expanded_command: kw_cmd");
+        json_t *kw_shown = cnf_cmd?
+            command_mask_secret_kw(gobj, command, kw_cmd) : json_incref(kw_cmd);
+        gobj_trace_json(gobj, kw_shown, "expanded_command: kw_cmd");
+        JSON_DECREF(kw_shown)
     }
     if(!cnf_cmd) {
         json_t *kw_response = build_command_response(
@@ -229,6 +233,144 @@ PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_tabl
 
     GBMEM_FREE(str)
     return NULL;
+}
+
+/***************************************************************************
+ *  The parameters of `command` in its gobj's command table, NULL if none
+ ***************************************************************************/
+PRIVATE const sdata_desc_t *command_parameters(hgobj gobj, const char *command)
+{
+    if(empty_string(command)) {
+        return NULL;
+    }
+    const sdata_desc_t *cmd_table = gobj_command_desc(gobj, NULL, FALSE);
+    if(!cmd_table) {
+        return NULL;
+    }
+    const sdata_desc_t *cnf_cmd = command_get_cmd_desc(cmd_table, command);
+    if(!cnf_cmd) {
+        return NULL;
+    }
+    return cnf_cmd->schema;
+}
+
+/***************************************************************************
+ *  Has the command any SDF_SECRET parameter?
+ ***************************************************************************/
+PRIVATE BOOL has_secret_parameters(const sdata_desc_t *input_parameters)
+{
+    const sdata_desc_t *ip = input_parameters;
+    while(ip && ip->name) {
+        if(ip->flag & SDF_SECRET) {
+            return TRUE;
+        }
+        ip++;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  The kw of a command as a trace shows it: SDF_SECRET parameters masked
+ ***************************************************************************/
+PUBLIC json_t *command_mask_secret_kw(
+    hgobj gobj,
+    const char *command,
+    json_t *kw  // not owned
+)
+{
+    if(!kw) {
+        return NULL;
+    }
+    const sdata_desc_t *input_parameters = command_parameters(gobj, command);
+    if(!json_is_object(kw) || !has_secret_parameters(input_parameters)) {
+        return json_incref(kw);
+    }
+
+    json_t *kw_masked = json_deep_copy(kw);
+    const char *key;
+    json_t *value;
+    json_object_foreach(kw_masked, key, value) {
+        const sdata_desc_t *ip = find_ip_parameter(input_parameters, key);
+        if(ip && (ip->flag & SDF_SECRET) && !empty_json(value)) {
+            json_object_set_new(kw_masked, key, json_string("********"));
+        }
+    }
+    return kw_masked;
+}
+
+/***************************************************************************
+ *  The command line as a trace shows it: the value of every SDF_SECRET
+ *  parameter masked, positional (the leading required ones) or key=value.
+ *  What cannot be parsed as a parameter is not shown.
+ ***************************************************************************/
+PUBLIC char *command_mask_secret_line(
+    hgobj gobj,
+    const char *command
+)
+{
+    if(!command) {
+        return gbmem_strdup("");
+    }
+    const sdata_desc_t *input_parameters = command_parameters(gobj, command);
+    if(!has_secret_parameters(input_parameters)) {
+        return gbmem_strdup(command);
+    }
+
+    gbuffer_t *gbuf = gbuffer_create(256, 64*1024);
+    if(!gbuf) {
+        // Error already logged
+        return gbmem_strdup("");
+    }
+    char *str, *p;
+    str = p = gbmem_strdup(command);
+    char *cmd = get_parameter(p, &p);
+    gbuffer_append_string(gbuf, cmd?cmd:"");
+
+    /*
+     *  The leading required parameters can go without key, as build_cmd_kw() takes them
+     */
+    const sdata_desc_t *ip = input_parameters;
+    while(ip->name && p) {
+        if(ip->flag & SDF_NOTACCESS) {
+            ip++;
+            continue;
+        }
+        if(!(ip->flag & SDF_REQUIRED)) {
+            break;
+        }
+        char *save = p;
+        char *param = get_parameter(p, &p);
+        if(!param) {
+            break;
+        }
+        if(strchr(param, '=')) {
+            p = save;   // a key=value: from here on, all are
+            break;
+        }
+        gbuffer_printf(gbuf, " %s", (ip->flag & SDF_SECRET)? "********" : param);
+        ip++;
+    }
+
+    char *key;
+    char *value;
+    while(p && (value=get_key_value_parameter(p, &key, &p))) {
+        const sdata_desc_t *kp = find_ip_parameter(input_parameters, key);
+        gbuffer_printf(gbuf, " %s=%s",
+            key,
+            (kp && (kp->flag & SDF_SECRET) && !empty_string(value))? "********" : value
+        );
+    }
+    while(p && (*p == ' ' || *p == '\t')) {
+        p++;
+    }
+    if(p && *p) {
+        gbuffer_append_string(gbuf, " <...>");
+    }
+    GBMEM_FREE(str)
+
+    char *line = gbmem_strdup(gbuffer_cur_rd_pointer(gbuf));
+    gbuffer_decref(gbuf);
+    return line;
 }
 
 /***************************************************************************

@@ -1085,6 +1085,15 @@ PUBLIC json_t *gobj_read_attr( // Return is NOT yours!
  */
 PUBLIC int gobj_mask_secret_attrs(hgobj gobj, json_t *jn_attrs); // not owned, modified in place
 
+/*
+ *  The same for a whole yuno configuration (what view-config shows): the
+ *  SDF_SECRET attrs of the yuno ("yuno"), of the gclasses and services named
+ *  by the "global" keys ("<gclass or service>.<attr>", "<...>.kw"), and of
+ *  every node of the "services" trees, in its kw and down its children.
+ *  Mask a COPY: the configuration is what the yuno builds from.
+ */
+PUBLIC int gobj_mask_secret_config(json_t *jn_config); // not owned, modified in place
+
 PUBLIC json_t *gobj_read_attrs( // Return is yours!
     hgobj gobj,
     sdata_flag_t include_flag,

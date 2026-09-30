@@ -55,6 +55,89 @@ PRIVATE char *get_persist_filename(
 }
 
 /***************************************************************************
+ *  Make the persistent attrs file 0600, the mode save_json() gives it.
+ *  Return 0 when it is 0600, -1 when it is not a file to use at all,
+ *  -2 when it is a regular file that stays wider than 0600.
+ ***************************************************************************/
+PRIVATE int narrow_file_mode(hgobj gobj, int fd, const char *filename)
+{
+    struct stat st;
+    if(fstat(fd, &st) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot stat the persistent attrs file",
+            "path",         "%s", filename,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    if(!S_ISREG(st.st_mode)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "The persistent attrs file is not a regular file",
+            "path",         "%s", filename,
+            NULL
+        );
+        return -1;
+    }
+    if((st.st_mode & 07777) == 0600) {
+        return 0;
+    }
+    char mode[16];
+    snprintf(mode, sizeof(mode), "0%o", (unsigned)(st.st_mode & 07777));
+    if(fchmod(fd, 0600) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot make the persistent attrs file 0600",
+            "path",         "%s", filename,
+            "mode",         "%s", mode,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -2;
+    }
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_SYSTEM,
+        "msg",          "%s", "Persistent attrs file made 0600",
+        "path",         "%s", filename,
+        "old_mode",     "%s", mode,
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
+ *  O_NOFOLLOW: the data dirs are 02775, so a member of the group could
+ *  plant a symlink in place of the file.
+ ***************************************************************************/
+PRIVATE int open_persist_file(hgobj gobj, const char *filename, int flags)
+{
+    int fd = open(filename, flags|O_NOFOLLOW|O_CLOEXEC, 0600);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", errno==ELOOP?
+                "Refused the persistent attrs file: it is a symlink" :
+                "Cannot open the persistent attrs file",
+            "path",         "%s", filename,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    return fd;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *load_json(
@@ -64,14 +147,44 @@ PRIVATE json_t *load_json(
     char filename[PATH_MAX];
     get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", FALSE);
 
-    if(!is_regular_file(filename)) {
+    struct stat st;
+    if(lstat(filename, &st) < 0) {
+        if(errno != ENOENT) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot stat the persistent attrs file",
+                "path",         "%s", filename,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
         // No persistent attrs saved
+        return 0;
+    }
+
+    int fd = open_persist_file(gobj, filename, O_RDONLY|O_NONBLOCK);
+    if(fd < 0) {
+        // Error already logged
+        return 0;
+    }
+
+    /*
+     *  A file written before 7.25.19 is 0664 with the secrets in it, and a
+     *  secret set once (the emailsender password) is never saved again.
+     *  One that stays wide is still loaded: refusing it would not hide it.
+     */
+    if(narrow_file_mode(gobj, fd, filename) == -1) {
+        // Error already logged
+        close(fd);
         return 0;
     }
 
     size_t flags = 0;
     json_error_t error;
-    json_t *jn_device = json_load_file(filename, flags, &error);
+    json_t *jn_device = json_loadfd(fd, flags, &error);
+    close(fd);
     if(!jn_device) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -98,46 +211,61 @@ PRIVATE int save_json(
     get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", TRUE);
 
     /*
-     *  0600, and fchmod'ed: a persistent attr can be a secret (the SMTP
-     *  password of the emailsender, set with set-email-user). Up to 7.25.18
-     *  json_dump_file() created it with the process umask -- 0666 on every
-     *  node -- and O_TRUNC keeps the mode of a file that already exists, so
-     *  the fchmod is what closes the files written before.
+     *  0600: a persistent attr can be a secret (the SMTP password of the
+     *  emailsender, set with set-email-user). Up to 7.25.18 json_dump_file()
+     *  created it with the process umask -- 0666 on every node. A file that
+     *  cannot be made 0600 (not ours) is not written: the secret would land
+     *  in a file others read. Truncated only after that, so a refused save
+     *  leaves the file as it was.
      */
-    int fd = open(filename, O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC, 0600);
+    int fd = open_persist_file(gobj, filename, O_WRONLY|O_CREAT|O_NONBLOCK);
     if(fd < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot open the persistent attrs file",
-            "path",         "%s", filename,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
+        // Error already logged
         JSON_DECREF(jn)
         return -1;
     }
-    if(fchmod(fd, 0600) < 0) {
-        gobj_log_warning(gobj, 0,
+    if(narrow_file_mode(gobj, fd, filename) != 0) {
+        // Error already logged
+        close(fd);
+        JSON_DECREF(jn)
+        return -1;
+    }
+    if(ftruncate(fd, 0) < 0) {
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot make the persistent attrs file 0600",
+            "msg",          "%s", "Cannot truncate the persistent attrs file",
             "path",         "%s", filename,
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
             NULL
         );
+        close(fd);
+        JSON_DECREF(jn)
+        return -1;
     }
 
     int ret = json_dumpfd(jn, fd, JSON_INDENT(4));
-    close(fd);
     if(ret < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "Cannot save device json database",
             "path",         "%s", filename,
+            NULL
+        );
+        close(fd);
+        JSON_DECREF(jn)
+        return -1;
+    }
+    if(close(fd) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot close the persistent attrs file",
+            "path",         "%s", filename,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         JSON_DECREF(jn)
