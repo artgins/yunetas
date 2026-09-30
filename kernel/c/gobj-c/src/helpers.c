@@ -1567,6 +1567,133 @@ PUBLIC char *mask_secrets_inline(const char *str)
 }
 
 /***************************************************************************
+ *  Mask `len` bytes from `p` with '*', up to a stop byte of `stops`, or
+ *  a CR/LF, or the end. Return the bytes masked.
+ ***************************************************************************/
+PRIVATE size_t mask_run(char *p, const char *end, const char *stops)
+{
+    size_t n = 0;
+    while(p < end && *p != '\r' && *p != '\n' && !strchr(stops, *p)) {
+        *p++ = '*';
+        n++;
+    }
+    return n;
+}
+
+PRIVATE BOOL is_name_char(char c)
+{
+    return (isalnum((unsigned char)c) || c == '_' || c == '-' || c == '.')? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  The bytes of a traffic dump with the credentials that can be told
+ *  soundly written as '*', in place, the length kept:
+ *    - the value of an HTTP "Cookie:", "Set-Cookie:", "Authorization:" or
+ *      "Proxy-Authorization:" header (for the last two, after the scheme:
+ *      "Authorization: Bearer ******");
+ *    - the value of "name=value" whose name is a secret's (is_secret_name()),
+ *      as in a query string, a form body or a command line;
+ *    - the value of a json "name": value whose name is a secret's.
+ *  Return the bytes masked.
+ ***************************************************************************/
+PUBLIC size_t mask_secrets_in_text(char *bf, size_t len)
+{
+    static const char *headers[] = {
+        "cookie:", "set-cookie:", "authorization:", "proxy-authorization:", 0
+    };
+    if(!bf || len == 0) {
+        return 0;
+    }
+    char *end = bf + len;
+    size_t masked = 0;
+
+    for(char *p = bf; p < end; p++) {
+        /*
+         *  An HTTP header at the start of a line
+         */
+        if(p == bf || p[-1] == '\n') {
+            for(int h=0; headers[h]; h++) {
+                size_t hl = strlen(headers[h]);
+                if((size_t)(end - p) > hl && strncasecmp(p, headers[h], hl)==0) {
+                    char *v = p + hl;
+                    while(v < end && (*v == ' ' || *v == '\t')) {
+                        v++;
+                    }
+                    if(headers[h][0] == 'a' || headers[h][0] == 'p') {
+                        char *s = v;    // the scheme, if a value follows it
+                        while(s < end && *s != ' ' && *s != '\r' && *s != '\n') {
+                            s++;
+                        }
+                        if(s < end && *s == ' ') {
+                            v = s + 1;
+                        }
+                    }
+                    masked += mask_run(v, end, "");
+                    break;
+                }
+            }
+        }
+
+        /*
+         *  name=value
+         */
+        if(*p == '=' && p > bf) {
+            char *n = p;
+            while(n > bf && is_name_char(n[-1])) {
+                n--;
+            }
+            if(n < p && is_secret_name(n, (size_t)(p - n))) {
+                char *v = p + 1;
+                if(v < end && (*v == '"' || *v == '\'')) {
+                    char q[2] = {*v, 0};
+                    masked += mask_run(v + 1, end, q);
+                } else {
+                    masked += mask_run(v, end, "&; \t,\"'<>");
+                }
+            }
+        }
+
+        /*
+         *  "name": value
+         */
+        if(*p == '"') {
+            char *n = p + 1;
+            char *q = n;
+            while(q < end && *q != '"' && *q != '\r' && *q != '\n') {
+                q++;
+            }
+            if(q < end && *q == '"' && q > n && is_secret_name(n, (size_t)(q - n))) {
+                char *v = q + 1;
+                while(v < end && (*v == ' ' || *v == '\t')) {
+                    v++;
+                }
+                if(v < end && *v == ':') {
+                    v++;
+                    while(v < end && (*v == ' ' || *v == '\t')) {
+                        v++;
+                    }
+                    if(v < end && *v == '"') {
+                        char *s = v + 1;
+                        while(s < end && *s != '"') {
+                            if(*s == '\\' && s + 1 < end) {
+                                *s++ = '*';
+                                masked++;
+                            }
+                            *s++ = '*';
+                            masked++;
+                        }
+                    } else {
+                        masked += mask_run(v, end, ",}] \t");
+                    }
+                    p = q;  // the closing quote of the name is not an opening one
+                }
+            }
+        }
+    }
+    return masked;
+}
+
+/***************************************************************************
  *  A secret is shown masked unless it is absent, null or an empty string
  ***************************************************************************/
 PRIVATE BOOL secret_value_is_set(json_t *value)

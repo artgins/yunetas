@@ -897,7 +897,22 @@ PUBLIC void gobj_trace_dump(
         bf = "?"; len = 1;
     }
 
-    json_t *jn_data = tdump2json((uint8_t *)bf, len);
+    /*
+     *  The credentials that can be told, as '*' (mask_secrets_in_text())
+     */
+    json_t *jn_data;
+    char *copy = len? gbmem_malloc(len) : NULL;
+    if(copy) {
+        memcpy(copy, bf, len);
+        mask_secrets_in_text(copy, len);
+        jn_data = tdump2json((uint8_t *)copy, len);
+        GBMEM_FREE(copy)
+    } else if(len) {
+        // Error already logged
+        jn_data = json_sprintf("<%lu bytes not shown: no memory to mask them>", (unsigned long)len);
+    } else {
+        jn_data = tdump2json((uint8_t *)bf, len);
+    }
 
     if(!fmt) {
         fmt = "";

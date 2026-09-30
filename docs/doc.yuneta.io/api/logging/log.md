@@ -634,6 +634,11 @@ This function does not return a value.
 
 The `gobj_trace_dump()` function is useful for debugging by providing a hex dump of a buffer. It formats the message using the provided format string and arguments before logging the output.
 
+The bytes are dumped with the credentials that can be told in them written as
+`*`, the length kept ([`mask_secrets_in_text()`](#mask_secrets_in_text)): an
+HTTP `Cookie:` or `Authorization:` header value, a secret `name=value`, a json
+`"token": ...`. Up to 7.25.20 they were dumped as they came.
+
 ---
 
 (gobj_trace_json)=

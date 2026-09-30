@@ -289,6 +289,16 @@ PUBLIC char *mask_secrets_inline(const char *str);
 PUBLIC json_t *json_mask_secrets(json_t *jn);
 
 /**rst**
+ *  The bytes of a traffic dump with the credentials that can be told
+ *  soundly written as '*', IN PLACE, the length kept: the value of an HTTP
+ *  Cookie, Set-Cookie, Authorization or Proxy-Authorization header (after
+ *  the scheme for the last two), of a "name=value" and of a json
+ *  "name": value whose name is a secret's (is_secret_name()).
+ *  Work on a COPY of what you dump. Return the bytes masked.
+**rst**/
+PUBLIC size_t mask_secrets_in_text(char *bf, size_t len);
+
+/**rst**
     Split a string by delim returning the list of strings.
     Return filling `list_size` if not null with items size,
     WARNING Remember free with split_free2().

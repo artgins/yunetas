@@ -1345,6 +1345,33 @@ PUBLIC json_t *config_gbuffer2json(
 }
 
 /*****************************************************************
+ *  The dump of bytes as a trace shows it: the credentials that can
+ *  be told (mask_secrets_in_text(): an HTTP Cookie or Authorization
+ *  header, a password=..., a "token": ...) as '*', the length kept,
+ *  and "masked": N in `jn_data`. The sender marks what it sends as
+ *  secret (gbuffer_set_secret()); what is RECEIVED nobody can mark.
+ *****************************************************************/
+PRIVATE json_t *tdump2json_shown(json_t *jn_data, const uint8_t *bf, size_t len)
+{
+    char *copy = len? gbmem_malloc(len) : NULL;
+    if(!copy) {
+        if(len) {
+            // Error already logged
+            return json_sprintf("<%lu bytes not shown: no memory to mask them>", (unsigned long)len);
+        }
+        return tdump2json((uint8_t *)bf, len);
+    }
+    memcpy(copy, bf, len);
+    size_t masked = mask_secrets_in_text(copy, len);
+    if(masked) {
+        json_object_set_new(jn_data, "masked", json_integer((json_int_t)masked));
+    }
+    json_t *jn_dump = tdump2json((uint8_t *)copy, len);
+    GBMEM_FREE(copy)
+    return jn_dump;
+}
+
+/*****************************************************************
  *      Log hexa dump gbuffer
  *  WARNING only print a chunk size of data.
  *****************************************************************/
@@ -1374,7 +1401,7 @@ PUBLIC void gobj_trace_dump_gbuf(
         json_object_set_new(jn_data, "secret", json_true());
         json_object_set_new(jn_data, "data", json_sprintf("<%lu bytes hidden>", (unsigned long)len));
     } else {
-        json_object_set_new(jn_data, "data", tdump2json(bf, len));
+        json_object_set_new(jn_data, "data", tdump2json_shown(jn_data, bf, len));
     }
 
     va_list ap;
@@ -1413,7 +1440,7 @@ PUBLIC void gobj_trace_dump_full_gbuf(
         json_object_set_new(jn_data, "secret", json_true());
         json_object_set_new(jn_data, "data", json_sprintf("<%lu bytes hidden>", (unsigned long)len));
     } else {
-        json_object_set_new(jn_data, "data", tdump2json(bf, len));
+        json_object_set_new(jn_data, "data", tdump2json_shown(jn_data, bf, len));
     }
 
     va_list ap;

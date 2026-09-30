@@ -303,7 +303,10 @@ A secret is masked whatever its json type, as in
 A `"global"` key can also name a gobj by its NAME (a child, which is no gclass
 and no service): when the prefix is not a gclass nor a service, the key is
 masked if its attribute is `SDF_SECRET` in ANY gclass -- over-masking is safe.
-The same for a node of `"services"` whose `gclass` is not registered.
+The same for a node of `"services"` whose `gclass` is not registered. The
+template of children made from a range (`"[^^children^^]"`) is masked too:
+its `__content__` as a node, and its `__vars__` as config variables (up to
+7.25.20 neither was).
 
 A config variable is masked in the `"<prefix>.__json_config_variables__"`
 dicts when it FEEDS a secret -- a secret attribute written `(^^var^^)` -- or

@@ -173,6 +173,19 @@ PRIVATE char variable_config[]= "\
             'name': 'secret-other',                                 \n\
             'gclass': 'C_TEST_SECRET_HOLDER',                       \n\
             'autostart': false,                                     \n\
+            '[^^children^^]': {                                     \n\
+                '__range__': 1,                                     \n\
+                '__vars__': {                                       \n\
+                    'tpl_token': 'tplv-hunter2'                   \n\
+                },                                                  \n\
+                '__content__': {                                    \n\
+                    'name': 'tpl-(^^__range__^^)',                  \n\
+                    'gclass': 'C_TEST_SECRET_HOLDER',               \n\
+                    'kw': {                                         \n\
+                        'password': 'tpl-hunter2'                   \n\
+                    }                                               \n\
+                }                                                   \n\
+            },                                                      \n\
             'children': [                                           \n\
                 {                                                   \n\
                     'name': 'secret-child',                         \n\
@@ -425,6 +438,12 @@ PRIVATE void check_view_config(hgobj gobj)
     );
     check_true("view-config still shows a plain config variable",
         s && strstr(s, "visible-var")
+    );
+    check_true("view-config hides a secret of a [^^children^^] template",
+        s && !strstr(s, "tpl-hunter2")
+    );
+    check_true("view-config hides a secret variable of a [^^children^^] template",
+        s && !strstr(s, "tplv-hunter2")
     );
     GBMEM_FREE(s)
     JSON_DECREF(resp)

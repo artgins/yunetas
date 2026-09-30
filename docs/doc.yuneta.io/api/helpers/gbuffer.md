@@ -780,6 +780,15 @@ Only a chunk of the [`gbuffer_t *`](#gbuffer_t) data is printed. Use [`gobj_trac
 A gbuffer marked with [`gbuffer_set_secret()`](#gbuffer_set_secret) is not
 dumped: `"data"` is `"<N bytes hidden>"`.
 
+What is not secret is dumped with the credentials that can be told in its
+bytes written as `*`, the length kept ([`mask_secrets_in_text()`](#mask_secrets_in_text)):
+the value of an HTTP `Cookie:`, `Set-Cookie:`, `Authorization:` or
+`Proxy-Authorization:` header (after the scheme), of a `name=value` and of a
+json `"name": value` whose name is a secret's. `"masked": N` says how many
+bytes. This is what covers RECEIVED data, which no sender can mark: up to
+7.25.20 the `traffic` trace of a server gate printed a browser's Cookie
+header, or a password in a form body, in clear.
+
 ---
 
 (json2gbuf)=

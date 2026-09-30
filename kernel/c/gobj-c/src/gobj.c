@@ -3934,6 +3934,22 @@ PRIVATE void mask_secret_tree_config(json_t *jn_tree, json_t *jn_secret_vars)
     json_array_foreach(json_object_get(jn_tree, "zchilds"), idx, jn_child) {
         mask_secret_tree_config(jn_child, jn_secret_vars);
     }
+
+    /*
+     *  The template of children made from a range ([^^children^^]): its
+     *  __content__ is a node, and its __vars__ fill it as the config
+     *  variables do. Up to 7.25.20 neither was masked.
+     */
+    json_t *jn_expand = json_object_get(jn_tree, "[^^children^^]");
+    if(json_is_object(jn_expand)) {
+        json_t *jn_secret_vars_ = jn_secret_vars? json_incref(jn_secret_vars) : new_secret_vars();
+        mask_secret_tree_config(json_object_get(jn_expand, "__content__"), jn_secret_vars_);
+        json_t *jn_vars = json_object_get(jn_expand, "__vars__");
+        if(json_is_object(jn_vars)) {
+            mask_config_variables(jn_vars, jn_secret_vars_);
+        }
+        JSON_DECREF(jn_secret_vars_)
+    }
 }
 
 /***************************************************************************

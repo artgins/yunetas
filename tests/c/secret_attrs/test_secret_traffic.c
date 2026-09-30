@@ -24,7 +24,9 @@
  *          small for it fails, and the part copied is flagged (hidden and
  *          wiped) too. A secret gbuffer is never serialized
  *          (gbuffer_serialize() answers NULL, and a kw carrying it crosses
- *          without it).
+ *          without it). What is RECEIVED cannot be marked: its dump masks
+ *          what can be told in the bytes (mask_secrets_in_text(): an HTTP
+ *          Cookie/Authorization header, a password=..., a json "token":).
  *
  *          Topology: the pepon server (C_IOGATE -> C_TCP_S + C_CHANNEL ->
  *          C_PROT_RAW -> C_TCP, no echo) and a pure C_TCP client, the only
@@ -64,6 +66,9 @@ PRIVATE BOOL s_capturing = FALSE;
 PRIVATE int s_plain_seen = 0;
 PRIVATE int s_secret_seen = 0;
 PRIVATE int s_hidden_seen = 0;
+PRIVATE int s_rx_secret_seen = 0;
+PRIVATE int s_rx_masked_seen = 0;
+PRIVATE int s_rx_plain_seen = 0;
 
 /*
  *  Allocators wrapped: each block carries its size in front, so a free
@@ -216,6 +221,15 @@ PRIVATE int capture_logs(void *h, int priority, const char *bf, size_t len)
     if(strstr(bf, "bytes hidden")) {
         s_hidden_seen++;
     }
+    if(strstr(bf, "Zq7Xw9Y")) {
+        s_rx_secret_seen++;
+    }
+    if(strstr(bf, "\"masked\":")) {
+        s_rx_masked_seen++;
+    }
+    if(strstr(bf, "RX-PLAIN-FRAME-1")) {
+        s_rx_plain_seen++;
+    }
     return 0;
 }
 
@@ -305,6 +319,51 @@ PRIVATE void check_gbuffer_wipe(void)
     GBUFFER_DECREF(gbuf)
 
     check_int("no secret gbuffer is freed with its bytes", s_freed_with_secret, 0);
+}
+
+/*
+ *  What is RECEIVED cannot be marked secret by its sender: the traffic dump
+ *  masks what can be told in the bytes, the length kept
+ */
+PRIVATE void check_received_dump(void)
+{
+    char text[] =
+        "GET /x?user=bob&password=q-hunter2 HTTP/1.1\r\n"
+        "Cookie: sid=c-hunter2; theme=dark\r\n"
+        "Authorization: Bearer a-hunter2\r\n"
+        "\r\n"
+        "{\"client_secret\": \"j-hunter2\", \"pin\": 7, \"token\":42}";
+    char expected[] =
+        "GET /x?user=bob&password=********* HTTP/1.1\r\n"
+        "Cookie: *************************\r\n"
+        "Authorization: Bearer *********\r\n"
+        "\r\n"
+        "{\"client_secret\": \"*********\", \"pin\": 7, \"token\":**}";
+    size_t masked = mask_secrets_in_text(text, strlen(text));
+    check_true("the credentials of the bytes are masked, the rest kept",
+        strcmp(text, expected)==0
+    );
+    if(strcmp(text, expected)!=0) {
+        printf("     got      %s\n     expected %s\n", text, expected);
+    }
+    check_int("the bytes masked", (int)masked, 9+25+9+9+2);
+
+    /*
+     *  The dump of a received frame: the secret on a line of its own
+     */
+    gbuffer_t *gbuf = gbuffer_create(64, 64);
+    gbuffer_append_string(gbuf, "RX-PLAIN-FRAME-1password=Zq7Xw9Y\r\n");
+    s_rx_secret_seen = 0;
+    s_rx_masked_seen = 0;
+    s_rx_plain_seen = 0;
+    s_capturing = TRUE;
+    gobj_trace_dump_gbuf(0, gbuf, "a received frame");
+    gobj_trace_dump(0, gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf), "raw bytes");
+    s_capturing = FALSE;
+    GBUFFER_DECREF(gbuf)
+    check_true("the received frame is dumped", s_rx_plain_seen >= 2);
+    check_int("its credential is not", s_rx_secret_seen, 0);
+    check_true("the dump says how many bytes it masked", s_rx_masked_seen > 0);
 }
 
 /*
@@ -445,6 +504,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         case PHASE_INIT:
             check_gbuffer_wipe();
             check_gbuffer_append_and_serialize();
+            check_received_dump();
             priv->phase = PHASE_CONNECTING;
             s_capturing = TRUE;
             gobj_start(priv->clitcp);

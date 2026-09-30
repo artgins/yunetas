@@ -617,6 +617,50 @@ GBMEM_FREE(s)
 
 ---
 
+(mask_secrets_in_text)=
+## [`mask_secrets_in_text()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/helpers.c#L1599)
+
+The bytes of a traffic dump with the credentials that can be told soundly
+written as `*`, IN PLACE, the length kept (so the offsets and the rest of the
+dump stay as they were): the value of an HTTP `Cookie:`, `Set-Cookie:`,
+`Authorization:` or `Proxy-Authorization:` header (for the last two after the
+scheme: `Authorization: Bearer ******`); the value of a `name=value` whose
+name is a secret's ([`is_secret_name()`](#is_secret_name)), as in a query
+string, a form body or a command line; and the value of a json
+`"name": value` whose name is a secret's. The traffic dumps use it
+([`gobj_trace_dump()`](#gobj_trace_dump),
+[`gobj_trace_dump_gbuf()`](#gobj_trace_dump_gbuf),
+[`gobj_trace_dump_full_gbuf()`](#gobj_trace_dump_full_gbuf)) on a copy of
+what they dump.
+
+```C
+size_t mask_secrets_in_text(
+    char   *bf,     // modified in place
+    size_t  len
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `bf` | `char *` | The bytes, not NUL-terminated. Work on a COPY. |
+| `len` | `size_t` | The number of bytes. |
+
+**Returns**
+
+The number of bytes masked; `0` when there was nothing to mask.
+
+**Example**
+
+```C
+char text[] = "Cookie: sid=abc\r\n\r\nuser=bob&password=hunter2";
+mask_secrets_in_text(text, strlen(text));
+// "Cookie: *******\r\n\r\nuser=bob&password=*******"
+```
+
+---
+
 (nice_size)=
 ## [`nice_size()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/helpers.c#L1070)
 
