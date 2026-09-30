@@ -113,7 +113,11 @@ in place (since 7.25.9; in slices since 7.25.10):
 1. a WARNING, *"inotify IN_Q_OVERFLOW: events lost, rescanning the watched
    tree"*, with the watched `path`;
 2. the owner's callback is called ONCE with **`FS_OVERFLOW_TYPE`**
-   (`directory` = the watched path): do there what is global and cheap;
+   (`directory` = the watched path): do there what is global and cheap. An
+   owner may stop the watcher there (`fs_stop_watcher_event()`): then no
+   pass is started, and the watcher goes when the batch ends (up to 7.25.20
+   the pass was still set up -- its index built, its timer created and
+   armed -- and thrown away);
 3. a **pass** over the tree follows: every directory, the root included, is
    handed to the owner as **`FS_RESCAN_DIR_TYPE`** (`directory` = that
    directory) -- read it again, what it holds may never have been told. In a

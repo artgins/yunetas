@@ -516,6 +516,9 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         fs_event->filename = "";
         fs_event->callback(fs_event);
 
+        if(fs_event->stop_requested) {
+            return; // the owner stopped us: the watcher goes when the batch ends
+        }
         if(fs_event->rescan_dirs) {
             /*
              *  A pass is running: the directories it visited already may
