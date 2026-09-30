@@ -125,6 +125,7 @@ PRIVATE hgobj requester_of_answer(
     size_t dst_service_size
 );
 PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj requester);
+PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 PRIVATE void count_dropped_stream(
     hgobj gobj,
     gobj_event_t event,
@@ -2391,6 +2392,31 @@ PRIVATE hgobj requester_of_answer(
 }
 
 /***************************************************************************
+ *  What an agent sends back (an answer, a stream) is public for the
+ *  agents' sake, so a web client can send it too: it would be relayed by
+ *  the routing IT wrote, to another client. Taken only from __input_side__.
+ ***************************************************************************/
+PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->gobj_input_side) {
+        return TRUE;
+    }
+    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "event of an agent not from the agents' side, dropped",
+        "event",        "%s", event,
+        "src",          "%s", gobj_short_name(src),
+        "channel",      "%s", channel_gobj? gobj_short_name(channel_gobj) : "",
+        NULL
+    );
+    return FALSE;
+}
+
+/***************************************************************************
  *  Send `event` (kw owned) back to its requester, if it is listening
  ***************************************************************************/
 PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj requester)
@@ -2685,6 +2711,11 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    if(!is_from_agent_side(gobj, event, kw, src)) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
     char dst_service[NAME_MAX];
     hgobj gobj_requester = requester_of_answer(gobj, event, kw, dst_service, sizeof(dst_service));
     if(!gobj_requester) {
@@ -2704,13 +2735,18 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!is_from_agent_side(gobj, event, kw, src)) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
     /*
      *  The answer of a step of a scenario run: this gobj asked it, and
      *  only the agent of the step answers it
      */
     if(kw_get_dict_value(gobj, kw, "__md_iev__`cc_run", 0, 0)) {
         hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
-        if(priv->run && (src != priv->gobj_input_side || channel_gobj != priv->run_agent_channel)) {
+        if(priv->run && channel_gobj != priv->run_agent_channel) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL,
@@ -2746,6 +2782,11 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!is_from_agent_side(gobj, event, kw, src)) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
     char dst_service[NAME_MAX];
     hgobj gobj_requester = requester_of_answer(gobj, event, kw, dst_service, sizeof(dst_service));
     if(!gobj_requester) {
@@ -2770,6 +2811,11 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE int ac_tty_mirror_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    if(!is_from_agent_side(gobj, event, kw, src)) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
     gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(""));
     gobj_write_user_data(channel_gobj, "tty_mirror_dst_connection", json_integer(0));
@@ -2793,6 +2839,11 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!is_from_agent_side(gobj, event, kw, src)) {
+        KW_DECREF(kw);
+        return 0;
+    }
 
     char dst_service[NAME_MAX];
     BOOL reconnected;
@@ -2830,6 +2881,11 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
 PRIVATE int ac_yuno_stats_relay(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!is_from_agent_side(gobj, event, kw, src)) {
+        KW_DECREF(kw);
+        return 0;
+    }
 
     char dst_service[NAME_MAX];
     BOOL reconnected;

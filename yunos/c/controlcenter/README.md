@@ -125,7 +125,8 @@ A web client is told apart by its connection, not by its channel name (which
 the next client takes): answers (`command-agent`, `stats-agent`), streams (the
 PTY of `open-console`, `EV_YUNO_STATS`) and run answers reach the channel only
 while it holds the same connection (7.25.15 for the stats and the runs, since
-7.25.20 all of them). `write-scenarios` together with
+7.25.20 all of them). Those events are taken only from `__input_side__`: a web
+client that sends one itself is dropped with a warning. `write-scenarios` together with
 `run-scenarios` is as much as `command-agent`: the steps run on the control
 center's session.
 

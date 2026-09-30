@@ -28,7 +28,9 @@
  *                a stats' answer, the PTY mirror) reaches its channel only
  *                while it is the connection that asked: a closed channel's
  *                name is taken by the next client; and the agent's close
- *                drops the client of its console mirror, and only it.
+ *                drops the client of its console mirror, and only it;
+ *              - what only an agent sends, injected by a web client and
+ *                routed to another client, reaches nobody.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -747,6 +749,58 @@ PRIVATE int test_late_answers_to_another_client(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
+ *  6. A web client cannot send what only an agent sends: an answer or a
+ *     stream injected from __top_side__, routed by the client to another
+ *     client's channel and connection, reaches nobody
+ ***************************************************************************/
+PRIVATE int test_injected_agent_events(hgobj gobj, hgobj victim, hgobj attacker)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    gobj_event_t events[] = {
+        EV_MT_COMMAND_ANSWER,
+        EV_MT_STATS_ANSWER,
+        EV_TTY_OPEN,
+        EV_TTY_DATA,
+        EV_TTY_CLOSE,
+        EV_YUNO_STATS,
+        0
+    };
+    json_int_t victim_connection = json_integer_value(
+        gobj_read_user_data(victim, "cc_connection")
+    );
+    for(int i=0; events[i]; i++) {
+        json_t *kw = json_pack("{s:i, s:s, s:{s:[{s:s}, {s:s, s:I}]}, s:{s:I}}",
+            "result", 0,
+            "comment", "injected by a client",
+            "__md_iev__",
+                "ievent_gate_stack",
+                    "dst_service", gobj_name(victim),
+                    "dst_service", "gui",
+                    "cc_connection", victim_connection,
+            "__temp__",
+                "channel_gobj", (json_int_t)(uintptr_t)attacker
+        );
+        gobj_send_event(priv->cc, events[i], kw, priv->top_side);
+    }
+
+    json_t *received = take_received(victim);
+    if(json_array_size(received) != 0) {
+        char *s = json_dumps(received, JSON_COMPACT);
+        ret += fail(gobj, "what a client injected as an agent reached another client", s);
+        gbmem_free(s);
+    }
+    JSON_DECREF(received)
+    json_t *mirrors = gobj_read_user_data(attacker, "tty_mirrors");
+    if(json_object_size(mirrors) != 0 ||
+            !empty_string(json_string_value(gobj_read_user_data(attacker, "tty_mirror_dst_service")))) {
+        ret += fail(gobj, "a client's channel took a mirror it injected", "");
+    }
+    return ret;
+}
+
+/***************************************************************************
  *  All the tests
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -775,6 +829,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_save_refuses_framework_keys(gobj, client1);
     result += test_run_checks_old_scenarios(gobj, client1);
     result += test_forged_step_answers(gobj, client1, client2);
+    result += test_injected_agent_events(gobj, client1, client2);
     result += test_late_answers_to_another_client(gobj, client3);
 
     if(result == 0) {

@@ -138,6 +138,12 @@ dropped only if it is still the connection that opened it. Up to 7.25.20 only
 `EV_YUNO_STATS` and the run's answer were checked: a slow answer, or a PTY
 stream, of the client that left reached the next one.
 
+These events are public because the agents send them, but only an agent may:
+one that arrives from `__top_side__` -- a web client sending it itself, with a
+route of its own writing -- is dropped with a warning (*"event of an agent
+not from the agents' side, dropped"*). Up to 7.25.20 a client could push an
+answer or console frames of its making to any other client's channel.
+
 ## Scenarios (TreeDB)
 
 The control center's treedb, `treedb_controlcenter` (`schema_version` 3),

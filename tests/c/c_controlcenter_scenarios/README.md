@@ -45,6 +45,11 @@ the very same string, and the read looks right.
    `EV_TTY_CLOSE` are dropped with warnings, the agent's close drops nobody,
    and the new connection gets its own answer. Up to 7.25.20 all of them
    reached the new client.
+6. A web client sends, from `__top_side__`, each event only an agent sends
+   (`EV_MT_COMMAND_ANSWER`, `EV_MT_STATS_ANSWER`, `EV_TTY_OPEN`/`DATA`/`CLOSE`,
+   `EV_YUNO_STATS`), routed to another client's channel with that client's
+   connection: nothing reaches it, one warning each, and the sender's channel
+   takes no mirror. Up to 7.25.20 all six were delivered.
 
 ## Run
 
