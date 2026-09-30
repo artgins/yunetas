@@ -37,6 +37,7 @@
 #include <glob.h>
 
 #include "c_log_reader.h"
+#include "ip_literals.h"
 #include "c_webstats.h"
 
 /***************************************************************************
@@ -135,7 +136,6 @@ PRIVATE int accumulate_error_line(hgobj gobj, const char *line);
 PRIVATE int send_report(hgobj gobj);
 PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report);
 PRIVATE gbuffer_t *break_tag_lines(gbuffer_t *src);
-PRIVATE gbuffer_t *bracket_ip_literals(gbuffer_t *src);
 PRIVATE const char *latency_str(double v, char *bf, size_t bfsize);
 PRIVATE const char *human_bytes(json_int_t n, char *bf, size_t bfsize);
 PRIVATE int date_of(hgobj gobj, time_t t, char *bf, size_t bfsize);
@@ -3794,108 +3794,6 @@ PRIVATE gbuffer_t *break_tag_lines(gbuffer_t *src)
         gbuffer_append(dst, p+i, 1);
         if(p[i] == '>' && i+1 < len && p[i+1] == '<') {
             gbuffer_append(dst, "\n", 1);
-        }
-    }
-
-    return dst;
-}
-
-/***************************************************************************
- *  Write every IPv4 address of the text as [a.b.c.d].
- *
- *  MANDATORY for a mail body, like break_tag_lines(). OVH's outbound
- *  relay reads "34.140.132.132" as a Spanish phone number (+34 and nine
- *  digits), and in a report full of addresses marked "banned" that is
- *  enough for it to accept the mail (250 queued) and deliver it to NOBODY
- *  -- no bounce, no Junk, not at gmail or outlook either. Found on
- *  2026-09-30, bisecting wattyzer's report of 2026-09-29 down to one row
- *  of Top clients. Google Cloud addresses start with 34, so it comes back.
- *  Proven on the relay: [34.140.132.132] and 34.140.132.132/32 pass, and
- *  so does a middle dot; 34[.]140[.]132[.]132 -- the usual defang -- does
- *  NOT, nor does the last dot alone.
- *
- *  Only the TEXT between tags is touched, and only an address that stands
- *  on its own: one glued to a word, a slash or another dot is a version
- *  (Chrome/142.0.0.0), not an address. The stored record keeps the plain
- *  address; this is the mail's way of writing it.
- ***************************************************************************/
-PRIVATE BOOL ip_octet(const char *p, size_t len, size_t *used)
-{
-    size_t n = 0;
-    int value = 0;
-    while(n < len && n < 4 && p[n] >= '0' && p[n] <= '9') {
-        value = value*10 + (p[n] - '0');
-        n++;
-    }
-    if(n == 0 || n > 3 || value > 255) {
-        return FALSE;
-    }
-    *used = n;
-    return TRUE;
-}
-
-PRIVATE BOOL ip_neighbour(char c)
-{
-    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-           c == '.' || c == '/' || c == '_' || c == '-' || c == '[' || c == ']' || c == ':';
-}
-
-PRIVATE gbuffer_t *bracket_ip_literals(gbuffer_t *src)
-{
-    if(!src) {
-        return NULL;
-    }
-
-    char *p = gbuffer_cur_rd_pointer(src);
-    size_t len = gbuffer_leftbytes(src);
-
-    gbuffer_t *dst = gbuffer_create(len + len/8 + 1024, 16*1024*1024);
-    if(!dst) {
-        // Error already logged
-        return NULL;
-    }
-
-    BOOL in_tag = FALSE;
-    size_t i = 0;
-    while(i < len) {
-        char c = p[i];
-        if(c == '<') {
-            in_tag = TRUE;
-        } else if(c == '>') {
-            in_tag = FALSE;
-        }
-
-        size_t total = 0;
-        if(!in_tag && c >= '0' && c <= '9' && (i == 0 || !ip_neighbour(p[i-1]))) {
-            size_t at = i;
-            int octets = 0;
-            while(octets < 4) {
-                size_t used = 0;
-                if(!ip_octet(p+at, len-at, &used)) {
-                    break;
-                }
-                at += used;
-                octets++;
-                if(octets < 4) {
-                    if(at >= len || p[at] != '.') {
-                        break;
-                    }
-                    at++;
-                }
-            }
-            if(octets == 4 && (at >= len || !ip_neighbour(p[at]))) {
-                total = at - i;
-            }
-        }
-
-        if(total > 0) {
-            gbuffer_append(dst, "[", 1);
-            gbuffer_append(dst, p+i, total);
-            gbuffer_append(dst, "]", 1);
-            i += total;
-        } else {
-            gbuffer_append(dst, p+i, 1);
-            i++;
         }
     }
 
