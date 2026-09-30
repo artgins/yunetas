@@ -562,8 +562,9 @@ PRIVATE void send_close_frame(hgobj gobj, int status, const char *reason)
     uint32_t status_code;
 
     status_code = status;
-    if(status_code < STATUS_NORMAL || status_code >= STATUS_MAXIMUM)
+    if(status_code < STATUS_NORMAL || status_code >= STATUS_MAXIMUM) {
         status_code = STATUS_NORMAL;
+    }
     status_code = htons(status_code);
     _write_control_frame(gobj, TRUE, OPCODE_CONTROL_CLOSE, (char *)&status_code, 2);
 }
@@ -1051,8 +1052,9 @@ PRIVATE int frame_completed(hgobj gobj)
                 } else {
                     size_t ln = gbuffer_leftbytes(unmasked);
                     char *p=0;
-                    if(ln)
+                    if(ln) {
                         p = gbuffer_get(unmasked, ln);
+                    }
                     pong(gobj, p, ln);
                     gbuffer_decref(unmasked);
                     unmasked = 0;
@@ -1191,14 +1193,17 @@ PRIVATE int b64_encode_string(
                 triple[i] = *in++;
                 len++;
                 in_len--;
-            } else
+            } else {
                 triple[i] = 0;
+            }
         }
-        if (!len)
+        if (!len) {
             continue;
+        }
 
-        if (done + 4 >= out_size)
+        if (done + 4 >= out_size) {
             return -1;
+        }
 
         *out++ = encode[triple[0] >> 2];
         *out++ = encode[((triple[0] & 0x03) << 4) |
@@ -1210,8 +1215,9 @@ PRIVATE int b64_encode_string(
         done += 4;
     }
 
-    if (done + 1 >= out_size)
+    if (done + 1 >= out_size) {
         return -1;
+    }
 
     *out++ = '\0';
 

@@ -393,8 +393,10 @@ PRIVATE int linux_search_process(
     }
 
     /* The comm files include trailing newlines, so... */
-    procname = malloc(buflen);
+    procname = gbmem_malloc(buflen);
     if(!procname) {
+        // Error already logged
+        globfree(&pglob);
         return 0;
     }
     strcpy(procname, process_name);
@@ -402,9 +404,11 @@ PRIVATE int linux_search_process(
     procname[buflen - 1] = 0;
 
     /* readbuff will hold the contents of the comm files. */
-    readbuf = malloc(buflen);
+    readbuf = gbmem_malloc(buflen);
     if(!readbuf) {
-        free(procname);
+        // Error already logged
+        gbmem_free(procname);
+        globfree(&pglob);
         return 0;
     }
 
@@ -413,31 +417,35 @@ PRIVATE int linux_search_process(
         char *ret;
 
         /* Read the contents of the file. */
-        if ((comm = fopen(pglob.gl_pathv[i], "r")) == NULL)
+        if ((comm = fopen(pglob.gl_pathv[i], "r")) == NULL) {
             continue;
+        }
         ret = fgets(readbuf, buflen, comm);
         fclose(comm);
-        if (ret == NULL)
+        if (ret == NULL) {
             continue;
+        }
 
         /*
          *  If comm matches our process name, extract the process ID from the
          *  path, convert it to a pid_t, and call callback function.
         */
         int n = strlen(procname);
-        if(n > 15)
+        if(n > 15) {
             n = 15;
+        }
         if (strncmp(readbuf, procname, n) == 0) {
             pid = (pid_t)atoi(pglob.gl_pathv[i] + strlen("/proc/"));
-            if(cb)
+            if(cb) {
                 cb(self, procname, pid);
+            }
             found ++;
         }
     }
 
     /* Clean up. */
-    free(procname);
-    free(readbuf);
+    gbmem_free(procname);
+    gbmem_free(readbuf);
     globfree(&pglob);
 
     return found;

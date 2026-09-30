@@ -627,24 +627,27 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
     termios_settings.c_cflag = CREAD | CLOCAL;
 
     /* Databits */
-    if (bytesize == 5)
+    if (bytesize == 5) {
         termios_settings.c_cflag |= CS5;
-    else if (bytesize == 6)
+    } else if (bytesize == 6) {
         termios_settings.c_cflag |= CS6;
-    else if (bytesize == 7)
+    } else if (bytesize == 7) {
         termios_settings.c_cflag |= CS7;
-    else if (bytesize == 8)
+    } else if (bytesize == 8) {
         termios_settings.c_cflag |= CS8;
+    }
 
     /* Parity */
-    if (parity == PARITY_EVEN)
+    if (parity == PARITY_EVEN) {
         termios_settings.c_cflag |= PARENB;
-    else if (parity == PARITY_ODD)
+    } else if (parity == PARITY_ODD) {
         termios_settings.c_cflag |= (PARENB | PARODD);
+    }
 
     /* Stopbits */
-    if (stopbits == 2)
+    if (stopbits == 2) {
         termios_settings.c_cflag |= CSTOPB;
+    }
 
     /* RTS/CTS */
     if (rtscts) {

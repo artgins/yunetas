@@ -850,6 +850,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0 // gcflags
     );
     if(!__gclass__) {
+        // Error already logged
         return -1;
     }
 

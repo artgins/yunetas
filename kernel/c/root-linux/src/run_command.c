@@ -120,10 +120,12 @@ PUBLIC int run_process2(const char *path, char *const argv[])
         saDefault.sa_flags = 0;
         sigemptyset(&saDefault.sa_mask);
 
-        if (saOrigInt.sa_handler != SIG_IGN)
+        if (saOrigInt.sa_handler != SIG_IGN) {
             sigaction(SIGINT, &saDefault, NULL);
-        if (saOrigQuit.sa_handler != SIG_IGN)
+        }
+        if (saOrigQuit.sa_handler != SIG_IGN) {
             sigaction(SIGQUIT, &saDefault, NULL);
+        }
 
         sigprocmask(SIG_SETMASK, &origMask, NULL);
 

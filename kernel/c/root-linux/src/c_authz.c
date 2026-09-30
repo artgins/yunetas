@@ -3270,21 +3270,21 @@ PRIVATE int pbkdf2_any(
     upper_name[ni] = '\0';
 
     mbedtls_md_type_t pmd_type;
-    if(strcmp(upper_name, "SHA256") == 0 || strcmp(upper_name, "SHA-256") == 0)
+    if(strcmp(upper_name, "SHA256") == 0 || strcmp(upper_name, "SHA-256") == 0) {
         pmd_type = MBEDTLS_MD_SHA256;
-    else if(strcmp(upper_name, "SHA384") == 0 || strcmp(upper_name, "SHA-384") == 0)
+    } else if(strcmp(upper_name, "SHA384") == 0 || strcmp(upper_name, "SHA-384") == 0) {
         pmd_type = MBEDTLS_MD_SHA384;
-    else if(strcmp(upper_name, "SHA512") == 0 || strcmp(upper_name, "SHA-512") == 0)
+    } else if(strcmp(upper_name, "SHA512") == 0 || strcmp(upper_name, "SHA-512") == 0) {
         pmd_type = MBEDTLS_MD_SHA512;
-    else if(strcmp(upper_name, "SHA1") == 0 || strcmp(upper_name, "SHA-1") == 0)
+    } else if(strcmp(upper_name, "SHA1") == 0 || strcmp(upper_name, "SHA-1") == 0) {
         pmd_type = MBEDTLS_MD_SHA1;
-    else if(strcmp(upper_name, "SHA3-256") == 0)
+    } else if(strcmp(upper_name, "SHA3-256") == 0) {
         pmd_type = MBEDTLS_MD_SHA3_256;
-    else if(strcmp(upper_name, "SHA3-384") == 0)
+    } else if(strcmp(upper_name, "SHA3-384") == 0) {
         pmd_type = MBEDTLS_MD_SHA3_384;
-    else if(strcmp(upper_name, "SHA3-512") == 0)
+    } else if(strcmp(upper_name, "SHA3-512") == 0) {
         pmd_type = MBEDTLS_MD_SHA3_512;
-    else {
+    } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,

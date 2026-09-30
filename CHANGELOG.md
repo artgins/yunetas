@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### root-linux: the house rules, applied where an audit found them broken
+
+- **`search_process()` (behind `--stop`) allocates through `gbmem_*`** and no
+  longer leaks the `/proc/*/comm` glob when an allocation fails. The
+  executable-name check of `entry_point.c` takes `gbmem_strdup()` too. Both
+  pairs were balanced (no heap mixing), but they bypassed the allocator's
+  limits and `CONFIG_DEBUG_TRACK_MEMORY`.
+- **Braces on every body** in `c_authz.c`, `c_uart.c`, `c_websocket.c`,
+  `run_command.c`, `c_yuno.c`, `entry_point.c` and `ydaemon.c`, and
+  `// Error already logged` after the `gclass_create()` of `C_ASSETS`,
+  `C_AUTH_BFF`, `C_PROT_RAW` and `C_PTY`. No behaviour change: those files
+  compile to the same machine code as before.
+
 ## v7.25.15 (2026-09-30)
 
 A lite release (control center and agent only, rule of 2026-09-29): only

@@ -692,7 +692,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *  Paranoid!
      *----------------------------------------------*/
     if(1) {
-        char *xx = strdup(argv[0]);
+        char *xx = gbmem_strdup(argv[0]);
         if(xx) {
             char *bname = basename(xx);
             char *p = strrchr(bname, '.');
@@ -700,8 +700,9 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
                 *p = 0; // delete extensions (VOS and Windows)
             }
             p = strchr(bname, '^');
-            if(p)
+            if(p) {
                 *p = 0; // delete name segment
+            }
             if(strcmp(bname, yuno_role)!=0) {
                 print_error(
                     PEF_EXIT,
@@ -710,7 +711,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
                     bname
                 );
             }
-            free(xx);
+            gbmem_free(xx);
         }
     }
 

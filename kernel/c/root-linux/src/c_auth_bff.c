@@ -2921,6 +2921,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0                   /* gclass_flag */
     );
     if(!__gclass__) {
+        // Error already logged
         return -1;
     }
     return 0;

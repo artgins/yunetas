@@ -4909,8 +4909,9 @@ PRIVATE void read_uptime(unsigned long long *uptime)
     char line[128];
     unsigned long up_sec, up_cent;
 
-    if ((fp = fopen("/proc/uptime", "r")) == NULL)
+    if ((fp = fopen("/proc/uptime", "r")) == NULL) {
         return;
+    }
 
     if (fgets(line, sizeof(line), fp) == NULL) {
         fclose(fp);
