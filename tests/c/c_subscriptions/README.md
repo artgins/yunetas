@@ -24,10 +24,17 @@ Tests subscribe / unsubscribe / publish semantics of the GObj framework. Verifie
   the renamed kw and replaced it).
   `gobj_unsubscribe_list()` removes the subscription it is given: with a
   plain and a filtered subscription coexisting, a stale plain one (already
-  removed) removes nothing and is logged, and removing the live plain one
+  removed) removes nothing and is logged as a warning, and removing the live plain one
   leaves the filtered one in both lists (up to 7.25.20 the first entry
   whose fields matched was removed). A top-level `renamed_event` in the kw
   of `gobj_find_subscriptions()` filters nothing.
+  In the other order a plain kw is a wildcard: a plain subscription over a
+  renamed one replaces it, and a plain unsubscribe removes both. A
+  subscription withdrawn by the `mt_subscription_deleted()` of an entry
+  before it in the same unsubscribe is gone as asked, with no warning (it
+  is not taken for a hard subscription kept). A subscription the
+  publisher refuses (`mt_subscription_added()` answers -1) is not made and
+  leaks nothing (up to 7.25.20 each refusal leaked it).
 
 ## Run
 

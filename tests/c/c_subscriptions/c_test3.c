@@ -61,6 +61,21 @@
  *         plain subscription is found. Only a `__rename_event_name__` in
  *         the `__config__` of a (un)subscription selects by renamed event.
  *
+ *     10) The same two, in the other order. A plain kw is a WILDCARD over
+ *         the kw keys it does not set: a plain subscription over a renamed
+ *         one matches it as a repeat, and replaces it (the REPEATED
+ *         warning, one subscription, the plain one); a plain unsubscribe
+ *         removes the plain and the renamed one alike.
+ *
+ *     11) A subscription withdrawn by the mt_subscription_deleted() of an
+ *         entry before it in the same unsubscribe is gone as asked: no
+ *         warning, and it is not taken for a hard subscription kept
+ *         ("Hard subscription not removed").
+ *
+ *     12) A subscription the publisher refuses (mt_subscription_added()
+ *         answers -1) is not made, and leaks nothing. Up to 7.25.20 its
+ *         creation reference was never dropped.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -118,6 +133,8 @@ typedef struct _PRIVATE_DATA {
     int received;                   // EV_ON_MESSAGE received
     int renamed;                    // EV_TEST_RENAMED received, from EV_ON_MESSAGE
     int renamed2;                   // EV_TEST_RENAMED2 received, from EV_ON_MESSAGE
+    json_t *withdraw_on_delete;     // (11) withdrawn when another is deleted
+    BOOL refuse_subscriptions;      // (12) mt_subscription_added() answers -1
 } PRIVATE_DATA;
 
 
@@ -180,6 +197,40 @@ PRIVATE int mt_play(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_pause(hgobj gobj)
 {
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method subscription_added
+ ***************************************************************************/
+PRIVATE int mt_subscription_added(hgobj gobj, json_t *subs)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->refuse_subscriptions) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "subscription refused by the test",
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method subscription_deleted
+ ***************************************************************************/
+PRIVATE int mt_subscription_deleted(hgobj gobj, json_t *subs)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *withdraw = priv->withdraw_on_delete;
+    if(withdraw && withdraw != subs) {
+        priv->withdraw_on_delete = NULL;
+        gobj_unsubscribe_list(gobj, json_pack("[O]", withdraw), FALSE);
+    }
     return 0;
 }
 
@@ -382,7 +433,7 @@ PRIVATE int ac_test_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_publish_event(gobj, EV_ON_MESSAGE, json_object());
     check(gobj, priv->received == 1 && priv->renamed2 == 1, "each event arrives once, plain and renamed");
 
-    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, kw_rename_bare, gobj);
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_rename_bare), gobj);
     check(gobj, count_subscriptions(gobj) == 1, "the renamed kw withdraws only the renamed one");
     priv->received = 0;
     priv->renamed2 = 0;
@@ -512,6 +563,71 @@ PRIVATE int ac_test_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         NULL
     );
 
+    /*
+     *  10) The other order: plain over renamed replaces it, and a plain
+     *      unsubscribe removes both
+     */
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_rename_bare), gobj);
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    check(gobj, count_subscriptions(gobj) == 1, "a plain subscription over a renamed one replaces it");
+    priv->received = 0;
+    priv->renamed2 = 0;
+    gobj_publish_event(gobj, EV_ON_MESSAGE, json_object());
+    check(gobj, priv->received == 1 && priv->renamed2 == 0, "the one left is the plain one");
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    check(gobj, count_subscriptions(gobj) == 0, "the plain one is removed (10)");
+
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, json_incref(kw_rename_bare), gobj);
+    check(gobj, count_subscriptions(gobj) == 2, "plain then renamed are two (10)");
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    check(gobj, count_subscriptions(gobj) == 0, "a plain unsubscribe removes the plain and the renamed one");
+    JSON_DECREF(kw_rename_bare)
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "plain over renamed ok",
+        NULL
+    );
+
+    /*
+     *  11) Withdrawn by the mt_subscription_deleted() of an entry before it
+     */
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    priv->withdraw_on_delete = gobj_subscribe_event(
+        gobj, EV_ON_MESSAGE, json_pack("{s:{s:b}}", "__filter__", "wanted", 1), gobj
+    );
+    check(gobj, count_subscriptions(gobj) == 2, "a plain and a filtered subscription (11)");
+    gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    check(gobj, count_subscriptions(gobj) == 0 && count_subscribings(gobj) == 0,
+        "both are gone, the second one withdrawn by the first one's deletion");
+    check(gobj, priv->withdraw_on_delete == NULL, "mt_subscription_deleted() withdrew it");
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "withdrawn meanwhile ok",
+        NULL
+    );
+
+    /*
+     *  12) A refused subscription is not made, and leaks nothing
+     */
+    priv->refuse_subscriptions = TRUE;
+    json_t *subs_refused = gobj_subscribe_event(gobj, EV_ON_MESSAGE, NULL, gobj);
+    priv->refuse_subscriptions = FALSE;
+    check(gobj, subs_refused == NULL, "a refused subscription is not returned");
+    check(gobj, count_subscriptions(gobj) == 0 && count_subscribings(gobj) == 0,
+        "a refused subscription is in no list");
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "refused subscription ok",
+        NULL
+    );
+
     set_yuno_must_die();
 
     KW_DECREF(kw)
@@ -579,6 +695,8 @@ PRIVATE const GMETHODS gmt = {
     .mt_stop    = mt_stop,
     .mt_play    = mt_play,
     .mt_pause   = mt_pause,
+    .mt_subscription_added = mt_subscription_added,
+    .mt_subscription_deleted = mt_subscription_deleted,
 };
 
 /*------------------------*

@@ -8783,7 +8783,11 @@ PRIVATE int _get_subs_idx(
 }
 
 /***************************************************************************
- *  Delete subscription in publisher and subscriber
+ *  Delete subscription in publisher and subscriber.
+ *  Return 0 removed, -1 a hard one kept (only `force` removes it), 1 it
+ *  was not there any more: already removed, as a stale reference is, or by
+ *  the mt_subscription_deleted() of an earlier entry of the same list. The
+ *  caller says which is an error.
  ***************************************************************************/
 PRIVATE int _delete_subscription(
     gobj_t * gobj,
@@ -8806,26 +8810,26 @@ PRIVATE int _delete_subscription(
         }
     }
 
+    BOOL trace = __trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher);
+
     /*-------------------------------------------------*
      *  A subscription already removed is not informed
      *-------------------------------------------------*/
     if(_get_subs_idx(publisher->dl_subscriptions, subs) < 0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "subscription in publisher not found",
-            "event",        "%s", event,
-            "publisher",    "%s", gobj_full_name(publisher),
-            "subscriber",   "%s", gobj_full_name(subscriber),
-            NULL
-        );
-        return -1;
+        if(trace) {
+            trace_machine(
+                "💜💜👎 unsubscribing event '%s': publisher %s, subscriber %s, ALREADY REMOVED",
+                event?event:"",
+                gobj_short_name(publisher),
+                gobj_short_name(subscriber)
+            );
+        }
+        return 1;
     }
 
     /*-----------------------------*
      *          Trace
      *-----------------------------*/
-    BOOL trace = __trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher);
     if(trace) {
         trace_machine(
             "💜💜👎 unsubscribing event '%s': publisher %s, subscriber %s",
@@ -9156,12 +9160,19 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
             subs
         );
         if(result < 0) {
+            /*
+             *  Refused (the publisher says why). The reference of the
+             *  creation goes with it: up to 7.25.20 subs was set to 0 before
+             *  its decref, and every refused subscription leaked.
+             */
             _delete_subscription(publisher, subs, TRUE, TRUE);
-            subs = 0;
+            JSON_DECREF(subs)
+            JSON_DECREF(kw)
+            return 0;
         }
     }
 
-    json_decref(subs);
+    json_decref(subs);  // it stays in the two lists: the return is not yours
     json_decref(kw);
     return subs;
 }
@@ -9265,13 +9276,21 @@ PUBLIC int gobj_unsubscribe_event(
     );
     int deleted = 0;
     int kept_hard = 0;
+    int already_removed = 0;
 
     size_t idx; json_t *subs;
     json_array_foreach(dl_subs, idx, subs) {
-        if(_delete_subscription(publisher, subs, FALSE, FALSE) == 0) {
+        int ret = _delete_subscription(publisher, subs, FALSE, FALSE);
+        if(ret == 0) {
             deleted++;
-        } else {
+        } else if(ret < 0) {
             kept_hard++;    // a hard subscription goes only with force
+        } else {
+            /*
+             *  Withdrawn meanwhile, by the mt_subscription_deleted() of an
+             *  entry before it: gone, as asked, and no hard one kept
+             */
+            already_removed++;
         }
     }
 
@@ -9289,7 +9308,7 @@ PUBLIC int gobj_unsubscribe_event(
             "subscriber",   "%s", gobj_full_name(subscriber),
             NULL
         );
-    } else if(!deleted) {
+    } else if(!deleted && !already_removed) {
         gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
@@ -9318,9 +9337,27 @@ PUBLIC int gobj_unsubscribe_list(
 {
     json_t *dl = json_copy(dl_subs);
 
+    int already_removed = 0;
     size_t idx; json_t *subs=0;
     json_array_foreach(dl, idx, subs) {
-        _delete_subscription(gobj, subs, force, FALSE);
+        if(_delete_subscription(gobj, subs, force, FALSE) > 0) {
+            already_removed++;
+        }
+    }
+    if(already_removed) {
+        /*
+         *  A stale reference, or one the mt_subscription_deleted() of an
+         *  entry before it withdrew: nothing to remove, and no live
+         *  subscription is taken in its place
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Subscription(s) already removed, nothing to remove",
+            "count",        "%d", already_removed,
+            "gobj",         "%s", gobj_full_name(gobj),
+            NULL
+        );
     }
     JSON_DECREF(dl_subs)
     JSON_DECREF(dl)
