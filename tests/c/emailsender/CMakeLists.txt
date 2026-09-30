@@ -53,6 +53,7 @@ SET(SRCS
     pause_in_flight
     shutdown_in_flight
     set_url_stash
+    no_recipients
 )
 
 ##############################################

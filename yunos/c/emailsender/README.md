@@ -55,6 +55,11 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   code is carried up from `C_SMTP_SESSION` (via `EV_ON_CLOSE` for mid-transaction
   drops, `EV_ON_MESSAGE` for the DATA ack); `code in [500,600)` ⇒ permanent.
 - **Bad content** (MIME build / recipient parse failures) → permanent, dead-letter.
+  A message the session cannot send at all (no valid recipient, no sender) is
+  answered once, with `EV_ON_MESSAGE` `{ok: false, permanent: true}`; a send the
+  session does not take (`-1`) is not answered, and the message waits at the
+  head of the queue, no retry spent. Up to 7.25.20 the refusal was answered AND
+  returned -1, and the message was resolved twice.
 - **Rejected credentials** (a `5xx` to `AUTH PLAIN`: `535`, `534`, `530`,
   `538`, ...) → the yuno logs one ERROR, with the server's reply text, and
   **exits with code 0** (`LOG_OPT_EXIT_ZERO`), so neither the watcher nor the

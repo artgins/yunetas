@@ -1224,11 +1224,22 @@ PRIVATE int tira_dela_cola(hgobj gobj)
     int ret = gobj_send_event(priv->smtp, EV_SEND_MESSAGE, kw_send, gobj);
     if(ret < 0) {
         /*
-         *  SMTP child not in ST_IDLE (raced a close between the dequeue guard
-         *  and here). Transient: retry on the next dequeue / reconnect.
+         *  The session did NOT take the message (it holds another one, or
+         *  it is in a state that takes none): nothing will answer for it.
+         *  It stays at the head of the queue, no retry spent, and goes at
+         *  the next EV_ON_OPEN, EV_ON_CLOSE or email queued. Not retried
+         *  here: in the same instant it would be refused again.
+         *
+         *  A message the session takes and cannot send is answered by its
+         *  EV_ON_MESSAGE, inside the send above, and resolved there, once.
+         *  Up to 7.25.20 that answer came AND the send returned -1, and the
+         *  message was resolved here a second time, freed by then.
          */
-        priv->qmsg_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, FALSE);
+        // Error already logged
+        if(qmsg_for_fail == priv->qmsg_cur_email) {
+            priv->qmsg_cur_email = NULL;
+            gobj_change_state(gobj, ST_IDLE);
+        }
     }
 
     return 0;
@@ -1533,6 +1544,13 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             q_msg_t *qmsg = priv->qmsg_cur_email;
             priv->qmsg_cur_email = NULL;
             process_smtp_response(gobj, qmsg, -1, permanent);
+
+        } else if(gobj_in_this_state(gobj, ST_IDLE)) {
+            /*
+             *  Nothing in flight: a message the session did not take (see
+             *  tira_dela_cola) may be waiting at the head of the queue.
+             */
+            tira_dela_cola(gobj);
         }
     }
 
@@ -1542,7 +1560,9 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  EV_ON_MESSAGE callback from the SMTP child. kw carries {ok: bool,
- *  code: int}. ok=true → email sent; ok=false → enqueue to failed.
+ *  code: int, permanent: bool}. ok=true → email sent; ok=false → a 5xx or
+ *  `permanent` (the message cannot be sent at all: no recipient) goes to
+ *  the failed queue, anything else is retried.
  ***************************************************************************/
 PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -1562,7 +1582,10 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     BOOL ok = kw_get_bool(gobj, kw, "ok", 0, 0);
     int code = (int)kw_get_int(gobj, kw, "code", 0, 0);
-    BOOL permanent = (!ok && code >= 500 && code < 600);
+    BOOL permanent = !ok && (
+        (code >= 500 && code < 600) ||
+        kw_get_bool(gobj, kw, "permanent", 0, 0)    // it cannot be sent at all
+    );
 
     q_msg_t *qmsg = priv->qmsg_cur_email;
     priv->qmsg_cur_email = NULL;

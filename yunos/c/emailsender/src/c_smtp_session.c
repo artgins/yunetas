@@ -78,6 +78,7 @@ PRIVATE int send_next_rcpt_or_data(hgobj gobj);
 PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg);
 PRIVATE int dot_stuff_into(gbuffer_t *out, const char *body, size_t len);
 PRIVATE void cleanup_current_message(hgobj gobj);
+PRIVATE int fail_current_message(hgobj gobj, const char *reason);
 PRIVATE int abort_session_by_peer(hgobj gobj, const char *reason, int code, const char *reply);
 PRIVATE int abort_session_on_error(hgobj gobj, const char *reason);
 PRIVATE int drop_session(hgobj gobj, const char *reply);
@@ -438,13 +439,7 @@ PRIVATE int begin_send_current_message(hgobj gobj)
     }
     const char *from = kw_get_str(gobj, priv->jn_current_msg, "from", "", 0);
     if(empty_string(from)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "EV_SEND_MESSAGE without 'from'",
-            NULL
-        );
-        return -1;
+        return fail_current_message(gobj, "EV_SEND_MESSAGE without 'from'");
     }
 
     char line[LINE_BUFFER_MAX];
@@ -631,6 +626,39 @@ PRIVATE void cleanup_current_message(hgobj gobj)
     JSON_DECREF(priv->jn_current_msg)
     JSON_DECREF(priv->jn_recipients)
     priv->recipient_index = 0;
+}
+
+/***************************************************************************
+ *  The message in hand cannot be sent, whatever the server says (no
+ *  recipient, no sender): it is answered, once, with EV_ON_MESSAGE
+ *  {ok: false, permanent: true}, and dropped. The session stays as it is.
+ *
+ *  That answer is the ONLY one: whoever sent the message is resolved by
+ *  it, and must not resolve it again by the return of its send. Up to
+ *  7.25.20 ac_send_message() published the answer AND returned -1: the
+ *  emailsender resolved the message twice, re-sending it from inside the
+ *  first answer until the failed queue freed it, and then touched it.
+ *  The reason is a WARNING: it is the content of the message, not a
+ *  failure of ours, and the emailsender logs what it does with it.
+ ***************************************************************************/
+PRIVATE int fail_current_message(hgobj gobj, const char *reason)
+{
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", reason,
+        NULL
+    );
+
+    cleanup_current_message(gobj);
+
+    json_t *kw_ack = json_pack("{s:b, s:i, s:b}",
+        "ok", 0,
+        "code", 0,
+        "permanent", 1
+    );
+    gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
+    return -1;
 }
 
 /***************************************************************************
@@ -1206,53 +1234,47 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *
  *  If we are not authenticated yet, stash the message and the handshake
  *  loop will pick it up on entry to ST_IDLE.
+ *
+ *  A message taken is answered exactly once, by EV_ON_MESSAGE (a reply to
+ *  its DATA, or a message that cannot be sent at all) or by EV_ON_CLOSE (the
+ *  session ended with it in hand), and the return is 0. -1 means the message
+ *  was NOT taken, and nothing will answer for it.
  ***************************************************************************/
 PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->jn_current_msg) {
+        /*
+         *  Our owner's contract is broken: one message at a time. The
+         *  message is refused by the return only, with no answer: the
+         *  answers that will come are the ones of the message in hand.
+         */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "EV_SEND_MESSAGE while another message in flight",
             NULL
         );
-        json_t *kw_ack = json_pack("{s:b, s:i}",
-            "ok", 0,
-            "code", 0
-        );
-        gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
-        KW_DECREF(kw)
-        return -1;
-    }
-
-    json_t *jn_rcpts = gather_recipients(gobj, kw);
-    if(!jn_rcpts) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "EV_SEND_MESSAGE has no valid recipients",
-            NULL
-        );
-        json_t *kw_ack = json_pack("{s:b, s:i}",
-            "ok", 0,
-            "code", 0
-        );
-        gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
         KW_DECREF(kw)
         return -1;
     }
 
     JSON_INCREF(kw)
     priv->jn_current_msg = kw;
-    priv->jn_recipients = jn_rcpts;
     priv->recipient_index = 0;
 
-    if(gobj_current_state(gobj) == ST_IDLE && !priv->detached) {
-        int ret = begin_send_current_message(gobj);
+    priv->jn_recipients = gather_recipients(gobj, kw);
+    if(!priv->jn_recipients) {
+        fail_current_message(gobj, "EV_SEND_MESSAGE has no valid recipients");
         KW_DECREF(kw)
-        return ret;
+        return 0;   // answered, see fail_current_message()
+    }
+
+    if(gobj_current_state(gobj) == ST_IDLE && !priv->detached) {
+        begin_send_current_message(gobj);   // a failure is answered by EV_ON_MESSAGE or EV_ON_CLOSE
+        KW_DECREF(kw)
+        return 0;
     }
 
     /*
