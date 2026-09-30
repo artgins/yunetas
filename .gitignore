@@ -3,7 +3,9 @@ VERSION_INSTALLED.txt
 VERSION_INSTALLED_MUSL.txt
 .vite/
 chatgpt/
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 Testing/
 assets/
 build_musl/

@@ -704,6 +704,29 @@ yunetas test     # ctest
 The artifacts go to `$YUNETAS_OUTPUTS/`, which is `$YUNETAS_BASE/outputs/`.
 The subdirectories are `include/`, `lib/`, `bin/` and `yunos/`.
 
+**Raise the inotify limits before `yunetas test`.** timeranger2 opens one
+inotify instance per watched topic (the master's watch of `disks/`, and one per
+`rt_disk` reader), and all of them count against ONE per-user limit. The Linux
+default is 128, and some treedb tests open more than that in one process: they
+fail with *"inotify_init1() FAILED"*, errno 24, *"The user limit on the total
+number of INOTIFY INSTANCES has been reached"*. A node installed from the
+`.deb`/`.rpm` already has the right values (`/etc/sysctl.d/99-yuneta-core.conf`);
+a machine that only builds from source needs them set by hand:
+
+```bash
+sudo tee /etc/sysctl.d/99-yuneta-inotify.conf <<'EOF'
+fs.inotify.max_user_instances = 4096
+fs.inotify.max_user_watches = 524288
+fs.inotify.max_queued_events = 65536
+EOF
+sudo sysctl --system
+```
+
+Run the tests as the `yuneta` user (step 1), never as root: a yuno refuses to
+start for a user that is not `yuneta` and not in the `yuneta` group, and a run
+as root leaves `root`-owned state under `/yuneta` and `/tmp` that makes the
+next run as `yuneta` fail with *Permission denied*.
+
 #### External projects
 
 The `yunetas` CLI can also build your own projects. A project is any repo
