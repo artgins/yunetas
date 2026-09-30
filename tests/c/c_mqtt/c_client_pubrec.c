@@ -28,12 +28,12 @@
 #include <c_prot_mqtt2.h>
 #include "c_fake_transport.h"
 #include "c_client_pubrec.h"
+#include "test_work_dir.h"
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
 #define UNKNOWN_MID         77
-#define QUEUES_DIR          "/tmp/test_mqtt_client_pubrec/qmsgs"
 
 /*
  *  Shared with main_client_pubrec.c, which scans the log for it
@@ -103,11 +103,13 @@ PRIVATE void mt_create(hgobj gobj)
     priv->publish_mid = -1;
     priv->disconnect_reason = -1;
 
+    char queues_dir[PATH_MAX];
+    build_path(queues_dir, sizeof(queues_dir), test_work_dir(), "qmsgs", NULL);
     priv->gobj_tranger = gobj_create_service(
         "tranger_queues",
         C_TRANGER,
         json_pack("{s:s, s:b}",
-            "path", QUEUES_DIR,
+            "path", queues_dir,
             "master", 1
         ),
         gobj

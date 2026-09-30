@@ -87,6 +87,13 @@ Then a QoS 1 PUBLISH of the client, and PUBREC of it: *"QoS mismatch"*, a
 WARNING that must name the client (`client_id`, checked in the log), and
 DISCONNECT 0x82.
 
+The tests that keep a store (`acl`, `queued_in`, `client_queues`,
+`out_flight`, `wrong_ack`, `legacy_prot`, `client_pubrec`) work in a dir of
+their own run, `<$TMPDIR or /tmp>/test_mqtt_<name>.<pid>.<n>`
+(`test_work_dir.c`), removed at the end; each binary has a port of its own.
+So they run at once (`ctest -j`). Up to 7.25.20 each wiped a fixed
+`/tmp/test_mqtt_<name>` at its start.
+
 ## Run
 
 ```bash

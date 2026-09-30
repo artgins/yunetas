@@ -10,6 +10,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
+#include "test_work_dir.h"
 #include <c_prot_mqtt2.h>
 #include "c_fake_transport.h"
 #include "c_client_pubrec.h"
@@ -30,7 +31,7 @@
 #define MEM_SUPERBLOCK          0
 #define MEM_MAX_SYSTEM_MEMORY   0
 
-#define WORK_DIR        "/tmp/test_mqtt_client_pubrec"
+#define WORK_DIR        "@WORK_DIR@"   // placeholder: the dir of this run (test_work_dir.c)
 
 /***************************************************************************
  *                      Default config
@@ -77,6 +78,7 @@ PRIVATE char variable_config[]= "\
     ]                                                               \n\
 }                                                                   \n\
 ";
+PRIVATE char variable_config_run[sizeof(variable_config) + PATH_MAX]; // WORK_DIR replaced by the dir of this run
 
 /***************************************************************************
  *  Authz checker: allow everything in the self-contained test
@@ -224,7 +226,13 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *  Fresh work_dir every run
      *------------------------------------------------*/
-    rmrdir(WORK_DIR);
+    if(!test_work_dir_create("test_mqtt_client_pubrec")) {
+        return -1;  // Error already said
+    }
+    if(test_work_dir_config(variable_config_run, sizeof(variable_config_run), variable_config, WORK_DIR) < 0) {
+        test_work_dir_remove();
+        return -1;  // Error already said
+    }
 
     /*------------------------------------------------*
      *      Memory leak check
@@ -236,7 +244,7 @@ int main(int argc, char *argv[])
      *          Start yuneta
      *------------------------------------------------*/
     helper_quote2doublequote(fixed_config);
-    helper_quote2doublequote(variable_config);
+    helper_quote2doublequote(variable_config_run);
     yuneta_setup(
         NULL,       // persistent_attrs
         NULL,       // command_parser
@@ -254,10 +262,12 @@ int main(int argc, char *argv[])
         argc, argv,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
-        variable_config,
+        variable_config_run,
         register_yuno_and_more,
         cleaning
     );
+
+    test_work_dir_remove();
 
     if(get_cur_system_memory() != 0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);

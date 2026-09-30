@@ -67,7 +67,7 @@ SET(SRCS
 ##############################################
 foreach(test ${SRCS})
     set(binary "test_mqtt_${test}")
-    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c" c_fake_transport.c)
+    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c" c_fake_transport.c test_work_dir.c)
 
     if(CONFIG_FULLY_STATIC)
         set_target_properties(${binary} PROPERTIES

@@ -16,6 +16,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
+#include "test_work_dir.h"
 #include <c_mqtt_broker.h>
 #include <c_prot_mqtt2.h>
 #include "c_out_flight.h"
@@ -37,10 +38,10 @@
 #define MEM_MAX_SYSTEM_MEMORY   0
 
 /*
- *  Dedicated work_dir, wiped at start so the broker's sessions and
- *  queues are fresh every run
+ *  A work_dir of this run (test_work_dir.c), removed at the
+ *  end: fresh every run, and two runs at once do not share it
  */
-#define WORK_DIR        "/tmp/test_mqtt_out_flight"
+#define WORK_DIR        "@WORK_DIR@"   // placeholder: the dir of this run (test_work_dir.c)
 #define MQTT_TEST_PORT  "18114"
 
 /***************************************************************************
@@ -165,6 +166,7 @@ PRIVATE char variable_config[]= "\
     ]                                                               \n\
 }                                                                   \n\
 ";
+PRIVATE char variable_config_run[sizeof(variable_config) + PATH_MAX]; // WORK_DIR replaced by the dir of this run
 
 /***************************************************************************
  *  Authz checker: allow everything in the self-contained test
@@ -262,7 +264,13 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *  Fresh treedb store every run
      *------------------------------------------------*/
-    rmrdir(WORK_DIR);
+    if(!test_work_dir_create("test_mqtt_out_flight")) {
+        return -1;  // Error already said
+    }
+    if(test_work_dir_config(variable_config_run, sizeof(variable_config_run), variable_config, WORK_DIR) < 0) {
+        test_work_dir_remove();
+        return -1;  // Error already said
+    }
 
     /*------------------------------------------------*
      *      Memory leak check
@@ -274,7 +282,7 @@ int main(int argc, char *argv[])
      *          Start yuneta
      *------------------------------------------------*/
     helper_quote2doublequote(fixed_config);
-    helper_quote2doublequote(variable_config);
+    helper_quote2doublequote(variable_config_run);
     yuneta_setup(
         NULL,       // persistent_attrs
         NULL,       // command_parser
@@ -292,10 +300,12 @@ int main(int argc, char *argv[])
         argc, argv,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
-        variable_config,
+        variable_config_run,
         register_yuno_and_more,
         cleaning
     );
+
+    test_work_dir_remove();
 
     if(get_cur_system_memory() != 0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);

@@ -44,11 +44,11 @@
 #include <yunetas.h>
 #include <c_prot_mqtt2.h>
 #include "c_client_queues.h"
+#include "test_work_dir.h"
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define QUEUES_PATH     "/tmp/test_mqtt_client_queues"
 #define OUT_MESSAGES    22
 #define EXPIRING        21      // the message that expires while queued
 
@@ -161,9 +161,9 @@ PRIVATE int mt_play(hgobj gobj)
     /*
      *  The queues of the client
      */
-    rmrdir(QUEUES_PATH);
+    rmrdir(test_work_dir());
     priv->tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b}",
-        "path", QUEUES_PATH,
+        "path", test_work_dir(),
         "database", "queues",
         "master", 1
     ), 0);
