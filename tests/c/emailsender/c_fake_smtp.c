@@ -18,6 +18,13 @@
  *          message delivered: time for the client to read the 250 and say
  *          so.
  *
+ *          With `banner_delay` the 220 greeting waits that many ms after the
+ *          connection: the client stays in its handshake that long. With
+ *          `notify_service` that service is sent EV_FAKE_CLIENT_CONNECTED
+ *          `notify_delay` ms after a client connects (and before the
+ *          greeting, which then waits banner_delay more), so a test can act
+ *          DURING the handshake.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -44,6 +51,7 @@ PRIVATE int process_line(hgobj gobj, const char *line);
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+GOBJ_DEFINE_EVENT(EV_FAKE_CLIENT_CONNECTED);
 
 /*---------------------------------------------*
  *      Attributes
@@ -51,6 +59,9 @@ PRIVATE int process_line(hgobj gobj, const char *line);
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description--*/
 SDATA (DTP_LIST,        "auth_replies",     SDF_RD,             "[\"235 2.7.0 Authentication successful\"]", "Answers to AUTH, one per AUTH, the last one repeated"),
+SDATA (DTP_INTEGER,     "banner_delay",     SDF_RD,             "0",        "ms to wait before greeting a client with 220"),
+SDATA (DTP_INTEGER,     "notify_delay",     SDF_RD,             "500",      "ms after a connection to tell notify_service"),
+SDATA (DTP_STRING,      "notify_service",   SDF_RD,             "",         "service told of each client connected (EV_FAKE_CLIENT_CONNECTED)"),
 SDATA (DTP_BOOLEAN,     "die_on_delivery",  SDF_RD,             "1",        "End the yuno a second after a message is delivered"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
@@ -69,6 +80,8 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj tcp;
+    BOOL notify_pending;
+    BOOL banner_pending;
     BOOL in_data;
     size_t auth_count;
     char line[LINE_MAX];
@@ -232,7 +245,21 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->tcp = src;
     priv->in_data = FALSE;
     priv->line_len = 0;
-    send_reply(gobj, "220 fake.smtp ESMTP");
+
+    if(!empty_string(gobj_read_str_attr(gobj, "notify_service"))) {
+        priv->notify_pending = TRUE;
+        set_timeout(priv->timer, gobj_read_integer_attr(gobj, "notify_delay"));
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    json_int_t banner_delay = gobj_read_integer_attr(gobj, "banner_delay");
+    if(banner_delay > 0) {
+        priv->banner_pending = TRUE;
+        set_timeout(priv->timer, banner_delay);
+    } else {
+        send_reply(gobj, "220 fake.smtp ESMTP");
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -277,10 +304,42 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  A message was delivered a second ago: end the test
+ *  In order: tell notify_service of the client, then greet it, then (a
+ *  second after a message was delivered) end the test
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->notify_pending) {
+        priv->notify_pending = FALSE;
+        gobj_send_event(
+            gobj_find_service(gobj_read_str_attr(gobj, "notify_service"), TRUE),
+            EV_FAKE_CLIENT_CONNECTED, 0, gobj
+        );
+        json_int_t banner_delay = gobj_read_integer_attr(gobj, "banner_delay");
+        if(banner_delay > 0) {
+            priv->banner_pending = TRUE;
+            set_timeout(priv->timer, banner_delay);
+        } else {
+            send_reply(gobj, "220 fake.smtp ESMTP");
+        }
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    if(priv->banner_pending) {
+        priv->banner_pending = FALSE;
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Fake smtp: greeting after the delay",
+            NULL
+        );
+        send_reply(gobj, "220 fake.smtp ESMTP");
+        KW_DECREF(kw)
+        return 0;
+    }
+
     set_yuno_must_die();
 
     KW_DECREF(kw)

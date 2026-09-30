@@ -48,6 +48,7 @@ SET(SRCS
     auth_rejected
     set_email_user
     set_url_running
+    send_in_handshake
 )
 
 ##############################################

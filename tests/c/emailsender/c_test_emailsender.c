@@ -4,8 +4,11 @@
  *          Drives emailsender (or its SMTP session) against the fake SMTP
  *          server (C_FAKE_SMTP), one scenario per test:
  *
- *          "send"      send one email through the `emailsender` service.
- *                      The fake server ends the yuno when it is delivered.
+ *          "send"      send one email through the `emailsender` service,
+ *                      at the play, or with `send_on_connect` when the
+ *                      fake server says a client connected (the SMTP
+ *                      session is in its handshake then). The fake server
+ *                      ends the yuno when it is delivered.
  *          "set_user"  the `emailsender` service starts with no credentials
  *                      and a url where nobody listens: set-email-user gives
  *                      it the credentials AND the url of the fake server,
@@ -31,6 +34,7 @@
 #include <string.h>
 
 #include <c_smtp_session.h>
+#include "c_fake_smtp.h"
 #include "c_test_emailsender.h"
 
 /***************************************************************************
@@ -62,6 +66,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description--*/
 SDATA (DTP_STRING,      "scenario",         SDF_RD,             "send",     "send, set_user, set_url or session"),
 SDATA (DTP_STRING,      "smtp_url",         SDF_RD,             "",         "url of the fake server (set_user, set_url, session)"),
+SDATA (DTP_BOOLEAN,     "send_on_connect",  SDF_RD,             "0",        "scenario send: send when the fake server has a client"),
 SDATA (DTP_STRING,      "server_service",   SDF_RD,             "__input_side__", "service of the fake server, started here in set_url and session"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
@@ -78,6 +83,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
+    BOOL sent_on_connect;
     hgobj smtp;             // scenario "session": the session under test
     hgobj input_side;       // scenarios "set_url" and "session": the fake server
 } PRIVATE_DATA;
@@ -245,6 +251,9 @@ PRIVATE int start_scenario(hgobj gobj)
         }
     }
 
+    if(gobj_read_bool_attr(gobj, "send_on_connect")) {
+        return 0;
+    }
     return send_one_email(gobj);
 }
 
@@ -281,6 +290,23 @@ PRIVATE int send_one_email(hgobj gobj)
 PRIVATE int ac_start_scenario(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     start_scenario(gobj);
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Scenario "send" with send_on_connect: the fake server has a client,
+ *  send now (the first time only)
+ ***************************************************************************/
+PRIVATE int ac_fake_client_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_read_bool_attr(gobj, "send_on_connect") && !priv->sent_on_connect) {
+        priv->sent_on_connect = TRUE;
+        send_one_email(gobj);
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -410,6 +436,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_idle[] = {
         {EV_START_SCENARIO,         ac_start_scenario,          0},
         {EV_PLAY_EMAILSENDER,       ac_play_emailsender,        0},
+        {EV_FAKE_CLIENT_CONNECTED,  ac_fake_client_connected,   0},
         {EV_ON_OPEN,                ac_on_open,                 0},
         {EV_ON_CLOSE,               ac_on_close,                0},
         {EV_ON_MESSAGE,             ac_on_message,              0},
@@ -424,6 +451,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_START_SCENARIO, 0},
         {EV_PLAY_EMAILSENDER, 0},
+        {EV_FAKE_CLIENT_CONNECTED, 0},
         {EV_ON_OPEN,        0},
         {EV_ON_CLOSE,       0},
         {EV_ON_MESSAGE,     0},

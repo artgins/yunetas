@@ -29,6 +29,7 @@ GOBJ_DECLARE_GCLASS(C_FAKE_SMTP);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_FAKE_CLIENT_CONNECTED);
 
 /***************************************************************
  *              Prototypes

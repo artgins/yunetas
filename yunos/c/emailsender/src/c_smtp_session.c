@@ -1211,7 +1211,17 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_STOPPED,            ac_stopped,             0},
         {0,0,0}
     };
+    /*
+     *  EV_SEND_MESSAGE is taken in every state before ST_IDLE: the owner
+     *  sends when it has a message, whether or not the session is up, and
+     *  ac_send_message stashes it until enter_idle_after_handshake begins
+     *  it. Up to 7.25.20 only ST_DISCONNECTED and ST_IDLE took it, and a
+     *  message sent during the handshake was refused ("Event NOT DEFINED")
+     *  and spent a retry -- all of them at once, since the owner retries a
+     *  refused send in the same cycle.
+     */
     ev_action_t st_wait_connected[] = {
+        {EV_SEND_MESSAGE,       ac_send_message,        0},
         {EV_CONNECTED,          ac_connected,           0},
         {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
         {0,0,0}
@@ -1222,6 +1232,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *  delivers a parsed CRLF line to ac_rx_line, which advances the FSM.
      */
     ev_action_t st_wait_banner[] = {
+        {EV_SEND_MESSAGE,       ac_send_message,        0},
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
         {EV_TX_READY,           0,                      0},
@@ -1231,6 +1242,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_wait_ehlo_resp[] = {
+        {EV_SEND_MESSAGE,       ac_send_message,        0},
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
         {EV_TX_READY,           0,                      0},
@@ -1240,6 +1252,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_wait_auth_resp[] = {
+        {EV_SEND_MESSAGE,       ac_send_message,        0},
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
         {EV_TX_READY,           0,                      0},
