@@ -42,6 +42,7 @@
  ***************************************************************************/
 #define TEST_FROM   "sender@example.com"
 #define TEST_TO     "reader@example.com"
+#define TEST_CC     "copy@example.com"
 
 /***************************************************************************
  *              Structures
@@ -262,8 +263,9 @@ PRIVATE int start_scenario(hgobj gobj)
  ***************************************************************************/
 PRIVATE int send_one_email(hgobj gobj)
 {
-    json_t *kw_email = json_pack("{s:s, s:s, s:s, s:s, s:b}",
+    json_t *kw_email = json_pack("{s:s, s:s, s:s, s:s, s:s, s:b}",
         "to", TEST_TO,
+        "cc", TEST_CC,
         "reply_to", "",
         "subject", "test",
         "body", "body of the test",

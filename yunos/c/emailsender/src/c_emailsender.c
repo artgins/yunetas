@@ -36,8 +36,7 @@ PRIVATE int process_smtp_response(
     hgobj gobj,
     q_msg_t *msg,
     int result,
-    BOOL permanent,
-    const char *to
+    BOOL permanent
 );
 
 /***************************************************************************
@@ -1107,7 +1106,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
                 NULL
             );
             priv->qmsg_cur_email = NULL;
-            process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, to?to:"");
+            process_smtp_response(gobj, qmsg_for_fail, -1, TRUE);
             KW_DECREF(msg);
             return -1;
         }
@@ -1153,7 +1152,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
     if(!mime_body) {
         /* Error already logged */
         priv->qmsg_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, to); // permanent: bad content
+        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE); // permanent: bad content
         KW_DECREF(msg);
         return -1;
     }
@@ -1178,7 +1177,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
         gobj_trace_json(gobj, msg, "json_pack() FAILED for kw_send");
         GBUFFER_DECREF(mime_body)
         priv->qmsg_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, to); // permanent: cannot build request
+        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE); // permanent: cannot build request
         KW_DECREF(msg);
         return -1;
     }
@@ -1204,7 +1203,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
          *  and here). Transient: retry on the next dequeue / reconnect.
          */
         priv->qmsg_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, FALSE, to);
+        process_smtp_response(gobj, qmsg_for_fail, -1, FALSE);
     }
 
     return 0;
@@ -1226,8 +1225,7 @@ PRIVATE int process_smtp_response(
     hgobj gobj,
     q_msg_t *msg,
     int result,
-    BOOL permanent,
-    const char *to
+    BOOL permanent
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1247,11 +1245,24 @@ PRIVATE int process_smtp_response(
         return tira_dela_cola(gobj);
     }
 
+    /*
+     *  The recipients are read back from the queued message, which stays in
+     *  its queue until it is unloaded below. Up to 7.25.20 the callers passed
+     *  them: a pointer into a json already released (tira_dela_cola), or ""
+     *  (a reply of the session).
+     */
+    json_t *jn_email = trq_msg_json(msg);   // Error already logged if NULL
+    const char *to = kw_get_str(gobj, jn_email, "to", "", 0);
+    const char *cc = kw_get_str(gobj, jn_email, "cc", "", 0);
+    const char *bcc = kw_get_str(gobj, jn_email, "bcc", "", 0);
+
     if(result >= 0) {
         gobj_log_info(gobj, 0,
             "msgset",   "%s", MSGSET_INFO,
             "msg",      "%s", "email sent",
             "to",       "%s", to,
+            "cc",       "%s", cc,
+            "bcc",      "%s", bcc,
             "url",      "%s", priv->url,
             NULL
         );
@@ -1271,6 +1282,8 @@ PRIVATE int process_smtp_response(
                 "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "email NOT sent, will retry",
                 "to",           "%s", to,
+                "cc",           "%s", cc,
+                "bcc",          "%s", bcc,
                 "url",          "%s", priv->url,
                 "attempt",      "%ld", (long)priv->cur_retries,
                 "max_retries",  "%ld", (long)priv->max_retries,
@@ -1285,6 +1298,8 @@ PRIVATE int process_smtp_response(
                 "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "email NOT sent, moved to failed queue",
                 "to",           "%s", to,
+                "cc",           "%s", cc,
+                "bcc",          "%s", bcc,
                 "url",          "%s", priv->url,
                 "attempt",      "%ld", (long)priv->cur_retries,
                 "max_retries",  "%ld", (long)priv->max_retries,
@@ -1296,6 +1311,8 @@ PRIVATE int process_smtp_response(
             priv->cur_retries = 0;
         }
     }
+
+    JSON_DECREF(jn_email)
 
     gobj_change_state(gobj, ST_IDLE);
     tira_dela_cola(gobj);
@@ -1480,7 +1497,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             BOOL permanent = (code >= 500 && code < 600);
             q_msg_t *qmsg = priv->qmsg_cur_email;
             priv->qmsg_cur_email = NULL;
-            process_smtp_response(gobj, qmsg, -1, permanent, "");
+            process_smtp_response(gobj, qmsg, -1, permanent);
         }
     }
 
@@ -1514,7 +1531,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     q_msg_t *qmsg = priv->qmsg_cur_email;
     priv->qmsg_cur_email = NULL;
-    process_smtp_response(gobj, qmsg, ok ? 0 : -1, permanent, "");
+    process_smtp_response(gobj, qmsg, ok ? 0 : -1, permanent);
 
     KW_DECREF(kw);
     return 0;
