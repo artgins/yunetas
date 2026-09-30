@@ -98,6 +98,15 @@ it writes the config through
 [`build_yuno_running_script()`](https://github.com/artgins/yunetas/blob/7.25.20/yunos/c/yuno_agent/src/c_agent.c#L8502),
 then exec's the binary with the materialised paths.
 
+A materialised config holds the yuno's secrets (a `client_secret`, a
+password), so every file of `bin/` that the agent writes for it is mode
+**`0640`** (owner `yuneta`, the yuno's own user; group from the setgid realm
+directory, the same people who can read the agent's treedb, `0660`). A file
+that already existed with a wider mode is narrowed on every launch, and if it
+cannot be, nothing is written into it and the yuno is not run (*"A
+configuration file of the yuno cannot be written, not run"*). Up to 7.25.20
+they were `0664`, readable by every user of the node.
+
 ### 2.3 The `yunos` topic
 
 Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.25.20/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c). Per-yuno record. Important

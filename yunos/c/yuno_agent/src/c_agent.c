@@ -28,6 +28,7 @@
 #include "dir_listing.h"
 #include "find_new_yunos.h"
 #include "watch_request.h"
+#include "yuno_config_file.h"
 #include "treedb_schema_yuneta_agent.c"
 
 /***************************************************************************
@@ -8394,17 +8395,15 @@ PRIVATE int write_service_client_connectors(
         jn_yuno_services // owned
     );
 
-    gbuf2file( // save: service connectors
+    int ret = write_yuno_config_file( // save: service connectors
         gobj,
         gbuf_config, // owned
-        config_path,
-        yuneta_rpermission(),
-        TRUE
+        config_path
     );
 
     json_decref(hs_binary);
 
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
@@ -8564,6 +8563,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
     char config_file_name[PATH_MAX+15];
     char config_path[(PATH_MAX+15)*2];
     int n_config = 0;
+    BOOL write_failed = FALSE;
     gbuffer_printf(gbuf_script, "[");
 
     if(1) {
@@ -8635,13 +8635,12 @@ PRIVATE gbuffer_t *build_yuno_running_script(
             jn_content  //owned
         );
 
-        gbuf2file( // save: environment and yuno variables
-            gobj,
-            gbuf_config, // owned
-            config_path,
-            yuneta_rpermission(),
-            TRUE
-        );
+        if(write_yuno_config_file( // save: environment and yuno variables
+                gobj,
+                gbuf_config, // owned
+                config_path)<0) {
+            write_failed = TRUE;    // Error already logged
+        }
         if(n_config > 0) {
             gbuffer_printf(gbuf_script, ",");
         }
@@ -8674,13 +8673,12 @@ PRIVATE gbuffer_t *build_yuno_running_script(
             yuno_id
         );
 
-        gbuf2file( // save: agent connector
-            gobj,
-            gbuf_config, // owned
-            config_path,
-            yuneta_rpermission(),
-            TRUE
-        );
+        if(write_yuno_config_file( // save: agent connector
+                gobj,
+                gbuf_config, // owned
+                config_path)<0) {
+            write_failed = TRUE;    // Error already logged
+        }
         if(n_config > 0) {
             gbuffer_printf(gbuf_script, ",");
         }
@@ -8723,13 +8721,12 @@ PRIVATE gbuffer_t *build_yuno_running_script(
                 json_incref(jn_config_required_services);
             }
 
-            gbuf2file( // save: user configurations
-                gobj,
-                gbuf_config, // owned
-                config_path,
-                yuneta_rpermission(),
-                TRUE
-            );
+            if(write_yuno_config_file( // save: user configurations
+                    gobj,
+                    gbuf_config, // owned
+                    config_path)<0) {
+                write_failed = TRUE;    // Error already logged
+            }
             if(n_config > 0) {
                 gbuffer_printf(gbuf_script, ",");
             }
@@ -8753,12 +8750,13 @@ PRIVATE gbuffer_t *build_yuno_running_script(
                 role_plus_name
             );
             snprintf(config_path, sizeof(config_path), "%s/%s.json", yuno_bin_path, config_file_name);
-            write_service_client_connectors( // save: service connectors
-                gobj,
-                yuno,
-                config_path,
-                jn_required_services
-            );
+            if(write_service_client_connectors( // save: service connectors
+                    gobj,
+                    yuno,
+                    config_path,
+                    jn_required_services)<0) {
+                write_failed = TRUE;    // Error already logged
+            }
             if(n_config > 0) {
                 gbuffer_printf(gbuf_script, ",");
             }
@@ -8778,6 +8776,16 @@ PRIVATE gbuffer_t *build_yuno_running_script(
     json_decref(hs_realm);
     json_decref(binary);
 
+    if(write_failed) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "A configuration file of the yuno cannot be written, not run",
+            "yuno_id",      "%s", yuno_id,
+            NULL
+        );
+        return 0;
+    }
     return gbuf_script;
 }
 
