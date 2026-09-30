@@ -55,4 +55,17 @@ done
 # Optional: Print a final message
 echo "All repositories have been cloned."
 
+#----------------------------------------#
+#       openresty: release tarball
+#----------------------------------------#
+echo ""
+echo "===================> Downloading openresty-$TAG_OPENRESTY"
+OPENRESTY_TARBALL="openresty-$TAG_OPENRESTY.tar.gz"
+mkdir -p openresty
+curl -fsSL -o "openresty/$OPENRESTY_TARBALL" \
+    "https://openresty.org/download/$OPENRESTY_TARBALL"
+echo "$SHA256_OPENRESTY  openresty/$OPENRESTY_TARBALL" | sha256sum -c -
+tar -xzf "openresty/$OPENRESTY_TARBALL" -C openresty
+echo "<=================== Finished openresty-$TAG_OPENRESTY"
+
 cd ..

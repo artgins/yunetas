@@ -521,12 +521,7 @@ cd ../..
 #------------------------------------------
 echo "===================== OPENRESTY ======================="
 cd build/openresty
-
-git checkout "v$TAG_OPENRESTY"
-git submodule update --init
-
-make
-cd "openresty-$TAG_OPENRESTY"
+cd "openresty-$TAG_OPENRESTY"   # the release tarball, unpacked by extrae.sh
 
 ./configure \
     --prefix=/yuneta/bin/openresty \

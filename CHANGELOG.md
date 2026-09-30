@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### linux-ext-libs: openresty from its release tarball
+
+- **`extrae.sh` downloads openresty's release tarball** from openresty.org
+  (sha256 pinned in `repos2clone.sh` as `SHA256_OPENRESTY`) instead of
+  cloning the git repo, and `configure-libs.sh` builds from it. Building from
+  the git tag ran `util/mirror-tarballs`, which fetches about 45 modules as
+  tarballs from github.com -- one download per module, and impossible where
+  only git reaches GitHub (Claude Code on the web). The release tarball IS the
+  output of that step, with the same modules at the same versions (checked
+  against the `ver=` pins of `mirror-tarballs` at `v1.31.1.1`), and it is
+  configured with the same flags: the installed binary does not change, so
+  `configure-libs.sh` keeps `VERSION="1.22"` and no node has to rebuild.
+
 ### root-linux: the house rules, applied where an audit found them broken
 
 - **`search_process()` (behind `--stop`) allocates through `gbmem_*`** and no

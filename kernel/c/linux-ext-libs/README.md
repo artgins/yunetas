@@ -29,7 +29,7 @@ Yuneta kernel, so they don't conflict with any system-wide version.
 | Tool      | Upstream                                  |
 |-----------|-------------------------------------------|
 | nginx     | https://github.com/nginx/nginx.git        |
-| openresty | https://github.com/openresty/openresty.git|
+| openresty | https://openresty.org/download/ (release tarball, sha256 pinned in `repos2clone.sh`) |
 
 > **Linking policy is NOT uniform across this directory** (see memory
 > `project_ext_libs_vendoring_policy`).
