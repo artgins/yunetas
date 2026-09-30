@@ -31,8 +31,8 @@
 BOOL dump = FALSE;
 int time2exit = 10;
 
-const char *server_url = "tcp://localhost:2222";
-//const char *server_url = "tcp://[::]:2222"; // in ipv6 cannot put the hostname as string TODO find some who does
+const char *server_url = "tcp://localhost:2223";
+//const char *server_url = "tcp://[::]:2223"; // in ipv6 cannot put the hostname as string TODO find some who does
 
 int drop_in_seconds = 5;
 

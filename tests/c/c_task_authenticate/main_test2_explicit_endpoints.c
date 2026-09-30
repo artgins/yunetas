@@ -18,8 +18,8 @@
 
 PRIVATE char task_kw_snippet[] =
     "{                                                                                              "
-    "  'token_endpoint':       'http://127.0.0.1:18901/realms/test/protocol/openid-connect/token', "
-    "  'end_session_endpoint': 'http://127.0.0.1:18901/realms/test/protocol/openid-connect/logout',"
+    "  'token_endpoint':       'http://127.0.0.1:" IDP_PORT "/realms/test/protocol/openid-connect/token', "
+    "  'end_session_endpoint': 'http://127.0.0.1:" IDP_PORT "/realms/test/protocol/openid-connect/logout',"
     "  'client_id':  'test-client',                                                                "
     "  'user_id':    'mockuser',                                                                   "
     "  'user_passw': 'mockpass'                                                                    "

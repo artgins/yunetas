@@ -90,3 +90,34 @@ endforeach()
 
 # test6 poisons freed memory (a use after free reads poison, every run)
 target_sources(test_tcps_test6 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../emailsender/poison_alloc.c)
+
+# test6 again on mbedTLS when both backends are compiled in (TLS_LIBRARY_NAME
+# prefers OpenSSL), on a port of its own
+if(CONFIG_HAVE_OPENSSL AND CONFIG_HAVE_MBEDTLS)
+    add_yuno_executable(test_tcps_test6_mbedtls
+        "main_test6.c"
+        "c_test6.c"
+        ${CMAKE_CURRENT_SOURCE_DIR}/../emailsender/poison_alloc.c
+    )
+    target_compile_definitions(test_tcps_test6_mbedtls PRIVATE
+        TEST6_TLS_LIBRARY="mbedtls"
+        TEST6_PORT="7789"
+    )
+    if(CONFIG_FULLY_STATIC)
+        set_target_properties(test_tcps_test6_mbedtls PROPERTIES
+            LINK_SEARCH_START_STATIC TRUE
+            LINK_SEARCH_END_STATIC TRUE
+        )
+    endif()
+    target_link_libraries(test_tcps_test6_mbedtls
+        ${MODULE_TEST}
+        ${YUNETAS_KERNEL_LIBS}
+        ${YUNETAS_EXTERNAL_LIBS}
+        ${YUNETAS_PCRE_LIBS}
+        ${JWT_LIBS}
+        ${OPENSSL_LIBS}
+        ${MBEDTLS_LIBS}
+        ${DEBUG_LIBS}
+    )
+    add_test("${current_directory_name}/test6_mbedtls" test_tcps_test6_mbedtls)
+endif()

@@ -69,9 +69,9 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'global': {                                                     \n\
         '__input_side__.__json_config_variables__': {               \n\
-            '__input_url__': 'tcps://0.0.0.0:7778',                 \n\
+            '__input_url__': 'tcps://0.0.0.0:7723',                 \n\
             '__input_host__': '0.0.0.0',                            \n\
-            '__input_port__': '7778'                                \n\
+            '__input_port__': '7723'                                \n\
         }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
@@ -159,7 +159,7 @@ PRIVATE char variable_config[]= "\
                                     'name': 'output',               \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'url':'tcps://127.0.0.1:7778', \n\
+                                        'url':'tcps://127.0.0.1:7723', \n\
                                         'crypto': {                 \n\
                                             'library': '" TLS_LIBRARY_NAME "',   \n\
                                             'ssl_allow_insecure_client': true,   \n\

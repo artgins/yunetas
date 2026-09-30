@@ -25,7 +25,9 @@
 #define MEM_SUPERBLOCK          0
 #define MEM_MAX_SYSTEM_MEMORY   0
 
-#define IDP_PORT    "18901"
+#ifndef IDP_PORT
+#error "build with -DIDP_PORT=\"<port>\": one port per test binary (see CMakeLists.txt)"
+#endif
 
 /***************************************************************************
  *                      Default config

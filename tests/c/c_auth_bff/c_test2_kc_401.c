@@ -26,7 +26,7 @@
  ***************************************************************************/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type----------name-------------flag----default-description*/
-SDATA (DTP_STRING,    "bff_url",       SDF_RD, "http://127.0.0.1:18801/", "BFF URL"),
+SDATA (DTP_STRING,    "bff_url",       SDF_RD, "http://127.0.0.1:18844/", "BFF URL"),
 SDATA (DTP_POINTER,   "user_data",     0,      0,      "user data"),
 SDATA_END()
 };

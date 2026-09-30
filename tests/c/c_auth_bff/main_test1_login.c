@@ -6,13 +6,13 @@
  *          Topology (all on 127.0.0.1):
  *            c_test1_login   (driver, default service, autoplay)
  *            __bff_side__    (C_IOGATE)
- *                └── server (C_TCP_S) :18801
+ *                └── server (C_TCP_S) :18842
  *                └── bff-1  (C_CHANNEL)
- *                    └── bff-1 (C_AUTH_BFF) → crypto.url = http://127.0.0.1:18802/
+ *                    └── bff-1 (C_AUTH_BFF) → crypto.url = http://127.0.0.1:18843/
  *                        └── bff-1 (C_PROT_HTTP_SR)
  *                            └── bff-1 (C_TCP)
  *            __idp_side__     (C_IOGATE)
- *                └── server (C_TCP_S) :18802
+ *                └── server (C_TCP_S) :18843
  *                └── idp-1   (C_CHANNEL)
  *                    └── idp-1 (C_MOCK_KEYCLOAK) → defaults: 200 + mockuser
  *                        └── idp-1 (C_PROT_HTTP_SR)
@@ -42,8 +42,8 @@
 #define MEM_SUPERBLOCK          0
 #define MEM_MAX_SYSTEM_MEMORY   0
 
-#define BFF_PORT    "18801"
-#define KC_PORT     "18802"
+#define BFF_PORT    "18842"
+#define KC_PORT     "18843"
 
 /***************************************************************************
  *                      Default config

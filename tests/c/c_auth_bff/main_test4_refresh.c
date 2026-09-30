@@ -32,8 +32,8 @@
 #define MEM_SUPERBLOCK          0
 #define MEM_MAX_SYSTEM_MEMORY   0
 
-#define BFF_PORT    "18801"
-#define KC_PORT     "18802"
+#define BFF_PORT    "18848"
+#define KC_PORT     "18849"
 
 /***************************************************************************
  *                      Default config

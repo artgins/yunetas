@@ -26,7 +26,7 @@
  *          Data: config, public data, private data
  ***************************************************************************/
 PRIVATE sdata_desc_t attrs_table[] = {
-SDATA (DTP_STRING,    "bff_url",       SDF_RD, "http://127.0.0.1:18801/", "BFF URL"),
+SDATA (DTP_STRING,    "bff_url",       SDF_RD, "http://127.0.0.1:18870/", "BFF URL"),
 SDATA (DTP_POINTER,   "user_data",     0,      0,      "user data"),
 SDATA_END()
 };

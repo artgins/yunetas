@@ -30,7 +30,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-const char *server_url = "tcp://localhost:3333";
+const char *server_url = "tcp://localhost:3305";
 
 /***************************************************************
  *              Prototypes
@@ -153,7 +153,7 @@ PRIVATE int do_test(void)
     /*--------------------------------*
      *  Launch a client to connect us
      *--------------------------------*/
-    int pid_telnet = launch_daemon(TRUE, "telnet", "localhost", "3333", NULL);
+    int pid_telnet = launch_daemon(TRUE, "telnet", "localhost", "3305", NULL);
 
     /*--------------------------------*
      *  Process ring queue

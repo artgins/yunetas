@@ -22,7 +22,33 @@ ctest -R '^test_c_timer$' --output-on-failure --test-dir build
 
 # Run ctest in a loop until first failure (flaky-test detection)
 ./ctest-loop.sh
+
+# Run tests at once
+ctest -j8 -R "c_tcp|c_mqtt|tcps" --test-dir build
 ```
+
+### Tests that run at once
+
+`ctest -j` runs test binaries at the same time, so no two of them may use
+one fixed port (the second fails with *"bind() FAILED"*) or one fixed
+directory. Every test binary under `tests/c` and `performance/c` listens on
+ports of its own, and a new test takes new ones:
+
+```bash
+python3 scripts/check_test_ports.py          # exit 1 when two binaries share a port
+python3 scripts/check_test_ports.py --list   # every port and the binary of it
+```
+
+The files of one binary may share a port (`main_<name>.c` with `c_<name>.c`,
+or everything under `<test>/src/`); a port given at compile time (`-DIDP_PORT`
+of `c_task_authenticate`, one per binary from its CMake loop) is not seen by
+the script. The `c_mqtt` tests that keep a store make a work dir of their
+own run, `<$TMPDIR or /tmp>/<name>.<pid>.<n>`, and remove it at the end
+(`tests/c/c_mqtt/test_work_dir.c`). Up to 7.25.20 ten ports were shared (the
+`c_tcp`/`c_tcps` families on 7778, the `c_auth_bff` binaries on 18801/18802,
+the `yev_events` tests on 3333, among others), and each `c_mqtt` test wiped a
+fixed `/tmp/test_mqtt_<name>` at its start. Two whole suites at once on one
+machine still share each binary's port.
 
 ## Asserting on the logs
 

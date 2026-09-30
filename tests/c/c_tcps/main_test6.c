@@ -15,6 +15,18 @@
 #include "c_test6.h"
 #include "../emailsender/poison_alloc.h"
 
+/*
+ *  The backend, and the port, of this binary: test6 runs on the backend
+ *  TLS_LIBRARY_NAME prefers, and test6_mbedtls (CMakeLists.txt, when both
+ *  are compiled in) on mbedTLS, at once
+ */
+#ifndef TEST6_TLS_LIBRARY
+    #define TEST6_TLS_LIBRARY   TLS_LIBRARY_NAME
+#endif
+#ifndef TEST6_PORT
+    #define TEST6_PORT          "7788"
+#endif
+
 /***************************************************************************
  *                      Names
  ***************************************************************************/
@@ -66,9 +78,9 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'global': {                                                     \n\
         '__input_side__.__json_config_variables__': {               \n\
-            '__input_url__': 'tcps://0.0.0.0:7788',                 \n\
+            '__input_url__': 'tcps://0.0.0.0:" TEST6_PORT "',                 \n\
             '__input_host__': '0.0.0.0',                            \n\
-            '__input_port__': '7788'                                \n\
+            '__input_port__': '" TEST6_PORT "'                                \n\
         }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
@@ -96,7 +108,7 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'crypto': {                                 \n\
-                            'library': '" TLS_LIBRARY_NAME "',                   \n\
+                            'library': '" TEST6_TLS_LIBRARY "',                   \n\
 'ssl_certificate': '/yuneta/agent/certs/localhost.crt',             \n\
 'ssl_certificate_key': '/yuneta/agent/certs/localhost.key',         \n\
                             'trace': false                          \n\
@@ -156,9 +168,9 @@ PRIVATE char variable_config[]= "\
                                     'name': 'output',               \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'url':'tcps://127.0.0.1:7788', \n\
+                                        'url':'tcps://127.0.0.1:" TEST6_PORT "', \n\
                                         'crypto': {                 \n\
-                                            'library': '" TLS_LIBRARY_NAME "',   \n\
+                                            'library': '" TEST6_TLS_LIBRARY "',   \n\
                                             'ssl_allow_insecure_client': true,   \n\
                                             'trace': false          \n\
                                         }                           \n\
@@ -190,9 +202,9 @@ PRIVATE char variable_config[]= "\
                                     'name': 'output2',               \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'url':'tcps://127.0.0.1:7788', \n\
+                                        'url':'tcps://127.0.0.1:" TEST6_PORT "', \n\
                                         'crypto': {                 \n\
-                                            'library': '" TLS_LIBRARY_NAME "',   \n\
+                                            'library': '" TEST6_TLS_LIBRARY "',   \n\
                                             'ssl_allow_insecure_client': true,   \n\
                                             'trace': false          \n\
                                         }                           \n\

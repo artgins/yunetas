@@ -31,7 +31,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-const char *server_url = "tcp://localhost:3333";
+const char *server_url = "tcp://localhost:3310";
 #define MESSAGE "AaaaaaaaaaaaaaaaBbbbbbbbbbbbbbb%d"
 
 /***************************************************************

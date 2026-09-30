@@ -66,9 +66,9 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'global': {                                                     \n\
         '__input_side__.__json_config_variables__': {               \n\
-            '__input_url__': 'tcp://0.0.0.0:7781',                 \n\
+            '__input_url__': 'tcp://0.0.0.0:7741',                 \n\
             '__input_host__': '0.0.0.0',                            \n\
-            '__input_port__': '7781'                                \n\
+            '__input_port__': '7741'                                \n\
         }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
@@ -152,7 +152,7 @@ PRIVATE char variable_config[]= "\
                                     'name': 'output',               \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'url':'ws://127.0.0.1:7781' \n\
+                                        'url':'ws://127.0.0.1:7741' \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\

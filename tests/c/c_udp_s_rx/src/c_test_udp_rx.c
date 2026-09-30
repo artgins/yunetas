@@ -83,8 +83,8 @@
 #define IP_ALLOWED      "127.0.1.6"
 #define IP_BOTH         "127.0.1.8"     // allowed and denied: denied wins
 
-#define CAPS_PORT       34288
-#define CAPS_URL        "udp://127.0.0.1:34288"
+#define CAPS_PORT       34290
+#define CAPS_URL        "udp://127.0.0.1:34290"
 #define CAPS_PEERS      5
 #define CAPS_FRAMES     "xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa B x aaaaaaaaa"
 

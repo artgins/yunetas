@@ -145,7 +145,7 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'scenario': 'url_log',                              \n\
                 'smtp_url': 'tcp://127.0.0.1:7838',                 \n\
-                'dead_url': 'tcp://127.0.0.1:7829'                  \n\
+                'dead_url': 'tcp://127.0.0.1:7841'                  \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\

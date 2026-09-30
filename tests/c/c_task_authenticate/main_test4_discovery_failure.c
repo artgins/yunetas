@@ -25,7 +25,7 @@
 
 PRIVATE char task_kw_snippet[] =
     "{                                                                  "
-    "  'issuer':     'http://127.0.0.1:18901/realms/test/',             "
+    "  'issuer':     'http://127.0.0.1:" IDP_PORT "/realms/test/',             "
     "  'client_id':  'test-client',                                     "
     "  'user_id':    'mockuser',                                        "
     "  'user_passw': 'mockpass'                                         "
@@ -39,7 +39,7 @@ PRIVATE char task_kw_snippet[] =
 PRIVATE char mock_idp_kw_snippet[] =
     "{                                                                  "
     "  'override_discovery_body': {                                     "
-    "    'issuer': 'http://127.0.0.1:18901/realms/test'                 "
+    "    'issuer': 'http://127.0.0.1:" IDP_PORT "/realms/test'                 "
     "  }                                                                "
     "}                                                                  ";
 

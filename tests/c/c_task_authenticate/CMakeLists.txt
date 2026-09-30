@@ -70,6 +70,11 @@ foreach(test ${TESTS})
         ${SHARED_SRCS}
     )
 
+    # One port for the mock IdP of each binary: they can run at once (ctest -j)
+    string(REGEX REPLACE "^test([0-9]+)_.*$" "\\1" test_number ${test})
+    math(EXPR idp_port "18910 + ${test_number}")
+    target_compile_definitions(${binary} PRIVATE IDP_PORT="${idp_port}")
+
     if(CONFIG_FULLY_STATIC)
         set_target_properties(${binary} PROPERTIES
             LINK_SEARCH_START_STATIC TRUE
