@@ -187,8 +187,7 @@ PRIVATE int mt_start(hgobj gobj)
         "info", 0,
         "recursive", gobj_read_bool_attr(gobj, "recursive")
     );
-    priv->gobj_fs = gobj_create("", C_FS, kw_fs, gobj);
-    gobj_subscribe_event(priv->gobj_fs, NULL, 0, gobj);
+    priv->gobj_fs = gobj_create("", C_FS, kw_fs, gobj);    // it subscribes its parent
 
     gobj_start(priv->gobj_fs);
     gobj_start(priv->timer);

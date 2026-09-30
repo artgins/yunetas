@@ -27,6 +27,11 @@
  *          watched each subdirectory again with its own recursive watcher:
  *          `n` was published, and `g` 9 times (root, a and b).
  *
+ *          The driver does not subscribe to its C_FS children: a C_FS
+ *          follows the CHILD subscription model and subscribes its parent
+ *          (or its `subscriber`). Up to 7.25.20 it subscribed nobody, and
+ *          every host subscribed by hand.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -128,7 +133,6 @@ PRIVATE void mt_create(hgobj gobj)
         ),
         gobj
     );
-    gobj_subscribe_event(priv->gobj_fs, NULL, 0, gobj);
     priv->gobj_fs_rec = gobj_create(
         "fs_rec",
         C_FS,
@@ -138,7 +142,7 @@ PRIVATE void mt_create(hgobj gobj)
         ),
         gobj
     );
-    gobj_subscribe_event(priv->gobj_fs_rec, NULL, 0, gobj);
+    // No gobj_subscribe_event(): a C_FS subscribes its parent (CHILD model)
 }
 
 /***************************************************************************

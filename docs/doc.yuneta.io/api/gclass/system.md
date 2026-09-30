@@ -86,6 +86,8 @@ File-system watcher — monitors directory changes using the
 | `path` | `string` | Directory to watch. |
 | `recursive` | `bool` | `1`: watch the whole tree under `path`, the subdirectories created later included. `0` (default): only the entries of `path` itself. |
 | `info` | `bool` | Log the watched directory on startup. |
+| `subscriber` | `pointer` | Who gets its events. Default: its parent (the CHILD subscription model). |
+| `size_dl_watch` | `int` (stats) | `1` while the path is watched, `0` if not. One watcher, whether recursive or not (the name is older than that). |
 
 ### What it publishes
 
@@ -99,16 +101,23 @@ One event per change the watcher reports, `path` being the directory and
 | rename (`FS_FILE_RENAME_TYPE`, not reported by the watcher today) | `EV_FS_RENAMED` |
 | events lost (`FS_OVERFLOW_TYPE`) | `EV_FS_CHANGED` once, for the watched root (`filename` empty); the rescan pass that follows publishes nothing |
 
-A host subscribes to it and declares both events in its FSM:
+A host creates it as its child and declares both events in its FSM: a
+`C_FS` subscribes its parent (or the gobj in `subscriber`) by itself, the
+CHILD subscription model:
 
 ```C
 priv->gobj_fs = gobj_create("", C_FS, json_pack("{s:s, s:b}",
     "path", "/yuneta/development/docs",
     "recursive", 1
 ), gobj);
-gobj_subscribe_event(priv->gobj_fs, NULL, 0, gobj);
 gobj_start(priv->gobj_fs);
 ```
+
+Up to 7.25.20 it subscribed nobody, and every host subscribed by hand
+(`gobj_subscribe_event(priv->gobj_fs, NULL, 0, gobj)`). A host that still
+does subscribes twice, and the second subscription replaces the first with
+a warning (*"subscription(s) REPEATED, will be deleted and override"*): drop
+the call.
 
 Up to 7.25.20 the types were read as bits: a deleted directory published
 nothing (and leaked the kw built for it), and the other changes were

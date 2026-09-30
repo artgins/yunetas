@@ -4,7 +4,9 @@ Tests what `C_FS` (`kernel/c/root-linux/src/c_fs.c`) publishes for each change
 of the tree it watches.
 
 A driver gclass (`C_TEST_FS`) creates two trees and a `C_FS` child watching
-each (subscribed to both):
+each. It does not subscribe to them: a `C_FS` follows the CHILD subscription
+model and subscribes its parent (up to 7.25.20 it subscribed nobody, the
+driver subscribed by hand, and without that call it heard nothing):
 
 - `$HOME/tests_yuneta/c_fs`, with subdirectories `sub` and `keep`, watched
   with `"recursive": 0`;
