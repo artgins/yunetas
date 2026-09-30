@@ -15,7 +15,9 @@
  *             (`__relays__`) is refused, directly connected too: up to
  *             7.25.20 a direct `ycommand -c 'watch-yuno-stats ids=x'` was
  *             pushed events it does not know until the watch expired;
- *          3. more yuno ids than `max_ids` are refused.
+ *          3. more yuno ids than `max_ids` are refused; a `max_ids`
+ *             under 1 (a bad max_watch_ids) refuses every watch, naming
+ *             the cap.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -185,6 +187,23 @@ PRIVATE void test_ids(void)
         "(ids) 300 names over a cap of 256: refused, said so");
     JSON_DECREF(jn_yunos)
     JSON_DECREF(jn_comment)
+
+    /*
+     *  A cap under 1 is a bad max_watch_ids, not a watch with too many
+     *  names (before: "too many yuno ids: 1, max_watch_ids is 0", and an
+     *  empty `ids` taken, nothing logged)
+     */
+    json_int_t bad_caps[] = {0, -5};
+    for(int i=0; i<2; i++) {
+        jn_comment = NULL;
+        jn_yunos = watch_ids(i? "" : "a", bad_caps[i], &jn_comment);
+        check(!jn_yunos && jn_comment &&
+            strstr(json_string_value(jn_comment), "must be 1 or more") != NULL,
+            i? "(ids) a cap of -5, no names: refused, the cap named" :
+               "(ids) a cap of 0: refused, the cap named, not \"too many\"");
+        JSON_DECREF(jn_yunos)
+        JSON_DECREF(jn_comment)
+    }
 }
 
 /***************************************************************************

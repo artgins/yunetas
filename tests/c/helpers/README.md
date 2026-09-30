@@ -111,7 +111,8 @@ the hop the agent can trust (its own input channel's when direct, the one the
 control center stamped, with `cc_connection`, when relayed), so a forged
 extra hop names no other client's watch; a requester without `__relays__`
 naming `EV_YUNO_STATS` is refused, a direct one too; more ids than the cap
-are refused.
+are refused, and a cap under 1 (a bad `max_watch_ids`) refuses every watch
+naming the cap, logged.
 
 `test_yuno_config_file` compiles the writer of the configuration files the
 agent materialises for a yuno (`yunos/c/yuno_agent/src/yuno_config_file.c`):

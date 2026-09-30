@@ -51,7 +51,8 @@ PUBLIC json_t *watch_refusal(
  *  The yunos of `ids` ("<id>[:<service>],..."): {id: [service, ...]}, a
  *  yuno named more than once with different services listing each one.
  *  More than `max_ids` names, or a name too long, is refused: NULL, and
- *  *jn_comment (yours) says why.
+ *  *jn_comment (yours) says why. A `max_ids` under 1 (a bad
+ *  max_watch_ids) refuses every watch, logged.
  */
 PUBLIC json_t *watch_ids(
     const char *ids,

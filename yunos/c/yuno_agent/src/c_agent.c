@@ -7094,7 +7094,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                     0,  // comment
                     0,  // schema
                     jn_data,  // owned
-                    json_incref(jn_route)  // owned
+                    kw_incref(jn_route)  // owned
                 ),
                 gobj
             );
@@ -12191,7 +12191,7 @@ PRIVATE int ac_tty_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     0,  // comment
                     0,  // schema
                     json_incref(kw), // owned
-                    json_incref(jn_route)  // owned
+                    kw_incref(jn_route)  // owned
                 ),
                 gobj
             );
@@ -12253,7 +12253,7 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     0,  // comment
                     0,  // schema
                     json_incref(kw), // owned
-                    json_incref(jn_route)  // owned
+                    kw_incref(jn_route)  // owned
                 ),
                 gobj
             );
@@ -12306,7 +12306,7 @@ PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     0,  // comment
                     0,  // schema
                     json_incref(kw), // owned
-                    json_incref(jn_route)  // owned
+                    kw_incref(jn_route)  // owned
                 ),
                 gobj
             );
