@@ -19,6 +19,15 @@
 
 /***************************************************************************
  *  See yuno_config_file.h
+ *
+ *  The content goes to a new file in the same directory, and that file is
+ *  renamed over `path`. So the file is the agent's own, created with its
+ *  final mode, whoever owned the one it replaces: a file of another user
+ *  that the agent can write only through the group is replaced, not
+ *  truncated and then refused because its mode cannot be changed. A
+ *  symbolic link at `path` is replaced too, never followed. And a failure
+ *  leaves the old file whole. No fsync(): the file is written again from
+ *  the agent's treedb at every launch.
  ***************************************************************************/
 PUBLIC int write_yuno_config_file(
     hgobj gobj,
@@ -26,15 +35,22 @@ PUBLIC int write_yuno_config_file(
     const char *path
 )
 {
-    int fd = newfile(path, YUNO_CONFIG_FILE_PERMISSION, TRUE);
-    if(fd<0) {
+    char tmp_path[PATH_MAX];
+    const char *slash = strrchr(path, '/');
+    int written;
+    if(slash) {
+        written = snprintf(tmp_path, sizeof(tmp_path), "%.*s/.%s.XXXXXX",
+            (int)(slash - path), path, slash + 1
+        );
+    } else {
+        written = snprintf(tmp_path, sizeof(tmp_path), ".%s.XXXXXX", path);
+    }
+    if(written < 0 || (size_t)written >= sizeof(tmp_path)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot create the configuration file of a yuno",
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The path of the configuration file of a yuno is too long",
             "path",         "%s", path,
-            "errno",        "%d", errno,
-            "strerror",     "%s", strerror(errno),
             NULL
         );
         gbuffer_decref(gbuf);
@@ -42,45 +58,105 @@ PUBLIC int write_yuno_config_file(
     }
 
     /*
-     *  open() keeps the mode of a file that exists: a wider one would
-     *  leave the secrets of the configuration readable
+     *  mkostemp() creates the file with O_EXCL: it never opens a file or a
+     *  link that exists
      */
-    if(fchmod(fd, YUNO_CONFIG_FILE_PERMISSION)<0) {
+    int fd = mkostemp(tmp_path, O_CLOEXEC);
+    if(fd<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot narrow the mode of the configuration file of a yuno, not written",
+            "msg",          "%s", "Cannot create the configuration file of a yuno",
             "path",         "%s", path,
-            "mode",         "0%o", YUNO_CONFIG_FILE_PERMISSION,
+            "tmp_path",     "%s", tmp_path,
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
             NULL
         );
-        close(fd);
         gbuffer_decref(gbuf);
         return -1;
     }
 
     int ret = 0;
+    if(fchmod(fd, YUNO_CONFIG_FILE_PERMISSION)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot set the mode of the configuration file of a yuno, not written",
+            "path",         "%s", path,
+            "tmp_path",     "%s", tmp_path,
+            "mode",         "0%o", YUNO_CONFIG_FILE_PERMISSION,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        ret = -1;
+    }
+
     size_t len;
-    while((len=gbuffer_chunk(gbuf))>0) {
+    while(ret == 0 && (len=gbuffer_chunk(gbuf))>0) {
         char *p = gbuffer_get(gbuf, len);
-        if(write(fd, p, len) != (ssize_t)len) {
+        errno = 0;
+        ssize_t w = write(fd, p, len);
+        if(w != (ssize_t)len) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot write the configuration file of a yuno",
                 "path",         "%s", path,
+                "tmp_path",     "%s", tmp_path,
+                "len",          "%lu", (unsigned long)len,
+                "written",      "%ld", (long)w,
                 "errno",        "%d", errno,
                 "strerror",     "%s", strerror(errno),
                 NULL
             );
             ret = -1;
-            break;
         }
     }
-    close(fd);
     gbuffer_decref(gbuf);
+
+    if(close(fd)<0 && ret == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot close the configuration file of a yuno",
+            "path",         "%s", path,
+            "tmp_path",     "%s", tmp_path,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        ret = -1;
+    }
+
+    if(ret == 0 && rename(tmp_path, path)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot replace the configuration file of a yuno",
+            "path",         "%s", path,
+            "tmp_path",     "%s", tmp_path,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        ret = -1;
+    }
+
+    if(ret < 0) {
+        if(unlink(tmp_path)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot remove the temporary configuration file of a yuno",
+                "tmp_path",     "%s", tmp_path,
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+        }
+    }
     return ret;
 }
 
@@ -109,8 +185,20 @@ PUBLIC int narrow_stale_yuno_config_files(
     }
 
     char suffix[NAME_MAX+1];
-    snprintf(suffix, sizeof(suffix), "-%s.json", role_plus_name);
-    size_t suffix_len = strlen(suffix);
+    int written = snprintf(suffix, sizeof(suffix), "-%s.json", role_plus_name);
+    if(written < 0 || (size_t)written >= sizeof(suffix)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The name of a yuno is too long to name its old configuration files, not narrowed",
+            "path",         "%s", bin_path,
+            "role_plus_name", "%s", role_plus_name,
+            NULL
+        );
+        closedir(dir);
+        return -1;
+    }
+    size_t suffix_len = (size_t)written;
 
     int ret = 0;
     struct dirent *de;

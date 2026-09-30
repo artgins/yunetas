@@ -116,10 +116,16 @@ are refused.
 `test_yuno_config_file` compiles the writer of the configuration files the
 agent materialises for a yuno (`yunos/c/yuno_agent/src/yuno_config_file.c`):
 a new file is `0640`, and one that existed as `0664` is narrowed to `0640`
-(up to 7.25.20 they were `0664`, with the yuno's secrets in them). The files
+(up to 7.25.20 they were `0664`, with the yuno's secrets in them). The file
+is written to a temporary file and renamed over the old one: a symbolic link
+is replaced, not followed; a file whose mode the agent cannot change (another
+owner, written through the group; a link to `/dev/null` in the test) is
+replaced and the yuno runs; a write that fails (`RLIMIT_FSIZE`) leaves the old
+file whole and no temporary file behind. The files
 of an earlier launch that wrote more of them (`4-role^name.json` when three
 are written now) are narrowed to `0640`: never widened, never removed, and a
-symbolic link, its target and the files of another yuno are not touched.
+symbolic link, its target and the files of another yuno are not touched; a
+yuno name too long to build their names from is refused with a log.
 
 `test_dir_read_error` fails the `readdir()` of one directory with `EIO`
 (`--wrap=opendir,--wrap=readdir`): `find_files_with_suffix_array()`,

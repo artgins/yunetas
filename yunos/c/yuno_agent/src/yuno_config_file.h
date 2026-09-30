@@ -28,7 +28,11 @@ extern "C"{
  ***************************************************************/
 /*
  *  Write `gbuf` (owned) to the configuration file `path` of a yuno,
- *  replacing it. Returns 0, or -1 (logged).
+ *  replacing it: the content goes to a new file of the agent, mode
+ *  YUNO_CONFIG_FILE_PERMISSION, in the same directory, renamed over `path`.
+ *  The directory must be writable by the agent. A symbolic link at `path`
+ *  is replaced, not followed. On failure `path` is left as it was.
+ *  Returns 0, or -1 (logged).
  */
 PUBLIC int write_yuno_config_file(
     hgobj gobj,

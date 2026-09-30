@@ -100,12 +100,18 @@ then exec's the binary with the materialised paths.
 
 A materialised config holds the yuno's secrets (a `client_secret`, a
 password), so every file of `bin/` that the agent writes for it is mode
-**`0640`** (owner `yuneta`, the yuno's own user; group from the setgid realm
-directory, the same people who can read the agent's treedb, `0660`). A file
-that already existed with a wider mode is narrowed on every launch, and if it
-cannot be, nothing is written into it and the yuno is not run (*"A
-configuration file of the yuno cannot be written, not run"*). Up to 7.25.20
-they were `0664`, readable by every user of the node.
+**`0640`**. The owner is the user the agent runs as (the yuno runs as the
+same user); the group comes from the setgid realm directory, the same people
+who can read the agent's treedb (`0660`). At every launch the agent writes
+each file again: to a temporary file in `bin/` (`.<n>-<role>^<name>.json.XXXXXX`),
+created with that mode, then renamed over the old one. So the new file is the
+agent's own whoever owned the old one (for example a file of another user
+that the agent could write only through the group), a symbolic link at that
+name is replaced and never followed, and a failed write leaves the old file
+whole. If a file cannot be written, the yuno is not run (*"A configuration
+file of the yuno cannot be written, not run"*); `bin/` must be writable by
+the agent, as it is when the agent creates it. Up to 7.25.20 they were
+`0664`, readable by every user of the node.
 
 The number of files changes with the yuno (a user configuration, required
 services). So an earlier launch may have left `4-<role>^<name>.json` where

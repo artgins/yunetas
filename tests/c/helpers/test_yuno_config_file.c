@@ -17,11 +17,22 @@
  *          Cases:
  *          1. a new file: 0640, with its content;
  *          2. a file that existed as 0664: 0640, with the new content;
- *          3. the files of an earlier launch that wrote more of them
+ *          3. a symbolic link at the path is replaced by the file, not
+ *             followed: its target keeps its content;
+ *          4. a file the agent can write but whose mode it cannot change
+ *             (another owner, written through the group; here a link to
+ *             /dev/null, which is root's): it is replaced, the yuno runs.
+ *             Before, the file was opened with O_TRUNC, fchmod() failed
+ *             with EPERM and the yuno was not run;
+ *          5. a write that fails (RLIMIT_FSIZE) leaves the old file whole
+ *             and no temporary file behind. Before, the file was already
+ *             truncated when the write failed;
+ *          6. the files of an earlier launch that wrote more of them
  *             (<n>-<role>^<name>.json with n over the ones written now)
  *             are narrowed to 0640, never widened, never removed; the
  *             files of another yuno, a symbolic link and its target, and
- *             the files written now are not touched.
+ *             the files written now are not touched; a yuno name too
+ *             long to build the file names from is refused with a log.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -29,7 +40,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
+#include <dirent.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
 #include <yunetas.h>
 #include "yuno_config_file.h"
 
@@ -101,6 +115,119 @@ PRIVATE void test_write(void)
     check(ret == 0 && file_is(path, "{\"password\": \"hunter2\"}"),
         "(existing 0664) rewritten with the new content");
     check(mode_of(path) == 0640, "(existing 0664) narrowed to 0640");
+
+    unlink(path);
+}
+
+/***************************************************************************
+ *  How many temporary files of `name` are left in BASE
+ ***************************************************************************/
+PRIVATE int temp_files_of(const char *name)
+{
+    char prefix[NAME_MAX+1];
+    snprintf(prefix, sizeof(prefix), ".%s.", name);
+    int n = 0;
+    DIR *dir = opendir(BASE);
+    if(!dir) {
+        return -1;
+    }
+    struct dirent *de;
+    while((de=readdir(dir))) {
+        if(strncmp(de->d_name, prefix, strlen(prefix))==0) {
+            n++;
+        }
+    }
+    closedir(dir);
+    return n;
+}
+
+/***************************************************************************
+ *  Whether `path` is a regular file itself, not a link
+ ***************************************************************************/
+PRIVATE BOOL is_a_regular_file(const char *path)
+{
+    struct stat st;
+    if(lstat(path, &st)<0) {
+        return FALSE;
+    }
+    return S_ISREG(st.st_mode)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void test_replace(void)
+{
+    const char *path = BASE "/3-role^name.json";
+    const char *target = BASE "/elsewhere.json";
+
+    /*
+     *  3. A link to a file of the agent
+     */
+    unlink(path);
+    FILE *f = fopen(target, "w");
+    if(f) {
+        fputs("ORIGINAL", f);
+        fclose(f);
+    }
+    if(symlink(target, path)<0) {
+        check(FALSE, "(link) cannot create the link of the test");
+    }
+    gbuffer_t *gbuf = gbuffer_create(256, 256);
+    gbuffer_printf(gbuf, "{\"client_secret\": \"S3CR3T\"}");
+    int ret = write_yuno_config_file(0, gbuf, path);
+    check(ret == 0 && is_a_regular_file(path) &&
+          file_is(path, "{\"client_secret\": \"S3CR3T\"}") && mode_of(path) == 0640,
+        "(link) replaced by a regular file 0640 with the content");
+    check(file_is(target, "ORIGINAL"), "(link) not followed: its target keeps its content");
+    unlink(target);
+
+    /*
+     *  4. A file whose mode the agent cannot change
+     */
+    if(geteuid() != 0) {
+        unlink(path);
+        if(symlink("/dev/null", path)<0) {
+            check(FALSE, "(foreign) cannot create the link of the test");
+        }
+        gbuf = gbuffer_create(256, 256);
+        gbuffer_printf(gbuf, "{\"password\": \"hunter2\"}");
+        ret = write_yuno_config_file(0, gbuf, path);
+        check(ret == 0 && is_a_regular_file(path) &&
+              file_is(path, "{\"password\": \"hunter2\"}") && mode_of(path) == 0640,
+            "(foreign) a file whose mode cannot be changed is replaced, the yuno runs");
+    }
+
+    /*
+     *  5. A write that fails
+     */
+    unlink(path);
+    f = fopen(path, "w");
+    if(f) {
+        fputs("OLD", f);
+        fclose(f);
+    }
+    chmod(path, 0640);
+
+    struct rlimit saved;
+    getrlimit(RLIMIT_FSIZE, &saved);
+    struct rlimit small = saved;
+    small.rlim_cur = 1024;
+    signal(SIGXFSZ, SIG_IGN);
+    setrlimit(RLIMIT_FSIZE, &small);
+
+    gbuf = gbuffer_create(8*1024, 8*1024);
+    for(int i=0; i<4*1024; i++) {
+        gbuffer_append_char(gbuf, 'x');
+    }
+    ret = write_yuno_config_file(0, gbuf, path);
+
+    setrlimit(RLIMIT_FSIZE, &saved);
+    signal(SIGXFSZ, SIG_DFL);
+
+    check(ret == -1, "(write fails) answers -1");
+    check(file_is(path, "OLD"), "(write fails) the old file is whole, not truncated");
+    check(temp_files_of("3-role^name.json") == 0, "(write fails) no temporary file left behind");
 
     unlink(path);
 }
@@ -184,6 +311,16 @@ PRIVATE void test_stale(void)
     check(lmode_of("4-role^name.json") != -1 && lmode_of("12-role^name.json") != -1,
         "(stale) nothing is removed");
 
+    /*
+     *  A name too long to build the suffix of: refused with a log, not
+     *  truncated into another name (before: answered 0, nothing said)
+     */
+    char long_name[NAME_MAX+16];
+    memset(long_name, 'r', sizeof(long_name)-1);
+    long_name[sizeof(long_name)-1] = 0;
+    ret = narrow_stale_yuno_config_files(0, BASE, long_name, 0);
+    check(ret == -1, "(stale) a name too long for the suffix is refused, logged");
+
     unlink(link_path);
     for(int i=0; files[i]; i++) {
         char path[PATH_MAX];
@@ -240,6 +377,7 @@ int main(int argc, char *argv[])
     mkrdir(BASE, 02775);
 
     test_write();
+    test_replace();
     test_stale();
 
     rmdir(BASE);
