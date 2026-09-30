@@ -72,7 +72,7 @@
 #define SMTP_CODE_GOODBYE              221
 #define SMTP_CODE_AUTH_OK              235
 #define SMTP_CODE_OK                   250
-#define SMTP_CODE_AUTH_CHALLENGE       334
+#define SMTP_CODE_AUTH_CHALLENGE       334     /* to AUTH PLAIN with its initial response: see ST_WAIT_AUTH_RESP */
 #define SMTP_CODE_START_INPUT          354
 
 /***************************************************************************
@@ -988,6 +988,17 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
          *  so the owner can say why.
          */
         json_t *kw_close = json_object();
+        /*
+         *  `transaction`: the close came during the mail transaction
+         *  (MAIL FROM onwards), so the server may have seen the message and
+         *  its failure is the message's. Without it the session failed in
+         *  its handshake (banner, EHLO, AUTH) or before: the server never
+         *  saw the message, and the owner must not charge it a retry.
+         */
+        if(prev_state == ST_WAIT_MAIL_FROM_RESP || prev_state == ST_WAIT_RCPT_TO_RESP ||
+                prev_state == ST_WAIT_DATA_GO || prev_state == ST_WAIT_DATA_RESP) {
+            json_object_set_new(kw_close, "transaction", json_true());
+        }
         if(priv->reject_code) {
             json_object_set_new(kw_close, "code", json_integer(priv->reject_code));
         }
@@ -1220,6 +1231,22 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              */
             priv->auth_reject_code = code;
             return abort_session_by_peer(gobj, "AUTH PLAIN rejected", code, reply);
+        }
+        if(code == SMTP_CODE_AUTH_CHALLENGE) {
+            /*
+             *  334: the server did not take the initial response we sent
+             *  with AUTH PLAIN (RFC 4954 lets the client send it, and every
+             *  submission server we know takes it) and asks for another
+             *  exchange, which this client does not speak. That is no
+             *  hiccup of the server: it is how it is configured, it comes
+             *  back at every connection, and each one is one more failed
+             *  login in its logs. So it is reported like a refusal of the
+             *  credentials (auth_rejected: 334), and the owner stops, loud,
+             *  instead of logging in again for ever. Up to 7.25.20 it was
+             *  taken as a refusal as well, with no word of why.
+             */
+            priv->auth_reject_code = code;
+            return abort_session_by_peer(gobj, "AUTH PLAIN initial response not taken", code, reply);
         }
         /*
          *  A transient one (454 temporary authentication failure, 421,

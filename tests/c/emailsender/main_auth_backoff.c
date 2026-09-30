@@ -7,6 +7,11 @@
  *          timeout_retry of 1 s). Up to 7.25.20 every retry came after the
  *          transport's fixed 2 s: four attempts spent in about 8 s.
  *
+ *          And the failed logins spend no retry of the email: the server
+ *          never saw it. With max_retries 2 the email must still be
+ *          delivered at the fourth login; up to 7.25.20 each failed login
+ *          spent one, and it went to the failed queue at the second.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -85,7 +90,7 @@ PRIVATE char variable_config[]= "\
                 'tranger_database': 'emailsender',                  \n\
                 'topic_emails_queue': 'emails_queue',               \n\
                 'topic_emails_failed': 'emails_failed',             \n\
-                'max_retries': 5,                                   \n\
+                'max_retries': 2,                                   \n\
                 'timeout_retry': 1000,                              \n\
                 'tkey': 'tm'                                        \n\
             }                                                       \n\
@@ -226,7 +231,7 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Creating __timeranger2__.json",
@@ -234,13 +239,10 @@ static int register_yuno_and_more(void)
         "msg", "Creating topic",
         "msg", "Fake smtp: AUTH answered",
         "msg", "AUTH PLAIN failed, transient: will retry",
-        "msg", "email NOT sent, will retry", "to", "reader@example.com", "cc", "copy@example.com",
         "msg", "Fake smtp: AUTH answered",
         "msg", "AUTH PLAIN failed, transient: will retry",
-        "msg", "email NOT sent, will retry", "to", "reader@example.com", "cc", "copy@example.com",
         "msg", "Fake smtp: AUTH answered",
         "msg", "AUTH PLAIN failed, transient: will retry",
-        "msg", "email NOT sent, will retry", "to", "reader@example.com", "cc", "copy@example.com",
         "msg", "Fake smtp: AUTH answered",
         "msg", "Fake smtp: message delivered",
         "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",

@@ -70,12 +70,20 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   `EV_ON_CLOSE` as `auth_rejected` (the reply code), apart from `code`: the
   message was never seen by the server, so it stays queued without spending a
   retry.
+- **A `334` to `AUTH PLAIN`** is handled the same way (`auth_rejected: 334`,
+  and the exit says *"SMTP server does not take AUTH PLAIN with its initial
+  response"*). We send the credentials with the command, as RFC 4954 allows;
+  a server that answers `334` wants another exchange, which this client does
+  not speak. It is how the server is configured, it repeats at every
+  connection, and each one is another failed login in its logs: retrying it,
+  even paced, is the wrong answer, so the yuno stops, loud, until the url or
+  the server is changed.
 - **A transient refusal of the login** (a `4xx` to `AUTH PLAIN`: `454`
   temporary authentication failure, `421`, `432`, ...) says nothing of the
-  credentials: the session closes like any drop, the in-flight message spends
-  a retry, and the login is tried again at the next connection. (Up to 7.25.20
-  it was taken as a refusal, and a brief outage of the provider stopped the
-  yuno for good while the queue piled up.)
+  credentials: the session closes like any drop, and the login is tried again
+  at the next connection, paced. The in-flight message spends no retry: the
+  server never saw it. (Up to 7.25.20 it was taken as a refusal, and a brief
+  outage of the provider stopped the yuno for good while the queue piled up.)
 - **Retries are paced -- every one of them.** After a failed session or
   connection the next connection waits: a refusal of the login or of the
   message, a `4xx` or a `421` to the end of DATA (a rate limit, a greylist), a
@@ -88,12 +96,20 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   that ends with no failure -- a message delivered, an idle session closed by
   either side --, so a server that works is not held to the delay of an old
   outage. A connection that cannot be made never reaches `C_SMTP_SESSION`: its
-  `C_TCP` doubles the delay itself, up to the same `timeout_retry_max`. The
-  message spends one of its `max_retries` per failure, so the two together say
-  how long an outage the queue rides out before a message goes to the failed
-  queue: with the defaults, four attempts are spread over 2 + 4 + 8 = 14 s; a
-  batch config for a provider known to have long outages raises `max_retries`
-  (`'max_retries': 10` covers about 17 minutes):
+  `C_TCP` doubles the delay itself, up to the same `timeout_retry_max`.
+
+  A message spends one of its `max_retries` per failure of ITS transaction
+  (MAIL FROM onwards: a refusal, a `4xx`, a close or a timeout there; the
+  session tells it with `transaction` on `EV_ON_CLOSE`). A failure before it
+  -- the connection, the greeting, EHLO, a transient AUTH -- spends none: the
+  server never saw the message, which waits at the head of the queue for as
+  long as the outage lasts, paced. Up to 7.25.20 each of those spent a retry
+  too, and an outage of 14 s sent every queued message to the failed queue in
+  turn. So `max_retries` and the pacing together say how long a server that
+  keeps refusing a message is given: with the defaults, four attempts are
+  spread over 2 + 4 + 8 = 14 s; a batch config for a provider known to
+  refuse for long raises `max_retries` (`'max_retries': 10` covers about 17
+  minutes):
 
   ```json
   "kw": {

@@ -1517,7 +1517,9 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "SMTP credentials rejected: exiting, NOT relaunched. Fix the credentials and run the yuno again",
+                "msg",          "%s", auth_rejected == 334?
+                    "SMTP server does not take AUTH PLAIN with its initial response: exiting, NOT relaunched. Check the server and the url, and run the yuno again" :
+                    "SMTP credentials rejected: exiting, NOT relaunched. Fix the credentials and run the yuno again",
                 "code",         "%d", auth_rejected,
                 "reply",        "%s", kw_get_str(gobj, kw, "reply", "", 0),
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
@@ -1528,16 +1530,29 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             return 0;
         }
 
-        if(priv->qmsg_cur_email) {
+        if(priv->qmsg_cur_email && !kw_get_bool(gobj, kw, "transaction", 0, 0)) {
             /*
-             *  Session dropped with a message in flight. A 5xx code means the
-             *  server rejected THIS message in its own transaction
-             *  (MAIL FROM / RCPT TO / DATA) → permanent, dead-letter it.
-             *  No code (handshake failure: banner/EHLO, a transient 4xx to
-             *  AUTH — the server never saw the message; a 5xx to AUTH exits
-             *  above) or a 4xx / plain drop → transient,
-             *  keep it queued for a retry (until max_retries). The SMTP child
-             *  owns reconnection; we only resolve the in-flight message here.
+             *  The session failed in its handshake (banner, EHLO, a 4xx to
+             *  AUTH, a close, a timeout) or could not connect: the server
+             *  never saw the message. It stays at the head of the queue, no
+             *  retry spent, and is sent again at once -- the session holds it
+             *  until its paced reconnection. Up to 7.25.20 each such failure
+             *  spent a retry, and with the defaults an outage longer than
+             *  14 s sent every queued message to the failed queue in turn,
+             *  unlike a refused login, which spends none.
+             */
+            priv->qmsg_cur_email = NULL;
+            gobj_change_state(gobj, ST_IDLE);
+            tira_dela_cola(gobj);
+
+        } else if(priv->qmsg_cur_email) {
+            /*
+             *  Session dropped with a message in its transaction. A 5xx code
+             *  means the server rejected THIS message (MAIL FROM / RCPT TO /
+             *  DATA) → permanent, dead-letter it. A 4xx / plain drop /
+             *  timeout → transient, keep it queued for a retry (until
+             *  max_retries). The SMTP child owns reconnection; we only
+             *  resolve the in-flight message here.
              */
             int code = (int)kw_get_int(gobj, kw, "code", 0, 0);
             BOOL permanent = (code >= 500 && code < 600);

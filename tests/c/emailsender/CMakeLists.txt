@@ -50,6 +50,7 @@ SET(SRCS
     set_url_running
     send_in_handshake
     auth_backoff
+    auth_334
     pause_in_flight
     shutdown_in_flight
     set_url_stash

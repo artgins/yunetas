@@ -1,18 +1,13 @@
 /****************************************************************************
- *          main_server_close_paced.c
+ *          main_auth_334.c
  *
- *          The fake server closes the first connection at once, answers the
- *          second with two malformed lines in one write, closes the third at
- *          once and greets the fourth. The connections must come at least 1,
- *          2 and 4 s apart (timeout_retry 1 s), the third within 3.5 s of the
- *          second, and the email is delivered. Up to 7.25.20 a close by the
- *          server reconnected after a fixed 2 s; and two aborts of one read
- *          must not double the delay twice.
- *
- *          The server never saw the email: none of those failures is a retry
- *          of it, and with max_retries 2 it is delivered at the fourth
- *          connection. Up to 7.25.20 each one spent a retry, and it went to
- *          the failed queue at the second.
+ *          A 334 to AUTH PLAIN with its initial response means the server did
+ *          not take the response we sent: a mismatch with the server that
+ *          repeats at every connection. C_SMTP_SESSION reports it on
+ *          EV_ON_CLOSE as auth_rejected (334), with the reply, so the
+ *          emailsender stops as it does for refused credentials. Up to
+ *          7.25.20 it was taken as a refused login; in the branch it became
+ *          a transient failure, retried for ever.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -29,8 +24,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_emailsender_server_close_paced"
-#define APP_DOC         "A session the server ends by itself is retried paced"
+#define APP_NAME        "test_emailsender_auth_334"
+#define APP_DOC         "C_SMTP_SESSION reports a 334 to AUTH PLAIN as a refused login"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -42,7 +37,7 @@
 #define MEM_SUPERBLOCK          0       // use default
 #define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
-#define BASE    "/tmp/test_emailsender_server_close_paced"
+#define BASE    "/tmp/test_emailsender_auth_334"
 
 /***************************************************************************
  *                      Default config
@@ -72,17 +67,30 @@ PRIVATE char variable_config[]= "\
         'service_descriptor': {                                     \n\
         },                                                          \n\
         'trace_levels': {                                           \n\
-        },                                                          \n\
-        'timeout_periodic': 100                                     \n\
+        }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'fake_smtp_server',                             \n\
-            'gclass': 'C_IOGATE',                                   \n\
+            'name': 'c_test',                                       \n\
+            'gclass': 'C_TEST_EMAILSENDER',                         \n\
+            'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'scenario': 'session',                              \n\
+                'expect_auth_code': 334,                            \n\
+                'expect_reply': '334',                              \n\
+                'server_service': '__input_side__',                 \n\
+                'smtp_url': 'tcp://127.0.0.1:7839'                  \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__input_side__',                               \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
             'kw': {                                                 \n\
             },                                                      \n\
             'children': [                                           \n\
@@ -90,7 +98,7 @@ PRIVATE char variable_config[]= "\
                     'name': 'fake_smtp_port',                       \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'url': 'tcp://127.0.0.1:7834',              \n\
+                        'url': 'tcp://127.0.0.1:7839',              \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -108,11 +116,8 @@ PRIVATE char variable_config[]= "\
                             'name': 'fake_smtp',                    \n\
                             'gclass': 'C_FAKE_SMTP',                \n\
                             'kw': {                                 \n\
-                                'auth_replies': ['235 2.7.0 Authentication successful'],\n\
-                                'connection_plan': ['drop', 'garbage', 'drop'],\n\
-                                'connect_min_gaps': [0, 1000, 2000, 4000],\n\
-                                'connect_max_gaps': [0, 0, 3500, 0],\n\
-                                'die_on_delivery': true             \n\
+                                'auth_replies': ['334 '],              \n\
+                                'die_on_delivery': false            \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
@@ -123,43 +128,6 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             ]                                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': 'emailsender',                                  \n\
-            'gclass': 'C_EMAILSENDER',                              \n\
-            'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
-            'kw': {                                                 \n\
-                'username': 'user',                                 \n\
-                'password': 'secret',                               \n\
-                'url': 'tcp://127.0.0.1:7834',                      \n\
-                'from': 'sender@example.com',                       \n\
-                'timeout_inactivity': 30000,                        \n\
-                'tranger_path': '"BASE"/store',                     \n\
-                'tranger_database': 'emailsender',                  \n\
-                'topic_emails_queue': 'emails_queue',               \n\
-                'topic_emails_failed': 'emails_failed',             \n\
-                'timeout_retry': 1000,                              \n\
-                'max_retries': 2,                                   \n\
-                'tkey': 'tm'                                        \n\
-            }                                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': '__input_side__',                               \n\
-            'gclass': 'C_IOGATE',                                   \n\
-            'autostart': false,                                     \n\
-            'autoplay': false                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': 'c_test',                                       \n\
-            'gclass': 'C_TEST_EMAILSENDER',                         \n\
-            'default_service': true,                                \n\
-            'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
-            'kw': {                                                 \n\
-                'scenario': 'send',                                 \n\
-                'smtp_url': 'tcp://127.0.0.1:7834'                  \n\
-            }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -199,6 +167,29 @@ PRIVATE int capture_error_write(void *v, int priority, const char *bf, size_t le
     return 0;
 }
 
+/*
+ *  The C_TCP `traffic` trace is armed: the AUTH line (base64 of the user
+ *  and the password) the session SENDS (⏩) must reach the log only as
+ *  "<N bytes hidden>".
+ *  Up to 7.25.20 its dump carried the line, the credentials included.
+ */
+PRIVATE int auth_line_dumped = 0;
+PRIVATE int hidden_dumps = 0;
+
+PRIVATE int capture_traffic_write(void *v, int priority, const char *bf, size_t len)
+{
+    if(!strstr(bf, " ⏩ ")) {
+        return 0;   // what the fake server receives is the peer's, and dumped as it came
+    }
+    if(strstr(bf, "AUTH PLAIN AHV")) {
+        auth_line_dumped++;
+    }
+    if(strstr(bf, "bytes hidden")) {
+        hidden_dumps++;
+    }
+    return 0;
+}
+
 PRIVATE void exit_guard(void)
 {
     if(!test_finished) {
@@ -235,27 +226,19 @@ static int register_yuno_and_more(void)
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
+    gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_SMTP_SESSION), "smtp", TRUE);
     // gobj_set_global_trace("machine", TRUE);
 
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s, s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
-        "msg", "Creating __timeranger2__.json",
-        "msg", "Creating topic",
-        "msg", "Creating topic",
-        "msg", "Fake smtp: connection not greeted", "plan", "drop",
-        "msg", "SMTP server closed the session",
-        "msg", "Fake smtp: connection not greeted", "plan", "garbage",
-        "msg", "malformed SMTP reply line",
-        "msg", "Fake smtp: connection not greeted", "plan", "drop",
-        "msg", "SMTP server closed the session",
         "msg", "Fake smtp: AUTH answered",
-        "msg", "Fake smtp: message delivered",
-        "msg", "email sent", "to", "reader@example.com", "cc", "copy@example.com",
+        "msg", "AUTH PLAIN initial response not taken",
+        "msg", "Refused login reported with its reply",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"
@@ -300,6 +283,13 @@ static void cleaning(void)
     }
     JSON_DECREF(expected_errors)
     JSON_DECREF(error_msgs)
+
+    if(auth_line_dumped || hidden_dumps < 1) {
+        printf("<-- %sAUTH LINE IN THE TRAFFIC TRACE%s: %s\n      dumped in clear: %d (expected 0), dumped hidden: %d (expected >= 1)\n",
+            On_Red BWhite, Color_Off, APP_NAME, auth_line_dumped, hidden_dumps
+        );
+        result += -1;
+    }
 }
 
 /***************************************************************************
@@ -335,6 +325,14 @@ int main(int argc, char *argv[])
     );
     gobj_log_add_handler("test_errors", "errors", LOG_OPT_UP_ERROR, 0);
 
+    gobj_log_register_handler(
+        "traffic",          // handler_name
+        0,                  // close_fn
+        capture_traffic_write, // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("test_traffic", "traffic", LOG_OPT_ALL, 0);
+
     /*------------------------------------------------*
      *      To check memory loss
      *------------------------------------------------*/
@@ -344,7 +342,7 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *      To check
      *------------------------------------------------*/
-    set_auto_kill_time(25);
+    set_auto_kill_time(15);
 
     /*------------------------------------------------*
      *          Start yuneta

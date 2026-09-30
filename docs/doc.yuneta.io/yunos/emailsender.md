@@ -125,6 +125,11 @@ dropped while waiting:
   The agent runs enabled yunos again when it restarts and on
   `deactivate-snap`, so with the credentials still wrong each of those costs
   exactly one more attempt, never a loop.
+
+  A `334` to `AUTH PLAIN` stops the yuno the same way (*"SMTP server does not
+  take AUTH PLAIN with its initial response"*): the credentials go with the
+  command, as RFC 4954 allows, and a server that asks for another exchange
+  does so at every connection -- a mismatch of configuration, not a hiccup.
 - The body is persisted as part of the queued message (a string), so it
   survives both retries and a yuno restart.
 - A pause (or the stop of the yuno) with a message in flight leaves it at the
@@ -154,9 +159,13 @@ session closed) starts the doubling again. Providers ban the addresses that
 hammer them (OVH did, for its whole mail cluster), so this is a hard rule, not
 a tuning knob.
 
-A batch config for a provider known to have long outages raises `max_retries`
-(each failure of a message costs one: with the defaults the four attempts are
-spread over 2 + 4 + 8 = 14 s; `max_retries: 10` covers about 17 minutes):
+A message spends one of its `max_retries` only when it fails in its own
+transaction (MAIL FROM onwards). A failure before -- the connection, the
+greeting, EHLO, a transient AUTH (`454`) -- spends none: the server never saw
+the message, and it waits, paced, for as long as the outage lasts. A batch
+config for a provider known to refuse messages for long raises `max_retries`
+(with the defaults the four attempts are spread over 2 + 4 + 8 = 14 s;
+`max_retries: 10` covers about 17 minutes):
 
 ```json
 "kw": {
