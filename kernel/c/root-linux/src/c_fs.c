@@ -34,18 +34,8 @@ typedef struct {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE SUBDIR_WATCH * create_subdir_watch(hgobj gobj, const char *path);
+PRIVATE SUBDIR_WATCH * create_subdir_watch(hgobj gobj, const char *path, BOOL recursive);
 PRIVATE void destroy_subdir_watch(SUBDIR_WATCH * sw);
-PRIVATE BOOL locate_subdirs_cb(
-    hgobj gobj,
-    void *user_data,
-    wd_found_type type,
-    char *fullpath,
-    const char *directory,
-    char *name,             // dname[255]
-    int level,
-    wd_option opt
-);
 PRIVATE int fs_event_callback(fs_event_t *fs_event);
 
 
@@ -61,7 +51,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name------------flag--------default-----description---------- */
 SDATA (DTP_STRING,      "path",         SDF_RD,     0,          "Path to watch"),
 SDATA (DTP_BOOLEAN,     "recursive",    SDF_RD,     0,          "Watch on all sub-directory tree"),
-SDATA (DTP_BOOLEAN,     "info",         SDF_RD,     0,          "Inform of found subdirectories"),
+SDATA (DTP_BOOLEAN,     "info",         SDF_RD,     0,          "Log the watched directory at start"),
 SDATA (DTP_INTEGER,     "size_dl_watch",SDF_RD|SDF_STATS, 0,    "Current subdirs in dl watch"),
 SDATA_END()
 };
@@ -124,19 +114,15 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
 
-    if(gobj_read_bool_attr(gobj, "recursive")) {
-        create_subdir_watch(gobj, path); // walk_dir_tree() not return "."
-        walk_dir_tree(
-            gobj,
-            path,
-            ".*",
-            WD_RECURSIVE|WD_MATCH_DIRECTORY,
-            locate_subdirs_cb,
-            NULL
-        );
-    } else {
-        create_subdir_watch(gobj, path);
-    }
+    /*
+     *  One watcher: a recursive one watches the whole tree itself, the
+     *  subdirectories created later included. Up to 7.25.20 a recursive
+     *  C_FS added a recursive watcher per subdirectory too (the walk of a
+     *  watch that did not recurse), each with its own inotify fd, and a
+     *  change N levels down was published N+1 times; and every watch
+     *  recursed, so a C_FS without `recursive` reported the subdirectories.
+     */
+    create_subdir_watch(gobj, path, gobj_read_bool_attr(gobj, "recursive"));
     return 0;
 }
 
@@ -180,7 +166,7 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
 /***************************************************************************
  *      Create a watch
  ***************************************************************************/
-PRIVATE SUBDIR_WATCH * create_subdir_watch(hgobj gobj, const char *path)
+PRIVATE SUBDIR_WATCH * create_subdir_watch(hgobj gobj, const char *path, BOOL recursive)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     SUBDIR_WATCH *sw;
@@ -208,7 +194,7 @@ PRIVATE SUBDIR_WATCH * create_subdir_watch(hgobj gobj, const char *path)
     sw->uv_fs = fs_create_watcher_event(
         yuno_event_loop(),
         path,
-        FS_FLAG_RECURSIVE_PATHS|FS_FLAG_MODIFIED_FILES,
+        (recursive? FS_FLAG_RECURSIVE_PATHS : 0)|FS_FLAG_MODIFIED_FILES,
         fs_event_callback,
         gobj,
         NULL,
@@ -227,24 +213,6 @@ PRIVATE void destroy_subdir_watch(SUBDIR_WATCH * sw)
 {
     fs_stop_watcher_event(sw->uv_fs);
     gbmem_free(sw);
-}
-
-/***************************************************************************
- *  Located directories
- ***************************************************************************/
-PRIVATE BOOL locate_subdirs_cb(
-    hgobj gobj,
-    void *user_data,
-    wd_found_type type,
-    char *fullpath,
-    const char *directory,
-    char *name,             // dname[255]
-    int level,
-    wd_option opt)
-{
-    create_subdir_watch(gobj, fullpath);
-
-    return TRUE; // continue traverse tree
 }
 
 /***************************************************************************

@@ -84,8 +84,8 @@ File-system watcher — monitors directory changes using the
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `path` | `string` | Directory to watch. |
-| `recursive` | `bool` | Watch subdirectories recursively. |
-| `info` | `bool` | Report found subdirectories on startup. |
+| `recursive` | `bool` | `1`: watch the whole tree under `path`, the subdirectories created later included. `0` (default): only the entries of `path` itself. |
+| `info` | `bool` | Log the watched directory on startup. |
 
 ### What it publishes
 
@@ -114,6 +114,20 @@ Up to 7.25.20 the types were read as bits: a deleted directory published
 nothing (and leaked the kw built for it), and the other changes were
 published only because the value of "file modified" (5) shared bits with
 theirs.
+
+`recursive` is one watcher, whichever its value: with `1` it recurses by
+itself (`FS_FLAG_RECURSIVE_PATHS`). Up to 7.25.20 a recursive `C_FS` also
+added a recursive watcher for each subdirectory it found at start, each with
+its own inotify fd, so a change N levels down was published N+1 times (a file
+created in `a/b/` three times); and every watcher recursed, so `recursive: 0`
+reported the subdirectories too. With `"recursive", 0`:
+
+```C
+priv->gobj_fs = gobj_create("", C_FS, json_pack("{s:s, s:b}",
+    "path", "/yuneta/development/docs",
+    "recursive", 0      // docs/x.md is published, docs/api/y.md is not
+), gobj);
+```
 
 ---
 
