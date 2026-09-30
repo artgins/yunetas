@@ -108,7 +108,10 @@
  *            data of a peer). These strings, and the console name of a
  *            console write, are data of a peer too: each one is redacted
  *            like any other string, and one longer than
- *            AUDIT_PEER_FIELD_MAX is written as its size and sha256.
+ *            AUDIT_PEER_FIELD_MAX is written as its size and sha256. One
+ *            that is not UTF-8 is written as "" with a WARNING. A text
+ *            whose redaction cannot be allocated is never written as it
+ *            came: `<not written: no memory to redact it>` instead.
  *            __command__ is dropped when it repeats the command text.
  *
  *          - A read-only command is recorded as {command, date, user} and
@@ -184,6 +187,12 @@
  *  only.
  */
 #define AUDIT_PEER_FIELD_MAX    1024
+
+/*
+ *  Written in place of a text whose redaction could not be allocated:
+ *  never the text itself, it may hold what was to be redacted
+ */
+#define NOT_WRITTEN_NO_MEMORY   "<not written: no memory to redact it>"
 
 /*
  *  Read-only commands, by name
@@ -283,6 +292,7 @@ typedef struct {
     int escape_level;       // the json text being scanned is inside this many quoted runs
     cut_t cut;              // how the last value of the decoded text was cut by its end
     key_kind_t cut_kind;
+    BOOL no_memory;         // a redaction could not be allocated: the text is not written
 } redact_ctx_t;
 
 /*
@@ -1989,11 +1999,17 @@ PRIVATE const char *scan_escaped_run(redact_scan_t *sc, scan_state_t *st, const 
     key_kind_t cut_kind = KEY_PLAIN;
     if(sc->ctx->escape_level >= MAX_ESCAPE_LEVELS) {
         redacted = not_scanned_text(v, len);
+        if(!redacted) {
+            sc->ctx->no_memory = TRUE;  // Error already logged
+        }
     } else {
         char *decoded = gbmem_malloc(len + 1);
         if(!decoded) {
             // Error already logged. Never write what cannot be judged
-            redacted = gbmem_strdup("<not written: no memory to redact it>");
+            redacted = gbmem_strdup(NOT_WRITTEN_NO_MEMORY);
+            if(!redacted) {
+                sc->ctx->no_memory = TRUE;  // Error already logged
+            }
         } else {
             size_t n = json_unescape(v, len, decoded);
             BOOL value_is_secret = sc->ctx->value_is_secret;
@@ -2147,8 +2163,10 @@ PRIVATE void scan_text(redact_scan_t *sc, const char *begin, const char *end)
 
 /***************************************************************************
  *  A copy of `text` with every content64 and secret replaced (see the
- *  header). NULL if there is nothing to replace (use the text as it is).
- *  Free the result with gbmem_free().
+ *  header). NULL if there is nothing to replace (use the text as it is),
+ *  or if a copy could not be allocated: then ctx->no_memory is set, and
+ *  the text must not be written. not_scanned_text() is NULL only for
+ *  that. Free the result with gbmem_free().
  ***************************************************************************/
 PRIVATE char *not_scanned_text(const char *text, size_t len)
 {
@@ -2163,9 +2181,14 @@ PRIVATE char *not_scanned_text(const char *text, size_t len)
 
 PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx)
 {
+    char *redacted;
     if(len > ctx->budget) {
         ctx->budget = 0;
-        return not_scanned_text(text, len);
+        redacted = not_scanned_text(text, len);
+        if(!redacted) {
+            ctx->no_memory = TRUE;  // Error already logged
+        }
+        return redacted;
     }
     ctx->budget -= len;
 
@@ -2179,7 +2202,11 @@ PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx)
     if(sc.broken) {
         gbmem_free(sc.out);
         // Error already logged. Never the text: it holds what is redacted
-        return gbmem_strdup("<not written: the audit scan broke>");
+        redacted = gbmem_strdup("<not written: the audit scan broke>");
+        if(!redacted) {
+            ctx->no_memory = TRUE;  // Error already logged
+        }
+        return redacted;
     }
     if(sc.from == text) {
         return NULL;    // Nothing replaced
@@ -2188,7 +2215,11 @@ PRIVATE char *redact_text(const char *text, size_t len, redact_ctx_t *ctx)
     if(sc.no_memory) {
         gbmem_free(sc.out);
         // Error already logged. Never the text: it holds what is redacted
-        return gbmem_strdup("<not written: no memory to redact it>");
+        redacted = gbmem_strdup(NOT_WRITTEN_NO_MEMORY);
+        if(!redacted) {
+            ctx->no_memory = TRUE;  // Error already logged
+        }
+        return redacted;
     }
     return sc.out;
 }
@@ -2263,8 +2294,15 @@ PRIVATE json_t *redacted_copy(json_t *jn, redact_ctx_t *ctx)
                 names_secret_attribute(json_string_value(jn), len, NULL)) {
             ctx->value_is_secret = TRUE;
         }
+        BOOL no_memory = ctx->no_memory;
+        ctx->no_memory = FALSE;
         char *redacted = redact_text(json_string_value(jn), len, ctx);
         ctx->value_is_secret = value_is_secret;
+        if(ctx->no_memory) {
+            GBMEM_FREE(redacted);   // Error already logged
+            return json_string(NOT_WRITTEN_NO_MEMORY);
+        }
+        ctx->no_memory = no_memory;
         if(redacted) {
             json_t *jn_redacted = json_string(redacted);
             gbmem_free(redacted);
@@ -2301,24 +2339,46 @@ PRIVATE const char *hop_str(json_t *jn_hop, const char *key, const char **bad)
 PRIVATE json_t *peer_field(const char *text)
 {
     size_t len = strlen(text);
+    redact_ctx_t ctx = {
+        .tty = FALSE,
+        .value_is_secret = FALSE,
+        .budget = len
+    };
     char *written;
     if(len > AUDIT_PEER_FIELD_MAX) {
         written = not_scanned_text(text, len);
+        if(!written) {
+            ctx.no_memory = TRUE;
+        }
     } else {
-        redact_ctx_t ctx = {
-            .tty = FALSE,
-            .value_is_secret = FALSE,
-            .budget = len
-        };
         written = redact_text(text, len, &ctx);
     }
+    if(ctx.no_memory) {
+        GBMEM_FREE(written);
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "Audit: no memory to redact a field of a peer, not written",
+            "len",          "%zu", len,
+            NULL
+        );
+        return json_string(NOT_WRITTEN_NO_MEMORY);
+    }
+
     json_t *jn = json_string(written? written: text);
     GBMEM_FREE(written);
     if(!jn) {
-        gobj_log_error(0, 0,
+        /*
+         *  Not UTF-8: bytes of a peer
+         */
+        char hex[2*64 + 1];
+        bin2hex(hex, sizeof(hex), (const uint8_t *)text, MIN(len, (size_t)64));
+        gobj_log_warning(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Audit: a field of a peer cannot be written",
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "Audit: a field of a peer is not UTF-8, written as empty",
+            "len",          "%zu", len,
+            "hex",          "%s", hex,
             NULL
         );
         jn = json_string("");
@@ -2418,7 +2478,8 @@ PRIVATE json_t *command_user(json_t *kw)
 /***************************************************************************
  *  The command text of the record: redacted, or beyond the budget its
  *  first word, size and sha256 only. NULL if the text is written as it
- *  is. Free with gbmem_free().
+ *  is, or with ctx->no_memory set if it cannot be written (see
+ *  redact_text()). Free with gbmem_free().
  ***************************************************************************/
 PRIVATE char *record_command_text(const char *command, const char *verb, redact_ctx_t *ctx)
 {
@@ -2431,7 +2492,11 @@ PRIVATE char *record_command_text(const char *command, const char *verb, redact_
         }
         char bf[NAME_MAX + SHA256_HEX_LEN + 64];
         snprintf(bf, sizeof(bf), "%s <%zu bytes, not scanned, sha256:%s>", verb, len, hex);
-        return gbmem_strdup(bf);
+        char *s = gbmem_strdup(bf);
+        if(!s) {
+            ctx->no_memory = TRUE;  // Error already logged
+        }
+        return s;
     }
     return redact_text(command, len, ctx);
 }
@@ -2493,6 +2558,10 @@ PRIVATE json_t *record_build(
 
     char *command_redacted = record_command_text(command, verb, &ctx);
     const char *command_text = command_redacted? command_redacted: command;
+    if(ctx.no_memory) {
+        command_text = NOT_WRITTEN_NO_MEMORY;   // Error already logged
+        ctx.no_memory = FALSE;
+    }
     json_t *jn_record = NULL;
 
     if(command_is_read_only(command, kw, verb, wrapper, inner, has_other_case)) {
