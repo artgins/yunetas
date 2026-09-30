@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v7.25.19 (2026-09-30)
+
+The end of the lost webstats report of wattyzer, and what it turned up:
+the report's IP addresses as `[a.b.c.d]` (OVH read one as a phone number and
+dropped the mail), secrets masked where attrs are shown, the persistent-attrs
+file 0600, and the SMTP refusal text in the log. A kernel change, so the
+suite ran on both machines (215/215 each); deployed as emailsender and
+webstats on every node -- the other yunos take the masking at their next
+build.
+
 ### Kernel: secrets are not shown, and not left world-readable
 
 - **`SDF_SECRET`**, a new attr flag: the attr is read, written and persisted
