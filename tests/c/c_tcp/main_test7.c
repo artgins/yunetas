@@ -100,9 +100,14 @@ static int register_yuno_and_more(void)
     set_auto_kill_time(10);
 
     /*------------------------------*
-     *  No error: the data sent while closing goes away quietly
+     *  No error: the data sent while closing goes away with ONE warning
+     *  for the connection, which says what went
      *------------------------------*/
-    json_t *errors_list = json_array();     // no error at all
+    json_t *errors_list = json_pack("[{s:s, s:i, s:i}]",
+        "msg", "tcp data sent while the connection closes, dropped",
+        "dropped_msgs", 2,
+        "dropped_bytes", 13
+    );
 
     set_expected_results(
         APP_NAME,       // test name
@@ -147,7 +152,7 @@ int main(int argc, char *argv[])
         capture_log_write,  // write_fn
         0                   // fwrite_fn
     );
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_ERROR, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
 
     /*------------------------------------------------*
      *      To check memory loss

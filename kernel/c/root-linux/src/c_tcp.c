@@ -92,6 +92,7 @@
  *              Prototypes
  ***************************************************************/
 PRIVATE void try_to_stop_yevents(hgobj gobj); // IDEMPOTENT
+PRIVATE void log_closing_drops(hgobj gobj);
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE void set_inactivity_timeout(hgobj gobj);
 PRIVATE void start_pending_writes(hgobj gobj);
@@ -200,6 +201,9 @@ typedef struct _PRIVATE_DATA {
     BOOL no_tx_ready_event;
     int tx_in_progress;
     json_int_t max_tx_in_progress;
+
+    json_int_t closing_dropped_msgs;    // EV_TX_DATA while closing, said when the close ends
+    json_int_t closing_dropped_bytes;
 } PRIVATE_DATA;
 
 
@@ -1179,6 +1183,31 @@ PRIVATE void start_pending_writes(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The close of a connection ended: what was sent to it while it closed
+ *  (ac_tx_data_closing()) is said in ONE warning, not one per frame.
+ ***************************************************************************/
+PRIVATE void log_closing_drops(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->closing_dropped_msgs == 0) {
+        return;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",              "%s", "tcp data sent while the connection closes, dropped",
+        "url",              "%s", gobj_read_str_attr(gobj, "url"),
+        "peername",         "%s", gobj_read_str_attr(gobj, "peername"),
+        "dropped_msgs",     "%ld", (long)priv->closing_dropped_msgs,
+        "dropped_bytes",    "%ld", (long)priv->closing_dropped_bytes,
+        NULL
+    );
+    priv->closing_dropped_msgs = 0;
+    priv->closing_dropped_bytes = 0;
+}
+
+/***************************************************************************
  *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
  *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
  ***************************************************************************/
@@ -1248,6 +1277,8 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     if(to_wait_stopped) {
         gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
+        log_closing_drops(gobj);
+
         /*
          *  Close fd only after all io_uring events are stopped.
          *  tx_in_progress==0 is guaranteed here (it sets to_wait_stopped above).
@@ -1975,25 +2006,20 @@ PRIVATE int ac_tx_data_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, 
  *  Tx data while the connection is going down (ST_WAIT_STOPPED: a drop or
  *  a disconnection is waiting for its last io_uring operation). The layers
  *  above learn it only with EV_DISCONNECTED, so until then they send, and
- *  cannot know better. The data goes where set_disconnected() puts the
- *  pending queue of a dead connection: away. A protocol that must not lose
- *  it resends on its own acks (c_qiogate does).
+ *  cannot know better: the event is theirs to send, and this action is not
+ *  a swallowed "Event NOT DEFINED". The data goes where set_disconnected()
+ *  puts the pending queue of a dead connection: away. A protocol that must
+ *  not lose it resends on its own acks (c_qiogate does). What went is
+ *  counted, and said ONCE when the close ends (log_closing_drops()): up to
+ *  7.25.20 it went with no trace at the default levels.
  ***************************************************************************/
 PRIVATE int ac_tx_data_closing(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    uint32_t trace_level = gobj_trace_level(gobj);
-    if(trace_level & TRACE_CONNECT_DISCONNECT) {
-        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-        gobj_log_debug(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "tcp tx data while closing, dropped",
-            "bytes",        "%lu", (unsigned long)(gbuf?gbuffer_leftbytes(gbuf):0),
-            "url",          "%s", gobj_read_str_attr(gobj, "url"),
-            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
-            NULL
-        );
-    }
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    priv->closing_dropped_msgs++;
+    priv->closing_dropped_bytes += (json_int_t)(gbuf?gbuffer_leftbytes(gbuf):0);
 
     KW_DECREF(kw)
     return 0;

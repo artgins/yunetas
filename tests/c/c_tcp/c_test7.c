@@ -10,13 +10,16 @@
  *          declare -- "Event NOT DEFINED in state", an ERROR per message.
  *          Seen by the thousand on a sim of 300 controllers whose central
  *          went away. The data must go the way the pending queue of a dead
- *          connection goes (away), with no error.
+ *          connection goes (away), with no error, and leave ONE warning
+ *          for the connection with what was dropped (up to 7.25.20 it went
+ *          with no trace at the default levels).
  *
  *          The C_TCP connects to a listener of the test (a plain socket:
  *          the kernel completes the handshake, nobody accepts).
  *
- *              1. EV_CONNECTED -> EV_DROP, then EV_TX_DATA with data, in
- *                 ST_WAIT_STOPPED (the read is being cancelled)
+ *              1. EV_CONNECTED -> EV_DROP, then two EV_TX_DATA ("late data",
+ *                 "more": 13 bytes), in ST_WAIT_STOPPED (the read is being
+ *                 cancelled)
  *              2. 1 s later: the connection must have been dropped
  *                 (EV_DISCONNECTED); the C_TCP is stopped
  *              3. 1 s later: the C_TCP must be in ST_STOPPED
@@ -240,14 +243,17 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!gobj_in_this_state(priv->gobj_tcp, ST_WAIT_STOPPED)) {
             test_fail(gobj, "TEST: the drop did not wait (not in ST_WAIT_STOPPED): nothing tested");
         }
-        gbuffer_t *gbuf = gbuffer_create(16, 16);
-        gbuffer_append_string(gbuf, "late data");
-        gobj_send_event(
-            priv->gobj_tcp,
-            EV_TX_DATA,
-            json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),    // the kw owns it
-            gobj
-        );
+        const char *late[] = {"late data", "more", 0};
+        for(int i=0; late[i]; i++) {
+            gbuffer_t *gbuf = gbuffer_create(16, 16);
+            gbuffer_append_string(gbuf, late[i]);
+            gobj_send_event(
+                priv->gobj_tcp,
+                EV_TX_DATA,
+                json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),    // the kw owns it
+                gobj
+            );
+        }
         priv->phase = 1;
         set_timeout(priv->timer, 1000);
     }
