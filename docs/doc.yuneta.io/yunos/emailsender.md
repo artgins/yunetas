@@ -52,8 +52,10 @@ sent.
 ```bash
 ycommand -c 'command-yuno id=<id> service=emailsender command=set-email-user username=no-reply@example.com password=<password>'
 ```
-| `timeout_dequeue` | `10` | ms between queue polls |
 | `max_retries` | `4` | Max total send attempts before dead-lettering |
+| `timeout_retry` | `2000` | ms before the connection that follows a failed session or connection; doubles per failure in a row |
+| `timeout_retry_max` | `600000` | Cap of that doubling (ms) |
+| `timeout_inactivity` | `30000` | ms of silence after which the idle SMTP connection is closed; the next email opens it again |
 | `disable_alarm_emails` | `false` | Drop "ALERT Queuing" alarm emails |
 | `tranger_path` / `tranger_database` | | TimeRanger2 store location |
 | `topic_emails_queue` | `emails_queue` | Pending-queue topic |
@@ -138,6 +140,31 @@ dropped while waiting:
 
 Every outcome is logged: a warning per retry, an error when a message is moved
 to the dead-letter queue, and an info line on success.
+
+### Pacing
+
+No failure is retried at once. After a failed session or connection -- a
+refused login or message, a `4xx` or `421` to the end of DATA (a rate limit, a
+greylist), a reply that never comes, a malformed reply, a server that closes
+the connection by itself, a connection that is refused or times out -- the next
+connection waits `timeout_retry` ms, twice as long after each further failure
+in a row, up to `timeout_retry_max`. An email queued during the wait waits for
+it too. A session that ends with no failure (a message delivered, an idle
+session closed) starts the doubling again. Providers ban the addresses that
+hammer them (OVH did, for its whole mail cluster), so this is a hard rule, not
+a tuning knob.
+
+A batch config for a provider known to have long outages raises `max_retries`
+(each failure of a message costs one: with the defaults the four attempts are
+spread over 2 + 4 + 8 = 14 s; `max_retries: 10` covers about 17 minutes):
+
+```json
+"kw": {
+    "max_retries": 10,
+    "timeout_retry": 2000,
+    "timeout_retry_max": 600000
+}
+```
 
 ## Debugging
 

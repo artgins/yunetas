@@ -52,8 +52,10 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   queue.
 - **Permanent failures** (any `5xx` to MAIL FROM / RCPT TO / DATA / the body) →
   the message goes **straight to `emails_failed`**, no retries. The SMTP reply
-  code is carried up from `C_SMTP_SESSION` (via `EV_ON_CLOSE` for mid-transaction
-  drops, `EV_ON_MESSAGE` for the DATA ack); `code in [500,600)` ⇒ permanent.
+  code is carried up from `C_SMTP_SESSION` on `EV_ON_CLOSE`: every refusal,
+  the one of the end of DATA included, drops the session; `code in [500,600)`
+  ⇒ permanent. `EV_ON_MESSAGE` answers a delivery (and a message that cannot
+  be sent at all).
 - **Bad content** (MIME build / recipient parse failures) → permanent, dead-letter.
   A message the session cannot send at all (no valid recipient, no sender) is
   answered once, with `EV_ON_MESSAGE` `{ok: false, permanent: true}`; a send the
@@ -71,16 +73,26 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
 - **A transient refusal of the login** (a `4xx` to `AUTH PLAIN`: `454`
   temporary authentication failure, `421`, `432`, ...) says nothing of the
   credentials: the session closes like any drop, the in-flight message spends
-  a retry, and the login is tried again at the next connection.
-- **Retries are paced.** After a session the server ends (a `4xx`, a refused
-  message, a reply that never comes), the next connection waits
-  `timeout_retry` ms (default `2000`), twice as long after each further failure
-  in a row, up to `timeout_retry_max` (default `600000`), and back to
-  `timeout_retry` once a message is delivered. The message spends one of its
-  `max_retries` per failure, so the two together say how long an outage the
-  queue rides out before a message goes to the failed queue: with the defaults,
-  four attempts are spread over 2 + 4 + 8 = 14 s; a batch config for a
-  provider known to have long outages raises `max_retries`
+  a retry, and the login is tried again at the next connection. (Up to 7.25.20
+  it was taken as a refusal, and a brief outage of the provider stopped the
+  yuno for good while the queue piled up.)
+- **Retries are paced -- every one of them.** After a failed session or
+  connection the next connection waits: a refusal of the login or of the
+  message, a `4xx` or a `421` to the end of DATA (a rate limit, a greylist), a
+  reply that never comes, a malformed or over-long reply, a server that closes
+  the connection by itself (a RST, a TLS error, a close with no reply), a
+  connection that is refused or times out. The wait is `timeout_retry` ms
+  (default `2000`), twice as long after each further failure in a row, up to
+  `timeout_retry_max` (default `600000`). An email queued during the wait waits
+  for it too. The doubling starts again from `timeout_retry` after a session
+  that ends with no failure -- a message delivered, an idle session closed by
+  either side --, so a server that works is not held to the delay of an old
+  outage. A connection that cannot be made never reaches `C_SMTP_SESSION`: its
+  `C_TCP` doubles the delay itself, up to the same `timeout_retry_max`. The
+  message spends one of its `max_retries` per failure, so the two together say
+  how long an outage the queue rides out before a message goes to the failed
+  queue: with the defaults, four attempts are spread over 2 + 4 + 8 = 14 s; a
+  batch config for a provider known to have long outages raises `max_retries`
   (`'max_retries': 10` covers about 17 minutes):
 
   ```json
@@ -91,11 +103,15 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
   }
   ```
 
-  (Up to 7.25.20 every retry came after the transport's fixed 2 s, even
-  failing again and again: the four attempts of a message were gone in about
-  8 s.) (Up to 7.25.20
-  it was taken as a refusal, and a brief outage of the provider stopped the
-  yuno for good while the queue piled up.)
+  Up to 7.25.20 every retry came after the transport's fixed 2 s, even failing
+  again and again (the four attempts of a message were gone in about 8 s), and
+  a `4xx` to the end of DATA sent the message again at once, on the same
+  session: four uploads in the same second.
+- **An idle session the server ends** (OVH closes idle sessions early, with a
+  `421`) is no failure, and there is nothing to send: the transport's own
+  reconnection is put off to `timeout_retry_max`, and the next email connects
+  at once. Up to 7.25.20 it logged in again 2 s later, and again at each idle
+  close of the server, for nothing.
 - **Why a session closed**: every close caused by a reply of the server
   (a refused login, a refused message, a failed EHLO, ...) carries that reply's
   text on `EV_ON_CLOSE` as `reply`, next to its code.
@@ -114,9 +130,10 @@ timers up here). It just enqueues and dispatches the head message
 `C_TCP` runs with `timeout_inactivity` (closes the idle SMTP link), so when the
 link is down it is **`c_smtp_session`** — the gclass that owns the transport and
 must redo the SMTP handshake — that reconnects on demand: on `EV_SEND_MESSAGE`
-in `ST_DISCONNECTED` it kicks its bottom `C_TCP` (`EV_CONNECT`), re-runs
-banner→EHLO→AUTH, and begins the stashed message on entry to `ST_IDLE`. Retry
-pacing for a down server is the C_TCP layer's concern, not the sender's.
+in `ST_DISCONNECTED` it kicks its bottom `C_TCP` (`EV_CONNECT`) once the paced
+delay has passed (before, on its own timer), re-runs banner→EHLO→AUTH, and
+begins the stashed message on entry to `ST_IDLE`. The pacing is the session's
+and its transport's concern, not the sender's.
 
 On that entry to `ST_IDLE` the child also publishes `EV_ON_OPEN` *before* it
 begins the stashed message. Because `c_emailsender` moves to `ST_WAIT_RESPONSE`

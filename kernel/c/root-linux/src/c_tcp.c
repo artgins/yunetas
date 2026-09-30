@@ -1821,6 +1821,17 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     JSON_DECREF(kw)
 
+    /*
+     *  An EV_CONNECT of the owner (a connection on demand) takes the place
+     *  of the reconnection set_disconnected() had armed: left armed, its
+     *  EV_TIMEOUT landed in ST_WAIT_CONNECTED ("Event NOT DEFINED") when
+     *  the connect took longer than the delay. ac_tx_data_disconnected()
+     *  already did this before its own EV_CONNECT.
+     */
+    if(priv->gobj_timer) {
+        clear_timeout(priv->gobj_timer);
+    }
+
     const char *url = gobj_read_str_attr(gobj, "url");
     if(yev_rearm_connect_event(
         priv->yev_connect,

@@ -25,15 +25,29 @@
  *          MSGSET_PROTOCOL with the reply, capped: a remote peer can cause
  *          it. An ERROR is for our own failures only (no memory, an encoder).
  *
- *          The next session after an aborted one is paced. The transport
- *          (C_TCP) reconnects by itself after `timeout_between_connections`,
- *          and resets its own backoff as soon as the TCP connection is up,
- *          which a server refusing the login or the message never stops it
- *          from being. So the session, which knows the SMTP session failed,
- *          sets that delay: `timeout_retry` after the first failure in a row,
- *          doubled at each next one up to `timeout_retry_max`, and back at
- *          `timeout_retry` once a message is delivered. The waiting is the
- *          transport's own timer; nothing here kicks it.
+ *          Every connection after a failed one is paced, whoever failed:
+ *          a refusal, a 4xx to the end of DATA, a reply that never comes, a
+ *          server that closes the connection by itself (RST, TLS, a close
+ *          with no reply), a connection that cannot even be made. The
+ *          session is the one that knows an SMTP session failed -- the
+ *          transport (C_TCP) resets its own backoff as soon as the TCP
+ *          connection is up, which a server refusing the login or the
+ *          message never stops it from being -- so at every close it sets
+ *          the delay of the next connection (ac_disconnected):
+ *          `timeout_retry` after the first failure in a row, doubled at each
+ *          next one up to `timeout_retry_max`. A close that is no failure
+ *          (the session was idle and nothing went wrong in it: an idle close,
+ *          the server ending an idle session) shows a healthy server: the
+ *          doubling starts again from `timeout_retry`, and the next
+ *          connection is made when there is something to send. A connection
+ *          that cannot be made (refused, timed out, a TLS handshake that
+ *          fails) never reaches the session: C_TCP doubles its own delay up
+ *          to `timeout_retry_max` (its `timeout_between_connections_max`).
+ *
+ *          The session connects on demand (a message to send, and nothing
+ *          connecting) only once the paced delay has passed: before, it waits
+ *          for it on its own timer, so neither a message queued meanwhile nor
+ *          a transport that closed for inactivity ever connects sooner.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -82,6 +96,8 @@ PRIVATE int fail_current_message(hgobj gobj, const char *reason);
 PRIVATE int abort_session_by_peer(hgobj gobj, const char *reason, int code, const char *reply);
 PRIVATE int abort_session_on_error(hgobj gobj, const char *reason);
 PRIVATE int drop_session(hgobj gobj, const char *reply);
+PRIVATE void pace_next_connection(hgobj gobj, BOOL failure);
+PRIVATE int request_connection(hgobj gobj);
 
 /*
  *  Internal states and event for the SMTP FSM. Defined early (instead of in
@@ -113,7 +129,7 @@ SDATA (DTP_STRING,  "helo_name",        SDF_RD,     "localhost","EHLO domain adv
 SDATA (DTP_STRING,  "username",         SDF_RD,     "",         "SMTP AUTH PLAIN username"),
 SDATA (DTP_STRING,  "password",         SDF_RD|SDF_SECRET,     "",         "SMTP AUTH PLAIN password"),
 SDATA (DTP_INTEGER, "timeout_response", SDF_RD,     "30000",    "Per-command server response timeout (ms)"),
-SDATA (DTP_INTEGER, "timeout_retry",    SDF_RD,     "2000",     "ms the transport waits before connecting again after the server ended a session. Doubles at each such failure in a row, up to timeout_retry_max; back to this once a message is delivered"),
+SDATA (DTP_INTEGER, "timeout_retry",    SDF_RD,     "2000",     "ms before connecting again after a failed session or connection. Doubles at each failure in a row, up to timeout_retry_max; back to this after a session that ends with no failure"),
 SDATA (DTP_INTEGER, "timeout_retry_max",SDF_RD,     "600000",   "Cap of the doubling of timeout_retry (ms)"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. Default if null is parent."),
 SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),
@@ -148,7 +164,9 @@ typedef struct _PRIVATE_DATA {
     int reject_code;            /* SMTP reply code of a per-message rejection, forwarded on EV_ON_CLOSE; 0 = transient/link error */
     int auth_reject_code;       /* SMTP reply code of a refused AUTH (5xx), forwarded on EV_ON_CLOSE as auth_rejected; 0 = none */
     char close_reply[REPLY_TEXT_MAX]; /* text of the reply that closed the session, forwarded on EV_ON_CLOSE as reply */
-    json_int_t retry_delay;     /* ms the transport waits after the next aborted session; 0 = timeout_retry */
+    json_int_t retry_delay;     /* ms before the connection after the next failed one; 0 = timeout_retry */
+    BOOL failed;                /* this connection is being dropped for a failure (drop_session) */
+    uint64_t connect_not_before;/* msectimer: no connection on demand before it; 0 = none */
     BOOL detached;              /* stopped: the connection closing is ours, nothing of it is told */
 } PRIVATE_DATA;
 
@@ -233,9 +251,16 @@ PRIVATE int mt_start(hgobj gobj)
     hgobj bottom = gobj_bottom_gobj(gobj);
 
     if(!empty_string(url) && !bottom) {
-        json_t *kw_tcp = json_pack("{s:s, s:I, s:o}",
+        /*
+         *  A connection that cannot be made never reaches us: C_TCP paces
+         *  it, doubling from timeout_retry up to timeout_retry_max. Up to
+         *  7.25.20 it got neither, and retried every 2 s for ever.
+         */
+        json_t *kw_tcp = json_pack("{s:s, s:I, s:I, s:I, s:o}",
             "url", url,
             "timeout_inactivity", gobj_read_integer_attr(gobj, "timeout_inactivity"),
+            "timeout_between_connections", gobj_read_integer_attr(gobj, "timeout_retry"),
+            "timeout_between_connections_max", gobj_read_integer_attr(gobj, "timeout_retry_max"),
             "crypto", json_deep_copy(gobj_read_json_attr(gobj, "crypto"))
         );
         if(!kw_tcp) {
@@ -697,30 +722,111 @@ PRIVATE int abort_session_on_error(hgobj gobj, const char *reason)
 }
 
 /***************************************************************************
- *  Drop the underlying TCP, keeping the text of the reply that caused it:
- *  ac_disconnected publishes EV_ON_CLOSE upward with it.
+ *  Drop the underlying TCP for a failure, keeping the text of the reply
+ *  that caused it: ac_disconnected publishes EV_ON_CLOSE upward with it,
+ *  and paces the next connection.
  *
- *  The transport reconnects by itself after its timeout_between_connections,
- *  which it reads when the drop completes: it is given the paced delay
- *  first, and the next failure in a row waits twice as long.
+ *  Once per connection: a second failure found in the same read (two bad
+ *  lines in one packet) is the same failed session, and must not pace the
+ *  next connection twice as long.
  ***************************************************************************/
 PRIVATE int drop_session(hgobj gobj, const char *reply)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->failed) {
+        return -1;  // dropping already
+    }
+    priv->failed = TRUE;
+
     snprintf(priv->close_reply, sizeof(priv->close_reply), "%s", reply? reply : "");
+
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+    return -1;
+}
+
+/***************************************************************************
+ *  Set the delay of the next connection, at a close.
+ *
+ *  After a failure: `retry_delay` (timeout_retry the first time), doubled
+ *  for the next failure in a row up to timeout_retry_max. C_TCP is given it
+ *  as its timeout_between_connections, which it reads right after this
+ *  close is published, and no connection on demand is made before it.
+ *
+ *  After a close that is no failure: the doubling starts again, and there
+ *  is no hurry to connect -- C_TCP, which reconnects by itself after any
+ *  close it did not decide (a server ending an idle session), is given
+ *  timeout_retry_max, and the next message connects on demand at once.
+ *  Up to 7.25.20 such a close reconnected after 2 s, and logged in again,
+ *  with nothing to send.
+ ***************************************************************************/
+PRIVATE void pace_next_connection(hgobj gobj, BOOL failure)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_int_t base = gobj_read_integer_attr(gobj, "timeout_retry");
     json_int_t cap = gobj_read_integer_attr(gobj, "timeout_retry_max");
-    if(priv->retry_delay < base) {
-        priv->retry_delay = base;
-    }
     hgobj bottom = gobj_bottom_gobj(gobj);
-    gobj_write_integer_attr(bottom, "timeout_between_connections", priv->retry_delay);
-    priv->retry_delay = (priv->retry_delay * 2 < cap)? priv->retry_delay * 2 : cap;
 
-    gobj_send_event(bottom, EV_DROP, 0, gobj);
-    return -1;
+    if(failure) {
+        json_int_t delay = priv->retry_delay < base? base : priv->retry_delay;
+        if(delay > cap) {
+            delay = cap;
+        }
+        priv->retry_delay = (delay * 2 < cap)? delay * 2 : cap;
+        priv->connect_not_before = start_msectimer((uint64_t)delay);
+        gobj_write_integer_attr(bottom, "timeout_between_connections", delay);
+    } else {
+        priv->retry_delay = 0;
+        priv->connect_not_before = 0;
+        gobj_write_integer_attr(bottom, "timeout_between_connections", cap > base? cap : base);
+    }
+}
+
+/***************************************************************************
+ *  A message is waiting and we are disconnected: connect, when the paced
+ *  delay allows it. Before, wait for it on our timer (EV_TIMEOUT in
+ *  ST_DISCONNECTED comes back here); C_TCP may connect first on its own
+ *  reconnection timer, and then there is nothing to do. Up to 7.25.20 a
+ *  message queued while a paced reconnection was pending connected at once.
+ *
+ *  The EV_CONNECT cancels the reconnection C_TCP had armed.
+ ***************************************************************************/
+PRIVATE int request_connection(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    if(!bottom || !gobj_is_running(bottom)) {
+        return 0;   // not started yet, or closing: ac_stopped comes back here
+    }
+    gobj_state_t st = gobj_current_state(bottom);
+    if(st != ST_DISCONNECTED && st != ST_STOPPED) {
+        return 0;   // connecting, or connected: the handshake takes the message
+    }
+
+    json_int_t wait = 0;
+    if(priv->connect_not_before && !test_msectimer(priv->connect_not_before)) {
+        wait = (json_int_t)(priv->connect_not_before - time_in_milliseconds_monotonic());
+    }
+    if(st == ST_STOPPED && wait <= 0) {
+        /*
+         *  Inside the close of the transport (the owner sends the message
+         *  again from our EV_ON_CLOSE): not now, and no sooner than the
+         *  pace of a first failure.
+         */
+        wait = gobj_read_integer_attr(gobj, "timeout_retry");
+    }
+    if(wait > 0) {
+        set_timeout(priv->timer, wait);
+        return 0;
+    }
+
+    json_int_t base = gobj_read_integer_attr(gobj, "timeout_retry");
+    gobj_write_integer_attr(bottom, "timeout_between_connections",
+        priv->retry_delay > base? priv->retry_delay : base
+    );
+    return gobj_send_event(bottom, EV_CONNECT, 0, gobj);
 }
 
 /***************************************************************************
@@ -799,6 +905,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     priv->inform_on_close = TRUE;
+    priv->failed = FALSE;
     gobj_change_state(gobj, ST_WAIT_BANNER);
     set_timeout(priv->timer, priv->timeout_response);
 
@@ -823,12 +930,20 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         priv->istream_in = NULL;
     }
 
+    /*
+     *  The state the connection was in: the EV_DISCONNECTED entries of the
+     *  FSM have no next state, the change is ours.
+     */
+    gobj_state_t prev_state = gobj_current_state(gobj);
+    gobj_change_state(gobj, ST_DISCONNECTED);
+
     if(priv->detached) {
         /*
          *  The close of our own stop (mt_stop). A message the owner sent
          *  after it played again waits here for the new connection.
          */
         priv->detached = FALSE;
+        priv->failed = FALSE;
         priv->reject_code = 0;
         priv->auth_reject_code = 0;
         priv->close_reply[0] = 0;
@@ -837,6 +952,25 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     }
 
     cleanup_current_message(gobj);
+
+    /*
+     *  A failure is a close we decided for one (drop_session), or any close
+     *  of a session that was not idle: the server closed it in the middle
+     *  of the handshake or of a message (a RST, a close after a 421, a TLS
+     *  error, a close with no reply). Up to 7.25.20 the second kind was not
+     *  one, and the reconnection came after the last delay written.
+     */
+    BOOL failure = priv->failed || prev_state != ST_IDLE;
+    if(failure && !priv->failed) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "SMTP server closed the session",
+            "state",        "%s", prev_state,
+            NULL
+        );
+    }
+    pace_next_connection(gobj, failure);
 
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
@@ -868,6 +1002,11 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     priv->reject_code = 0;
     priv->auth_reject_code = 0;
     priv->close_reply[0] = 0;
+    priv->failed = FALSE;
+
+    if(priv->jn_current_msg) {
+        request_connection(gobj);   // sent again by the owner from our EV_ON_CLOSE
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -917,6 +1056,15 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
         }
         gbuffer_get(gbuf, consumed);
+        if(priv->failed || !priv->istream_in) {
+            /*
+             *  The session is over (dropped, and maybe closed already: a
+             *  drop with nothing in flight closes synchronously, and its
+             *  EV_DISCONNECTED destroyed the istream). The rest of the
+             *  bytes belong to it.
+             */
+            break;
+        }
     }
 
     KW_DECREF(kw)
@@ -1157,19 +1305,20 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     if(st == ST_WAIT_DATA_RESP) {
-        BOOL ok = (code == SMTP_CODE_OK);
-        if(!ok) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL,
-                "msg",          "%s", "DATA body rejected by server",
-                "code",         "%d", code,
-                "reply",        "%s", reply,
-                NULL
-            );
+        if(code != SMTP_CODE_OK) {
+            /*
+             *  Refused like a refusal of MAIL FROM or RCPT TO, and resolved
+             *  the same way: the session is dropped and the reconnection
+             *  paced, the code goes up on EV_ON_CLOSE (a 5xx is permanent).
+             *  Up to 7.25.20 a 4xx here (451 4.7.1, a rate limit or a
+             *  greylist) was answered on EV_ON_MESSAGE with the session up,
+             *  and the emailsender uploaded the message again at once, every
+             *  retry in the same second.
+             */
+            return reject_current_message(gobj, code, reply, "DATA body rejected by server");
         }
         json_t *kw_ack = json_pack("{s:b, s:i}",
-            "ok", ok ? 1 : 0,
+            "ok", 1,
             "code", code
         );
         /*
@@ -1178,16 +1327,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  stays up), and it must find us idle with nothing in flight.
          */
         cleanup_current_message(gobj);
-        if(ok) {
-            /*
-             *  The server works: the next aborted session starts the
-             *  pacing again from timeout_retry.
-             */
-            priv->retry_delay = 0;
-            gobj_write_integer_attr(gobj_bottom_gobj(gobj), "timeout_between_connections",
-                gobj_read_integer_attr(gobj, "timeout_retry")
-            );
-        }
+        priv->retry_delay = 0;  // the server works: a next failure is a first one
         gobj_change_state(gobj, ST_IDLE);
         gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
         return 0;
@@ -1214,6 +1354,21 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     priv->reject_code = 0;
     abort_session_by_peer(gobj, "timeout waiting for SMTP response", 0, NULL);
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Disconnected with a message waiting: the paced delay has passed.
+ ***************************************************************************/
+PRIVATE int ac_timeout_reconnect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->jn_current_msg) {
+        request_connection(gobj);
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -1279,15 +1434,14 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
     /*
      *  Not ready to send yet. The message is stashed; enter_idle_after_handshake
-     *  begins it when we reach ST_IDLE. If the bottom C_TCP idle-closed
-     *  (timeout_inactivity, so it does not auto-reconnect), bring it back up now
-     *  — reconnection is this session's job (it owns the transport and must
-     *  redo the SMTP handshake), NOT the owner's. If a connect/handshake is
-     *  already in progress, just wait for it.
+     *  begins it when we reach ST_IDLE. If the bottom C_TCP is down (an idle
+     *  close does not reconnect by itself), bring it back up -- reconnection
+     *  is this session's job (it owns the transport and must redo the SMTP
+     *  handshake), NOT the owner's -- when the pace allows it. If a
+     *  connect/handshake is already in progress, just wait for it.
      */
-    hgobj bottom = gobj_bottom_gobj(gobj);
-    if(bottom && gobj_current_state(bottom) == ST_DISCONNECTED) {
-        gobj_send_event(bottom, EV_CONNECT, 0, gobj);
+    if(gobj_current_state(gobj) == ST_DISCONNECTED) {
+        request_connection(gobj);
     }
 
     KW_DECREF(kw)
@@ -1322,8 +1476,8 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(gobj_is_running(gobj) && src == gobj_bottom_gobj(gobj)) {
         start_bottom(gobj);
-        if(priv->jn_current_msg && gobj_current_state(src) == ST_DISCONNECTED) {
-            gobj_send_event(src, EV_CONNECT, 0, gobj);
+        if(priv->jn_current_msg) {
+            request_connection(gobj);
         }
     }
 
@@ -1385,6 +1539,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_CONNECTED,          ac_connected,           0},
         {EV_DISCONNECTED,       ac_disconnected,        0},
         {EV_STOPPED,            ac_stopped,             0},
+        {EV_TIMEOUT,            ac_timeout_reconnect,   0},
         {0,0,0}
     };
     /*
@@ -1399,7 +1554,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_connected[] = {
         {EV_SEND_MESSAGE,       ac_send_message,        0},
         {EV_CONNECTED,          ac_connected,           0},
-        {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,        0},
         {0,0,0}
     };
     /*
@@ -1414,7 +1569,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
-        {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,        0},
         {0,0,0}
     };
     ev_action_t st_wait_ehlo_resp[] = {
@@ -1424,7 +1579,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
-        {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,        0},
         {0,0,0}
     };
     ev_action_t st_wait_auth_resp[] = {
@@ -1434,7 +1589,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
-        {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,        0},
         {0,0,0}
     };
     ev_action_t st_idle[] = {
@@ -1443,7 +1598,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_RX_LINE,            ac_rx_line,             0},
         {EV_TX_READY,           0,                      0},
         {EV_DROP,               ac_drop,                0},
-        {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,        0},
         {0,0,0}
     };
     ev_action_t st_wait_mail_from_resp[] = {
@@ -1452,7 +1607,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
-        {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,        0},
         {0,0,0}
     };
     ev_action_t st_wait_rcpt_to_resp[] = {
@@ -1461,7 +1616,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
-        {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,        0},
         {0,0,0}
     };
     ev_action_t st_wait_data_go[] = {
@@ -1470,7 +1625,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
-        {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,        0},
         {0,0,0}
     };
     ev_action_t st_wait_data_resp[] = {
@@ -1479,7 +1634,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
-        {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,        0},
         {0,0,0}
     };
 

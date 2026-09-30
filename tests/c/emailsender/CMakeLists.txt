@@ -54,6 +54,10 @@ SET(SRCS
     shutdown_in_flight
     set_url_stash
     no_recipients
+    data_4xx_paced
+    server_close_paced
+    late_server
+    refill_paced
 )
 
 ##############################################
