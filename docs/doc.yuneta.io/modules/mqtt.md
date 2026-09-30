@@ -17,6 +17,16 @@ kept for backward compatibility.
 **Trace levels (`C_PROT_MQTT2`):** `traffic` (packets, no payload),
 `traffic-payload`, `show-decode` (decoded packet structure), `messages2`.
 
+**Secrets:** `user_passw`, `jwt` and `auth_data` (the MQTT 5 AUTH data of the
+connection, `C_PROT_MQTT` too) are `SDF_SECRET`: `view-attrs`, `view-gobj` and
+`list-persistent-attrs` show them as `********` (an empty one stays empty).
+Up to 7.25.20 `auth_data` showed in clear.
+
+```bash
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-attrs gobj=<C_PROT_MQTT2 full name> attribute=auth_data'
+# {"C_PROT_MQTT2^<name>": "********"}
+```
+
 ## C_MQTT_BROKER
 
 Full MQTT message broker — subscriber management, message routing,

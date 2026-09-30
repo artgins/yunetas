@@ -715,7 +715,7 @@ SDATA (DTP_BOOLEAN,     "clean_start",      SDF_VOLATIL,                0,      
 SDATA (DTP_INTEGER,     "session_expiry_interval",SDF_VOLATIL,          0,      "Session expiry interval in ?"),
 SDATA (DTP_INTEGER,     "keepalive",        SDF_VOLATIL,                0,      "Keepalive in ?"),
 SDATA (DTP_STRING,      "auth_method",      SDF_VOLATIL,                0,      "Auth method"),
-SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL,                0,      "Auth data (in base64)"),
+SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL|SDF_SECRET,     0,      "Auth data (in base64)"),
 SDATA (DTP_INTEGER,     "state",            SDF_VOLATIL,                0,      "State"),
 
 SDATA (DTP_INTEGER,     "msgs_out_inflight_maximum", SDF_VOLATIL,       0,      "Connect property"),
@@ -5349,12 +5349,13 @@ PRIVATE int will_read(
     }
     gobj_write_strn_attr(gobj, "will_topic", will_topic, tlen);
 
-    if((ret=mosquitto_pub_topic_check(will_topic))<0) {
+    // The attr's copy: will_topic points into the packet, not NUL-terminated
+    if((ret=mosquitto_pub_topic_check(gobj_read_str_attr(gobj, "will_topic")))<0) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt will: invalid topic",
-            "topic",        "%s", will_topic,
+            "topic",        "%s", gobj_read_str_attr(gobj, "will_topic"),
             NULL
         );
         return ret;
@@ -6228,15 +6229,15 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         gobj_trace_msg(gobj,
         "  👈 CONNECT\n"
         "   client '%s', assigned_id %d\n"
-        "   username '%s', password '%s'\n"
+        "   username '%.*s', password_len %d\n"
         "   protocol_name '%s', protocol_version '%s', is_bridge %d\n"
         "   clean_start %d, session_expiry_interval %d\n"
         "   will %d, will_retain %d, will_qos %d\n"
         "   username_flag %d, password_flag %d, keepalive %d\n",
             priv->client_id,
             priv->assigned_id,
-            SAFE_PRINT(username),
-            SAFE_PRINT(password),
+            (int)username_len, SAFE_PRINT(username),  // in the packet, not NUL-terminated
+            (int)password_len,                        // never the password
             protocol_name,
             protocol_version_name(protocol_version),
             is_bridge,

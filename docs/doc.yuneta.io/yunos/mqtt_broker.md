@@ -172,7 +172,9 @@ flight, and the broker answers a MQTT 5 client with DISCONNECT 0x82
 message is sent again at the next session. An ack of an unknown packet id is a
 WARNING too, *"Message not found in trq_out_msgs"*, and nothing else. Up to
 7.25.4 the three were ERRORs, and the first two removed the message as
-delivered: its QoS 2 exchange was skipped.
+delivered: its QoS 2 exchange was skipped. A PUBREC of a QoS 1 message is the
+same *"QoS mismatch"* WARNING and DISCONNECT 0x82 (up to 7.25.20 an ERROR
+that named neither the client nor the peer).
 
 ```text
 broker -> PUBLISH 4 (QoS 1)
@@ -180,8 +182,22 @@ client -> PUBCOMP 4          WARNING "QoS mismatch", msg_qos 1, expected_qos 2
 broker -> DISCONNECT 0x82    message 4 still pending
 ```
 
-`tests/c/c_mqtt` (`test_mqtt_out_flight`: a raw MQTT 5 client against the
-broker).
+**A PUBREL of a packet id with no QoS 2 message waiting is answered, not
+refused.** Only QoS 2 messages wait for a PUBREL, so a PUBREL of a QoS 1
+message, or one repeated after a reconnection, finds nothing: the broker says
+*"Message not found"* as a WARNING (`MSGSET_MQTT`, `client_id`, `peername`,
+`mid`) and answers PUBCOMP, as mosquitto does. Up to 7.25.20 it was an ERROR
+with a stack trace.
+
+```text
+client -> PUBLISH 20 (QoS 1)
+broker -> PUBACK 20
+client -> PUBREL 20          WARNING "Message not found", mid 20
+broker -> PUBCOMP 20         the session goes on
+```
+
+`tests/c/c_mqtt` (`test_mqtt_out_flight` and `test_mqtt_wrong_ack`: a raw
+MQTT 5 client against the broker).
 
 (mqtt-acl)=
 ## Authorization (publish/subscribe ACL)
@@ -306,7 +322,7 @@ listed the delivered messages of that QoS too, a backlog that did not exist.
 | `C_MQTT_BROKER` | `messages` / `messages2` | Broker-level message flow (verbose / icon form) |
 | `C_PROT_MQTT2` | `traffic` | MQTT packets in/out (no payload) |
 | `C_PROT_MQTT2` | `traffic-payload` | Include payload bytes |
-| `C_PROT_MQTT2` | `show-decode` | Decoded packet structure |
+| `C_PROT_MQTT2` | `show-decode` | Decoded packet structure (a CONNECT shows the username and the password's LENGTH, never the password) |
 | `C_PROT_MQTT2` | `messages2` | Simplified per-packet trace (icons) |
 
 Enable with

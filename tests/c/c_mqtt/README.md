@@ -43,6 +43,21 @@ fourth is acked with a PUBCOMP (the ack of QoS 2): the broker must say *"QoS
 mismatch"* as a WARNING, answer DISCONNECT 0x82 and keep the message pending.
 Up to 7.25.4 it logged an ERROR and removed the message as delivered.
 
+`test_mqtt_wrong_ack` (`main_wrong_ack.c` + `c_wrong_ack.c`) uses a RAW MQTT 5
+client against the broker, and a log handler of `main` that reads EVERY line,
+traces included. A. `auth_data` written on the broker's `C_PROT_MQTT2` must be
+shown as `********` by `view-attrs attribute=auth_data` and `view-gobj`: up to
+7.25.20 it lacked `SDF_SECRET` and showed in clear. B. With the `show-decode`
+trace armed, a CONNECT with username `wack_user` and a 300-byte password: the
+password must appear in no line of the log, and the username must be printed
+as `'wack_user'`. Up to 7.25.20 the trace printed the password, and read the
+username past its end (the packet is not NUL-terminated): *"username
+'wack_user,PASSWORD...'"*. C. A QoS 1 PUBLISH 20, then PUBREL 20: the broker
+has no QoS 2 message 20, so it must answer PUBCOMP 20 and say *"Message not
+found"* as a WARNING. D. PUBREC of the QoS 1 message the broker delivered: a
+*"QoS mismatch"* WARNING and DISCONNECT 0x82. Up to 7.25.20 both C and D were
+ERRORs (C with a stack); the test fails on any ERROR in the log.
+
 ## Run
 
 ```bash
