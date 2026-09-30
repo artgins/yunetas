@@ -609,6 +609,21 @@ hour histogram is drawn with `div` widths, so the mail asks no server for
 anything when it is opened. `emailsender` builds the MIME part from `body`
 with `is_html`.
 
+⚠️ **Every IPv4 address of the text is written `[a.b.c.d]`.** OVH's relay read
+`34.140.132.132` as a Spanish phone number and delivered the mail to nobody
+(7.25.19). An address glued to a word, a slash or a dot stays as it is -- it is
+a version -- and what only separates stays outside the brackets:
+
+| In the text | In the mail |
+|---|---|
+| `client 34.140.132.132.` | `client [34.140.132.132].` |
+| `upstream 34.1.2.3:443`, `34.1.2.3: refused`, `client:34.1.2.3` | `upstream [34.1.2.3]:443`, `[34.1.2.3]: refused`, `client:[34.1.2.3]` |
+| `range 10.0.0.1-10.0.0.9` | `range [10.0.0.1]-[10.0.0.9]` |
+| `::ffff:34.1.2.3` | `[::ffff:34.1.2.3]` |
+| `Chrome/142.0.0.0`, `nginx-1.25.3.1`, `1.2.3.4-beta`, `12:30:45.123` | unchanged |
+
+Up to 7.25.20 a colon or a dash on either side left the address bare.
+
 ⚠️ **Every string that came out of the log is HTML-escaped**, and that is not
 decoration. The path, the referer and the user agent are written by whoever
 made the request. Without escaping, a probe for `/<img src=x onerror=…>`

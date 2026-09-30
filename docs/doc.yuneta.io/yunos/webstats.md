@@ -72,6 +72,14 @@ whois). See [below](#webstats-whois).
 A probe is matched on the **percent-decoded** path, so the scanner that asks
 for `/%2eenv` is counted with the ones that ask for `/.env`.
 
+**Every IPv4 address in the mail is written `[a.b.c.d]`**: OVH's relay read a
+bare `34.140.132.132` as a phone number and delivered the mail to nobody. What
+only separates stays outside (`[34.1.2.3].`, `[34.1.2.3]:443`,
+`client:[34.1.2.3]`, `[10.0.0.1]-[10.0.0.9]`, `[::ffff:34.1.2.3]`); an address
+glued to a word, a slash or a dot is a version and stays as it is
+(`Chrome/142.0.0.0`, `nginx-1.25.3.1`). The stored record keeps the plain
+address.
+
 ## Configuration
 
 | Attribute | Default | Purpose |

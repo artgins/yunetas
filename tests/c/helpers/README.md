@@ -178,9 +178,13 @@ mail body as `[a.b.c.d]` so that a mail relay does not read it as a phone
 number. What stands on its own is bracketed, what is glued to a word, a slash
 or another number is a version and stays as it is (`Chrome/142.0.0.0`,
 `1.2.3.4.5`, `v1.2.3.4`, anything inside a tag). And the three forms that
-7.25.20 left bare because `.` and `:` counted as glue: the dot of a sentence
-end (`[a.b.c.d].`), a port (`[a.b.c.d]:443`), and the IPv4-mapped IPv6 form
-(`[::ffff:a.b.c.d]`).
+7.25.20 left bare because `.`, `:` and `-` counted as glue: the dot of a
+sentence end (`[a.b.c.d].`), a colon on either side (`[a.b.c.d]:443`,
+`[a.b.c.d]:x`, `client:[a.b.c.d]`), a dash that is not part of a word
+(`-[a.b.c.d]`, a range `[a.b.c.d]-[e.f.g.h]`), and the IPv4-mapped IPv6 form
+(`[::ffff:a.b.c.d]`); while versions and times stay as they are
+(`nginx-1.25.3.1`, `1.2.3.4-beta`, `7.25.20.1-1`, `12:30:45.123`). A NULL
+source answers NULL, logged, as its header promises.
 
 `test_local_day` compiles webstats' `yesterday_of()`
 (`yunos/c/webstats/src/local_day.c`), the day a report run at a given moment

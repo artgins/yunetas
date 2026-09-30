@@ -27,11 +27,18 @@
  *
  *  Only the TEXT between tags is touched, and only an address that stands
  *  on its own: one glued to a word, a slash or another dot is a version
- *  (Chrome/142.0.0.0), not an address. Three things may follow an address
- *  without gluing it, and stay outside the brackets: the dot that ends a
- *  sentence ([a.b.c.d].), a port ([a.b.c.d]:443), and nothing else. The
- *  IPv4-mapped IPv6 form is bracketed whole ([::ffff:a.b.c.d]). Up to
- *  7.25.20 the three of them stayed bare, because '.' and ':' counted as
+ *  (Chrome/142.0.0.0, nginx-1.25.3.1, 1.2.3.4-beta), not an address. What
+ *  does not glue, and stays outside the brackets:
+ *      - the dot that ends a sentence: [a.b.c.d].
+ *      - a colon, before or after: client:[a.b.c.d], [a.b.c.d]:443,
+ *        [a.b.c.d]: refused -- in a text a colon separates, and an IPv4
+ *        is never followed by one inside an IPv6 address;
+ *      - a dash that is not part of a word: -[a.b.c.d], [a.b.c.d]-, and a
+ *        range, [a.b.c.d]-[e.f.g.h]. A dash between a word or a number
+ *        and the digits (nginx-1.25.3.1, 7.25.20.1-1) keeps them a
+ *        version.
+ *  The IPv4-mapped IPv6 form is bracketed whole ([::ffff:a.b.c.d]). Up to
+ *  7.25.20 all of these stayed bare, because '.', ':' and '-' counted as
  *  glue -- and each one brings the phone number back.
  *
  *  The stored record keeps the plain address; this is the mail's way of
@@ -39,7 +46,6 @@
  ***************************************************************************/
 #define MAPPED_PREFIX       "::ffff:"
 #define MAPPED_PREFIX_LEN   (sizeof(MAPPED_PREFIX) - 1)
-#define MAX_PORT_DIGITS     5
 
 PRIVATE BOOL ip_octet(const char *p, size_t len, size_t *used)
 {
@@ -84,46 +90,68 @@ PRIVATE size_t ipv4_length(const char *p, size_t len)
     return at;
 }
 
+PRIVATE BOOL ip_word_char(char c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+}
+
 /*
- *  TRUE when the text at p[at] does not glue itself to what comes before:
- *  the end, a character that is no neighbour, or the dot of a sentence end.
+ *  TRUE when the address that ends at p[at] stands on its own: the end, a
+ *  character that is no neighbour, the dot of a sentence end, a colon, or
+ *  a dash that no word follows.
  */
-PRIVATE BOOL ip_text_ends(const char *p, size_t len, size_t at)
+PRIVATE BOOL ip_stands_alone(const char *p, size_t len, size_t at)
 {
     if(at >= len || !ip_neighbour(p[at])) {
         return TRUE;
     }
-    if(p[at] == '.') {
-        return at+1 >= len || !ip_neighbour(p[at+1]);
+    switch(p[at]) {
+        case '.':
+            return at+1 >= len || !ip_neighbour(p[at+1]);
+        case ':':
+            return TRUE;
+        case '-':
+            if(at+1 >= len || !ip_neighbour(p[at+1])) {
+                return TRUE;
+            }
+            return ipv4_length(p+at+1, len-at-1) > 0;   // a range
+        default:
+            return FALSE;
     }
-    return FALSE;
 }
 
 /*
- *  TRUE when the address that ends at p[at] stands on its own, a port
- *  (":443") included.
+ *  TRUE when what comes before p[i] glues itself to an address there.
+ *  `last_end` is where the last address bracketed ended: a dash right
+ *  after one is a range.
  */
-PRIVATE BOOL ip_stands_alone(const char *p, size_t len, size_t at)
+PRIVATE BOOL ip_glued_before(const char *p, size_t i, size_t last_end)
 {
-    if(ip_text_ends(p, len, at)) {
-        return TRUE;
-    }
-    if(p[at] != ':') {
+    if(i == 0) {
         return FALSE;
     }
-    size_t digits = 0;
-    while(at+1+digits < len && p[at+1+digits] >= '0' && p[at+1+digits] <= '9') {
-        digits++;
-    }
-    if(digits == 0 || digits > MAX_PORT_DIGITS) {
+    char c = p[i-1];
+    if(c == ':') {
         return FALSE;
     }
-    return ip_text_ends(p, len, at+1+digits);
+    if(c == '-') {
+        if(i-1 == last_end) {
+            return FALSE;
+        }
+        return i >= 2 && (ip_word_char(p[i-2]) || (p[i-2] >= '0' && p[i-2] <= '9'));
+    }
+    return ip_neighbour(c);
 }
 
 PUBLIC gbuffer_t *bracket_ip_literals(gbuffer_t *src)
 {
     if(!src) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "src NULL",
+            NULL
+        );
         return NULL;
     }
 
@@ -137,6 +165,7 @@ PUBLIC gbuffer_t *bracket_ip_literals(gbuffer_t *src)
     }
 
     BOOL in_tag = FALSE;
+    size_t last_end = (size_t)-1;
     size_t i = 0;
     while(i < len) {
         char c = p[i];
@@ -147,7 +176,7 @@ PUBLIC gbuffer_t *bracket_ip_literals(gbuffer_t *src)
         }
 
         size_t total = 0;
-        if(!in_tag && (i == 0 || !ip_neighbour(p[i-1]))) {
+        if(!in_tag && !ip_glued_before(p, i, last_end)) {
             size_t prefix = 0;
             if(len - i > MAPPED_PREFIX_LEN &&
                     strncasecmp(p+i, MAPPED_PREFIX, MAPPED_PREFIX_LEN) == 0) {
@@ -165,6 +194,7 @@ PUBLIC gbuffer_t *bracket_ip_literals(gbuffer_t *src)
                 gbuffer_append(dst, p+i, total) == total &&
                 gbuffer_append(dst, "]", 1) == 1;
             i += total;
+            last_end = i;
         } else {
             appended = gbuffer_append(dst, p+i, 1) == 1;
             i++;

@@ -16,6 +16,11 @@
  *          2. an address at the end of a sentence: [a.b.c.d].
  *          3. an address with its port: [a.b.c.d]:443
  *          4. an IPv4-mapped IPv6 address: [::ffff:a.b.c.d]
+ *          5. a colon or a dash that separates (client:[a.b.c.d],
+ *             [a.b.c.d]:x, a range [a.b.c.d]-[e.f.g.h]), and the versions
+ *             and times that must stay as they are (nginx-1.25.3.1,
+ *             1.2.3.4-beta, 12:30:45.123)
+ *          6. a NULL source: NULL, logged
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -88,8 +93,8 @@ PRIVATE void test_brackets(void)
      */
     check_bracket("upstream 34.140.132.132:443 failed", "upstream [34.140.132.132]:443 failed");
     check_bracket("34.140.132.132:8080.", "[34.140.132.132]:8080.");
-    check_bracket("34.140.132.132:x", "34.140.132.132:x");
-    check_bracket("34.140.132.132:443x", "34.140.132.132:443x");
+    check_bracket("34.140.132.132:x", "[34.140.132.132]:x");
+    check_bracket("34.140.132.132:443x", "[34.140.132.132]:443x");
 
     /*
      *  4. IPv4-mapped IPv6
@@ -97,7 +102,38 @@ PRIVATE void test_brackets(void)
     check_bracket("client ::ffff:34.140.132.132 banned", "client [::ffff:34.140.132.132] banned");
     check_bracket("<td>::FFFF:34.140.132.132</td>", "<td>[::FFFF:34.140.132.132]</td>");
     check_bracket("::ffff:34.140.132.132.", "[::ffff:34.140.132.132].");
-    check_bracket("a::ffff:34.140.132.132", "a::ffff:34.140.132.132");
+    check_bracket("a::ffff:34.140.132.132", "a::ffff:[34.140.132.132]");
+
+    /*
+     *  5. A colon or a dash that separates; versions and times stay
+     */
+    check_bracket("client:34.1.2.3", "client:[34.1.2.3]");
+    check_bracket("34.1.2.3: connection refused", "[34.1.2.3]: connection refused");
+    check_bracket("range 10.0.0.1-10.0.0.9 banned", "range [10.0.0.1]-[10.0.0.9] banned");
+    check_bracket(" -34.1.2.3", " -[34.1.2.3]");
+    check_bracket("-34.1.2.3", "-[34.1.2.3]");
+    check_bracket("34.1.2.3- x", "[34.1.2.3]- x");
+    check_bracket("nginx-1.25.3.1", "nginx-1.25.3.1");
+    check_bracket("1.2.3.4-beta", "1.2.3.4-beta");
+    check_bracket("7.25.20.1-1", "7.25.20.1-1");
+    check_bracket("at 12:30:45.123", "at 12:30:45.123");
+    check_bracket("10:20:30", "10:20:30");
+    check_bracket("2026-09-30 10:20", "2026-09-30 10:20");
+}
+
+/***************************************************************************
+ *  6. A NULL source
+ ***************************************************************************/
+PRIVATE void test_null(void)
+{
+    gbuffer_t *dst = bracket_ip_literals(NULL);
+    if(dst) {
+        printf("FAIL bracket_ip_literals(NULL) -> not NULL\n");
+        GBUFFER_DECREF(dst)
+        global_result += -1;
+    } else {
+        printf("ok   bracket_ip_literals(NULL) -> NULL\n");
+    }
 }
 
 /***************************************************************************
@@ -125,6 +161,7 @@ int main(int argc, char *argv[])
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
     test_brackets();
+    test_null();
 
     gobj_end();
 
