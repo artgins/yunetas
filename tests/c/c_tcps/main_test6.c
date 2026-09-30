@@ -26,11 +26,14 @@
 #ifndef TEST6_PORT
     #define TEST6_PORT          "7788"
 #endif
+#ifndef TEST6_APP_NAME
+    #define TEST6_APP_NAME      "test_tcps_test6"   // must be the executable's name
+#endif
 
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_tcps_" "test6"
+#define APP_NAME        TEST6_APP_NAME
 #define APP_DOC         "Test C_TCP_S TLS restart with a live connection"
 
 #define APP_VERSION     "1.0.0"

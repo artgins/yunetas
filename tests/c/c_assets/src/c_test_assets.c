@@ -34,6 +34,8 @@
 
 #if defined(CONFIG_HAVE_OPENSSL)
     #include <openssl/evp.h>
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    #include <psa/crypto.h>
 #endif
 
 /***************************************************************************
@@ -457,6 +459,7 @@ PRIVATE int expected_token(
     snprintf(message, sizeof(message), "%lld%s %s", (long long)expires, uri, SIGN_SECRET);
 
     uint8_t digest[16];
+#if defined(CONFIG_HAVE_OPENSSL)
     unsigned int digest_len = 0;
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
     if(!ctx) {
@@ -469,6 +472,18 @@ PRIVATE int expected_token(
         return fail(gobj, "md5 of the expected token");
     }
     EVP_MD_CTX_free(ctx);
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    size_t digest_len = 0;
+    if(psa_crypto_init() != PSA_SUCCESS ||
+            psa_hash_compute(
+                PSA_ALG_MD5,
+                (const uint8_t *)message, strlen(message),
+                digest, sizeof(digest), &digest_len
+            ) != PSA_SUCCESS ||
+            digest_len != sizeof(digest)) {
+        return fail(gobj, "md5 of the expected token");
+    }
+#endif
 
     gbuffer_t *gbuf = gbuffer_binary_to_base64((const char *)digest, sizeof(digest));
     if(!gbuf) {

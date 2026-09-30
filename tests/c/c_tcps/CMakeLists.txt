@@ -102,6 +102,7 @@ if(CONFIG_HAVE_OPENSSL AND CONFIG_HAVE_MBEDTLS)
     target_compile_definitions(test_tcps_test6_mbedtls PRIVATE
         TEST6_TLS_LIBRARY="mbedtls"
         TEST6_PORT="7789"
+        TEST6_APP_NAME="test_tcps_test6_mbedtls"
     )
     if(CONFIG_FULLY_STATIC)
         set_target_properties(test_tcps_test6_mbedtls PROPERTIES

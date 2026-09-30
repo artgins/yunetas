@@ -36,9 +36,8 @@
 #ifdef __linux__
 #if defined(CONFIG_HAVE_OPENSSL)
     #include <openssl/evp.h>
-#endif
-#if defined(CONFIG_HAVE_MBEDTLS)
-    #include <mbedtls/md5.h>
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    #include <psa/crypto.h>     /* mbedTLS 4: the md5 of the PSA API */
 #endif
 #endif
 
@@ -399,11 +398,21 @@ PRIVATE int md5_base64url(hgobj gobj, const char *data, size_t len, char *bf, in
     }
     EVP_MD_CTX_free(ctx);
 #elif defined(CONFIG_HAVE_MBEDTLS)
-    if(mbedtls_md5((const unsigned char *)data, len, digest) != 0) {
+    size_t digest_len = 0;
+    psa_status_t status = psa_crypto_init();  /* PSA must be initialised before any crypto in v4 */
+    if(status == PSA_SUCCESS) {
+        status = psa_hash_compute(
+            PSA_ALG_MD5,
+            (const uint8_t *)data, len,
+            digest, sizeof(digest), &digest_len
+        );
+    }
+    if(status != PSA_SUCCESS || digest_len != sizeof(digest)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "mbedtls_md5() FAILED",
+            "msg",          "%s", "psa md5 FAILED",
+            "status",       "%d", (int)status,
             NULL
         );
         return -1;
