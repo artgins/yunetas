@@ -32,6 +32,7 @@ GOBJ_DECLARE_GCLASS(C_TEST3);
  *------------------------*/
 GOBJ_DECLARE_EVENT(EV_TEST_RUN);        // posted from mt_play: run the checks
 GOBJ_DECLARE_EVENT(EV_TEST_RENAMED);    // EV_ON_MESSAGE as a renaming subscription delivers it
+GOBJ_DECLARE_EVENT(EV_TEST_RENAMED2);   // EV_ON_MESSAGE as a second renaming subscription delivers it
 
 /***************************************************************
  *              Prototypes

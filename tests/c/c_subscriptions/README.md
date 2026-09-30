@@ -17,6 +17,17 @@ Tests subscribe / unsubscribe / publish semantics of the GObj framework. Verifie
   subscription, each event once), and `gobj_unsubscribe_event()` with the
   same kw removes them (up to 7.25.4 each repeat was a second subscription,
   and the withdrawal found nothing).
+  A renamed subscription over a plain one, and two renames of one event,
+  are two subscriptions (each event arrives once under each name), and each
+  kw withdraws only its own; a renamed `__own_event__` subscription repeated
+  is one (7.25.5 found the plain one, or the other rename, as a repeat of
+  the renamed kw and replaced it).
+  `gobj_unsubscribe_list()` removes the subscription it is given: with a
+  plain and a filtered subscription coexisting, a stale plain one (already
+  removed) removes nothing and is logged, and removing the live plain one
+  leaves the filtered one in both lists (up to 7.25.20 the first entry
+  whose fields matched was removed). A top-level `renamed_event` in the kw
+  of `gobj_find_subscriptions()` filters nothing.
 
 ## Run
 
