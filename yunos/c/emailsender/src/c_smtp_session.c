@@ -13,6 +13,13 @@
  *          gclass only speaks line-based SMTP over what it sees as a
  *          plain CRLF stream.
  *
+ *          A refused AUTH is told apart by its code: a 5xx is the server
+ *          saying the credentials are wrong (auth_rejected on EV_ON_CLOSE,
+ *          the owner stops trying them), anything else is a transient
+ *          failure of the login (454, 421, ...) and closes the session like
+ *          any other drop, to be tried again. Every close caused by a reply
+ *          carries the reply's text on EV_ON_CLOSE (`reply`).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -30,6 +37,7 @@
 #define DEFAULT_TIMEOUT_RESPONSE_MS    30000   /* per-command server response watchdog */
 #define LINE_BUFFER_INITIAL            512
 #define LINE_BUFFER_MAX                8192    /* RFC 5321 §4.5.3.1.6 reply line limit */
+#define REPLY_TEXT_MAX                 512     /* RFC 5321 §4.5.3.1.5, the text kept of a reply */
 
 #define SMTP_CODE_SERVICE_READY        220
 #define SMTP_CODE_GOODBYE              221
@@ -49,12 +57,12 @@ PRIVATE int send_smtp_line(hgobj gobj, const char *line);
 PRIVATE int parse_response_code(const char *bf, size_t len, int *code, BOOL *is_final);
 PRIVATE int begin_send_current_message(hgobj gobj);
 PRIVATE int enter_idle_after_handshake(hgobj gobj);
-PRIVATE int reject_current_message(hgobj gobj, int code, const char *reason);
+PRIVATE int reject_current_message(hgobj gobj, int code, const char *reply, const char *reason);
 PRIVATE int send_next_rcpt_or_data(hgobj gobj);
 PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg);
 PRIVATE int dot_stuff_into(gbuffer_t *out, const char *body, size_t len);
 PRIVATE void cleanup_current_message(hgobj gobj);
-PRIVATE int abort_session(hgobj gobj, const char *reason);
+PRIVATE int abort_session(hgobj gobj, const char *reason, int code, const char *reply);
 
 /*
  *  Internal states and event for the SMTP FSM. Defined early (instead of in
@@ -117,7 +125,8 @@ typedef struct _PRIVATE_DATA {
     json_t *jn_recipients;      /* flat json_array of unique RCPT TO addresses */
     int recipient_index;        /* next RCPT TO index to send */
     int reject_code;            /* SMTP reply code of a per-message rejection, forwarded on EV_ON_CLOSE; 0 = transient/link error */
-    int auth_reject_code;       /* SMTP reply code of a refused AUTH, forwarded on EV_ON_CLOSE as auth_rejected; 0 = none */
+    int auth_reject_code;       /* SMTP reply code of a refused AUTH (5xx), forwarded on EV_ON_CLOSE as auth_rejected; 0 = none */
+    char close_reply[REPLY_TEXT_MAX]; /* text of the reply that closed the session, forwarded on EV_ON_CLOSE as reply */
 } PRIVATE_DATA;
 
 
@@ -539,15 +548,22 @@ PRIVATE void cleanup_current_message(hgobj gobj)
 
 /***************************************************************************
  *  Tear the SMTP session down on protocol error / unexpected reply.
- *  Logs once with reason, drops the underlying TCP, and lets ac_disconnected
- *  publish EV_ON_CLOSE upward.
+ *  Logs once with reason (and the reply that caused it, if one did: code 0
+ *  and reply NULL otherwise), drops the underlying TCP, and lets
+ *  ac_disconnected publish EV_ON_CLOSE upward, with that reply's text.
  ***************************************************************************/
-PRIVATE int abort_session(hgobj gobj, const char *reason)
+PRIVATE int abort_session(hgobj gobj, const char *reason, int code, const char *reply)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    snprintf(priv->close_reply, sizeof(priv->close_reply), "%s", reply? reply : "");
+
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", reason,
+        "code",         "%d", code,
+        "reply",        "%s", priv->close_reply,
         NULL
     );
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
@@ -589,12 +605,12 @@ PRIVATE int enter_idle_after_handshake(hgobj gobj)
  *  tries to dispatch the next queued message, so it cannot push it into the
  *  dying connection.
  ***************************************************************************/
-PRIVATE int reject_current_message(hgobj gobj, int code, const char *reason)
+PRIVATE int reject_current_message(hgobj gobj, int code, const char *reply, const char *reason)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->reject_code = code;
-    return abort_session(gobj, reason);
+    return abort_session(gobj, reason, code, reply);
 }
 
 
@@ -666,6 +682,9 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
          *  about the message (the server never saw it), it says the
          *  credentials are wrong, and retrying them is what gets the node's
          *  address banned by the mail provider.
+         *
+         *  The text of the reply that closed the session goes with them,
+         *  so the owner can say why.
          */
         json_t *kw_close = json_object();
         if(priv->reject_code) {
@@ -674,10 +693,14 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         if(priv->auth_reject_code) {
             json_object_set_new(kw_close, "auth_rejected", json_integer(priv->auth_reject_code));
         }
+        if(priv->close_reply[0]) {
+            json_object_set_new(kw_close, "reply", json_string(priv->close_reply));
+        }
         gobj_publish_event(gobj, EV_ON_CLOSE, kw_close);
     }
     priv->reject_code = 0;
     priv->auth_reject_code = 0;
+    priv->close_reply[0] = 0;
 
     KW_DECREF(kw)
     return 0;
@@ -714,7 +737,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "len",          "%d", (int)len,
                 NULL
             );
-            abort_session(gobj, "line too long or istream full");
+            abort_session(gobj, "line too long or istream full", 0, NULL);
             break;
         }
         gbuffer_get(gbuf, consumed);
@@ -740,7 +763,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     int code = 0;
     BOOL is_final = TRUE;
     if(parse_response_code(line, line_len, &code, &is_final) < 0) {
-        abort_session(gobj, "malformed SMTP reply line");
+        abort_session(gobj, "malformed SMTP reply line", 0, NULL);
         KW_DECREF(kw)
         return -1;
     }
@@ -760,7 +783,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  ("535 5.7.1 Authentication failed" is a blocked account at OVH, not
      *  a wrong password -- the code alone cannot tell them apart).
      */
-    char reply[256];
+    char reply[REPLY_TEXT_MAX];
     size_t rlen = line_len;
     while(rlen > 0 && (line[rlen - 1] == '\r' || line[rlen - 1] == '\n')) {
         rlen--;
@@ -796,7 +819,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(st == ST_WAIT_BANNER) {
         if(code != SMTP_CODE_SERVICE_READY) {
-            return abort_session(gobj, "server did not greet with 220");
+            return abort_session(gobj, "server did not greet with 220", code, reply);
         }
         char line_ehlo[NAME_MAX];
         const char *helo_name = gobj_read_str_attr(gobj, "helo_name");
@@ -808,7 +831,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(st == ST_WAIT_EHLO_RESP) {
         if(code != SMTP_CODE_OK) {
-            return abort_session(gobj, "EHLO rejected");
+            return abort_session(gobj, "EHLO rejected", code, reply);
         }
         const char *username = gobj_read_str_attr(gobj, "username");
         const char *password = gobj_read_str_attr(gobj, "password");
@@ -822,67 +845,81 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         size_t plain_len = 1 + ulen + 1 + plen;
         char *plain = gbmem_malloc(plain_len);
         if(!plain) {
-            return abort_session(gobj, "no memory for AUTH PLAIN payload");
+            return abort_session(gobj, "no memory for AUTH PLAIN payload", 0, NULL);
         }
         plain[0] = '\0';
         memcpy(plain + 1, username, ulen);
         plain[1 + ulen] = '\0';
         memcpy(plain + 1 + ulen + 1, password, plen);
 
+        /*
+         *  plain, its base64 and the AUTH line hold the password in clear:
+         *  wiped before their memory is given back.
+         */
         gbuffer_t *b64 = gbuffer_binary_to_base64(plain, plain_len);
+        explicit_bzero(plain, plain_len);
         gbmem_free(plain);
         if(!b64) {
-            return abort_session(gobj, "base64 encode failed");
+            return abort_session(gobj, "base64 encode failed", 0, NULL);
         }
         char auth_line[LINE_BUFFER_MAX];
         size_t b64_len = gbuffer_leftbytes(b64);
         if(b64_len + sizeof("AUTH PLAIN ") >= sizeof(auth_line)) {
+            explicit_bzero(gbuffer_cur_rd_pointer(b64), b64_len);
             GBUFFER_DECREF(b64)
-            return abort_session(gobj, "AUTH PLAIN line too long");
+            return abort_session(gobj, "AUTH PLAIN line too long", 0, NULL);
         }
         snprintf(auth_line, sizeof(auth_line), "AUTH PLAIN %.*s",
             (int)b64_len, (char *)gbuffer_cur_rd_pointer(b64));
+        explicit_bzero(gbuffer_cur_rd_pointer(b64), b64_len);
         GBUFFER_DECREF(b64)
 
         gobj_change_state(gobj, ST_WAIT_AUTH_RESP);
         set_timeout(priv->timer, priv->timeout_response);
-        return send_smtp_line(gobj, auth_line);
+        int ret = send_smtp_line(gobj, auth_line);
+        explicit_bzero(auth_line, sizeof(auth_line));
+        return ret;
     }
 
     if(st == ST_WAIT_AUTH_RESP) {
-        if(code != SMTP_CODE_AUTH_OK) {
-            priv->auth_reject_code = code;
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL,
-                "msg",          "%s", "AUTH PLAIN rejected",
-                "code",         "%d", code,
-                "reply",        "%s", reply,
-                NULL
-            );
-            gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
-            return -1;
+        if(code == SMTP_CODE_AUTH_OK) {
+            return enter_idle_after_handshake(gobj);
         }
-        return enter_idle_after_handshake(gobj);
+        if(code >= 500 && code < 600) {
+            /*
+             *  A permanent refusal (535, 534, 530, 538, ...): the
+             *  credentials are wrong, and the owner must stop trying them.
+             */
+            priv->auth_reject_code = code;
+            return abort_session(gobj, "AUTH PLAIN rejected", code, reply);
+        }
+        /*
+         *  A transient one (454 temporary authentication failure, 421,
+         *  432, ...) says nothing of the credentials: it closes the session
+         *  like any drop, and the login is tried again at the next
+         *  connection. Up to 7.25.20 it was taken as a refusal, and the
+         *  owner exited, not to be relaunched, over a provider's hiccup.
+         */
+        return abort_session(gobj, "AUTH PLAIN failed, transient: will retry", code, reply);
     }
 
     if(st == ST_WAIT_MAIL_FROM_RESP) {
         if(code != SMTP_CODE_OK) {
-            return reject_current_message(gobj, code, "MAIL FROM rejected");
+            return reject_current_message(gobj, code, reply, "MAIL FROM rejected");
         }
         return send_next_rcpt_or_data(gobj);
     }
 
     if(st == ST_WAIT_RCPT_TO_RESP) {
         if(code != SMTP_CODE_OK) {
-            return reject_current_message(gobj, code, "RCPT TO rejected");
+            return reject_current_message(gobj, code, reply, "RCPT TO rejected");
         }
         return send_next_rcpt_or_data(gobj);
     }
 
     if(st == ST_WAIT_DATA_GO) {
         if(code != SMTP_CODE_START_INPUT) {
-            return reject_current_message(gobj, code, "DATA not accepted");
+            return reject_current_message(gobj, code, reply, "DATA not accepted");
         }
         /*
          *  Body is pre-formed by the caller as kw["body"] — full RFC 5322
@@ -899,11 +936,11 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         size_t cap = body_len * 2 + 8;
         gbuffer_t *gbuf_body = gbuffer_create(body_len + 8, cap);
         if(!gbuf_body) {
-            return abort_session(gobj, "no memory for DATA body");
+            return abort_session(gobj, "no memory for DATA body", 0, NULL);
         }
         if(dot_stuff_into(gbuf_body, body, body_len) < 0) {
             GBUFFER_DECREF(gbuf_body)
-            return abort_session(gobj, "dot-stuff into gbuffer failed");
+            return abort_session(gobj, "dot-stuff into gbuffer failed", 0, NULL);
         }
         if(body_len < 2 ||
            body[body_len - 2] != '\r' || body[body_len - 1] != '\n') {
@@ -966,7 +1003,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /* Any other state: unexpected reply, drop the session. */
-    return abort_session(gobj, "unexpected SMTP reply for current state");
+    return abort_session(gobj, "unexpected SMTP reply for current state", code, reply);
 }
 
 /***************************************************************************
@@ -985,7 +1022,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  next message into the session we are about to tear down.
      */
     priv->reject_code = 0;
-    abort_session(gobj, "timeout waiting for SMTP response");
+    abort_session(gobj, "timeout waiting for SMTP response", 0, NULL);
 
     KW_DECREF(kw)
     return 0;

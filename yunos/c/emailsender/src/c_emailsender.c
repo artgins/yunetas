@@ -1427,6 +1427,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "msgset",       "%s", MSGSET_AUTH,
                 "msg",          "%s", "SMTP credentials rejected: exiting, NOT relaunched. Fix the credentials and run the yuno again",
                 "code",         "%d", auth_rejected,
+                "reply",        "%s", kw_get_str(gobj, kw, "reply", "", 0),
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "username",     "%s", gobj_read_str_attr(gobj, "username"),
                 NULL
@@ -1440,9 +1441,9 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              *  Session dropped with a message in flight. A 5xx code means the
              *  server rejected THIS message in its own transaction
              *  (MAIL FROM / RCPT TO / DATA) → permanent, dead-letter it.
-             *  No code (handshake failure: EHLO/banner — the server never saw
-             *  the message; a refused AUTH exits above) or a 4xx / plain drop
-             *  → transient,
+             *  No code (handshake failure: banner/EHLO, a transient 4xx to
+             *  AUTH — the server never saw the message; a 5xx to AUTH exits
+             *  above) or a 4xx / plain drop → transient,
              *  keep it queued for a retry (until max_retries). The SMTP child
              *  owns reconnection; we only resolve the in-flight message here.
              */
