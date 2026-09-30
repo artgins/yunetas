@@ -39,6 +39,11 @@
  *  The timer is what shows: yev_loop says each timer it creates under the
  *  global trace `liburing`, and the test counts those lines.
  *
+ *  And the ROOT deleted and created again while the queue is full
+ *  (do_test_root_reborn, recursive and not): after the pass the new root
+ *  is watched, a file created in it is heard. Up to 7.25.20 the pass
+ *  watched again the directories it met, never the root it started from.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -87,6 +92,9 @@ PRIVATE uint64_t probe_max_gap = 0;
 PRIVATE int stop_overflows = 0;     // FS_OVERFLOW_TYPE told to the owner that stops
 PRIVATE int stop_rescanned = 0;     // FS_RESCAN_DIR_TYPE told to it
 PRIVATE int timers_created = 0;     // "yev_create_timer_event" lines, under the trace
+
+PRIVATE int root_overflows = 0;     // FS_OVERFLOW_TYPE told to the owner of a reborn root
+PRIVATE int root_files = 0;         // FS_FILE_CREATED_TYPE told to it
 
 /***************************************************************
  *              Callbacks
@@ -157,6 +165,21 @@ PRIVATE int fs_callback_stop(fs_event_t *fs_event)
             break;
         case FS_RESCAN_DIR_TYPE:
             stop_rescanned++;
+            break;
+        default:
+            break;
+    }
+    return 0;
+}
+
+PRIVATE int fs_callback_root(fs_event_t *fs_event)
+{
+    switch(fs_event->fs_type) {
+        case FS_OVERFLOW_TYPE:
+            root_overflows++;
+            break;
+        case FS_FILE_CREATED_TYPE:
+            root_files++;
             break;
         default:
             break;
@@ -288,6 +311,109 @@ PRIVATE int do_test_stop_on_overflow(void)
     result += test_json(NULL);
 
     rmrdir(root2);
+    return result;
+}
+
+/***************************************************************************
+ *  The root deleted and created again during an overflow
+ ***************************************************************************/
+PRIVATE int do_test_root_reborn(BOOL recursive)
+{
+    int result = 0;
+    const char *label = recursive? "fs_watcher root reborn, recursive" : "fs_watcher root reborn";
+    char root3[PATH_MAX];
+    build_path(root3, sizeof(root3), getenv("HOME"), "tests_yuneta", "fs_watcher_overflow_root", NULL);
+    rmrdir(root3);
+    mkrdir(root3, 02770);
+    root_overflows = 0;
+    root_files = 0;
+
+    char title[128];
+    snprintf(title, sizeof(title), "%s: watch", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop,
+        root3,
+        recursive? FS_FLAG_RECURSIVE_PATHS : 0,
+        fs_callback_root,
+        0,
+        NULL,
+        NULL
+    );
+    if(!fs_event) {
+        return -1;
+    }
+    fs_start_watcher_event(fs_event);
+    for(int i = 0; i < 5; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  With the loop stopped: the queue filled by one directory created and
+     *  removed over and over, then the root removed and made again (its
+     *  IN_DELETE_SELF and IN_IGNORED dropped with the rest)
+     */
+    snprintf(title, sizeof(title), "%s: the new root is watched", label);
+    set_expected_results_unordered(
+        title,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
+            "msg", "watched tree rescanned after lost inotify events"
+        ),
+        NULL, NULL, 1
+    );
+    char churn[PATH_MAX];
+    build_path(churn, sizeof(churn), root3, "c", NULL);
+    for(int i = 0; i < max_queued_events()/2 + 1024; i++) {
+        if(mkdir(churn, 0700) < 0 || rmdir(churn) < 0) {
+            printf("%sERROR%s --> cannot churn %s: %s\n", On_Red BWhite, Color_Off, churn, strerror(errno));
+            result += -1;
+            break;
+        }
+    }
+    if(rmdir(root3) < 0 || mkdir(root3, 02770) < 0) {
+        printf("%sERROR%s --> delete and create again %s: %s\n",
+            On_Red BWhite, Color_Off, root3, strerror(errno));
+        result += -1;
+    }
+    for(int i = 0; i < 200000 && (root_overflows == 0 || fs_event->rescan_dirs); i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(root_overflows != 1) {
+        printf("%sERROR%s --> the overflow told %d times, expected 1: the test did not test\n",
+            On_Red BWhite, Color_Off, root_overflows);
+        result += -1;
+    }
+
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), root3, "file.txt", NULL);
+    int fd = open(path, O_CREAT|O_WRONLY, 0600);
+    if(fd >= 0) {
+        close(fd);
+    }
+    for(int i = 0; i < 50 && root_files == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(root_files != 1) {
+        printf("%sERROR%s --> a file in the root deleted and created again in the overflow: heard %d times, expected 1\n",
+            On_Red BWhite, Color_Off, root_files);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    snprintf(title, sizeof(title), "%s: stop", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    fs_stop_watcher_event(fs_event);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    rmrdir(root3);
     return result;
 }
 
@@ -507,6 +633,8 @@ int main(int argc, char *argv[])
     yev_loop_create(0, 2024, 10, NULL, &yev_loop);
 
     int result = do_test_stop_on_overflow();
+    result += do_test_root_reborn(FALSE);
+    result += do_test_root_reborn(TRUE);
     result += do_test();
 
     yev_loop_stop(yev_loop);

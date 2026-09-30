@@ -850,9 +850,11 @@ PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path)
  *  events were dropped (their IN_IGNORED lost too), and a directory
  *  deleted and created again in that time is ANOTHER inode under the same
  *  path: finding its path in the table says nothing. So every directory of
- *  the pass is watched again -- inotify_add_watch() on an inode already
- *  watched returns its wd and changes nothing -- and a wd that differs
- *  from the table's replaces the stale entry. Entries of directories gone
+ *  the pass, the ROOT included, is watched again -- inotify_add_watch() on
+ *  an inode already watched returns its wd and changes nothing -- and a wd
+ *  that differs from the table's replaces the stale entry. Up to 7.25.20
+ *  the root was left out: deleted and created again during an overflow, it
+ *  was never heard again. Entries of directories gone
  *  for good are left: their IN_IGNORED, if it still comes, takes them out,
  *  and one that never comes costs a string.
  ***************************************************************************/
@@ -929,6 +931,45 @@ PRIVATE uint64_t monotonic_us(void)
 }
 
 /*
+ *  Watch `path` again, and take out of the table a stale wd under its path.
+ *  `watched` (path -> wd) is the index of the pass; without it (a watch that
+ *  does not recurse holds its root alone) the table is searched.
+ */
+PRIVATE void watch_again(fs_event_t *fs_event, const char *path, json_t *watched)
+{
+    int old_wd = -1;
+    if(watched) {
+        json_t *jn_wd = json_object_get(watched, path);
+        if(jn_wd) {
+            old_wd = (int)json_integer_value(jn_wd);
+        }
+    } else {
+        const char *s_wd; json_t *jn_path;
+        json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_path) {
+            if(strcmp(json_string_value(jn_path), path)==0) {
+                old_wd = atoi(s_wd);
+                break;
+            }
+        }
+    }
+    int wd = add_watch(fs_event, path, TRUE);
+    if(wd < 0) {
+        return; // Error already logged (or gone meanwhile, a warning)
+    }
+    if(old_wd >= 0 && old_wd != wd) {
+        char s_wd[64];
+        snprintf(s_wd, sizeof(s_wd), "%d", old_wd);
+        const char *stale = json_string_value(json_object_get(fs_event->jn_tracked_paths, s_wd));
+        if(stale && strcmp(stale, path)==0) {
+            remove_watch(fs_event, path, old_wd);
+        }
+    }
+    if(watched) {
+        json_object_set_new(watched, path, json_integer(wd));
+    }
+}
+
+/*
  *  Push the subdirectories of `path`, watching each one (again)
  */
 PRIVATE void push_subdirectories(fs_event_t *fs_event, const char *path, json_t *watched)
@@ -963,19 +1004,7 @@ PRIVATE void push_subdirectories(fs_event_t *fs_event, const char *path, json_t 
         if(!is_dir) {
             continue;
         }
-        json_t *jn_wd = json_object_get(watched, child);
-        int wd = add_watch(fs_event, child, TRUE);
-        if(wd >= 0) {
-            if(jn_wd && json_integer_value(jn_wd) != wd) {
-                char s_wd[64];
-                snprintf(s_wd, sizeof(s_wd), "%d", (int)json_integer_value(jn_wd));
-                const char *stale = json_string_value(json_object_get(fs_event->jn_tracked_paths, s_wd));
-                if(stale && strcmp(stale, child)==0) {
-                    remove_watch(fs_event, child, (int)json_integer_value(jn_wd));
-                }
-            }
-            json_object_set_new(watched, child, json_integer(wd));
-        }
+        watch_again(fs_event, child, watched);
         json_array_append_new(fs_event->rescan_dirs, json_string(child));
     }
     closedir(dir);
@@ -1007,6 +1036,9 @@ PRIVATE int rescan_slice_callback(yev_event_h yev_event)
 
         if(!is_directory(dir)) {
             continue;   // gone meanwhile: its delete is the owner's to find
+        }
+        if(strcmp(dir, fs_event->path)==0) {
+            watch_again(fs_event, dir, watched);    // the root too may be another inode now
         }
         if(watched) {
             push_subdirectories(fs_event, dir, watched);

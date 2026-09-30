@@ -129,7 +129,10 @@ in place (since 7.25.9; in slices since 7.25.10):
    Up to 7.25.20 a path found in the table was taken as watched, and a
    directory reborn during an overflow (another inode, its `IN_IGNORED` lost)
    was never heard again; the table also let an `IN_IGNORED` pass without
-   taking out its wd, which it does now;
+   taking out its wd, which it does now. The ROOT is watched again too, in a
+   watch that recurses and in one that does not: up to 7.25.20 the pass
+   watched again the directories it met, never the root it started from, and
+   a root deleted and created again during an overflow went deaf;
 4. the pass runs **a slice of 20 ms per loop turn**, and an INFO closes it:
    *"watched tree rescanned after lost inotify events"*, with `directories`,
    `ms`, and where that time went: `slices`, `ms_owner` (in the owner's
@@ -245,6 +248,7 @@ its queue is that echo, which is why a single burst can overflow it twice.
   owner, the pass takes ~30 s and the loop is never deaf for more than 1 s (it is
   50 ms, the probe's period). A directory watched before the flood and deleted
   and created again in it is watched after the pass (a file created in it is
-  heard). On a local disk the directories just created are
+  heard), and so is the ROOT deleted and created again during an overflow,
+  recursive or not. On a local disk the directories just created are
   in the kernel's cache and a pass in one piece takes milliseconds -- which is
   why only a slow owner shows what a busy disk does.
