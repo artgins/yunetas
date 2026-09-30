@@ -55,11 +55,13 @@ SET (YUNO_SRCS
     src/c_webstats.c
     src/c_log_reader.c
     src/ip_literals.c
+    src/local_day.c
 )
 SET (YUNO_HDRS
     src/c_webstats.h
     src/c_log_reader.h
     src/ip_literals.h
+    src/local_day.h
 )
 
 ##############################################

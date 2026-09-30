@@ -38,6 +38,7 @@
 
 #include "c_log_reader.h"
 #include "ip_literals.h"
+#include "local_day.h"
 #include "c_webstats.h"
 
 /***************************************************************************
@@ -589,7 +590,7 @@ PRIVATE json_t *cmd_send_yesterday(hgobj gobj, const char *cmd, json_t *kw, hgob
 PRIVATE json_t *run_yesterday(hgobj gobj, BOOL send, json_t *kw)
 {
     char date[DATE_SIZE];
-    if(date_of(gobj, time(NULL) - 24*60*60, date, sizeof(date)) < 0) {
+    if(yesterday_of(gobj, time(NULL), date, sizeof(date)) < 0) {
         return msg_iev_build_response(
             gobj,
             -1,
@@ -4784,7 +4785,7 @@ PRIVATE int ac_schedule(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     char date[DATE_SIZE];
-    if(date_of(gobj, time(NULL) - 24*60*60, date, sizeof(date)) < 0) {
+    if(yesterday_of(gobj, time(NULL), date, sizeof(date)) < 0) {
         // Error already logged
         arm_schedule(gobj);     // do not lose the schedule over one bad day
         KW_DECREF(kw)

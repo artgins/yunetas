@@ -148,3 +148,11 @@ or another number is a version and stays as it is (`Chrome/142.0.0.0`,
 7.25.20 left bare because `.` and `:` counted as glue: the dot of a sentence
 end (`[a.b.c.d].`), a port (`[a.b.c.d]:443`), and the IPv4-mapped IPv6 form
 (`[::ffff:a.b.c.d]`).
+
+`test_local_day` compiles webstats' `yesterday_of()`
+(`yunos/c/webstats/src/local_day.c`), the day a report run at a given moment
+is about, and runs it in the time zone of Madrid: an ordinary day, the turn of
+a month and of a year, and both changes of hour. Up to 7.25.20 the day was the
+one of `now - 86400`: the day BEFORE yesterday from 00:00 to 01:00 after the
+23-hour day of spring, and the same day from 23:00 on the 25-hour day of
+autumn.

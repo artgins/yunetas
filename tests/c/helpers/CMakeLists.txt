@@ -57,6 +57,7 @@ set(SRCS
     test_dir_array_nomem
     test_dir_listing
     test_ip_literals
+    test_local_day
     test_dir_read_error
     test_switchs
 )
@@ -120,5 +121,13 @@ target_sources(test_ip_literals PRIVATE
     ${YUNETAS_BASE}/yunos/c/webstats/src/ip_literals.c
 )
 target_include_directories(test_ip_literals PRIVATE
+    ${YUNETAS_BASE}/yunos/c/webstats/src
+)
+
+# test_local_day tests which day webstats reports (its own source)
+target_sources(test_local_day PRIVATE
+    ${YUNETAS_BASE}/yunos/c/webstats/src/local_day.c
+)
+target_include_directories(test_local_day PRIVATE
     ${YUNETAS_BASE}/yunos/c/webstats/src
 )
