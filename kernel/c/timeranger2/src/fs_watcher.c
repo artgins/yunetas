@@ -12,6 +12,7 @@
  *              All Rights Reserved.
  ****************************************************************************/
 #include <unistd.h>
+#include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 #include <sys/inotify.h>
@@ -515,6 +516,9 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         fs_event->filename = "";
         fs_event->callback(fs_event);
 
+        if(fs_event->stop_requested) {
+            return; // the owner stopped us: the watcher goes when the batch ends
+        }
         if(fs_event->rescan_dirs) {
             /*
              *  A pass is running: the directories it visited already may
@@ -558,18 +562,17 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
     }
 
     if(event->mask & (IN_IGNORED)) {
-        // The Watch was removed
-
-        // Don't trace, avoid wasting time
-        // if((path=get_path(fs_event, event->wd)) != NULL) {
-        //     char path_[PATH_MAX];
-        //     snprintf(path_, sizeof(path_), "%s", path);
-        //     char *filename = pop_last_segment(path_);
-        //
-        //     fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
-        //     fs_event->directory = path_;
-        //     fs_event->filename = filename;
-        // }
+        /*
+         *  The kernel removed the watch. Mostly after an IN_DELETE_SELF that
+         *  already took the wd out of the table; when that event was lost
+         *  (an overflow, a watch removed for another reason) this is the
+         *  last word on the wd: its entry would name a directory nobody
+         *  watches, and the pass after an overflow would take it as
+         *  watched.
+         */
+        char s_wd[64];
+        snprintf(s_wd, sizeof(s_wd), "%d", event->wd);
+        json_object_del(fs_event->jn_tracked_paths, s_wd);
         return;
     }
 
@@ -843,10 +846,15 @@ PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path)
  *  to itself, and what has to happen between two slices is precisely that
  *  the loop runs.
  *
- *  The watches of directories that went while the events were dropped are
- *  left in the table: if their IN_DELETE_SELF / IN_IGNORED still come, they
- *  are resolved as always; taken out now, those late events would name a
- *  wd nobody knows. A stale entry costs a string.
+ *  The table of watches may still hold directories that went while the
+ *  events were dropped (their IN_IGNORED lost too), and a directory
+ *  deleted and created again in that time is ANOTHER inode under the same
+ *  path: finding its path in the table says nothing. So every directory of
+ *  the pass is watched again -- inotify_add_watch() on an inode already
+ *  watched returns its wd and changes nothing -- and a wd that differs
+ *  from the table's replaces the stale entry. Entries of directories gone
+ *  for good are left: their IN_IGNORED, if it still comes, takes them out,
+ *  and one that never comes costs a string.
  ***************************************************************************/
 PRIVATE void start_rescan_pass(fs_event_t *fs_event)
 {
@@ -882,7 +890,9 @@ PRIVATE void start_rescan_pass(fs_event_t *fs_event)
         fs_event->rescan_watched = json_object();
         const char *s_wd; json_t *jn_path;
         json_object_foreach(fs_event->jn_tracked_paths, s_wd, jn_path) {
-            json_object_set_new(fs_event->rescan_watched, json_string_value(jn_path), json_true());
+            json_object_set_new(fs_event->rescan_watched, json_string_value(jn_path),
+                json_integer(atoi(s_wd))
+            );
         }
     }
     fs_event->rescan_again = FALSE;
@@ -919,7 +929,7 @@ PRIVATE uint64_t monotonic_us(void)
 }
 
 /*
- *  Push the subdirectories of `path`, watching the ones not watched yet
+ *  Push the subdirectories of `path`, watching each one (again)
  */
 PRIVATE void push_subdirectories(fs_event_t *fs_event, const char *path, json_t *watched)
 {
@@ -953,10 +963,18 @@ PRIVATE void push_subdirectories(fs_event_t *fs_event, const char *path, json_t 
         if(!is_dir) {
             continue;
         }
-        if(!json_object_get(watched, child)) {
-            if(add_watch(fs_event, child, TRUE) >= 0) {
-                json_object_set_new(watched, child, json_true());
+        json_t *jn_wd = json_object_get(watched, child);
+        int wd = add_watch(fs_event, child, TRUE);
+        if(wd >= 0) {
+            if(jn_wd && json_integer_value(jn_wd) != wd) {
+                char s_wd[64];
+                snprintf(s_wd, sizeof(s_wd), "%d", (int)json_integer_value(jn_wd));
+                const char *stale = json_string_value(json_object_get(fs_event->jn_tracked_paths, s_wd));
+                if(stale && strcmp(stale, child)==0) {
+                    remove_watch(fs_event, child, (int)json_integer_value(jn_wd));
+                }
             }
+            json_object_set_new(watched, child, json_integer(wd));
         }
         json_array_append_new(fs_event->rescan_dirs, json_string(child));
     }

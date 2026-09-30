@@ -113,12 +113,23 @@ in place (since 7.25.9; in slices since 7.25.10):
 1. a WARNING, *"inotify IN_Q_OVERFLOW: events lost, rescanning the watched
    tree"*, with the watched `path`;
 2. the owner's callback is called ONCE with **`FS_OVERFLOW_TYPE`**
-   (`directory` = the watched path): do there what is global and cheap;
+   (`directory` = the watched path): do there what is global and cheap. An
+   owner may stop the watcher there (`fs_stop_watcher_event()`): then no
+   pass is started, and the watcher goes when the batch ends (up to 7.25.20
+   the pass was still set up -- its index built, its timer created and
+   armed -- and thrown away);
 3. a **pass** over the tree follows: every directory, the root included, is
    handed to the owner as **`FS_RESCAN_DIR_TYPE`** (`directory` = that
    directory) -- read it again, what it holds may never have been told. In a
    recursive watch a directory born while its `IN_CREATE` was dropped is
-   watched before it is handed over;
+   watched before it is handed over, and so is one deleted and created again
+   meanwhile: every directory of the pass is watched again
+   (`inotify_add_watch()` on an inode already watched returns its wd), and a
+   wd that differs from the one the table holds for that path replaces it.
+   Up to 7.25.20 a path found in the table was taken as watched, and a
+   directory reborn during an overflow (another inode, its `IN_IGNORED` lost)
+   was never heard again; the table also let an `IN_IGNORED` pass without
+   taking out its wd, which it does now;
 4. the pass runs **a slice of 20 ms per loop turn**, and an INFO closes it:
    *"watched tree rescanned after lost inotify events"*, with `directories`,
    `ms`, and where that time went: `slices`, `ms_owner` (in the owner's
@@ -190,7 +201,12 @@ What the owners of the tree do:
   `disks/<rt_id>/` (its signal is a directory created and removed), so the
   follower's cache is compared with the topic's `keys/`, read once, and a key
   gone from there is heard as deleted (its `key_deleted` callback fires; INFO
-  *"keys deleted while the inotify events were lost"*). At each
+  *"keys deleted while the inotify events were lost"*). The cache is shared by
+  every feed of the topic and forgets a key with the first feed that hears its
+  delete, so each feed also keeps the deletes the OTHER feeds heard and it has
+  not (`deletes_unheard`): those gone from `keys/` are told too. Up to 7.25.20
+  a feed that overflowed while another feed of its topic heard a delete never
+  heard of it. At each
   `FS_RESCAN_DIR_TYPE`: the master hard-links each new md2 into
   `disks/<rt_id>/<key>/` and the follower consumes the link when it reads it,
   so a link still there IS a record not handed over yet, and the key directory
@@ -219,11 +235,16 @@ its queue is that echo, which is why a single burst can overflow it twice.
   deleted key is heard once, and a key born during the overflow is watched
   afterwards. With the code that aborted, the test aborts. It needs about four
   open files per key and raises its soft limit to the hard one, as a yuno does;
-  below that it is skipped.
+  below that it is skipped. Before it, a cheap case that always runs: two
+  feeds of one topic, the whole-topic one overflowed (by directories created
+  and removed in one of its key directories) while a key is deleted, and the
+  one keyed on that key hearing it first. Both hear the delete once.
 - `test_fs_watcher_overflow`: the watcher alone, with an owner slow on purpose
   (100 us per directory) and a periodic timer probing the loop. `max_queued_events`
   + 4096 directories are created with the loop stopped: every one is told to the
   owner, the pass takes ~30 s and the loop is never deaf for more than 1 s (it is
-  50 ms, the probe's period). On a local disk the directories just created are
+  50 ms, the probe's period). A directory watched before the flood and deleted
+  and created again in it is watched after the pass (a file created in it is
+  heard). On a local disk the directories just created are
   in the kernel's cache and a pass in one piece takes milliseconds -- which is
   why only a slow owner shows what a busy disk does.

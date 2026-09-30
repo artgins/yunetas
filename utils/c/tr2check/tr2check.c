@@ -131,6 +131,7 @@ typedef struct {
     uint64_t corrupted;
     uint64_t no_checksum;
     uint64_t unreadable_keys;
+    BOOL load_aborted;      // a key's records could not all be kept: the check is incomplete
 
     BOOL seq_seen;
     json_int_t seq_min;
@@ -586,8 +587,9 @@ PRIVATE int load_record_callback(
         ));
     } else if(seq_push(&check.seqs, json_integer_value(jn_seq)) < 0) {
         // Error already logged
+        check.load_aborted = TRUE;
         JSON_DECREF(record)
-        return -1;
+        return -1;  // breaks the load: the verdict would be on a part of the key
     }
 
     /*
@@ -711,10 +713,25 @@ PRIVATE int check_topic(char *topic_path)
         return EXIT_ERROR;
     }
 
+    /*
+     *  The database and the directory above it are taken from the path, so
+     *  the path must name them: `db/topic` or a bare `topic` have none.
+     */
     char path[PATH_MAX];
-    snprintf(path, sizeof(path), "%s", topic_path);
+    if(!realpath(topic_path, path)) {
+        fprintf(stderr, "%s: cannot resolve the path '%s': %s\n", NAME, topic_path, strerror(errno));
+        return EXIT_ERROR;
+    }
     char *topic_name = pop_last_segment(path);
     char *database = pop_last_segment(path);
+    if(empty_string(topic_name) || empty_string(database) || database == path) {
+        fprintf(stderr, "%s: a topic lives in <directory>/<database>/<topic>, not in '%s'\n",
+            NAME, topic_path);
+        return EXIT_ERROR;
+    }
+    if(empty_string(path)) {
+        snprintf(path, sizeof(path), "/");  // a database right under the root
+    }
 
     json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s}",
         "path", path,
@@ -750,8 +767,19 @@ PRIVATE int check_topic(char *topic_path)
             continue;
         }
         check_key(tranger, topic_name, key);
+        if(check.load_aborted) {
+            fprintf(stderr, "%s: the records of key '%s' could not all be kept in memory: the check is incomplete\n",
+                NAME, key);
+            break;
+        }
     }
     JSON_DECREF(jn_keys)
+
+    if(check.load_aborted) {
+        tranger2_close_topic(tranger, topic_name);
+        tranger2_shutdown(tranger);
+        return EXIT_ERROR;
+    }
 
     if(check.scope_topic) {
         count_sequences("*");
@@ -1003,12 +1031,18 @@ int main(int argc, char *argv[])
     snprintf(topic_path, sizeof(topic_path), "%s", arguments.path);
     delete_right_slash(topic_path);
 
+    /*
+     *  timeranger2 keeps the files of every key open: the soft limit goes up
+     *  to the hard one, which an unprivileged process cannot raise.
+     */
     struct rlimit rl;
-    if(getrlimit(RLIMIT_NOFILE, &rl) == 0) {
-        if(rl.rlim_cur < 200000) {
-            rl.rlim_cur = 200000;
-            rl.rlim_max = 200000;
-            setrlimit(RLIMIT_NOFILE, &rl);
+    if(getrlimit(RLIMIT_NOFILE, &rl) < 0) {
+        fprintf(stderr, "%s: getrlimit(RLIMIT_NOFILE) failed: %s\n", NAME, strerror(errno));
+    } else if(rl.rlim_cur < rl.rlim_max) {
+        rl.rlim_cur = rl.rlim_max;
+        if(setrlimit(RLIMIT_NOFILE, &rl) < 0) {
+            fprintf(stderr, "%s: cannot raise the limit of open files to %llu: %s\n",
+                NAME, (unsigned long long)rl.rlim_max, strerror(errno));
         }
     }
 

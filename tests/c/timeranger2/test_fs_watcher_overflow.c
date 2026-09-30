@@ -24,7 +24,20 @@
  *        time) stays under MAX_OWN_US: a cost that grows with the tree, as
  *        an index rebuilt per slice did, makes a pass of minutes;
  *      - a directory born in the overflow is watched after it: a file
- *        created in it is heard.
+ *        created in it is heard;
+ *      - a directory watched BEFORE the overflow, deleted and created again
+ *        while the queue was full (its IN_DELETE_SELF and IN_IGNORED lost
+ *        with the rest), is watched again: a file created in it is heard.
+ *        Up to 7.25.20 the pass found its path in the table of watches,
+ *        under the wd of the directory that went, and never watched the
+ *        new one.
+ *
+ *  And an owner that STOPS the watcher from its FS_OVERFLOW_TYPE callback
+ *  (do_test_stop_on_overflow): no pass is started for a watcher being
+ *  destroyed. Up to 7.25.20 the watcher built the index of the pass and
+ *  created and armed its timer, all of it thrown away when the batch ended.
+ *  The timer is what shows: yev_loop says each timer it creates under the
+ *  global trace `liburing`, and the test counts those lines.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -52,6 +65,7 @@
 #define PROBE_MS    50
 #define MAX_DEAF_MS 1000
 #define MAX_OWN_US  200         // the watcher's own cost per directory of the pass
+#define REBORN_DIR  "reborn"    // watched before the flood, deleted and created again in it
 
 /***************************************************************
  *              Data
@@ -69,6 +83,10 @@ PRIVATE uint64_t owner_us = 0;     // time spent by the owner in the pass
 
 PRIVATE uint64_t probe_last = 0;
 PRIVATE uint64_t probe_max_gap = 0;
+
+PRIVATE int stop_overflows = 0;     // FS_OVERFLOW_TYPE told to the owner that stops
+PRIVATE int stop_rescanned = 0;     // FS_RESCAN_DIR_TYPE told to it
+PRIVATE int timers_created = 0;     // "yev_create_timer_event" lines, under the trace
 
 /***************************************************************
  *              Callbacks
@@ -129,6 +147,31 @@ PRIVATE int fs_callback(fs_event_t *fs_event)
     return 0;
 }
 
+PRIVATE int fs_callback_stop(fs_event_t *fs_event)
+{
+    switch(fs_event->fs_type) {
+        case FS_OVERFLOW_TYPE:
+            stop_overflows++;
+            fs_stop_watcher_event(fs_event);
+            gobj_set_global_trace2(TRACE_URING, TRUE);  // from here each timer created is said
+            break;
+        case FS_RESCAN_DIR_TYPE:
+            stop_rescanned++;
+            break;
+        default:
+            break;
+    }
+    return 0;
+}
+
+PRIVATE int count_timers_write(void *v, int priority, const char *bf, size_t len)
+{
+    if(strstr(bf, "\"yev_create_timer_event\"")) {
+        timers_created++;
+    }
+    return 0;
+}
+
 PRIVATE int probe_callback(yev_event_h yev_event)
 {
     if(yev_get_state(yev_event) != YEV_ST_IDLE) {
@@ -171,6 +214,84 @@ PRIVATE int count_told(void)
 }
 
 /***************************************************************************
+ *  An owner that stops the watcher when it is told of the overflow
+ ***************************************************************************/
+PRIVATE int do_test_stop_on_overflow(void)
+{
+    int result = 0;
+    char root2[PATH_MAX];
+    build_path(root2, sizeof(root2), getenv("HOME"), "tests_yuneta", "fs_watcher_overflow_stop", NULL);
+    rmrdir(root2);
+    mkrdir(root2, 02770);
+
+    set_expected_results("fs_watcher stopped on overflow: watch", NULL, NULL, NULL, 1);
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop,
+        root2,
+        0,
+        fs_callback_stop,
+        0,
+        NULL,
+        NULL
+    );
+    if(!fs_event) {
+        return -1;
+    }
+    fs_start_watcher_event(fs_event);
+    for(int i = 0; i < 5; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  The queue filled, with the loop stopped, by one directory created
+     *  and removed over and over (two events each, no disk left behind)
+     */
+    set_expected_results(
+        "fs_watcher stopped on overflow: no pass",
+        json_pack("[{s:s}]",
+            "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree"
+        ),
+        NULL, NULL, 1
+    );
+    gobj_log_register_handler("count_timers", 0, count_timers_write, 0);
+    gobj_log_add_handler("count_timers", "count_timers", LOG_OPT_ALL, 0);
+
+    char churn[PATH_MAX];
+    build_path(churn, sizeof(churn), root2, "c", NULL);
+    for(int i = 0; i < max_queued_events()/2 + 1024; i++) {
+        if(mkdir(churn, 0700) < 0 || rmdir(churn) < 0) {
+            printf("%sERROR%s --> cannot churn %s: %s\n", On_Red BWhite, Color_Off, churn, strerror(errno));
+            result += -1;
+            break;
+        }
+    }
+    for(int i = 0; i < 200000 && stop_overflows == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    gobj_set_global_trace2(TRACE_URING, FALSE);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    gobj_log_del_handler("count_timers");
+
+    if(stop_overflows != 1) {
+        printf("%sERROR%s --> the overflow told %d times, expected 1: the test did not test\n",
+            On_Red BWhite, Color_Off, stop_overflows);
+        result += -1;
+    }
+    if(timers_created != 0 || stop_rescanned != 0) {
+        printf("%sERROR%s --> a watcher stopped on overflow: %d rescan timer(s) created, %d directories rescanned, expected 0/0\n",
+            On_Red BWhite, Color_Off, timers_created, stop_rescanned);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    rmrdir(root2);
+    return result;
+}
+
+/***************************************************************************
  *  do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -200,6 +321,19 @@ PRIVATE int do_test(void)
     for(int i = 0; i < 5; i++) {
         yev_loop_run_once(yev_loop);
     }
+    char reborn[PATH_MAX];
+    build_path(reborn, sizeof(reborn), root, REBORN_DIR, NULL);
+    if(mkdir(reborn, 02770) < 0) {
+        printf("%sERROR%s --> mkdir %s: %s\n", On_Red BWhite, Color_Off, reborn, strerror(errno));
+        result += -1;
+    }
+    for(int i = 0; i < 5; i++) {
+        yev_loop_run_once(yev_loop);    // its IN_CREATE: watched
+    }
+    if(json_integer_value(json_object_get(told, REBORN_DIR)) != 1) {
+        printf("%sERROR%s --> %s not heard before the flood\n", On_Red BWhite, Color_Off, REBORN_DIR);
+        result += -1;
+    }
     result += test_json(NULL);
 
     /*
@@ -223,6 +357,11 @@ PRIVATE int do_test(void)
             result += -1;
             break;
         }
+    }
+    if(rmdir(reborn) < 0 || mkdir(reborn, 02770) < 0) {
+        printf("%sERROR%s --> delete and create again %s: %s\n",
+            On_Red BWhite, Color_Off, reborn, strerror(errno));
+        result += -1;
     }
 
     yev_event_h yev_probe = yev_create_timer_event(yev_loop, probe_callback, 0);
@@ -259,9 +398,9 @@ PRIVATE int do_test(void)
         printf("%sERROR%s --> no overflow: the test did not test\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    if(n_told != n_dirs) {
+    if(n_told != n_dirs + 1) {
         printf("%sERROR%s --> %d of %d directories told to the owner\n",
-            On_Red BWhite, Color_Off, n_told, n_dirs);
+            On_Red BWhite, Color_Off, n_told, n_dirs + 1);
         result += -1;
     }
     if(own_us > MAX_OWN_US) {
@@ -282,22 +421,40 @@ PRIVATE int do_test(void)
 
     /*
      *  The last directory was born while its IN_CREATE was being dropped:
-     *  after the pass it is watched, and a file created in it is heard
+     *  after the pass it is watched, and a file created in it is heard.
+     *  So is one in the directory deleted and created again.
      */
     set_expected_results("fs_watcher overflow: a directory born in the overflow is watched", NULL, NULL, NULL, 1);
     char path[PATH_MAX], name[32];
     snprintf(name, sizeof(name), "d%06d", n_dirs);
     build_path(path, sizeof(path), root, name, "file.txt", NULL);
+    files_created = 0;
     int fd = open(path, O_CREAT|O_WRONLY, 0600);
     if(fd >= 0) {
         close(fd);
     }
-    files_created = 0;
     for(int i = 0; i < 50 && files_created == 0; i++) {
         yev_loop_run_once(yev_loop);
     }
     if(files_created != 1) {
         printf("%sERROR%s --> a file in a directory born in the overflow: heard %d times, expected 1\n",
+            On_Red BWhite, Color_Off, files_created);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("fs_watcher overflow: a directory reborn in the overflow is watched", NULL, NULL, NULL, 1);
+    build_path(path, sizeof(path), reborn, "file.txt", NULL);
+    files_created = 0;
+    fd = open(path, O_CREAT|O_WRONLY, 0600);
+    if(fd >= 0) {
+        close(fd);
+    }
+    for(int i = 0; i < 50 && files_created == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(files_created != 1) {
+        printf("%sERROR%s --> a file in a directory deleted and created again in the overflow: heard %d times, expected 1\n",
             On_Red BWhite, Color_Off, files_created);
         result += -1;
     }
@@ -349,7 +506,8 @@ int main(int argc, char *argv[])
 
     yev_loop_create(0, 2024, 10, NULL, &yev_loop);
 
-    int result = do_test();
+    int result = do_test_stop_on_overflow();
+    result += do_test();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

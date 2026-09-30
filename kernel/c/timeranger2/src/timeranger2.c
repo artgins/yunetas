@@ -520,6 +520,11 @@ PRIVATE void client_key_deleted(
     fs_event_t *fs_event,
     const char *deleted_key
 );
+PRIVATE void count_key_delete_heard(
+    json_t *watched_topic,
+    fs_event_t *fs_event,
+    const char *deleted_key
+);
 PRIVATE void forget_keys_deleted_unheard(
     hgobj gobj,
     json_t *tranger,
@@ -6746,6 +6751,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                         NULL
                     );
                 }
+                count_key_delete_heard(watched_topic, fs_event, deleted_key);
                 client_key_deleted(gobj, tranger, watched_topic, fs_event, deleted_key);
             }
             break;
@@ -6913,13 +6919,81 @@ PRIVATE void client_key_deleted(
 }
 
 /***************************************************************************
+ *  CLIENT: a feed heard a key-delete from its own directory. Every feed of
+ *  the topic hears each delete once, each from its own watcher, but the
+ *  cache they share forgets the key with the FIRST one: a feed that lost
+ *  the signal in an overflow could no longer find the key gone by
+ *  comparing that cache with keys/. So every delete is counted as owed to
+ *  the other watched feeds of the topic (`deletes_unheard`, per feed),
+ *  and paid when each one hears it; what an overflow leaves owed is told
+ *  by forget_keys_deleted_unheard().
+ ***************************************************************************/
+PRIVATE void count_key_delete_heard(
+    json_t *watched_topic,
+    fs_event_t *fs_event,
+    const char *deleted_key
+)
+{
+    json_t *disk = NULL;
+    int idx; json_t *disk_;
+    json_array_foreach(json_object_get(watched_topic, "disks"), idx, disk_) {
+        fs_event_t *fs = (fs_event_t *)(uintptr_t)json_integer_value(
+            json_object_get(disk_, "fs_event_client")
+        );
+        if(fs == fs_event) {
+            disk = disk_;
+            break;
+        }
+    }
+    if(!disk) {
+        return; // client_key_deleted() logs it
+    }
+
+    json_t *unheard = json_object_get(disk, "deletes_unheard");
+    json_int_t owed = json_integer_value(json_object_get(unheard, deleted_key));
+    if(owed > 1) {
+        json_object_set_new(unheard, deleted_key, json_integer(owed - 1));
+        return;
+    }
+    if(owed == 1) {
+        json_object_del(unheard, deleted_key);
+        return;
+    }
+
+    /*
+     *  Nothing owed to this feed: a delete nobody here has heard yet
+     */
+    json_array_foreach(json_object_get(watched_topic, "disks"), idx, disk_) {
+        if(disk_ == disk || !json_integer_value(json_object_get(disk_, "fs_event_client"))) {
+            continue;
+        }
+        json_t *unheard_ = json_object_get(disk_, "deletes_unheard");
+        if(!unheard_) {
+            unheard_ = json_object();
+            json_object_set_new(disk_, "deletes_unheard", unheard_);
+        }
+        json_int_t owed_ = json_integer_value(json_object_get(unheard_, deleted_key));
+        json_object_set_new(unheard_, deleted_key, json_integer(owed_ + 1));
+    }
+}
+
+/***************************************************************************
  *  CLIENT: the watcher lost events (inotify IN_Q_OVERFLOW). A key deleted
- *  then was heard by nobody: the master's signal (the key directory created
- *  and removed in disks/<rt_id>/) leaves nothing behind. So the cache is
- *  compared with the topic's keys/, read once -- one directory, not a
- *  stat() per key. The records lost with the events are found by the pass
- *  of fs_watcher that follows (FS_RESCAN_DIR_TYPE): the master's hard link
- *  of an md2 stays in disks/<rt_id>/<key>/ until this reader consumes it.
+ *  then was not heard by this feed: the master's signal (the key directory
+ *  created and removed in disks/<rt_id>/) leaves nothing behind. Two
+ *  sources, each checked against the topic's keys/, read once -- one
+ *  directory, not a stat() per key:
+ *
+ *    - the cache: a key deleted and heard by no feed yet (counted here as
+ *      heard, so the other feeds owe it);
+ *    - the deletes the other feeds heard and this one owes: the cache
+ *      forgot those with the first feed that heard them.
+ *
+ *  A key owed and on disk again was deleted and re-created while the events
+ *  were lost: it lives, and nothing is said. The records lost with the
+ *  events are found by the pass of fs_watcher that follows
+ *  (FS_RESCAN_DIR_TYPE): the master's hard link of an md2 stays in
+ *  disks/<rt_id>/<key>/ until this reader consumes it.
  ***************************************************************************/
 PRIVATE void forget_keys_deleted_unheard(
     hgobj gobj,
@@ -6962,12 +7036,34 @@ PRIVATE void forget_keys_deleted_unheard(
             json_array_append_new(gone, json_string(key));
         }
     }
+    size_t heard_by_nobody = json_array_size(gone);
+
+    int idx; json_t *disk_;
+    json_array_foreach(json_object_get(watched_topic, "disks"), idx, disk_) {
+        fs_event_t *fs = (fs_event_t *)(uintptr_t)json_integer_value(
+            json_object_get(disk_, "fs_event_client")
+        );
+        if(fs != fs_event) {
+            continue;
+        }
+        json_t *cache = json_object_get(watched_topic, "cache");
+        json_object_foreach(json_object_get(disk_, "deletes_unheard"), key, v) {
+            if(!json_object_get(on_disk, key) && !json_object_get(cache, key)) {
+                json_array_append_new(gone, json_string(key));
+            }
+        }
+        json_object_del(disk_, "deletes_unheard");
+        break;
+    }
     JSON_DECREF(on_disk)
 
-    int idx; json_t *jn_key;
+    json_t *jn_key;
     json_array_foreach(gone, idx, jn_key) {
         if(fs_event->stop_requested) {
             break;  // a key_deleted callback closed the feed
+        }
+        if((size_t)idx < heard_by_nobody) {
+            count_key_delete_heard(watched_topic, fs_event, json_string_value(jn_key));
         }
         client_key_deleted(gobj, tranger, watched_topic, fs_event, json_string_value(jn_key));
     }
@@ -7699,7 +7795,7 @@ PRIVATE int find_keys_in_disk(
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM,
-                    "msg",          "%s", "Cannot list the keys of the topic, stat() FAILED",
+                    "msg",          "%s", "Cannot list the keys of the topic, lstat() FAILED",
                     "path",         "%s", path,
                     "errno",        "%d", errno,
                     "serrno",       "%s", strerror(errno),

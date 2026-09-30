@@ -20,6 +20,22 @@ tr2check /yuneta/store/<db>/<owner>/<realm>/tracks/raw_tracks \
 echo $?     # 0 pass, 1 a check failed, 2 the topic could not be checked
 ```
 
+`TOPIC_PATH` is `<directory>/<database>/<topic>`, absolute or relative to the
+current directory (`tr2check tracks` from inside the database works): the
+tool resolves it first, and takes the database and the directory above it
+from the resolved path. Up to 7.25.20 it took them from the text, and a
+relative `db/topic` or a bare `topic` opened a directory that does not exist.
+
+Exit codes: **0** every check passes, **1** a check failed (a topic with no
+record fails: nothing was checked), **2** the topic could not be checked --
+not a topic, a path that does not resolve, or the sequences of a key that
+could not all be kept in memory (the load of the key stops there, and a
+verdict on part of it would be a lie; up to 7.25.20 it could say PASS).
+
+The tool never writes to the store. It raises its soft limit of open files
+to the hard one (timeranger2 keeps the files of every key open), and says on
+stderr when it cannot.
+
 | Option | Default | Purpose |
 |---|---|---|
 | `--key=KEY` / `-k` | all | Check only this key |

@@ -334,7 +334,7 @@ PRIVATE int do_test(void)
     set_expected_results(
         "a key that cannot be stat'ed fails the listing",
         json_pack("[{s:s}, {s:s}]",
-            "msg", "Cannot list the keys of the topic, stat() FAILED",
+            "msg", "Cannot list the keys of the topic, lstat() FAILED",
             "msg", "Cannot open topic: its keys cannot be listed"
         ),
         NULL, NULL, 1

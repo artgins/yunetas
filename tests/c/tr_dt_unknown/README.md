@@ -33,7 +33,7 @@ The test checks:
    and the wrapper really served entries without a type.
 3. Reopened with `d_type` hidden and the `lstat()` of key `B` failing with
    `EIO` (the test's `__wrap_lstat()`), the topic does **not** open:
-   *"Cannot list the keys of the topic, stat() FAILED"* and *"Cannot open
+   *"Cannot list the keys of the topic, lstat() FAILED"* and *"Cannot open
    topic: its keys cannot be listed"*. Up to 7.25.4 the key was taken as
    "not a directory" and left out of the cache with no log, so the topic
    opened without it. Only `ENOENT` (the key went away between the

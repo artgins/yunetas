@@ -13,11 +13,29 @@
  *
  *  The topic is sf_t_ms|sf_tm_ms, so the latency is exact to the ms.
  *
+ *  A second topic, `verdicts`, has the defects the first one cannot hold
+ *  without changing its figures:
+ *
+ *  - key E: a record with no checksum at all (`no_checksum`);
+ *  - key U: its md2 file made unreadable (`unreadable_keys`).
+ *
+ *  And a third, `empty`, with no record: nothing checked is not a PASS.
+ *
+ *  The paths: a topic named relative to the current directory
+ *  (`<db>/<topic>` from the parent of the database, and the bare topic
+ *  from inside it) is the same topic. Up to 7.25.20 the tool took the
+ *  database and its parent from the text of the path, and those two opened
+ *  a directory that does not exist.
+ *
+ *  Nothing of it may write: the store is listed (path, size, mode, mtime)
+ *  before the first run of the tool and after the last one.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <limits.h>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -83,7 +101,15 @@ PRIVATE void set_checksum(json_t *record, BOOL wrong)
     json_object_set_new(record, "checksum", json_string(hex));
 }
 
-PRIVATE int append(json_t *tranger, const char *key, json_t *jn_seq, json_int_t latency_ms, BOOL wrong_checksum)
+PRIVATE int append_to(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    json_t *jn_seq,
+    json_int_t latency_ms,
+    BOOL wrong_checksum,
+    BOOL no_checksum
+)
 {
     static json_int_t n = 0;
     n++;
@@ -96,19 +122,53 @@ PRIVATE int append(json_t *tranger, const char *key, json_t *jn_seq, json_int_t 
     if(jn_seq) {
         json_object_set_new(record, "seq", jn_seq);
     }
-    set_checksum(record, wrong_checksum);
+    if(!no_checksum) {
+        set_checksum(record, wrong_checksum);
+    }
 
     md2_record_ex_t md;
-    return tranger2_append_record(tranger, TOPIC_NAME, (uint64_t)(tm + latency_ms), 0, &md, record);
+    return tranger2_append_record(tranger, topic_name, (uint64_t)(tm + latency_ms), 0, &md, record);
+}
+
+PRIVATE int append(json_t *tranger, const char *key, json_t *jn_seq, json_int_t latency_ms, BOOL wrong_checksum)
+{
+    return append_to(tranger, TOPIC_NAME, key, jn_seq, latency_ms, wrong_checksum, FALSE);
+}
+
+/*
+ *  What the store is: every file and directory with its size, mode and
+ *  mtime, sorted (yours)
+ */
+PRIVATE char *list_store(const char *path)
+{
+    char cmd[PATH_MAX * 2];
+    snprintf(cmd, sizeof(cmd), "find '%s' -printf '%%p %%s %%m %%T@\\n' | sort", path);
+    FILE *f = popen(cmd, "r");
+    if(!f) {
+        printf("%sERROR%s --> cannot run '%s'\n", On_Red BWhite, Color_Off, cmd);
+        return NULL;
+    }
+    size_t size = 256 * 1024;
+    char *bf = gbmem_malloc(size);
+    size_t len = bf? fread(bf, 1, size - 1, f) : 0;
+    pclose(f);
+    if(bf) {
+        bf[len] = 0;
+    }
+    return bf;
 }
 
 /*
  *  Run tr2check, return its json result (yours) and its exit code
  */
-PRIVATE json_t *run_tr2check(const char *topic_path, const char *options, int *exit_code)
+PRIVATE json_t *run_tr2check_in(const char *cwd, const char *topic_path, const char *options, int *exit_code)
 {
-    char cmd[PATH_MAX * 2];
-    snprintf(cmd, sizeof(cmd), "%s %s %s", TR2CHECK_BIN, topic_path, options);
+    char cmd[PATH_MAX * 3];
+    if(cwd) {
+        snprintf(cmd, sizeof(cmd), "cd '%s' && %s %s %s", cwd, TR2CHECK_BIN, topic_path, options);
+    } else {
+        snprintf(cmd, sizeof(cmd), "%s %s %s", TR2CHECK_BIN, topic_path, options);
+    }
 
     FILE *f = popen(cmd, "r");
     if(!f) {
@@ -133,6 +193,11 @@ PRIVATE json_t *run_tr2check(const char *topic_path, const char *options, int *e
     }
     GBMEM_FREE(bf)
     return jn;
+}
+
+PRIVATE json_t *run_tr2check(const char *topic_path, const char *options, int *exit_code)
+{
+    return run_tr2check_in(NULL, topic_path, options, exit_code);
 }
 
 /***************************************************************************
@@ -180,7 +245,14 @@ PRIVATE int do_test(void)
     }
     result += test_json(NULL);
 
-    set_expected_results("tr2check: records", NULL, NULL, NULL, 1);
+    set_expected_results(
+        "tr2check: records",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating topic",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
     for(int i = 1; i <= 10; i++) {
         result += append(tranger, "A", json_integer(i), i * 10, FALSE);
     }
@@ -195,8 +267,39 @@ PRIVATE int do_test(void)
     result += append(tranger, "D", json_integer(0), 40, FALSE);
     result += append(tranger, "D", json_integer(1), 40, FALSE);
     result += append(tranger, "D", NULL, 40, FALSE);
+
+    json_t *verdicts = tranger2_create_topic(
+        tranger, "verdicts", "id", "tm", NULL, sf_string_key|sf_t_ms|sf_tm_ms,
+        NULL, NULL
+    );
+    json_t *empty = tranger2_create_topic(
+        tranger, "empty", "id", "tm", NULL, sf_string_key|sf_t_ms|sf_tm_ms,
+        NULL, NULL
+    );
+    if(!verdicts || !empty) {
+        printf("%sERROR%s --> cannot create the topics verdicts and empty\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += append_to(tranger, "verdicts", "E", json_integer(1), 10, FALSE, FALSE);
+    result += append_to(tranger, "verdicts", "E", json_integer(2), 10, FALSE, TRUE);
+    result += append_to(tranger, "verdicts", "U", json_integer(1), 10, FALSE, FALSE);
     tranger2_shutdown(tranger);
     result += test_json(NULL);
+
+    /*
+     *  The md2 files of key U cannot be read (the test runs as the store's
+     *  owner, not as root)
+     */
+    char path_u[PATH_MAX];
+    build_path(path_u, sizeof(path_u), path_database, "verdicts", "keys", "U", NULL);
+    char cmd_chmod[PATH_MAX * 2];
+    snprintf(cmd_chmod, sizeof(cmd_chmod), "chmod 000 '%s'/*.md2", path_u);
+    if(system(cmd_chmod) != 0) {
+        printf("%sERROR%s --> '%s' failed\n", On_Red BWhite, Color_Off, cmd_chmod);
+        result += -1;
+    }
+
+    char *store_before = list_store(path_database);
 
     /*-------------------------------------*
      *  The whole topic: every defect
@@ -287,6 +390,81 @@ PRIVATE int do_test(void)
     result += expect_int("exit code of a path that is not a topic", exit_code, 2);
     JSON_DECREF(jn)
     result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A record with no checksum
+     *-------------------------------------*/
+    set_expected_results("tr2check: no checksum", NULL, NULL, NULL, 1);
+    char path_verdicts[PATH_MAX];
+    build_path(path_verdicts, sizeof(path_verdicts), path_database, "verdicts", NULL);
+    jn = run_tr2check(path_verdicts, "--key=E --checksum-field=checksum 2>/dev/null", &exit_code);
+    result += expect_int("exit code of a record with no checksum", exit_code, 1);
+    result += expect_str("result", kw_get_str(0, jn, "result", "", 0), "FAIL");
+    result += expect_int("no_checksum", kw_get_int(0, jn, "no_checksum", -1, 0), 1);
+    result += expect_int("corrupted", kw_get_int(0, jn, "corrupted", -1, 0), 0);
+    JSON_DECREF(jn)
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A key that cannot be read
+     *-------------------------------------*/
+    set_expected_results("tr2check: unreadable key", NULL, NULL, NULL, 1);
+    jn = run_tr2check(path_verdicts, "--key=U 2>/dev/null", &exit_code);
+    result += expect_int("exit code of an unreadable key", exit_code, 1);
+    result += expect_str("result", kw_get_str(0, jn, "result", "", 0), "FAIL");
+    result += expect_int("unreadable_keys", kw_get_int(0, jn, "unreadable_keys", -1, 0), 1);
+    result += expect_str("the unreadable key is U",
+        json_string_value(json_array_get(kw_get_list(0, jn, "examples`unreadable_keys", 0, 0), 0)), "U");
+    JSON_DECREF(jn)
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  An empty topic is not a PASS
+     *-------------------------------------*/
+    set_expected_results("tr2check: empty topic", NULL, NULL, NULL, 1);
+    char path_empty[PATH_MAX];
+    build_path(path_empty, sizeof(path_empty), path_database, "empty", NULL);
+    jn = run_tr2check(path_empty, "2>/dev/null", &exit_code);
+    result += expect_int("exit code of an empty topic", exit_code, 1);
+    result += expect_str("result", kw_get_str(0, jn, "result", "", 0), "FAIL");
+    result += expect_int("records", kw_get_int(0, jn, "records", -1, 0), 0);
+    JSON_DECREF(jn)
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  Relative paths
+     *-------------------------------------*/
+    set_expected_results("tr2check: relative paths", NULL, NULL, NULL, 1);
+    jn = run_tr2check_in(path_root, DATABASE "/" TOPIC_NAME, "--key=A 2>/dev/null", &exit_code);
+    result += expect_int("exit code of <db>/<topic> from the parent of the db", exit_code, 0);
+    result += expect_int("records", jn? kw_get_int(0, jn, "records", -1, 0) : -1, 10);
+    JSON_DECREF(jn)
+    jn = run_tr2check_in(path_database, TOPIC_NAME, "--key=A 2>/dev/null", &exit_code);
+    result += expect_int("exit code of <topic> from inside the db", exit_code, 0);
+    result += expect_int("records", jn? kw_get_int(0, jn, "records", -1, 0) : -1, 10);
+    JSON_DECREF(jn)
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  The tool wrote nothing
+     *-------------------------------------*/
+    set_expected_results("tr2check: the store is left as it was", NULL, NULL, NULL, 1);
+    char *store_after = list_store(path_database);
+    if(!store_before || !store_after || strcmp(store_before, store_after) != 0) {
+        printf("%sERROR%s --> the store changed under tr2check:\nBEFORE\n%s\nAFTER\n%s\n",
+            On_Red BWhite, Color_Off, store_before? store_before : "", store_after? store_after : "");
+        result += -1;
+    }
+    GBMEM_FREE(store_before)
+    GBMEM_FREE(store_after)
+    result += test_json(NULL);
+
+    snprintf(cmd_chmod, sizeof(cmd_chmod), "chmod 600 '%s'/*.md2", path_u);
+    if(system(cmd_chmod) != 0) {
+        printf("%sERROR%s --> '%s' failed\n", On_Red BWhite, Color_Off, cmd_chmod);
+        result += -1;
+    }
+    rmrdir(path_database);
 
     return result;
 }

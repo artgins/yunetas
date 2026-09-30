@@ -53,6 +53,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `c_udp_s_tx` | `C_UDP_S` sends every datagram of its queue, and drops one it cannot send (no peer address: an error; refused by the kernel: a warning) and goes on listening |
 | `c_udp_s_restart` | `C_UDP_S` reads and sends again after a stop and a start (a file on the old socket number; a stop and a start in the same turn), and publishes `EV_STOPPED` |
 | `c_udp_s_self_stop` | `C_UDP_S` whose next read cannot start says it and stops by itself, and the stop ends (`EV_STOPPED`) with a send in flight; a `udps://` url is refused at the start |
+| `c_fs` | `C_FS` publishes one `EV_FS_CHANGED` per change of the watched tree: a file created, written and removed (3), a directory created (1) and a directory removed (1, which up to 7.25.20 published nothing and leaked its kw) |
 | `c_udp_s_rx` | `C_UDP_S` labels every datagram with its peer, so `C_GSS_UDP_S` joins the interleaved pieces of two peers apart; the yuno's ip lists drop a denied peer, and with `only_allowed_ips` one that is not allowed, with one warning per cause (not per datagram) and the drops counted in `rxRefusedMsgs`; the caps of what a peer holds in `C_GSS_UDP_S` (peers, frame size, pending bytes); a host answers the peer of a frame by its label or its address |
 | `c_udp_s_echo` | An answer written in the gbuffer of an `EV_RX_DATA` (the kw sent back as `EV_TX_DATA`) reaches its sender whole while other sends wait or are in flight and more datagrams arrive: the next read takes a new gbuffer when the host kept the old one |
 | `c_subscriptions` | subscribe/publish semantics of the GObj core; a repeated hard subscription is one, a repeated `__own_event__` / `__rename_event_name__` subscription is overridden and can be withdrawn (`test3`) |
@@ -127,7 +128,7 @@ The single-binary directories that also register under `<directory>/`:
 
 | Directory | New binaries |
 |---|---|
-| `c_agent_find_new_yunos`, `c_controlcenter_scenarios`, `c_ievent_srv_peer_subs`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_self_stop`, `c_udp_s_rx`, `c_udp_s_echo`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
+| `c_agent_find_new_yunos`, `c_controlcenter_scenarios`, `c_ievent_srv_peer_subs`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_self_stop`, `c_udp_s_rx`, `c_udp_s_echo`, `c_fs`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
 | `gbuffer` | `test_gbmem_realloc_refused` |
 | `c_subscriptions` | `test_subs_test3` |
 | `kw` | `test_kw_set_dict_value` |

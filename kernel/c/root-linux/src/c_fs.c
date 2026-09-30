@@ -34,18 +34,8 @@ typedef struct {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE SUBDIR_WATCH * create_subdir_watch(hgobj gobj, const char *path);
+PRIVATE SUBDIR_WATCH * create_subdir_watch(hgobj gobj, const char *path, BOOL recursive);
 PRIVATE void destroy_subdir_watch(SUBDIR_WATCH * sw);
-PRIVATE BOOL locate_subdirs_cb(
-    hgobj gobj,
-    void *user_data,
-    wd_found_type type,
-    char *fullpath,
-    const char *directory,
-    char *name,             // dname[255]
-    int level,
-    wd_option opt
-);
 PRIVATE int fs_event_callback(fs_event_t *fs_event);
 
 
@@ -61,7 +51,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name------------flag--------default-----description---------- */
 SDATA (DTP_STRING,      "path",         SDF_RD,     0,          "Path to watch"),
 SDATA (DTP_BOOLEAN,     "recursive",    SDF_RD,     0,          "Watch on all sub-directory tree"),
-SDATA (DTP_BOOLEAN,     "info",         SDF_RD,     0,          "Inform of found subdirectories"),
+SDATA (DTP_BOOLEAN,     "info",         SDF_RD,     0,          "Log the watched directory at start"),
 SDATA (DTP_INTEGER,     "size_dl_watch",SDF_RD|SDF_STATS, 0,    "Current subdirs in dl watch"),
 SDATA_END()
 };
@@ -124,19 +114,15 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
 
-    if(gobj_read_bool_attr(gobj, "recursive")) {
-        create_subdir_watch(gobj, path); // walk_dir_tree() not return "."
-        walk_dir_tree(
-            gobj,
-            path,
-            ".*",
-            WD_RECURSIVE|WD_MATCH_DIRECTORY,
-            locate_subdirs_cb,
-            NULL
-        );
-    } else {
-        create_subdir_watch(gobj, path);
-    }
+    /*
+     *  One watcher: a recursive one watches the whole tree itself, the
+     *  subdirectories created later included. Up to 7.25.20 a recursive
+     *  C_FS added a recursive watcher per subdirectory too (the walk of a
+     *  watch that did not recurse), each with its own inotify fd, and a
+     *  change N levels down was published N+1 times; and every watch
+     *  recursed, so a C_FS without `recursive` reported the subdirectories.
+     */
+    create_subdir_watch(gobj, path, gobj_read_bool_attr(gobj, "recursive"));
     return 0;
 }
 
@@ -180,7 +166,7 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
 /***************************************************************************
  *      Create a watch
  ***************************************************************************/
-PRIVATE SUBDIR_WATCH * create_subdir_watch(hgobj gobj, const char *path)
+PRIVATE SUBDIR_WATCH * create_subdir_watch(hgobj gobj, const char *path, BOOL recursive)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     SUBDIR_WATCH *sw;
@@ -208,7 +194,7 @@ PRIVATE SUBDIR_WATCH * create_subdir_watch(hgobj gobj, const char *path)
     sw->uv_fs = fs_create_watcher_event(
         yuno_event_loop(),
         path,
-        FS_FLAG_RECURSIVE_PATHS|FS_FLAG_MODIFIED_FILES,
+        (recursive? FS_FLAG_RECURSIVE_PATHS : 0)|FS_FLAG_MODIFIED_FILES,
         fs_event_callback,
         gobj,
         NULL,
@@ -230,71 +216,60 @@ PRIVATE void destroy_subdir_watch(SUBDIR_WATCH * sw)
 }
 
 /***************************************************************************
- *  Located directories
- ***************************************************************************/
-PRIVATE BOOL locate_subdirs_cb(
-    hgobj gobj,
-    void *user_data,
-    wd_found_type type,
-    char *fullpath,
-    const char *directory,
-    char *name,             // dname[255]
-    int level,
-    wd_option opt)
-{
-    create_subdir_watch(gobj, fullpath);
-
-    return TRUE; // continue traverse tree
-}
-
-/***************************************************************************
  *      fs events callback
+ *
+ *  The types of fs_watcher are values, not bits: up to 7.25.20 they were
+ *  tested with `&`, FS_FILE_MODIFIED_TYPE (5) matched a created directory,
+ *  a created file and a deleted file by accident, and a deleted directory
+ *  (2) matched nothing -- no event, and its kw leaked. Every change is an
+ *  EV_FS_CHANGED; a rename (if the watcher ever reports one) EV_FS_RENAMED.
  ***************************************************************************/
 PRIVATE int fs_event_callback(fs_event_t *fs_event)
 {
+    gobj_event_t event = NULL;
+
+    switch(fs_event->fs_type) {
+        case FS_SUBDIR_CREATED_TYPE:
+        case FS_SUBDIR_DELETED_TYPE:
+        case FS_FILE_CREATED_TYPE:
+        case FS_FILE_DELETED_TYPE:
+        case FS_FILE_MODIFIED_TYPE:
+            event = EV_FS_CHANGED;
+            break;
+
+        case FS_FILE_RENAME_TYPE:
+            event = EV_FS_RENAMED;
+            break;
+
+        case FS_OVERFLOW_TYPE:
+            /*
+             *  Events were lost: something changed under the watched root,
+             *  and nobody knows what. Once: the pass that follows is not
+             *  published.
+             */
+            event = EV_FS_CHANGED;
+            break;
+
+        case FS_RESCAN_DIR_TYPE:
+            return 0;   // the pass after an overflow: published once, at FS_OVERFLOW_TYPE
+
+        default:
+            gobj_log_error(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "fs_type unknown",
+                "fs_type",      "%d", (int)fs_event->fs_type,
+                "path",         "%s", (const char *)fs_event->directory,
+                NULL
+            );
+            return -1;
+    }
+
     json_t *kw = json_pack("{s:s, s:s}",
         "path", fs_event->directory,
         "filename", fs_event->filename
     );
-
-    if(fs_event->fs_type == FS_OVERFLOW_TYPE) {
-        /*
-         *  Events were lost: something changed under the watched root, and
-         *  nobody knows what. Checked first: the tests below read the type
-         *  as bits, and its value would match several of them.
-         */
-        gobj_publish_event(fs_event->gobj, EV_FS_CHANGED, kw);
-        return 0;
-    }
-    if(fs_event->fs_type == FS_RESCAN_DIR_TYPE) {
-        /*
-         *  The pass after an overflow, one directory at a time: the change
-         *  was published once, at FS_OVERFLOW_TYPE
-         */
-        JSON_DECREF(kw)
-        return 0;
-    }
-
-    if (fs_event->fs_type & (FS_SUBDIR_CREATED_TYPE)) {
-    }
-    if (fs_event->fs_type & (FS_SUBDIR_DELETED_TYPE)) {
-    }
-    if (fs_event->fs_type & (FS_FILE_CREATED_TYPE)) {
-    }
-    if (fs_event->fs_type & (FS_FILE_DELETED_TYPE)) {
-    }
-    if (fs_event->fs_type & (FS_FILE_MODIFIED_TYPE)) {
-        gobj_publish_event(fs_event->gobj, EV_FS_CHANGED, kw);
-    }
-
-    // TODO see how implement UV_CHANGE or if it's useful
-    // Original
-    // if (events == UV_RENAME) {
-    //     gobj_publish_event(fs_event->gobj, EV_FS_RENAMED, kw);
-    // }
-    // if (events == UV_CHANGE) {
-    //     gobj_publish_event(fs_event->gobj, EV_FS_CHANGED, kw);
-    // }
+    gobj_publish_event(fs_event->gobj, event, kw);
 
     return 0;
 }
