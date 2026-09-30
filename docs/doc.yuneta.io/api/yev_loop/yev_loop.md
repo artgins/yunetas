@@ -407,15 +407,23 @@ sites are redirected to these via macros, since glibc's resolver is not
 available in a fully static build.
 
 Like glibc, it sends no numeric host to DNS. An address of the family asked
-for is answered directly. An address of the other family answers
-`EAI_ADDRFAMILY` at once, and `AI_NUMERICHOST` with a name answers
-`EAI_NONAME`:
+for is answered directly. An address of the other family is answered at
+once, as glibc answers it: an IPv4 address in `AF_INET6` with `AI_V4MAPPED`
+is its v4-mapped IPv6 address, a v4-mapped IPv6 address in `AF_INET` is its
+IPv4 address, and any other answers `EAI_ADDRFAMILY`. `AI_NUMERICHOST` with a
+name answers `EAI_NONAME`:
 
 ```C
 struct addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_STREAM};
 struct addrinfo *res;
 int ret = getaddrinfo("::1", "0", &hints, &res);   // EAI_ADDRFAMILY, no DNS query
+
+hints.ai_family = AF_INET6;
+hints.ai_flags = AI_V4MAPPED;
+ret = getaddrinfo("127.0.0.1", "0", &hints, &res); // 0: ::ffff:127.0.0.1
 ```
+
+Up to 7.25.20 the two mapped cases answered `EAI_ADDRFAMILY` too.
 
 ## Benchmarks & tests
 

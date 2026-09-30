@@ -764,14 +764,55 @@ int yuneta_getaddrinfo(
     }
 
     /*
-     *  A numeric address of the other family is not a name: glibc answers
-     *  EAI_ADDRFAMILY at once. Going on would send it to DNS, and a slow
-     *  nameserver then stalls the loop (bind_src_url() of "::1" in AF_INET).
+     *  A numeric address of the other family is not a name, and it is
+     *  answered at once, as glibc does: an IPv4 address in AF_INET6 with
+     *  AI_V4MAPPED is its v4-mapped IPv6 address, a v4-mapped IPv6 address
+     *  in AF_INET is its IPv4 address, and any other is EAI_ADDRFAMILY.
+     *  Going on would send it to DNS, and a slow nameserver then stalls the
+     *  loop (bind_src_url() of "::1" in AF_INET). Up to 7.25.20 the two
+     *  mapped cases answered EAI_ADDRFAMILY too.
      */
     {
         struct in_addr a4;
         struct in6_addr a6;
-        if(inet_pton(AF_INET, node, &a4) == 1 || inet_pton(AF_INET6, node, &a6) == 1) {
+        if(inet_pton(AF_INET, node, &a4) == 1) {
+            if(ai_family == AF_INET6 && (ai_flags & AI_V4MAPPED)) {
+                struct sockaddr_in6 sa = {0};
+                sa.sin6_family = AF_INET6;
+                sa.sin6_addr.s6_addr[10] = 0xff;
+                sa.sin6_addr.s6_addr[11] = 0xff;
+                memcpy(&sa.sin6_addr.s6_addr[12], &a4, sizeof(a4));
+                sa.sin6_port = htons(port);
+                struct addrinfo *ai = make_addrinfo_node(
+                    AF_INET6, ai_socktype, ai_protocol,
+                    (struct sockaddr *)&sa, sizeof(sa), NULL);
+                if(!ai) {
+                    return EAI_MEMORY;
+                }
+                *res = ai;
+                return 0;
+            }
+#ifdef EAI_ADDRFAMILY
+            return EAI_ADDRFAMILY;
+#else
+            return EAI_NONAME;
+#endif
+        }
+        if(inet_pton(AF_INET6, node, &a6) == 1) {
+            if(ai_family == AF_INET && IN6_IS_ADDR_V4MAPPED(&a6)) {
+                struct sockaddr_in sa = {0};
+                sa.sin_family = AF_INET;
+                memcpy(&sa.sin_addr, &a6.s6_addr[12], sizeof(sa.sin_addr));
+                sa.sin_port = htons(port);
+                struct addrinfo *ai = make_addrinfo_node(
+                    AF_INET, ai_socktype, ai_protocol,
+                    (struct sockaddr *)&sa, sizeof(sa), NULL);
+                if(!ai) {
+                    return EAI_MEMORY;
+                }
+                *res = ai;
+                return 0;
+            }
 #ifdef EAI_ADDRFAMILY
             return EAI_ADDRFAMILY;
 #else
