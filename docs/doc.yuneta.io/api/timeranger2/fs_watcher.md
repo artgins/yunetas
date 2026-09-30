@@ -271,11 +271,19 @@ What the owners of the tree do:
   *"keys deleted while the inotify events were lost"*). The cache is shared by
   every feed of the topic and forgets a key with the first feed that hears its
   delete, so the first feed to hear one (the key still in the cache) counts it
-  as owed by every other watched feed told the deletes of that key
-  (`deletes_unheard`, per feed), each paying when it hears it: the deletes a
-  feed owes and that are gone from `keys/` are told at its overflow too. Up to
-  7.25.20 a feed that overflowed while another feed of its topic heard a
-  delete never heard of it.
+  as owed by every other watched feed (`deletes_unheard`, per feed), each
+  paying when it hears it: the deletes a feed owes and that are gone from
+  `keys/` are told at its overflow too. Up to 7.25.20 a feed that overflowed
+  while another feed of its topic heard a delete never heard of it.
+
+  Only the first feed to hear a delete FORGETS the key: out of the cache, its
+  segments and the watermark of every feed. A feed that pays leaves them
+  alone: the key may be back, loaded by a feed that heard its new record, and
+  a new record seeds the watermark of every feed that wants the key. Up to
+  7.25.20 every feed that heard a delete forgot the key: a slow one took the
+  live key out of the cache and dropped its own fresh watermark (and, with
+  the deletes owed counted, the delete was taken as new and owed by the
+  feeds that had heard it).
 
   A feed is told the deletes of the keys it wants: its `key`, or the keys its
   `rkey` matches, or every key (up to 7.25.20 only `key` was looked at, and a
@@ -292,12 +300,15 @@ What the owners of the tree do:
 
   A feed opened while a delete was in flight (its directory made after the
   master listed `disks/`, or watched after the master signalled it) never
-  hears it, and owes it all the same. Each debt holds where the stream of the
-  debtor ended when it was made; when the debtor's stream, past that point,
-  shows the key's directory made again (the key lives), the debt is
-  forgotten -- kept, the next delete of the key would pay it, and a feed that
-  overflowed then would miss that one. Until then the feed's next overflow
-  tells it the key deleted, which it is.
+  hears it, and does not owe it: when a feed opens it notes where the stream
+  of every other feed ends (`watched_from`), and a signal heard below that
+  point was queued before it was watched. The master signals the feeds one
+  after another, in microseconds: only a delete signalled across the very
+  moment a feed opens is left in doubt, and owed. Such a debt holds where the
+  stream of the debtor ended when it was made; when the debtor's stream, past
+  that point, shows the key's directory made again (the key lives), the debt
+  is forgotten -- kept, the next delete of the key would pay it, and a feed
+  that overflowed then would miss that one.
 
   At each `FS_RESCAN_DIR_TYPE`: the master hard-links each new md2 into
   `disks/<rt_id>/<key>/` and the follower consumes the link when it reads it,
@@ -333,9 +344,12 @@ its queue is that echo, which is why a single burst can overflow it twice.
   one keyed on that key hearing it first -- both hear the delete once; the
   same with the signal of the delete queued BEHIND the overflow (the test
   reads some of the full queue itself, then deletes), with one feed and with
-  two -- told once, and nobody left owing it; and a feed opened while a
-  delete was in flight, the key born again, the other feed overflowed and
-  the key deleted again -- the overflowed feed is told the second delete.
+  two -- told once, and nobody left owing it; a feed opened while a delete
+  was in flight -- it owes nothing, and when the key is born again, the
+  other feed overflowed and the key deleted again, the overflowed feed is
+  told the second delete; and an old delete heard by a slow feed after the
+  key came back -- the live key stays in the cache, nobody owes anything,
+  and the key's next record arrives.
 - `test_fs_watcher_overflow`: the watcher alone, with an owner slow on purpose
   (100 us per directory) and a periodic timer probing the loop. `max_queued_events`
   + 4096 directories are created with the loop stopped: every one is told to the

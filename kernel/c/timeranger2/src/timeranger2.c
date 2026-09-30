@@ -513,21 +513,32 @@ PRIVATE int update_key_by_hard_link(
     json_t *tranger,
     char *path // WARNING path modified
 );
+typedef enum {
+    DELETE_FIRST_HEARD = 1, // the key was in the cache: nobody had heard this delete
+    DELETE_PAID,            // heard before by another feed, and owed by this one
+    DELETE_KNOWN,           // the key was not in the cache, and nothing was owed
+} delete_heard_t;
 PRIVATE void client_key_deleted(
     hgobj gobj,
     json_t *tranger,
     json_t *watched_topic,
     fs_event_t *fs_event,
-    const char *deleted_key
+    const char *deleted_key,
+    delete_heard_t heard
 );
 PRIVATE json_t *feed_of_watcher(
     json_t *watched_topic,
     fs_event_t *fs_event
 );
-PRIVATE void count_key_delete_heard(
+PRIVATE delete_heard_t count_key_delete_heard(
     json_t *watched_topic,
     fs_event_t *fs_event,
-    const char *deleted_key
+    const char *deleted_key,
+    BOOL at_its_signal
+);
+PRIVATE void note_where_the_other_feeds_are(
+    json_t *topic,
+    json_t *disk
 );
 PRIVATE void forget_debts_passed(
     json_t *watched_topic,
@@ -4348,9 +4359,9 @@ PRIVATE void fire_key_deleted_locally(
 }
 
 /***************************************************************************
- *  Tell ONE rt_disk feed that a key was deleted: drop its watermark of the
- *  key and, when the feed wants the key (list_wants_key(): its key or its
- *  rkey), call its key_deleted callback.
+ *  Tell ONE rt_disk feed that a key was deleted: when the feed wants the
+ *  key (list_wants_key(): its key or its rkey), call its key_deleted
+ *  callback. Its watermark of the key is its caller's (client_key_deleted()).
  *  The callback may close the feed: `disk` is not touched after it.
  ***************************************************************************/
 PRIVATE void fire_key_deleted_to_feed(
@@ -4360,11 +4371,6 @@ PRIVATE void fire_key_deleted_to_feed(
     const char *deleted_key
 )
 {
-    json_t *published = json_object_get(disk, "published");
-    if(published) {
-        json_object_del(published, deleted_key);
-    }
-
     if(!list_wants_key(disk, deleted_key)) {
         return;
     }
@@ -5923,6 +5929,9 @@ PUBLIC json_t *tranger2_open_rt_disk(
                 "fs_event_client",
                 json_integer((json_int_t)(uintptr_t)fs_event_client)
             );
+            if(fs_event_client) {
+                note_where_the_other_feeds_are(topic, disk);
+            }
         }
     }
 
@@ -6786,8 +6795,10 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                     }
                     break;
                 }
-                count_key_delete_heard(watched_topic, fs_event, deleted_key);
-                client_key_deleted(gobj, tranger, watched_topic, fs_event, deleted_key);
+                delete_heard_t heard = count_key_delete_heard(
+                    watched_topic, fs_event, deleted_key, TRUE
+                );
+                client_key_deleted(gobj, tranger, watched_topic, fs_event, deleted_key, heard);
             }
             break;
 
@@ -6912,23 +6923,51 @@ PRIVATE int scan_disks_key_for_new_file(
 
 /***************************************************************************
  *  CLIENT: a key directory of disks/<rt_id>/ went, i.e. the master deleted
- *  the key: forget it and tell the ONE feed whose directory fired.
+ *  the key: tell the ONE feed whose directory fired.
+ *
+ *  The key is forgotten by the FIRST feed to hear the delete: out of the
+ *  cache the feeds share, its segments, and the watermark of every feed.
+ *  A feed that hears it later leaves all that alone: the key may have come
+ *  back meanwhile, loaded by a feed that heard its new record -- and a new
+ *  record seeds the watermark of every feed that wants the key. Up to
+ *  7.25.20 every feed that heard a delete forgot the key: a slow one took
+ *  the live key out of the cache and dropped its own fresh watermark.
  ***************************************************************************/
 PRIVATE void client_key_deleted(
     hgobj gobj,
     json_t *tranger,
     json_t *watched_topic,
     fs_event_t *fs_event,
-    const char *deleted_key
+    const char *deleted_key,
+    delete_heard_t heard
 )
 {
-    json_t *cache = json_object_get(watched_topic, "cache");
-    if(cache) {
-        json_object_del(cache, deleted_key);
-    }
-    forget_segments_of_key(watched_topic, deleted_key);
-
     json_t *disk = feed_of_watcher(watched_topic, fs_event);
+
+    if(heard == DELETE_FIRST_HEARD) {
+        json_t *cache = json_object_get(watched_topic, "cache");
+        if(cache) {
+            json_object_del(cache, deleted_key);
+        }
+        forget_segments_of_key(watched_topic, deleted_key);
+        int idx; json_t *disk_;
+        json_array_foreach(json_object_get(watched_topic, "disks"), idx, disk_) {
+            json_t *published = json_object_get(disk_, "published");
+            if(published) {
+                json_object_del(published, deleted_key);
+            }
+        }
+    } else if(heard == DELETE_KNOWN && disk) {
+        /*
+         *  Not in the cache: the key is not back, and the watermark this
+         *  feed keeps of it is of the key deleted
+         */
+        json_t *published = json_object_get(disk, "published");
+        if(published) {
+            json_object_del(published, deleted_key);
+        }
+    }
+
     if(disk) {
         fire_key_deleted_to_feed(tranger, watched_topic, disk, deleted_key);
     } else {
@@ -6970,34 +7009,43 @@ PRIVATE json_t *feed_of_watcher(
  *  the signal in an overflow could no longer find the key gone by
  *  comparing that cache with keys/. So the first feed to hear a delete
  *  (the key is still in the cache) counts it as owed by every other
- *  watched feed that wants that key (`deletes_unheard`, per
- *  feed), and each one pays when it hears it; what an overflow leaves owed
- *  is told by forget_keys_deleted_unheard().
+ *  watched feed (`deletes_unheard`, per feed), and each one pays when it
+ *  hears it; what an overflow leaves owed is told by
+ *  forget_keys_deleted_unheard(). A feed of another key owes it too: what
+ *  it pays says the delete is not new, and that a key back in the cache
+ *  meanwhile is another one, not to be forgotten (client_key_deleted()).
  *
- *  The cache, not an empty account, says the delete is new: a feed of
- *  another key owes nothing and must still count a delete it hears first,
- *  and a feed that owed nothing because it was not there hears nothing new.
+ *  The cache, not an empty account, says the delete is new: a feed that
+ *  owed nothing and finds the key gone was not there to owe it.
  *
- *  A debt holds where the stream of the debtor's watcher ended when it was
- *  made (fs_queued_events_end()): its signal, if the master mirrored the
- *  delete into its directory, was queued before that. A feed opened while
- *  the delete was in flight -- its directory made after the master listed
- *  disks/, or watched after the master signalled it -- never hears it. Its
- *  debt is forgotten when its stream, past that point, shows the key alive
- *  again (forget_debts_passed()): kept, the NEXT delete of the key paid
- *  it, nobody owed that one, and a feed that overflowed then missed it.
- *  Until then its next overflow tells it: the key is gone, a true word said
- *  once.
+ *  Nor is a debt made for a feed that cannot hear the delete: a feed
+ *  opened while the delete was in flight -- its directory made after the
+ *  master listed disks/, or watched after the master signalled it. When a
+ *  feed opens, it notes where the stream of every other feed ends
+ *  (`watched_from`, note_where_the_other_feeds_are()): a signal heard below
+ *  that point was queued before the feed was watched, and the master
+ *  signals the feeds one after another in a few microseconds. Only a
+ *  delete signalled across that moment is left in doubt, and it is owed:
+ *  a debt holds where the debtor's stream ended when it was made
+ *  (fs_queued_events_end()), and when that stream, past that point, shows
+ *  the key alive again the debt is forgotten (forget_debts_passed()). Kept,
+ *  the NEXT delete of the key paid it, nobody owed that one, and a feed
+ *  that overflowed then missed it.
+ *
+ *  A delete found at an overflow (`at_its_signal` FALSE) has no position
+ *  in the stream: it happened between the overflow and now, and it is owed
+ *  by every other feed.
  ***************************************************************************/
-PRIVATE void count_key_delete_heard(
+PRIVATE delete_heard_t count_key_delete_heard(
     json_t *watched_topic,
     fs_event_t *fs_event,
-    const char *deleted_key
+    const char *deleted_key,
+    BOOL at_its_signal
 )
 {
     json_t *disk = feed_of_watcher(watched_topic, fs_event);
     if(!disk) {
-        return; // client_key_deleted() logs it
+        return DELETE_KNOWN; // client_key_deleted() logs it
     }
 
     json_t *unheard = json_object_get(disk, "deletes_unheard");
@@ -7007,20 +7055,27 @@ PRIVATE void count_key_delete_heard(
         if(json_array_size(marks) == 0) {
             json_object_del(unheard, deleted_key);
         }
-        return;
+        return DELETE_PAID;
     }
 
     if(!json_object_get(json_object_get(watched_topic, "cache"), deleted_key)) {
-        return; // heard first by another feed, when this one owed nothing
+        return DELETE_KNOWN; // heard first by another feed, when this one owed nothing
     }
 
+    const char *id = json_string_value(json_object_get(disk, "id"));
     int idx; json_t *disk_;
     json_array_foreach(json_object_get(watched_topic, "disks"), idx, disk_) {
         fs_event_t *fs = (fs_event_t *)(uintptr_t)json_integer_value(
             json_object_get(disk_, "fs_event_client")
         );
-        if(disk_ == disk || !fs || !list_wants_key(disk_, deleted_key)) {
+        if(disk_ == disk || !fs) {
             continue;
+        }
+        if(at_its_signal && id) {
+            json_t *jn_from = json_object_get(json_object_get(disk_, "watched_from"), id);
+            if(jn_from && fs_event->offset < (uint64_t)json_integer_value(jn_from)) {
+                continue;   // queued before that feed was watched: it cannot hear it
+            }
         }
         json_t *unheard_ = json_object_get(disk_, "deletes_unheard");
         if(!unheard_) {
@@ -7034,6 +7089,37 @@ PRIVATE void count_key_delete_heard(
         }
         json_array_append_new(marks_, json_integer((json_int_t)fs_queued_events_end(fs)));
     }
+    return DELETE_FIRST_HEARD;
+}
+
+/***************************************************************************
+ *  CLIENT: a feed was just watched: where the stream of every other feed of
+ *  the topic ends now is where the signals it cannot hear end (see
+ *  count_key_delete_heard()). And a feed opened again under an id has a new
+ *  stream: what the others noted of the old one goes.
+ ***************************************************************************/
+PRIVATE void note_where_the_other_feeds_are(
+    json_t *topic,
+    json_t *disk
+)
+{
+    const char *id = json_string_value(json_object_get(disk, "id"));
+    json_t *watched_from = json_object();
+    int idx; json_t *disk_;
+    json_array_foreach(json_object_get(topic, "disks"), idx, disk_) {
+        fs_event_t *fs = (fs_event_t *)(uintptr_t)json_integer_value(
+            json_object_get(disk_, "fs_event_client")
+        );
+        const char *id_ = json_string_value(json_object_get(disk_, "id"));
+        if(disk_ == disk || !fs || empty_string(id_)) {
+            continue;
+        }
+        json_object_set_new(watched_from, id_, json_integer((json_int_t)fs_queued_events_end(fs)));
+        if(id) {
+            json_object_del(json_object_get(disk_, "watched_from"), id);
+        }
+    }
+    json_object_set_new(disk, "watched_from", watched_from);
 }
 
 /***************************************************************************
@@ -7195,10 +7281,13 @@ PRIVATE void forget_keys_deleted_unheard(
         if(fs_event->stop_requested) {
             break;  // a key_deleted callback closed the feed
         }
+        delete_heard_t heard = DELETE_PAID; // owed: another feed heard it and forgot the key
         if((size_t)idx < heard_by_nobody) {
-            count_key_delete_heard(watched_topic, fs_event, json_string_value(jn_key));
+            heard = count_key_delete_heard(
+                watched_topic, fs_event, json_string_value(jn_key), FALSE
+            );
         }
-        client_key_deleted(gobj, tranger, watched_topic, fs_event, json_string_value(jn_key));
+        client_key_deleted(gobj, tranger, watched_topic, fs_event, json_string_value(jn_key), heard);
     }
     if(json_array_size(gone) > 0) {
         gobj_log_info(gobj, 0,

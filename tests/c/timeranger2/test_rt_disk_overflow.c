@@ -53,7 +53,17 @@
  *  is born again (both feeds get its record), then the first feed
  *  overflows and the key is deleted again: the second feed hears it first,
  *  and its old debt must not pay for this new delete -- the overflowed feed
- *  must be told it.
+ *  must be told it. Better still, the second feed owes nothing at all: the
+ *  first feed's signal was queued before the second feed was watched.
+ *
+ *  And an OLD delete heard after the key came back
+ *  (do_test_old_delete_after_reborn): a whole-topic feed hears a delete and
+ *  the record of the key born again, and loads it into the cache the feeds
+ *  share; a feed of another key, slow (its queue long with events of its
+ *  own), hears the delete later. It must leave the live key alone, and owe
+ *  nothing new: up to 7.25.20 every feed that heard a delete took the key
+ *  out of the cache and dropped its watermark; counting the deletes owed,
+ *  the slow feed took the delete as new and left the first feed owing it.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -80,6 +90,7 @@
 #define DATABASE2   "tr_rt_disk_overflow_feeds"
 #define DATABASE3   "tr_rt_disk_overflow_behind"
 #define DATABASE4   "tr_rt_disk_overflow_late"
+#define DATABASE5   "tr_rt_disk_overflow_reborn"
 #define SEED_KEY    "0000000000000000000"
 #define TOPIC_NAME  "topic_rt_disk_overflow"
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
@@ -746,6 +757,7 @@ PRIVATE int do_test_feed_opened_in_flight(void)
             On_Red BWhite, Color_Off, deleted_seed, late_deleted);
         result += -1;
     }
+    result += expect_no_debts("rtLATE", rt_late);   // watched after the signal was queued
     result += test_json(NULL);
 
     /*
@@ -816,6 +828,156 @@ PRIVATE int do_test_feed_opened_in_flight(void)
     deleted_other = 0;
     late_received = 0;
     late_deleted = 0;
+    rmrdir(path_database);
+    return result;
+}
+
+/***************************************************************************
+ *  An old delete heard after the key came back
+ ***************************************************************************/
+PRIVATE int do_test_old_delete_after_reborn(void)
+{
+    int result = 0;
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database),
+        getenv("HOME"), "tests_yuneta", DATABASE5, NULL);
+    rmrdir(path_database);
+
+    n_keys = 1;
+    received = GBMEM_MALLOC(sizeof(int) * (size_t)(n_keys + 1));
+    received_total = 0;
+    deleted_seed = 0;
+    deleted_other = 0;
+    seed_received = 0;
+    seed_deleted = 0;
+
+    set_expected_results(
+        "old delete after reborn: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_tranger(DATABASE5, TRUE);
+    if(!tm || !create_topic(tm)) {
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    if(append_one(tm, SEED_KEY_ID, BASE_T)<0) {
+        result += -1;
+    }
+    json_t *tf = startup_tranger(DATABASE5, FALSE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    rt = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, "", NULL, my_record_callback, "rtALL", "", NULL
+    );
+    json_t *rt_one = tranger2_open_rt_disk(      // the feed of another key
+        tf, TOPIC_NAME, "0000000000000000001", NULL, seed_record_callback, "rtONE", "", NULL
+    );
+    if(!rt || !rt_one) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    tranger2_set_rt_key_deleted_callback(rt, my_key_deleted_callback, NULL);
+    tranger2_set_rt_key_deleted_callback(rt_one, seed_key_deleted_callback, NULL);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(append_one(tm, SEED_KEY_ID, BASE_T + 1)<0 || append_one(tm, 1, BASE_T + 1)<0) {
+        result += -1;
+    }
+    drain(2);
+    result += test_json(NULL);
+
+    /*
+     *  With the loop stopped: the queue of rtONE made long (a directory
+     *  created and removed in its key directory, 2000 times), then the seed
+     *  key deleted and written again. rtALL reads its few events first:
+     *  the delete, then the record of the key born again.
+     */
+    set_expected_results("old delete after reborn: the live key stays", NULL, NULL, NULL, 1);
+    char churn[PATH_MAX];
+    build_path(churn, sizeof(churn), path_database, TOPIC_NAME, "disks", "rtONE",
+        "0000000000000000001", "c", NULL);
+    for(int i = 0; i < 2000; i++) {
+        if(mkdir(churn, 0700)<0 || rmdir(churn)<0) {
+            printf("%sERROR%s --> cannot churn %s: %s\n",
+                On_Red BWhite, Color_Off, churn, strerror(errno));
+            result += -1;
+            break;
+        }
+    }
+    if(tranger2_delete_key(tm, TOPIC_NAME, SEED_KEY)<0) {
+        printf("%sERROR%s --> the seed key could not be deleted\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    memset(received, 0, sizeof(int) * (size_t)(n_keys + 1));
+    received_total = 0;
+    if(append_one(tm, SEED_KEY_ID, BASE_T + 2)<0) {
+        result += -1;
+    }
+    drain(1);
+
+    json_t *cache = json_object_get(tranger2_topic(tf, TOPIC_NAME), "cache");
+    if(deleted_seed != 1 || received[SEED_KEY_ID] != 1 || seed_deleted != 0) {
+        printf("%sERROR%s --> rtALL heard the delete %d times and %d records of the key born again, rtONE %d deletes, expected 1/1/0\n",
+            On_Red BWhite, Color_Off, deleted_seed, received[SEED_KEY_ID], seed_deleted);
+        result += -1;
+    }
+    if(!json_object_get(cache, SEED_KEY)) {
+        printf("%sERROR%s --> the key born again is not in the cache: an old delete took it out\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += expect_no_debts("rtALL", rt);
+    result += expect_no_debts("rtONE", rt_one);
+
+    /*
+     *  And the key lives for the feed: its next record reaches rtALL
+     */
+    memset(received, 0, sizeof(int) * (size_t)(n_keys + 1));
+    received_total = 0;
+    if(append_one(tm, SEED_KEY_ID, BASE_T + 3)<0) {
+        result += -1;
+    }
+    drain(1);
+    if(received[SEED_KEY_ID] != 1) {
+        printf("%sERROR%s --> the next record of the key born again: %d, expected 1\n",
+            On_Red BWhite, Color_Off, received[SEED_KEY_ID]);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("old delete after reborn: shutdown", NULL, NULL, NULL, 1);
+    tranger2_close_rt_disk(tf, rt);
+    rt = NULL;
+    tranger2_close_rt_disk(tf, rt_one);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    GBMEM_FREE(received);
+    received_total = 0;
+    received_bad_key = 0;
+    deleted_seed = 0;
+    deleted_other = 0;
+    seed_received = 0;
+    seed_deleted = 0;
     rmrdir(path_database);
     return result;
 }
@@ -1080,6 +1242,7 @@ int main(int argc, char *argv[])
     result += do_test_signal_behind_overflow(FALSE);
     result += do_test_signal_behind_overflow(TRUE);
     result += do_test_feed_opened_in_flight();
+    result += do_test_old_delete_after_reborn();
     result += do_test();
 
     yev_loop_stop(yev_loop);
