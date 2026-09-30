@@ -84,6 +84,10 @@ struct fs_event_s {
     uint64_t rescan_us_slices;  // Internal: us spent inside slices (the owner's included)
     uint64_t rescan_us_slice_end; // Internal: end of the last slice, us monotonic
     uint64_t rescan_us_max_gap; // Internal: the longest wait of the loop between two slices
+    uint64_t offset;            // Output: where the event handed over starts in the watcher's
+                                // stream of events (the bytes read from inotify before it)
+    uint64_t batch_end;         // Internal: offset of the end of the batch being walked
+    BOOL in_batch;              // Internal: yev_callback is walking a batch read from inotify
 } ;
 
 
@@ -107,6 +111,19 @@ PUBLIC int fs_start_watcher_event(
     fs_event_t *fs_event
 );
 PUBLIC int fs_stop_watcher_event( // When the event is stopped the fs_event will be destroyed
+    fs_event_t *fs_event
+);
+
+/*
+ *  Where the events the kernel holds for this watcher BY NOW end, in its
+ *  stream of events: an event handed over later with an `offset` below it was
+ *  already queued when this was asked -- what it says may be what the owner
+ *  has just read from the disk. Asked while the batch is walked (from the
+ *  owner's callback) it is exact. Asked of another watcher, a read the kernel
+ *  has completed and the loop has not handed over yet cannot be seen: its
+ *  events (one read, a few hundred bytes) fall after the answer.
+ */
+PUBLIC uint64_t fs_queued_events_end(
     fs_event_t *fs_event
 );
 

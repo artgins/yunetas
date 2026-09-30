@@ -155,6 +155,10 @@ This header file defines the **fs_watcher** module, which provides filesystem ev
             fs_callback_t callback;
             int fd;
             json_t *jn_tracked_paths;
+            // ... the internal state of the pass after an overflow ...
+            uint64_t offset;            // Output: where the event handed over starts in
+                                        // the watcher's stream of events
+            // ...
         } ;
 
       ```

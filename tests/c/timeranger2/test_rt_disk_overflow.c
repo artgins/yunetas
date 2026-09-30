@@ -35,6 +35,26 @@
  *  keys/, found nothing gone, and never heard of the delete. Each feed must
  *  hear it once.
  *
+ *  Then the signal of a delete queued BEHIND the overflow
+ *  (do_test_signal_behind_overflow, with the keyed feed and without it).
+ *  The kernel queues its overflow at the end of a full queue, and as the
+ *  watcher reads down to it room is made behind it: here a few batches are
+ *  read, then the key is deleted. The overflow tells the key deleted (from
+ *  the cache, or from what the keyed feed heard first), and the signal
+ *  comes after it: the feed must not be told twice, and the keyed feed must
+ *  not be left owing a delete it already heard -- the NEXT delete of the
+ *  key would pay it, and a feed that overflowed then would miss that one.
+ *
+ *  And a feed opened while a delete was in flight
+ *  (do_test_feed_opened_in_flight): the key is deleted with the loop
+ *  stopped, then a second whole-topic feed is opened. The master mirrored
+ *  the delete before that feed's directory existed, so it never hears it,
+ *  but the first feed hears it and counts it as owed by the second. The key
+ *  is born again (both feeds get its record), then the first feed
+ *  overflows and the key is deleted again: the second feed hears it first,
+ *  and its old debt must not pay for this new delete -- the overflowed feed
+ *  must be told it.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -58,6 +78,9 @@
 
 #define DATABASE    "tr_rt_disk_overflow"
 #define DATABASE2   "tr_rt_disk_overflow_feeds"
+#define DATABASE3   "tr_rt_disk_overflow_behind"
+#define DATABASE4   "tr_rt_disk_overflow_late"
+#define SEED_KEY    "0000000000000000000"
 #define TOPIC_NAME  "topic_rt_disk_overflow"
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 #define SEED_KEY_ID 0           // exists before the flood; deleted during it
@@ -79,6 +102,8 @@ PRIVATE int deleted_other = 0;      // key_deleted callbacks for any other key: 
 PRIVATE json_t *rt = NULL;          // the feed of the follower
 PRIVATE int seed_received = 0;      // records of the feed keyed on the seed key
 PRIVATE int seed_deleted = 0;       // its key_deleted callbacks
+PRIVATE int late_received = 0;      // records of the feed opened while a delete was in flight
+PRIVATE int late_deleted = 0;       // its key_deleted callbacks of the seed key
 
 PRIVATE int my_record_callback(
     json_t *tranger,
@@ -141,6 +166,35 @@ PRIVATE int seed_key_deleted_callback(
 )
 {
     seed_deleted++;
+    return 0;
+}
+
+PRIVATE int late_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    late_received++;
+    JSON_DECREF(record)
+    return 0;
+}
+
+PRIVATE int late_key_deleted_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    void *user_data
+)
+{
+    if(atol(key) == SEED_KEY_ID) {
+        late_deleted++;
+    }
     return 0;
 }
 
@@ -410,6 +464,362 @@ PRIVATE int do_test_two_feeds(void)
     return result;
 }
 
+/*
+ *  The deletes a feed owes (its `deletes_unheard`): none once every feed
+ *  has heard what it will ever hear
+ */
+PRIVATE int expect_no_debts(const char *feed_name, json_t *feed)
+{
+    json_t *unheard = json_object_get(feed, "deletes_unheard");
+    if(json_object_size(unheard) > 0) {
+        char dump[1024] = {0};
+        json_dumpb(unheard, dump, sizeof(dump)-1, JSON_COMPACT);
+        printf("%sERROR%s --> the feed %s owes deletes it will never hear: %s\n",
+            On_Red BWhite, Color_Off, feed_name, dump);
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ *  With the loop stopped: the queue of rtALL filled past its limit by a
+ *  directory created and removed in its key directory of key 1 (nothing a
+ *  feed hears as a record or a delete)
+ */
+PRIVATE int overflow_whole_topic_feed(const char *path_database)
+{
+    char churn[PATH_MAX];
+    build_path(churn, sizeof(churn), path_database, TOPIC_NAME, "disks", "rtALL",
+        "0000000000000000001", "c", NULL);
+    for(int i = 0; i < queue_limit/2 + 1024; i++) {
+        if(mkdir(churn, 0700)<0 || rmdir(churn)<0) {
+            printf("%sERROR%s --> cannot churn %s: %s\n",
+                On_Red BWhite, Color_Off, churn, strerror(errno));
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The signal of a delete queued behind the overflow
+ ***************************************************************************/
+PRIVATE int do_test_signal_behind_overflow(BOOL with_keyed_feed)
+{
+    int result = 0;
+    const char *label = with_keyed_feed? "behind the overflow, two feeds" : "behind the overflow, one feed";
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database),
+        getenv("HOME"), "tests_yuneta", DATABASE3, NULL);
+    rmrdir(path_database);
+
+    queue_limit = max_queued_events();
+    n_keys = 1;
+    received = GBMEM_MALLOC(sizeof(int) * (size_t)(n_keys + 1));
+    received_total = 0;
+    deleted_seed = 0;
+    deleted_other = 0;
+    seed_received = 0;
+    seed_deleted = 0;
+
+    char title[128];
+    snprintf(title, sizeof(title), "%s: setup", label);
+    set_expected_results(
+        title,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_tranger(DATABASE3, TRUE);
+    if(!tm || !create_topic(tm)) {
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    if(append_one(tm, SEED_KEY_ID, BASE_T)<0) {
+        result += -1;
+    }
+    json_t *tf = startup_tranger(DATABASE3, FALSE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    rt = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, "", NULL, my_record_callback, "rtALL", "", NULL
+    );
+    json_t *rt_seed = NULL;
+    if(with_keyed_feed) {
+        rt_seed = tranger2_open_rt_disk(
+            tf, TOPIC_NAME, SEED_KEY, NULL, seed_record_callback, "rtSEED", "", NULL
+        );
+    }
+    if(!rt || (with_keyed_feed && !rt_seed)) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    tranger2_set_rt_key_deleted_callback(rt, my_key_deleted_callback, NULL);
+    if(rt_seed) {
+        tranger2_set_rt_key_deleted_callback(rt_seed, seed_key_deleted_callback, NULL);
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(append_one(tm, SEED_KEY_ID, BASE_T + 1)<0 || append_one(tm, 1, BASE_T + 1)<0) {
+        result += -1;
+    }
+    drain(2);
+    if(received[SEED_KEY_ID] != 1 || received[1] != 1 || (with_keyed_feed && seed_received != 1)) {
+        printf("%sERROR%s --> before the overflow: whole-topic feed %d/%d, seed feed %d, expected 1/1/1\n",
+            On_Red BWhite, Color_Off, received[SEED_KEY_ID], received[1], seed_received);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  The queue of rtALL overflowed with the loop stopped; the test reads
+     *  some of it (room behind the overflow, which is still far: a turn of
+     *  the loop drains the whole queue, the overflow included); then the
+     *  seed key is deleted: its signal to rtALL is queued behind the
+     *  overflow
+     */
+    snprintf(title, sizeof(title), "%s: the delete is told once", label);
+    set_expected_results_unordered(
+        title,
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
+            "msg", "keys deleted while the inotify events were lost",
+            "msg", "watched tree rescanned after lost inotify events"
+        ),
+        NULL, NULL, 1
+    );
+    result += overflow_whole_topic_feed(path_database);
+    fs_event_t *fs_all = (fs_event_t *)(uintptr_t)json_integer_value(
+        json_object_get(rt, "fs_event_client")
+    );
+    char room[4096];    // 128 events of the churn
+    if(!fs_all || read(fs_all->fd, room, sizeof(room)) <= 0) {
+        printf("%sERROR%s --> the test did not test: no room made behind the overflow: %s\n",
+            On_Red BWhite, Color_Off, strerror(errno));
+        result += -1;
+    }
+    if(tranger2_delete_key(tm, TOPIC_NAME, SEED_KEY)<0) {
+        printf("%sERROR%s --> the seed key could not be deleted\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    drain(0);
+
+    if(deleted_seed != 1 || deleted_other != 0) {
+        printf("%sERROR%s --> the overflowed feed heard the delete %d times (others %d), expected 1\n",
+            On_Red BWhite, Color_Off, deleted_seed, deleted_other);
+        result += -1;
+    }
+    if(with_keyed_feed && seed_deleted != 1) {
+        printf("%sERROR%s --> the keyed feed heard the delete %d times, expected 1\n",
+            On_Red BWhite, Color_Off, seed_deleted);
+        result += -1;
+    }
+    result += expect_no_debts("rtALL", rt);
+    if(rt_seed) {
+        result += expect_no_debts("rtSEED", rt_seed);
+    }
+    result += test_json(NULL);
+
+    snprintf(title, sizeof(title), "%s: shutdown", label);
+    set_expected_results(title, NULL, NULL, NULL, 1);
+    tranger2_close_rt_disk(tf, rt);
+    rt = NULL;
+    if(rt_seed) {
+        tranger2_close_rt_disk(tf, rt_seed);
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    GBMEM_FREE(received);
+    received_total = 0;
+    received_bad_key = 0;
+    deleted_seed = 0;
+    deleted_other = 0;
+    seed_received = 0;
+    seed_deleted = 0;
+    rmrdir(path_database);
+    return result;
+}
+
+/***************************************************************************
+ *  A feed opened while a delete was in flight
+ ***************************************************************************/
+PRIVATE int do_test_feed_opened_in_flight(void)
+{
+    int result = 0;
+    char path_database[PATH_MAX];
+    build_path(path_database, sizeof(path_database),
+        getenv("HOME"), "tests_yuneta", DATABASE4, NULL);
+    rmrdir(path_database);
+
+    queue_limit = max_queued_events();
+    n_keys = 1;
+    received = GBMEM_MALLOC(sizeof(int) * (size_t)(n_keys + 1));
+    received_total = 0;
+    deleted_seed = 0;
+    deleted_other = 0;
+    late_received = 0;
+    late_deleted = 0;
+
+    set_expected_results(
+        "feed opened in flight: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_tranger(DATABASE4, TRUE);
+    if(!tm || !create_topic(tm)) {
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    if(append_one(tm, SEED_KEY_ID, BASE_T)<0) {
+        result += -1;
+    }
+    json_t *tf = startup_tranger(DATABASE4, FALSE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    rt = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, "", NULL, my_record_callback, "rtALL", "", NULL
+    );
+    if(!rt) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    tranger2_set_rt_key_deleted_callback(rt, my_key_deleted_callback, NULL);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(append_one(tm, SEED_KEY_ID, BASE_T + 1)<0 || append_one(tm, 1, BASE_T + 1)<0) {
+        result += -1;
+    }
+    drain(2);
+    result += test_json(NULL);
+
+    /*
+     *  With the loop stopped: the seed key deleted (mirrored into
+     *  disks/rtALL/ alone), THEN rtLATE opened
+     */
+    set_expected_results("feed opened in flight: the first delete", NULL, NULL, NULL, 1);
+    if(tranger2_delete_key(tm, TOPIC_NAME, SEED_KEY)<0) {
+        printf("%sERROR%s --> the seed key could not be deleted\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *rt_late = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, "", NULL, late_record_callback, "rtLATE", "", NULL
+    );
+    if(!rt_late) {
+        tranger2_shutdown(tf);
+        tranger2_shutdown(tm);
+        GBMEM_FREE(received);
+        return -1;
+    }
+    tranger2_set_rt_key_deleted_callback(rt_late, late_key_deleted_callback, NULL);
+    drain(0);
+    if(deleted_seed != 1 || late_deleted != 0) {
+        printf("%sERROR%s --> the first delete: heard %d times by rtALL, %d by rtLATE, expected 1/0\n",
+            On_Red BWhite, Color_Off, deleted_seed, late_deleted);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  The seed key born again: both feeds get its record, and rtLATE's
+     *  stream shows the key alive after the debt was made
+     */
+    set_expected_results("feed opened in flight: the key born again", NULL, NULL, NULL, 1);
+    memset(received, 0, sizeof(int) * (size_t)(n_keys + 1));
+    received_total = 0;
+    if(append_one(tm, SEED_KEY_ID, BASE_T + 2)<0) {
+        result += -1;
+    }
+    drain(1);
+    if(received[SEED_KEY_ID] != 1 || late_received != 1) {
+        printf("%sERROR%s --> the key born again: rtALL %d records, rtLATE %d, expected 1/1\n",
+            On_Red BWhite, Color_Off, received[SEED_KEY_ID], late_received);
+        result += -1;
+    }
+    result += expect_no_debts("rtLATE", rt_late);
+    result += test_json(NULL);
+
+    /*
+     *  rtALL overflowed with the loop stopped, the seed key deleted again:
+     *  rtALL's signal is dropped, rtLATE's comes first
+     */
+    set_expected_results_unordered(
+        "feed opened in flight: the second delete reaches the overflowed feed",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "inotify IN_Q_OVERFLOW: events lost, rescanning the watched tree",
+            "msg", "keys deleted while the inotify events were lost",
+            "msg", "watched tree rescanned after lost inotify events"
+        ),
+        NULL, NULL, 1
+    );
+    result += overflow_whole_topic_feed(path_database);
+    if(tranger2_delete_key(tm, TOPIC_NAME, SEED_KEY)<0) {
+        printf("%sERROR%s --> the seed key could not be deleted again\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    drain(0);
+    if(deleted_seed != 2 || deleted_other != 0 || late_deleted != 1) {
+        printf("%sERROR%s --> the second delete: heard %d times by rtALL in all (others %d), %d by rtLATE, expected 2/0/1\n",
+            On_Red BWhite, Color_Off, deleted_seed, deleted_other, late_deleted);
+        result += -1;
+    }
+    result += expect_no_debts("rtALL", rt);
+    result += expect_no_debts("rtLATE", rt_late);
+    result += test_json(NULL);
+
+    set_expected_results("feed opened in flight: shutdown", NULL, NULL, NULL, 1);
+    tranger2_close_rt_disk(tf, rt);
+    rt = NULL;
+    tranger2_close_rt_disk(tf, rt_late);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    GBMEM_FREE(received);
+    received_total = 0;
+    received_bad_key = 0;
+    deleted_seed = 0;
+    deleted_other = 0;
+    late_received = 0;
+    late_deleted = 0;
+    rmrdir(path_database);
+    return result;
+}
+
 /***************************************************************************
  *  do_test
  ***************************************************************************/
@@ -667,6 +1077,9 @@ int main(int argc, char *argv[])
     yev_loop_create(0, 2024, 10, NULL, &yev_loop);
 
     int result = do_test_two_feeds();
+    result += do_test_signal_behind_overflow(FALSE);
+    result += do_test_signal_behind_overflow(TRUE);
+    result += do_test_feed_opened_in_flight();
     result += do_test();
 
     yev_loop_stop(yev_loop);

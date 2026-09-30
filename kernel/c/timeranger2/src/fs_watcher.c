@@ -16,6 +16,7 @@
 #include <string.h>
 #include <limits.h>
 #include <sys/inotify.h>
+#include <sys/ioctl.h>
 #include <errno.h>
 #include <dirent.h>
 #include <time.h>
@@ -30,6 +31,7 @@
 
 #define DEFAULT_MASK (IN_DELETE_SELF|IN_MOVE_SELF|IN_CREATE|IN_DELETE | IN_DONT_FOLLOW|IN_EXCL_UNLINK)
 #define RESCAN_SLICE_MS 20      // the pass after an overflow gives the loop back after this
+#define READ_SIZE       (sizeof(struct inotify_event) + NAME_MAX + 1)   // one read: at least one event
 
 /***************************************************************************
  *  Prototypes
@@ -181,7 +183,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     /*
      *  Alloc buffer to read
      */
-    size_t len = sizeof(struct inotify_event) + NAME_MAX + 1;
+    size_t len = READ_SIZE;
     gbuffer_t *gbuf = gbuffer_create(len, len);
     if(!gbuf) {
         gobj_log_error(gobj, 0,
@@ -259,6 +261,34 @@ PUBLIC int fs_stop_watcher_event(
         fs_destroy_watcher_event(fs_event);
     }
     return 0;
+}
+
+/***************************************************************************
+ *  The kernel says how many bytes of events it holds for the fd (FIONREAD);
+ *  before them comes the rest of the batch being walked, if one is
+ ***************************************************************************/
+PUBLIC uint64_t fs_queued_events_end(
+    fs_event_t *fs_event
+)
+{
+    if(!fs_event) {
+        return 0;
+    }
+    uint64_t end = fs_event->in_batch? fs_event->batch_end : fs_event->offset;
+
+    int queued = 0;
+    if(ioctl(fs_event->fd, FIONREAD, &queued) < 0) {
+        gobj_log_error(fs_event->gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "ioctl(FIONREAD) FAILED: the events queued by now are not counted",
+            "path",         "%s", fs_event->path,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return end;
+    }
+    return end + (uint64_t)(queued > 0? queued : 0);
 }
 
 /***************************************************************************
@@ -385,6 +415,9 @@ PRIVATE int yev_callback(
                     size_t len = gbuffer_leftbytes(gbuf);
                     char *buffer = gbuffer_cur_rd_pointer(gbuf);
                     char *ptr = buffer;
+                    uint64_t batch_start = fs_event->offset;
+                    fs_event->batch_end = batch_start + len;
+                    fs_event->in_batch = TRUE;
                     fs_event->in_callback = TRUE;
                     while (ptr < buffer + len && !fs_event->stop_requested) {
                         /*
@@ -402,11 +435,14 @@ PRIVATE int yev_callback(
                         }
 
                         // Handle the file modification event
+                        fs_event->offset = batch_start + (uint64_t)(ptr - buffer);
                         handle_inotify_event(fs_event, event);
 
                         ptr += sizeof(struct inotify_event) + event->len;
                     }
                     fs_event->in_callback = FALSE;
+                    fs_event->in_batch = FALSE;
+                    fs_event->offset = fs_event->batch_end;
 
                     if(fs_event->stop_requested) {
                         /*

@@ -100,6 +100,63 @@ Once [`fs_stop_watcher_event()`](<#fs_stop_watcher_event>) is called, the `fs_ev
 
 ---
 
+(fs_queued_events_end)=
+## [`fs_queued_events_end()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/timeranger2/src/fs_watcher.c#L270)
+
+`fs_queued_events_end()` says where the events the kernel holds for the
+watcher BY NOW end, in the watcher's stream of events. Every event the
+watcher hands over carries its own place in that stream, `fs_event->offset`
+(the bytes read from inotify before it). An event handed over later with an
+`offset` below the answer was already queued when the question was asked:
+what it says may be what the owner has just read from the disk.
+
+```C
+uint64_t fs_queued_events_end(
+    fs_event_t *fs_event
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `fs_event` | `fs_event_t *` | The watcher. |
+
+**Returns**
+
+The offset in the stream where the events queued by now end: the rest of the
+batch being walked, if one is, plus what the kernel holds (`FIONREAD`). `0`
+for a NULL watcher. If `FIONREAD` fails the error is logged and the events
+still in the kernel are not counted.
+
+**Notes**
+
+Asked from the owner's own callback (the batch is being walked) the answer is
+exact. Asked of ANOTHER watcher, a read the kernel has completed and the loop
+has not handed over yet cannot be seen: its events (one read, a few hundred
+bytes) fall after the answer.
+
+A timeranger2 follower uses it to tell apart what it already said from what
+is new. At an overflow it reads `keys/` and tells the keys gone from there
+deleted; the signal of such a delete can still be in the queue, behind the
+overflow, and must not be told again:
+
+```C
+case FS_OVERFLOW_TYPE:
+    list_what_is_on_disk_and_tell_it(owner);       // what the lost events said
+    owner->told_until = fs_queued_events_end(fs_event);
+    break;
+
+case FS_SUBDIR_DELETED_TYPE:
+    if(fs_event->offset < owner->told_until && already_told(owner, fs_event->filename)) {
+        break;  // queued before the owner read the disk: said already
+    }
+    tell_deleted(owner, fs_event->filename);
+    break;
+```
+
+---
+
 ## Queue overflow (`IN_Q_OVERFLOW`)
 
 Each watcher owns one inotify instance with a bounded kernel event queue
@@ -206,11 +263,32 @@ What the owners of the tree do:
   gone from there is heard as deleted (its `key_deleted` callback fires; INFO
   *"keys deleted while the inotify events were lost"*). The cache is shared by
   every feed of the topic and forgets a key with the first feed that hears its
-  delete, so each feed also keeps the deletes the OTHER feeds heard and it has
-  not (`deletes_unheard`): those gone from `keys/` are told too. Up to 7.25.20
-  a feed that overflowed while another feed of its topic heard a delete never
-  heard of it. At each
-  `FS_RESCAN_DIR_TYPE`: the master hard-links each new md2 into
+  delete, so the first feed to hear one (the key still in the cache) counts it
+  as owed by every other watched feed told the deletes of that key
+  (`deletes_unheard`, per feed), each paying when it hears it: the deletes a
+  feed owes and that are gone from `keys/` are told at its overflow too. Up to
+  7.25.20 a feed that overflowed while another feed of its topic heard a
+  delete never heard of it.
+
+  What an overflow told is not told again. The kernel queues its overflow at
+  the end of a full queue, and as the watcher reads down to it room is made
+  behind it: the master's signal of a delete can be queued there, and comes
+  after the overflow that already told the key. The feed keeps the keys it
+  told and where its stream ended once `keys/` was read
+  ([`fs_queued_events_end()`](#fs_queued_events_end)); a delete of one of
+  them queued before that is said already, and nothing is done (up to 7.25.20
+  it was told twice).
+
+  A feed opened while a delete was in flight (its directory made after the
+  master listed `disks/`, or watched after the master signalled it) never
+  hears it, and owes it all the same. Each debt holds where the stream of the
+  debtor ended when it was made; when the debtor's stream, past that point,
+  shows the key's directory made again (the key lives), the debt is
+  forgotten -- kept, the next delete of the key would pay it, and a feed that
+  overflowed then would miss that one. Until then the feed's next overflow
+  tells it the key deleted, which it is.
+
+  At each `FS_RESCAN_DIR_TYPE`: the master hard-links each new md2 into
   `disks/<rt_id>/<key>/` and the follower consumes the link when it reads it,
   so a link still there IS a record not handed over yet, and the key directory
   is read. Both are idempotent: nothing is handed over twice.
@@ -238,10 +316,15 @@ its queue is that echo, which is why a single burst can overflow it twice.
   deleted key is heard once, and a key born during the overflow is watched
   afterwards. With the code that aborted, the test aborts. It needs about four
   open files per key and raises its soft limit to the hard one, as a yuno does;
-  below that it is skipped. Before it, a cheap case that always runs: two
+  below that it is skipped. Before it, cheap cases that always run: two
   feeds of one topic, the whole-topic one overflowed (by directories created
   and removed in one of its key directories) while a key is deleted, and the
-  one keyed on that key hearing it first. Both hear the delete once.
+  one keyed on that key hearing it first -- both hear the delete once; the
+  same with the signal of the delete queued BEHIND the overflow (the test
+  reads some of the full queue itself, then deletes), with one feed and with
+  two -- told once, and nobody left owing it; and a feed opened while a
+  delete was in flight, the key born again, the other feed overflowed and
+  the key deleted again -- the overflowed feed is told the second delete.
 - `test_fs_watcher_overflow`: the watcher alone, with an owner slow on purpose
   (100 us per directory) and a periodic timer probing the loop. `max_queued_events`
   + 4096 directories are created with the loop stopped: every one is told to the

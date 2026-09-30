@@ -1581,7 +1581,7 @@ it by hand, run the script.
 
 ## timeranger2 (Time-Series DB)
 
-### `fs_watcher.h` — 3 functions
+### `fs_watcher.h` — 4 functions
 
 **Source:** `kernel/c/timeranger2/src/fs_watcher.h`
 
@@ -1590,6 +1590,8 @@ it by hand, run the script.
 2. [**`fs_start_watcher_event`**](timeranger2/fs_watcher.md#fs_start_watcher_event) — `PUBLIC int fs_start_watcher_event( fs_event_t *fs_event )`
 
 3. [**`fs_stop_watcher_event`**](timeranger2/fs_watcher.md#fs_stop_watcher_event) — `PUBLIC int fs_stop_watcher_event( fs_event_t *fs_event )`
+
+4. [**`fs_queued_events_end`**](timeranger2/fs_watcher.md#fs_queued_events_end) — `PUBLIC uint64_t fs_queued_events_end( fs_event_t *fs_event )`
 
 ### `timeranger2.h` — 53 functions
 
@@ -1923,7 +1925,7 @@ it by hand, run the script.
 
 63. [**`create_template_record`**](timeranger2/treedb.md#create_template_record) — `PUBLIC json_t *create_template_record( const char *template_name, json_t *cols, json_t *kw )`
 
-**Total: 159 functions**
+**Total: 160 functions**
 
 ## root-linux (Runtime GClasses)
 
@@ -2344,7 +2346,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1016 functions** sorted alphabetically with their source header.
+All **1017 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2434,6 +2436,7 @@ All **1016 functions** sorted alphabetically with their source header.
 | [**`formatdate`**](helpers/time_date.md#formatdate) | `helpers.h` | gobj-c (Core Framework) |
 | [**`free_ram_in_kb`**](helpers/misc.md#free_ram_in_kb) | `helpers.h` | gobj-c (Core Framework) |
 | [**`fs_create_watcher_event`**](timeranger2/fs_watcher.md#fs_create_watcher_event) | `fs_watcher.h` | timeranger2 (Time-Series DB) |
+| [**`fs_queued_events_end`**](timeranger2/fs_watcher.md#fs_queued_events_end) | `fs_watcher.h` | timeranger2 (Time-Series DB) |
 | [**`fs_start_watcher_event`**](timeranger2/fs_watcher.md#fs_start_watcher_event) | `fs_watcher.h` | timeranger2 (Time-Series DB) |
 | [**`fs_stop_watcher_event`**](timeranger2/fs_watcher.md#fs_stop_watcher_event) | `fs_watcher.h` | timeranger2 (Time-Series DB) |
 | [**`gbmem_calloc`**](helpers/memory.md#gbmem_calloc) | `gbmem.h` | gobj-c (Core Framework) |
