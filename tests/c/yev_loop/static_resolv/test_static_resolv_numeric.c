@@ -15,6 +15,14 @@
  *       v4-mapped IPv6 address ("::ffff:127.0.0.1"), and a v4-mapped IPv6
  *       address in AF_INET answers its IPv4 address, flags or not. Up to
  *       7.25.20 both answered EAI_ADDRFAMILY.
+ *    E. The IPv4 forms glibc takes as numeric (inet_aton, exact: no blank
+ *       before or after): shorthand ("127.1", "10.1.2"), a single number
+ *       ("2130706433"), hex ("0x7f.1") and octal ("0177.0.0.1") parts --
+ *       answered as glibc answers them, in every family, with and without
+ *       AI_NUMERICHOST. Up to 7.25.20 only the dotted quad was numeric:
+ *       the others went to DNS (and waited its timeout here), and
+ *       AI_NUMERICHOST refused them (EAI_NONAME). What glibc does not
+ *       take ("1.2.3.4x", "256.1", "08.1", "127.0.0.1 ") stays a name.
  *
  *  Queries are routed to an unprivileged port (-DYUNETA_DNS_PORT) where
  *  nothing answers, so a query that escapes costs a timeout: every case
@@ -63,7 +71,7 @@ static int check_addr(const char *what, const char *node, int family, int flags,
             inet_ntop(AF_INET, &((struct sockaddr_in *)ai->ai_addr)->sin_addr, got, sizeof(got));
         }
     }
-    int family_ok = res && res->ai_family == family;
+    int family_ok = res && (family == AF_UNSPEC || res->ai_family == family);
     if(res) {
         yuneta_freeaddrinfo(res);
     }
@@ -118,6 +126,40 @@ int main(void)
     fail += check_addr("D", "127.0.0.1", AF_INET, AI_V4MAPPED, "127.0.0.1");
     fail += check("D", "::1", AF_INET, AI_V4MAPPED, EAI_ADDRFAMILY);
     fail += check("D", "::1", AF_INET, AI_NUMERICHOST, EAI_ADDRFAMILY);
+
+    /*
+     *  E. What glibc's getaddrinfo() answers for each form (checked on
+     *  glibc 2.43, probe of 2026-10-01)
+     */
+    const struct {
+        const char *node;
+        const char *v4;
+    } shorthand[] = {
+        {"127.1",       "127.0.0.1"},
+        {"10.1.2",      "10.1.0.2"},
+        {"0x7f.1",      "127.0.0.1"},
+        {"0177.0.0.1",  "127.0.0.1"},
+        {"2130706433",  "127.0.0.1"},
+        {"0x7f000001",  "127.0.0.1"},
+        {0}
+    };
+    for(int i=0; shorthand[i].node; i++) {
+        const char *node = shorthand[i].node;
+        char mapped[INET6_ADDRSTRLEN];
+        snprintf(mapped, sizeof(mapped), "::ffff:%s", shorthand[i].v4);
+        for(int numeric=0; numeric<2; numeric++) {
+            int nf = numeric? AI_NUMERICHOST : 0;
+            fail += check_addr("E", node, AF_INET, nf, shorthand[i].v4);
+            fail += check_addr("E", node, AF_UNSPEC, nf, shorthand[i].v4);
+            fail += check_addr("E", node, AF_INET6, nf|AI_V4MAPPED, mapped);
+            fail += check("E", node, AF_INET6, nf, EAI_ADDRFAMILY);
+        }
+    }
+    const char *not_numeric[] = {"1.2.3.4x", "256.1", "08.1", "127.0.0.1 ", " 127.0.0.1", "1 2", 0};
+    for(int i=0; not_numeric[i]; i++) {
+        fail += check("E", not_numeric[i], AF_INET, AI_NUMERICHOST, EAI_NONAME);
+        fail += check("E", not_numeric[i], AF_UNSPEC, AI_NUMERICHOST, EAI_NONAME);
+    }
 
     if(fail == 0) {
         printf("test_static_resolv_numeric: PASS\n");

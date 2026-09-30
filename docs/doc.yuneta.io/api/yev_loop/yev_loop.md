@@ -425,6 +425,20 @@ ret = getaddrinfo("127.0.0.1", "0", &hints, &res); // 0: ::ffff:127.0.0.1
 
 Up to 7.25.20 the two mapped cases answered `EAI_ADDRFAMILY` too.
 
+A numeric IPv4 address is what glibc takes as one: every form of
+`inet_aton()` -- the shorthand, a single number, hex and octal parts -- with
+nothing before or after it:
+
+```C
+getaddrinfo("127.1", "0", &hints, &res);        // 127.0.0.1, no DNS query
+getaddrinfo("10.1.2", "0", &hints, &res);       // 10.1.0.2
+getaddrinfo("0x7f.1", "0", &hints, &res);       // 127.0.0.1 (0177.0.0.1 too)
+getaddrinfo("127.0.0.1 ", "0", &hints, &res);   // a name (a blank after it)
+```
+
+Up to 7.25.20 only the dotted quad was numeric: the other forms were sent to
+DNS, and `AI_NUMERICHOST` refused them.
+
 ## Benchmarks & tests
 
 - `performance/c/perf_yev_ping_pong`, `perf_yev_ping_pong2`

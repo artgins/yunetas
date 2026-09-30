@@ -73,6 +73,25 @@ void yuneta_freeaddrinfo(struct addrinfo *res)
 }
 
 /*
+ *  A numeric IPv4 address as glibc's getaddrinfo() takes it: what
+ *  inet_aton() takes -- the dotted quad, the shorthand ("127.1" is
+ *  127.0.0.1, "10.1.2" is 10.1.0.2), a single number, hex ("0x7f") and
+ *  octal ("0177") parts -- with nothing before or after it (inet_aton()
+ *  alone stops at a blank). Up to 7.25.20 only the dotted quad was
+ *  numeric here (inet_pton()): the others were sent to DNS.
+ */
+static int parse_ipv4_numeric(const char *node, struct in_addr *a4)
+{
+    for(const char *p = node; *p; p++) {
+        if(*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == '\f' || *p == '\v') {
+            return 0;
+        }
+    }
+    return inet_aton(node, a4);
+}
+
+
+/*
  * Allocate and populate one struct addrinfo node.
  */
 static struct addrinfo *make_addrinfo_node(
@@ -672,7 +691,7 @@ static uint16_t dns_random_id(void)
  *
  * Resolution order:
  *   1. NULL / empty node  → INADDR_ANY or loopback
- *   2. Numeric IPv4       → direct
+ *   2. Numeric IPv4       → direct (as glibc: inet_aton() forms, "127.1" too)
  *   3. Numeric IPv6       → direct
  *      Numeric of the other family → EAI_ADDRFAMILY; AI_NUMERICHOST
  *      and not numeric → EAI_NONAME (no lookup, as glibc)
@@ -732,7 +751,7 @@ int yuneta_getaddrinfo(
     /* ------ Step 2: numeric IPv4 ------ */
     if(ai_family == AF_INET || ai_family == AF_UNSPEC) {
         struct in_addr a4;
-        if(inet_pton(AF_INET, node, &a4) == 1) {
+        if(parse_ipv4_numeric(node, &a4) == 1) {
             struct sockaddr_in sa = {0};
             sa.sin_family = AF_INET;
             sa.sin_addr   = a4;
@@ -775,7 +794,7 @@ int yuneta_getaddrinfo(
     {
         struct in_addr a4;
         struct in6_addr a6;
-        if(inet_pton(AF_INET, node, &a4) == 1) {
+        if(parse_ipv4_numeric(node, &a4) == 1) {
             if(ai_family == AF_INET6 && (ai_flags & AI_V4MAPPED)) {
                 struct sockaddr_in6 sa = {0};
                 sa.sin6_family = AF_INET6;
