@@ -113,7 +113,7 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag--------------------default-----description---------- */
 SDATA (DTP_STRING,      "username",             SDF_PERSIST,            "",     "email username. Empty: the SMTP side does not start until set-email-user"),
-SDATA (DTP_STRING,      "password",             SDF_PERSIST,            "",     "email password. Empty: the SMTP side does not start until set-email-user"),
+SDATA (DTP_STRING,      "password",             SDF_PERSIST|SDF_SECRET,            "",     "email password. Empty: the SMTP side does not start until set-email-user"),
 SDATA (DTP_STRING,      "url",                  SDF_PERSIST|SDF_REQUIRED,"",    "smtp URL"),
 SDATA (DTP_STRING,      "from",                 SDF_PERSIST|SDF_REQUIRED,"",    "default from"),
 SDATA (DTP_STRING,      "from_beautiful",       SDF_PERSIST,            "",     "from with name"),

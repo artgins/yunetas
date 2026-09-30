@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### Kernel: secrets are not shown, and not left world-readable
+
+- **`SDF_SECRET`**, a new attr flag: the attr is read, written and persisted
+  as before, and SHOWN as `********` by `view-attrs`, `write-attr` (its
+  answer echoed the value written), `list-persistent-attrs`, `view-gobj` and
+  the start-up trace of the yuno's attrs -- through the new
+  `gobj_mask_secret_attrs()`. Marked: the passwords of the emailsender and
+  its SMTP session, `client_secret` (auth_bff), `sign_secret` (assets),
+  `kc_admin_client_secret` (keycloak), the MQTT password, and the user
+  passwords and tokens of `c_task_authenticate`, `c_ievent_cli`, `c_tcp`,
+  mqtt2 and the CLI tools. `view-attrs` showed the relay's password in
+  clear to whoever asked.
+- **The persistent-attrs file is written 0600** (`dbsimple.c`), and
+  fchmod'ed so the files written before are closed at their next save: it
+  was `json_dump_file()` with the process umask -- 0666 on every node --
+  and it holds those secrets in clear.
+
+### emailsender: a refused login says why
+
+- The SMTP server's reply TEXT is logged with its code when the login is
+  refused. `535` alone could not tell a wrong password from what it was on
+  2026-09-30: `535 5.7.1 Authentication failed`, OVH blocking the account.
+
 ### webstats: the report's IP addresses go out as [a.b.c.d]
 
 - OVH's outbound relay read `34.140.132.132` as a Spanish phone number (+34

@@ -243,6 +243,46 @@ If the attribute exists, the function returns a reference to the JSON object sto
 
 ---
 
+(gobj_mask_secret_attrs)=
+## [`gobj_mask_secret_attrs()`](https://github.com/artgins/yunetas/blob/7.25.18/kernel/c/gobj-c/src/gobj.c#L3647)
+
+Replaces, in a dict of attributes of `gobj` (what
+[`gobj_read_attrs()`](#gobj_read_attrs) or
+[`gobj_list_persistent_attrs()`](#gobj_list_persistent_attrs) answer), the
+value of every [`SDF_SECRET`](#SDF_SECRET) attribute by `"********"`. An empty
+value stays empty. For what is SHOWN; what is saved or used reads the
+attributes as they are -- the persistence itself reads through
+`gobj_read_attrs()`, which is why the masking is a separate step and not a
+flag of the read.
+
+```C
+int gobj_mask_secret_attrs(
+    hgobj   gobj,
+    json_t  *jn_attrs   // not owned, modified in place
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj whose attrs table says which attributes are secret. |
+| `jn_attrs` | `json_t *` | A dict keyed by attribute name. Not owned; masked in place. Anything that is not a dict is left alone. |
+
+**Returns**
+
+`0`.
+
+**Example**
+
+```C
+json_t *jn_attrs = gobj_read_attrs(gobj, SDF_PERSIST|SDF_RD|SDF_WR, src);
+gobj_mask_secret_attrs(gobj, jn_attrs);     // "password": "********"
+return build_command_response(gobj, 0, 0, 0, jn_attrs);
+```
+
+---
+
 (gobj_read_attrs)=
 ## [`gobj_read_attrs()`](https://github.com/artgins/yunetas/blob/7.25.18/kernel/c/gobj-c/src/gobj.c#L3623)
 

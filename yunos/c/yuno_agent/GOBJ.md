@@ -258,6 +258,7 @@ The ones that matter most often:
 | `SDF_PSTATS`     | Persistent stat (combination of `SDF_PERSIST` + stat semantics).      |
 | `SDF_DEPRECATED` | Logged-warning attribute, still accepted (see `c_authz`'s `authz_yuno_role`). |
 | `SDF_AUTHZ_R` / `SDF_AUTHZ_W` / `SDF_AUTHZ_X` / `SDF_AUTHZ_S` / `SDF_AUTHZ_RS` | Demand the matching authz. ⚠️ Currently **not enforced** for commands (see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.5). |
+| `SDF_SECRET` | A password, client secret or token: read and persisted as usual, shown as `********` by `view-attrs`, `write-attr`, `list-persistent-attrs` and `view-gobj` (since 7.25.19, [`gobj_mask_secret_attrs()`](https://doc.yuneta.io/attrs#gobj_mask_secret_attrs)). |
 
 ### 5.3 The R/W API
 

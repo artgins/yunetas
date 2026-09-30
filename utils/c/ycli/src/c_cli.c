@@ -854,7 +854,7 @@ PRIVATE void cli_free_hint_cb(char *hint, void *user_data)
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
-SDATA (DTP_STRING,      "jwt",              0,                  "",         "Jwt"),
+SDATA (DTP_STRING,      "jwt",              SDF_SECRET,                  "",         "Jwt"),
 SDATA (DTP_STRING,      "display_mode",     SDF_WR|SDF_PERSIST, "table",    "Display mode: table or form"),
 SDATA (DTP_STRING,      "editor",           SDF_WR|SDF_PERSIST, "vim",      "Editor"),
 SDATA (DTP_JSON,        "shortkeys",        SDF_WR|SDF_PERSIST, 0,          "Shortkeys. A dict {key: command}."),

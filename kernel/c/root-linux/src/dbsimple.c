@@ -10,6 +10,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include <kwid.h>
 #include "yunetas_environment.h"
@@ -94,11 +97,41 @@ PRIVATE int save_json(
     char filename[PATH_MAX];
     get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", TRUE);
 
-    int ret = json_dump_file(
-        jn,
-        filename,
-        JSON_INDENT(4)
-    );
+    /*
+     *  0600, and fchmod'ed: a persistent attr can be a secret (the SMTP
+     *  password of the emailsender, set with set-email-user). Up to 7.25.18
+     *  json_dump_file() created it with the process umask -- 0666 on every
+     *  node -- and O_TRUNC keeps the mode of a file that already exists, so
+     *  the fchmod is what closes the files written before.
+     */
+    int fd = open(filename, O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC, 0600);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot open the persistent attrs file",
+            "path",         "%s", filename,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        JSON_DECREF(jn)
+        return -1;
+    }
+    if(fchmod(fd, 0600) < 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot make the persistent attrs file 0600",
+            "path",         "%s", filename,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    int ret = json_dumpfd(jn, fd, JSON_INDENT(4));
+    close(fd);
     if(ret < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

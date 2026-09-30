@@ -117,6 +117,7 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     SDF_AUTHZ_P     = 0x00040000,   /* authorization constraint parameter */
     SDF_AUTHZ_S     = 0x00080000,   /* Need Stats '__read_stats__' authorization */
     SDF_AUTHZ_RS    = 0x00100000,   /* Need Stats '__reset_stats__' authorization */
+    SDF_SECRET      = 0x00200000,   /* A secret (password, client secret, token): read and saved as usual, SHOWN as "********" (gobj_mask_secret_attrs) */
 } sdata_flag_t;
 
 #define SDF_PUBLIC_ATTR (SDF_RD|SDF_WR|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS)
@@ -1074,6 +1075,15 @@ PUBLIC json_t *gobj_read_attr( // Return is NOT yours!
     const char *path, // If it has ` then segments are gobj and leaf is the attribute (+bottom) TODO
     hgobj src
 );
+
+/*
+ *  Replace, in a dict of attrs of `gobj` (what gobj_read_attrs() or
+ *  gobj_list_persistent_attrs() answer), the value of every SDF_SECRET attr
+ *  by "********". An empty value stays empty, so "not set" still shows.
+ *  For what is SHOWN (view-attrs, write-attr, list-persistent-attrs,
+ *  view-gobj); what is SAVED or used reads the attrs as they are.
+ */
+PUBLIC int gobj_mask_secret_attrs(hgobj gobj, json_t *jn_attrs); // not owned, modified in place
 
 PUBLIC json_t *gobj_read_attrs( // Return is yours!
     hgobj gobj,

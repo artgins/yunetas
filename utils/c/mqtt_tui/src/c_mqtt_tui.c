@@ -195,9 +195,9 @@ SDATA (DTP_STRING,  "mqtt_will_retain", 0,      "0",    "MQTT will retain"),
 SDATA (DTP_STRING,  "mqtt_will_properties",0,   "",     "MQTT will properties as JSON string (MQTT v5 only). E.g. '{\"will-delay-interval\":30}'."),
 
 SDATA (DTP_STRING,  "user_id",          0,      "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
-SDATA (DTP_STRING,  "user_passw",       0,      "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
+SDATA (DTP_STRING,  "user_passw",       SDF_SECRET,      "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
 
-SDATA (DTP_STRING,  "jwt",              0,      "",     "Jwt"),
+SDATA (DTP_STRING,  "jwt",              SDF_SECRET,      "",     "Jwt"),
 SDATA (DTP_STRING,  "display_mode",     0,      "table","Display mode: table or form"),
 SDATA (DTP_STRING,  "editor",           0,      "vim",  "Editor"),
 SDATA (DTP_POINTER, "user_data",        0,      0,      "user data"),
