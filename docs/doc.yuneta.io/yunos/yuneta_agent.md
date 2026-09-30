@@ -172,10 +172,14 @@ request came from -- the way the Terminal's PTY mirror sends `EV_TTY_DATA`
 A yuno that does not run gets only its `state`. One watch per requester --
 its connection AND the client at the far end of the route, because every web
 client of a control center shares that control center's connection: a new
-call replaces the previous one. The client is told by its hop: yuno, service,
-host and, since 7.25.15, the channel it came in by at the control center
-(`input_channel`) -- before, two tabs of one browser were one requester and
-shared a watch. One yuno may be named with several services
+call replaces the previous one. The client is told by the hop the agent can
+trust: directly connected, the hop of the agent's own input channel; through
+a control center, the hop stamped by the control center -- the channel the
+client came in by there (`input_channel`, since 7.25.15: before, two tabs of
+one browser were one requester and shared a watch) and its connection
+(`cc_connection`). Hops deeper in the stack are written by the client as it
+likes and are never read: up to 7.25.20 the agent took the LAST one, so a
+client could add a hop naming another user's watch, and stop or replace it. One yuno may be named with several services
 (`ids=5120,5120:db_tracks_ce`), and an id that is not a yuno of this agent no
 longer refuses the whole watch: it is watched, its `state` says `missing`, and
 the answer names it (`data.missing`,
@@ -186,17 +190,31 @@ every third of it), and one not renewed goes with *"watch-yuno-stats not
 renewed, expired"* in the agent's log. The readings are taken by the agent on
 loopback (`stats-yuno` to its own yunos), ONCE per yuno and service however
 many requesters watch it, at the shortest period asked; `period` is never
-under the attribute `watch_min_period` (1000 ms), and `max_watches` (30)
-bounds the requesters. It is not a subscription on purpose: a subscription
+under the attribute `watch_min_period` (1000 ms), `max_watches` (30)
+bounds the requesters, and `max_watch_ids` (256) the names in one `ids`
+(*"too many yuno ids: 300, max_watch_ids is 256"*). The answer goes first:
+the first readings of a new or renewed watch follow it, to that requester
+only (up to 7.25.20 they went out before it, and every renewal read every
+watch of every requester again). It is not a subscription on purpose: a subscription
 travels only from a client to a server, and the agent is the server of its
 yunos.
 
-A client that asks for a watch must know `EV_YUNO_STATS`: a C client (an
-older `ycommand`) that receives an event it does not know drops the
-connection. For the same reason a watch that arrives through a control center
-is accepted only if that control center says it relays the event
-(`__relays__`, see [the control center](controlcenter.md)); otherwise it is
-refused and the requester polls.
+A client that asks for a watch must know `EV_YUNO_STATS`, and SAY it: a C
+client that receives an event it does not know drops the connection, or logs
+*"Event NOT DEFINED in state"* on every one (`ycommand`, until the watch
+expired). So a watch is accepted only if its kw carries `__relays__` with the
+event -- written by a control center in between (see
+[the control center](controlcenter.md), which removes the web client's own
+first), or by a client connected directly:
+
+```json
+{"ids": "2120,5120", "period": 2000, "__relays__": ["EV_YUNO_STATS"]}
+```
+
+Otherwise it is refused (*"this client does not say it takes EV_YUNO_STATS
+(__relays__), ask stats-yuno instead"*, or through a control center *"the
+control center in between does not relay EV_YUNO_STATS, ask stats-yuno
+instead"*) and the requester polls.
 
 ## Redundancy
 
