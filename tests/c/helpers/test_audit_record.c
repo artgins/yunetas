@@ -463,6 +463,96 @@ PRIVATE void test_peer_fields_redacted(void)
 }
 
 /***************************************************************************
+ *  An allocator of gbmem that fails every allocation while armed (the
+ *  jansson allocators were taken before, they are not affected)
+ ***************************************************************************/
+PRIVATE BOOL s_fail_allocs = FALSE;
+PRIVATE sys_malloc_fn_t s_real_malloc;
+PRIVATE sys_realloc_fn_t s_real_realloc;
+PRIVATE sys_calloc_fn_t s_real_calloc;
+PRIVATE sys_free_fn_t s_real_free;
+
+PRIVATE void *failing_malloc(size_t size)
+{
+    if(s_fail_allocs) {
+        return NULL;
+    }
+    return s_real_malloc(size);
+}
+
+PRIVATE void *failing_realloc(void *ptr, size_t size)
+{
+    if(s_fail_allocs) {
+        return NULL;
+    }
+    return s_real_realloc(ptr, size);
+}
+
+PRIVATE void *failing_calloc(size_t n, size_t size)
+{
+    if(s_fail_allocs) {
+        return NULL;
+    }
+    return s_real_calloc(n, size);
+}
+
+/***************************************************************************
+ *  A redaction that cannot be allocated never writes the text it was
+ *  to redact: a fixed placeholder instead. Up to 7.25.20 a field of a
+ *  peer (and a string of the kw) was written RAW when its redaction
+ *  failed, and one over AUDIT_PEER_FIELD_MAX had never been scanned.
+ ***************************************************************************/
+PRIVATE void test_no_memory_to_redact(void)
+{
+    char long_host[4096];
+    memset(long_host, 'h', sizeof(long_host));
+    long_host[sizeof(long_host)-1] = 0;
+
+    json_t *kw = json_pack("{s:s, s:s, s:{s:[{s:s, s:s, s:s}, {s:s, s:s}]}}",
+        "id", "gate",
+        "note", "password=hunter2",
+        "__md_iev__", "ievent_gate_stack",
+            "src_role", "role", "user", "someone", "host", "password=hunter2",
+            "src_role", "role2", "host", long_host
+    );
+
+    gbmem_get_allocators(&s_real_malloc, &s_real_realloc, &s_real_calloc, &s_real_free);
+    gbmem_set_allocators(failing_malloc, failing_realloc, failing_calloc, s_real_free);
+    s_fail_allocs = TRUE;
+    json_t *jn_record = audit_record_build("run-yuno id=gate", kw, DATE, command_table);
+    s_fail_allocs = FALSE;
+    gbmem_set_allocators(s_real_malloc, s_real_realloc, s_real_calloc, s_real_free);
+
+    check(jn_record && !record_holds(jn_record, "hunter2"),
+        "(no memory) a password of a hop or of the kw is not written raw");
+    check(jn_record && !record_holds(jn_record, "hhhhhhhhhhhhhhhh"),
+        "(no memory) a field of a hop over the cap is not written raw");
+    check(jn_record && record_holds(jn_record, "no memory to redact"),
+        "(no memory) the placeholder is written instead");
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+}
+
+/***************************************************************************
+ *  A field of a peer that is not UTF-8 is data of the peer: a warning,
+ *  not an ERROR of the audit
+ ***************************************************************************/
+PRIVATE void test_peer_not_utf8(void)
+{
+    int errors = s_errors;
+    json_t *jn_hop = json_pack("{s:s}", "src_role", "role");
+    json_object_set_new(jn_hop, "host", json_stringn_nocheck("ab\xff\xfe", 4));
+    json_t *kw = json_pack("{s:s, s:{s:[o]}}", "id", "x", "__md_iev__", "ievent_gate_stack", jn_hop);
+    json_t *jn_record = audit_record_build("run-yuno", kw, DATE, command_table);
+    json_t *jn_hops = json_object_get(json_object_get(jn_record, "source"), "hops");
+    check(jn_record && s_errors == errors &&
+        strcmp(kw_get_str(0, json_array_get(jn_hops, 0), "host", "?", 0), "") == 0,
+        "(peer) a field of a hop that is not UTF-8: written as empty, no error");
+    JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+}
+
+/***************************************************************************
  *  (d) a secret is never written: passwords, tokens, client secrets, ...
  ***************************************************************************/
 PRIVATE void check_no_secret(const char *command, json_t *kw, const char *secret, const char *name)
@@ -2286,6 +2376,8 @@ int main(int argc, char *argv[])
     test_more_secrets();
     test_json_text_in_json_text();
     test_peer_fields_redacted();
+    test_no_memory_to_redact();
+    test_peer_not_utf8();
     test_quote_before_json_text();
     test_blank_keys_inner_quotes_jwt_dot();
     test_generated_commands();

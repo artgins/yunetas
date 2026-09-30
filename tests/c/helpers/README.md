@@ -98,6 +98,29 @@ each command answered an empty list with `0`. The comment sends to the log for
 the cause (*"see the log"*): it does not read the process-global
 `gobj_log_last_message()`.
 
+`test_audit_record` also builds a record with the gbmem allocators failing
+(swapped with `gbmem_set_allocators()`): a peer field or a kw string whose
+redaction cannot be allocated is written as `<not written: no memory to
+redact it>`, never as it came (up to 7.25.20 it was written raw, and one over
+the cap had never been scanned). A peer field that is not UTF-8 is a warning,
+not an error, written as `""`.
+
+`test_watch_request` compiles what the agent takes from a `watch-yuno-stats`
+request (`yunos/c/yuno_agent/src/watch_request.c`): the watch is named from
+the hop the agent can trust (its own input channel's when direct, the one the
+control center stamped, with `cc_connection`, when relayed), so a forged
+extra hop names no other client's watch; a requester without `__relays__`
+naming `EV_YUNO_STATS` is refused, a direct one too; more ids than the cap
+are refused.
+
+`test_yuno_config_file` compiles the writer of the configuration files the
+agent materialises for a yuno (`yunos/c/yuno_agent/src/yuno_config_file.c`):
+a new file is `0640`, and one that existed as `0664` is narrowed to `0640`
+(up to 7.25.20 they were `0664`, with the yuno's secrets in them). The files
+of an earlier launch that wrote more of them (`4-role^name.json` when three
+are written now) are narrowed to `0640`: never widened, never removed, and a
+symbolic link, its target and the files of another yuno are not touched.
+
 `test_dir_read_error` fails the `readdir()` of one directory with `EIO`
 (`--wrap=opendir,--wrap=readdir`): `find_files_with_suffix_array()`,
 `walk_dir_array()` (its root, or a subdirectory) and `walk_dir_tree()` answer

@@ -56,12 +56,16 @@ SET (YUNO_SRCS
     src/audit_record.c
     src/dir_listing.c
     src/find_new_yunos.c
+    src/watch_request.c
+    src/yuno_config_file.c
 )
 SET (YUNO_HDRS
     src/c_agent.h
     src/audit_record.h
     src/dir_listing.h
     src/find_new_yunos.h
+    src/watch_request.h
+    src/yuno_config_file.h
 )
 
 ##############################################

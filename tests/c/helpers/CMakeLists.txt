@@ -58,6 +58,8 @@ set(SRCS
     test_dir_listing
     test_dir_read_error
     test_switchs
+    test_watch_request
+    test_yuno_config_file
 )
 
 ##############################################
@@ -103,6 +105,22 @@ target_sources(test_audit_record PRIVATE
     ${YUNETAS_BASE}/yunos/c/yuno_agent/src/audit_record.c
 )
 target_include_directories(test_audit_record PRIVATE
+    ${YUNETAS_BASE}/yunos/c/yuno_agent/src
+)
+
+# test_watch_request tests what the agent takes from a watch-yuno-stats request (its own source)
+target_sources(test_watch_request PRIVATE
+    ${YUNETAS_BASE}/yunos/c/yuno_agent/src/watch_request.c
+)
+target_include_directories(test_watch_request PRIVATE
+    ${YUNETAS_BASE}/yunos/c/yuno_agent/src
+)
+
+# test_yuno_config_file tests the configuration files the agent writes for a yuno (its own source)
+target_sources(test_yuno_config_file PRIVATE
+    ${YUNETAS_BASE}/yunos/c/yuno_agent/src/yuno_config_file.c
+)
+target_include_directories(test_yuno_config_file PRIVATE
     ${YUNETAS_BASE}/yunos/c/yuno_agent/src
 )
 
