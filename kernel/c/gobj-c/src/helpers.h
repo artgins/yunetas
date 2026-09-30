@@ -271,6 +271,24 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
 PUBLIC BOOL is_secret_name(const char *name, size_t len);
 
 /**rst**
+ *  A text (a command line) with the value of every "name=value" whose
+ *  name is a secret's written as "********" (quoted or not; the "value" of
+ *  a write-attr whose attribute names a secret too); the rest as it is.
+ *  A gbmem string to GBMEM_FREE, or NULL when there was nothing to mask.
+**rst**/
+PUBLIC char *mask_secrets_inline(const char *str);
+
+/**rst**
+ *  A json as a log or a trace may show it: at any depth, the value of a
+ *  key with a secret's name is "********" (whatever its json type; not an
+ *  absent one, a null or an empty string), so is the "value" of a dict
+ *  whose "attribute" names a secret, and a string is masked as
+ *  mask_secrets_inline(). Return a NEW reference: a masked copy, or jn
+ *  itself when there was nothing to mask. NULL for NULL.
+**rst**/
+PUBLIC json_t *json_mask_secrets(json_t *jn);
+
+/**rst**
     Split a string by delim returning the list of strings.
     Return filling `list_size` if not null with items size,
     WARNING Remember free with split_free2().

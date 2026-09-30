@@ -2206,7 +2206,7 @@ PUBLIC hgobj gobj_service_factory(
         json_t *jn_gclasses = gclass_gclass_register();
         gobj_trace_json(0, jn_gclasses, "gclass NOT FOUND");
         JSON_DECREF(jn_gclasses)
-        gobj_trace_json(0, kw, "gclass NOT FOUND");
+        gobj_trace_json_masked(0, kw, "gclass NOT FOUND");
         JSON_DECREF(kw)
         return 0;
     }
@@ -5404,7 +5404,7 @@ PUBLIC json_t *gobj_stats(hgobj gobj_, const char *stats, json_t *kw, hgobj src)
             gobj_short_name(src)
         );
         if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
-            gobj_trace_json(gobj, kw, "stats kw");
+            gobj_trace_json_masked(gobj, kw, "stats kw");
         }
     }
 
@@ -7996,7 +7996,7 @@ PUBLIC int gobj_send_event(
                 if(kw) {
                     if(__trace_gobj_ev_kw__(dst)) {
                         if(json_object_size(kw)) {
-                            gobj_trace_json(dst, kw, "kw send_event");
+                            gobj_trace_json_masked(dst, kw, "kw send_event");
                         }
                     }
                 }
@@ -8071,7 +8071,7 @@ PUBLIC int gobj_send_event(
         if(kw) {
             if(__trace_gobj_ev_kw__(dst)) {
                 if(json_object_size(kw)) {
-                    gobj_trace_json(dst, kw, "kw exec event: %s", event?event:"");
+                    gobj_trace_json_masked(dst, kw, "kw exec event: %s", event?event:"");
                 }
             }
         }
@@ -9532,7 +9532,7 @@ PUBLIC int gobj_unsubscribe_event(
             "subscriber",   "%s", gobj_full_name(subscriber),
             NULL
         );
-        gobj_trace_json(publisher, kw, "No subscription found");
+        gobj_trace_json_masked(publisher, kw, "No subscription found");
     }
 
     JSON_DECREF(dl_subs)
@@ -9825,7 +9825,7 @@ PUBLIC int gobj_publish_event(
         }
         if(__trace_gobj_ev_kw__(publisher)) {
             if(json_object_size(kw)) {
-                gobj_trace_json(publisher, kw, "kw publish event %s", event?event:"");
+                gobj_trace_json_masked(publisher, kw, "kw publish event %s", event?event:"");
             }
         }
     }
@@ -10054,7 +10054,7 @@ PUBLIC int gobj_publish_event(
                 }
                 if(__trace_gobj_ev_kw__(publisher)) {
                     if(json_object_size(kw2publish)) {
-                        gobj_trace_json(publisher, kw2publish, "kw publish send event");
+                        gobj_trace_json_masked(publisher, kw2publish, "kw publish send event");
                     }
                 }
             }
@@ -10090,7 +10090,7 @@ PUBLIC int gobj_publish_event(
             );
             if(__trace_gobj_ev_kw__(publisher)) {
                 if(json_object_size(kw)) {
-                    gobj_trace_json(publisher, kw, "Publish event WITHOUT subscribers");
+                    gobj_trace_json_masked(publisher, kw, "Publish event WITHOUT subscribers");
                 }
             }
         }
@@ -10324,7 +10324,7 @@ PUBLIC BOOL gobj_user_has_authz(
         }
         BOOL has_permission = gobj->gclass->gmt->mt_authz_checker(gobj, authz, kw, src);
         if(trace) {
-            gobj_trace_json(gobj, kw,
+            gobj_trace_json_masked(gobj, kw,
                 "local authzs 🔑🔑 %s => %s",
                 gobj_short_name(gobj),
                 has_permission?"👍":"🚫"
@@ -10343,7 +10343,7 @@ PUBLIC BOOL gobj_user_has_authz(
         }
         BOOL has_permission = __global_authorization_checker_fn__(gobj, authz, kw, src);
         if(trace) {
-            gobj_trace_json(gobj, kw,
+            gobj_trace_json_masked(gobj, kw,
                 "global authzs 🔑🔑 %s => %s",
                 gobj_short_name(gobj),
                 has_permission?"👍":"🚫"

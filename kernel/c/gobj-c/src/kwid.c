@@ -4,7 +4,7 @@
  *              kw helpers
  *
  *              Copyright (c) 2014,2023 Niyamaka.
- *              Copyright (c) 2024,2026 ArtGins.
+ *              Copyright (c) 2024-2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
@@ -779,7 +779,7 @@ PUBLIC int kw_set_dict_value(
                     "idx",          "%d", idx,
                     NULL
                 );
-                gobj_trace_json(gobj, v, "path not found");
+                gobj_trace_json_masked(gobj, v, "path not found");
                 break;
             }
             if(last) {
@@ -873,7 +873,7 @@ PUBLIC int kw_delete(
                 "path",         "%s", s,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path not found");
+            gobj_trace_json_masked(gobj, kw, "path not found");
             ret = -1;
         }
 
@@ -889,7 +889,7 @@ PUBLIC int kw_delete(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path not found");
+            gobj_trace_json_masked(gobj, kw, "path not found");
             ret = -1;
         }
     }
@@ -923,7 +923,7 @@ PUBLIC int kw_delete_subkey(hgobj gobj, json_t *kw, const char *path, const char
             "key",          "%s", key,
             NULL
         );
-        gobj_trace_json(gobj, kw, "key not found");
+        gobj_trace_json_masked(gobj, kw, "key not found");
         return -1;
     }
     return json_object_del(jn_dict, key);
@@ -1758,7 +1758,7 @@ PUBLIC json_t *kw_get_dict(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path NOT FOUND, default value returned of '%s'", path);
+            gobj_trace_json_masked(gobj, kw, "path NOT FOUND, default value returned of '%s'", path);
         }
         return default_value;
     }
@@ -1771,7 +1771,7 @@ PUBLIC json_t *kw_get_dict(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path MUST BE a json dict, default value returned of '%s'", path);
+            gobj_trace_json_masked(gobj, kw, "path MUST BE a json dict, default value returned of '%s'", path);
         }
         return default_value;
     }
@@ -1809,7 +1809,7 @@ PUBLIC json_t *kw_get_list(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
+            gobj_trace_json_masked(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
         }
         return default_value;
     }
@@ -1822,7 +1822,7 @@ PUBLIC json_t *kw_get_list(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path '%s' MUST BE a json list, default value returned", path);
+            gobj_trace_json_masked(gobj, kw, "path '%s' MUST BE a json list, default value returned", path);
         }
         return default_value;
     }
@@ -1901,7 +1901,7 @@ PUBLIC json_int_t kw_get_int(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
+            gobj_trace_json_masked(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
         }
         return default_value;
     }
@@ -1914,7 +1914,7 @@ PUBLIC json_int_t kw_get_int(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path MUST BE a json integer '%s'", path);
+            gobj_trace_json_masked(gobj, kw, "path MUST BE a json integer '%s'", path);
             return default_value;
         }
     }
@@ -1946,7 +1946,7 @@ PUBLIC json_int_t kw_get_int(
             "path",         "%s", path,
             NULL
         );
-        gobj_trace_json(gobj, kw, "path MUST BE a simple json element '%s'", path);
+        gobj_trace_json_masked(gobj, kw, "path MUST BE a simple json element '%s'", path);
         return 0;
     }
     if(flag & KW_EXTRACT) {
@@ -1980,7 +1980,7 @@ PUBLIC double kw_get_real(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
+            gobj_trace_json_masked(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
         }
         return default_value;
     }
@@ -1993,7 +1993,7 @@ PUBLIC double kw_get_real(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path MUST BE a json real '%s'", path);
+            gobj_trace_json_masked(gobj, kw, "path MUST BE a json real '%s'", path);
             return default_value;
         }
     }
@@ -2017,7 +2017,7 @@ PUBLIC double kw_get_real(
             "path",         "%s", path,
             NULL
         );
-        gobj_trace_json(gobj, kw, "path MUST BE a simple json element '%s'", path);
+        gobj_trace_json_masked(gobj, kw, "path MUST BE a simple json element '%s'", path);
         return 0;
     }
     if(flag & KW_EXTRACT) {
@@ -2051,7 +2051,7 @@ PUBLIC BOOL kw_get_bool(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
+            gobj_trace_json_masked(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
         }
         return default_value;
     }
@@ -2064,7 +2064,7 @@ PUBLIC BOOL kw_get_bool(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path MUST BE a json boolean '%s'", path);
+            gobj_trace_json_masked(gobj, kw, "path MUST BE a json boolean '%s'", path);
             return default_value;
         }
     }
@@ -2095,7 +2095,7 @@ PUBLIC BOOL kw_get_bool(
             "path",         "%s", path,
             NULL
         );
-        gobj_trace_json(gobj, kw, "path MUST BE a simple json element '%s'", path);
+        gobj_trace_json_masked(gobj, kw, "path MUST BE a simple json element '%s'", path);
         return 0;
     }
     if(flag & KW_EXTRACT) {
@@ -2134,7 +2134,7 @@ PUBLIC const char *kw_get_str(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
+            gobj_trace_json_masked(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
         }
         return default_value;
     }
@@ -2147,7 +2147,7 @@ PUBLIC const char *kw_get_str(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path MUST BE a json str");
+            gobj_trace_json_masked(gobj, kw, "path MUST BE a json str");
         }
         return default_value;
     }
@@ -2190,7 +2190,7 @@ PUBLIC json_t *kw_get_dict_value(
                 "path",         "%s", path,
                 NULL
                 );
-            gobj_trace_json(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
+            gobj_trace_json_masked(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
         }
         return default_value;
     }
@@ -2228,7 +2228,7 @@ PUBLIC json_t *kw_get_subdict_value(
                     "path",         "%s", path,
                     NULL
                     );
-                gobj_trace_json(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
+                gobj_trace_json_masked(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
             }
             JSON_DECREF(default_value)
             return NULL;
@@ -3551,7 +3551,7 @@ PUBLIC json_t *kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
                     "id",           "%s", id,
                     NULL
                 );
-                gobj_trace_json(gobj, kw, "record NOT FOUND");
+                gobj_trace_json_masked(gobj, kw, "record NOT FOUND");
             }
             JSON_DECREF(new_record)
             return NULL;
@@ -3617,7 +3617,7 @@ PUBLIC json_t *kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
                     "id",           "%s", id,
                     NULL
                 );
-                gobj_trace_json(gobj, kw, "record NOT FOUND");
+                gobj_trace_json_masked(gobj, kw, "record NOT FOUND");
             }
             JSON_DECREF(new_record)
             return NULL;
@@ -3841,7 +3841,7 @@ PUBLIC BOOL kw_has_word(
                 "word",         "%s", word,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "Searching word needs object,array,string");
+            gobj_trace_json_masked(gobj, kw, "Searching word needs object,array,string");
         }
         return FALSE;
     }

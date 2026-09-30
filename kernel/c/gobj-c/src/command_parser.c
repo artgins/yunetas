@@ -41,8 +41,7 @@ PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key);
 PRIVATE void append_masked_parameters(
     gbuffer_t *gbuf,
     const char *line,
-    const sdata_desc_t *cnf_cmd,
-    int depth
+    const sdata_desc_t *cnf_cmd
 );
 
 /***************************************************************
@@ -252,8 +251,8 @@ PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_tabl
  ***************************************************************************/
 PRIVATE const sdata_desc_t *command_cnf(hgobj gobj, const char *command)
 {
-    if(empty_string(command)) {
-        return NULL;
+    if(!gobj || empty_string(command)) {
+        return NULL;    // not known here: masked by names only
     }
     const sdata_desc_t *cmd_table = gobj_command_desc(gobj, NULL, FALSE);
     if(!cmd_table) {
@@ -301,14 +300,14 @@ PRIVATE BOOL secret_is_set(json_t *value)
  *  Append to gbuf the key=value parameters of `line`, as a trace shows
  *  them: " key=value", the value of a secret key as "********". In a
  *  SDF_WILD_CMD command a value with a '=' is a command line going on (the
- *  `command` of command-yuno): it is shown masked by names, once.
+ *  `command` of command-yuno): it is shown key='...', masked by names
+ *  (mask_secrets_inline()).
  *  What cannot be parsed as key=value is not shown: " <...>".
  ***************************************************************************/
 PRIVATE void append_masked_parameters(
     gbuffer_t *gbuf,
     const char *line,
-    const sdata_desc_t *cnf_cmd,    // NULL: by names only
-    int depth
+    const sdata_desc_t *cnf_cmd     // NULL: by names only
 )
 {
     if(empty_string(line)) {
@@ -334,19 +333,10 @@ PRIVATE void append_masked_parameters(
         rest = p;
         if(is_secret_parameter(cnf_cmd, key)) {
             gbuffer_printf(gbuf, " %s=%s", key, empty_string(value)? "" : "********");
-        } else if(wild && depth == 0 && strchr(value, '=')) {
-            gbuffer_printf(gbuf, " %s='", key);
-            gbuffer_t *gbuf_value = gbuffer_create(256, 64*1024);
-            if(gbuf_value) {
-                append_masked_parameters(gbuf_value, value, NULL, depth+1);
-                char *shown = gbuffer_cur_rd_pointer(gbuf_value);
-                gbuffer_append_string(gbuf, (*shown == ' ')? shown+1 : shown);
-                gbuffer_decref(gbuf_value);
-            } else {
-                // Error already logged
-                gbuffer_append_string(gbuf, "<...>");
-            }
-            gbuffer_append_string(gbuf, "'");
+        } else if(wild && strchr(value, '=')) {
+            char *shown = mask_secrets_inline(value);
+            gbuffer_printf(gbuf, " %s='%s'", key, shown? shown : value);
+            GBMEM_FREE(shown)
         } else {
             gbuffer_printf(gbuf, " %s=%s", key, value);
         }
@@ -361,72 +351,34 @@ PRIVATE void append_masked_parameters(
 }
 
 /***************************************************************************
- *  A json value as a trace shows it, for a command of `cnf_cmd`: the
- *  secret keys masked at any depth, and in a SDF_WILD_CMD command a string
- *  with a '=' (a command line going on) masked by names.
- *  Return a new reference (a masked copy, or jn itself when nothing is).
+ *  A json value as a trace shows it, for a command of `cnf_cmd`: its
+ *  SDF_SECRET parameters masked, and then what json_mask_secrets() masks
+ *  (keys with a secret's name at any depth, the "value" of a write-attr of
+ *  a secret, "name=value" secrets inside a string: the `command` of a
+ *  command-yuno). Return a new reference.
  ***************************************************************************/
-PRIVATE json_t *mask_secret_json(json_t *jn, const sdata_desc_t *cnf_cmd, BOOL wild)
+PRIVATE json_t *mask_secret_json(json_t *jn, const sdata_desc_t *cnf_cmd)
 {
-    if(json_is_object(jn)) {
-        json_t *jn_masked = NULL;
+    json_t *jn_masked = NULL;
+    if(json_is_object(jn) && cnf_cmd && cnf_cmd->schema) {
         const char *key;
         json_t *value;
         json_object_foreach(jn, key, value) {
-            json_t *shown;
-            if(is_secret_parameter(cnf_cmd, key)) {
-                shown = secret_is_set(value)? json_string("********") : json_incref(value);
-            } else {
-                shown = mask_secret_json(value, NULL, wild);   // deeper, by names
-            }
-            if(shown != value && !jn_masked) {
-                jn_masked = json_deep_copy(jn);
-            }
-            if(jn_masked) {
-                json_object_set_new(jn_masked, key, shown);
-            } else {
-                JSON_DECREF(shown)
+            const sdata_desc_t *ip = find_ip_parameter(cnf_cmd->schema, key);
+            if(ip && (ip->flag & SDF_SECRET) && secret_is_set(value)) {
+                if(!jn_masked) {
+                    jn_masked = json_copy(jn);
+                }
+                json_object_set_new(jn_masked, key, json_string("********"));
             }
         }
-        return jn_masked? jn_masked : json_incref(jn);
     }
-
-    if(json_is_array(jn)) {
-        json_t *jn_masked = NULL;
-        size_t idx;
-        json_t *value;
-        json_array_foreach(jn, idx, value) {
-            json_t *shown = mask_secret_json(value, NULL, wild);
-            if(shown != value && !jn_masked) {
-                jn_masked = json_deep_copy(jn);
-            }
-            if(jn_masked) {
-                json_array_set_new(jn_masked, idx, shown);
-            } else {
-                JSON_DECREF(shown)
-            }
-        }
-        return jn_masked? jn_masked : json_incref(jn);
+    if(!jn_masked) {
+        return json_mask_secrets(jn);
     }
-
-    if(wild && json_is_string(jn) && strchr(json_string_value(jn), '=')) {
-        gbuffer_t *gbuf = gbuffer_create(256, 64*1024);
-        if(!gbuf) {
-            // Error already logged
-            return json_string("<...>");
-        }
-        append_masked_parameters(gbuf, json_string_value(jn), NULL, 1);
-        char *shown = gbuffer_cur_rd_pointer(gbuf);
-        if(*shown == ' ') {
-            shown++;
-        }
-        json_t *jn_shown = strcmp(shown, json_string_value(jn))==0?
-            json_incref(jn) : json_string(shown);
-        gbuffer_decref(gbuf);
-        return jn_shown;
-    }
-
-    return json_incref(jn);
+    json_t *jn_shown = json_mask_secrets(jn_masked);
+    JSON_DECREF(jn_masked)
+    return jn_shown;
 }
 
 /***************************************************************************
@@ -446,9 +398,7 @@ PUBLIC json_t *command_mask_secret_kw(
     if(!json_is_object(kw)) {
         return json_incref(kw);
     }
-    const sdata_desc_t *cnf_cmd = command_cnf(gobj, command);
-    BOOL wild = (cnf_cmd && (cnf_cmd->flag & SDF_WILD_CMD))? TRUE : FALSE;
-    return mask_secret_json(kw, cnf_cmd, wild);
+    return mask_secret_json(kw, command_cnf(gobj, command));
 }
 
 /***************************************************************************
@@ -533,10 +483,17 @@ PUBLIC char *command_mask_secret_line(
         ip++;
     }
 
-    append_masked_parameters(gbuf, p, cnf_cmd, 0);
+    append_masked_parameters(gbuf, p, cnf_cmd);
     GBMEM_FREE(str)
 
-    char *line = gbmem_strdup(gbuffer_cur_rd_pointer(gbuf));
+    /*
+     *  And by names, over the whole line: the "value" of a write-attr of a
+     *  secret attribute ("attribute=password value=...")
+     */
+    char *line = mask_secrets_inline(gbuffer_cur_rd_pointer(gbuf));
+    if(!line) {
+        line = gbmem_strdup(gbuffer_cur_rd_pointer(gbuf));
+    }
     gbuffer_decref(gbuf);
     return line;
 }
@@ -907,7 +864,27 @@ PRIVATE json_t *build_cmd_kw(
      */
     char *key;
     char *value;
-    while((value=get_key_value_parameter(pxxx, &key, &pxxx))) {
+    while(1) {
+        key = NULL;
+        value = get_key_value_parameter(pxxx, &key, &pxxx);
+        if(!value && key) {
+            /*
+             *  key='value with no closing quote: get_key_value_parameter()
+             *  answers no value and no rest. Up to 7.25.20 the parameter
+             *  was dropped and the command ran without it, with no log.
+             */
+            *result = -1;
+            JSON_DECREF(kw_cmd);
+            return json_sprintf(
+                "%s: command '%s', parameter '%s': value with no closing quote",
+                gobj_short_name(gobj),
+                command,
+                key
+            );
+        }
+        if(!value) {
+            break;
+        }
         if(!key) {
             // No parameter then stop
             break;
@@ -958,7 +935,7 @@ PRIVATE json_t *build_cmd_kw(
         JSON_DECREF(kw_cmd);
         gbuffer_t *gbuf_extra = gbuffer_create(256, 64*1024);
         if(gbuf_extra) {
-            append_masked_parameters(gbuf_extra, pxxx, cnf_cmd, 0);
+            append_masked_parameters(gbuf_extra, pxxx, cnf_cmd);
         }
         char *extra = gbuf_extra? gbuffer_cur_rd_pointer(gbuf_extra) : "<...>";
         json_t *jn_error = json_sprintf(

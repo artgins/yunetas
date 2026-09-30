@@ -620,7 +620,51 @@ PUBLIC const char *msg_iev_get_msg_type(
 }
 
 /***************************************************************************
- *
+ *  The kw of an inter-event as a trace shows it. A command (v6: its
+ *  "__command__" string; v7: the "command" of the "__command__" stack of
+ *  __md_iev__) is masked by the command table of its destination service
+ *  when that service is here (the SDF_SECRET parameters, positional ones
+ *  too), and everything by names (json_mask_secrets(): keys with a
+ *  secret's name, "name=value" secrets in a string) -- the table of a
+ *  remote service is not known here. Return a new reference.
+ ***************************************************************************/
+PRIVATE json_t *ievent_kw_masked(json_t *kw)
+{
+    json_t *md_iev = json_object_get(kw, "__md_iev__");
+    json_t *jn_command_stack = json_array_get(json_object_get(md_iev, "__command__"), 0);
+    const char *command = json_string_value(json_object_get(kw, "__command__"));
+    if(!command) {
+        command = json_string_value(json_object_get(jn_command_stack, "command"));
+    }
+    if(!command) {
+        return json_mask_secrets(kw);
+    }
+
+    const char *dst_service = json_string_value(json_object_get(
+        json_array_get(json_object_get(md_iev, "ievent_gate_stack"), 0), "dst_service"
+    ));
+    hgobj service = empty_string(dst_service)? NULL : gobj_find_service(dst_service, FALSE);
+
+    json_t *kw_masked = command_mask_secret_kw(service, command, kw);
+    char *line = command_mask_secret_line(service, command);
+    json_t *kw_shown = json_deep_copy(kw_masked);
+    JSON_DECREF(kw_masked)
+    if(json_is_string(json_object_get(kw_shown, "__command__"))) {
+        json_object_set_new(kw_shown, "__command__", json_string(line?line:""));
+    } else {
+        json_t *stack = json_array_get(
+            json_object_get(json_object_get(kw_shown, "__md_iev__"), "__command__"), 0
+        );
+        if(json_is_object(stack)) {
+            json_object_set_new(stack, "command", json_string(line?line:""));
+        }
+    }
+    GBMEM_FREE(line)
+    return kw_shown;
+}
+
+/***************************************************************************
+ *  What the ievents trace shows: the secrets masked (ievent_kw_masked())
  ***************************************************************************/
 PUBLIC void trace_inter_event(hgobj gobj, const char *prefix, const char *event, json_t *kw)
 {
@@ -637,18 +681,19 @@ PUBLIC void trace_inter_event(hgobj gobj, const char *prefix, const char *event,
         "kw", kw_compact
     );
 
-    gobj_trace_json(gobj, jn_iev, "%s", prefix);
+    gobj_trace_json_masked(gobj, jn_iev, "%s", prefix);
     json_decref(jn_iev);
 }
 
 /***************************************************************************
- *
+ *  What the ievents2 trace shows: the whole kw, the secrets masked
+ *  (ievent_kw_masked()). Up to 7.25.20 a command's password went in clear.
  ***************************************************************************/
 PUBLIC void trace_inter_event2(hgobj gobj, const char *prefix, const char *event, json_t *kw)
 {
-    json_t *jn_iev = json_pack("{s:s, s:O}",
+    json_t *jn_iev = json_pack("{s:s, s:o}",
         "event", event?event:"???",
-        "kw", kw
+        "kw", ievent_kw_masked(kw)
     );
 
     gobj_trace_json(gobj, jn_iev, "%s", prefix);

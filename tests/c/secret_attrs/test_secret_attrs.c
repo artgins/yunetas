@@ -89,8 +89,13 @@ PRIVATE int s_command_secret_seen = 0;
 PRIVATE int s_wild_secret_seen = 0;
 PRIVATE int s_wild_line_seen = 0;
 PRIVATE int s_tail_line_seen = 0;
+PRIVATE int s_watch_seen = 0;           // the watched secret, anywhere in a log
+PRIVATE int s_watch_msg_seen = 0;       // the watched message
+PRIVATE const char *s_watch = NULL;
+PRIVATE const char *s_watch_msg = NULL;
 
 GOBJ_DEFINE_GCLASS(C_TEST_SECRET_DRIVER);
+GOBJ_DEFINE_EVENT(EV_TEST_SECRET_KW);
 GOBJ_DEFINE_GCLASS(C_TEST_SECRET_HOLDER);
 
 typedef struct {
@@ -250,6 +255,12 @@ PRIVATE int capture_logs(void *h, int priority, const char *bf, size_t len)
     if(strstr(bf, "set-password-pos") && strstr(bf, "note=visible-tail")) {
         s_tail_line_seen++;
     }
+    if(s_watch && strstr(bf, s_watch)) {
+        s_watch_seen++;
+    }
+    if(s_watch_msg && strstr(bf, s_watch_msg)) {
+        s_watch_msg_seen++;
+    }
     return 0;
 }
 
@@ -284,6 +295,24 @@ PRIVATE int write_file(const char *path, const char *content, mode_t mode)
     fchmod(fd, mode);   // not subject to the umask
     close(fd);
     return 0;
+}
+
+PRIVATE BOOL is_link(const char *path)
+{
+    struct stat st;
+    if(lstat(path, &st) < 0) {
+        return FALSE;
+    }
+    return S_ISLNK(st.st_mode)? TRUE : FALSE;
+}
+
+PRIVATE int file_links(const char *path)
+{
+    struct stat st;
+    if(lstat(path, &st) < 0) {
+        return -1;
+    }
+    return (int)st.st_nlink;
 }
 
 PRIVATE BOOL is_regular_not_link(const char *path)
@@ -550,6 +579,102 @@ PRIVATE void check_wild_command_trace(void)
     );
 }
 
+/*
+ *  Watch one secret, and one message that must be printed, around `what`
+ */
+PRIVATE void watch(const char *secret, const char *msg)
+{
+    s_watch = secret;
+    s_watch_msg = msg;
+    s_watch_seen = 0;
+    s_watch_msg_seen = 0;
+    s_capturing = TRUE;
+}
+
+PRIVATE void unwatch(const char *what)
+{
+    char name[128];
+    s_capturing = FALSE;
+    snprintf(name, sizeof(name), "%s: printed", what);
+    check_true(name, s_watch_msg_seen > 0);
+    snprintf(name, sizeof(name), "%s: the secret hidden", what);
+    check_int(name, s_watch_seen, 0);
+    s_watch = NULL;
+    s_watch_msg = NULL;
+}
+
+/*
+ *  The other dumps of a kw: the kw_get_* errors, the machine trace with
+ *  ev_kw, the ievents traces, and a line the parser refuses
+ */
+PRIVATE void check_log_dumps(hgobj gobj)
+{
+    hgobj holder = gobj_find_service("secret-holder", TRUE);
+
+    json_t *kw = json_pack("{s:I, s:s}", "password", (json_int_t)5555555555555, "note", "x");
+    watch("5555555555555", "path MUST BE a json str");
+    kw_get_str(gobj, kw, "password", "", 0);
+    unwatch("a kw_get_str() error dump");
+    JSON_DECREF(kw)
+
+    gobj_set_global_trace("machine", TRUE);
+    gobj_set_global_trace("ev_kw", TRUE);
+    watch("evkw-hunter2", "kw exec event");
+    gobj_send_event(gobj, EV_TEST_SECRET_KW,
+        json_pack("{s:s, s:s}", "access_token", "evkw-hunter2", "x", "y"), gobj
+    );
+    gobj_set_global_trace("ev_kw", FALSE);
+    gobj_set_global_trace("machine", FALSE);
+    unwatch("the machine trace with ev_kw");
+
+    kw = json_pack("{s:s, s:s, s:{s:[{s:s}]}}",
+        "__command__", "set-password-pos iev-hunter2",
+        "note", "visible",
+        "__md_iev__", "ievent_gate_stack", "dst_service", "secret-holder"
+    );
+    watch("iev-hunter2", "ievents2-v6");
+    trace_inter_event2(gobj, "ievents2-v6", "EV_MT_COMMAND", kw);
+    unwatch("the ievents2 trace of a command to a local service");
+    JSON_DECREF(kw)
+
+    kw = json_pack("{s:s, s:{s:[{s:s}], s:[{s:s}]}}",
+        "password", "iev7kw-hunter2",
+        "__md_iev__",
+            "ievent_gate_stack", "dst_service", "remote-service",
+            "__command__", "command", "set-user-pwd username=bob password=iev7-hunter2"
+    );
+    watch("hunter2", "ievents2-v7");
+    trace_inter_event2(gobj, "ievents2-v7", "EV_MT_COMMAND", kw);
+    unwatch("the ievents2 trace of a command to a remote service");
+    JSON_DECREF(kw)
+
+    gobj_set_global_trace("commands", TRUE);
+    watch("wa-hunter2", "write-attr");
+    json_t *resp = gobj_command(gobj_yuno(),
+        "write-attr gobj_name=secret-holder attribute=password value=wa-hunter2",
+        json_object(), gobj
+    );
+    gobj_set_global_trace("commands", FALSE);
+    unwatch("the commands trace of a write-attr of a secret");
+    JSON_DECREF(resp)
+    check_str("the write-attr of a secret still writes it",
+        gobj_read_str_attr(holder, "password"), "wa-hunter2"
+    );
+
+    gobj_write_str_attr(holder, "password", "before-unterminated");
+    resp = gobj_command(holder, "set-password note=a password='unterm-hunter2", 0, holder);
+    check_int("a value with no closing quote refuses the command",
+        (int)kw_get_int(0, resp, "result", 0, 0), -1
+    );
+    const char *comment = kw_get_str(0, resp, "comment", "", 0);
+    check_true("the refusal says why", strstr(comment, "no closing quote")?TRUE:FALSE);
+    check_true("the refusal does not echo the secret", !strstr(comment, "unterm-hunter2"));
+    JSON_DECREF(resp)
+    check_str("the command did not run",
+        gobj_read_str_attr(holder, "password"), "before-unterminated"
+    );
+}
+
 PRIVATE void check_persistent_file(void)
 {
     hgobj holder = gobj_find_service("secret-holder", TRUE);
@@ -570,6 +695,44 @@ PRIVATE void check_persistent_file(void)
         gobj_read_str_attr(holder, "password"), "disk-secret"
     );
     check_int("loading the old file makes it 0600", file_mode(path), 0600);
+
+    /*
+     *  A hard link: the load replaces it, and the other name is untouched
+     */
+    unlink(path);
+    write_file(planted, "{\"password\": \"linked-secret\"}", 0644);
+    if(link(planted, path) < 0) {
+        printf("FAIL cannot create the hard link %s\n", path);
+        s_result += -1;
+    }
+    gobj_load_persistent_attrs(holder, 0);
+    check_str("a hard-linked file is loaded",
+        gobj_read_str_attr(holder, "password"), "linked-secret"
+    );
+    check_int("the other name keeps its mode", file_mode(planted), 0644);
+    check_int("the file is replaced by a 0600 one", file_mode(path), 0600);
+    check_int("the file is a name of its own", file_links(path), 1);
+
+    /*
+     *  What a save that died left: removed when the file is loaded, a
+     *  symlink of that name is not followed and is left
+     */
+    char stale[PATH_MAX+16];
+    char stale_link[PATH_MAX+16];
+    snprintf(stale, sizeof(stale), "%s.Ab3xYz", path);
+    snprintf(stale_link, sizeof(stale_link), "%s.Lk3xYz", path);
+    write_file(stale, "{\"password\": \"stale\"}", 0600);
+    unlink(stale_link);
+    if(symlink(planted, stale_link) < 0) {
+        printf("FAIL cannot create the symlink %s\n", stale_link);
+        s_result += -1;
+    }
+    gobj_load_persistent_attrs(holder, 0);
+    check_true("a stale temporary file is removed", access(stale, F_OK) != 0);
+    check_true("a symlink of that name is left", is_link(stale_link));
+    check_true("its target is untouched", file_contains(planted, "linked-secret"));
+    unlink(stale_link);
+    unlink(planted);
 
     /*
      *  A symlink planted in place of the file
@@ -675,6 +838,12 @@ PRIVATE int mt_stop(hgobj gobj)
 /***************************************************************
  *              Actions
  ***************************************************************/
+PRIVATE int ac_secret_kw(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    return 0;
+}
+
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     check_http_cookie(gobj);
@@ -682,6 +851,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     check_create_delete2_trace();
     check_command_trace();
     check_wild_command_trace();
+    check_log_dumps(gobj);
     check_persistent_file();
 
     set_yuno_must_die();
@@ -769,11 +939,13 @@ PRIVATE int register_c_test_secret(void)
 
     event_type_t event_types[] = {
         {EV_TIMEOUT,    0},
+        {EV_TEST_SECRET_KW, 0},
         {0, 0}
     };
 
     ev_action_t st_idle[] = {
         {EV_TIMEOUT,    ac_timeout,     0},
+        {EV_TEST_SECRET_KW, ac_secret_kw, 0},
         {0, 0, 0}
     };
 

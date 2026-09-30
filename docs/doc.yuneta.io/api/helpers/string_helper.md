@@ -534,6 +534,89 @@ If `s` is NULL, the function does nothing. The function modifies the input strin
 
 ---
 
+(json_mask_secrets)=
+## [`json_mask_secrets()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/helpers.c#L1591)
+
+A json as a log or a trace may show it. At any depth, the value of a key whose
+name is a secret's ([`is_secret_name()`](#is_secret_name)) is `"********"`,
+whatever its json type (not an absent one, a null or an empty string, so "not
+set" still shows); so is the `value` of a dict whose `attribute` names a
+secret (a write-attr); and every string is masked as
+[`mask_secrets_inline()`](#mask_secrets_inline). What
+[`gobj_trace_json_masked()`](#gobj_trace_json_masked) prints, and what
+`C_IEVENT_SRV` writes of a kw before its session.
+
+```C
+json_t *json_mask_secrets(
+    json_t *jn      // not owned
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn` | `json_t *` | Any json. Not owned, not modified. |
+
+**Returns**
+
+A NEW reference, to decref: a masked copy (the dicts and lists on the way to
+a masked value are copied, the rest is shared), or `jn` itself when there was
+nothing to mask. `NULL` for `NULL`.
+
+**Example**
+
+```C
+json_t *kw = json_pack("{s:I, s:{s:s}, s:s}",
+    "password", (json_int_t)1234,
+    "auth", "access_token", "eyJ...",
+    "__command__", "set-user-pwd username=bob password=hunter2"
+);
+json_t *kw_shown = json_mask_secrets(kw);
+// {"password": "********", "auth": {"access_token": "********"},
+//  "__command__": "set-user-pwd username=bob password=********"}
+JSON_DECREF(kw_shown)
+```
+
+---
+
+(mask_secrets_inline)=
+## [`mask_secrets_inline()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/helpers.c#L1505)
+
+A text (a command line) with the value of every `name=value` whose name is a
+secret's ([`is_secret_name()`](#is_secret_name)) written as `********`,
+quoted or not; and the `value=` of a write-attr whose `attribute=` names a
+secret. The rest of the text is kept as it is.
+
+```C
+char *mask_secrets_inline(
+    const char *str
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `str` | `const char *` | The text. |
+
+**Returns**
+
+A `gbmem` string, to `GBMEM_FREE`; or `NULL` when there was nothing to mask,
+and the text is to be shown as it is.
+
+**Example**
+
+```C
+char *s = mask_secrets_inline("write-attr attribute=password value=hunter2");
+// "write-attr attribute=password value=********"
+GBMEM_FREE(s)
+s = mask_secrets_inline("login user=bob token='a b c'");  // "login user=bob token=********"
+GBMEM_FREE(s)
+```
+
+---
+
 (nice_size)=
 ## [`nice_size()`](https://github.com/artgins/yunetas/blob/7.25.20/kernel/c/gobj-c/src/helpers.c#L1070)
 

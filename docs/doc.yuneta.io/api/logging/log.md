@@ -665,7 +665,54 @@ This function does not return a value.
 
 **Notes**
 
-If the gobj has the `TRACE_GBUFFERS` trace level enabled, the function will also log the contents of the associated [`gbuffer_t`](#gbuffer_t).
+If the gobj has the `TRACE_GBUFFERS` trace level enabled, the function will also log the contents of the associated [`gbuffer_t`](#gbuffer_t) -- as `"<N bytes hidden>"` when it is secret ([`gbuffer_set_secret()`](#gbuffer_set_secret)).
+
+---
+
+(gobj_trace_json_masked)=
+## `gobj_trace_json_masked()`
+
+[`gobj_trace_json()`](#gobj_trace_json) of a json that can hold a
+credential: what [`json_mask_secrets()`](#json_mask_secrets) masks is shown
+`"********"` (keys with a secret's name at any depth, whatever the json type
+of the value; the `value` of a write-attr of a secret; a `name=value` secret
+inside a string). The kernel dumps with it every kw it prints on an error or
+a trace: the `kw_get_*()` errors (*"path MUST BE a json str"*, *"path NOT
+FOUND"*...), the `machine` trace with `ev_kw` (the kw of an event sent,
+executed and published), the authz trace, *"No subscription found"*,
+*"Publish event WITHOUT subscribers"* and the `ievents` traces. Up to 7.25.20
+they printed the kw as it was, credentials with it. The kw is not changed.
+The `gbuffer` of the kw is not dumped.
+
+```C
+void gobj_trace_json_masked(
+    hgobj gobj,
+    json_t *jn,     // not owned
+    const char *fmt,
+    ... ) JANSSON_ATTRS((format(printf, 3, 4))
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj instance associated with the log entry. |
+| `jn` | `json_t *` | The JSON to be logged. Not owned, not modified. |
+| `fmt` | `const char *` | A format string for the log message. |
+| `...` | `variadic` | Additional arguments for formatting the log message. |
+
+**Returns**
+
+This function does not return a value.
+
+**Example**
+
+```C
+json_t *kw = json_pack("{s:s, s:s}", "username", "bob", "password", "hunter2");
+gobj_trace_json_masked(gobj, kw, "kw received");
+// {"username": "bob", "password": "********"}
+```
 
 ---
 

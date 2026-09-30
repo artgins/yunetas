@@ -13,6 +13,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <signal.h>
 #include <unistd.h>
 #include <locale.h>
@@ -1467,6 +1468,187 @@ PUBLIC BOOL is_secret_name(const char *name, size_t len)
         }
     }
     return (has_priv && has_key)? TRUE: FALSE;
+}
+
+/***************************************************************************
+ *  Does `str` (a command line) carry "attribute=<a secret's name>"? Then
+ *  its "value" is that secret (write-attr attribute=password value=...).
+ ***************************************************************************/
+PRIVATE BOOL inline_value_is_secret(const char *str)
+{
+    const char *p = str;
+    while((p = strstr(p, "attribute="))) {
+        if(p == str || p[-1] == ' ' || p[-1] == '\t') {
+            const char *v = p + strlen("attribute=");
+            if(*v == '"' || *v == '\'') {
+                v++;
+            }
+            const char *e = v;
+            while(*e && *e != ' ' && *e != '\t' && *e != '"' && *e != '\'') {
+                e++;
+            }
+            if(is_secret_name(v, (size_t)(e - v))) {
+                return TRUE;
+            }
+        }
+        p++;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  A text (a command line) with the value of every "name=value" whose name
+ *  is a secret's (is_secret_name()) written as "********", quoted or not.
+ *  The rest of the text is kept as it is. A gbmem string, or NULL when
+ *  there was nothing to mask.
+ ***************************************************************************/
+PUBLIC char *mask_secrets_inline(const char *str)
+{
+    if(!str || !strchr(str, '=')) {
+        return NULL;
+    }
+    size_t n_eq = 0;
+    for(const char *p = str; *p; p++) {
+        if(*p == '=') {
+            n_eq++;
+        }
+    }
+
+    BOOL value_is_secret = inline_value_is_secret(str);
+    const char *mask = "********";
+    size_t mask_len = strlen(mask);
+    char *masked = gbmem_malloc(strlen(str) + n_eq*mask_len + 1);
+    if(!masked) {
+        // Error already logged
+        return NULL;
+    }
+
+    BOOL changed = FALSE;
+    const char *name = str;     // where the current word begins
+    char *out = masked;
+    const char *p = str;
+    while(*p) {
+        if(*p == ' ' || *p == '\t') {
+            *out++ = *p++;
+            name = p;
+            continue;
+        }
+        size_t name_len = (size_t)(p - name);
+        if(*p != '=' || !(is_secret_name(name, name_len) ||
+                (value_is_secret && name_len == 5 && strncasecmp(name, "value", 5)==0))) {
+            *out++ = *p++;
+            continue;
+        }
+
+        *out++ = *p++;  // the '='
+        char quote = (*p == '"' || *p == '\'')? *p : 0;
+        const char *end = quote? p + 1 : p;
+        while(*end && (quote? *end != quote : (*end != ' ' && *end != '\t'))) {
+            end++;
+        }
+        if(quote && *end == quote) {
+            end++;
+        }
+        if(end > p) {
+            memcpy(out, mask, mask_len);
+            out += mask_len;
+            changed = TRUE;
+        }
+        p = end;
+        name = p;
+    }
+    *out = 0;
+
+    if(!changed) {
+        GBMEM_FREE(masked)
+        return NULL;
+    }
+    return masked;
+}
+
+/***************************************************************************
+ *  A secret is shown masked unless it is absent, null or an empty string
+ ***************************************************************************/
+PRIVATE BOOL secret_value_is_set(json_t *value)
+{
+    if(!value || json_is_null(value)) {
+        return FALSE;
+    }
+    if(json_is_string(value) && json_string_length(value) == 0) {
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  A json as a log or a trace may show it: at any depth, the value of a
+ *  key with a secret's name (is_secret_name()) is "********", whatever its
+ *  json type; so is the "value" of a dict whose "attribute" names a
+ *  secret (write-attr); and in a string, a secret "name=value" is masked
+ *  (mask_secrets_inline()). Return a new reference: a masked copy, or jn
+ *  itself when there was nothing to mask.
+ ***************************************************************************/
+PUBLIC json_t *json_mask_secrets(json_t *jn)
+{
+    if(!jn) {
+        return NULL;
+    }
+
+    if(json_is_object(jn)) {
+        const char *attribute = json_string_value(json_object_get(jn, "attribute"));
+        BOOL value_is_secret = attribute && is_secret_name(attribute, strlen(attribute));
+        json_t *jn_masked = NULL;
+        const char *key;
+        json_t *value;
+        json_object_foreach(jn, key, value) {
+            json_t *shown;
+            BOOL secret = is_secret_name(key, strlen(key)) ||
+                (value_is_secret && strcmp(key, "value")==0);
+            if(secret && secret_value_is_set(value)) {
+                shown = json_string("********");
+            } else {
+                shown = json_mask_secrets(value);
+            }
+            if(shown != value && !jn_masked) {
+                jn_masked = json_copy(jn);
+            }
+            if(jn_masked) {
+                json_object_set_new(jn_masked, key, shown);
+            } else {
+                JSON_DECREF(shown)
+            }
+        }
+        return jn_masked? jn_masked : json_incref(jn);
+    }
+
+    if(json_is_array(jn)) {
+        json_t *jn_masked = NULL;
+        size_t idx;
+        json_t *value;
+        json_array_foreach(jn, idx, value) {
+            json_t *shown = json_mask_secrets(value);
+            if(shown != value && !jn_masked) {
+                jn_masked = json_copy(jn);
+            }
+            if(jn_masked) {
+                json_array_set_new(jn_masked, idx, shown);
+            } else {
+                JSON_DECREF(shown)
+            }
+        }
+        return jn_masked? jn_masked : json_incref(jn);
+    }
+
+    if(json_is_string(jn)) {
+        char *masked = mask_secrets_inline(json_string_value(jn));
+        if(masked) {
+            json_t *jn_shown = json_string(masked);
+            GBMEM_FREE(masked)
+            return jn_shown;
+        }
+    }
+
+    return json_incref(jn);
 }
 
 /***************************************************************************

@@ -170,10 +170,13 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
 
     The persistent-attrs file itself (`<realm>/<yuno>/data/*-persistent-attrs.json`)
     is written 0600 since 7.25.19: up to 7.25.18 it took the process umask,
-    0666 on every node, and it holds these secrets in clear. A file left
-    wider by an older release is made 0600 when it is LOADED (logged as
-    *"Persistent attrs file made 0600"*), not only at its next save. A
-    symlink in place of the file is not read (*"Refused the persistent
+    0666 on every node, and it holds these secrets in clear. A file that
+    is not as a save writes it -- left wider by an older release, of
+    another user, or a hard link -- is REPLACED when it is loaded, by a
+    0600 one of the yuno's own with the same content (logged as
+    *"Persistent attrs file replaced by a 0600 one of the yuno's own"*),
+    not only at its next save; nothing is changed through its other names.
+    A symlink in place of the file is not read (*"Refused the persistent
     attrs file: it is a symlink"*).
 
     A save writes a NEW file in the same directory (`<file>.XXXXXX`,
@@ -182,7 +185,9 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
     another user (up to 7.25.20 it could never be saved again), a hard
     link, a symlink (replaced, nothing written through it) -- and the old
     file is never truncated before the new one is complete: a save that
-    fails leaves it as it was. `write-attr` answers a save that fails
+    fails leaves it as it was. A `<file>.XXXXXX` left by a save that did
+    not end (a crash) is removed at the next load, logged; one that is not
+    a regular file is left, logged. `write-attr` answers a save that fails
     (*"<gobj>: <attr> written, but NOT saved (see the log)"*, `result`
     -1); up to 7.25.20 it answered "done" with nothing on disk.
 

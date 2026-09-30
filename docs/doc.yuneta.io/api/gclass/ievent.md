@@ -403,12 +403,27 @@ bytes, no stack), with no credential in it. Before a session there is no
 command table to ask which parameter is `SDF_SECRET`, so the NAME decides
 (`is_secret_name()`, the one list of the SDK: `passw`, `token`, `secret`,
 `jwt`, `api_key`, `private_key`... any case): at any depth of the kw the value
-of such a key is shown as `(hidden)`, and in a string (a command line) the
-value of such a `name=value` as `********`. A command sent before the card:
+of such a key is shown as `********` (whatever its json type), and in a string
+(a command line) the value of such a `name=value` too -- the kernel's
+[`json_mask_secrets()`](#json_mask_secrets), the same rule as the `ievents`
+traces. A command sent before the card:
 
 ```text
 kw   {"jwt": "eyJ...", "password": "s3cr3t", "kw": {"passw": "x"}, "__command__": "help token=abc"}
-log  {"jwt":"(hidden)","password":"(hidden)","kw":{"passw":"(hidden)"},"__command__":"help token=********", ...}
+log  {"jwt":"********","password":"********","kw":{"passw":"********"},"__command__":"help token=********", ...}
+```
+
+The `ievents` and `ievents2` traces of `C_IEVENT_CLI` and `C_IEVENT_SRV`
+(`trace_inter_event()`, `trace_inter_event2()`) mask the same way, in both
+directions. A command (`__command__`, v6 or v7) is also masked by the command
+table of its destination service when that service is in this yuno -- its
+`SDF_SECRET` parameters, positional ones too -- as the `commands` trace does
+([`command_mask_secret_line()`](#command_mask_secret_line)). Up to 7.25.20
+`ievents2` printed a command's password in clear.
+
+```text
+kw   {"__command__": "set-user-pwd username=bob password=hunter2", "password": "hunter2"}
+log  {"event": "EV_MT_COMMAND", "kw": {"__command__": "set-user-pwd username=bob password=********", "password": "********"}}
 ```
 
 

@@ -152,6 +152,18 @@ PUBLIC void gobj_trace_json(
     ...
 ) JANSSON_ATTRS((format(printf, 3, 4)));
 
+/*
+ *  gobj_trace_json() with what json_mask_secrets() masks shown masked: the
+ *  dump of a kw that can hold a credential (an error path, an event, an
+ *  inter-event)
+ */
+PUBLIC void gobj_trace_json_masked(
+    hgobj gobj,
+    json_t *jn, // not owned
+    const char *fmt,
+    ...
+) JANSSON_ATTRS((format(printf, 3, 4)));
+
 PUBLIC void gobj_trace_dump(
     hgobj gobj,
     const char *bf,

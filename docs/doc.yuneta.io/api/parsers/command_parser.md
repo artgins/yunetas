@@ -170,9 +170,10 @@ name or alias), or when the key has a secret's NAME
 at any depth of the kw. The name rule is what covers a key the table cannot
 know: the free keys of a `SDF_WILD_CMD` command, which forwards them to a table
 somewhere else (the agent's `command-yuno ... password=X`, whose `password`
-belongs to the remote yuno's command). In a `SDF_WILD_CMD` command a string
-value with a `=` in it is a command line going on (the `command` of
-`command-yuno`), and is masked by names too. A secret is masked whatever its
+belongs to the remote yuno's command). The rest is
+[`json_mask_secrets()`](#json_mask_secrets): a string with a secret
+`name=value` in it (the `command` of `command-yuno`) is masked inside, and so
+is the `value` of a write-attr whose `attribute` names a secret. A secret is masked whatever its
 json type (`"password": 1234` too); only an absent one or an empty string
 shows as it is, so "not set" still shows. The kernel uses it for the
 `"command kw"` trace of `gobj_command()` and the `"expanded_command: kw_cmd"`
@@ -239,7 +240,9 @@ or as one of the leading required parameters written without key. A
 positional value with a `=` in it (`abc==`, `'pa=ss'`) is that parameter's
 value, unless what is before the `=` is a key of the command or a secret's
 name: then it is the first `key=value`. In a `SDF_WILD_CMD` command a value
-with a `=` is a command line going on, shown `key='...'` masked by names. What
+with a `=` is a command line going on, shown `key='...'` masked by names. The
+whole line then goes through [`mask_secrets_inline()`](#mask_secrets_inline):
+`write-attr attribute=password value=X` shows `value=********`. What
 cannot be parsed as a parameter is shown as `<...>`, never dropped silently.
 The `commands` (and `machine`) trace of `gobj_command()` prints the command
 this way.
@@ -282,6 +285,11 @@ line = command_mask_secret_line(agent,  // command-yuno is SDF_WILD_CMD
 The errors the parser answers for a malformed line mask what they echo the
 same way: `set-password password= hunter2` is refused with *"command
 'set-password' with extra parameters: '<...>'"*, not with the secret.
+
+A value opened with a quote and never closed (`password='abc`) refuses the
+command: *"command 'set-password', parameter 'password': value with no
+closing quote"*. Up to 7.25.20 the parameter was dropped and the command ran
+without it, with no log.
 
 ---
 

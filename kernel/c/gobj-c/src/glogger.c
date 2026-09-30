@@ -832,7 +832,9 @@ PUBLIC void gobj_trace_json(
         gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(json_object_get(jn, "gbuffer"));
         if(gbuf) {
             char *p = gbuffer_cur_rd_pointer(gbuf);
-            if(p && (*p == '{' || *p == '[')) {
+            if(gbuffer_is_secret(gbuf)) {
+                gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");    // "<N bytes hidden>"
+            } else if(p && (*p == '{' || *p == '[')) {
                 json_t *j = string2json(p, FALSE); // not verbose: hex dump fallback covers it
                 if(j) {
                     char *s = json_dumps(j, JSON_INDENT(4)|JSON_ENCODE_ANY);
@@ -850,6 +852,31 @@ PUBLIC void gobj_trace_json(
             }
         }
     }
+}
+
+/***************************************************************************
+ *  gobj_trace_json() of a json that can hold secrets (a kw from a peer, a
+ *  command, an event): what json_mask_secrets() masks is shown masked
+ ***************************************************************************/
+PUBLIC void gobj_trace_json_masked(
+    hgobj gobj,
+    json_t *jn, // not owned
+    const char *fmt, ...
+) {
+    va_list ap;
+
+    if(!jn) {
+        print_error(0, "gobj_trace_json_masked(): jn NULL");
+        return;
+    }
+    if(!fmt) {
+        fmt = "";
+    }
+    json_t *jn_shown = json_mask_secrets(jn);
+    va_start(ap, fmt);
+    trace_vjson(gobj, LOG_DEBUG, jn_shown, "trace_json", fmt, ap);
+    va_end(ap);
+    JSON_DECREF(jn_shown)
 }
 
 /***************************************************************************

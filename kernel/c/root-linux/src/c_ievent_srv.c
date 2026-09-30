@@ -103,8 +103,6 @@ PRIVATE BOOL peer_log_allowed(
 );
 PRIVATE size_t peer_json_dump(json_t *jn, char *bf, size_t bfsize);
 PRIVATE size_t peer_card_dump(json_t *kw, char *bf, size_t bfsize);
-PRIVATE char *mask_inline_credentials(const char *str);
-PRIVATE void mask_credentials(json_t *jn);
 PRIVATE void log_identity_card_refused(
     hgobj gobj,
     json_t *kw,     // not owned
@@ -1427,113 +1425,6 @@ PRIVATE size_t peer_json_dump(json_t *jn, char *bf, size_t bfsize)
 }
 
 /***************************************************************************
- *  A command line with the values of its credential parameters
- *  ("password=...", quoted or not) written as "********": a gbmem string,
- *  or NULL when it has none.
- ***************************************************************************/
-PRIVATE char *mask_inline_credentials(const char *str)
-{
-    size_t n_eq = 0;
-    for(const char *p = str; *p; p++) {
-        if(*p == '=') {
-            n_eq++;
-        }
-    }
-    if(n_eq == 0) {
-        return NULL;
-    }
-
-    const char *mask = "********";
-    size_t mask_len = strlen(mask);
-    char *masked = gbmem_malloc(strlen(str) + n_eq*mask_len + 1);
-    if(!masked) {
-        // Error already logged
-        return NULL;
-    }
-
-    BOOL changed = FALSE;
-    const char *name = str;     // where the current word begins
-    char *out = masked;
-    const char *p = str;
-    while(*p) {
-        if(*p == ' ' || *p == '\t') {
-            *out++ = *p++;
-            name = p;
-            continue;
-        }
-        if(*p != '=' || !is_secret_name(name, (size_t)(p - name))) {
-            *out++ = *p++;
-            continue;
-        }
-
-        *out++ = *p++;  // the '='
-        char quote = (*p == '"' || *p == '\'')? *p : 0;
-        const char *end = quote? p + 1 : p;
-        while(*end && (quote? *end != quote : (*end != ' ' && *end != '\t'))) {
-            end++;
-        }
-        if(quote && *end == quote) {
-            end++;
-        }
-        if(end > p) {
-            memcpy(out, mask, mask_len);
-            out += mask_len;
-            changed = TRUE;
-        }
-        p = end;
-        name = p;
-    }
-    *out = 0;
-
-    if(!changed) {
-        GBMEM_FREE(masked)
-        return NULL;
-    }
-    return masked;
-}
-
-/***************************************************************************
- *  Hide, down a json of the peer, the value of every key that names a
- *  credential, and the credential parameters written inline in a string
- *  (a command line)
- ***************************************************************************/
-PRIVATE void mask_credentials(json_t *jn)
-{
-    if(json_is_object(jn)) {
-        const char *key;
-        json_t *value;
-        json_object_foreach(jn, key, value) {
-            if(is_secret_name(key, strlen(key)) && !empty_json(value)) {
-                json_object_set_new(jn, key, json_string("(hidden)"));
-            } else if(json_is_string(value)) {
-                char *masked = mask_inline_credentials(json_string_value(value));
-                if(masked) {
-                    json_object_set_new(jn, key, json_string(masked));
-                    GBMEM_FREE(masked)
-                }
-            } else {
-                mask_credentials(value);
-            }
-        }
-
-    } else if(json_is_array(jn)) {
-        size_t idx;
-        json_t *value;
-        json_array_foreach(jn, idx, value) {
-            if(json_is_string(value)) {
-                char *masked = mask_inline_credentials(json_string_value(value));
-                if(masked) {
-                    json_array_set_new(jn, idx, json_string(masked));
-                    GBMEM_FREE(masked)
-                }
-            } else {
-                mask_credentials(value);
-            }
-        }
-    }
-}
-
-/***************************************************************************
  *  A kw of the peer before its session, as peer_json_dump(): what it
  *  carries as a credential is never written to a log -- its jwt, and any
  *  key named like one (is_secret_name()), at any depth: a command before
@@ -1543,12 +1434,11 @@ PRIVATE void mask_credentials(json_t *jn)
  ***************************************************************************/
 PRIVATE size_t peer_card_dump(json_t *kw, char *bf, size_t bfsize)
 {
-    json_t *kw_shown = json_deep_copy(kw);
+    json_t *kw_shown = json_mask_secrets(kw);   // the kernel's rule, as the ievents traces
     if(!kw_shown) {
         // Error already logged
         return peer_json_dump(json_null(), bf, bfsize);
     }
-    mask_credentials(kw_shown);
     size_t size = peer_json_dump(kw_shown, bf, bfsize);
     JSON_DECREF(kw_shown)
     return size;

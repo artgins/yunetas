@@ -14,6 +14,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <dirent.h>
+#include <ctype.h>
 
 #include <kwid.h>
 #include "yunetas_environment.h"
@@ -30,6 +32,10 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE int save_json(
+    hgobj gobj,
+    json_t *jn  // owned
+);
 
 /***************************************************************
  *              Data
@@ -56,13 +62,18 @@ PRIVATE char *get_persist_filename(
 }
 
 /***************************************************************************
- *  Make the persistent attrs file 0600, the mode save_json() gives it
- *  (a file left wider by a release before 7.25.19).
- *  Return 0 when it is 0600, -1 when it is not a file to use at all,
- *  -2 when it is a regular file that stays wider than 0600.
+ *  Is the persistent attrs file one to read, and one the yuno can keep?
+ *  Return -1 when it is not a regular file (logged). Else 0, and
+ *  `*must_replace` TRUE when it is not as save_json() writes it: 0600, of
+ *  the yuno's user, one name only. Such a file (one left 0664 by a release
+ *  before 7.25.19, another user's, a hard link) is not changed in place --
+ *  a fchmod() through a hard link changes another name -- it is replaced
+ *  by load_json().
  ***************************************************************************/
-PRIVATE int narrow_file_mode(hgobj gobj, int fd, const char *filename)
+PRIVATE int check_persist_file(hgobj gobj, int fd, const char *filename, BOOL *must_replace)
 {
+    *must_replace = FALSE;
+
     struct stat st;
     if(fstat(fd, &st) < 0) {
         gobj_log_error(gobj, 0,
@@ -86,33 +97,103 @@ PRIVATE int narrow_file_mode(hgobj gobj, int fd, const char *filename)
         );
         return -1;
     }
-    if((st.st_mode & 07777) == 0600) {
+    if((st.st_mode & 07777) == 0600 && st.st_nlink == 1 && st.st_uid == geteuid()) {
         return 0;
     }
+
     char mode[16];
     snprintf(mode, sizeof(mode), "0%o", (unsigned)(st.st_mode & 07777));
-    if(fchmod(fd, 0600) < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot make the persistent attrs file 0600",
-            "path",         "%s", filename,
-            "mode",         "%s", mode,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-        return -2;
-    }
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_SYSTEM,
-        "msg",          "%s", "Persistent attrs file made 0600",
+        "msg",          "%s", "Persistent attrs file replaced by a 0600 one of the yuno's own",
         "path",         "%s", filename,
         "old_mode",     "%s", mode,
+        "links",        "%d", (int)st.st_nlink,
+        "uid",          "%d", (int)st.st_uid,
         NULL
     );
+    *must_replace = TRUE;
     return 0;
+}
+
+/***************************************************************************
+ *  Remove what a save that died between its create and its rename() left:
+ *  "<file>.XXXXXX", a regular file (a symlink is never followed, and one
+ *  of that name is left, logged)
+ ***************************************************************************/
+PRIVATE void remove_stale_temp_files(hgobj gobj, const char *filename)
+{
+    char dir[PATH_MAX];
+    snprintf(dir, sizeof(dir), "%s", filename);
+    char *slash = strrchr(dir, '/');
+    if(!slash) {
+        return;     // get_persist_filename() gives a full path
+    }
+    *slash = 0;
+    const char *base = slash + 1;
+    size_t base_len = strlen(base);
+
+    DIR *d = opendir(dir);
+    if(!d) {
+        return;     // no directory: no file, nothing left there
+    }
+    int dfd = dirfd(d);
+    struct dirent *de;
+    while((de = readdir(d))) {
+        const char *name = de->d_name;
+        if(strncmp(name, base, base_len)!=0 || name[base_len] != '.' ||
+                strlen(name + base_len + 1) != 6) {
+            continue;
+        }
+        BOOL pattern = TRUE;
+        for(const char *c = name + base_len + 1; *c; c++) {
+            if(!isalnum((unsigned char)*c)) {
+                pattern = FALSE;
+                break;
+            }
+        }
+        if(!pattern) {
+            continue;
+        }
+        struct stat st;
+        if(fstatat(dfd, name, &st, AT_SYMLINK_NOFOLLOW) < 0) {
+            continue;   // gone meanwhile
+        }
+        if(!S_ISREG(st.st_mode)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "A temporary persistent attrs name that is not a regular file, left",
+                "path",         "%s", dir,
+                "name",         "%s", name,
+                NULL
+            );
+            continue;
+        }
+        if(unlinkat(dfd, name, 0) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot remove a stale temporary persistent attrs file",
+                "path",         "%s", dir,
+                "name",         "%s", name,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            continue;
+        }
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Stale temporary persistent attrs file removed (a save that did not end)",
+            "path",         "%s", dir,
+            "name",         "%s", name,
+            NULL
+        );
+    }
+    closedir(d);
 }
 
 /***************************************************************************
@@ -149,6 +230,8 @@ PRIVATE json_t *load_json(
     char filename[PATH_MAX];
     get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", FALSE);
 
+    remove_stale_temp_files(gobj, filename);
+
     struct stat st;
     if(lstat(filename, &st) < 0) {
         if(errno != ENOENT) {
@@ -174,10 +257,12 @@ PRIVATE json_t *load_json(
 
     /*
      *  A file written before 7.25.19 is 0664 with the secrets in it, and a
-     *  secret set once (the emailsender password) is never saved again.
-     *  One that stays wide is still loaded: refusing it would not hide it.
+     *  secret set once (the emailsender password) is never saved again: it
+     *  is replaced now, not at a save that may never come. It is still
+     *  loaded: refusing it would not hide it.
      */
-    if(narrow_file_mode(gobj, fd, filename) == -1) {
+    BOOL must_replace = FALSE;
+    if(check_persist_file(gobj, fd, filename, &must_replace) < 0) {
         // Error already logged
         close(fd);
         return 0;
@@ -197,6 +282,8 @@ PRIVATE json_t *load_json(
             "line",         "%d", error.line,
             NULL
         );
+    } else if(must_replace) {
+        save_json(gobj, json_incref(jn_device));    // Error logged if it fails
     }
     return jn_device;
 }
