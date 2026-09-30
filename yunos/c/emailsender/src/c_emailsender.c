@@ -73,7 +73,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_set_email_user[] = {
 /*-PM----type-----------name------------flag----default-----description---------- */
 SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
-SDATAPM (DTP_STRING,    "password",     0,      0,          "Password"),
+SDATAPM (DTP_STRING,    "password",     SDF_SECRET, 0,      "Password"),
 SDATAPM (DTP_STRING,    "url",          0,      0,          "SMTP url"),
 SDATAPM (DTP_STRING,    "from",         0,      0,          "Default from"),
 SDATA_END()

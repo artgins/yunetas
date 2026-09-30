@@ -318,6 +318,11 @@ PRIVATE int send_smtp_line(hgobj gobj, const char *line)
         );
         return -1;
     }
+    /*
+     *  Before the append: a secret gbuffer is wiped when freed or grown, and
+     *  the traffic dumps of the bottom C_TCP show it as "<N bytes hidden>".
+     */
+    gbuffer_set_secret(gbuf, strncasecmp(line, "AUTH ", 5)==0? TRUE : FALSE);
     gbuffer_append(gbuf, (void *)line, line_len);
     gbuffer_append(gbuf, "\r\n", 2);
 

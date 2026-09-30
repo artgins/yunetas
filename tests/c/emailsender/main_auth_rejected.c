@@ -161,6 +161,29 @@ PRIVATE int capture_error_write(void *v, int priority, const char *bf, size_t le
     return 0;
 }
 
+/*
+ *  The C_TCP `traffic` trace is armed: the AUTH line (base64 of the user
+ *  and the password) the session SENDS (⏩) must reach the log only as
+ *  "<N bytes hidden>".
+ *  Up to 7.25.20 its dump carried the line, the credentials included.
+ */
+PRIVATE int auth_line_dumped = 0;
+PRIVATE int hidden_dumps = 0;
+
+PRIVATE int capture_traffic_write(void *v, int priority, const char *bf, size_t len)
+{
+    if(!strstr(bf, " ⏩ ")) {
+        return 0;   // what the fake server receives is the peer's, and dumped as it came
+    }
+    if(strstr(bf, "AUTH PLAIN AHV")) {
+        auth_line_dumped++;
+    }
+    if(strstr(bf, "bytes hidden")) {
+        hidden_dumps++;
+    }
+    return 0;
+}
+
 PRIVATE void exit_guard(void)
 {
     if(!test_finished) {
@@ -197,6 +220,7 @@ static int register_yuno_and_more(void)
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
+    gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_SMTP_SESSION), "smtp", TRUE);
     // gobj_set_global_trace("machine", TRUE);
 
@@ -253,6 +277,13 @@ static void cleaning(void)
     }
     JSON_DECREF(expected_errors)
     JSON_DECREF(error_msgs)
+
+    if(auth_line_dumped || hidden_dumps < 1) {
+        printf("<-- %sAUTH LINE IN THE TRAFFIC TRACE%s: %s\n      dumped in clear: %d (expected 0), dumped hidden: %d (expected >= 1)\n",
+            On_Red BWhite, Color_Off, APP_NAME, auth_line_dumped, hidden_dumps
+        );
+        result += -1;
+    }
 }
 
 /***************************************************************************
@@ -287,6 +318,14 @@ int main(int argc, char *argv[])
         0                   // fwrite_fn
     );
     gobj_log_add_handler("test_errors", "errors", LOG_OPT_UP_ERROR, 0);
+
+    gobj_log_register_handler(
+        "traffic",          // handler_name
+        0,                  // close_fn
+        capture_traffic_write, // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("test_traffic", "traffic", LOG_OPT_ALL, 0);
 
     /*------------------------------------------------*
      *      To check memory loss
