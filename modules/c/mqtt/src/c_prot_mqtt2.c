@@ -274,7 +274,7 @@ SDATA (DTP_BOOLEAN,     "clean_start",      SDF_VOLATIL,        0,      "New ses
 SDATA (DTP_INTEGER,     "session_expiry_interval",SDF_VOLATIL,  0,      "Session expiry interval in ?"),
 SDATA (DTP_INTEGER,     "keepalive",        SDF_VOLATIL,        0,      "Keepalive"),
 SDATA (DTP_STRING,      "auth_method",      SDF_VOLATIL,        0,      "Auth method"),
-SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL,        0,      "Auth data (in base64)"),
+SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL|SDF_SECRET,0,   "Auth data (in base64)"),
 
 SDATA (DTP_INTEGER,     "msgs_out_inflight_maximum", SDF_VOLATIL,0,     "Connect property"),
 SDATA (DTP_INTEGER,     "msgs_out_inflight_quota", SDF_VOLATIL, 0,      "Connect property"),
@@ -827,6 +827,7 @@ PRIVATE int message__out_update(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "QoS mismatch",
+                "client_id",    "%s", priv->client_id,
                 "mid",          "%d", (int)mid,
                 "msg_qos",      "%d", msg_qos,
                 "expected_qos", "%d", qos,
@@ -838,18 +839,16 @@ PRIVATE int message__out_update(
         msg_flag_set_state(qmsg, state);
         tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
         return MOSQ_ERR_SUCCESS;
-    } else {
-        // Trace by now, see use cases
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT,
-            "msg",          "%s", "Message not found",
-            "mid",          "%d", (int)mid,
-            "qos",          "%d", qos,
-            NULL
-        );
-        return MOSQ_ERR_NOT_FOUND;
     }
+
+    /*
+     *  A PUBREC of a packet id we never used, or already released: the
+     *  peer's. The caller, handle__pubrec(), says it as a WARNING (client_id,
+     *  mid, peername) and answers PUBREL, as db__message_update_outgoing()
+     *  does on the server side. Up to 7.25.20 it was also an ERROR here,
+     *  with a stack trace.
+     */
+    return MOSQ_ERR_NOT_FOUND;
 }
 
 /***************************************************************************
@@ -1262,12 +1261,19 @@ PRIVATE int db__message_update_outgoing(
 
     q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
+        /*
+         *  A PUBREC of a QoS 1 message is a protocol error of the peer, as
+         *  in db__message_delete_outgoing(). Up to 7.25.20 it was an ERROR
+         *  that named neither the client nor the peer.
+         */
         int msg_qos = msg_flag_get_qos_level(qmsg);
         if(msg_qos != qos) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "QoS mismatch",
+                "client_id",    "%s", priv->client_id,
+                "peername",     "%s", peer_of(gobj),
                 "mid",          "%d", (int)mid,
                 "msg_qos",      "%d", msg_qos,
                 "expected_qos", "%d", qos,
@@ -1377,12 +1383,18 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 
     q2_msg_t *qmsg = tr2q_get_by_mid(priv->trq_in_msgs, mid);
     if(qmsg) {
+        /*
+         *  Only QoS 2 messages enter trq_in_msgs (message__queue() with
+         *  mosq_md_in, from the QoS 2 case of both handle__publish_*()):
+         *  another QoS here is our own store broken, not the peer.
+         */
         int msg_qos = msg_flag_get_qos_level(qmsg);
         if(msg_qos != 2) {
-            gobj_log_error(gobj, 0,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "Expected QoS 2 message",
+                "client_id",    "%s", priv->client_id,
                 "mid",          "%d", (int)mid,
                 "msg_qos",      "%d", msg_qos,
                 NULL
@@ -1430,10 +1442,18 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
         );
         deleted = TRUE;
     } else {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        /*
+         *  A PUBREL of a packet id with no QoS 2 message waiting: the
+         *  peer's (a PUBREL repeated after a reconnection, or one of a QoS
+         *  1 message). It is still answered with PUBCOMP. Up to 7.25.20 it
+         *  was an ERROR with a stack trace.
+         */
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Message not found",
+            "client_id",    "%s", priv->client_id,
+            "peername",     "%s", peer_of(gobj),
             "mid",          "%d", (int)mid,
             NULL
         );
@@ -4472,7 +4492,7 @@ PRIVATE int will__read(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt will: invalid topic",
-            "topic",        "%s", will_topic,
+            "topic",        "%s", gobj_read_str_attr(gobj, "will_topic"),
             "peername",     "%s", peer_of(gobj),
             NULL
         );
@@ -5190,15 +5210,15 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         trace_msg0(
         "  👈 CONNECT\n"
         "   client '%s', assigned_id %d\n"
-        "   username '%s', password '%s'\n"
+        "   username '%.*s', password_len %d\n"
         "   protocol_name '%s', protocol_version '%s', is_bridge %d\n"
         "   clean_start %d, session_expiry_interval %d\n"
         "   will %d, will_retain %d, will_qos %d\n"
         "   username_flag %d, password_flag %d, keepalive %d\n",
             priv->client_id,
             priv->assigned_id,
-            username,
-            password,
+            (int)username_len, SAFE_PRINT(username),  // in the packet, not NUL-terminated
+            (int)password_len,                        // never the password
             protocol_name,
             protocol_version_name(protocol_version),
             is_bridge,
@@ -5978,10 +5998,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         json_array_append_new(jn_list, jn_sub);
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("    👈 SUBSCRIBE subs, as %s, client '%s', topic '%s' (QoS %d, mid %d)",
+            trace_msg0("    👈 SUBSCRIBE subs, as %s, client '%s', topic '%.*s' (QoS %d, mid %d)",
                 priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
-                sub,
+                (int)slen, sub,
                 (int)qos,
                 (int)mid
             );
@@ -6220,10 +6240,10 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("    👈 UNSUBSCRIBE subs, as %s, client '%s', topic '%s' (mid %d)",
+            trace_msg0("    👈 UNSUBSCRIBE subs, as %s, client '%s', topic '%.*s' (mid %d)",
                 priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
-                sub,
+                (int)slen, sub,
                 (int)mid
             );
         }
@@ -6897,7 +6917,9 @@ PRIVATE int handle__publish_s(
     if(qos == 2) {
         if(dup) {
             /*
-             *  Delete possible msg with same mid
+             *  Delete possible msg with same mid. The rc is not a verdict:
+             *  NOT_FOUND is the usual case, and trq_in_msgs holds only QoS 2
+             *  messages, so the QoS mismatch cannot happen.
              */
             message__remove(gobj, mid, mosq_md_in, 2, NULL);
         }
@@ -8269,6 +8291,37 @@ PRIVATE int framehead_consume(
 }
 
 /***************************************************************************
+ *  Dump a malformed frame of the peer, length-capped. The credentials are
+ *  never dumped: a CONNECT carries them in its properties (Authentication
+ *  Data) and in its payload (the password), so of a CONNECT only what
+ *  comes before them is dumped -- the protocol name, level, flags and keep
+ *  alive --, and of an AUTH (all Authentication Data) only its reason code.
+ ***************************************************************************/
+PRIVATE void dump_malformed_frame(hgobj gobj, mqtt_message_t command, gbuffer_t *gbuf)
+{
+    const uint8_t *p = gbuffer_head_pointer(gbuf);
+    size_t total = gbuffer_totalbytes(gbuf);
+    size_t len = total;
+
+    if(command == CMD_CONNECT) {
+        size_t head = 2 + 1 + 1 + 2;    // protocol name length, level, flags, keep alive
+        if(total >= 2) {
+            size_t name_len = ((size_t)p[0] << 8) | p[1];
+            head += MIN(name_len, 6);   // "MQTT", "MQIsdp": a longer one is not read further
+        }
+        len = MIN(total, head);
+    } else if(command == CMD_AUTH) {
+        len = MIN(total, 1);
+    }
+
+    gobj_trace_dump(gobj, (const char *)p, MIN(len, MAX_LOG_DUMP_SIZE),
+        "MQTT malformed packet: %s%s",
+        mqtt_command_string(command),
+        (len < total)? " (credentials not dumped)" : ""
+    );
+}
+
+/***************************************************************************
  *  Process the completed frame
  ***************************************************************************/
 PRIVATE int frame_completed(hgobj gobj, hgobj src)
@@ -8416,11 +8469,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
     }
 
     if(ret < 0 && gbuf) {
-        // Malformed packet from the peer: dump the offending frame (length-capped)
-        gobj_trace_dump(gobj, gbuffer_head_pointer(gbuf),
-            MIN(gbuffer_totalbytes(gbuf), MAX_LOG_DUMP_SIZE),
-            "MQTT malformed packet: %s", mqtt_command_string(frame->command)
-        );
+        dump_malformed_frame(gobj, frame->command, gbuf);
     }
 
     GBUFFER_DECREF(gbuf);

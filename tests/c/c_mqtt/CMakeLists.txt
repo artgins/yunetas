@@ -57,6 +57,9 @@ SET(SRCS
     queued_in
     client_queues
     out_flight
+    wrong_ack
+    legacy_prot
+    client_pubrec
 )
 
 ##############################################
@@ -64,7 +67,7 @@ SET(SRCS
 ##############################################
 foreach(test ${SRCS})
     set(binary "test_mqtt_${test}")
-    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c")
+    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c" c_fake_transport.c)
 
     if(CONFIG_FULLY_STATIC)
         set_target_properties(${binary} PROPERTIES

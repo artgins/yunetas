@@ -654,6 +654,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------------------default-description---------- */
 SDATA (DTP_STRING,      "url",              SDF_PERSIST,                "",         "Url to connect"),
 SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,                "",         "SSL server certificate, PEM format"),
+SDATA (DTP_BOOLEAN,     "connected",        SDF_VOLATIL|SDF_STATS,      0,      "Connection state (of the transport)"),
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
 SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
 SDATA (DTP_JSON,        "client",           SDF_VOLATIL,                0,      "client online"),
@@ -715,7 +716,7 @@ SDATA (DTP_BOOLEAN,     "clean_start",      SDF_VOLATIL,                0,      
 SDATA (DTP_INTEGER,     "session_expiry_interval",SDF_VOLATIL,          0,      "Session expiry interval in ?"),
 SDATA (DTP_INTEGER,     "keepalive",        SDF_VOLATIL,                0,      "Keepalive in ?"),
 SDATA (DTP_STRING,      "auth_method",      SDF_VOLATIL,                0,      "Auth method"),
-SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL,                0,      "Auth data (in base64)"),
+SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL|SDF_SECRET,     0,      "Auth data (in base64)"),
 SDATA (DTP_INTEGER,     "state",            SDF_VOLATIL,                0,      "State"),
 
 SDATA (DTP_INTEGER,     "msgs_out_inflight_maximum", SDF_VOLATIL,       0,      "Connect property"),
@@ -3696,6 +3697,9 @@ PRIVATE json_int_t property_get_int(json_t *properties, int identifier)
 {
     hgobj gobj = 0;
     json_t *property = property_get_property(properties, identifier);
+    if(!property) {
+        return -1;  // absent: a property is optional
+    }
     return kw_get_int(gobj, property, "value", -1, 0);
 }
 
@@ -5349,12 +5353,13 @@ PRIVATE int will_read(
     }
     gobj_write_strn_attr(gobj, "will_topic", will_topic, tlen);
 
-    if((ret=mosquitto_pub_topic_check(will_topic))<0) {
+    // The attr's copy: will_topic points into the packet, not NUL-terminated
+    if((ret=mosquitto_pub_topic_check(gobj_read_str_attr(gobj, "will_topic")))<0) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt will: invalid topic",
-            "topic",        "%s", will_topic,
+            "topic",        "%s", gobj_read_str_attr(gobj, "will_topic"),
             NULL
         );
         return ret;
@@ -6228,15 +6233,15 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         gobj_trace_msg(gobj,
         "  👈 CONNECT\n"
         "   client '%s', assigned_id %d\n"
-        "   username '%s', password '%s'\n"
+        "   username '%.*s', password_len %d\n"
         "   protocol_name '%s', protocol_version '%s', is_bridge %d\n"
         "   clean_start %d, session_expiry_interval %d\n"
         "   will %d, will_retain %d, will_qos %d\n"
         "   username_flag %d, password_flag %d, keepalive %d\n",
             priv->client_id,
             priv->assigned_id,
-            SAFE_PRINT(username),
-            SAFE_PRINT(password),
+            (int)username_len, SAFE_PRINT(username),  // in the packet, not NUL-terminated
+            (int)password_len,                        // never the password
             protocol_name,
             protocol_version_name(protocol_version),
             is_bridge,
@@ -7849,8 +7854,8 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     json_t *jn_list = json_array();
 
     while(gbuffer_leftbytes(gbuf)>0) {
-        char *sub = NULL;
-        if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
+        char *sub_ = NULL;
+        if(mqtt_read_string(gobj, gbuf, &sub_, &slen)<0) {
             GBMEM_FREE(reason_codes)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
@@ -7868,6 +7873,18 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
+        /*
+         *  sub_ points into the packet, not NUL-terminated: the next topic's
+         *  length follows it. Up to 7.25.20 it was used as it was, and a
+         *  topic followed by one of 256+ bytes was not the topic sent.
+         */
+        char *sub = gbmem_strndup(sub_, slen);
+        if(!sub) {
+            // Error already logged
+            GBMEM_FREE(reason_codes);
+            JSON_DECREF(jn_list)
+            return MOSQ_ERR_NOMEM;
+        }
         if(mosquitto_sub_topic_check(sub)) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -7876,6 +7893,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
+            GBMEM_FREE(sub)
             GBMEM_FREE(reason_codes);
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
@@ -7898,12 +7916,14 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
 
         if(rc<0) {
+            GBMEM_FREE(sub)
             GBMEM_FREE(reason_codes);
             JSON_DECREF(jn_list)
             return rc;
         }
 
         json_array_append_new(jn_list, json_string(sub));
+        GBMEM_FREE(sub)
 
         reason_codes[reason_code_count] = reason;
         reason_code_count++;
@@ -7932,6 +7952,37 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
 
     return rc;
+}
+
+/***************************************************************************
+ *  Dump a malformed frame of the peer, length-capped. The credentials are
+ *  never dumped: a CONNECT carries them in its properties (Authentication
+ *  Data) and in its payload (the password), so of a CONNECT only what
+ *  comes before them is dumped -- the protocol name, level, flags and keep
+ *  alive --, and of an AUTH (all Authentication Data) only its reason code.
+ ***************************************************************************/
+PRIVATE void dump_malformed_frame(hgobj gobj, mqtt_message_t command, gbuffer_t *gbuf)
+{
+    const uint8_t *p = gbuffer_head_pointer(gbuf);
+    size_t total = gbuffer_totalbytes(gbuf);
+    size_t len = total;
+
+    if(command == CMD_CONNECT) {
+        size_t head = 2 + 1 + 1 + 2;    // protocol name length, level, flags, keep alive
+        if(total >= 2) {
+            size_t name_len = ((size_t)p[0] << 8) | p[1];
+            head += MIN(name_len, 6);   // "MQTT", "MQIsdp": a longer one is not read further
+        }
+        len = MIN(total, head);
+    } else if(command == CMD_AUTH) {
+        len = MIN(total, 1);
+    }
+
+    gobj_trace_dump(gobj, (const char *)p, MIN(len, MAX_LOG_DUMP_SIZE),
+        "MQTT malformed packet: %s%s",
+        get_command_name(command),
+        (len < total)? " (credentials not dumped)" : ""
+    );
 }
 
 /***************************************************************************
@@ -8050,11 +8101,7 @@ PRIVATE int frame_completed(hgobj gobj)
     }
 
     if(ret < 0 && gbuf) {
-        // Malformed packet from the peer: dump the offending frame (length-capped)
-        gobj_trace_dump(gobj, gbuffer_head_pointer(gbuf),
-            MIN(gbuffer_totalbytes(gbuf), MAX_LOG_DUMP_SIZE),
-            "MQTT malformed packet: %s", get_command_name(frame->command)
-        );
+        dump_malformed_frame(gobj, frame->command, gbuf);
     }
 
     GBUFFER_DECREF(gbuf);

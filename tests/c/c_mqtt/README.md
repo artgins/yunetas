@@ -43,6 +43,50 @@ fourth is acked with a PUBCOMP (the ack of QoS 2): the broker must say *"QoS
 mismatch"* as a WARNING, answer DISCONNECT 0x82 and keep the message pending.
 Up to 7.25.4 it logged an ERROR and removed the message as delivered.
 
+`test_mqtt_wrong_ack` (`main_wrong_ack.c` + `c_wrong_ack.c`) uses a RAW MQTT 5
+client against the broker, and a log handler of `main` that reads EVERY line,
+traces included. A. `auth_data` written on the broker's `C_PROT_MQTT2` must be
+shown as `********` by `view-attrs attribute=auth_data` and `view-gobj`: up to
+7.25.20 it lacked `SDF_SECRET` and showed in clear. B. With the `show-decode`
+trace armed, a CONNECT with username `wack_user` and a 300-byte password: the
+password must appear in no line of the log, and the username must be printed
+as `'wack_user'`. Up to 7.25.20 the trace printed the password, and read the
+username past its end (the packet is not NUL-terminated): *"username
+'wack_user,PASSWORD...'"*. C. A QoS 1 PUBLISH 20, then PUBREL 20: the broker
+has no QoS 2 message 20, so it must answer PUBCOMP 20 and say *"Message not
+found"* as a WARNING. D. PUBREC of the QoS 1 message the broker delivered: a
+*"QoS mismatch"* WARNING and DISCONNECT 0x82. Up to 7.25.20 both C and D were
+ERRORs (C with a stack); the test fails on any ERROR in the log. E. A second
+raw client sends the same CONNECT with one byte too many: the broker refuses
+it and dumps the frame, and the dump must not carry the password (the scanner
+also looks for a 16-byte row of it, as a dump splits it). Up to 7.25.20 the
+whole CONNECT was dumped.
+
+`test_mqtt_legacy_prot` (`main_legacy_prot.c` + `c_legacy_prot.c`) drives
+`C_PROT_MQTT`, the deprecated protocol gclass, as a server with no broker and
+no socket. The protocol gobj is a child of the driver, its bottom is a
+`C_FAKE_TRANSPORT` (`c_fake_transport.c`: what the protocol writes goes to the
+driver, and a drop comes back as `EV_DISCONNECTED`). The driver also keeps
+the protocol's clients in memory, as its resource gobj. It writes the client's
+MQTT 5 packets by hand. It subscribes to `a/b` and to a 300-byte topic, then
+UNSUBSCRIBEs both in ONE packet: the UNSUBACK must carry two 0x00, the
+"unsubscribing" `EV_ON_MESSAGE` must list the two topics as sent, and no
+subscription may be left. Up to 7.25.20 the topic was read in the packet as a
+C string: `a/b` ran on into the length of the next topic, so it answered 0x11
+and `a/b` stayed subscribed. Then, on a new connection, a CONNECT with a
+300-byte password and one byte too many: the dump of the refused frame must
+not carry the password (up to 7.25.20 it carried the whole CONNECT).
+
+`test_mqtt_client_pubrec` (`main_client_pubrec.c` + `c_client_pubrec.c`) drives
+`C_PROT_MQTT2` as a CLIENT on a `C_FAKE_TRANSPORT`, with its queues in a
+`C_TRANGER` of the driver; the driver plays the broker. After CONNACK: a PUBREC
+of a packet id the client never used must be said once, as the WARNING *"Mqtt:
+Received PUBREC for an unknown packet ID"*, and answered with PUBREL (up to
+7.25.20 the client also logged an ERROR *"Message not found"* with a stack).
+Then a QoS 1 PUBLISH of the client, and PUBREC of it: *"QoS mismatch"*, a
+WARNING that must name the client (`client_id`, checked in the log), and
+DISCONNECT 0x82.
+
 ## Run
 
 ```bash
