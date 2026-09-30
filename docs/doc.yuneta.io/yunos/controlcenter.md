@@ -148,6 +148,15 @@ counted, not logged per reading: one warning a minute at most,
 yuno stats for a web client that is gone, dropped (the agent's watch expires)  dropped=42
 ```
 
+Each capped warning (this one, the PTY of a client that is gone, PTY output
+routed to nobody, agent events sent by a web client) says what it counted when
+it speaks next. So the count left since the last one is said once more when a
+connection closes or the control center stops, with `when`:
+
+```text
+stream for a web client that is gone, dropped  when="a connection closed"  dropped=17
+```
+
 **A web client is its CONNECTION, not its channel name** (since 7.25.15).
 The channel a browser holds in `__top_side__` (`top-12`) is taken by the next
 client once it closes, so a stream still pushed for the tab that left would

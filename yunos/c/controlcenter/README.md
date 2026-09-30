@@ -73,6 +73,8 @@ request through the local agent went nowhere.
 An event that only an agent sends (an answer, the PTY, `EV_YUNO_STATS`) sent by
 a web client is dropped with the warning *"event of an agent not from the
 agents' side, dropped"*, at most once a minute (`dropped=` counts them).
+What such a capped warning counted after it last spoke is said once more when
+a connection closes or the control center stops (`when=`, `dropped=`).
 
 Talk to it via `ycommand`:
 

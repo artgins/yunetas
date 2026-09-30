@@ -127,6 +127,7 @@ PRIVATE hgobj requester_of_answer(
 );
 PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj requester);
 PRIVATE BOOL is_from_agent_side(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
+PRIVATE void say_pending_drops(hgobj gobj, const char *when);
 PRIVATE void count_dropped_stream(
     hgobj gobj,
     gobj_event_t event,
@@ -407,6 +408,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    say_pending_drops(gobj, "the control center stops");
     gobj_stop(priv->timer);
     gobj_stop(priv->run_timer);
     return 0;
@@ -2517,6 +2519,48 @@ PRIVATE void count_dropped_stream(
 }
 
 /***************************************************************************
+ *  What the capped warnings counted since they last spoke (the frames of a
+ *  client that is gone, PTY output routed to nobody, events of an agent
+ *  sent by a web client) is said once more at a natural end -- a
+ *  connection closes, the control center stops -- or it would never be:
+ *  the count is said by the NEXT one, and there may be none. The timers
+ *  keep running, so the cap holds.
+ ***************************************************************************/
+PRIVATE void say_pending_drops(hgobj gobj, const char *when)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    struct {
+        uint64_t *count;
+        const char *msgset;
+        const char *msg;
+    } pending[] = {
+        {&priv->stats_dropped, MSGSET_INFO,
+            "yuno stats for a web client that is gone, dropped (the agent's watch expires)"},
+        {&priv->tty_dropped, MSGSET_INFO,
+            "stream for a web client that is gone, dropped"},
+        {&priv->tty_unrouted, MSGSET_PROTOCOL,
+            "PTY output of an agent for no requester of this control center, dropped"},
+        {&priv->injected, MSGSET_PROTOCOL,
+            "event of an agent not from the agents' side, dropped"},
+    };
+    for(size_t i=0; i<ARRAY_SIZE(pending); i++) {
+        if(*pending[i].count == 0) {
+            continue;
+        }
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", pending[i].msgset,
+            "msg",          "%s", pending[i].msg,
+            "when",         "%s", when,
+            "dropped",      "%lu", (unsigned long)*pending[i].count,
+            NULL
+        );
+        *pending[i].count = 0;
+    }
+}
+
+/***************************************************************************
  *  The run is over: write it (linked to its scenario) and answer the
  *  requester with it, if it is still there.
  ***************************************************************************/
@@ -2735,6 +2779,8 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         JSON_DECREF(dropped)
         gobj_write_user_data(channel_gobj, "tty_mirrors", json_object());
     }
+
+    say_pending_drops(gobj, "a connection closed");
 
     KW_DECREF(kw);
     return 0;

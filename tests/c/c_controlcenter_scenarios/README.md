@@ -52,7 +52,11 @@ the very same string, and the read looks right.
    takes no mirror. Up to 7.25.20 all six were delivered. The warning is
    said once a minute, with `dropped=` counting the others: the one injected
    in case 4 is said, these six are counted (one warning per injected frame
-   let an authenticated client flood the log).
+   let an authenticated client flood the log). The six counted are said
+   when the next connection closes (`dropped=6`); likewise the second late
+   `EV_TTY_DATA` of case 5, and the second PTY frame routed to nobody of case
+   9 when the control center stops. Before, a count with no later event was
+   never said.
 7. Several consoles mirrored through one agent's channel. Two clients, two
    consoles: the agent's close drops both. One console opened again by another
    client: only that client is dropped (the agent routes it to the last
