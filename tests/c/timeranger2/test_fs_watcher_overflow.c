@@ -24,7 +24,13 @@
  *        time) stays under MAX_OWN_US: a cost that grows with the tree, as
  *        an index rebuilt per slice did, makes a pass of minutes;
  *      - a directory born in the overflow is watched after it: a file
- *        created in it is heard.
+ *        created in it is heard;
+ *      - a directory watched BEFORE the overflow, deleted and created again
+ *        while the queue was full (its IN_DELETE_SELF and IN_IGNORED lost
+ *        with the rest), is watched again: a file created in it is heard.
+ *        Up to 7.25.20 the pass found its path in the table of watches,
+ *        under the wd of the directory that went, and never watched the
+ *        new one.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -52,6 +58,7 @@
 #define PROBE_MS    50
 #define MAX_DEAF_MS 1000
 #define MAX_OWN_US  200         // the watcher's own cost per directory of the pass
+#define REBORN_DIR  "reborn"    // watched before the flood, deleted and created again in it
 
 /***************************************************************
  *              Data
@@ -200,6 +207,19 @@ PRIVATE int do_test(void)
     for(int i = 0; i < 5; i++) {
         yev_loop_run_once(yev_loop);
     }
+    char reborn[PATH_MAX];
+    build_path(reborn, sizeof(reborn), root, REBORN_DIR, NULL);
+    if(mkdir(reborn, 02770) < 0) {
+        printf("%sERROR%s --> mkdir %s: %s\n", On_Red BWhite, Color_Off, reborn, strerror(errno));
+        result += -1;
+    }
+    for(int i = 0; i < 5; i++) {
+        yev_loop_run_once(yev_loop);    // its IN_CREATE: watched
+    }
+    if(json_integer_value(json_object_get(told, REBORN_DIR)) != 1) {
+        printf("%sERROR%s --> %s not heard before the flood\n", On_Red BWhite, Color_Off, REBORN_DIR);
+        result += -1;
+    }
     result += test_json(NULL);
 
     /*
@@ -223,6 +243,11 @@ PRIVATE int do_test(void)
             result += -1;
             break;
         }
+    }
+    if(rmdir(reborn) < 0 || mkdir(reborn, 02770) < 0) {
+        printf("%sERROR%s --> delete and create again %s: %s\n",
+            On_Red BWhite, Color_Off, reborn, strerror(errno));
+        result += -1;
     }
 
     yev_event_h yev_probe = yev_create_timer_event(yev_loop, probe_callback, 0);
@@ -259,9 +284,9 @@ PRIVATE int do_test(void)
         printf("%sERROR%s --> no overflow: the test did not test\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    if(n_told != n_dirs) {
+    if(n_told != n_dirs + 1) {
         printf("%sERROR%s --> %d of %d directories told to the owner\n",
-            On_Red BWhite, Color_Off, n_told, n_dirs);
+            On_Red BWhite, Color_Off, n_told, n_dirs + 1);
         result += -1;
     }
     if(own_us > MAX_OWN_US) {
@@ -282,22 +307,40 @@ PRIVATE int do_test(void)
 
     /*
      *  The last directory was born while its IN_CREATE was being dropped:
-     *  after the pass it is watched, and a file created in it is heard
+     *  after the pass it is watched, and a file created in it is heard.
+     *  So is one in the directory deleted and created again.
      */
     set_expected_results("fs_watcher overflow: a directory born in the overflow is watched", NULL, NULL, NULL, 1);
     char path[PATH_MAX], name[32];
     snprintf(name, sizeof(name), "d%06d", n_dirs);
     build_path(path, sizeof(path), root, name, "file.txt", NULL);
+    files_created = 0;
     int fd = open(path, O_CREAT|O_WRONLY, 0600);
     if(fd >= 0) {
         close(fd);
     }
-    files_created = 0;
     for(int i = 0; i < 50 && files_created == 0; i++) {
         yev_loop_run_once(yev_loop);
     }
     if(files_created != 1) {
         printf("%sERROR%s --> a file in a directory born in the overflow: heard %d times, expected 1\n",
+            On_Red BWhite, Color_Off, files_created);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("fs_watcher overflow: a directory reborn in the overflow is watched", NULL, NULL, NULL, 1);
+    build_path(path, sizeof(path), reborn, "file.txt", NULL);
+    files_created = 0;
+    fd = open(path, O_CREAT|O_WRONLY, 0600);
+    if(fd >= 0) {
+        close(fd);
+    }
+    for(int i = 0; i < 50 && files_created == 0; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(files_created != 1) {
+        printf("%sERROR%s --> a file in a directory deleted and created again in the overflow: heard %d times, expected 1\n",
             On_Red BWhite, Color_Off, files_created);
         result += -1;
     }

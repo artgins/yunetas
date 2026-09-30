@@ -118,7 +118,14 @@ in place (since 7.25.9; in slices since 7.25.10):
    handed to the owner as **`FS_RESCAN_DIR_TYPE`** (`directory` = that
    directory) -- read it again, what it holds may never have been told. In a
    recursive watch a directory born while its `IN_CREATE` was dropped is
-   watched before it is handed over;
+   watched before it is handed over, and so is one deleted and created again
+   meanwhile: every directory of the pass is watched again
+   (`inotify_add_watch()` on an inode already watched returns its wd), and a
+   wd that differs from the one the table holds for that path replaces it.
+   Up to 7.25.20 a path found in the table was taken as watched, and a
+   directory reborn during an overflow (another inode, its `IN_IGNORED` lost)
+   was never heard again; the table also let an `IN_IGNORED` pass without
+   taking out its wd, which it does now;
 4. the pass runs **a slice of 20 ms per loop turn**, and an INFO closes it:
    *"watched tree rescanned after lost inotify events"*, with `directories`,
    `ms`, and where that time went: `slices`, `ms_owner` (in the owner's
@@ -232,6 +239,8 @@ its queue is that echo, which is why a single burst can overflow it twice.
   (100 us per directory) and a periodic timer probing the loop. `max_queued_events`
   + 4096 directories are created with the loop stopped: every one is told to the
   owner, the pass takes ~30 s and the loop is never deaf for more than 1 s (it is
-  50 ms, the probe's period). On a local disk the directories just created are
+  50 ms, the probe's period). A directory watched before the flood and deleted
+  and created again in it is watched after the pass (a file created in it is
+  heard). On a local disk the directories just created are
   in the kernel's cache and a pass in one piece takes milliseconds -- which is
   why only a slow owner shows what a busy disk does.
