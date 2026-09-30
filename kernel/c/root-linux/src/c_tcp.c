@@ -132,6 +132,7 @@ SDATA (DTP_DICT,    "crypto",           SDF_RD,         "{}",       "Crypto conf
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
 SDATA (DTP_INTEGER, "fd_clisrv",        SDF_RD,         0,          "socket fd of clisrv"),
 SDATA (DTP_INTEGER, "fd_listen",        SDF_RD,         0,          "socket accept listen"),
+SDATA (DTP_POINTER, "tcp_s",            0,              0,          "The C_TCP_S whose connection this clisrv holds, written by it: at the accept (legacy method) or at its start (new method). What its connection stats count by"),
 
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "FALSE", "Connection state. Important filter!"),
@@ -332,6 +333,7 @@ PRIVATE int mt_start(hgobj gobj)
              *  New method
              */
             if(priv->fd_listen > 0) {
+                EXEC_AND_RESET(yev_destroy_event, priv->yev_accept)   // of the last start, stopped
                 priv->yev_accept = yev_dup2_accept_event(
                     yuno_event_loop(),
                     yev_callback, // if return -1 the loop in yev_loop_run will break;

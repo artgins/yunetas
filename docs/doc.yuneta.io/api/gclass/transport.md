@@ -36,6 +36,7 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 | `max_tx_in_progress` | `integer` | Most writes ever in flight at once on the connection (stat, since 7.25.8). `1` is the rule, see *One write in flight*; `0` before the first write. |
 | `peername` | `string` | Remote peer address (read-only). |
 | `sockname` | `string` | Local socket address (read-only). |
+| `tcp_s` | `pointer` | A clisrv only: the `C_TCP_S` whose connection it holds, written by that server at the accept (legacy method) or at its start (new method). |
 
 ### Usage
 
@@ -192,10 +193,32 @@ Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 | `shared` | `bool` | Enable port sharing (`SO_REUSEPORT`). |
 | `crypto` | `json` | TLS configuration for accepted connections. |
 | `only_allowed_ips` | `bool` | Accept only the peers in the yuno's `allowed_ips` list (whitelist mode). The `denied_ips` list applies with or without it. |
-| `connxs` | `integer` | Connections held now (stat): the connected clisrv `C_TCP`s of the channels this server serves whose local port is this server's, read when asked (up to 7.25.20 it read 0). |
-| `tconnxs` | `integer` | Connections accepted since the start (stat): counted at the accept with `child_tree_filter`, and the sum of the clisrvs' own `connxs` with the new method, where each clisrv accepts by itself (up to 7.25.20 it read 0). |
+| `connxs` | `integer` | Connections held now (stat): the connected clisrv `C_TCP`s of the channels this server serves whose `tcp_s` is this server, read when asked (up to 7.25.20 it read 0). |
+| `tconnxs` | `integer` | Connections accepted since the start (stat): counted at the accept with `child_tree_filter`, or, with the new method, where each clisrv accepts by itself, the sum of the own `connxs` of the clisrvs whose `tcp_s` is this server (up to 7.25.20 it read 0). |
 | `refusedConnxs` | `integer` | Connections refused at accept by the ip lists (stat, since 7.25.5). |
 | `clisrv_kw` | `json` | Extra kw passed to each child client/server. |
+
+The stats count by OWNER, not by address: a clisrv is this server's when its
+`tcp_s` names it. Two servers can share one pool of channels (the agent's do)
+and even one port, on two hosts, and a socket number is reused after a stop,
+so neither a local port nor a listen fd says which server a connection came
+from. Two servers on port 7816 over the same four channels:
+
+```C
+json_t *kw_a = json_pack("{s:s, s:{s:{s:s, s:b}}}",
+    "url", "tcp://127.0.0.1:7816",
+    "child_tree_filter", "kw", "__gclass_name__", "C_CHANNEL", "connected", 0
+);
+json_t *kw_b = json_pack("{s:s, s:{s:{s:s, s:b}}}",
+    "url", "tcp://127.0.0.2:7816",
+    "child_tree_filter", "kw", "__gclass_name__", "C_CHANNEL", "connected", 0
+);
+gobj_create("shared_a", C_TCP_S, kw_a, gate);  // the channels are children of gate too
+gobj_create("shared_b", C_TCP_S, kw_b, gate);
+// 2 peers on each: gobj_read_integer_attr(shared_a, "connxs") == 2, not 4
+```
+
+`tests/c/c_tcp_s_stats`.
 
 (tcp_s_ip_lists)=
 ### IP lists at accept

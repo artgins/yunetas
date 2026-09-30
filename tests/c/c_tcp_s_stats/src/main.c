@@ -141,6 +141,92 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__shared_side__',                              \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'shared_a',                             \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'url': 'tcp://127.0.0.1:7816',              \n\
+                        'child_tree_filter': {                      \n\
+                            'kw': {                                 \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,              \n\
+                                'connected': false                  \n\
+                            }                                       \n\
+                        }                                           \n\
+                    }                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'shared_b',                             \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'url': 'tcp://127.0.0.2:7816',              \n\
+                        'child_tree_filter': {                      \n\
+                            'kw': {                                 \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,              \n\
+                                'connected': false                  \n\
+                            }                                       \n\
+                        }                                           \n\
+                    }                                               \n\
+                }                                                   \n\
+            ],                                                      \n\
+            '[^^children^^]': {                                     \n\
+                '__range__': [1,4],                                 \n\
+                '__vars__': {                                       \n\
+                },                                                  \n\
+                '__content__': {                                    \n\
+                    'name': 'shared-(^^__range__^^)',               \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'shared-(^^__range__^^)',       \n\
+                            'gclass': 'C_PROT_TCP4H',               \n\
+                            'children': [                           \n\
+                                {                                   \n\
+                                    'gclass': 'C_TCP'               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__names_side__',                               \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'names_port',                           \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'url': 'tcp://127.0.0.1:7817'               \n\
+                    }                                               \n\
+                }                                                   \n\
+            ],                                                      \n\
+            '[^^children^^]': {                                     \n\
+                '__range__': [1,2],                                 \n\
+                '__vars__': {                                       \n\
+                },                                                  \n\
+                '__content__': {                                    \n\
+                    'name': 'names-(^^__range__^^)',                \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'names-(^^__range__^^)',        \n\
+                            'gclass': 'C_PROT_TCP4H'                \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\

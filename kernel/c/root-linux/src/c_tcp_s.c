@@ -8,6 +8,7 @@
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <limits.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -149,6 +150,7 @@ typedef struct _PRIVATE_DATA {
     BOOL trace_tls;
 
     json_int_t tconnxs;             // accepted here (legacy method)
+    int clisrvs_created;            // names of the clisrvs created (new method), unique across restarts
     json_int_t refusedConnxs;
 
     uint64_t t_refusal_log[REFUSAL_CAUSES];         // next log of a cause (msectimer)
@@ -478,7 +480,6 @@ PRIVATE int mt_start(hgobj gobj)
         hgobj child = gobj_first_child(parent);
         int fd_listen = yev_get_fd(priv->yev_server_accept);
         int channels = 0;
-        int clisrvs_created = 0;
         while(child) {
             if(gobj_gclass_name(child) == C_CHANNEL ||
                 gobj_typeof_inherited_gclass(child, C_CHANNEL) // TODO review TODO in c_ievent_srv.c
@@ -513,9 +514,9 @@ PRIVATE int mt_start(hgobj gobj)
                     /*-------------------*
                      *  Name of clisrv
                      *-------------------*/
-                    clisrvs_created++;
-                    char xname[80];
-                    snprintf(xname, sizeof(xname), "clisrv-%d", clisrvs_created);
+                    priv->clisrvs_created++;
+                    char xname[NAME_MAX];
+                    snprintf(xname, sizeof(xname), "clisrv-%d", priv->clisrvs_created);
 
                     clisrv = gobj_create_pure_child(
                         xname, // the same name as the filter.
@@ -541,6 +542,7 @@ PRIVATE int mt_start(hgobj gobj)
                 gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
                 gobj_write_integer_attr(clisrv, "fd_clisrv", -1);
                 gobj_write_integer_attr(clisrv, "fd_listen", fd_listen);
+                gobj_write_pointer_attr(clisrv, "tcp_s", gobj);
                 gobj_start(clisrv); // this will create a yev_dup2_accept_event
                 channels++;
             }
@@ -631,11 +633,15 @@ PRIVATE BOOL is_loopback_peer(const char *peername)
  *  them): no clisrv tells this gobj of its connection or of its end, and
  *  with the new method the accept is the clisrv's own.
  *
- *  `connxs`: the clisrvs connected now whose local port is this server's
- *  (two servers can share one pool of channels, the agent's do).
- *  `tconnxs`: the accepts counted here (legacy method), plus the
- *  connections of each clisrv that accepts on this server's socket (new
- *  method, its `connxs`).
+ *  A clisrv is this server's when its `tcp_s` names it: written at the
+ *  accept (legacy method) or at the start (new method). Two servers can
+ *  share one pool of channels, the agent's do, and even a port (on two
+ *  hosts); a socket number is reused after a stop.
+ *
+ *  `connxs`: the clisrvs of this server connected now.
+ *  `tconnxs`: the accepts counted here (legacy method), or the connections
+ *  of each clisrv of this server, each accepting by itself (new method,
+ *  its `connxs`).
  *
  *  Up to 7.25.20 both stats read 0: SDF_STATS attrs whose priv counters no
  *  mt_reading served, a `connxs` that was never decremented (its EV_STOPPED
@@ -649,11 +655,10 @@ PRIVATE void count_connections(hgobj gobj, json_int_t *connxs, json_int_t *tconn
     *connxs = 0;
     *tconnxs = priv->tconnxs;
 
-    const char *lPort = gobj_read_str_attr(gobj, "lPort");
-    if(empty_string(lPort)) {
-        return; // not listening
+    if(empty_string(gobj_read_str_attr(gobj, "lPort"))) {
+        return; // never started
     }
-    int fd_listen = priv->yev_server_accept? yev_get_fd(priv->yev_server_accept) : -1;
+    BOOL new_method = json_object_size(priv->child_tree_filter) == 0;
 
     hgobj child = gobj_first_child(gobj_parent(gobj));
     while(child) {
@@ -663,16 +668,13 @@ PRIVATE void count_connections(hgobj gobj, json_int_t *connxs, json_int_t *tconn
             hgobj clisrv = gobj_last_bottom_gobj(child);
             if(clisrv &&
                 gobj_gclass_name(clisrv) == C_TCP &&
-                gobj_read_bool_attr(clisrv, "__clisrv__")
+                gobj_read_bool_attr(clisrv, "__clisrv__") &&
+                gobj_read_pointer_attr(clisrv, "tcp_s") == gobj
             ) {
                 if(gobj_read_bool_attr(clisrv, "connected")) {
-                    const char *sockname = gobj_read_str_attr(clisrv, "sockname");
-                    const char *port = sockname? strrchr(sockname, ':') : NULL;
-                    if(port && strcmp(port+1, lPort)==0) {
-                        (*connxs)++;
-                    }
+                    (*connxs)++;
                 }
-                if(fd_listen >= 0 && gobj_read_integer_attr(clisrv, "fd_listen") == fd_listen) {
+                if(new_method) {
                     *tconnxs += gobj_read_integer_attr(clisrv, "connxs");
                 }
             }
@@ -947,6 +949,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
         gobj_write_bool_attr(clisrv, "__clisrv__", TRUE);
         gobj_write_integer_attr(clisrv, "fd_clisrv", fd_clisrv);
+        gobj_write_pointer_attr(clisrv, "tcp_s", gobj);
 
         gobj_start(clisrv); // this call set_connected(clisrv);
 
