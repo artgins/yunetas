@@ -153,6 +153,7 @@ PRIVATE int open_store(hgobj gobj);
 PRIVATE int close_store(hgobj gobj);
 PRIVATE int store_report(hgobj gobj);
 PRIVATE json_t *load_report(hgobj gobj, const char *date);
+PRIVATE json_int_t report_activity(hgobj gobj, json_t *report);
 PRIVATE int prune_store(hgobj gobj);
 PRIVATE void compare_with_history(hgobj gobj);
 PRIVATE void count_new_visitors(hgobj gobj);
@@ -2156,10 +2157,23 @@ PRIVATE int store_report(hgobj gobj)
 }
 
 /***************************************************************************
+ *  What a report saw: its requests plus its errors. 0 is the NO DATA of
+ *  the subject line.
+ ***************************************************************************/
+PRIVATE json_int_t report_activity(hgobj gobj, json_t *report)
+{
+    return kw_get_int(gobj, json_object_get(report, "totals"), "requests", 0, 0) +
+           kw_get_int(gobj, json_object_get(report, "errors"), "total", 0, 0);
+}
+
+/***************************************************************************
  *  The stored record of a day, or NULL.
  *
- *  Read backward and take one: a day reported more than once has more than
- *  one record under its key, and the newest is the answer.
+ *  A day reported more than once has more than one record under its key,
+ *  and the newest is the answer -- unless it is empty and an older one is
+ *  not: a rebuild after the logs rotated away stored NO DATA over a real
+ *  day until 7.25.17, and the store being append-only, the real day is
+ *  still there to be answered.
  ***************************************************************************/
 PRIVATE json_t *load_report(hgobj gobj, const char *date)
 {
@@ -2197,9 +2211,20 @@ PRIVATE json_t *load_report(hgobj gobj, const char *date)
 
     if(rows > 0) {
         json_t *page = tranger2_iterator_get_page(
-            priv->tranger, iterator, (json_int_t)rows, 1, FALSE
+            priv->tranger, iterator, 1, (json_int_t)rows, FALSE
         );
-        record = json_incref(json_array_get(json_object_get(page, "data"), 0));
+        json_t *data = json_object_get(page, "data");
+        size_t n = json_array_size(data);
+        for(size_t i = n; i > 0; i--) {
+            json_t *r = json_array_get(data, i - 1);
+            if(report_activity(gobj, r) > 0) {
+                record = json_incref(r);
+                break;
+            }
+        }
+        if(!record && n > 0) {
+            record = json_incref(json_array_get(data, n - 1));   // all empty: the newest
+        }
         JSON_DECREF(page)
     }
 
@@ -3678,45 +3703,52 @@ PRIVATE int complete_run(hgobj gobj)
      *  answers. Found by rebuilding 2026-08-05 on the 7th: the day was gone
      *  from disk, the report came back empty, and every visitor of the day
      *  after looked new because the day before had nobody in it.
+     *
+     *  "Nothing" is what the REPORT says -- no request and no error, the
+     *  same test that writes NO DATA in the subject -- and not the lines
+     *  kept from every source: the fail2ban and error logs of a day outlive
+     *  its access log, so up to 7.25.17 a rebuild of such a day kept some
+     *  lines, passed this guard, and stored (and mailed) NO DATA over a day
+     *  of 4632 requests.
+     *
+     *  Asked to send it, the run sends the STORED report instead: whoever
+     *  rebuilds a day with send=1 wants that day's mail.
      */
-    json_int_t kept = 0;
-    size_t idx;
-    json_t *jn_source;
-    json_array_foreach(kw_get_list(gobj, priv->jn_report, "sources", 0, KW_REQUIRED), idx, jn_source) {
-        kept += kw_get_int(gobj, jn_source, "kept", 0, 0);
-    }
+    json_int_t got = report_activity(gobj, priv->jn_report);
 
-    BOOL abandon = FALSE;
-    if(kept == 0) {
-        json_t *stored = load_report(gobj, priv->target_date);
-        if(stored) {
-            json_int_t had = kw_get_int(gobj,
-                json_object_get(stored, "totals"), "requests", 0, 0
+    json_t *stored = NULL;
+    if(got == 0) {
+        stored = load_report(gobj, priv->target_date);
+        if(stored && report_activity(gobj, stored) > 0) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", "Read nothing for a day already stored with data, keeping the stored one",
+                "date",         "%s", priv->target_date,
+                "stored",       "%ld", (long)report_activity(gobj, stored),
+                NULL
             );
-            had += kw_get_int(gobj, json_object_get(stored, "errors"), "total", 0, 0);
-            if(had > 0) {
-                abandon = TRUE;
-                gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_OPERATIONAL,
-                    "msg",          "%s", "Read nothing for a day already stored with data, keeping the stored one",
-                    "date",         "%s", priv->target_date,
-                    "stored",       "%ld", (long)had,
-                    NULL
-                );
-            }
+        } else {
             JSON_DECREF(stored)
         }
     }
 
-    if(!abandon) {
+    if(!stored) {
         store_report(gobj);     // Error already logged
         prune_store(gobj);      // Error already logged
     }
 
-    if(priv->send_when_done && !abandon) {
-        send_report(gobj);      // Error already logged
+    if(priv->send_when_done) {
+        if(stored) {
+            json_t *read_now = priv->jn_report;
+            priv->jn_report = stored;
+            send_report(gobj);  // Error already logged
+            priv->jn_report = read_now;
+        } else {
+            send_report(gobj);  // Error already logged
+        }
     }
+    JSON_DECREF(stored)
 
     gobj_publish_event(gobj, EV_REPORT_READY, json_incref(priv->jn_report));
 

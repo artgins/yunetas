@@ -11,6 +11,18 @@
   tracing a report that did not arrive; the two lines that had been written
   on wattyzer were overwritten in place.
 
+### webstats: a rebuilt day with no access log keeps (and sends) the stored report
+
+- The guard against storing an empty rebuild over a good day measured the
+  lines KEPT from every source; the fail2ban and error logs of a day outlive
+  its access log, so rebuilding such a day (`report-day ... send=1` after the
+  rotation) passed the guard and stored -- and mailed -- `NO DATA` over a day
+  of 4632 requests. It measures what the report saw now (requests + errors,
+  the NO DATA of the subject), and a rebuild asked to send mails the STORED
+  report. `load_report` answers the newest record WITH data when a later one
+  is empty (the store is append-only: the good day was never lost), which
+  also mends the days already written that way.
+
 ### webstats: `send-yesterday`
 
 - Builds the report of yesterday and mails it, whatever `send_email` says,
