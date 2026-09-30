@@ -102,9 +102,20 @@ checkout. See `HACKS.md`. Every node that builds from source must run
 `./extrae.sh && ./configure-libs.sh` again, and then rebuild the SDK and
 its yunos.
 
-> If you change the version of any library, update
-> `VERSION_INSTALLED.txt` and the corresponding version in
-> `configure-libs.sh`.
+### openresty: release tarball (configure-libs.sh v1.23)
+
+openresty comes from its release tarball on openresty.org (sha256 pinned in
+`repos2clone.sh`), not from a git clone: building from the git tag fetches
+about 45 modules as tarballs from github.com. Same sources, same binary.
+Every node that builds from source must run `./extrae.sh &&
+./configure-libs.sh` again.
+
+> **Any change to the scripts of this directory bumps `VERSION` in
+> `configure-libs.sh`**, with its entry in the header — a library version, a
+> patch, a flag, or where a source comes from. The `yunetas` CLI compares it
+> with `VERSION_INSTALLED.txt` and refuses to build until the libraries are
+> reinstalled, which is how every node that builds from source learns that
+> its external libraries are stale.
 >
 > A fix to a library that upstream has not released goes in
 > `patches/<lib>/NNNN-<what>.patch` (a `git diff` with a header that says

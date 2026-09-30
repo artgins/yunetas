@@ -12,8 +12,10 @@
   only git reaches GitHub (Claude Code on the web). The release tarball IS the
   output of that step, with the same modules at the same versions (checked
   against the `ver=` pins of `mirror-tarballs` at `v1.31.1.1`), and it is
-  configured with the same flags: the installed binary does not change, so
-  `configure-libs.sh` keeps `VERSION="1.22"` and no node has to rebuild.
+  configured with the same flags, so the binary is built from the same
+  sources. `configure-libs.sh` goes to **`VERSION="1.23"`**: every node that
+  builds from source must run `./extrae.sh && ./configure-libs.sh` again
+  before `yunetas build`.
 
 ### root-linux: the house rules, applied where an audit found them broken
 

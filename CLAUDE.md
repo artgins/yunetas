@@ -817,6 +817,12 @@ commit** as the migration of every consumer (includes +
 `target_link_libraries`). Grep all consumers first, list them as companion
 changes, and verify with `nm`/`strings` on rebuilt binaries.
 
+**Any change to the scripts of `kernel/c/linux-ext-libs/` bumps `VERSION` in
+`configure-libs.sh`** (with its entry in the header), even when the installed
+libraries come out identical: the version tracks the scripts, not the
+binaries, and the `yunetas` CLI uses it to tell every node that builds from
+source to rerun `./extrae.sh && ./configure-libs.sh`.
+
 ### Fully Static Binaries (`CONFIG_FULLY_STATIC`)
 
 Produces fully static glibc binaries (GCC or Clang) that run on any Linux of the

@@ -210,7 +210,20 @@
 #       be rebuilt + relinked to pick it up. Verify: `strings` of the
 #       installed libjansson.a has "not enough memory" (load.o had none).
 
-VERSION="1.22"
+#   version 1.23
+#       openresty 1.31.1.1 from its release tarball (openresty.org, sha256
+#       pinned as SHA256_OPENRESTY in repos2clone.sh, downloaded and checked
+#       by extrae.sh) instead of the git tag + `make`. That `make` ran
+#       util/mirror-tarballs, which fetches ~45 modules as tarballs from
+#       github.com and stops where only git reaches GitHub. The release
+#       tarball is the output of mirror-tarballs, with the same modules at the
+#       same versions, and ./configure keeps its flags: the openresty binary is
+#       built from the same sources. No library version changes and no
+#       consumer, header or CMakeLists change rides along; the bump is because
+#       the scripts changed. Every node that builds from source must run
+#       `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.23"
 
 
 source ./repos2clone.sh
