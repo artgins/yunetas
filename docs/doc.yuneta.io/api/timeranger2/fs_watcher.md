@@ -277,6 +277,10 @@ What the owners of the tree do:
   7.25.20 a feed that overflowed while another feed of its topic heard a
   delete never heard of it.
 
+  A feed is told the deletes of the keys it wants: its `key`, or the keys its
+  `rkey` matches, or every key (up to 7.25.20 only `key` was looked at, and a
+  feed opened with an `rkey` was told every key deleted).
+
   What an overflow told is not told again. The kernel queues its overflow at
   the end of a full queue, and as the watcher reads down to it room is made
   behind it: the master's signal of a delete can be queued there, and comes

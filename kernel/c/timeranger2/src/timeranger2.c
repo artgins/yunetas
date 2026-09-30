@@ -524,10 +524,6 @@ PRIVATE json_t *feed_of_watcher(
     json_t *watched_topic,
     fs_event_t *fs_event
 );
-PRIVATE BOOL feed_wants_key_deleted(
-    json_t *disk,
-    const char *key
-);
 PRIVATE void count_key_delete_heard(
     json_t *watched_topic,
     fs_event_t *fs_event,
@@ -4287,7 +4283,9 @@ PUBLIC int tranger2_append_record(
  *      topic.iterators[]   — open_iterator
  *      topic.disks[]       — rt_disk
  *
- *  Each entry's `key` field is the filter ("" = match all).
+ *  An entry is told the keys it wants (list_wants_key()): its `key`, or
+ *  the keys its `rkey` matches, or every key. Up to 7.25.20 only `key` was
+ *  looked at, and a feed opened with an rkey heard every key deleted.
  *
  *  A feed with an fs_watcher (an rt_disk with a loop) is NOT fired here: it
  *  hears of the delete through its own directory (client_fs_callback ->
@@ -4333,9 +4331,7 @@ PRIVATE void fire_key_deleted_locally(
             if(json_integer_value(json_object_get(entry, "fs_event_client"))) {
                 continue;   // Its directory tells it
             }
-            const char *filter_key = json_string_value(json_object_get(entry, "key"));
-            if(filter_key && filter_key[0] != '\0'
-                    && strcmp(filter_key, deleted_key) != 0) {
+            if(!list_wants_key(entry, deleted_key)) {
                 continue;
             }
             tranger2_key_deleted_callback_t cb =
@@ -4353,7 +4349,8 @@ PRIVATE void fire_key_deleted_locally(
 
 /***************************************************************************
  *  Tell ONE rt_disk feed that a key was deleted: drop its watermark of the
- *  key and, when the feed wants the key, call its key_deleted callback.
+ *  key and, when the feed wants the key (list_wants_key(): its key or its
+ *  rkey), call its key_deleted callback.
  *  The callback may close the feed: `disk` is not touched after it.
  ***************************************************************************/
 PRIVATE void fire_key_deleted_to_feed(
@@ -4368,8 +4365,7 @@ PRIVATE void fire_key_deleted_to_feed(
         json_object_del(published, deleted_key);
     }
 
-    const char *filter_key = json_string_value(json_object_get(disk, "key"));
-    if(filter_key && filter_key[0] != '\0' && strcmp(filter_key, deleted_key) != 0) {
+    if(!list_wants_key(disk, deleted_key)) {
         return;
     }
     tranger2_key_deleted_callback_t cb =
@@ -6968,29 +6964,13 @@ PRIVATE json_t *feed_of_watcher(
 }
 
 /***************************************************************************
- *  CLIENT: a feed is told the deletes of its key, or of every key when it
- *  has none (as fire_key_deleted_to_feed() decides)
- ***************************************************************************/
-PRIVATE BOOL feed_wants_key_deleted(
-    json_t *disk,
-    const char *key
-)
-{
-    const char *filter_key = json_string_value(json_object_get(disk, "key"));
-    if(empty_string(filter_key)) {
-        return TRUE;
-    }
-    return strcmp(filter_key, key)==0? TRUE: FALSE;
-}
-
-/***************************************************************************
  *  CLIENT: a feed heard a key-delete from its own directory. Every feed of
  *  the topic hears each delete once, each from its own watcher, but the
  *  cache they share forgets the key with the FIRST one: a feed that lost
  *  the signal in an overflow could no longer find the key gone by
  *  comparing that cache with keys/. So the first feed to hear a delete
  *  (the key is still in the cache) counts it as owed by every other
- *  watched feed told the deletes of that key (`deletes_unheard`, per
+ *  watched feed that wants that key (`deletes_unheard`, per
  *  feed), and each one pays when it hears it; what an overflow leaves owed
  *  is told by forget_keys_deleted_unheard().
  *
@@ -7039,7 +7019,7 @@ PRIVATE void count_key_delete_heard(
         fs_event_t *fs = (fs_event_t *)(uintptr_t)json_integer_value(
             json_object_get(disk_, "fs_event_client")
         );
-        if(disk_ == disk || !fs || !feed_wants_key_deleted(disk_, deleted_key)) {
+        if(disk_ == disk || !fs || !list_wants_key(disk_, deleted_key)) {
             continue;
         }
         json_t *unheard_ = json_object_get(disk_, "deletes_unheard");

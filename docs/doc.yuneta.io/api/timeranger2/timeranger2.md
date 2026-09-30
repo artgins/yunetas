@@ -939,8 +939,21 @@ this subscriber tracks:
 - On `rt_by_disk` followers, from the inotify watcher on
   `disks/<rt_id>/` when the master mirrors the deletion.
 
-The subscriber's `key` filter is honoured: an empty filter (`""`)
-matches every deletion. A specific key only matches that one.
+The subscriber's filter is honoured, the same one its records go through:
+a specific `key` matches that one, an `rkey` (in `match_cond`) the keys its
+regular expression matches, and neither of them every deletion. Up to
+7.25.20 only `key` was looked at, and a feed opened with an `rkey` was told
+every key deleted:
+
+```C
+json_t *rt = tranger2_open_rt_mem(
+    tranger, "devices", "", json_pack("{s:s}", "rkey", "^DVES_"),
+    on_record, "dves-card", "", NULL
+);
+tranger2_set_rt_key_deleted_callback(rt, on_key_deleted, NULL);
+tranger2_delete_key(tranger, "devices", "OTHER_1");     // on_key_deleted not called
+tranger2_delete_key(tranger, "devices", "DVES_000000"); // called once
+```
 
 Additive: existing handles default to "no callback", behavior
 unchanged. Passing `cb=NULL` clears any previously registered callback.

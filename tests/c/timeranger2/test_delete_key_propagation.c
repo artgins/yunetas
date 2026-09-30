@@ -14,6 +14,11 @@
  *        delete exactly once, with and without records since it opened, its
  *        cache loses the key, and a feed may close itself from the callback.
  *      - do_test_cache_cleared:       topic.cache rollup loses the entry.
+ *      - do_test_rkey_filter:         a feed opened with an `rkey` (a
+ *        regular expression over the keys) is told the deletes of the keys
+ *        it matches and of no other: an rt_mem feed of the master and an
+ *        rt_disk feed of a follower. Up to 7.25.20 the delete looked at
+ *        the exact `key` only, and an rkey feed heard every key deleted.
  *      - do_test_rmrdir_fails:        a key whose directory cannot be removed
  *        is NOT announced deleted: the notices go out after the rmrdir.
  *      - do_test_rmrdir_fails_filtered: a delete that fails with no file
@@ -781,7 +786,7 @@ PRIVATE int do_test_rt_disk_in_process(void)
  *  with two deletes in the same inotify batch: the watcher is stopped from
  *  inside its own callback, and the rest of the batch must not run on it.
  ***************************************************************************/
-PRIVATE int count_a = 0, count_b = 0, count_all = 0, count_close = 0;
+PRIVATE int count_a = 0, count_b = 0, count_all = 0, count_close = 0, count_rkey = 0;
 PRIVATE json_t *closing_tranger = NULL;
 
 PRIVATE int follower_key_deleted_callback(
@@ -799,6 +804,8 @@ PRIVATE int follower_key_deleted_callback(
         count_b++;
     } else if(id && strcmp(id, "rtALL")==0) {
         count_all++;
+    } else if(id && strcmp(id, "rtRKEY")==0) {
+        count_rkey++;
     } else if(id && strcmp(id, "rtCLOSE")==0) {
         count_close++;
         tranger2_close_rt_disk(closing_tranger, list);  // the feed closes itself
@@ -945,6 +952,116 @@ PRIVATE int do_test_follower(void)
     result += test_json(NULL);
 
     set_expected_results("follower: shutdown", NULL, NULL, NULL, 1);
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    drain(10);
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  do_test_rkey_filter
+ *  Feeds whose rkey matches KEY_A only: KEY_B deleted, they hear nothing;
+ *  KEY_A deleted, each hears it once.
+ ***************************************************************************/
+PRIVATE int do_test_rkey_filter(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+    reset_callback_state();
+    count_a = count_b = count_all = count_rkey = 0;
+
+    set_expected_results(
+        "rkey: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_master(path_root, TRUE);
+    if(!tm || create_topic(tm) < 0) {
+        if(tm) {
+            tranger2_shutdown(tm);
+        }
+        return -1;
+    }
+    if(append_to(tm, 1, 1) < 0 || append_to(tm, 2, 1) < 0) {
+        result += -1;
+    }
+    drain(5);
+    result += test_json(NULL);
+
+    set_expected_results("rkey: a feed hears the deletes of the keys it matches", NULL, NULL, NULL, 1);
+
+    json_t *rt_mem = tranger2_open_rt_mem(
+        tm, TOPIC_NAME, "",
+        json_pack("{s:s}", "rkey", "1$"),
+        my_record_callback,
+        "rkey_mem",
+        "", NULL
+    );
+    tranger2_set_rt_key_deleted_callback(rt_mem, my_key_deleted_callback, NULL);
+
+    json_t *tf = startup_tranger(path_root, FALSE, TRUE);
+    if(!rt_mem || !tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        printf("%sERROR%s --> rkey: cannot open the feeds\n", On_Red BWhite, Color_Off);
+        if(tf) {
+            tranger2_shutdown(tf);
+        }
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    json_t *rt_rkey = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, "", json_pack("{s:s}", "rkey", "1$"), my_record_callback, "rtRKEY", "", NULL
+    );
+    json_t *rt_all = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, my_record_callback, "rtALL", "", NULL);
+    if(!rt_rkey || !rt_all) {
+        result += -1;
+    }
+    tranger2_set_rt_key_deleted_callback(rt_rkey, follower_key_deleted_callback, NULL);
+    tranger2_set_rt_key_deleted_callback(rt_all, follower_key_deleted_callback, NULL);
+    drain(10);
+
+    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_B) < 0) {
+        result += -1;
+    }
+    drain(30);
+    if(deleted_callback_count != 0 || count_rkey != 0 || count_all != 1) {
+        printf("%sERROR%s --> rkey, delete of KEY_B: rt_mem %zu, rt_disk rkey %d, rt_disk all %d, expected 0/0/1\n",
+            On_Red BWhite, Color_Off, deleted_callback_count, count_rkey, count_all);
+        result += -1;
+    }
+    reset_callback_state();
+    count_rkey = count_all = 0;
+
+    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) < 0) {
+        result += -1;
+    }
+    drain(30);
+    if(deleted_callback_count != 1 || count_rkey != 1 || count_all != 1) {
+        printf("%sERROR%s --> rkey, delete of KEY_A: rt_mem %zu, rt_disk rkey %d, rt_disk all %d, expected 1/1/1\n",
+            On_Red BWhite, Color_Off, deleted_callback_count, count_rkey, count_all);
+        result += -1;
+    }
+    if(json_object_size(json_object_get(rt_rkey, "deletes_unheard")) != 0 ||
+       json_object_size(json_object_get(rt_all, "deletes_unheard")) != 0) {
+        printf("%sERROR%s --> rkey: a feed owes deletes it will never hear\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    count_a = count_b = count_all = count_rkey = 0;
+
+    tranger2_close_rt_mem(tm, rt_mem);
+    tranger2_close_rt_disk(tf, rt_rkey);
+    tranger2_close_rt_disk(tf, rt_all);
+    drain(20);
+    result += test_json(NULL);
+
+    set_expected_results("rkey: shutdown", NULL, NULL, NULL, 1);
     tranger2_shutdown(tf);
     tranger2_shutdown(tm);
     drain(10);
@@ -1269,6 +1386,7 @@ int main(int argc, char *argv[])
     result += do_test_rt_disk_in_process();
     result += do_test_follower();
     result += do_test_cache_cleared();
+    result += do_test_rkey_filter();
     result += do_test_rmrdir_fails();
     result += do_test_rmrdir_fails_filtered();
     result += do_test_key_dir_unstatable();
