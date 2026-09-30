@@ -19,6 +19,14 @@
  *          datagrams from many ports cannot take the yuno to its memory
  *          ceiling.
  *
+ *          When its C_UDP_S stops by itself (its read failed, or could not
+ *          start again: EV_STOPPED while this gobj runs), the service would
+ *          be deaf, and every send would reach a stopped C_UDP_S ("Event
+ *          NOT DEFINED in state"). So it is said once, the sends are
+ *          refused (one warning a stop), and the C_UDP_S is started again at
+ *          the next timeout_base, the backoff of a failure that persists.
+ *          Up to 7.25.20 the EV_STOPPED was taken with no action.
+ *
     TODO review, dl_list is not a good choice for performance (bounded by
     max_channels)
 
@@ -80,6 +88,7 @@ PRIVATE UDP_CHANNEL *new_udp_channel(hgobj gobj, const char *name);
 PRIVATE void del_udp_channel(hgobj gobj, UDP_CHANNEL *ch);
 PRIVATE void publish_frame(hgobj gobj, UDP_CHANNEL *ch);
 PRIVATE void free_channels(hgobj gobj);
+PRIVATE void restart_udp_server(hgobj gobj);
 
 
 /***************************************************************************
@@ -138,6 +147,8 @@ typedef struct _PRIVATE_DATA {
     json_int_t pending_drops;       // not logged since the last log
     uint64_t t_frame_cut_log;       // msectimer: no log of a frame cut before it
     json_int_t frames_cut;          // not logged since the last log
+    BOOL udp_stopped;               // the C_UDP_S stopped by itself, started again at the next timeout
+    json_int_t tx_dropped;          // sends refused while it is stopped
 } PRIVATE_DATA;
 
 
@@ -222,6 +233,8 @@ PRIVATE int mt_stop(hgobj gobj)
     clear_timeout(priv->timer);
     gobj_stop(priv->gobj_udp_s);
     free_channels(gobj);
+    priv->udp_stopped = FALSE;
+    priv->tx_dropped = 0;
     return 0;
 }
 
@@ -322,6 +335,33 @@ PRIVATE void publish_frame(hgobj gobj, UDP_CHANNEL *ch)
     );
     ch->gbuf = 0;
     gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ev);
+}
+
+/***************************************************************************
+ *  Start again the C_UDP_S that stopped by itself. A start that fails is
+ *  tried again at the next timeout.
+ ***************************************************************************/
+PRIVATE void restart_udp_server(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_is_running(priv->gobj_udp_s)) {
+        gobj_stop(priv->gobj_udp_s);
+    }
+    if(gobj_start(priv->gobj_udp_s) < 0) {
+        // Error already logged
+        return;
+    }
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",          "%s", "UDP server started again",
+        "url",          "%s", gobj_read_str_attr(gobj, "url"),
+        "tx_dropped",   "%ld", (long)priv->tx_dropped,
+        NULL
+    );
+    priv->udp_stopped = FALSE;
+    priv->tx_dropped = 0;
 }
 
 /***************************************************************************
@@ -530,6 +570,21 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         return -1;
     }
 
+    if(priv->udp_stopped) {
+        if(priv->tx_dropped++ == 0) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "EV_SEND_MESSAGE while the UDP server is stopped, dropped",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "len",          "%d", (int)gbuffer_leftbytes(gbuf),
+                NULL
+            );
+        }
+        KW_DECREF(kw);
+        return -1;  // the first one logged, the count at the restart
+    }
+
     /*
      *  C_UDP_S sends to the address of the gbuffer. Without one, the label
      *  names the peer: a known channel, whose address is taken. Up to 7.25.4
@@ -574,6 +629,10 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     UDP_CHANNEL *ch, *nx;
 
+    if(priv->udp_stopped) {
+        restart_udp_server(gobj);
+    }
+
     ch = dl_first(&priv->dl_channel);
     while(ch) {
         nx = dl_next(ch);
@@ -582,6 +641,30 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             del_udp_channel(gobj, ch);
         }
         ch = nx;
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  The C_UDP_S stopped. By our own stop (mt_stop): its end. By itself: see
+ *  the header, started again at the next timeout.
+ ***************************************************************************/
+PRIVATE int ac_udp_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_is_running(gobj) && !priv->udp_stopped) {
+        priv->udp_stopped = TRUE;
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "UDP server stopped by itself, it is started again at the next timeout_base",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "timeout_base", "%d", (int)priv->timeout_base,
+            NULL
+        );
     }
 
     KW_DECREF(kw);
@@ -640,7 +723,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_MESSAGE,       ac_send_message,    0},
         {EV_TX_READY,           ac_transmit_ready,  0},
         {EV_TIMEOUT_PERIODIC,   ac_timeout,         0},
-        {EV_STOPPED,            0,                  0},
+        {EV_STOPPED,            ac_udp_stopped,     0},
         {0, 0, 0}
     };
 

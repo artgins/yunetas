@@ -227,6 +227,27 @@ The label contract is the original one (the pre-v7 `C_UDP_S` sent to the
 `"ip:port"` of the label); the address is how `C_UDP_S` sends since v7.
 `tests/c/c_udp_s_rx`, case 5.
 
+### When its C_UDP_S stops by itself
+
+`C_UDP_S` stops by itself when its read fails or cannot be started again (no
+memory for the next read, a socket error): it logs the cause as an ERROR and
+publishes `EV_STOPPED`. `C_GSS_UDP_S` then:
+
+- says it once: *"UDP server stopped by itself, it is started again at the
+  next timeout_base"*, WARNING;
+- refuses every `EV_SEND_MESSAGE` until then (the event answers -1), with ONE
+  warning, *"EV_SEND_MESSAGE while the UDP server is stopped, dropped"*;
+- starts the `C_UDP_S` again at its next `timeout_base` tick (the backoff of
+  a failure that persists: a start that fails is tried again at the next
+  one), and says *"UDP server started again"*, INFO, with `tx_dropped`, the
+  sends refused meanwhile.
+
+Its own stop (`gobj_stop()` of the `C_GSS_UDP_S`) stops the `C_UDP_S` too, and
+that `EV_STOPPED` is its end, not a restart. Up to 7.25.20 the `EV_STOPPED`
+was taken with no action: the service could not receive again, and every send
+reached a stopped `C_UDP_S` and logged *"Event NOT DEFINED in state"*.
+`tests/c/c_gss_udp_s_self_stop`.
+
 ### Key attributes
 
 | Attribute | Type | Description |
