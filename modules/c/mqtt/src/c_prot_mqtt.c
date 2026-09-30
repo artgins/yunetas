@@ -21,6 +21,7 @@
  *              SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
  *
  *          Copyright (c) 2022 Niyamaka.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
