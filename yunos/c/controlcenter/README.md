@@ -116,7 +116,10 @@ one before it answered, and a step that fails, does not answer in
 `run_step_timeout` (30000 ms), or whose agent disconnects, ends the run. The
 run is then written to `scenario_runs` -- action, user, start and end, the
 result and answer of every step, and for a `report` what each step answered
-(`data`) -- and the requester is answered with it. One run at a time.
+(`data`) -- and the requester is answered with it. One run at a time. A
+step's answer is taken only from the agent the step went to: `command-agent`
+removes the marks of a step (`__md_iev__` `cc_run`, `cc_step`) from what a
+client forwards.
 
 A web client is told apart by its connection, not by its channel name (which
 the next client takes): streams and run answers reach the channel only while

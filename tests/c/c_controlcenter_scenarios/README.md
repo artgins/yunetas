@@ -29,6 +29,12 @@ the very same string, and the read looks right.
    the test, as 7.25.14 saved it) is checked again by `run-scenario`: the run
    is refused naming the step (`step 0: command: ...`) and nothing is sent to
    the agent. Up to 7.25.20 it ran.
+4. A step's answer counts only from the agent the step went to. Another client
+   sends `command-agent` with the marks of the run's step in its `__md_iev__`
+   (`cc_run`, `cc_step`): they do not reach the agent, and the agent's answer
+   goes to that client, not to the run. A client injects the step's answer
+   itself: dropped with a warning. The agent's answer ends the run. Up to
+   7.25.20 the answer through `command-agent` ended the run.
 
 ## Run
 

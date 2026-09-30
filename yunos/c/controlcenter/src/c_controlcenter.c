@@ -761,6 +761,16 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
     }
 
     /*
+     *  Only run_send_step() marks a request as a step of a run: its answer
+     *  would be taken as the step's
+     */
+    json_t *jn_md_iev = kw_get_dict(gobj, kw, "__md_iev__", 0, 0);
+    if(jn_md_iev) {
+        json_object_del(jn_md_iev, "cc_run");
+        json_object_del(jn_md_iev, "cc_step");
+    }
+
+    /*
      *  Tell the agent which of its pushed events this control center
      *  relays to the web client: an agent sends a watch-yuno-stats
      *  through a control center only if it says EV_YUNO_STATS here. A
@@ -2540,9 +2550,24 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
-     *  The answer of a step of a scenario run: this gobj asked it
+     *  The answer of a step of a scenario run: this gobj asked it, and
+     *  only the agent of the step answers it
      */
     if(kw_get_dict_value(gobj, kw, "__md_iev__`cc_run", 0, 0)) {
+        hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
+        if(priv->run && (src != priv->gobj_input_side || channel_gobj != priv->run_agent_channel)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "answer of a scenario run step not from the agent of the step, dropped",
+                "run",          "%s", kw_get_str(gobj, kw, "__md_iev__`cc_run", "", 0),
+                "src",          "%s", gobj_short_name(src),
+                "channel",      "%s", channel_gobj? gobj_short_name(channel_gobj) : "",
+                NULL
+            );
+            KW_DECREF(kw);
+            return 0;
+        }
         return run_step_answered(gobj, kw);
     }
 

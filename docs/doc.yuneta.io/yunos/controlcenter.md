@@ -236,6 +236,14 @@ end, the result and the answer of every step, and for a `report` what each
 step answered (`data`) -- and the requester is answered with it (the command
 answers when the run is OVER). One run at a time.
 
+A step is marked in its `__md_iev__` (`cc_run`, `cc_step`) and its answer is
+taken only from the channel of the agent it went to: `command-agent` removes
+those two keys from what a client forwards, and an answer that carries them
+from anywhere else is dropped with a warning (*"answer of a scenario run step
+not from the agent of the step, dropped"*). Up to 7.25.20 a client with
+`command-agent` could end, or advance, another user's run with an answer of
+its own.
+
 ```bash
 ycommand ... -c 'run-scenario scenario_id=t1 action=report'
 ycommand ... -c 'scenario-runs scenario_id=t1'        # newest first

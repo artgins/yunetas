@@ -220,6 +220,7 @@ PRIVATE const char *expected_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "answer of a scenario run step not from the agent of the step, dropped",
     "All controlcenter scenarios tests PASSED",
     "Exit to die",
     "Exit to die",

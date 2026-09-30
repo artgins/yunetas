@@ -20,7 +20,10 @@
  *                `__username__`) is refused by save-scenario;
  *              - a scenario saved before those checks (written straight into
  *                the treedb here) is checked again at run-scenario, and the
- *                run refused naming the step.
+ *                run refused naming the step;
+ *              - a step answer is taken only from the agent the step went
+ *                to, and only as this control center marked it: a client
+ *                cannot pass one through command-agent, nor inject one.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -256,6 +259,72 @@ PRIVATE json_t *take_received(hgobj peer)
 }
 
 /***************************************************************************
+ *  The last request the agent got (yours), or NULL (a fail)
+ ***************************************************************************/
+PRIVATE json_t *agent_request(hgobj gobj, const char *what)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *received = take_received(priv->agent_wire);
+    size_t n = json_array_size(received);
+    json_t *kw = n? json_incref(json_object_get(json_array_get(received, n-1), "kw")) : NULL;
+    JSON_DECREF(received)
+    if(!kw) {
+        fail(gobj, what, "the agent got no request");
+    }
+    return kw;
+}
+
+/***************************************************************************
+ *  The agent sends `event` back along the route of `request` (not owned),
+ *  as C_AGENT does: msg_iev_build_response() on the request, arriving
+ *  from its channel of __input_side__.
+ ***************************************************************************/
+PRIVATE void agent_sends(hgobj gobj, gobj_event_t event, json_t *request, int result, const char *comment)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = msg_iev_build_response(
+        gobj,
+        result,
+        json_string(comment),
+        0,
+        0,
+        json_deep_copy(request)
+    );
+    kw_set_subdict_value(gobj, kw, "__temp__", "channel_gobj",
+        json_integer((json_int_t)(uintptr_t)priv->agent_channel));
+    gobj_send_event(priv->cc, event, kw, priv->input_side);
+}
+
+/***************************************************************************
+ *  How many of `event` reached `peer`; the received are taken
+ ***************************************************************************/
+PRIVATE int count_received(hgobj peer, const char *event, const char *comment_part)
+{
+    json_t *received = take_received(peer);
+    int n = 0;
+    size_t idx; json_t *jn;
+    json_array_foreach(received, idx, jn) {
+        const char *ev = json_string_value(json_object_get(jn, "event"));
+        if(!ev || strcmp(ev, event)!=0) {
+            continue;
+        }
+        if(comment_part) {
+            const char *comment = json_string_value(
+                json_object_get(json_object_get(jn, "kw"), "comment")
+            );
+            if(!comment || !strstr(comment, comment_part)) {
+                continue;
+            }
+        }
+        n++;
+    }
+    JSON_DECREF(received)
+    return n;
+}
+
+/***************************************************************************
  *  A command's answer (owned): the result and a part of the comment
  ***************************************************************************/
 PRIVATE int check_response(
@@ -452,6 +521,83 @@ PRIVATE int test_run_checks_old_scenarios(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
+ *  4. A step answer counts only from the step's agent, as marked here
+ ***************************************************************************/
+PRIVATE int test_forged_step_answers(hgobj gobj, hgobj requester, hgobj other)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(requester));
+    json_object_set_new(kw, "scenario_id", json_string("scn"));
+    json_object_set_new(kw, "action", json_string("start"));
+    json_t *response = gobj_command(priv->cc, "run-scenario", kw, requester);
+    if(response) {
+        ret += fail(gobj, "run-scenario answers when the run is over",
+            kw_get_str(gobj, response, "comment", "", 0));
+        JSON_DECREF(response)
+        return ret;
+    }
+    json_t *step = agent_request(gobj, "the step goes to the agent");
+    if(!step) {
+        return -1;
+    }
+    const char *run_id = kw_get_str(gobj, step, "__md_iev__`cc_run", "", 0);
+
+    /*
+     *  Another client, through command-agent, with the marks of the step
+     */
+    kw = client_kw(gobj_name(other));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    kw_set_subdict_value(gobj, kw, "__md_iev__", "cc_run", json_string(run_id));
+    kw_set_subdict_value(gobj, kw, "__md_iev__", "cc_step", json_integer(0));
+    ret += check_response(gobj,
+        gobj_command(priv->cc, "command-agent", kw, other),
+        0, 0, "command-agent with the marks of a step"
+    );
+    json_t *forwarded = agent_request(gobj, "command-agent reaches the agent");
+    if(forwarded) {
+        if(kw_has_key(kw_get_dict(gobj, forwarded, "__md_iev__", 0, 0), "cc_run") ||
+                kw_has_key(kw_get_dict(gobj, forwarded, "__md_iev__", 0, 0), "cc_step")) {
+            ret += fail(gobj, "command-agent forwards the marks of a step", run_id);
+        }
+        agent_sends(gobj, EV_MT_COMMAND_ANSWER, forwarded, 0, "forged through command-agent");
+        JSON_DECREF(forwarded)
+    } else {
+        ret += -1;
+    }
+    if(count_received(requester, EV_MT_COMMAND_ANSWER, 0) != 0) {
+        ret += fail(gobj, "an answer through command-agent ended the run", run_id);
+    }
+    if(count_received(other, EV_MT_COMMAND_ANSWER, "forged through command-agent") != 1) {
+        ret += fail(gobj, "the answer of command-agent reaches its client", "");
+    }
+
+    /*
+     *  A client injects the answer
+     */
+    json_t *forged = msg_iev_build_response(gobj, 0, json_string("forged by a client"), 0, 0,
+        json_deep_copy(step));
+    kw_set_subdict_value(gobj, forged, "__temp__", "channel_gobj",
+        json_integer((json_int_t)(uintptr_t)other));
+    gobj_send_event(priv->cc, EV_MT_COMMAND_ANSWER, forged, priv->top_side);
+    if(count_received(requester, EV_MT_COMMAND_ANSWER, 0) != 0) {
+        ret += fail(gobj, "an answer injected by a client ended the run", run_id);
+    }
+
+    /*
+     *  The agent's
+     */
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "resumed");
+    if(count_received(requester, EV_MT_COMMAND_ANSWER, "done, 1 steps") != 1) {
+        ret += fail(gobj, "the step's answer ends the run", run_id);
+    }
+    JSON_DECREF(step)
+    return ret;
+}
+
+/***************************************************************************
  *  All the tests
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -479,6 +625,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_save_scenario_as_string(gobj, client1);
     result += test_save_refuses_framework_keys(gobj, client1);
     result += test_run_checks_old_scenarios(gobj, client1);
+    result += test_forged_step_answers(gobj, client1, client2);
 
     if(result == 0) {
         gobj_log_info(gobj, 0,
