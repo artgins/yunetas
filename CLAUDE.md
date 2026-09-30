@@ -1586,8 +1586,13 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-gclass-trace gcla
 ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace level=<level> set=1'
 ```
 
-Global levels include `machine` (FSM events), `connections`, `traffic`. GClass
-levels are class-specific (e.g. `C_TCP` has `tls`, `traffic`, `connect`).
+Global levels include `machine` (FSM events), `create_delete`, `ev_kw`,
+`subscriptions`, `commands` (the table is `s_global_trace_level` in `gobj.c`).
+`traffic` and `connections` are NOT global: they are GClass levels, and
+class-specific (e.g. `C_TCP` has `tls`, `traffic`, `connect`), so a byte dump
+is armed with `set-gclass-trace gclass=C_TCP level=traffic` (or a deep trace).
+A frame whose gbuffer is marked `gbuffer_set_secret()` (or sent with
+`"__secret__": true`) is dumped as `<N bytes hidden>`.
 
 **When the yuno never reaches the agent**, every command above is useless — they
 travel over the control channel that is precisely what is missing, and
