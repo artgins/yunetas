@@ -155,6 +155,31 @@ int result = 0;
  */
 PRIVATE BOOL test_finished = FALSE;
 
+/*
+ *  Every ERROR logged, by its msg: the list of expected logs says what was
+ *  logged, not at which level, and a failure caused by the peer is a
+ *  WARNING, not an ERROR (the house decoder-severity rule).
+ */
+PRIVATE json_t *error_msgs = NULL;
+PRIVATE int errors_outside_the_test = 0;
+
+PRIVATE int capture_error_write(void *v, int priority, const char *bf, size_t len)
+{
+    if(priority > LOG_ERR) {
+        return 0;
+    }
+    if(!error_msgs) {
+        errors_outside_the_test++;
+        return 0;
+    }
+    json_t *jn_log = string2json(bf, FALSE);
+    json_array_append_new(error_msgs,
+        json_string(kw_get_str(0, jn_log, "msg", "?", 0))
+    );
+    JSON_DECREF(jn_log)
+    return 0;
+}
+
 PRIVATE void exit_guard(void)
 {
     if(!test_finished) {
@@ -173,6 +198,8 @@ static int register_yuno_and_more(void)
     int result = 0;
 
     rmrdir(BASE);
+
+    error_msgs = json_array();
 
     /*--------------------*
      *  Register gclass
@@ -235,6 +262,21 @@ static void cleaning(void)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
+
+    json_t *expected_errors = json_pack("[s]",
+        "SMTP username or password is empty: emails are queued, NOT sent. Set them with the set-email-user command");
+    if(!json_equal(error_msgs, expected_errors) || errors_outside_the_test) {
+        char *s_got = json2uglystr(error_msgs);
+        char *s_expected = json2uglystr(expected_errors);
+        printf("<-- %sERRORS NOT AS EXPECTED%s: %s\n      logged as ERROR: %s\n      expected:        %s\n",
+            On_Red BWhite, Color_Off, APP_NAME, s_got, s_expected
+        );
+        GBMEM_FREE(s_got)
+        GBMEM_FREE(s_expected)
+        result += -1;
+    }
+    JSON_DECREF(expected_errors)
+    JSON_DECREF(error_msgs)
 }
 
 /***************************************************************************
@@ -261,6 +303,14 @@ int main(int argc, char *argv[])
         0                   // fwrite_fn
     );
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+
+    gobj_log_register_handler(
+        "errors",           // handler_name
+        0,                  // close_fn
+        capture_error_write,// write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("test_errors", "errors", LOG_OPT_UP_ERROR, 0);
 
     /*------------------------------------------------*
      *      To check memory loss

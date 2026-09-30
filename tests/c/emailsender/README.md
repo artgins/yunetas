@@ -17,6 +17,11 @@ against a fake SMTP server.
   later: a test acts while the client is in its handshake.
 - **Driver**: `C_TEST_EMAILSENDER`, one `scenario` per test (see its header).
 
+Each test also lists the messages it expects logged as ERROR (most expect
+none): the list of expected logs says what was logged, not at which level, so
+a second log handler collects every ERROR and the test compares them at its
+end. A failure the SMTP server causes is a WARNING, not an ERROR.
+
 A test whose yuno exits by itself (`LOG_OPT_EXIT_ZERO`, as `C_EMAILSENDER`
 does on a refused login) never reaches its checks: an `atexit()` guard turns
 that exit into a failure.

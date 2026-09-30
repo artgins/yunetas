@@ -72,6 +72,12 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
 - **Why a session closed**: every close caused by a reply of the server
   (a refused login, a refused message, a failed EHLO, ...) carries that reply's
   text on `EV_ON_CLOSE` as `reply`, next to its code.
+- **Severity**: a session the server ends -- a refusal, a `4xx`, an unexpected
+  or malformed reply, a reply that never comes -- is a **WARNING** of the
+  `Protocol` msgset from `C_SMTP_SESSION`, with the reply (capped at 512 bytes).
+  An ERROR from the session is our own failure (no memory, an encoder). What
+  the emailsender decides about the email stays as it was: `email NOT sent,
+  moved to failed queue` and the exit on rejected credentials are ERRORs.
 - **Binary bodies**: a non-UTF-8 body is persisted base64 under `body_base64`
   (a plain `json_string` would silently drop it) and decoded at send time.
 
